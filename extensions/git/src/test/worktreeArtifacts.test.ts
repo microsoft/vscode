@@ -42,6 +42,12 @@ suite('git.artifactProvider.worktrees', () => {
 		return artifacts.map(artifact => artifact.id).sort();
 	}
 
+	// On Windows, `Uri.fsPath` lower cases the drive letter while `fs.realpath`
+	// preserves it, so paths are compared in their `Uri.fsPath` form
+	function toFsPath(fsPath: string): string {
+		return Uri.file(fsPath).fsPath;
+	}
+
 	suiteSetup(async () => {
 		// The test host can inherit an incomplete Git config environment from its launcher.
 		process.env.GIT_CONFIG_COUNT = '0';
@@ -99,15 +105,15 @@ suite('git.artifactProvider.worktrees', () => {
 		const groups = await didChangeWorktrees;
 
 		assert.deepStrictEqual({
-			before: before.map(worktreePath => path.normalize(worktreePath)).sort(),
+			before: before.map(toFsPath).sort(),
 			groups,
-			after: (await getWorktreeArtifacts(repository)).map(worktreePath => path.normalize(worktreePath)).sort(),
-			worktrees: repository.worktrees.map(worktree => path.normalize(worktree.path))
+			after: (await getWorktreeArtifacts(repository)).map(toFsPath).sort(),
+			worktrees: repository.worktrees.map(worktree => toFsPath(worktree.path))
 		}, {
-			before: [root, worktreePath, otherWorktreePath].sort(),
+			before: [root, worktreePath, otherWorktreePath].map(toFsPath).sort(),
 			groups: ['worktrees'],
-			after: [root, otherWorktreePath].sort(),
-			worktrees: [root, otherWorktreePath]
+			after: [root, otherWorktreePath].map(toFsPath).sort(),
+			worktrees: [root, otherWorktreePath].map(toFsPath)
 		});
 	});
 
@@ -117,7 +123,7 @@ suite('git.artifactProvider.worktrees', () => {
 		const repository = await openRepository(root);
 		await repository.status();
 
-		const worktreesFolder = path.join(root, '.git', 'worktrees');
+		const worktreesFolder = toFsPath(path.join(root, '.git', 'worktrees'));
 		const onDidChangeWorktreesFolder = filterEvent(repository.onDidChangeRepository, uri => path.dirname(uri.fsPath) === worktreesFolder);
 		const didChangeWorktreesFolder = eventToPromise(onDidChangeWorktreesFolder);
 		await git.exec(root, ['worktree', 'remove', worktreePath]);
