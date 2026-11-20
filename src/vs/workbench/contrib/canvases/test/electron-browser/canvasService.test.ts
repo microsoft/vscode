@@ -178,6 +178,7 @@ suite('CanvasService', () => {
 	}
 
 	test('publishes the model to hosts while its first load is still in progress', async () => {
+		const creation = new DeferredPromise<void>();
 		const loaded = new DeferredPromise<IBrowserViewModel>();
 		const model = upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => { } });
 		const observed: IBrowserViewModel[] = [];
@@ -186,6 +187,7 @@ suite('CanvasService', () => {
 			browserService: upcastPartial<IBrowserViewWorkbenchService>({
 				createExternalBrowserView: async (_url, _source, _owner, onCreated) => {
 					created++;
+					await creation.p;
 					onCreated?.(model);
 					return loaded.p;
 				},
@@ -195,6 +197,8 @@ suite('CanvasService', () => {
 		const reference = { ...harness.owner, canvas: harness.canvas.resource };
 		const first = harness.service.resolveCanvasModel(reference, harness.canvas.source!, false, model => observed.push(model));
 		const second = harness.service.resolveCanvasModel(reference, harness.canvas.source!, false, model => observed.push(model));
+		await creation.complete();
+		await timeout(0);
 		const hostsAttachedWhileLoading = observed.length;
 		await loaded.complete(model);
 		const resolutions = await Promise.all([first, second]);

@@ -40,7 +40,7 @@ interface ICanvasPresentation {
 	model: IBrowserViewModel | undefined;
 	/** The live source `model` presents, or `undefined` once its provider became unavailable. */
 	modelSource: URI | undefined;
-	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel>; readonly model?: IBrowserViewModel } | undefined;
+	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel>; readonly model?: IBrowserViewModel; readonly onCreated?: Set<(model: IBrowserViewModel) => void> } | undefined;
 	modelDisposeListener: IDisposable | undefined;
 	modelGeneration: number;
 }
@@ -377,6 +377,9 @@ export class CanvasService extends Disposable implements ICanvasService {
 			return { model: presentation.model, reused: true };
 		}
 		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
+			if (!createdModel && onCreated) {
+				presentation.modelPromise.onCreated?.add(onCreated);
+			}
 			return { model: await presentation.modelPromise.value, reused: true };
 		}
 		if (presentation.model) {
@@ -385,12 +388,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
 		let loadingModel: IBrowserViewModel | undefined;
+		const callbacks = new Set(onCreated ? [onCreated] : []);
 		const isCurrent = () => this.presentations.get(key) === presentation
 			&& presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
 		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }, model => {
 			loadingModel = model;
 			if (isCurrent()) {
-				onCreated?.(model);
+				for (const callback of callbacks) {
+					callback(model);
+				}
+				callbacks.clear();
 			} else {
 				model.dispose();
 			}
@@ -412,11 +419,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			return model;
 		}).finally(() => {
+			callbacks.clear();
 			if (presentation.modelPromise?.value === value) {
 				presentation.modelPromise = undefined;
 			}
 		});
-		presentation.modelPromise = { source, value, get model() { return loadingModel; } };
+		presentation.modelPromise = { source, value, onCreated: callbacks, get model() { return loadingModel; } };
 		return { model: await value, reused: false };
 	}
 

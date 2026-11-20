@@ -205,6 +205,7 @@ export interface ICanvasService {
 	 * Resolves the live browser model retained for this presentation, creating it once when needed.
 	 * A retained model keeps its last page while the provider is temporarily unavailable, then
 	 * loads the next source in place. Reloading requires a retained page and a current live source.
+	 * `onCreated` receives the new or retained model before navigation finishes, so its host can present dialogs.
 	 */
 	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean, onCreated?: (model: IBrowserViewModel) => void): Promise<ICanvasModelResolution>;
 }

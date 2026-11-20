@@ -85,6 +85,7 @@ suite('CanvasEditor', () => {
 			dispose: () => disposed++,
 		});
 		let view = Promise.resolve(model);
+		let initialLoad = harnessOptions?.initialLoad;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IEditorGroupsService, { mainPart: upcastPartial<IEditorPart>({ windowId: group.windowId }) });
 		instantiationService.stub(ICanvasService, {
@@ -95,9 +96,9 @@ suite('CanvasEditor', () => {
 				created++;
 				requested.push(source.toString());
 				reloads.push(reload);
-				if (harnessOptions?.initialLoad) {
+				if (initialLoad) {
 					onCreated?.(await view);
-					await harnessOptions.initialLoad.p;
+					await initialLoad.p;
 				}
 				return { model: await view, reused: false };
 			},
@@ -157,6 +158,7 @@ suite('CanvasEditor', () => {
 			message: () => parent.querySelector('.session-canvas-message')?.textContent,
 			reconnecting: () => !!parent.querySelector('.session-canvas-editor.provider-reconnecting'),
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
+			setLoad: (value: DeferredPromise<void>) => initialLoad = value,
 			open: () => editor.setInput(input, undefined, { newInGroup: true }, CancellationToken.None),
 			/** Native layouts stay pending until the returned promises are settled. */
 			deferLayouts: (): DeferredPromise<void>[] => {
@@ -169,6 +171,36 @@ suite('CanvasEditor', () => {
 				await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(getWindow(parent), () => resolve())));
 			},
 		};
+	}
+
+	for (const dialog of [false, true]) {
+		test(`keeps a reconnecting canvas hidden until ${dialog ? 'a dialog needs its host' : 'navigation finishes'}`, async () => {
+			const harness = createHarness();
+			await harness.show();
+			await harness.open();
+			await harness.modelAttached.p;
+			await timeout(0);
+			const canvas = harness.input.canvas.get()!;
+			harness.input.setCanvas({ ...canvas, source: undefined });
+			await timeout(0);
+			const initialLoad = new DeferredPromise<void>();
+			harness.setLoad(initialLoad);
+			harness.input.setCanvas({ ...canvas, source: URI.parse('https://example.test/returned') });
+			await timeout(0);
+			const before = { reconnecting: harness.reconnecting(), visible: harness.visible.at(-1) };
+			if (dialog) {
+				harness.showDialog();
+				await timeout(0);
+			}
+			const during = { reconnecting: harness.reconnecting(), visible: harness.visible.at(-1) };
+			await initialLoad.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ before, during, after: { reconnecting: harness.reconnecting(), visible: harness.visible.at(-1) } }, {
+				before: { reconnecting: true, visible: false },
+				during: { reconnecting: !dialog, visible: dialog },
+				after: { reconnecting: false, visible: true },
+			});
+		});
 	}
 
 	for (const dialogTiming of ['none', 'pending', 'during load', 'stale load']) {

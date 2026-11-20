@@ -329,6 +329,7 @@ export class CanvasView extends Disposable {
 					if (this._isCurrent(input, source, sequence) && this._claim(model)) {
 						this._setModel(model);
 						this.modelCanvas = getCanvasReferenceKey(input.reference);
+						this._setReconnecting(false);
 					}
 				};
 				if (model.pendingDialog) {
