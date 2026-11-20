@@ -13,7 +13,6 @@ import { Color } from '../../../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
@@ -204,9 +203,9 @@ suite('RemotesEditor', () => {
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
 		const content = store.add(help.getProvider(instantiation)!).provideContent();
 		assert.deepStrictEqual({
-			runBehavior: content.includes('Configure Agent Run Behavior'),
+			runBehavior: content.includes('Choose How Agents Run'),
 			runBehaviorExplained: ['tasks you want to leave running', 'when available', 'If a Dev Tunnel is shared', 'Existing sessions are not moved'].every(explanation => content.includes(explanation)),
-			removalActions: ['Remove Environment', 'Forget SSH Connection', 'Delete Dev Tunnel'].every(label => content.includes(label)),
+			removalActions: ['Remove GitHub Environment', 'Remove Saved SSH Connection', 'Remove Dev Tunnel'].every(label => content.includes(label)),
 			connectionFailures: ['a notification shows the error', 'Connect action shows a warning', 'select Connect to try again'].every(explanation => content.includes(explanation)),
 			oldGroupSettings: content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'),
 		}, { runBehavior: true, runBehaviorExplained: true, removalActions: true, connectionFailures: true, oldGroupSettings: false });
@@ -749,6 +748,7 @@ suite('RemotesEditor', () => {
 		});
 		container.style.setProperty('--vscode-spacing-size120', '12px');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--vscode-codiconFontSize', '16px');
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
 		const choices = [...container.querySelectorAll<HTMLElement>('.remotes-sharing-choices [role="radio"]')];
@@ -756,24 +756,26 @@ suite('RemotesEditor', () => {
 		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(selector => {
 			const theme = ColorThemeData.createUnloadedTheme(selector);
 			const surface = theme.getColor('editorWidget.background')!;
-			for (const id of ['radio.activeForeground', 'radio.activeBackground', 'radio.activeBorder', 'radio.inactiveForeground', 'radio.inactiveBackground', 'radio.inactiveBorder']) {
+			for (const id of ['foreground', 'radio.activeForeground', 'radio.activeBackground', 'radio.activeBorder', 'radio.inactiveForeground', 'radio.inactiveBackground', 'radio.inactiveBorder', 'list.focusOutline', 'focusBorder']) {
 				container.style.setProperty(`--vscode-${id.replace('.', '-')}`, theme.getColor(id)?.toString() ?? 'transparent');
 			}
 			return choices.map(choice => {
 				choice.click();
 				const style = targetWindow.getComputedStyle(choice);
-				const ring = targetWindow.getComputedStyle(choice, '::before');
-				const dot = targetWindow.getComputedStyle(choice, '::after');
+				const marker = choice.querySelector<HTMLElement>('.monaco-radio-indicator')!;
+				const markerStyle = targetWindow.getComputedStyle(marker);
 				const background = Color.Format.CSS.parse(style.backgroundColor)!.makeOpaque(surface);
-				const indicator = Color.Format.CSS.parse(dot.backgroundColor)!.makeOpaque(background);
+				const indicator = Color.Format.CSS.parse(markerStyle.color)!.makeOpaque(background);
 				return {
-					ring: ring.content !== 'none' && parseFloat(ring.borderTopWidth) > 0,
-					selectedDot: dot.content !== 'none' && dot.visibility === 'visible' && parseFloat(dot.width) > 0,
+					ring: parseFloat(markerStyle.width) > 0 && parseFloat(markerStyle.height) > 0,
+					selectedDot: marker.firstElementChild?.classList.contains('codicon-record') === true,
+					accentBorder: Color.Format.CSS.parse(style.borderTopColor)!.toString() === theme.getColor('list.focusOutline')!.toString(),
+					accentIndicator: indicator.toString() === theme.getColor('list.focusOutline')!.toString(),
 					contrast: indicator.getContrastRatio(background) >= 3,
 				};
 			});
 		});
-		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, contrast: true }))));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, accentBorder: true, accentIndicator: true, contrast: true }))));
 	});
 
 	test('inline sharing keeps both sections and search visible, with actions beside the section heading', async () => {
@@ -786,7 +788,7 @@ suite('RemotesEditor', () => {
 		search.value = 'build';
 		search.dispatchEvent(new InputEvent('input'));
 		const share = container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!;
-		const visibleActions = () => [...share.parentElement!.querySelectorAll<HTMLElement>('.monaco-button')].filter(button => button.getClientRects().length > 0).map(button => button.textContent);
+		const visibleActions = () => [...share.parentElement!.querySelectorAll<HTMLElement>('.monaco-button')].filter(button => button.getClientRects().length > 0 && dom.getWindow(button).getComputedStyle(button).visibility !== 'hidden').map(button => button.textContent);
 		const collapsedActions = visibleActions();
 		share.click();
 		container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!.click();
@@ -807,9 +809,9 @@ suite('RemotesEditor', () => {
 		}, {
 			disclosures: 0, tableVisible: true, nameVisible: true, name: 'My Workstation (Code - OSS)',
 			back: null, actionsInHeading: true,
-			actions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
+			actions: ['Cancel', 'Start Sharing'],
 			collapsedActions: ['Share This Computer'],
-			visibleActions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
+			visibleActions: ['Cancel', 'Start Sharing'],
 			search: 'build', accessibleList: true, unchanged: undefined,
 		});
 		container.querySelector<HTMLElement>('.remotes-sharing-footer .secondary')!.click();
@@ -915,7 +917,8 @@ suite('RemotesEditor', () => {
 			});
 			return {
 				focusRingsFit,
-				rightAligned: [share.right, search.right, refresh.right, row.right].every(right => Math.abs(right - table.right) < 1),
+				rightAligned: [share.right, search.right, refresh.right].every(right => Math.abs(right - table.right) < 1)
+					&& Math.abs(row.right - container.querySelector('.monaco-list-rows')!.getBoundingClientRect().right) < 1,
 				leftAligned: Math.abs(row.left - table.left) < 1,
 				refreshFits: refresh.width > 0 && refresh.left >= table.left,
 				shareBesideHeading: Math.abs(share.top + share.height / 2 - titleBounds.top - titleBounds.height / 2) < 1,
@@ -1004,7 +1007,7 @@ suite('RemotesEditor', () => {
 		const details = {
 			localHidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')!.hidden,
 			focus: dom.getActiveElement() === container.querySelector('.remotes-task-back .action-label'),
-			accessible: editor.getAccessibilityContent().includes('Agent run behavior'),
+			accessible: editor.getAccessibilityContent().includes('How agents run'),
 		};
 		editor.closeEnvironmentDetails();
 		assert.deepStrictEqual({

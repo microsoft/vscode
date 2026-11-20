@@ -5,13 +5,14 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
 import { Action, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
@@ -23,13 +24,13 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -62,35 +63,38 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	ssh: {
 		label: localize('remotes.empty.ssh', "No SSH hosts configured."),
 		description: localize('remotes.empty.ssh.description', "Add a Host entry to your SSH configuration, then refresh."),
-		documentation: { label: localize('remotes.docs.ssh', "SSH setup guide"), href: 'https://aka.ms/vscode-agent-ssh' },
+		documentation: { label: localize('remotes.docs.ssh', "SSH setup guide"), href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh' },
 	},
 	wsl: {
 		label: localize('remotes.empty.wsl', "No WSL 2 distributions found."),
 		description: localize('remotes.empty.wsl.description', "Install WSL and a Linux distribution to get started."),
-		documentation: { label: localize('remotes.docs.wsl', "Install WSL"), href: WSL_INSTALL_DOCS_URL },
+		documentation: { label: localize('remotes.docs.wsl', "WSL setup guide"), href: 'https://code.visualstudio.com/docs/remote/wsl' },
 	},
 	tunnel: {
 		label: localize('remotes.empty.tunnels', "Connect to another computer with a Dev Tunnel"),
 		description: localize('remotes.empty.tunnels.description', "No tunnels found. Enable Remote Tunnel Access in VS Code on the other computer, then sign in here with the same account."),
-		documentation: { label: localize('remotes.docs.tunnels', "Dev tunnel setup guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
+		documentation: { label: localize('remotes.docs.tunnels', "Dev tunnel setup guide"), href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel' },
 	},
 	environment: {
 		label: localize('remotes.empty.environments', "No GitHub Environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and share a GitHub Environment on another computer."),
-		documentation: { label: localize('remotes.docs.environments', "GitHub environments setup guide"), href: GITHUB_ENVIRONMENTS_DOCS_URL },
+		documentation: { label: localize('remotes.docs.environments', "GitHub environments setup guide"), href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_github-environments' },
 	},
 	extension: {
 		label: localize('remotes.empty.extensions', "No remotes registered by extensions."),
 		description: localize('remotes.empty.extensions.description', "Extensions that provide agent hosts list them here while they are enabled."),
+		documentation: { label: localize('remotes.docs.extensions', "Remote agent sessions guide"), href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions' },
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers yet."),
 		description: localize('remotes.empty.devContainers.description', "Run sessions in an Ubuntu container that keeps its files in a Docker volume."),
+		documentation: { label: localize('remotes.docs.devContainers', "Dev Containers guide"), href: 'https://code.visualstudio.com/docs/devcontainers/containers' },
 	},
 };
 
 const compactTableWidth = 880;
 const scrollbarGutterWidth = 16;
+const horizontalScrollbarHeight = 10;
 export const RemotesDetailsExpandedContext = new RawContextKey<boolean>('remotesDetailsExpanded', false);
 
 type RemoteSortField = 'availability' | 'name' | 'activity' | 'system' | 'type';
@@ -106,7 +110,10 @@ export class RemotesWidget extends Disposable {
 	readonly domNode: HTMLElement;
 	protected readonly table: WorkbenchTable<IRemoteTableRow>;
 	private readonly tableContainer: HTMLElement;
+	private readonly tableViewport: HTMLElement;
+	private readonly tableScrollable: DomScrollableElement;
 	private readonly tableInner: HTMLElement;
+	private readonly getTableMinimumWidth: () => number;
 	private emptyRowWidth = 0;
 	private sandboxProfilesEnabled = false;
 	private readonly message: HTMLElement;
@@ -133,7 +140,7 @@ export class RemotesWidget extends Disposable {
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedGroups = new Set<string>();
-	private groupBy: RemoteGrouping = 'none';
+	private groupBy: RemoteGrouping = 'type';
 	private kinds: readonly RemoteKind[];
 	private displayedRemotes: readonly ICustomizationRemote[] = [];
 	private rows: IRemoteTableRow[] = [];
@@ -231,12 +238,12 @@ export class RemotesWidget extends Disposable {
 		const resetFilters = this._register(new Action('remotes.resetFilters', localize('remotes.resetFilters', "Reset Filter"), undefined, true, () => {
 			this.sortBy = 'availability';
 			this.sortDescending = false;
-			this.groupBy = 'none';
+			this.groupBy = 'type';
 			for (const item of this.orderingActions) {
 				item.action.checked = item.field === 'availability';
 			}
 			for (const item of this.groupingActions) {
-				item.action.checked = item.grouping === 'none';
+				item.action.checked = item.grouping === 'type';
 			}
 			this.collapsedGroups.clear();
 			this.saveViewOptions();
@@ -268,7 +275,13 @@ export class RemotesWidget extends Disposable {
 		this._register(refreshButton.onDidClick(() => this.refreshAction.run()));
 		this._register(this.refreshAction.onDidChange(() => refreshButton.enabled = this.refreshAction.enabled));
 		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
-		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
+		this.tableViewport = dom.$('.remotes-table-viewport');
+		this.tableInner = dom.append(this.tableViewport, dom.$('.remotes-table-inner'));
+		this.tableScrollable = this._register(new DomScrollableElement(this.tableViewport, {
+			horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Hidden,
+			horizontalScrollbarSize: horizontalScrollbarHeight, useShadows: false, alwaysConsumeMouseWheel: false,
+		}));
+		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 		this.message = dom.append(overviewBody, dom.$('.remotes-message'));
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
@@ -281,23 +294,27 @@ export class RemotesWidget extends Disposable {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const compact = () => this.tableContainer.classList.contains('remotes-table-compact');
-		const methodHidden = () => this.tableContainer.classList.contains('remotes-hide-method');
-		const activityHidden = () => this.tableContainer.classList.contains('remotes-hide-activity');
-		const systemHidden = () => this.tableContainer.classList.contains('remotes-hide-system');
 		const sandboxProfileHidden = () => this.tableContainer.classList.contains('remotes-hide-sandbox-profile');
 		const groupedByType = () => this.tableContainer.classList.contains('remotes-group-by-type');
 		const groupedByStatus = () => this.tableContainer.classList.contains('remotes-group-by-status');
 		const columnDefinitions = [
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 300, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
 			{ id: 'status', label: statusLabel, weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'activity', label: lastActivityLabel, weight: 160, get minimumWidth() { return activityHidden() ? 0 : 136; }, get maximumWidth() { return activityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, get minimumWidth() { return systemHidden() ? 0 : 100; }, get maximumWidth() { return systemHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 160; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'activity', label: lastActivityLabel, weight: 160, minimumWidth: 136, maximumWidth: Number.POSITIVE_INFINITY },
+			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
+			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return groupedByType() ? 0 : 216; }, get maximumWidth() { return groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'sandboxProfile', label: localize('remotes.sandboxProfileColumn', "Sandbox Profile"), weight: 180, get minimumWidth() { return sandboxProfileHidden() ? 0 : 140; }, get maximumWidth() { return sandboxProfileHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : 224; }, get maximumWidth() { return this.minimumWidth; } },
 		] as const;
+		this.getTableMinimumWidth = () => columnDefinitions.reduce((width, column) => width + column.minimumWidth, scrollbarGutterWidth);
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
-			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
+			column.id, (entry, action) => this.runRowAction(entry, action), row => {
+				const index = this.table.indexOf(row);
+				if (index >= 0) {
+					this.table.setFocus([index]);
+					this.table.setSelection([index]);
+				}
+			}, actionHoverDelegate,
 			instantiationService, hoverService, openerService, connections, this.storageService, contextViewService, () => Math.max(0, this.tableContainer.clientWidth - 24 - scrollbarGutterWidth),
 		));
 		const emptyRowMeasure = dom.$('.remotes-empty-row-measure', { 'aria-hidden': 'true', inert: '' });
@@ -330,7 +347,7 @@ export class RemotesWidget extends Disposable {
 				if (row.entry.type === 'empty') {
 					nameRenderer.renderElement(row, 0, emptyTemplate);
 					this.domNode.appendChild(emptyRowMeasure);
-					const height = emptyRowMeasure.offsetHeight;
+					const height = emptyRowMeasure.offsetHeight + 24;
 					emptyRowMeasure.remove();
 					return height;
 				}
@@ -381,6 +398,22 @@ export class RemotesWidget extends Disposable {
 			const indicator = dom.append(button.element, dom.$('span.remotes-sort-indicator', { 'aria-hidden': 'true' }));
 			this.sortHeaders.set(field, { button, indicator, label: column.label });
 			this._register(button.onDidClick(() => this.setSortOrder(field, this.sortBy === field ? !this.sortDescending : field === 'activity')));
+			if (column.id === 'type') {
+				this._register(dom.addDisposableListener(header, dom.EventType.CONTEXT_MENU, event => {
+					dom.EventHelper.stop(event, true);
+					const mouseEvent = new StandardMouseEvent(dom.getWindow(header), event);
+					contextMenuService.showContextMenu({
+						getAnchor: () => ({ x: mouseEvent.posx, y: mouseEvent.posy }),
+						getActions: () => [new SubmenuAction('remotes.learnMoreTypes', localize('remotes.learnMore', "Learn More"), this.kinds.flatMap(kind => {
+							const documentation = this.getTypeDocumentation(kind);
+							return documentation ? [toAction({
+								id: `remotes.documentation.${kind}`, label: getRemoteTypeLabel(kind),
+								run: () => this.openDocumentation(documentation.href),
+							})] : [];
+						}))],
+					});
+				}));
+			}
 		});
 		this.updateSortHeaders();
 		this._register(this.table.onDidChangeFocus(event => {
@@ -502,7 +535,9 @@ export class RemotesWidget extends Disposable {
 				void this.createDevContainer();
 			}
 		} else if (entry.type === 'remote') {
-			if (action === 'toggleVisibility') {
+			if (action === 'documentation' && entry.documentation) {
+				void this.openDocumentation(entry.documentation.href);
+			} else if (action === 'toggleVisibility') {
 				try {
 					this.model.setHidden(entry.remote.id, !entry.remote.hidden);
 				} catch (error) {
@@ -514,6 +549,8 @@ export class RemotesWidget extends Disposable {
 				void this.notifyOnFailure(this.signInToTunnels());
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
+			} else if (action === 'configure' && entry.remote.kind === 'ssh') {
+				void this.notifyOnFailure(this.openConfiguration('ssh'));
 			} else if (action === 'newSession') {
 				void this.newSession(entry.remote.id);
 			} else if (action === 'rename') {
@@ -665,7 +702,7 @@ export class RemotesWidget extends Disposable {
 	private saveViewOptions(): void {
 		this.storageService.store(sortByStorageKey, this.sortBy === 'availability' ? undefined : this.sortBy, StorageScope.PROFILE, StorageTarget.USER);
 		this.storageService.store(sortDescendingStorageKey, this.sortDescending || undefined, StorageScope.PROFILE, StorageTarget.USER);
-		this.storageService.store(groupByStorageKey, this.groupBy === 'none' ? undefined : this.groupBy, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(groupByStorageKey, this.groupBy === 'type' ? undefined : this.groupBy, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private updateViewOrder(): void {
@@ -891,6 +928,11 @@ export class RemotesWidget extends Disposable {
 			&& !this.kinds.some(kind => this.getRefreshWarning(kind));
 	}
 
+	private getTypeDocumentation(kind: RemoteKind): IRemoteEmptyEntry['documentation'] {
+		const documentation = remoteSetup[kind].documentation;
+		return documentation ? { ...documentation, label: localize('remotes.learnMoreAboutType', "Learn More about {0}", getRemoteTypeLabel(kind)) } : undefined;
+	}
+
 	private render(): void {
 		const remotes = this.getFilteredRemotes();
 		const setup = this.showSetupGroups(remotes);
@@ -905,7 +947,7 @@ export class RemotesWidget extends Disposable {
 		this.renderMessages(remotes, grouping === 'type');
 		const entries: RemoteTableEntry[] = [];
 		const remoteEntry = (remote: ICustomizationRemote): RemoteTableEntry => ({
-			type: 'remote', remote,
+			type: 'remote', remote, documentation: this.getTypeDocumentation(remote.kind),
 			busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id) || !!remote.requiresTunnelSignIn && this.signingInToTunnels, connecting: this.pendingConnections.get(remote.id),
 		});
 		if (grouping === 'status') {
@@ -931,12 +973,11 @@ export class RemotesWidget extends Disposable {
 				continue;
 			}
 			const id = `remote-group-${kind}`;
-			// Empty types stay expanded because their rows explain how to set up that type.
 			const collapsed = this.collapsedGroups.has(id);
 			entries.push({
 				type: 'group', id, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
-				documentation: remoteSetup[kind].documentation,
+				documentation: this.getTypeDocumentation(kind),
 				...(kind === 'devContainer' && this.model.canCreateDevContainer.get() ? { canCreate: true } : {}),
 			});
 			if (!collapsed) {
@@ -958,7 +999,7 @@ export class RemotesWidget extends Disposable {
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
-		this.filterAction.checked = !!this.query || this.groupBy !== 'none' || this.sortBy !== 'availability' || this.sortDescending;
+		this.filterAction.checked = !!this.query || this.groupBy !== 'type' || this.sortBy !== 'availability' || this.sortDescending;
 		const activeElement = dom.getActiveElement();
 		const focusedConnection = dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement)
 			&& activeElement.classList.contains('remotes-connect-action') ? activeElement : undefined;
@@ -1312,6 +1353,7 @@ export class RemotesWidget extends Disposable {
 	 */
 	setHeading(label: string | undefined): void {
 		this.heading.hidden = !label;
+		this.overview.classList.toggle('remotes-section', !!label);
 		this.headingTitle.textContent = label ?? '';
 		if (label) {
 			this.domNode.setAttribute('role', 'region');
@@ -1395,7 +1437,6 @@ export class RemotesWidget extends Disposable {
 			return;
 		}
 		if (this.domNode.clientWidth > 0 && this.domNode.clientHeight > 0) {
-			const height = this.tableContainer.clientHeight;
 			const width = this.tableContainer.clientWidth;
 			const compact = width < compactTableWidth;
 			const activeElement = dom.getActiveElement();
@@ -1403,20 +1444,20 @@ export class RemotesWidget extends Disposable {
 				this.table.domFocus();
 			}
 			this.tableContainer.classList.toggle('remotes-table-compact', compact);
-			this.tableContainer.classList.toggle('remotes-hide-method', width < 1000);
-			this.tableContainer.classList.toggle('remotes-hide-activity', width < 720);
-			this.tableContainer.classList.toggle('remotes-hide-system', width < 520);
-			this.tableContainer.classList.toggle('remotes-hide-sandbox-profile', width < 520 || !this.sandboxProfilesEnabled);
+			this.tableContainer.classList.toggle('remotes-hide-sandbox-profile', !this.sandboxProfilesEnabled);
+			const tableWidth = Math.max(width, this.getTableMinimumWidth());
+			const height = Math.max(0, this.tableContainer.clientHeight - (tableWidth > width ? horizontalScrollbarHeight : 0));
 			if (dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.classList.contains('remotes-sort-header') && !activeElement.offsetWidth) {
 				this.table.domFocus();
 			}
 			this.tableInner.style.height = `${height}px`;
-			this.tableInner.style.width = `${width}px`;
+			this.tableInner.style.width = `${tableWidth}px`;
 			if (this.emptyRowWidth !== this.tableContainer.clientWidth) {
 				this.emptyRowWidth = this.tableContainer.clientWidth;
 				this.table.splice(0, this.table.length, this.rows);
 			}
-			this.table.layout(height, width);
+			this.table.layout(height, tableWidth);
+			this.tableScrollable.scanDomNode();
 		}
 	}
 

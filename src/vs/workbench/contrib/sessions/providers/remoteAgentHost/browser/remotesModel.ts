@@ -730,7 +730,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			this.checkEnvironment(target);
 			const { confirmed } = await this.dialogService.confirm({
 				type: 'warning',
-				message: localize('remotes.removeEnvironmentConfirmation', "Remove environment '{0}'?", remote.name),
+				message: localize('remotes.removeEnvironmentConfirmation', "Remove GitHub Environment '{0}'?", remote.name),
 				detail: localize('remotes.forgetEnvironmentDetail', "This removes the environment registration and disconnects this client. The remote computer and its files are kept. The environment may reappear if its owning application registers it again."),
 				primaryButton: localize('remotes.removeEnvironmentButton', "&&Remove"),
 			});
@@ -792,9 +792,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const remote = this._remotes.get().find(remote => remote.id === id);
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
-			message: localize('remotes.forgetSSHConfirmation', "Forget saved SSH connection '{0}'?", remote?.name ?? id),
-			detail: localize('remotes.forgetSSHDetail', "This forgets the saved connection and disconnects this client. Your SSH configuration, the remote computer, and its files are kept."),
-			primaryButton: localize('remotes.forgetSSHButton', "&&Forget"),
+			message: localize('remotes.removeSSHConfirmation', "Remove saved SSH connection '{0}'?", remote?.name ?? id),
+			detail: localize('remotes.removeSSHDetail', "This removes the saved connection and disconnects this client. Your SSH configuration, the remote computer, and its files are kept."),
+			primaryButton: localize('remotes.removeSSHButton', "&&Remove"),
 		});
 		if (!confirmed) {
 			return;

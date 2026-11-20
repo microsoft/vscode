@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../../../base/browser/ui/countBadge/countBadge.css';
 import './media/thisComputerSection.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -17,7 +18,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { isWindows, OS, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { OS, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -135,7 +136,7 @@ export class ThisComputerSection extends Disposable {
 		dom.append(statusContainer, dom.$('span.remotes-this-computer-system', undefined, system));
 		this.statusIcon = dom.append(statusContainer, dom.$('span.remotes-sharing-status-icon', { 'aria-hidden': 'true' }));
 		this.status = dom.append(statusContainer, dom.$('span', { role: 'status' }));
-		this.preview = dom.append(statusContainer, dom.$('span.remotes-sharing-preview', undefined, localize('thisComputer.preview', "Preview")));
+		this.preview = dom.append(statusContainer, dom.$('span.remotes-sharing-preview.monaco-label-badge', undefined, localize('thisComputer.preview', "Preview")));
 		this._register(hoverService.setupDelayedHover(this.status, () => ({
 			content: this.sharing.activeMethod === 'off'
 				? localize('thisComputer.notSharedDetail', "Sharing is off. Agent sessions continue running on this computer.")
@@ -204,7 +205,7 @@ export class ThisComputerSection extends Disposable {
 		const methodTitleId = generateUuid();
 		dom.append(typeField, dom.$('p.remotes-sharing-instruction', { id: methodTitleId },
 			localize('thisComputer.sharingInstruction', "Choose how to connect to this computer from another device.")));
-		this.radio = this._register(new Radio({ items: [], hoverDelegate }));
+		this.radio = this._register(new Radio({ items: [], hoverDelegate, className: 'cards' }));
 		this.radio.domNode.classList.add('remotes-sharing-choices', 'remotes-method-choices');
 		this.radio.domNode.setAttribute('aria-labelledby', methodTitleId);
 		typeField.appendChild(this.radio.domNode);
@@ -254,9 +255,6 @@ export class ThisComputerSection extends Disposable {
 				void this.apply(this.selectedMethod);
 			}
 		}));
-		if (isWindows) {
-			footer.prepend(this.applyButton.element);
-		}
 		const help = dom.append(body, dom.$('p.remotes-sharing-help'));
 		this._register(instantiationService.createInstance(Link, help, {
 			label: localize('thisComputer.sharingGuide', "Choose how to connect"),
@@ -397,7 +395,7 @@ export class ThisComputerSection extends Disposable {
 				const choice = sharingChoices[methods[index]];
 				element.dataset.sharingMethod = methods[index];
 				if (methods[index] === 'githubEnvironment') {
-					dom.append(element, dom.$('span.remotes-sharing-preview', undefined, localize('thisComputer.preview', "Preview")));
+					dom.append(element, dom.$('span.remotes-sharing-preview.monaco-label-badge', undefined, localize('thisComputer.preview', "Preview")));
 				}
 				const points = dom.append(element, dom.$('ul.remotes-sharing-choice-description'));
 				for (const point of choice.points) {

@@ -73,9 +73,9 @@ export async function disconnectSSHEntry(
 export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
 	const { confirmed } = await dialogService.confirm({
 		type: 'warning',
-		message: localize('tunnelDeleteConfirmation', "Delete Dev Tunnel '{0}'?", name),
+		message: localize('tunnelRemoveConfirmation', "Remove Dev Tunnel '{0}'?", name),
 		detail: localize('tunnelForgetDetail', "This removes the tunnel registration and disconnects all its clients. The remote computer and its files stay available. The tunnel returns when sharing restarts on that computer."),
-		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+		primaryButton: localize('tunnelRemoveButton', "&&Remove"),
 	});
 	return confirmed;
 }

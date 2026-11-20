@@ -16,6 +16,7 @@ import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
@@ -36,6 +37,12 @@ export default defineThemedFixtureGroup({
 		render: renderToggles,
 	}),
 
+	Radio: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: renderRadio,
+	}),
+
 	KeyboardFocusedToggle: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -51,6 +58,16 @@ export default defineThemedFixtureGroup({
 	CountBadges: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderCountBadges,
+	}),
+
+	LabelBadges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ({ container }) => {
+			container.style.display = 'flex';
+			container.style.gap = 'var(--vscode-spacing-size80)';
+			container.append(...['New', 'Preview', 'Experimental'].map(text => $('span.monaco-label-badge', undefined, text)));
+		},
 	}),
 
 	ActionBar: defineComponentFixture({
@@ -212,6 +229,25 @@ function renderButtonBar({ container, disposableStore }: ComponentFixtureContext
 // ============================================================================
 // Toggles and Checkboxes
 // ============================================================================
+
+function renderRadio({ container, disposableStore }: ComponentFixtureContext): void {
+	container.style.padding = 'var(--vscode-spacing-size160)';
+	container.style.display = 'flex';
+	container.style.flexDirection = 'column';
+	container.style.gap = 'var(--vscode-spacing-size160)';
+	for (const [className, caption] of [[undefined, 'Default shared Radio'], ['segmented', 'Opt-in segmented Radio'], ['cards', 'Card options with radio indicators']] as const) {
+		const section = $('div');
+		const label = $('p', undefined, caption);
+		label.style.margin = '0 0 var(--vscode-spacing-size80)';
+		const radio = disposableStore.add(new Radio({
+			items: [{ text: 'Option 1', isActive: true }, { text: 'Option 2' }, { text: 'Option 3' }],
+			ariaLabel: caption,
+			className,
+		}));
+		section.append(label, radio.domNode);
+		container.appendChild(section);
+	}
+}
 
 function renderKeyboardFocusedToggle(context: ComponentFixtureContext): void {
 	const { container, disposableStore } = context;

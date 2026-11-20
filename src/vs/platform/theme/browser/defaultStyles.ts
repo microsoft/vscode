@@ -51,8 +51,8 @@ export const defaultButtonStyles: IButtonStyles = {
 	buttonSecondaryForeground: asCssVariable(buttonSecondaryForeground),
 	buttonSecondaryBackground: asCssVariable(buttonSecondaryBackground),
 	buttonSecondaryHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
-	buttonSecondaryBorder: asCssVariable(buttonSecondaryBorder),
-	buttonBorder: asCssVariable(buttonBorder),
+	buttonSecondaryBorder: asCssVariableWithDefault(buttonSecondaryBorder, 'transparent'),
+	buttonBorder: asCssVariableWithDefault(buttonBorder, 'transparent'),
 };
 
 export function getButtonStyles(override: IStyleOverride<IButtonStyles>): IButtonStyles {

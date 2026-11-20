@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../../base/browser/ui/countBadge/countBadge.css';
 import './media/agentsWindowGraphic.css';
 import { $, reset, setVisibility } from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -228,8 +229,8 @@ function figure(graphic: SVGSVGElement, title: string, description: string, badg
 	return $('figure.agents-window-graphic-figure', {},
 		graphic,
 		$('figcaption.agents-window-graphic-caption', {},
-			$('.agents-window-graphic-title', {}, title, ...(badge ? [$('span.agents-window-graphic-badge', {}, badge)] : [])),
-			$('.agents-window-graphic-description', {}, description),
+			...(title ? [$('.agents-window-graphic-title', {}, title, ...(badge ? [$('span.agents-window-graphic-badge.monaco-label-badge', {}, badge)] : []))] : []),
+			...(description ? [$('.agents-window-graphic-description', {}, description)] : []),
 		),
 	);
 }
