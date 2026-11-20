@@ -9,7 +9,8 @@ import { getAgentSessionProviderIcon, getAgentSessionProviderName } from './agen
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../common/constants.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -257,12 +258,17 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	return instantiationService.invokeFunction(accessor => openSessionDefault(accessor, session, openOptions));
 }
 
+function isEditorWindowLocal(environmentService: IWorkbenchEnvironmentService): boolean {
+	return !environmentService.remoteAuthority && !environmentService.isSessionsWindow;
+}
+
 async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const configurationService = accessor.get(IConfigurationService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 	try {
 		session.setRead(true); // mark as read when opened
@@ -284,7 +290,9 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+		// The Agents window and remote windows keep opening in the Chat view: the setting is shared with them
+		const openInEditorArea = configurationService.getValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn) === ChatViewSessionsOpenChatIn.EditorArea && isEditorWindowLocal(environmentService);
+		if (openInEditorArea || configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
 			// Like files: a click opens the session in the active group, a modifier-click to the side.
 			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 			options = { ...options, revealIfOpened: !openOptions?.sideBySide && shouldRevealSessionEditor(chatWidgetService, session.resource) };
