@@ -173,6 +173,43 @@ suite('CanvasEditor', () => {
 		};
 	}
 
+	for (const secondVisible of [false, true]) {
+		test(`recovers a load-blocking dialog after ${secondVisible ? 'yielding to another host' : 'a hidden host cannot claim it'}`, async () => {
+			const initialLoad = new DeferredPromise<void>();
+			const first = createHarness({ initialLoad });
+			const second = createHarness({ initialLoad });
+			second.setView(Promise.resolve(first.model));
+			first.showDialog();
+			await first.show();
+			await first.open();
+			await timeout(0);
+			if (secondVisible) {
+				await second.show();
+			}
+			await second.open();
+			await timeout(0);
+			const initiallyAttached = {
+				first: first.attached.at(-1) === first.model,
+				second: second.attached.at(-1) === first.model,
+			};
+			const returning = secondVisible ? first : second;
+			const leaving = secondVisible ? second : first;
+			leaving.editor.setVisible(false);
+			await returning.show();
+			await timeout(0);
+			const recovered = {
+				first: first.attached.at(-1) === first.model,
+				second: second.attached.at(-1) === first.model,
+			};
+			await initialLoad.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ initiallyAttached, recovered }, {
+				initiallyAttached: { first: !secondVisible, second: secondVisible },
+				recovered: { first: secondVisible, second: !secondVisible },
+			});
+		});
+	}
+
 	for (const dialog of [false, true]) {
 		test(`keeps a reconnecting canvas hidden until ${dialog ? 'a dialog needs its host' : 'navigation finishes'}`, async () => {
 			const harness = createHarness();

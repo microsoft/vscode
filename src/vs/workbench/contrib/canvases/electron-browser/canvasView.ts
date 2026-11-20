@@ -326,11 +326,16 @@ export class CanvasView extends Disposable {
 					return;
 				}
 				const attachForDialog = () => {
-					if (this._isCurrent(input, source, sequence) && this._claim(model)) {
-						this._setModel(model);
-						this.modelCanvas = getCanvasReferenceKey(input.reference);
-						this._setReconnecting(false);
+					if (!this._isCurrent(input, source, sequence)) {
+						return;
 					}
+					if (!this._claim(model)) {
+						this.yieldedKey = key;
+						return;
+					}
+					this._setModel(model);
+					this.modelCanvas = getCanvasReferenceKey(input.reference);
+					this._setReconnecting(false);
 				};
 				if (model.pendingDialog) {
 					attachForDialog();
@@ -411,7 +416,7 @@ export class CanvasView extends Disposable {
 	}
 
 	private _yield(): void {
-		const key = this.loadedKey;
+		const key = this.loadedKey ?? this.loadingKey;
 		this._detach(localize('canvas.shownElsewhere', "This canvas is shown in another view."));
 		this.yieldedKey = key;
 	}

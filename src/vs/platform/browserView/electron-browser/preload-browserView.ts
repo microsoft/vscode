@@ -33,7 +33,7 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
  */
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
-	const dialogProbeToken: string = ipcRenderer.sendSync('vscode:browserView:dialogProbe');
+	let dialogProbeToken: string | undefined;
 	const nativeConfirm = window.confirm;
 
 	// #######################################################################
@@ -265,6 +265,7 @@ function init() {
 	const mainWorldHelpers = {
 		getElement,
 		prompt(message = '', defaultValue = ''): string | null {
+			dialogProbeToken ??= ipcRenderer.sendSync('vscode:browserView:dialogProbe');
 			// Let Blink apply modal eligibility, including inherited and CSP sandbox restrictions.
 			if (!nativeConfirm(dialogProbeToken)) {
 				return null;
