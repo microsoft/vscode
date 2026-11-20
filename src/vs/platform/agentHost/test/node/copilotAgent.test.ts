@@ -511,6 +511,8 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly onDidRefreshCopilotUserEmitter = new Emitter<{ readonly githubToken: string; readonly context: IRestrictedTelemetryContext }>();
+	readonly onDidRefreshCopilotUser = this.onDidRefreshCopilotUserEmitter.event;
 	readonly utilityCalls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
 	response = 'generated-branch-name';
 	error: Error | undefined;
@@ -1189,6 +1191,7 @@ class MockCopilotSession {
 				this.agentSelectionCalls.push(undefined);
 				return {};
 			},
+			getCurrent: async () => ({ agent: null }),
 		},
 		sendMessages: async (): Promise<void> => { },
 		connectors: {
@@ -5032,7 +5035,7 @@ suite('CopilotAgent', () => {
 			const sdkSessions = new Map<string, MockCopilotSession>();
 			client.createSession = async config => {
 				const sdk = new MockCopilotSession(config.sessionId);
-				Object.assign(sdk.rpc, { agent: { list: async () => ({ agents: [] }), select: async () => ({}), deselect: async () => ({}) } });
+				Object.assign(sdk.rpc, { agent: { list: async () => ({ agents: [] }), select: async () => ({}), deselect: async () => ({}), getCurrent: async () => ({ agent: null }) } });
 				sdkSessions.set(sdk.sessionId, sdk);
 				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools?.definitions ?? []).map(tool => tool.name), agent: config.agents?.selected, customAgents: (config.agents?.definitions ?? []).map(agent => agent.name).sort() });
 				return sdk as unknown as CopilotSession;
@@ -6806,6 +6809,66 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	test('stamps the active turn account on forwarded rows without a model call', async () => {
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: unknown): void {
+				this.events.push({ eventName: eventName ?? '', data });
+			}
+		}();
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService }) as TestableCopilotAgent;
+		afterTest(() => disposeAgent(agent));
+		await agent.listChatsToMigrate();
+		const forward = getCreatedClientOptions(agent).at(-1)?.github?.onTelemetry;
+		assert.ok(forward);
+
+		const turnContext = { copilotSku: 'turn-sku', copilotTrackingId: 'turn-analytics' };
+		const callContext = { copilotSku: 'call-sku', copilotTrackingId: 'call-analytics' };
+		const subagentContext = { copilotSku: 'subagent-sku', copilotTrackingId: 'subagent-analytics' };
+		const correlation = (turnTelemetryContext: typeof turnContext | undefined) => ({
+			currentTurnId: turnTelemetryContext ? 'turn-1' : undefined,
+			isDisposed: false,
+			telemetryContextForRow: (agentId: string | undefined) => agentId ? (agentId === 'agent-1' ? subagentContext : undefined) : turnTelemetryContext,
+			compactionTurnCorrelation: { resolve: async (): Promise<ICompactionTurnCorrelationResult> => ({ turnId: 'turn-1', outcome: 'mappingAvailable' }) },
+			modelCallTurnCorrelation: {
+				take: () => undefined,
+				wait: () => Promise.resolve({ turnId: undefined, outcome: 'waitExpired' as const, waitMs: 0 }),
+				markResponseForwarded: () => { },
+				getTelemetryContext: (modelCallId: string) => modelCallId === 'call-1' ? callContext : undefined,
+			},
+		});
+		setLiveChatStub(agent, 'in-turn', correlation(turnContext));
+		setLiveChatStub(agent, 'between-turns', correlation(undefined));
+		const row = (sessionId: string, kind: string, modelCallId?: string, agentId?: string): GitHubTelemetryNotification => ({
+			sessionId,
+			restricted: false,
+			event: { kind, ...(modelCallId ? { model_call_id: modelCallId } : {}), properties: { ...(kind.startsWith('session_compaction') ? { compaction_attempt_id: 'attempt' } : {}), ...(agentId ? { agent_id: agentId } : {}) }, metrics: {} },
+		});
+
+		await forward(row('in-turn', 'prompt_cache_break'));
+		await forward(row('in-turn', 'skill_invoked'));
+		await forward(row('in-turn', 'session_compaction_complete'));
+		await forward(row('in-turn', 'tool_call_executed', 'call-1'));
+		await forward(row('in-turn', 'tool_call_executed', 'evicted-call'));
+		await forward(row('in-turn', 'skill_invoked', undefined, 'agent-1'));
+		await forward(row('in-turn', 'skill_invoked', undefined, 'agent-unknown'));
+		await forward(row('between-turns', 'prompt_cache_break'));
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName.startsWith('copilotSdk/')).map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { eventName: event.eventName, copilotSku: data.copilotSku, trackingId: data['common.copilotTrackingId'] };
+		}), [
+			{ eventName: 'copilotSdk/prompt_cache_break', copilotSku: 'turn-sku', trackingId: 'turn-analytics' },
+			{ eventName: 'copilotSdk/skill_invoked', copilotSku: 'turn-sku', trackingId: 'turn-analytics' },
+			{ eventName: 'copilotSdk/session_compaction_complete', copilotSku: 'turn-sku', trackingId: 'turn-analytics' },
+			{ eventName: 'copilotSdk/tool_call_executed', copilotSku: 'call-sku', trackingId: 'call-analytics' },
+			{ eventName: 'copilotSdk/tool_call_executed', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'copilotSdk/skill_invoked', copilotSku: 'subagent-sku', trackingId: 'subagent-analytics' },
+			{ eventName: 'copilotSdk/skill_invoked', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'copilotSdk/prompt_cache_break', copilotSku: undefined, trackingId: undefined },
+		]);
+	});
+
 	for (const disposeDuringWait of [false, true]) {
 		test(`captures the original root during an expired correlation wait (disposed: ${disposeDuringWait})`, async () => {
 			const response = new DeferredPromise<ITelemetryData>();
@@ -7351,6 +7414,101 @@ suite('CopilotAgent', () => {
 			undefined, // cleared until `/copilot_internal/user` resolves
 			{ isInternal: true, trackingId: 'internal-tid', userName: 'octocat', isVscodeTeamMember: true },
 		]);
+	});
+
+	test('updates restricted telemetry when CopilotApiService refreshes discovery for the active token', async () => {
+		const clock = useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+		try {
+			const normalResponse = new DeferredPromise<Response>();
+			const entitlementResponse = new DeferredPromise<Response>();
+			const secondRequestStarted = new DeferredPromise<void>();
+			let requests = 0;
+			const copilotApiService = disposables.add(new CopilotApiService(async () => {
+				if (++requests === 1) {
+					return new Response(JSON.stringify({
+						access_type_sku: 'no_access',
+						analytics_tracking_id: 'tid-1',
+						restricted_telemetry: true,
+						endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+					}), { status: 200 });
+				}
+				if (requests === 2) {
+					secondRequestStarted.complete();
+					return normalResponse.p;
+				}
+				return entitlementResponse.p;
+			}, new NullLogService(), { _serviceBrand: undefined, ...product }, createTestGitHubEndpointService(), NullTelemetryService));
+			const enabledStates: boolean[] = [];
+			const initialResolved = new DeferredPromise<void>();
+			const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
+				override setRestrictedTelemetryEnabled(enabled: boolean): void {
+					if (enabledStates.at(-1) !== enabled) {
+						enabledStates.push(enabled);
+					}
+					super.setRestrictedTelemetryEnabled(enabled);
+					if (enabled) {
+						initialResolved.complete();
+					}
+				}
+			}(NullTelemetryService));
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'active-token');
+			await initialResolved.p;
+			await agent.refreshModels();
+
+			// Expire the 30-min cache, start a periodic model refresh (`_resolveRestrictedTelemetry`),
+			// and complete an entitlement refresh (`restricted_telemetry: false`) before the ordinary refresh (`restricted_telemetry: true`) settles.
+			clock.tick(26 * 60 * 1000);
+			const refreshingModels = agent.refreshModels();
+			await secondRequestStarted.p;
+			const refreshingEntitlement = copilotApiService.refreshCopilotUser('active-token', 'tid-1', 'copilot_enterprise_seat_quota');
+			entitlementResponse.complete(new Response(JSON.stringify({
+				access_type_sku: 'copilot_enterprise_seat_quota',
+				analytics_tracking_id: 'tid-1',
+				restricted_telemetry: false,
+				endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+			}), { status: 200 }));
+			await refreshingEntitlement;
+			normalResponse.complete(new Response(JSON.stringify({
+				access_type_sku: 'no_access',
+				analytics_tracking_id: 'tid-1',
+				restricted_telemetry: true,
+				endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+			}), { status: 200 }));
+			await refreshingModels;
+
+			assert.deepStrictEqual(enabledStates, [false, true, false]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('applies restricted telemetry on authentication when user discovery for the token is already cached', async () => {
+		const copilotApiService = disposables.add(new CopilotApiService(async () => new Response(JSON.stringify({
+			access_type_sku: 'no_access',
+			analytics_tracking_id: 'tid-1',
+			restricted_telemetry: true,
+			endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+		}), { status: 200 }), new NullLogService(), { _serviceBrand: undefined, ...product }, createTestGitHubEndpointService(), NullTelemetryService));
+		// Another Agent Host consumer warms the shared discovery cache, so authentication sees a cache hit that publishes no refresh event.
+		await copilotApiService.resolveRestrictedTelemetryContext('active-token');
+		const enabledStates: boolean[] = [];
+		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
+			override setRestrictedTelemetryEnabled(enabled: boolean): void {
+				if (enabledStates.at(-1) !== enabled) {
+					enabledStates.push(enabled);
+				}
+				super.setRestrictedTelemetryEnabled(enabled);
+			}
+		}(NullTelemetryService));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
+		afterTest(() => disposeAgent(agent));
+
+		await agent.authenticate('https://api.github.com', 'active-token');
+		await timeout(0);
+
+		assert.deepStrictEqual(enabledStates, [false, true]);
 	});
 
 	test('advertises Copilot as its display name', async () => {
@@ -22840,6 +22998,7 @@ suite('CopilotAgent', () => {
 				URI.joinPath(additionalWorkspace, '.github', 'instructions').toString(),
 				URI.joinPath(userHome, '.copilot', 'instructions').toString(),
 				URI.joinPath(workspace, '.github', 'hooks').toString(),
+				URI.joinPath(additionalWorkspace, '.github', 'hooks').toString(),
 				URI.joinPath(userHome, '.copilot', 'hooks').toString(),
 				buildCopilotBuiltinAgentsContainer().uri,
 				buildCopilotBuiltinSkillsContainer().uri,

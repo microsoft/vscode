@@ -13,6 +13,7 @@ import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../.
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { toAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -289,12 +290,14 @@ export async function resolveLocalCustomAgents(
 			let name = pluginAgent?.name ?? basename(agent.uri, '.agent.md');
 			let description = pluginAgent?.description;
 			let disableUserInvocation: boolean | undefined;
+			let welcomeMessage: string | undefined;
 			try {
 				const content = await fileService.readFile(agent.uri);
 				const header = parser.parse(agent.uri, content.value.toString()).header;
 				name = header?.name ?? name;
 				description = header?.description ?? description;
 				disableUserInvocation = header?.userInvocable === false || undefined;
+				welcomeMessage = header?.welcomeMessage;
 			} catch {
 				// The host will parse the full agent after session creation. Keep the
 				// discovery metadata as a best-effort draft fallback if the file moved.
@@ -306,6 +309,7 @@ export async function resolveLocalCustomAgents(
 				name,
 				description,
 				disableUserInvocation,
+				...(welcomeMessage ? { _meta: toAgentCustomizationMeta({ 'vscode.welcomeMessage': welcomeMessage }) } : {}),
 			});
 		})());
 	}

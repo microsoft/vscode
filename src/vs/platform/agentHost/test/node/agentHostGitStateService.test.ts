@@ -825,6 +825,7 @@ suite('AgentHostGitStateService', () => {
 		const chat = buildChatUri(SESSION, 'peer');
 		const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'session-main' };
 		const chatGitState: ISessionGitState = { branchName: 'chat-feature', baseBranchName: 'chat-main' };
+		const publishedChatGitState: ISessionGitState = { ...chatGitState, baseBranchFullName: 'chat-main' };
 		const scopeId = getWorkingDirectoryScopeId(['file:///chat']);
 		seedSession(h.stateManager, {
 			workingDirectory: WORKING_DIRECTORY,
@@ -851,12 +852,12 @@ suite('AgentHostGitStateService', () => {
 			runEvents: h.runEvents,
 		}, {
 			before: undefined,
-			afterRefresh: chatGitState,
-			afterUnavailable: chatGitState,
+			afterRefresh: publishedChatGitState,
+			afterUnavailable: publishedChatGitState,
 			sessionGitState,
-			scopedState: chatGitState,
-			persistedAfterRefresh: { [scopeId]: chatGitState },
-			persistedAfterUnavailable: { [scopeId]: chatGitState },
+			scopedState: publishedChatGitState,
+			persistedAfterRefresh: { [scopeId]: publishedChatGitState },
+			persistedAfterUnavailable: { [scopeId]: publishedChatGitState },
 			// An inconclusive probe observes nothing new.
 			runEvents: [chat],
 		});
@@ -1066,7 +1067,7 @@ suite('AgentHostGitStateService', () => {
 			peerGitHubState: h.service.getGitHubState(peer),
 		}, {
 			pullRequestCalls: ['peer-feature'],
-			peerGitState: { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' },
+			peerGitState: { branchName: 'peer-feature', baseBranchName: 'main', baseBranchFullName: 'main', githubOwner: 'contoso', githubRepo: 'tools' },
 			peerGitHubState: {
 				owner: 'contoso',
 				repo: 'tools',
@@ -1794,6 +1795,27 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(h.gitBaseBranches, ['release']);
 	}));
 
+	test('publishes the recorded base branch in full next to its short name', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const recorded = createHarness();
+		seedSession(recorded.stateManager, { workingDirectory: WORKING_DIRECTORY, project: 'file:///repo', isolation: 'worktree', baseBranch: 'release' });
+		await recorded.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release');
+		recorded.setGitResult({ branchName: 'agents/session', baseBranchName: 'release' });
+		await recorded.service.refreshSessionGitState(SESSION, undefined);
+
+		const unrecorded = createHarness();
+		seedSession(unrecorded.stateManager, { workingDirectory: WORKING_DIRECTORY, isolation: 'folder' });
+		unrecorded.setGitResult({ branchName: 'feature', baseBranchName: 'main' });
+		await unrecorded.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({
+			recorded: { baseBranches: recorded.gitBaseBranches, gitState: recorded.service.getSessionGitState(SESSION) },
+			unrecorded: { baseBranches: unrecorded.gitBaseBranches, gitState: unrecorded.service.getSessionGitState(SESSION) },
+		}, {
+			recorded: { baseBranches: ['release'], gitState: { branchName: 'agents/session', baseBranchName: 'release', baseBranchFullName: 'origin/release' } },
+			unrecorded: { baseBranches: [undefined], gitState: { branchName: 'feature', baseBranchName: 'main', baseBranchFullName: 'main' } },
+		});
+	}));
+
 	test('refreshes git state in memory while a session is creating', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();
@@ -1899,7 +1921,7 @@ suite('AgentHostGitStateService', () => {
 				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
 				runEvents: h.runEvents,
 			}, {
-				gitState: next,
+				gitState: { ...next, baseBranchFullName: 'main' },
 				runEvents: [SESSION],
 			});
 		});

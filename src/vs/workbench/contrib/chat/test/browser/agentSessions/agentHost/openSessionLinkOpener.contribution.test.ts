@@ -196,6 +196,36 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		assert.deepStrictEqual({ result, listings, opened }, { result: true, listings: 1, opened: [remote.with({ fragment: 'peer' }).toString()] });
 	});
 
+	test('claims an agent session link it cannot open, so it never falls through to the OS or an editor, but not other links', async () => {
+		let opener: IOpener | undefined;
+		let opened = 0;
+		store.add(new AgentHostOpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() {
+				override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; }
+			}(),
+			new class extends mock<IChatWidgetService>() {
+				override async openSession(): Promise<IChatWidget | undefined> { opened++; return undefined; }
+			}(),
+			new class extends mock<IChatSessionsService>() { override async activateChatSessionItemProvider(): Promise<void> { } }(),
+			store.add(new ChatRequestOriginService()),
+			new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } }(),
+			new NullLogService(),
+			new class extends mock<ISessionSummaryHoverService>() { override registerProvider(): IDisposable { return Disposable.None; } }(),
+			new class extends mock<IPathService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override findSessionResource(): URI | undefined { return undefined; }
+				override resolveSessionResource() { return undefined; }
+			}(),
+			new TestConfigurationService(),
+		));
+		assert.ok(opener);
+		assert.deepStrictEqual({
+			malformed: await opener.open(URI.parse('agent-host-session://not-a-session')),
+			other: await opener.open(URI.parse('https://example.com/')),
+			opened,
+		}, { malformed: true, other: false, opened: 0 });
+	});
+
 	for (const [name, defaultChat, peerChat, defaultId, peerId, cached] of ([
 		['shaped', 'ahp-chat://default/c2Vzc2lvbi0x', 'ahp-chat://peer-1/c2Vzc2lvbi0x', 'ahp-chat://default/c2Vzc2lvbi0x', 'peer-1'],
 		['opaque', 'ahp-chat:/11111111-1111-4111-8111-111111111111', 'ahp-chat:/22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],

@@ -293,6 +293,8 @@ export interface ISessionWorktreeConfiguration {
  * the provider or session type.
  */
 export interface ISessionModelPickerOptions {
+	/** The provider's catalog is authoritative even for model IDs not registered with the language models service. */
+	readonly hasLiveModelCatalog?: boolean;
 	/** Whether to surface featured models that are currently unavailable. */
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
@@ -794,6 +796,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to archive.
 	 */
 	archiveSession(sessionId: string): Promise<void>;
+
+	/** Archives a batch with one settled outcome per input, allowing the provider to merge session-change notifications. */
+	archiveSessions?(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]>;
 
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;

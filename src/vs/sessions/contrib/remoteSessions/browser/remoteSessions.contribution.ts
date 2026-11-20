@@ -29,7 +29,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
-			markdownDescription: localize('remoteSessions.tools.enabled', "Enable built-in tools to discover remote agent hosts, create and inspect remote sessions, and send messages between sessions in the Agents window. Requires {0}. Disabling this setting does not disconnect hosts or stop sessions already running.", '`#chat.remoteAgentHostsEnabled#`'),
+			markdownDescription: localize('remoteSessions.tools.enabled', "Enable built-in tools to discover remote agent hosts, create and inspect remote sessions, and send messages between sessions in the Agents window. Requires {0}. {1} also enables them. Disabling this setting does not disconnect hosts or stop sessions already running.", '`#chat.remoteAgentHostsEnabled#`', '`#chat.agentHost.devContainer.handoff.enabled#`'),
 			experiment: { mode: 'auto' },
 		},
 	},

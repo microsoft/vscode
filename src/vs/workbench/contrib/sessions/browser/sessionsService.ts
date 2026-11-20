@@ -46,6 +46,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
 import { ShownChatReadMarker } from './shownChatReadMarker.js';
+import { isSideChat, ISideChatPlacementService } from './sideChatPlacement.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -547,6 +548,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatHostOpenerService private readonly chatHostOpenerService: IChatHostOpenerService,
 		@IHostService hostService: IHostService,
+		@ISideChatPlacementService private readonly sideChatPlacementService: ISideChatPlacementService,
 	) {
 		super();
 		this._register(hostService.onDidChangeActiveWindow(windowId => this._onDidChangeActiveWindow(windowId)));
@@ -568,6 +570,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.panes = this._visibility.panes;
 		this.slotPanes = this._visibility.slotPanes;
 		this.activePane = this._visibility.activePane;
+		this._holdSideChatsFromGrid();
 		this.gridHost = new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
@@ -886,8 +889,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (chat) {
 					pendingRestoredChatResource = undefined;
 					this._pendingRestoredChatResources.delete(activeSession.resource);
-					this._visibility.openChat(activeSession, chat);
-					this._visibility.setActiveChat(activeSession, chat);
+					const gridChat = this._gridChatFor(activeSession, chat);
+					this._visibility.openChat(activeSession, gridChat);
+					this._visibility.setActiveChat(activeSession, gridChat);
 				}
 			}));
 		}
@@ -1274,10 +1278,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 				await opener.reveal(chatUri, { preserveFocus: options?.preserveFocus });
 				return;
 			}
-			const referenceOpener = this._getOpenerShowingReference(options?.referenceChatResource);
+			const referenceOpener = this._getOpenerShowingReference(options?.referenceChatResource, chatUri);
 			if (referenceOpener) {
 				navigation.complete();
 				await referenceOpener.openBeside(chatUri, options!.referenceChatResource!, { preserveFocus: options?.preserveFocus });
+				return;
+			}
+			const claimant = this.chatHostOpenerService.getOpenerFor(chatUri);
+			if (claimant) {
+				navigation.complete();
+				await claimant.reveal(chatUri, { preserveFocus: options?.preserveFocus });
 				return;
 			}
 			if (options?.source) {
@@ -1311,6 +1321,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._navigationTarget(session, from), preserveFocus, intent);
 			if (!await waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
+				return;
+			}
+			// A side chat is claimed only once its session's chats load.
+			const claimant = this.chatHostOpenerService.getOpenerFor(chatUri);
+			if (claimant) {
+				navigation.complete();
+				await claimant.reveal(chatUri, { preserveFocus });
 				return;
 			}
 
@@ -1934,11 +1951,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/**
-	 * Returns the chat host opener, such as a chat window, that shows the chat a new chat was started from, so the new chat
-	 * opens in that host rather than in the main window.
+	 * Returns the chat host opener, such as a chat window, that shows the chat a new chat, `chat`, was started from, so the
+	 * new chat opens in that host rather than in the main window, unless its `opensBeside(chat)` returns false.
 	 */
-	private _getOpenerShowingReference(referenceChatResource: URI | undefined): IChatHostOpener | undefined {
-		return referenceChatResource ? this.chatHostOpenerService.getOpenerOf(referenceChatResource) : undefined;
+	private _getOpenerShowingReference(referenceChatResource: URI | undefined, chat: URI): IChatHostOpener | undefined {
+		const opener = referenceChatResource ? this.chatHostOpenerService.getOpenerOf(referenceChatResource) : undefined;
+		return opener?.opensBeside?.(chat) === false ? undefined : opener;
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
@@ -1950,9 +1968,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		const reference = options?.referenceChatResource;
-		const referenceShownBy = this._getOpenerShowingReference(reference);
+		const referenceShownBy = this._getOpenerShowingReference(reference, chatResource);
 		if (reference && referenceShownBy) {
 			await referenceShownBy.openBeside(chatResource, reference, options);
+			return;
+		}
+		const claimant = this.chatHostOpenerService.getOpenerFor(chatResource);
+		if (claimant) {
+			await claimant.reveal(chatResource, options);
 			return;
 		}
 		this._showSession(this._getSession(session.resource), options);
@@ -2411,7 +2434,56 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.logService.warn('[SessionsView] Failed to restore active chat from stored session state', error);
 			}
 		}
-		return initialChat;
+		return this._gridChatFor(session, initialChat);
+	}
+
+	/**
+	 * The chat the grid shows for `chat`: `chat` itself, or, while side chats show in the side pane, the nearest chat a side
+	 * chat came from, else the main chat.
+	 */
+	private _gridChatFor(session: ISession, chat: IChat): IChat {
+		if (!this.sideChatPlacementService.inSidePane.get()) {
+			return chat;
+		}
+		const chats = session.chats.get();
+		const visited = new Set<string>();
+		while (isSideChat(chat) && !visited.has(chat.resource.toString())) {
+			visited.add(chat.resource.toString());
+			const parentChat = chat.origin?.parentChat;
+			chat = (parentChat && chats.find(c => this.uriIdentityService.extUri.isEqual(c.resource, parentChat))) || session.mainChat.get();
+		}
+		return isSideChat(chat) ? session.mainChat.get() : chat;
+	}
+
+	/**
+	 * Holds the side chats of the sessions the grid shows out of its chat tabs while side chats show in the side pane
+	 * ({@link ISideChatPlacementService.inSidePane}), whether the side pane shows them now or not.
+	 */
+	private _holdSideChatsFromGrid(): void {
+		const holds = this._register(new DisposableMap<string, IDisposable>());
+		this._register(autorun(reader => {
+			const wanted = new Map<string, { readonly sessionId: string; readonly chat: URI }>();
+			if (this.sideChatPlacementService.inSidePane.read(reader)) {
+				for (const pane of this._visibility.panes.read(reader)) {
+					const session = pane.session.read(reader);
+					for (const chat of session?.chats.read(reader) ?? []) {
+						if (session && isSideChat(chat)) {
+							wanted.set(`${session.sessionId}\n${chat.resource.toString()}`, { sessionId: session.sessionId, chat: chat.resource });
+						}
+					}
+				}
+			}
+			for (const key of [...holds.keys()]) {
+				if (!wanted.has(key)) {
+					holds.deleteAndDispose(key);
+				}
+			}
+			for (const [key, { sessionId, chat }] of wanted) {
+				if (!holds.has(key)) {
+					holds.set(key, this._visibility.hideChatFromGrid(sessionId, chat, { showAncestorInstead: true }));
+				}
+			}
+		}));
 	}
 
 	/**

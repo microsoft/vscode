@@ -736,23 +736,24 @@
 	white-space: nowrap;
 }
 
-/* Copilot Fusion's row is twice the height of the others, so a line beneath its name says
- * what it does. The first line keeps a fixed height so both lines centre in the row, and
- * the second starts under the name, past the check column. */
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail {
+/* A model's row with a line beneath its name is twice the height of the others: Copilot
+ * Fusion's says what it does, and a model router's what it is for. The first line keeps a
+ * fixed height so both lines centre in the row, and the second starts under the name, past
+ * the check column. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-model.has-detail {
 	row-gap: var(--vscode-spacing-size20);
 	padding-right: var(--vscode-spacing-size160);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail > .codicon:first-child {
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-model.has-detail > .codicon:first-child {
 	height: var(--vscode-spacing-size200);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail > .title {
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-model.has-detail > .title {
 	line-height: var(--vscode-spacing-size200);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail > .detail {
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-model.has-detail > .detail {
 	padding-left: var(--vscode-spacing-size200);
 	font-size: var(--vscode-fontSize-label2);
 }

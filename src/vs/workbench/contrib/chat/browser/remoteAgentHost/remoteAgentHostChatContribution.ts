@@ -512,6 +512,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncedUri => this._activeClientService.getOrigin(syncedUri)
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		// Only the Copilot runtime runs the hooks declared in custom agent files.
+		itemProvider.setListsCustomAgentHooks(agent.provider === 'copilotcli');
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));
@@ -675,7 +677,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				return true;
 			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
-		}))
+		}, reason))
 			.catch(err => {
 				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
 			})

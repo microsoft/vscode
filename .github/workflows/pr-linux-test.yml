@@ -785,13 +785,13 @@ jobs:
   # The browser unit tests in WebKit on Linux, which the merge queue runs to catch the failures that only
   # the WebKit unit tests of the macOS product build caught before. A test that fails in WebKit on Linux for a
   # reason of that port, but not in Chromium or in WebKit on macOS, skips itself there, as tests do on other
-  # platforms: (isLinuxWebKit ? test.skip : test), see src/vs/base/test/browser/linuxWebKit.ts. Its timeout keeps it within the slowest job of the merge
-  # queue (about 13 minutes), which PR Gate waits for anyway: a full run takes about 8 minutes.
+  # platforms: (isLinuxWebKit ? test.skip : test), see src/vs/base/test/browser/linuxWebKit.ts.
   browser-unit-webkit:
     name: Browser-Unit (WebKit)
     if: ${{ inputs.browser_unit_webkit }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 12
+    # Allow 15 minutes for cold setup, the test step's 15 minutes, and 5 minutes of headroom.
+    timeout-minutes: 35
     env:
       ARTIFACT_NAME: browser-unit-webkit
       BROWSER_TESTS: 'true'

@@ -257,7 +257,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 		}(),
 		workspaceContextService: IWorkspaceContextService = createWorkspaceContextService(),
 	) {
-		super(promptsService, harnessService, configurationService, mcpService, new TestMigrationChatAgentService(), new TestMigrationToolsService(), migrationProductService);
+		super(promptsService, harnessService, configurationService, mcpService, new TestMigrationChatAgentService(), new TestMigrationToolsService(), migrationProductService, fileService);
 		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
 			harnessService,
 			activeClientService,
@@ -408,6 +408,7 @@ suite('CustomizationMigrationService', () => {
 			new TestMigrationChatAgentService(),
 			new TestMigrationToolsService(),
 			migrationProductService,
+			{} as IFileService,
 		));
 		let changeCount = 0;
 		store.add(service.onDidChangeCustomizations(() => changeCount++));
@@ -468,7 +469,7 @@ suite('CustomizationMigrationService', () => {
 		const configuration = store.add(createMigrationConfiguration());
 		const files: IPromptPath[] = [];
 		const service = store.add(new BaseCustomizationMigrationService(
-			store.add(new TestPromptsService(files)), harness, configuration, new TestMcpService(), agents, tools, migrationProductService,
+			store.add(new TestPromptsService(files)), harness, configuration, new TestMcpService(), agents, tools, migrationProductService, {} as IFileService,
 		));
 		const session = harness.activeSessionResource.get();
 		const participants = await service.computeMigration(session, CustomizationMigrationType.ChatParticipants);
@@ -522,7 +523,7 @@ suite('CustomizationMigrationService', () => {
 		const tools = new TestMigrationToolsService();
 		const harness = new TestCustomizationHarnessService();
 		const service = store.add(new BaseCustomizationMigrationService(
-			store.add(new TestPromptsService([])), harness, store.add(createMigrationConfiguration()), new TestMcpService(), agents, tools, migrationProductService,
+			store.add(new TestPromptsService([])), harness, store.add(createMigrationConfiguration()), new TestMcpService(), agents, tools, migrationProductService, {} as IFileService,
 		));
 		let changes = 0;
 		store.add(service.onDidChangeCustomizations(() => changes++));
@@ -532,6 +533,61 @@ suite('CustomizationMigrationService', () => {
 			changes,
 			hint: await service.computeMigrationHint(harness.activeSessionResource.get()),
 		}, { changes: 2, hint: undefined });
+	});
+
+	test('lists only the user\'s own Local-format hook files for agent migration', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const localFormat = JSON.stringify({ hooks: { PreToolUse: [{ type: 'command', command: 'node guard.mjs' }] } });
+		const files: Record<string, string> = {
+			'/workspace/.github/hooks/local.json': localFormat,
+			'/workspace/.github/hooks/half-migrated.json': JSON.stringify({ version: 1, hooks: { Stop: [{ type: 'command', bash: 'node stop.mjs' }] } }),
+			'/workspace/.github/hooks/native.json': JSON.stringify({ version: 1, hooks: { preToolUse: [{ type: 'command', bash: 'node guard.mjs' }] } }),
+			'/workspace/.claude/settings.json': localFormat,
+			'/home/.copilot/hooks/user.json': localFormat,
+			'/plugins/guards/hooks.json': localFormat,
+		};
+		for (const [path, content] of Object.entries(files)) {
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString(content));
+		}
+		const hookFile = (path: string, storage: PromptsStorage): IPromptPath => storage === PromptsStorage.plugin
+			? { uri: URI.file(path), type: PromptsType.hook, storage, pluginUri: URI.file('/plugins/guards'), source: PromptFileSource.Plugin }
+			: { uri: URI.file(path), type: PromptsType.hook, storage } as IPromptPath;
+		const harness = new TestCustomizationHarnessService();
+		const service = store.add(new BaseCustomizationMigrationService(
+			store.add(new TestPromptsService([
+				hookFile('/workspace/.github/hooks/local.json', PromptsStorage.local),
+				hookFile('/workspace/.github/hooks/half-migrated.json', PromptsStorage.local),
+				hookFile('/workspace/.github/hooks/native.json', PromptsStorage.local),
+				hookFile('/workspace/.claude/settings.json', PromptsStorage.local),
+				hookFile('/home/.copilot/hooks/user.json', PromptsStorage.user),
+				hookFile('/plugins/guards/hooks.json', PromptsStorage.plugin),
+			])),
+			harness, store.add(createMigrationConfiguration()), new TestMcpService(), new TestMigrationChatAgentService(), new TestMigrationToolsService(), migrationProductService, fileService,
+		));
+		const session = harness.activeSessionResource.get();
+
+		const migration = await service.computeMigration(session, CustomizationMigrationType.Hooks);
+		const hint = await service.computeMigrationHint(session);
+		const claudeHarness = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
+		const claudeService = store.add(new BaseCustomizationMigrationService(
+			store.add(new TestPromptsService([hookFile('/workspace/.github/hooks/local.json', PromptsStorage.local)])),
+			claudeHarness, store.add(createMigrationConfiguration()), new TestMcpService(), new TestMigrationChatAgentService(), new TestMigrationToolsService(), migrationProductService, fileService,
+		));
+		const claudeMigration = await claudeService.computeMigration(claudeHarness.activeSessionResource.get(), CustomizationMigrationType.Hooks);
+
+		assert.deepStrictEqual({
+			candidates: migration.candidates.map(candidate => ({ path: candidate.uri.path, type: candidate.type, storage: candidate.storage, workspaceGroupId: candidate.workspaceGroupId })),
+			hintCounts: hint?.counts,
+			claudeCandidates: claudeMigration.candidates.length,
+		}, {
+			candidates: [
+				{ path: '/workspace/.github/hooks/local.json', type: PromptsType.hook, storage: PromptsStorage.local, workspaceGroupId: 'workspace' },
+				{ path: '/workspace/.github/hooks/half-migrated.json', type: PromptsType.hook, storage: PromptsStorage.local, workspaceGroupId: 'workspace' },
+				{ path: '/home/.copilot/hooks/user.json', type: PromptsType.hook, storage: PromptsStorage.user, workspaceGroupId: undefined },
+			],
+			hintCounts: [{ type: CustomizationMigrationType.Hooks, count: 3 }],
+			claudeCandidates: 0,
+		});
 	});
 
 	test('copies configured plugin marketplaces without removing Local harness configuration', async () => {
@@ -600,6 +656,7 @@ suite('CustomizationMigrationService', () => {
 			new TestMigrationChatAgentService(),
 			new TestMigrationToolsService(),
 			migrationProductService,
+			{} as IFileService,
 		));
 		const sessionResource = harnessService.activeSessionResource.get();
 
@@ -700,6 +757,7 @@ suite('CustomizationMigrationService', () => {
 			new TestMigrationChatAgentService(),
 			new TestMigrationToolsService(),
 			migrationProductService,
+			{} as IFileService,
 		));
 		const sessionResource = harnessService.activeSessionResource.get();
 
@@ -784,6 +842,7 @@ suite('CustomizationMigrationService', () => {
 			agents,
 			tools,
 			migrationProductService,
+			{} as IFileService,
 		));
 		const sessionResource = harnessService.activeSessionResource.get();
 		const guidanceIgnored = [
@@ -982,6 +1041,7 @@ suite('CustomizationMigrationService', () => {
 						'/workspace/custom-skills/release/SKILL.md',
 					],
 				},
+				{ type: 'hooks', files: [], candidates: [] },
 				{
 					type: 'mcpServers',
 					servers: [
@@ -1006,6 +1066,7 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'userData', files: [], candidates: [] },
 				{ type: 'promptFiles', files: [], candidates: [] },
 				{ type: 'configuredLocations', files: [], candidates: [] },
+				{ type: 'hooks', files: [], candidates: [] },
 				{
 					type: 'mcpServers',
 					servers: [],
@@ -1032,8 +1093,8 @@ suite('CustomizationMigrationService', () => {
 			},
 			localHint: undefined,
 			requestedTypes: [
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill, PromptsType.hook,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill, PromptsType.hook,
 			],
 			requestedSourceFolderTypes: [
 				PromptsType.agent, PromptsType.agent, PromptsType.agent, PromptsType.agent,
@@ -1849,6 +1910,7 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'userData', candidates: 0, files: 0 },
 				{ type: 'promptFiles', candidates: 0, files: 0 },
 				{ type: 'configuredLocations', candidates: 0, files: 0 },
+				{ type: 'hooks', candidates: 0, files: 0 },
 				{ type: 'mcpServers', candidates: 0, servers: 0 },
 				{ type: 'pluginMarketplaces', candidates: 0 },
 				{ type: 'chatParticipants', items: 0 },
@@ -1869,6 +1931,7 @@ suite('CustomizationMigrationService', () => {
 			enabledRequestedTypes: [
 				PromptsType.agent, PromptsType.instructions, PromptsType.prompt,
 				PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.hook,
 			],
 			enabledSourceFolderTypes: [
 				PromptsType.skill, PromptsType.agent, PromptsType.agent, PromptsType.skill,

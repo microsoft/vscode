@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -1777,6 +1777,18 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('push sets the upstream on the only remote when it is not origin', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'upstream', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+
+		await svc!.push(URI.file(dir), { ref: 'agents/session', setUpstream: true });
+
+		assert.strictEqual(cp.execFileSync('git', ['rev-parse', '--abbrev-ref', 'agents/session@{upstream}'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'upstream/agents/session');
+	});
+
 	(hasGit ? test : test.skip)('addWorktree tracks an explicitly selected remote when creating its local branch', async () => {
 		const dir = initRepo();
 		const remotePath = join(dir, 'remote.git');
@@ -1972,6 +1984,81 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('removeWorktree forgets the cached repository roots of the removed worktree', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-root-cache-${Date.now()}`);
+		const worktree = URI.file(wtPath);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/root-cache-worktree',
+				track: false,
+			});
+			mkdirSync(join(wtPath, 'nested'));
+			// Git reports the canonical path, which differs from `wtPath` where the temp directory is a symlink (macOS).
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: wtPath, env, encoding: 'utf8' }).trim());
+			const directories = [worktree, URI.file(join(wtPath, 'nested')), canonicalRoot];
+			const before = await Promise.all(directories.map(directory => svc!.getRepositoryRoot(directory)));
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			const after = await Promise.all(directories.map(directory => svc!.getRepositoryRoot(directory)));
+			assert.deepStrictEqual({
+				before: before.map(root => root?.fsPath),
+				after,
+				hasGitRoot: svc!.hasGitRoot(worktree).get(),
+			}, {
+				before: [canonicalRoot.fsPath, canonicalRoot.fsPath, canonicalRoot.fsPath],
+				after: [undefined, undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/root-cache-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree forgets the canonical root when only a descendant was looked up through a symlinked parent', async () => {
+		const dir = initRepo();
+		const parent = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-wt-parent-')));
+		const linkedParent = `${parent}-link`;
+		const worktree = URI.file(join(linkedParent, 'wt'));
+		try {
+			// A junction on Windows, which needs no symlink privilege; the type is ignored elsewhere.
+			symlinkSync(parent, linkedParent, 'junction');
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/symlinked-parent-worktree',
+				track: false,
+			});
+			mkdirSync(join(parent, 'wt', 'nested'));
+			const nested = URI.file(join(linkedParent, 'wt', 'nested'));
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: join(parent, 'wt'), env, encoding: 'utf8' }).trim());
+			const before = await svc!.getRepositoryRoot(nested);
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			assert.deepStrictEqual({
+				before: before?.fsPath,
+				after: [await svc!.getRepositoryRoot(nested), await svc!.getRepositoryRoot(canonicalRoot)],
+				hasGitRoot: svc!.hasGitRoot(canonicalRoot).get(),
+			}, {
+				before: canonicalRoot.fsPath,
+				after: [undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			// `rmSync` treats a Windows junction as a directory; `rmdirSync` removes the junction without following it.
+			try { (isWindows ? rmdirSync : unlinkSync)(linkedParent); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(parent);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlinked-parent-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree prunes a lingering admin entry when the working tree is already gone', async () => {
 		const dir = initRepo();
 		const suffix = `wt-prune-${Date.now()}`;
@@ -2054,8 +2141,44 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			exists: existsSync(wtPath),
 			refs: refs.length,
 			preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+			author: cp.execFileSync('git', ['log', '-1', '--format=%ae', refs[0]], { cwd: dir, env, encoding: 'utf8' }).trim(),
 			branchHead: cp.execFileSync('git', ['rev-parse', 'agents/preserve'], { cwd: dir, env, encoding: 'utf8' }).trim(),
-		}, { exists: false, refs: 1, preserved: 'recover this work', branchHead: head });
+		}, { exists: false, refs: 1, preserved: 'recover this work', author: cp.execFileSync('git', ['config', 'user.email'], { cwd: dir, encoding: 'utf8' }).trim(), branchHead: head });
+	});
+
+	(hasGit ? test : test.skip)('forced removal preserves dirty work when the repository has no Git identity', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, 'checkout');
+		await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/no-identity', track: false });
+		writeFileSync(join(wtPath, 'untracked.txt'), 'recover this work');
+		cp.execFileSync('git', ['config', '--unset', 'user.email'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'user.useConfigOnly', 'true'], { cwd: dir, env, stdio: 'pipe' });
+		const emptyGlobalConfig = join(dir, '.git', 'empty-global.gitconfig');
+		writeFileSync(emptyGlobalConfig, '');
+		// Hide every identity source: global/system config, config injected through the environment, and identity variables.
+		const overrides: Record<string, string | undefined> = { GIT_CONFIG_GLOBAL: emptyGlobalConfig, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0', GIT_CONFIG_PARAMETERS: undefined, GIT_AUTHOR_NAME: undefined, GIT_AUTHOR_EMAIL: undefined, GIT_COMMITTER_NAME: undefined, GIT_COMMITTER_EMAIL: undefined, EMAIL: undefined };
+		const saved = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+		const apply = (values: Record<string, string | undefined>) => {
+			for (const [key, value] of Object.entries(values)) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		};
+		apply(overrides);
+		try {
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+			const refs = cp.execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/vscode-preserved-worktrees/'], { cwd: dir, env, encoding: 'utf8' }).trim().split('\n');
+			assert.deepStrictEqual({
+				exists: existsSync(wtPath),
+				preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+				author: cp.execFileSync('git', ['log', '-1', '--format=%ae', refs[0]], { cwd: dir, env, encoding: 'utf8' }).trim(),
+			}, { exists: false, preserved: 'recover this work', author: 'vscode@localhost' });
+		} finally {
+			apply(saved);
+		}
 	});
 
 	(hasGit ? test : test.skip)('explicit discard removes dirty work without a recovery ref and retains committed history', async () => {
