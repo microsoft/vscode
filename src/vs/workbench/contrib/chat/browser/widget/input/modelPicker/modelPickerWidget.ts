@@ -23,6 +23,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { LocalModelEnabledSettingId } from '../../../../../../../platform/agentHost/common/localModel.js';
+import { ModelRouterEnabledSettingId, ModelRouterSkillName } from '../../../../../../../platform/agentHost/common/modelRouterConfig.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -681,6 +682,17 @@ export class ModelPickerWidget extends Disposable {
 		return this._localModelsController;
 	}
 
+	/**
+	 * Hands the user to the skill that writes model routers, by starting the prompt with its command. Offered where
+	 * that skill is: a local Copilot chat with model routers turned on.
+	 */
+	private _getCreateModelRouter(): (() => void) | undefined {
+		const applies = !!this._delegate.startPromptWith
+			&& this._configurationService.getValue<boolean>(ModelRouterEnabledSettingId) === true
+			&& this._delegate.getSessionType?.() === SessionType.AgentHostCopilot;
+		return applies ? () => this._delegate.startPromptWith?.(`/${ModelRouterSkillName}`) : undefined;
+	}
+
 	/** Updates an open picker's on-device rows in place, keeping keyboard focus on the row, and an on-device model's readout. */
 	private _refreshLocalModels(): void {
 		if (this._tabbedPicker.value?.isVisible) {
@@ -854,6 +866,7 @@ export class ModelPickerWidget extends Disposable {
 			onSelect,
 			onTogglePin,
 			onManageModels: () => manageModelsAction?.run(),
+			onCreateModelRouter: unavailable ? undefined : this._getCreateModelRouter(),
 			onDidToggleOtherModels,
 			onDidSearch: () => telemetrySession.logSearch(),
 			onConfigurationChanged: (model, group, key, fromValue, toValue, requestedAt) => {

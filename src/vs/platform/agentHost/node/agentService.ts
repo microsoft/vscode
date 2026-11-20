@@ -44,7 +44,7 @@ import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransien
 import { filterChatConfigValues, getSessionApprovalProperty, getValidChatConfigValues, toOwnChatConfig, validateChatConfigWrite, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, isAhpAnnotationsChannel, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { changesetSession, parseChangesetUri } from '../common/changesetUri.js';
+import { changesetSession, hasChangesetPath, parseChangesetUri } from '../common/changesetUri.js';
 import { readAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
@@ -162,7 +162,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService, SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostChatResourcesConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostChatResourcesConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostSessionModelOptionsConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -1985,7 +1985,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 *  - the tail carries any additional session roots as-is (only index 0 is
 	 *    worktree-remapped; additional roots are passed through unchanged).
 	 */
-	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean }): Promise<readonly URI[] | undefined> {
+	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean; onResolved?: (workingDirectories: readonly URI[]) => void }): Promise<readonly URI[] | undefined> {
 		if (params.credentials) {
 			if (!params.agentMergeTurn) {
 				await this._bindExecutionCredentials(params.session, params.credentials, params.chat);
@@ -2013,6 +2013,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._recreateMissingScratchFolder(params.chat, pickedFolderUri);
 			const resolved = await this._resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 
+			params.onResolved?.([resolved, ...tail]);
 			const config = this._configurationService.getSessionConfigValues(params.session);
 			if (config?.[SessionConfigKey.Isolation] === 'folder' && !this._stateManager.isEphemeralSession(params.session)) {
 				const session = URI.parse(params.session);
@@ -2273,7 +2274,6 @@ export class AgentService extends Disposable implements IAgentService {
 				const chat = URI.parse(defaultChat);
 				return { chat, context: this._chatContext(session, chat, await this._resolveDefaultChatStorageResource(session, chat)) };
 			},
-			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 			this._sessionDataService,
 		));
 		this._register(this._completions.registerProvider(provider));
@@ -2365,6 +2365,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return models;
 			},
+			getModelsForCredentials: async credentials => {
+				const catalogs = await Promise.all(this._providerService.getProviders().map(provider => provider.getModelsForCredentials?.(credentials) ?? []));
+				return catalogs.flat();
+			},
 			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
 			restoreChat: async (session, chat, credentials) => {
 				if (credentials && !this._isSessionRestored(session.toString())) {
@@ -2383,7 +2387,10 @@ export class AgentService extends Disposable implements IAgentService {
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
 				}
 				: undefined, credentials),
-			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
+			prepareChatWorkingDirectory: async (session, directory, options) => {
+				await this._requireNonScratchChatFolder(session, directory, 'createChat');
+				return this.prepareChatWorkingDirectory(session, directory, options);
+			},
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
 			archiveSession: session => this._dispatchServerToolAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }),
@@ -2398,6 +2405,8 @@ export class AgentService extends Disposable implements IAgentService {
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
 			isChatMoveEnabled: () => this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true,
+			getSessionModelOptions: () => this._configurationService.getRootValue(platformRootSchema, AgentHostSessionModelOptionsConfigKey) ?? 'off',
+			usesCredentialScopedModels: session => this._authService.getSessionCredentialSource(session.toString()) !== undefined,
 			supportsChatMoves: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleChats,
 			// Queued like the moves themselves: the check restores sessions, which must not overlap a running move.
 			checkChatMove: move => this._logRefusedServerToolMove(this._chatMoveSequencer.queue(() => this._withMoveLeases(leases => this._checkServerToolMove(move, leases)))),
@@ -7315,8 +7324,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * session). A scratch folder belongs to one chat, so no other chat may adopt it, or a folder in it, as its workspace.
 	 */
 	private async _requireNonScratchChatFolder(session: URI, folder: URI, operation: 'createChat' | 'setChatWorkspace'): Promise<void> {
-		const recorded = new Set((await this._orchestratorDatabase.listScratchFolders()).map(row => row.folder));
-		const isRecordedScratchFolder = (candidate: string) => recorded.has(candidate) || this._stateManager.isScratchFolder(candidate);
+		const scratchFolderKey = (candidate: string) => extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(candidate));
+		const recorded = new Set((await this._orchestratorDatabase.listScratchFolders()).map(row => scratchFolderKey(row.folder)));
+		const isRecordedScratchFolder = (candidate: string) => recorded.has(scratchFolderKey(candidate)) || this._stateManager.isScratchFolder(candidate);
 		const sessionKey = session.toString();
 		const state = this._stateManager.getSessionState(sessionKey);
 		const sessionScratchFolders = [
@@ -7330,11 +7340,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// The scratch folder that refuses `folder`, in order: a scratch folder of this session that is `folder` itself; the
 		// nearest recorded scratch folder of any chat, of this session or another, that is `folder` or one of its
 		// ancestors; then a scratch folder of this session that contains `folder`, such as its workspace-less primary.
-		const scratch = sessionScratchFolders.find(candidate => isEqual(candidate, folder))
+		const scratch = sessionScratchFolders.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, folder))
 			?? findScratchFolderOrAncestor(folder, isRecordedScratchFolder)
-			?? sessionScratchFolders.find(candidate => isEqualOrParent(folder, candidate));
+			?? sessionScratchFolders.find(candidate => extUriBiasedIgnorePathCase.isEqualOrParent(folder, candidate));
 		if (scratch) {
-			if (isEqual(scratch, folder)) {
+			if (extUriBiasedIgnorePathCase.isEqual(scratch, folder)) {
 				this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
 				throw new Error(`'${folderLabel(folder)}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 			}
@@ -11943,6 +11953,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
+		const parsedChangeset = parseChangesetUri(resourceStr);
+		if (!parsedChangeset && hasChangesetPath(resourceStr)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${resourceStr}`);
+		}
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restorationSource = async (session: URI): Promise<IAgentHostCredentialSource | undefined> => {
 				await this._restoreCredentialPrincipal(session.toString());
@@ -12000,7 +12014,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
 			telemetry.setServedFromMemory(!!snapshot);
-			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset) {
 				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreChangesetOwner);
 				snapshot = this._stateManager.getSnapshot(resourceStr);

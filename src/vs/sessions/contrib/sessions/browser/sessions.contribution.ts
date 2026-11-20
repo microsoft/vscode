@@ -17,6 +17,8 @@ import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
+import { AutomationHistoryActionsContribution } from '../../automations/browser/automationRunHistory.js';
+import '../../automations/browser/automationsEditor.js';
 import './views/sessionsViewActions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -184,6 +186,7 @@ export const sessionsConfiguration = {
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsConfiguration);
 
+registerWorkbenchContribution2(AutomationHistoryActionsContribution.ID, AutomationHistoryActionsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);

@@ -19,9 +19,9 @@ const retainedDays = 30;
  * Chat usage on this machine. Windows span the current UTC day and the
  * preceding UTC days, e.g. the last 7 days are today and the 6 days before.
  * A window of N days covers all of its days once {@link trackedDays} reaches N.
- * Message and session totals include usage recorded by older counters before
- * tracking started. Those counters have no per-day data, so the active day
- * total only covers days since tracking started.
+ * Message and session totals and the last message time include usage recorded
+ * by older counters before tracking started. Those counters have no per-day
+ * data, so the active day total only covers days since tracking started.
  */
 export interface IChatDailyUsageTelemetry {
 	readonly messagesLast7Days: number;
@@ -43,7 +43,7 @@ type DailyCount = [day: number, messages: number, sessions: number];
 interface IStoredChatDailyUsage {
 	/** Counts per UTC day (days since the Unix epoch) within the retained window. */
 	readonly days: DailyCount[];
-	/** Time of the most recent message in milliseconds since the Unix epoch. */
+	/** Time of the user's most recent message in milliseconds since the Unix epoch. */
 	readonly lastMessage?: number;
 	readonly messagesTotal: number;
 	readonly sessionsTotal: number;
@@ -71,18 +71,26 @@ export class ChatDailyUsage {
 
 	/**
 	 * Records the UTC day this machine started tracking usage and seeds the
-	 * totals from older lifetime counters, unless tracking already started.
+	 * totals and last message time from older counters, unless tracking already started.
 	 */
 	startTracking(now = Date.now()): void {
-		if (this.storageService.getNumber(trackingStartDayStorageKey, StorageScope.APPLICATION_SHARED) !== undefined) {
+		const trackingStartDay = this.storageService.getNumber(trackingStartDayStorageKey, StorageScope.APPLICATION_SHARED);
+		const usage = this.read();
+		if (trackingStartDay !== undefined) {
+			// Machines that started tracking before the last message time was seeded. Older counters keep recording after tracking starts,
+			// including messages sent by agents, tools and automations, so only their usage up to the end of the first tracked day counts.
+			const lastMessage = usage.lastMessage === undefined ? this.getOlderLastUsage((trackingStartDay + 1) * dayMs) : undefined;
+			if (lastMessage !== undefined) {
+				this.storageService.store(usageStorageKey, JSON.stringify({ ...usage, lastMessage } satisfies IStoredChatDailyUsage), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+			}
 			return;
 		}
 		// Each Agents Window session started with a message, but its follow-up messages were never counted, so the message total is a lower bound.
 		const editor = new EditorChatUsage(this.storageService);
 		const agentsWindowSessions = new AgentsWindowUsage(this.storageService).createdSessionCount;
-		const usage = this.read();
 		const seeded: IStoredChatDailyUsage = {
 			...usage,
+			lastMessage: usage.lastMessage ?? this.getOlderLastUsage(),
 			messagesTotal: usage.messagesTotal + editor.messageCount + agentsWindowSessions,
 			sessionsTotal: usage.sessionsTotal + editor.sessionCount + agentsWindowSessions,
 		};
@@ -135,8 +143,6 @@ export class ChatDailyUsage {
 				activeDaysLast7Days += active;
 			}
 		}
-		// Usage recorded before daily tracking existed only has last-use times, so they seed the last message time.
-		const lastUsageTimes = coalesce([lastMessage, new EditorChatUsage(this.storageService).lastMessageDate, new AgentsWindowUsage(this.storageService).lastSessionCreated]);
 		const trackingStartDay = this.storageService.getNumber(trackingStartDayStorageKey, StorageScope.APPLICATION_SHARED, today);
 		return {
 			messagesLast7Days,
@@ -148,7 +154,7 @@ export class ChatDailyUsage {
 			activeDaysLast7Days,
 			activeDaysLast30Days,
 			activeDaysTotal,
-			minutesSinceLastMessage: lastUsageTimes.length ? Math.max(0, Math.floor((now - Math.max(...lastUsageTimes)) / minuteMs)) : undefined,
+			minutesSinceLastMessage: lastMessage !== undefined ? Math.max(0, Math.floor((now - lastMessage) / minuteMs)) : undefined,
 			trackedDays: Math.min(retainedDays, Math.max(0, today - trackingStartDay)),
 		};
 	}
@@ -166,6 +172,12 @@ export class ChatDailyUsage {
 		}
 		const { swapped } = await this.storageService.compareAndSwapApplicationSharedValue(lastReportedDayStorageKey, lastReportedDay, today);
 		return swapped ? this.getTelemetry(now) : undefined;
+	}
+
+	/** Latest usage the older counters recorded before `end`, in milliseconds since the Unix epoch. */
+	private getOlderLastUsage(end = Number.POSITIVE_INFINITY): number | undefined {
+		const times = coalesce([new EditorChatUsage(this.storageService).lastMessageDate, new AgentsWindowUsage(this.storageService).lastSessionCreated]).filter(time => time < end);
+		return times.length ? Math.max(...times) : undefined;
 	}
 
 	private read(): IStoredChatDailyUsage {

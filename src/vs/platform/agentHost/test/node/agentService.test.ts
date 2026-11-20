@@ -49,7 +49,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentChatHistoryChange } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentChatHistoryChange, type IAgentWarmChatSelection } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostChatResourcesConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -9175,6 +9175,34 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('folder send starts its checkpoint before the default branch lookup finishes', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [URI.file('/workspace/repo')],
+				config: { [SessionConfigKey.Isolation]: 'folder' },
+			});
+			const captured = new DeferredPromise<void>();
+			const defaultBranch = new DeferredPromise<Branch | undefined>();
+			git.getDefaultBranch2 = () => defaultBranch.p;
+			git.captureWorkingTreeAsTree = async () => {
+				captured.complete();
+				return undefined;
+			};
+			svc.dispatchAction(buildDefaultChatUri(session), chatTurnStarted('turn-1', 'start now'), 'client', 1);
+			await captured.p;
+			const sendsWhileResolvingBase = agent.sendMessageCalls.length;
+			defaultBranch.complete({ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' });
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
+
+			assert.deepStrictEqual({ sendsWhileResolvingBase, base: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined) }, { sendsWhileResolvingBase: 0, base: 'main' });
+		});
+
 		test('folder send resolves the default branch at send time rather than draft time', async () => {
 			const db = new TestSessionDatabase();
 			const git = createNoopGitService();
@@ -10560,6 +10588,7 @@ suite('AgentService (node dispatcher)', () => {
 		function createPrewarmService(telemetry: TestExperimentTriggerTelemetryService, gitService = createNoopGitService(), options?: { readonly multiRoot?: boolean; readonly beforeCreateChat?: () => Promise<void> }) {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService, undefined, telemetry));
 			const warmed: string[] = [];
+			const warmSelections: (IAgentWarmChatSelection | undefined)[] = [];
 			const onDidWarm = disposables.add(new Emitter<void>());
 			const beforeCreateChat = options?.beforeCreateChat;
 			class WarmableAgent extends MockAgent {
@@ -10572,8 +10601,9 @@ suite('AgentService (node dispatcher)', () => {
 						await beforeCreateChat?.();
 						return { ...await expectCreatedChat(base.createChat(chat, context, options)), provisional: true };
 					},
-					warmChat: async chat => {
+					warmChat: async (chat, _context, selection) => {
 						warmed.push(chat.toString());
+						warmSelections.push(selection);
 						onDidWarm.fire();
 						return true;
 					},
@@ -10582,8 +10612,42 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new WarmableAgent('copilotcli');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
-			return { svc, agent, warmed, onDidWarm: onDidWarm.event };
+			return { svc, agent, warmed, warmSelections, onDidWarm: onDidWarm.event };
 		}
+
+		test('a composer change keeps a warming draft warm with its model and agent while the gates hold', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const { svc, warmSelections, onDidWarm } = createPrewarmService(telemetry);
+			getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: true, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			const firstWarm = Event.toPromise(onDidWarm);
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory], activeClient });
+			await firstWarm;
+			const chat = getStateManager(svc).getDefaultChat(session.toString())!;
+			const draft = (model: string): Message => ({ text: 'fix it', origin: { kind: MessageKind.User }, model: { id: model }, agent: { uri: 'file:///workspace/.github/agents/fixer.agent.md' } });
+
+			const rewarm = Event.toPromise(onDidWarm);
+			svc.dispatchAction(chat, { type: ActionType.ChatDraftChanged, draft: draft('model-b') }, 'client-1', 2);
+			await rewarm;
+			// A cleared draft names nothing to warm, and a turned-off setting stops keeping the draft warm.
+			svc.dispatchAction(chat, { type: ActionType.ChatDraftChanged }, 'client-1', 3);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostPrewarmSessionsConfigKey]: false });
+			svc.dispatchAction(chat, { type: ActionType.ChatDraftChanged, draft: draft('model-c') }, 'client-1', 4);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				warmSelections,
+				// A session before its first message keeps its draft in memory only: it has no database yet.
+				live: getStateManager(svc).getChatState(chat)?.draft?.model,
+				persisted: await getTestSessionStateStore(svc).chatRows.getDraft(session, URI.parse(chat)),
+			}, {
+				warmSelections: [
+					undefined,
+					{ model: { id: 'model-b' }, agent: { uri: 'file:///workspace/.github/agents/fixer.agent.md' } },
+				],
+				live: { id: 'model-c' },
+				persisted: undefined,
+			});
+		});
 
 		test('warms a trusted folder draft unless the setting is off, and reports the trigger in every case', async () => {
 			const results: Record<string, { warmed: boolean; triggers: readonly string[] }> = {};
@@ -32803,6 +32867,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder: sessionScratch, isolation: 'folder' }), ownScratchFolderRefusal);
 			await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder: sessionScratch, isolation: 'folder' } }), ownScratchFolderRefusal);
+			const toolAccessor = (svc as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+			await assert.rejects(() => toolAccessor.prepareChatWorkingDirectory(session, sessionScratch, { isolation: 'folder' }), ownScratchFolderRefusal);
+			const differentlyCased = URI.file('/home/.copilot/CHATS/s-a');
+			if (extUriBiasedIgnorePathCase.isEqual(differentlyCased, sessionScratch)) {
+				await assert.rejects(() => toolAccessor.prepareChatWorkingDirectory(session, differentlyCased, { isolation: 'folder' }), ownScratchFolderRefusal);
+				await assert.rejects(() => toolAccessor.prepareChatWorkingDirectory(session, joinPath(differentlyCased, 'sub'), { isolation: 'folder' }), /a chat's own scratch folder; pick No Workspace/);
+			}
 
 			assert.deepStrictEqual({ ...await snapshot(), primary: before.session?.[0], createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, primary: sessionScratch.toString(), createdListed: false });
 		});
@@ -46561,13 +46632,22 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				replacesFirst: true,
 				turns: [
-					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: 'Automatically Repair disabled for Example' }] },
+					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: '**Automatically Repair disabled** for Example' }] },
 					{ replaced: false, notice: [] },
-					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: 'Automatically Repair enabled for Example' }] },
+					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: '**Automatically Repair enabled** for Example' }] },
 				],
 				persisted: [{ current: true, anchor: undefined }, { current: true, anchor: 'human-turn' }],
 				sent: [],
 			});
+		});
+
+		test('names the agent that turned automation off by its harness', async () => {
+			const f = await createArtifactAutomation();
+			await f.model.configure('test.automation', 0, { repair: true });
+			await f.model.configure('test.automation', 1, { repair: false }, { kind: 'agent', chat: f.chat });
+			await timeout(0);
+			const headings = f.stateManager.getChatState(f.chat)!.turns.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification && typeof part.content === 'string' ? part.content.split('\n')[0] : undefined));
+			assert.deepStrictEqual(headings, ['Agent copilot **disabled Automatically Repair** for Example']);
 		});
 
 		test('notices merged while a turn runs merge into an earlier notice as a whole', async () => {

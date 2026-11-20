@@ -441,9 +441,14 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	steeredFromTurn?: string;
 	interactionIds?: string;
 	interactionIdsTruncated?: boolean;
+	steeringDelivery?: IAgentTurnInteraction['steeringDelivery'];
 	codexModelProvider?: CodexModelProvider;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
+	prewarmReadyAfterTurnStartMs?: number;
+	prewarmReadyBeforeTurnStartMs?: number;
+	prewarmLaunchCount?: number;
+	prewarmWarmUpComplete?: boolean;
 	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
@@ -505,9 +510,14 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
 	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of up to 64 distinct interaction IDs observed for this execution turn.' };
 	interactionIdsTruncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether more distinct interactions were observed than could be retained.' };
+	steeringDelivery?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-confirmed delivery of a host steering submission: steering, idle, queued, or unknown while confirmation is unavailable. Omitted for providers or turns without delivery tracking.' };
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
+	prewarmReadyAfterTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds after the turn started that the session became ready (0 when it was ready before), which the send spent waiting for it; absent otherwise.' };
+	prewarmReadyBeforeTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds the session had been ready before the turn started (0 when it became ready during the turn); absent otherwise.' };
+	prewarmLaunchCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: the warm launches of the draft, including the used one; more than one means it was warmed again, for example after a model change; absent otherwise.' };
+	prewarmWarmUpComplete?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: whether its background warm-up (MCP startup and tool initialization) had finished; absent otherwise.' };
 	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn launched a deferred provider session without one started before the first message to claim or discard, such as disabled, expired or customizationsPending; absent otherwise.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
@@ -523,7 +533,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	timeToFirstSubstantiveProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress that advances the user request, excluding host bookkeeping such as the chat rename tool call.' };
 	timeToFirstEdit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative provider-dispatch time in milliseconds through the first accepted response that requests a built-in file edit. Excludes prompt construction, retry backoff, tool execution, confirmations, and post-response processing.' };
-	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the provider promoted a steering message into this turn. Time to first edit remains a per-turn measurement, not a cumulative measurement across the preceding turn.' };
+	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this turn began with confirmed steering delivery when steeringDelivery is present; otherwise the provider-promoted steering classification. Time to first edit is measured per execution turn.' };
 	receivedSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a steering message was submitted to this chat while this turn was active, regardless of whether the provider consumed it. Previously recorded time to first edit is preserved.' };
 	sendStageWorkingDirectoryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving the working directory before dispatching the turn, including first-send worktree creation.' };
 	sendStageModelSelectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent applying the model and agent selection on the provider before dispatching the turn.' };
@@ -575,6 +585,10 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry, IAg
 	failureStage: AgentHostTurnFailureStage;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
+	prewarmReadyAfterTurnStartMs?: number;
+	prewarmReadyBeforeTurnStartMs?: number;
+	prewarmLaunchCount?: number;
+	prewarmWarmUpComplete?: boolean;
 	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	errorType: string;
 	errorName: string | undefined;
@@ -595,6 +609,10 @@ export type IAgentHostTurnFailedClassification = IAgentHostEventClassification &
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn discarded a provider session started before the first message and launched one instead; absent when it did not.' };
+	prewarmReadyAfterTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds after the turn started that the session became ready (0 when it was ready before), which the send spent waiting for it; absent otherwise.' };
+	prewarmReadyBeforeTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds the session had been ready before the turn started (0 when it became ready during the turn); absent otherwise.' };
+	prewarmLaunchCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: the warm launches of the draft, including the used one; more than one means it was warmed again, for example after a model change; absent otherwise.' };
+	prewarmWarmUpComplete?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: whether its background warm-up (MCP startup and tool initialization) had finished; absent otherwise.' };
 	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn launched a deferred provider session without one started before the first message to claim or discard; absent otherwise.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
@@ -661,6 +679,20 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
+
+type ModelCallUsageCountedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	usageCountedInTurnId: string;
+};
+
+type ModelCallUsageCountedClassification = {
+	owner: 'amunger';
+	comment: 'Identifies the accounting turn for a Copilot root model usage report so its placement can be compared with the call owner.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK session containing the model call.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK API call identifier shared with model-call correlation and response telemetry.' };
+	usageCountedInTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent Host execution turn accumulating the reported root model usage.' };
+};
 
 interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentTokenUsageSummary, 'model'> {
 	provider: string;
@@ -1555,11 +1587,15 @@ function toProviderStageMeasurements(durations: ReadonlyMap<AgentHostProviderSen
 }
 
 /** Projects whether a turn used a pre-warmed provider session, why it discarded one, or why it found none to claim, omitting each when absent. */
-function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): { usedPrewarmedSession?: boolean; prewarmedSessionDiscardReason?: string; prewarmSkipReason?: AgentHostPrewarmSkipReason } {
+function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): Pick<IAgentProviderTurnTelemetryContext, 'usedPrewarmedSession' | 'prewarmedSessionDiscardReason' | 'prewarmSkipReason' | 'prewarmReadyAfterTurnStartMs' | 'prewarmReadyBeforeTurnStartMs' | 'prewarmLaunchCount' | 'prewarmWarmUpComplete'> {
 	return {
 		...(context?.usedPrewarmedSession ? { usedPrewarmedSession: true } : {}),
 		...(context?.prewarmedSessionDiscardReason !== undefined ? { prewarmedSessionDiscardReason: context.prewarmedSessionDiscardReason } : {}),
 		...(context?.prewarmSkipReason !== undefined ? { prewarmSkipReason: context.prewarmSkipReason } : {}),
+		...(context?.prewarmReadyAfterTurnStartMs !== undefined ? { prewarmReadyAfterTurnStartMs: context.prewarmReadyAfterTurnStartMs } : {}),
+		...(context?.prewarmReadyBeforeTurnStartMs !== undefined ? { prewarmReadyBeforeTurnStartMs: context.prewarmReadyBeforeTurnStartMs } : {}),
+		...(context?.prewarmLaunchCount !== undefined ? { prewarmLaunchCount: context.prewarmLaunchCount } : {}),
+		...(context?.prewarmWarmUpComplete !== undefined ? { prewarmWarmUpComplete: context.prewarmWarmUpComplete } : {}),
 	};
 }
 
@@ -2037,6 +2073,10 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
+	modelCallUsageCounted(report: ModelCallUsageCountedEvent): void {
+		this._telemetryService.publicLog2<ModelCallUsageCountedEvent, ModelCallUsageCountedClassification>('agentHost.modelCallUsageCounted', report);
+	}
+
 	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; telemetryContext?: IAgentTelemetryContext; provider: string; session: string; owner: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; subagentKind?: AgentSubagentKind; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
 		const session = report.owner;
 		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
@@ -2105,6 +2145,7 @@ export class AgentHostTelemetryReporter {
 				steeredFromTurn: report.turnInteraction.steeredFromTurn,
 				interactionIds: JSON.stringify(report.turnInteraction.interactionIds),
 				interactionIdsTruncated: report.turnInteraction.interactionIdsTruncated,
+				...(report.turnInteraction.steeringDelivery ? { steeringDelivery: report.turnInteraction.steeringDelivery } : {}),
 			} : {}),
 			...toInitiatorTelemetry(report.clientContext),
 			...toCopilotTelemetryData(report.telemetryContext),

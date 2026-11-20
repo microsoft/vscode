@@ -16,10 +16,13 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
-import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification, type DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
 import type { SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
+import type { SubscribeResult } from '../../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
@@ -154,7 +157,29 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
 		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 		tempDirs.push(userHomeDir);
+		await trustAllFolders();
 	});
+
+	/** Turns workspace trust off, as in VS Code without workspace trust, so sessions run repository hooks of every folder. */
+	async function trustAllFolders(): Promise<void> {
+		const configClient = new TestProtocolClient(server.port);
+		await configClient.connect();
+		try {
+			await configClient.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'customizations-trust-config' }, 30_000);
+			await configClient.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			const clientSeq = 1;
+			const applied = configClient.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.RootConfigChanged)
+				&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+				&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
+				30_000,
+			);
+			configClient.dispatch({ channel: ROOT_STATE_URI, clientSeq, action: { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } } } });
+			await applied;
+		} finally {
+			configClient.close();
+		}
+	}
 
 	suiteTeardown(async function () {
 		server?.process.kill();

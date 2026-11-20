@@ -75,6 +75,12 @@ export interface IModelPickerDelegate {
 	 * the Manage Models editor to that harness's Copilot models.
 	 */
 	getSessionType?(): string | undefined;
+	/**
+	 * Starts the prompt input that owns the picker with the given text, keeping what is already
+	 * written after it, and moves focus there, so the picker can hand the user to a slash command.
+	 * Owners with no prompt to write in omit it.
+	 */
+	startPromptWith?(text: string): void;
 	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
 	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**

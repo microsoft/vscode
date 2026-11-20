@@ -5,7 +5,7 @@
 
 import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import type { IAgentModelInfo } from '../../common/agent.js';
-import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentModelConfigurationReport, type IAgentModelConfigurationOptions } from '../../common/agentModelConfiguration.js';
+import { getContextSizeForTier, isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentModelConfigurationReport, type IAgentModelConfigurationOptions } from '../../common/agentModelConfiguration.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { readAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
@@ -117,7 +117,7 @@ export function createCopilotModelConfigurationReport(
 		const values = {
 			thinkingLevel: current.reasoningEffort,
 			// The runtime runs a session without a context tier on the default tier.
-			contextSize: current.contextTier === 'long_context' ? properties?.contextSize?.enum?.at(-1) : properties?.contextSize?.enum?.[0],
+			contextSize: getContextSizeForTier(properties?.contextSize, current.contextTier ?? 'default'),
 			tier: current.autoTier,
 		};
 		for (const key of modelOptionKeys) {
@@ -150,7 +150,7 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 		{
 			key: 'contextSize',
 			value: concreteModel && values.contextTier !== undefined
-				? values.contextTier === 'long_context' ? properties.contextSize?.enum?.at(-1) : properties.contextSize?.enum?.[0]
+				? getContextSizeForTier(properties.contextSize, values.contextTier)
 				: undefined,
 		},
 		{ key: 'tier', value: autoPreference },

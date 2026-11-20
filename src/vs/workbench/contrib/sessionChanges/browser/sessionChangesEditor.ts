@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -60,8 +60,8 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
-import { defaultCheckboxStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../../services/editor/common/diffEditorOptionsService.js';
@@ -284,6 +284,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _changesPendingObs = derived(this, reader => !!this._resolvingInput.read(reader) || this._inputChangesPendingLoadObs.read(reader) || this._inputDiffsResolvingObs.read(reader));
 
 	private readonly _hasInput = observableValue(this, false);
+	/**
+	 * Signals when this editor shows its progress again, as the latest of its editor group, while its changes are pending:
+	 * when an input is set, as the group stops the progress once the input becomes its active editor, and once it is set,
+	 * as the group stops the progress it showed while setting it.
+	 */
+	private readonly _showProgressAgain = observableSignal(this);
 	private readonly _paneVisible = observableValue(this, false);
 	/**
 	 * The chat this editor shows the changes of while it has its input, whose changes it keeps observed though no window
@@ -340,6 +346,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -420,15 +427,31 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this.emptyState?.layout();
 			}
 		}));
-		const loadingProgressBar = this._register(new ProgressBar(append(this.bodyContainer, $('.session-changes-editor-progress')), defaultProgressBarStyles));
-		loadingProgressBar.stop().hide();
+		const loadingProgress = this._register(new MutableDisposable());
+		const loadingEnd = this._register(new MutableDisposable());
+		let loadingSince: number | undefined;
 		this._register(autorun(reader => {
 			const loading = this._changesPendingObs.read(reader);
+			const visible = this._paneVisible.read(reader);
 			this.bodyContainer?.classList.toggle('changes-loading', loading);
-			if (loading && this._paneVisible.read(reader)) {
-				loadingProgressBar.infinite().show(CHANGES_LOADING_PROGRESS_DELAY_MS);
+			this._showProgressAgain.read(reader);
+			if (loading && visible) {
+				loadingEnd.clear();
+				loadingSince ??= Date.now();
+				// Shown before the previous progress is done, so that the progress does not stop meanwhile, and only
+				// after what remains of the delay, so that it shows again right away once it showed.
+				const remainingDelay = CHANGES_LOADING_PROGRESS_DELAY_MS - (Date.now() - loadingSince);
+				const progress = this.editorProgressService.show(true, remainingDelay > 0 ? remainingDelay : undefined);
+				loadingProgress.value = toDisposable(() => progress.done());
 			} else {
-				loadingProgressBar.stop().hide();
+				loadingProgress.clear();
+				if (!visible) {
+					loadingEnd.clear();
+					loadingSince = undefined;
+				} else if (loadingSince !== undefined && !loadingEnd.value) {
+					// Its group clears the input right before it sets the next one, whose changes may be pending as well.
+					loadingEnd.value = disposableTimeout(() => loadingSince = undefined, 0);
+				}
 			}
 		}));
 		this._register(autorun(reader => {
@@ -511,6 +534,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this._showProgressAgain.trigger(undefined);
+		try {
+			await this._setInput(input, options, context, token);
+		} finally {
+			this._showProgressAgain.trigger(undefined);
+		}
+	}
+
+	private async _setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const generation = ++this._inputGeneration;
 		if (!this._adoptOutgoingContent(input)) {
 			// Diffs of other changes must not show under the header of these, so show none until these resolve.

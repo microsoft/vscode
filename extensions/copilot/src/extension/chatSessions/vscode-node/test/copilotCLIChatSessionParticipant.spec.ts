@@ -176,9 +176,6 @@ class FakeChatSessionWorktreeService extends mock<IChatSessionWorktreeService>()
 	override setWorktreeProperties = vi.fn(async () => { });
 	override getWorktreePath: any = vi.fn(async (_id: string): Promise<vscode.Uri | undefined> => undefined);
 	override handleRequestCompleted = vi.fn(async () => { });
-	override getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined> {
-		return Promise.resolve(undefined);
-	}
 }
 
 class FakeChatSessionWorktreeCheckpointService extends mock<IChatSessionWorktreeCheckpointService>() {
@@ -205,7 +202,6 @@ class FakeGitService extends mock<IGitService>() {
 	override onDidFinishInitialization = Event.None;
 	override onDidOpenRepository = Event.None;
 	override repositories: RepoContext[] = [];
-	private _recentRepositories: { rootUri: vscode.Uri; lastAccessTime: number }[] = [];
 	setRepo(repos: RepoContext) {
 		this.repositories = [repos];
 	}
@@ -214,12 +210,6 @@ class FakeGitService extends mock<IGitService>() {
 			return Promise.resolve(this.repositories[0]);
 		}
 		return undefined;
-	}
-	override getRecentRepositories = vi.fn((): { rootUri: vscode.Uri; lastAccessTime: number }[] => {
-		return this._recentRepositories;
-	});
-	setTestRecentRepositories(repos: { rootUri: vscode.Uri; lastAccessTime: number }[]): void {
-		this._recentRepositories = repos;
 	}
 }
 
@@ -363,7 +353,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		const accessor = services.createTestingAccessor();
 		disposables.add(accessor);
 		promptResolver = new class extends mock<CopilotCLIPromptResolver>() {
-			override resolvePrompt = vi.fn(async (request: vscode.ChatRequest, prompt: string | undefined, _additionalReferences: vscode.ChatPromptReference[], _workspaceInfo: IWorkspaceInfo, _additionalWorkspaces: IWorkspaceInfo[], _token: vscode.CancellationToken) => {
+			override resolvePrompt = vi.fn(async (request: vscode.ChatRequest, prompt: string | undefined, _additionalReferences: vscode.ChatPromptReference[], _workspaceInfo: IWorkspaceInfo, _token: vscode.CancellationToken) => {
 				return { prompt: prompt ?? request.prompt, attachments: [], references: [] };
 			});
 		}();
@@ -421,7 +411,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], undefined, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService());
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, undefined, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService());
 				cliSessions.push(session);
 				return disposables.add(session);
 			}

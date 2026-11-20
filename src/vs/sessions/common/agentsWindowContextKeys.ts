@@ -62,6 +62,7 @@ export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessions
 export const DesktopChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsDesktopChangesTabMissing', false, localize('agentSessionsDesktopChangesTabMissing', "Whether the desktop session supports a Changes editor but its tab is not currently open"));
 export const DesktopFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsDesktopFilesTabMissing', false, localize('agentSessionsDesktopFilesTabMissing', "Whether the desktop session supports a Files tab but its tab is not currently open"));
 export const DesktopChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsDesktopChangesTabAvailable', false, localize('agentSessionsDesktopChangesTabAvailable', "Whether the desktop session supports a Changes editor"));
+export const ActiveSideChatTabContext = new RawContextKey<string>('sessionsActiveSideChatTab', '', localize('sessionsActiveSideChatTab', "The resource of the side chat whose tab is the active editor of the side panel"));
 export const DesktopFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsDesktopFilesTabAvailable', false, localize('agentSessionsDesktopFilesTabAvailable', "Whether the desktop session supports a Files editor"));
 
 //#endregion

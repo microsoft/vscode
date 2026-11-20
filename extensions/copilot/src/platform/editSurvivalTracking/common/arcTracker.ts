@@ -15,9 +15,9 @@ export class ArcTracker {
 
 	constructor(
 		public readonly originalText: string,
-		private readonly _trackedEdit: BaseStringEdit,
+		trackedEdit: BaseStringEdit,
 	) {
-		const eNormalized = _trackedEdit.removeCommonSuffixPrefix(originalText);
+		const eNormalized = trackedEdit.removeCommonSuffixPrefix(originalText);
 		this._updatedTrackedEdit = eNormalized.mapData(() => new IsTrackedEditData(true));
 	}
 
@@ -31,20 +31,6 @@ export class ArcTracker {
 	getAcceptedRestrainedCharactersCount(): number {
 		const s = sum(this._updatedTrackedEdit.replacements, e => e.getNewLength());
 		return s;
-	}
-
-	getOriginalCharacterCount(): number {
-		return sum(this._trackedEdit.replacements, e => e.getNewLength());
-	}
-
-	getDebugState(): unknown {
-		return {
-			edits: this._updatedTrackedEdit.replacements.map(e => ({
-				range: e.replaceRange.toString(),
-				newText: e.newText,
-				isTrackedEdit: e.data.isTrackedEdit,
-			}))
-		};
 	}
 }
 

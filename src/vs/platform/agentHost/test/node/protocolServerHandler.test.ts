@@ -48,8 +48,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { FileService } from '../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
@@ -110,12 +112,14 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
+import { CopilotBuiltinSkillResourceProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentServiceComposition, ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
+import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { FileSystemResources } from '../../node/resourceProviders/fileSystemResources.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -839,6 +843,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.automationHistoryReceipts': true,
 				'vscode.automationHistoryDeletionState': true,
 				'vscode.devContainers': true,
+				'vscode.devContainerEnvironments': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
 				'vscode.copilotExtensions': true,
@@ -4500,6 +4505,46 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('does not serve a cached session-addressed turn changeset on initialize, subscribe, or reconnect', async () => {
+		handler.dispose();
+		const fileService = disposables.add(new FileService(logService));
+		const service = disposables.add(createTestAgentService(logService, fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const { stateManager, chatOwnership } = getTestAgentServiceComposition(service);
+		disposables.add(new ProtocolServerHandler(service, stateManager, server, {}, fileSystemProvider, logService, agentHostTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, chatOwnership, proxyResolver));
+		const session = 'ahp-session:/retired-turn';
+		stateManager.createSession(makeSessionSummary(session));
+		const channel = buildTurnChangesetUri(session, 'turn-1');
+		stateManager.registerChangeset(channel);
+
+		const clientId = 'retired-turn-changeset';
+		const transport = connectClient(clientId, [ROOT_STATE_URI, channel]);
+		const initialized = findResponse(transport.sent, 1) ?? await waitForResponse(transport, 1);
+		assert.ok(hasKey(initialized, { result: true }));
+		assert.deepStrictEqual((initialized.result as InitializeResult).snapshots.map(snapshot => snapshot.resource), [ROOT_STATE_URI]);
+
+		transport.sent.length = 0;
+		stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		assert.deepStrictEqual(findNotifications(transport.sent, 'action'), []);
+
+		const subscribed = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel }));
+		assert.deepStrictEqual(await subscribed, {
+			jsonrpc: '2.0', id: 2, error: { code: AHP_SESSION_NOT_FOUND, message: `Resource not found: ${channel}` },
+		});
+
+		transport.simulateClose();
+		const returning = new MockProtocolTransport();
+		server.simulateConnection(returning);
+		const reconnected = waitForResponse(returning, 3);
+		returning.simulateMessage(request(3, 'reconnect', {
+			clientId, lastSeenServerSeq: stateManager.serverSeq, subscriptions: [channel],
+		}));
+		assert.deepStrictEqual(await reconnected, {
+			jsonrpc: '2.0', id: 3, result: { type: 'replay', actions: [], missing: [channel] },
+		});
+	});
+
 	test('subscribe still reports and logs genuinely missing resources', async () => {
 		const transport = connectClient('client-1');
 		transport.sent.length = 0;
@@ -7472,6 +7517,58 @@ suite('ProtocolServerHandler', () => {
 		} finally {
 			await rm(path, { recursive: true });
 		}
+	});
+
+	test('MC built-in skill sources allow exact reads without filesystem grants, not writes or other resources', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'builtin-skills', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'builtin-skills', protocolVersions: [PROTOCOL_VERSION] }));
+		const provider = new CopilotBuiltinSkillResourceProvider();
+		const reads: string[] = [];
+		agentService.resourceRead = uri => {
+			reads.push(uri.toString());
+			return provider.read(uri, ContentEncoding.Utf8);
+		};
+		const resources = [
+			'agent-builtin-skill:/troubleshoot/SKILL.md',
+			'agent-builtin-skill:/model-router/SKILL.md',
+			'agent-builtin:/skill/troubleshoot',
+			'agent-builtin:/skill/model-router',
+		];
+		const cases = [
+			...resources.map(uri => ({ method: 'resourceRead', uri, expected: 'source' })),
+			...['resourceWrite', 'resourceDelete', 'resourceMkdir', 'resourceRequest', 'resourceResolve', 'resourceList', 'createResourceWatch', 'resourceCopy', 'resourceMove'].map(method =>
+			({ method, uri: resources[0], expected: AhpErrorCodes.PermissionDenied })),
+			...[
+				'agent-builtin-skill:/unknown/SKILL.md',
+				'agent-builtin-skill://other/troubleshoot/SKILL.md',
+				'agent-builtin-skill:/troubleshoot/SKILL.md?other=1',
+				'agent-builtin-skill:/troubleshoot/SKILL.md/child',
+				'agent-builtin:/skill/unknown',
+				'agent-builtin:/skills',
+				'file:///private/secret',
+			].map(uri => ({ method: 'resourceRead', uri, expected: AhpErrorCodes.PermissionDenied })),
+		];
+		const results = [];
+		const expected = [];
+		for (const [index, item] of cases.entries()) {
+			const id = index + 2;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, item.method, { uri: item.uri, source: item.uri, destination: item.uri, data: 'overwrite', encoding: ContentEncoding.Utf8, write: true }));
+			const message = await response;
+			results.push(hasKey(message, { error: true }) ? message.error.code
+				: hasKey(message, { result: true }) ? message.result : undefined);
+			expected.push(item.expected === 'source' ? await provider.read(URI.parse(item.uri), ContentEncoding.Utf8) : item.expected);
+		}
+		assert.deepStrictEqual({ results, reads }, { results: expected, reads: resources });
 	});
 
 	test('MC MCP app resources route to their owning provider without filesystem grants', async () => {

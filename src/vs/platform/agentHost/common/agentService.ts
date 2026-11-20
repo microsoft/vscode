@@ -188,6 +188,9 @@ export const AgentHostMcpSkillsEnabledSettingId = 'chat.agentHost.mcpSkills.enab
 /** Configuration key controlling Agent Host agent-orchestration safety limits. */
 export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
 
+/** Configuration key controlling whether agents can choose a model's reasoning effort and context size when they create a session, and how they find the models. */
+export const AgentHostSessionModelOptionsSettingId = 'chat.agentHost.sessionModelOptions';
+
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 

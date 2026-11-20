@@ -15,7 +15,6 @@ import { dirname } from '../../../../util/vs/base/common/resources';
 import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../../common/utils';
-import { IWorkspaceInfo } from '../../common/workspaceInfo';
 import { sessionMetadataFileWriteSequencer } from '../../common/sessionMetadataFileWriteSequencer';
 import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
 import { ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
@@ -266,28 +265,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			return undefined;
 		}
 		return metadata.workspaceFolder;
-	}
-
-	async getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]> {
-		const metadata = await this.getSessionMetadata(sessionId);
-		if (!metadata?.additionalWorkspaces?.length) {
-			return [];
-		}
-		return metadata.additionalWorkspaces.map(ws => ({
-			folder: !ws.worktreeProperties && ws.workspaceFolder?.folderPath ? Uri.file(ws.workspaceFolder.folderPath) : undefined,
-			repository: ws.worktreeProperties?.repositoryPath ? Uri.file(ws.worktreeProperties.repositoryPath) : undefined,
-			repositoryProperties: undefined,
-			worktree: ws.worktreeProperties?.worktreePath ? Uri.file(ws.worktreeProperties.worktreePath) : undefined,
-			worktreeProperties: ws.worktreeProperties,
-		}));
-	}
-
-	async setAdditionalWorkspaces(sessionId: string, workspaces: IWorkspaceInfo[]): Promise<void> {
-		const additionalWorkspaces = workspaces.map(ws => ({
-			worktreeProperties: ws.worktreeProperties,
-			workspaceFolder: !ws.worktreeProperties && ws.folder ? { folderPath: ws.folder.fsPath, timestamp: Date.now() } : undefined,
-		}));
-		await this.updateMetadataFields(sessionId, { additionalWorkspaces });
 	}
 
 	async getSessionFirstUserMessage(sessionId: string): Promise<string | undefined> {

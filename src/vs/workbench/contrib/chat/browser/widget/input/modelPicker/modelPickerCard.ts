@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -90,6 +90,11 @@ export interface IModelCardOptions {
 	readonly description?: string;
 	/** Separate routing models offered among Auto's tiers, such as HydraFusion and HydraFusion Max. */
 	readonly routingAlternatives?: readonly IModelCardRoutingAlternative[];
+	/**
+	 * Renders what a kind of model shows after the sections every model has, such as a model
+	 * router's routes. Called on every render of the card, which disposes the previous result.
+	 */
+	readonly renderAdditionalSections?: (container: HTMLElement) => IDisposable;
 	/** Marks the start of a model-affecting interaction, before an asynchronous save. */
 	readonly onWillSelect?: () => void;
 	/** Selects the model for the latest saved configuration or speed choice. */
@@ -157,6 +162,22 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 	return (a?.length ?? 0) === (b?.length ?? 0)
 		&& (a ?? []).every((alternative, index) => alternative.model === b?.[index].model && alternative.selected === b[index].selected
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
+}
+
+/**
+ * Appends a section to a model card, under a title when it has one, and returns it for its
+ * content. A `value` is what the title names, such as a context size, shown beside it.
+ */
+export function renderModelCardSection(card: HTMLElement, title: string | undefined, value?: string): HTMLElement {
+	const section = dom.append(card, dom.$('.chat-model-card-section'));
+	if (title) {
+		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
+		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
+		if (value) {
+			dom.append(heading, dom.$('.chat-model-card-section-value', undefined, value));
+		}
+	}
+	return section;
 }
 
 /**
@@ -394,6 +415,9 @@ export class ModelCard extends DisposableStore {
 		} else if (!isAuto && metadata.pricing && isMultiplierPricing(model)) {
 			this._renderSection(localize('models.cost', "Cost: {0}", metadata.pricing));
 		}
+		if (this._options.renderAdditionalSections) {
+			this._contentDisposables.add(this._options.renderAdditionalSections(this.element));
+		}
 	}
 
 	private _renderHeader(): void {
@@ -492,12 +516,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderSection(title: string | undefined): HTMLElement {
-		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
-		if (title) {
-			const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-			dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
-		}
-		return section;
+		return renderModelCardSection(this.element, title);
 	}
 
 	private _renderEffortSection(effort: IModelConfigProperty, isAuto: boolean): void {
@@ -802,10 +821,7 @@ export class ModelCard extends DisposableStore {
 		if (!total) {
 			return;
 		}
-		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
-		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, getMaxContextLabel()));
-		dom.append(heading, dom.$('.chat-model-card-section-value', undefined, formatTokenCount(total)));
+		renderModelCardSection(this.element, getMaxContextLabel(), formatTokenCount(total));
 	}
 
 	private _renderCost(context: IModelConfigProperty | undefined): void {

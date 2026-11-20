@@ -89,6 +89,112 @@ suite('MobileRepositoryPicker', () => {
 		target.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: value, shiftKey, bubbles: true, cancelable: true }));
 	}
 
+	for (const outcome of ['select', 'cancel'] as const) {
+		test(`empty searchable workspace picker opens repository search directly and can ${outcome}`, async () => {
+			const { picker, container, trigger, errors } = createPicker();
+			const queries: string[] = [];
+			let selection: string | undefined;
+			let browseIndex: number | undefined;
+			let browse: ReturnType<ISessionWorkspaceBrowseAction['run']> | undefined;
+			const browseAction: ISessionWorkspaceBrowseAction = {
+				label: 'GitHub', icon: Codicon.github, providerId: 'test-github', group: SESSION_WORKSPACE_GROUP_GITHUB,
+				run: async () => {
+					selection = await picker.pickRepository(async query => {
+						queries.push(query);
+						return query === 'vscode' ? ['microsoft/vscode'] : ['example/recent'];
+					});
+					return undefined;
+				},
+			};
+			const workspaceSheet = showMobileWorkspacePickerSheet(
+				upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }),
+				trigger,
+				[{
+					kind: ActionListItemKind.Action, label: browseAction.label,
+					group: { title: '', icon: browseAction.icon }, item: { browseActionIndex: 0 },
+				}],
+				item => {
+					browseIndex = item.browseActionIndex;
+					browse = browseAction.run();
+				},
+				[browseAction],
+				true,
+			);
+			store.add(toDisposable(() => container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
+			await clock.tickAsync(0);
+			const input = getInput(container);
+			const initial = {
+				titles: [...container.querySelectorAll('[role="dialog"]')].map(dialog => dialog.ariaLabel),
+				placeholder: input.placeholder,
+				focused: dom.getActiveElement() === input,
+			};
+			query(input, 'vscode');
+			await clock.tickAsync(300);
+			const rows = getRows(container).map(row => row.textContent);
+			if (outcome === 'select') {
+				getRows(container)[0]?.click();
+			}
+			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+			await clock.tickAsync(180);
+			await workspaceSheet;
+			await browse;
+
+			assert.deepStrictEqual({
+				initial, queries, rows, browseIndex, selection, errors,
+				dialogs: container.querySelectorAll('[role="dialog"]').length,
+				focusRestored: dom.getActiveElement() === trigger,
+			}, {
+				initial: { titles: ['Choose repository'], placeholder: 'Search repositories', focused: true },
+				queries: ['', 'vscode'], rows: ['microsoft/vscode'], browseIndex: 0,
+				selection: outcome === 'select' ? 'microsoft/vscode' : undefined,
+				errors: [], dialogs: 0, focusRestored: true,
+			});
+		});
+	}
+
+	for (const choices of ['recent workspace', 'multiple providers', 'inline folders'] as const) {
+		test(`searchable workspace picker preserves ${choices} instead of browsing directly`, async () => {
+			const { container, trigger } = createPicker();
+			const browseActions: ISessionWorkspaceBrowseAction[] = [{
+				label: 'Browse', icon: Codicon.folder, providerId: 'first', run: async () => undefined,
+				...(choices === 'inline folders' ? { listFolders: async () => [] } : undefined),
+			}];
+			if (choices === 'multiple providers') {
+				browseActions.push({ label: 'Other', icon: Codicon.folder, providerId: 'second', run: async () => undefined });
+			}
+			let dispatched = 0;
+			const result = showMobileWorkspacePickerSheet(
+				upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }),
+				trigger,
+				[
+					...(choices === 'recent workspace' ? [{
+						kind: ActionListItemKind.Action, label: 'Recent',
+						item: { folderUri: URI.file('/recent'), providerId: 'first' },
+					}] : []),
+					...browseActions.map((action, index) => ({
+						kind: ActionListItemKind.Action, label: action.label,
+						group: { title: '', icon: action.icon }, item: { browseActionIndex: index },
+					})),
+				],
+				() => { dispatched++; },
+				browseActions,
+				true,
+			);
+			await clock.tickAsync(0);
+			const title = container.querySelector('[role="dialog"]')?.ariaLabel;
+			const headers = container.querySelectorAll('.mobile-picker-sheet-header-action').length;
+			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+			await clock.tickAsync(180);
+			await result;
+
+			assert.deepStrictEqual({ title, headers, dispatched }, {
+				title: 'Choose Workspace',
+				headers: choices === 'multiple providers' ? 2 : choices === 'inline folders' ? 0 : 1,
+				dispatched: 0,
+			});
+		});
+	}
+
 	(isWeb ? test : test.skip)('workspace GitHub header opens the mobile repository sheet without quick input', async () => {
 		// Exercise a shared document that already contains unrelated Quick Input widgets.
 		const unrelatedInputs = dom.append(mainWindow.document.body, dom.$('div'));

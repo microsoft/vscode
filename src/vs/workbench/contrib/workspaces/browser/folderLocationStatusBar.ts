@@ -63,11 +63,13 @@ interface IActionWidgetLocation extends ILocationEntry {
 
 /** The locations of one provider, under its label where it has one ({@link IFolderLocationGroup}). */
 interface ILocationGroup {
+	/** Its provider, which identifies its row: providers may share a label. */
+	readonly providerId: string;
 	readonly label: string | undefined;
 	readonly entries: readonly ILocationEntry[];
 }
 
-/** The id prefix of the row of a group of locations. */
+/** The id prefix of the row of a group of locations, which its provider's id follows. */
 const GROUP_ID_PREFIX = 'group:';
 
 interface ILocationQuickPickItem extends IQuickPickItem {
@@ -329,8 +331,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), icon: Codicon.folder };
 		const toEntry = (location: IFolderLocation): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout });
 		// Seed the current location, in the group of its provider, so that accepting before the lookup resolves keeps it
-		const seedGroups: ILocationGroup[] = currentLocation ? [{ label: currentLocation.group, entries: [{ ...toEntry(currentLocation), uri: folder.uri }] }] : [];
-		const toGroups = (groups: readonly IFolderLocationGroup[]): ILocationGroup[] => groups.map(group => ({ label: group.label, entries: group.locations.map(toEntry) }));
+		const seedGroups: ILocationGroup[] = currentLocation ? [{ providerId: currentLocation.providerId, label: currentLocation.group, entries: [{ ...toEntry(currentLocation), uri: folder.uri }] }] : [];
+		const toGroups = (groups: readonly IFolderLocationGroup[]): ILocationGroup[] => groups.map(group => ({ providerId: group.providerId, label: group.label, entries: group.locations.map(toEntry) }));
 		// The quick pick lists the folder and its locations as one list
 		const toEntries = (groups: readonly ILocationGroup[]) => [primaryEntry, ...groups.flatMap(group => group.entries)];
 		// What a location that is the current one says it is, also to screen readers
@@ -377,7 +379,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					}
 					const shown = group.entries.find(entry => isCurrentUri(entry.uri)) ?? group.entries[0];
 					// The row selects what its submenu picks
-					const groupItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...shown, description: undefined, id: `${GROUP_ID_PREFIX}${group.label}`, checked: false, groupLabel: group.label };
+					const groupItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...shown, description: undefined, id: `${GROUP_ID_PREFIX}${group.providerId}`, checked: false, groupLabel: group.label };
 					return [{
 						kind: ActionListItemKind.Action,
 						item: groupItem,
