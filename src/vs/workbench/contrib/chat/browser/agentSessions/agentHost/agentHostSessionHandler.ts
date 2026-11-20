@@ -823,6 +823,11 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	get history(): readonly IChatSessionHistoryItem[] { return this._history; }
 
 	private _loadingOlderHistory: Promise<void> | undefined;
+	readonly olderHistoryCursor = derived(this, reader =>
+		this._fetchTurns && !this._disposed.read(reader) ? this._chatState.read(reader).read(reader)?.turnsNextCursor : undefined);
+	readonly olderHistoryUnavailable = derived(this, reader =>
+		!this._fetchTurns && this._chatState.read(reader).read(reader)?.turnsNextCursor !== undefined);
+
 	async loadOlderHistory(): Promise<void> {
 		const chat = this._chatState.get().get();
 		if (!this._fetchTurns || !chat || chat.turnsNextCursor === undefined || this._store.isDisposed) {
@@ -2208,16 +2213,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
 		session.prepareForClientTools = token => this._ensureActiveClient(sessionResource, resolvedSession, token);
 
-		if (!isNewSession) {
-			// Only wire up pending-message/draft sync once the chat URI has been
-			// resolved. When hydration failed (see the catch above), `chatURI`
-			// stays undefined; subscribing anyway would later invoke
-			// `_syncPendingMessages`, whose `_getChatURI` lookup throws because no
-			// mapping was ever stored for this session resource.
-			if (chatURI !== undefined) {
-				this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
-				this._ensureDraftSyncSubscription(sessionResource, resolvedSession, chatURI);
-			}
+		// Subscribing again after a failed chat read would overwrite its visible error with an empty history.
+		if (!isNewSession && chatURI !== undefined && chatSubscription?.verifiedValue) {
+			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
+			this._ensureDraftSyncSubscription(sessionResource, resolvedSession, chatURI);
 
 			// Eagerly create the snapshot controller once the ChatModel for
 			// this session is available so that "Restore Checkpoint" works

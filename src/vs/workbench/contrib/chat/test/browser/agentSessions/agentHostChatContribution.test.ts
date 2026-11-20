@@ -21946,6 +21946,7 @@ suite('AgentHostChatContribution', () => {
 			};
 			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
 			const newest = session.history[0];
+			const cursors = [session.olderHistoryCursor?.get()];
 			const initial = { prompt: newest.type === 'request' && newest.prompt, fetches: calls.length };
 			const first = Promise.all([session.loadOlderHistory!(), session.loadOlderHistory!()]);
 			await page.error(new Error('offline'));
@@ -21958,6 +21959,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			await page.complete();
 			await retry;
+			cursors.push(session.olderHistoryCursor?.get());
 			const afterRetry = calls.length;
 			await session.loadOlderHistory!();
 			agentHostService.fireAction({
@@ -21965,11 +21967,11 @@ suite('AgentHostChatContribution', () => {
 			});
 			await session.loadOlderHistory!();
 			assert.deepStrictEqual({
-				initial, calls, afterRetry, requests: session.history.flatMap(item => item.type === 'request' ? [item.prompt] : []),
+				initial, calls, cursors: [...cursors, session.olderHistoryCursor?.get()], afterRetry, requests: session.history.flatMap(item => item.type === 'request' ? [item.prompt] : []),
 				retained: session.history.includes(newest),
 			}, {
 				initial: { prompt: 'newest', fetches: 0 }, calls: [[chat, 'first cursor'], [chat, 'first cursor'], [chat, 'second cursor']],
-				afterRetry: 2, requests: ['oldest', 'older', 'newest'], retained: true,
+				cursors: ['first cursor', 'second cursor', undefined], afterRetry: 2, requests: ['oldest', 'older', 'newest'], retained: true,
 			});
 		});
 

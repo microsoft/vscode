@@ -4587,6 +4587,7 @@ suite('ChatService', () => {
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly loadOlderHistory?: IChatSession['loadOlderHistory'];
+			readonly olderHistoryCursor?: IChatSession['olderHistoryCursor'];
 			readonly ownsHistoryRequestIds?: boolean;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
@@ -4619,6 +4620,7 @@ suite('ChatService', () => {
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
 				loadOlderHistory: opts.loadOlderHistory,
+				olderHistoryCursor: opts.olderHistoryCursor,
 				ownsHistoryRequestIds: opts.ownsHistoryRequestIds,
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
@@ -6019,13 +6021,19 @@ suite('ChatService', () => {
 		test('loads older history in front of a running request without replaying it as a new send', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const history: IChatSessionHistoryItem[] = [{ id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme }];
+			const cursor = observableValue<string | undefined>('cursor', 'older');
+			let loads = 0;
 			const { resource } = setupRemoteProvider({
-				history, onDidChangeHistory: changes.event,
-				loadOlderHistory: async () => changes.fire([
-					{ id: 'first', type: 'request', prompt: 'First', participant: remoteScheme },
-					{ id: 'second', type: 'request', prompt: 'Second', participant: remoteScheme },
-					...history,
-				]),
+				history, onDidChangeHistory: changes.event, olderHistoryCursor: cursor,
+				loadOlderHistory: async () => {
+					loads++;
+					changes.fire([
+						{ id: 'first', type: 'request', prompt: 'First', participant: remoteScheme },
+						{ id: 'second', type: 'request', prompt: 'Second', participant: remoteScheme },
+						...history,
+					]);
+					cursor.set(undefined, undefined);
+				},
 			});
 			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -6037,12 +6045,13 @@ suite('ChatService', () => {
 			const live = model.addRequest({ text: 'Live', parts: [] }, { variables: [] }, 0);
 			let sends = 0;
 			testDisposables.add(view.onDidChange(change => { if (change?.kind === 'addRequest') { sends++; } }));
-			await model.loadOlderHistory!();
+			const before = model.olderHistoryCursor.get();
+			await Promise.all([model.loadOlderHistory!(), model.loadOlderHistory!()]);
 			assert.deepStrictEqual({
-				order: view.getItems().filter(isRequestVM).map(item => item.messageText), sends,
+				order: view.getItems().filter(isRequestVM).map(item => item.messageText), sends, loads, cursors: [before, model.olderHistoryCursor.get()],
 				preserved: model.getRequests()[2] === recent && model.lastRequest === live,
 				active: model.hasActiveRequest.get(), complete: model.getRequests().map(r => r.response?.isIncomplete.get()),
-			}, { order: ['First', 'Second', 'Recent', 'Live'], sends: 0, preserved: true, active: true, complete: [false, false, false, true] });
+			}, { order: ['First', 'Second', 'Recent', 'Live'], sends: 0, loads: 1, cursors: ['older', undefined], preserved: true, active: true, complete: [false, false, false, true] });
 			model.cancelRequest(live);
 		});
 

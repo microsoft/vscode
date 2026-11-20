@@ -257,6 +257,7 @@ suite('CloudSandboxSessionHandler', () => {
 		const handler = createHandler(undefined, undefined, undefined, undefined, undefined, undefined, (resource, title) => {
 			titles.push({ resource: resource.toString(), title });
 		});
+
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const initialTitle = session.title;
 		const live = store.add(new LiveSession(undefined, 'Authoritative live title'));
@@ -266,6 +267,27 @@ suite('CloudSandboxSessionHandler', () => {
 			initialTitle: 'Recorded title', title: 'Authoritative live title',
 			titles: [{ resource: resource.toString(), title: 'Authoritative live title' }],
 		});
+	});
+
+	test('older history follows the live source and is unavailable while suspended', async () => {
+		const handler = createHandler(async () => recordedHistory());
+		const session = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const cursor = observableValue<string | undefined>('cursor', 'older');
+		let loads = 0;
+		const live = Object.assign(store.add(new LiveSession()), {
+			olderHistoryCursor: cursor,
+			loadOlderHistory: async () => { loads++; cursor.set('oldest', undefined); },
+		});
+		const cursors = [session.olderHistoryCursor?.get()];
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await waitForState(session.isInputBlocked!, blocked => !blocked);
+		cursors.push(session.olderHistoryCursor?.get());
+		await session.loadOlderHistory!();
+		cursors.push(session.olderHistoryCursor?.get());
+		handler.clearLiveProvider();
+		await session.loadOlderHistory!();
+		assert.deepStrictEqual({ cursors: [...cursors, session.olderHistoryCursor?.get()], unavailable: session.olderHistoryUnavailable?.get(), loads },
+			{ cursors: [undefined, 'older', 'oldest', undefined], unavailable: true, loads: 1 });
 	});
 
 	test('publishes a refreshed recorded title without replacing the open conversation', async () => {

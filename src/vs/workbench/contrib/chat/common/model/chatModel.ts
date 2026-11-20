@@ -2145,6 +2145,8 @@ export interface IChatModel extends IDisposable {
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
 	readonly loadOlderHistory?: () => Promise<void>;
+	readonly olderHistoryCursor?: IObservable<string | undefined>;
+	readonly olderHistoryUnavailable?: IObservable<boolean>;
 	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
@@ -3046,6 +3048,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
 	loadOlderHistory?: () => Promise<void>;
+	readonly olderHistoryCursor = observableValue<string | undefined>(this, undefined);
+	readonly olderHistoryUnavailable = observableValue(this, false);
 	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;

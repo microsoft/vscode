@@ -567,6 +567,13 @@
 	outline-offset: 1px;
 }
 
+.prompt-timeline-gutter-rest.has-older-prompts:empty::before {
+	content: var(--vscode-icon-chevron-up-content);
+	font-family: var(--vscode-icon-chevron-up-font-family);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
 .prompt-timeline-gutter-dot {
 	width: var(--prompt-timeline-gutter-dot-size);
 	height: var(--prompt-timeline-gutter-dot-size);
@@ -705,6 +712,23 @@
 .hc-black .prompt-timeline-gutter-panel,
 .hc-light .prompt-timeline-gutter-panel {
 	box-shadow: none;
+}
+
+.prompt-timeline-gutter-panel.has-older-prompts {
+	background-image: linear-gradient(to bottom, var(--vscode-scrollbar-shadow), transparent);
+	background-repeat: no-repeat;
+	background-size: 100% var(--vscode-spacing-size80);
+	overscroll-behavior-y: contain;
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-panel.has-older-prompts {
+	background-image: none;
+	border-top-style: dashed;
+}
+
+.prompt-timeline-gutter-error {
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-body2);
 }
 
 /* Each prompt is a full-width row split into two targets: the label on the left reveals the prompt,

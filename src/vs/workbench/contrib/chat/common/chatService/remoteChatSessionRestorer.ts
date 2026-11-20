@@ -10,7 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { setTimeout0 } from '../../../../../base/common/platform.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, transaction } from '../../../../../base/common/observable.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { getChatSessionHistoryContent, IChatSession, IChatSessionHistoryItem, IChatSessionRequestHistoryItem, IChatSessionServerRequest } from '../chatSessionsService.js';
@@ -167,13 +167,17 @@ export class RemoteChatSessionRestorer extends Disposable {
 		this._session = _options.session;
 		this._restoredHistory = this._session.history;
 		if (this._session.loadOlderHistory) {
-			this._model.loadOlderHistory = async () => {
+			let page: Promise<void> | undefined;
+			const readPage = async () => {
 				if (this._state === RestoreState.Published) {
 					await this._session.loadOlderHistory?.();
 					await this.historyRefresh;
 				}
 			};
-			this._register(toDisposable(() => this._model.loadOlderHistory = undefined));
+			this._model.loadOlderHistory = () => page ??= readPage().finally(() => { page = undefined; });
+			this._register(toDisposable(() => {
+				this._model.loadOlderHistory = undefined;
+			}));
 		}
 		this._hasProgressStreaming = !!(this._session.progressObs && this._session.interruptActiveResponseCallback);
 		// Cancel pending cooperative waits when the restorer is disposed, not only when the service token is.
@@ -238,6 +242,20 @@ export class RemoteChatSessionRestorer extends Disposable {
 		}
 
 		this._state = RestoreState.Published;
+		if (this._session.olderHistoryCursor || this._session.olderHistoryUnavailable) {
+			this._register(autorun(reader => {
+				const cursor = this._session.olderHistoryCursor?.read(reader);
+				const unavailable = !!this._session.olderHistoryUnavailable?.read(reader) || (cursor !== undefined && !this._session.loadOlderHistory);
+				transaction(tx => {
+					this._model.olderHistoryCursor.set(this._session.loadOlderHistory ? cursor : undefined, tx);
+					this._model.olderHistoryUnavailable.set(unavailable, tx);
+				});
+			}));
+			this._register(toDisposable(() => transaction(tx => {
+				this._model.olderHistoryCursor.set(undefined, tx);
+				this._model.olderHistoryUnavailable.set(false, tx);
+			})));
+		}
 		this._register(Event.once(this._model.onDidDispose)(() => this.dispose()));
 		try {
 			this._lastRequest = this._model.getRequests().at(-1);

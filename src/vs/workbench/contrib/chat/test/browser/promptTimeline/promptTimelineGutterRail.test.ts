@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getWindow } from '../../../../../../base/browser/dom.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PromptTimelineGutterRail, restDotCount } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
@@ -38,6 +39,68 @@ suite('PromptTimelineGutterRail', () => {
 	function keydown(target: HTMLElement, key: string, keyCode: number): void {
 		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 	}
+
+	test('loads one older page at the gutter boundary and preserves the focused row and column', async () => {
+		const stat = { added: 1, removed: 0, fileCount: 1 };
+		const recent = [tick(90, stat), tick(91)];
+		const rail = createRail(recent);
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		rail.setOlderHistoryLoader(async () => { loads++; await page.p; });
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		const selected: string[] = [];
+		store.add(rail.onDidSelect(id => selected.push(id)));
+		const first = rowParts(rail)[0].diff;
+		rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!.click();
+		keydown(rowParts(rail)[0].jump, 'ArrowRight', 39);
+		const loadsBeforeGesture = loads;
+		keydown(first, 'ArrowUp', 38);
+		assert.strictEqual(loads, 1, 'Up at the first focused row must request a page');
+		panel.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, bubbles: true }));
+		keydown(first, 'ArrowUp', 38);
+		rail.setTicks([tick(88), tick(89, stat), ...recent]);
+		rail.setOlderHistoryLoader(undefined);
+		await page.complete();
+		const preserved = document.activeElement === first;
+		keydown(first, 'ArrowUp', 38);
+		const predecessor = rowParts(rail)[1];
+		const focusedPrevious = document.activeElement === predecessor.diff;
+		predecessor.jump.click();
+		assert.deepStrictEqual({ loadsBeforeGesture, loads, preserved, focusedPrevious, selected, more: panel.classList.contains('has-older-prompts') },
+			{ loadsBeforeGesture: 0, loads: 1, preserved: true, focusedPrevious: true, selected: ['89'], more: false });
+	});
+
+	test('a page without user prompts still offers paging without inventing a prompt row', () => {
+		const rail = createRail([]);
+		let loads = 0;
+		rail.setOlderHistoryLoader(async () => { loads++; });
+		const handle = rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!;
+		const idleLoads = loads;
+		handle.click();
+		assert.deepStrictEqual({ affordance: handle.matches('.has-older-prompts:empty'), rows: rowParts(rail).length, idleLoads, loads },
+			{ affordance: true, rows: 0, idleLoads: 0, loads: 1 });
+	});
+
+	test('a failed wheel request can be retried without leaving the gutter', async () => {
+		const rail = createRail([tick(90), tick(91)]);
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		let attempts = 0;
+		rail.setOlderHistoryLoader(async () => {
+			if (++attempts === 1) {
+				throw new Error('offline');
+			}
+			rail.setTicks([tick(89), tick(90), tick(91)]);
+		});
+		panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const wheel = () => panel.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		wheel();
+		await Promise.resolve();
+		const notified = !!panel.querySelector('[role=status]');
+		wheel();
+		await Promise.resolve();
+		assert.deepStrictEqual({ notified, error: !!panel.querySelector('[role=status]'), attempts, rows: rowParts(rail).map(r => r.jump.textContent) },
+			{ notified: true, error: false, attempts: 2, rows: ['89', '90', '91'] });
+	});
 
 	test('highlights a row previewed from a dot, but leaves a row under the pointer to its own halves', () => {
 		const rail = createRail(Array.from({ length: 3 }, (_, index) => tick(index)));

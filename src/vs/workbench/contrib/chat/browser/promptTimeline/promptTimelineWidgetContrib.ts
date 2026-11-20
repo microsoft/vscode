@@ -165,9 +165,13 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._enablement.add(autorun(reader => {
 			const ticks = ticksObs.read(reader);
+			const loadOlder = rail instanceof PromptTimelineGutterRail ? model.olderHistoryLoader.read(reader) : undefined;
+			if (rail instanceof PromptTimelineGutterRail) {
+				rail.setOlderHistoryLoader(loadOlder);
+			}
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS && !loadOlder);
 			rail.setTicks(ticks);
 		}));
 
@@ -198,7 +202,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const active = model.activePrompt.read(reader);
 			const pinned = model.activePinned.read(reader);
 			if (active && pinned) {
-				sticky.update(active.text, active.index, active.total);
+				sticky.update(active.text, active.index, model.olderHistoryLoader.read(reader) ? undefined : active.total);
 			}
 			sticky.setVisible(!!active && pinned);
 		}));
