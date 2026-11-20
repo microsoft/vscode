@@ -1788,10 +1788,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const options = header?.getAttribute(PromptHeaderAttributes.vscode)?.value;
 		const value = options?.type === 'map' ? options.properties.find(property => property.key.value === VSCodeAgentAttributes.emptyChatMessage)?.value : undefined;
 		const text = value?.type === 'scalar' && value.value.trim() ? value.value : undefined;
-		if (text === this._agentEmptyChatMessage?.markdown.value) {
+		const current = this._agentEmptyChatMessage;
+		const agentName = mode.name.get();
+		if (text === current?.markdown.value && (!current || agentName === current.agentName)) {
 			return;
 		}
-		this._agentEmptyChatMessage = text ? { agentName: mode.name.get(), markdown: new MarkdownString(text, { isTrusted: true, supportThemeIcons: true }) } : undefined;
+		this._agentEmptyChatMessage = text ? { agentName, markdown: new MarkdownString(text, { isTrusted: true, supportThemeIcons: true }) } : undefined;
 		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!this._agentEmptyChatMessage);
 		this.renderWelcomeViewContentIfNeeded();
 	}
