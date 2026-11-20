@@ -20,6 +20,7 @@ interface ITurnInteractionState {
 	interactions: Set<string>;
 	truncated: boolean;
 	steeredFromTurnContext?: ISteeringTurnContext;
+	steeringDelivery?: NonNullable<IAgentTurnInteraction['steeringDelivery']>;
 }
 
 type TurnSteeringEvent = {
@@ -64,9 +65,9 @@ export class TurnInteractionCorrelation {
 		return { turnId, originalTurnId: state?.originalTurnId, interactionIds: [...state?.interactions ?? []] };
 	}
 
-	prepareSteering(turnId: string, steeredFromTurnContext: ISteeringTurnContext): void {
+	prepareSteering(turnId: string, steeredFromTurnContext: ISteeringTurnContext | undefined): void {
 		this._turns.set(turnId, {
-			steeredFromTurn: steeredFromTurnContext.turnId, steeredFromTurnContext,
+			steeredFromTurn: steeredFromTurnContext?.turnId, steeredFromTurnContext, steeringDelivery: 'unknown',
 			interactions: new Set(), truncated: false,
 		});
 	}
@@ -74,10 +75,17 @@ export class TurnInteractionCorrelation {
 	resolveSteering(turnId: string, interactionId: string | undefined, delivery: SessionEventPayload<'user.message'>['data']['delivery']): void {
 		const state = this._turns.get(turnId);
 		const steeredFromTurnContext = state?.steeredFromTurnContext;
-		if (!state || !steeredFromTurnContext) {
+		if (!state) {
 			return;
 		}
 		const runtimeDelivery = delivery === 'steering' || delivery === 'idle' || delivery === 'queued' ? delivery : 'unknown';
+		state.steeringDelivery = runtimeDelivery;
+		if (!steeredFromTurnContext) {
+			if (runtimeDelivery === 'idle' || runtimeDelivery === 'queued') {
+				state.originalTurnId = turnId;
+			}
+			return;
+		}
 		const shared = !!interactionId && steeredFromTurnContext.interactionIds.includes(interactionId);
 		const attributionStatus = runtimeDelivery === 'idle' || runtimeDelivery === 'queued' ? 'newRequest'
 			: runtimeDelivery === 'steering' && shared && steeredFromTurnContext.originalTurnId ? 'confirmed'
@@ -114,6 +122,7 @@ export class TurnInteractionCorrelation {
 			...(state.steeredFromTurn ? { steeredFromTurn: state.steeredFromTurn } : {}),
 			interactionIds: [...state.interactions],
 			interactionIdsTruncated: state.truncated,
+			...(state.steeringDelivery ? { steeringDelivery: state.steeringDelivery } : {}),
 		} : undefined;
 	}
 

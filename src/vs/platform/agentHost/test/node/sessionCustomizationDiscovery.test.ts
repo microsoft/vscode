@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -26,6 +27,9 @@ import { readCustomizationTeamProvided } from '../../common/meta/customizationTe
 import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 
@@ -34,6 +38,7 @@ suite('SessionCustomizationDiscovery', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
+	let configurationService: AgentConfigurationService;
 	let workspace: URI;
 	let userHome: URI;
 
@@ -43,11 +48,18 @@ suite('SessionCustomizationDiscovery', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
+		configurationService = disposables.add(new AgentConfigurationService(disposables.add(new AgentHostStateManager(new NullLogService())), new NullLogService()));
+		setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		instantiationService.stub(IAgentConfigurationService, configurationService);
 
 		workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	});
 
+
+	function setWorkspaceTrust(trust: IAgentHostWorkspaceTrust): void {
+		configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: trust });
+	}
 
 	async function seed(path: string, content = ''): Promise<URI> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });
@@ -419,6 +431,80 @@ suite('SessionCustomizationDiscovery', () => {
 			});
 		});
 	}
+
+	test('lists hooks of a folder not trusted in VS Code as not running, without the fallback or its repository rows', async () => {
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		await seed('/workspace/.github/hooks/a.json');
+		await seed('/workspace/.github/hooks/nested/b.json');
+		await seed('/workspace/.github/hooks/readme.md');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const requests: Parameters<CopilotClient['rpc']['hooks']['discover']>[0][] = [];
+		const client = hookDiscoveryClient(async request => {
+			requests.push(request);
+			// The runtime reports repository hooks when its own trusted folders cover the folder.
+			return {
+				hooks: [
+					{ id: 'runtime-trusted-repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, enabled: true },
+					{ id: 'runtime-repository-without-location', hookType: 'sessionStart', origin: 'repository', enabled: true },
+					{ id: 'user', hookType: 'sessionStart', origin: 'user', enabled: true },
+				], warnings: [], errors: [],
+			};
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual({
+			requests,
+			directories: result.filter(item => item.contents === CustomizationType.Hook && item.children?.length).map(item => ({
+				enabled: item.type === CustomizationType.Directory ? item.enabled : undefined,
+				load: item.type === CustomizationType.Directory ? item.load : undefined,
+				children: item.children?.map(child => ({ id: child.id, path: child.uri.startsWith('inmemory') ? URI.parse(child.uri).path : undefined, enabled: child.type === CustomizationType.Hook ? child.enabled : undefined, source: readCustomizationDiscoveryMeta(child)?.source })),
+			})),
+		}, {
+			requests: [{ projectPaths: [workspace.fsPath] }],
+			directories: [
+				{ enabled: true, load: { kind: CustomizationLoadStatus.Loaded }, children: [{ id: 'user', path: undefined, enabled: true, source: 'user' }] },
+				{
+					enabled: false,
+					load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run until you trust this folder.' },
+					children: [
+						{ id: result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.[0].id, path: '/workspace/.github/hooks/a.json', enabled: false, source: 'repository' },
+						{ id: result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.[1].id, path: '/workspace/.github/hooks/nested/b.json', enabled: false, source: 'repository' },
+					],
+				},
+			],
+		});
+	});
+
+	test('lists custom agent files that declare hooks as not running when any session folder is untrusted', async () => {
+		const second = inMemoryPathToUri('/second');
+		const guard = await seed('/second/.github/agents/guard.agent.md', '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const helper = await seed('/home/.copilot/agents/helper.agent.md', '---\nname: helper\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const plain = await seed('/workspace/.github/agents/plain.agent.md', '---\nname: plain\n---\nBody');
+		const notRunningFor = async (trustedUris: readonly URI[]) => {
+			setWorkspaceTrust({ enabled: true, trustedUris: trustedUris.map(uri => uri.toString()) });
+			const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, second], userHome, inMemoryPathToUri));
+			const client = hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] }));
+			client.rpc.agents.discover = async () => ({ agents: [guard, helper, plain].map(uri => ({ id: uri.path, name: basename(uri), description: '', path: uri.fsPath, source: 'project' })) }) as unknown as Awaited<ReturnType<CopilotClient['rpc']['agents']['discover']>>;
+			const result = await discovery.discover(client, CancellationToken.None);
+			return result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.map(child => URI.parse(child.uri).path).sort() ?? [];
+		};
+		assert.deepStrictEqual({
+			allTrusted: await notRunningFor([workspace, second]),
+			secondUntrusted: await notRunningFor([workspace]),
+		}, {
+			allTrusted: [],
+			secondUntrusted: ['/home/.copilot/agents/helper.agent.md', '/second/.github/agents/guard.agent.md'],
+		});
+	});
+
+	test('rediscovers hooks when workspace trust changes', async () => {
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		let changes = 0;
+		disposables.add(discovery.onDidChange(() => changes++));
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
+		assert.strictEqual(changes, 1);
+	});
 
 	test('workspace hook fallback failure preserves successful native discovery', async () => {
 		await seed('/workspace/.github/hooks/test.json');

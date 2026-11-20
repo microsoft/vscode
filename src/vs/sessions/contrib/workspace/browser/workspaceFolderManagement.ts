@@ -65,14 +65,14 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		const mountable = await Promise.all(activeSessionFolders.map(folder => this.isFolderMountable(workspace, folder.uri)));
 		if (mountable.some(isMountable => !isMountable)) {
 			if (currentFolders.length > 0) {
-				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), true);
+				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true });
 			}
 			return;
 		}
 
 		if (activeSessionFolders.length === 0) {
 			if (currentFolders.length > 0) {
-				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), true);
+				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true });
 			}
 			return;
 		}
@@ -90,7 +90,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return;
 		}
 
-		await this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, true);
+		await this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, { donotNotifyError: true, force: true });
 	}
 
 	private getWorkspaceFolderData(workspace: ISessionWorkspace | undefined): IWorkspaceFolderCreationData[] {

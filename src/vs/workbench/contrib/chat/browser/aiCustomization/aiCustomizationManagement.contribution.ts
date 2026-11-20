@@ -74,6 +74,7 @@ import {
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import { CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX } from './aiCustomizationItemSource.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
 import './chatCustomizations.contribution.js';
@@ -380,6 +381,13 @@ registerAction2(class extends Action2 {
 		}
 
 		// Confirm deletion
+		if (isHook && itemId?.startsWith(CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX)) {
+			await dialogService.info(
+				localize('cannotDeleteCustomAgentHook', "Cannot Delete Custom Agent Hook"),
+				localize('cannotDeleteCustomAgentHookDetail', "This hook is declared in the custom agent file '{0}'. Open the file and remove it from the 'hooks' header.", fileName)
+			);
+			return;
+		}
 		const hookInfo = isHook && itemId ? parseHookItemId(itemId) : undefined;
 		const hookName = typeof context !== 'string' && !URI.isUri(context) ? context.name : undefined;
 		const message = isSkill

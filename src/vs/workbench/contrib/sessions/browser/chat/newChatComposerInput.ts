@@ -112,6 +112,7 @@ export interface IComposerRepositoryControls extends IDisposable {
 
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
+	readonly selectEnvironment?: (providerId: string) => Promise<void>;
 	readonly inputEditorOptions?: IChatViewOptions['inputEditorOptions'];
 	/** A host-owned composition can save instead of sending; undefined keeps the normal send path. */
 	readonly submitOverride?: (anchor?: HTMLElement) => Promise<boolean | undefined>;

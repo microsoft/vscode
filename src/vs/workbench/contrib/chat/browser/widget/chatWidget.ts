@@ -1299,8 +1299,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.enableFind) {
 			const host: IChatFindHost = {
 				transcriptDomNode: this.listWidget.domNode,
+				activeModel: this._viewModelObs.map(viewModel => viewModel?.model),
+				transcriptVisible: this._visible,
 				getItems: () => this.viewModel?.getItems() ?? [],
 				onDidChangeContent: this._onDidChangeFindableContent.event,
+				hasElement: item => this.listWidget.hasElement(item),
 				reveal: (item, relativeTop) => this.reveal(item, relativeTop),
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
@@ -1592,6 +1595,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Update list widget state and refresh
 			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
 			this.listWidget.refresh(changes);
+			this._onDidChangeFindableContent.fire();
 
 			if (this._pendingFirstRenderSessionResource && this.viewModel && isEqual(this.viewModel.sessionResource, this._pendingFirstRenderSessionResource)) {
 				this._pendingFirstRenderSessionResource = undefined;
@@ -3413,7 +3417,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible && !this.listWidget.isAutoScrollHeld) {
 				this.listWidget.scrollToEnd();
 			}
-			this._onDidChangeFindableContent.fire();
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
@@ -3451,9 +3454,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
-				this.chatSuggestNextWidget.hide();
+				if (e.index === undefined) {
+					this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
+					this.chatSuggestNextWidget.hide();
+				}
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {

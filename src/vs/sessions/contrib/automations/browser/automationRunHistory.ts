@@ -19,7 +19,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -28,12 +28,14 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import type { IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationHistoryState, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { getShowSharedAutomationsByOthers } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -43,14 +45,23 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { formatSessionListTime, SessionItemStatusContext, SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { isActiveSessionStatus, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { getAutomationsViewContent } from '../../sessions/browser/views/automationCataloguePresentation.js';
 import { getErrorMessage } from './automationCommands.js';
 import { automationRunWithLocalProgress } from '../../sessions/browser/views/automationRunProgress.js';
 
 const $ = DOM.$;
+
+export interface IAutomationRunHistoryOptions {
+	readonly toolbarMenuId?: MenuId;
+	readonly contextMenuId?: MenuId;
+	readonly toolbarTelemetrySource?: string;
+	readonly showHeader?: boolean;
+	readonly openSession?: (resource: URI) => Promise<void>;
+}
 
 export function resolveAutomationRunSessions(runs: readonly IAutomationRun[], sessions: readonly ISession[], uriIdentityService: IUriIdentityService): ReadonlyMap<string, ISession> {
 	const byResource = new Map(sessions.map(session => [uriIdentityService.extUri.getComparisonKey(session.resource), session]));
@@ -74,7 +85,10 @@ export class AutomationHistoryActionsContribution extends Disposable {
 		super();
 		const update = () => {
 			const wording = getChatSessionArchiveActionWording(configurationService);
-			this.actions.value = registerAutomationHistoryItemActions(wording);
+			this.actions.value = combinedDisposable(
+				registerAutomationHistoryItemActions(wording, Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext, { group: '2_delete', order: 1 }),
+				registerAutomationHistoryItemActions(wording, AgentsWindowMenus.AutomationsModalHistoryItem, AgentsWindowMenus.AutomationsModalHistoryContext, { group: '4_manage', order: 2 }),
+			);
 		};
 		update();
 		this._register(configurationService.onDidChangeConfiguration(event => {
@@ -251,6 +265,7 @@ export class AutomationHistorySection extends Disposable {
 		parent: HTMLElement,
 		private readonly focusFallback: HTMLElement,
 		private readonly isMarkingAllRead: ISettableObservable<boolean>,
+		private readonly options: IAutomationRunHistoryOptions,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -262,6 +277,7 @@ export class AutomationHistorySection extends Disposable {
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.chatModels = chatService.chatModels.map(models => [...models]);
@@ -438,7 +454,7 @@ export class AutomationHistorySection extends Disposable {
 	}
 
 	private ensureHeader(): void {
-		if (this.headerRow) {
+		if (this.options.showHeader === false || this.headerRow) {
 			return;
 		}
 		this.headerDisposables.clear();
@@ -580,9 +596,9 @@ export class AutomationHistorySection extends Disposable {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
-			toolbarMenuId: Menus.AutomationsHistoryItem,
-			toolbarTelemetrySource: 'automationsView.historyRow',
-			contextMenuId: Menus.AutomationsHistoryItemContext,
+			toolbarMenuId: this.options.toolbarMenuId ?? Menus.AutomationsHistoryItem,
+			toolbarTelemetrySource: this.options.toolbarTelemetrySource ?? 'automationsView.historyRow',
+			contextMenuId: this.options.contextMenuId ?? Menus.AutomationsHistoryItemContext,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
 			onSessionOpen: resource => void this.openRunSession(resource),
@@ -940,7 +956,11 @@ export class AutomationHistorySection extends Disposable {
 			if (!this.sessionsManagementService.getSession(resolved)) {
 				throw new Error(localize('automationRunSessionUnavailable', "The cloud session is not available yet. Try again or open it on GitHub."));
 			}
-			await this.sessionsService.openSession(resolved, { preserveFocus: false, source: 'automation' });
+			if (this.options.openSession) {
+				await this.options.openSession(resolved);
+			} else {
+				await this.sessionsService.openSession(resolved, { preserveFocus: false, source: 'automation' });
+			}
 		} catch (error) {
 			this.logService.error('[AutomationsCards] Failed to open automation run', error);
 			await this.dialogService.error(
@@ -1034,6 +1054,7 @@ export class AutomationHistorySection extends Disposable {
 				this.automationService, this.sessionsManagementService, this.uriIdentityService,
 				this.chatModels.get(), this.logService, this.dialogService,
 				this.configurationService,
+				this.storageService,
 			);
 		} finally {
 			this.isMarkingAllRead.set(false, undefined);
@@ -1049,11 +1070,12 @@ export async function markAllAutomationRunsRead(
 	logService: ILogService,
 	dialogService: IDialogService,
 	configurationService: IConfigurationService,
+	storageService: IStorageService,
 ): Promise<void> {
 	try {
 		const { runs } = getAutomationsViewContent(
 			automationService.automations.get(), automationService.runs.get(),
-			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			getShowSharedAutomationsByOthers(storageService),
 			configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 		);
 		const models = [...chatModels];
@@ -1139,10 +1161,10 @@ function getDateBucket(date: Date, today: Date, yesterday: Date, lastWeekStart: 
 	return { key: `month-${date.getFullYear()}-${date.getMonth()}`, label: monthLabel, order };
 }
 
-function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchiveActionWording): IDisposable {
+export function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchiveActionWording, toolbarMenu: MenuId, contextMenu: MenuId, deletion: { readonly group: string; readonly order: number }): IDisposable {
 	const archivePresentation = getChatSessionArchiveActionPresentation(archiveWording);
 	return combinedDisposable(
-		...[Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext].map(menu => MenuRegistry.appendMenuItem(menu, {
+		...[toolbarMenu, contextMenu].map(menu => MenuRegistry.appendMenuItem(menu, {
 			command: {
 				id: OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID,
 				title: localize('automationOpenExternal', "Open on GitHub"),
@@ -1152,7 +1174,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 0,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationRunHasExternalResourceContext),
 		})),
-		...[Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext].map(menu => MenuRegistry.appendMenuItem(menu, {
+		...[toolbarMenu, contextMenu].map(menu => MenuRegistry.appendMenuItem(menu, {
 			command: {
 				id: STOP_AUTOMATION_RUN_SESSION_COMMAND_ID,
 				title: localize('stopAutomationRunSessionAction', "Stop"),
@@ -1163,13 +1185,13 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 1,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.or(
 				AutomationRunCanStopContext,
-				menu === Menus.AutomationsHistoryItem ? ContextKeyExpr.and(
+				menu === toolbarMenu ? ContextKeyExpr.and(
 					AutomationRunHasExternalResourceContext.negate(),
 					ContextKeyExpr.or(SessionItemStatusContext.isEqualTo(SessionStatus.InProgress), SessionItemStatusContext.isEqualTo(SessionStatus.NeedsInput)),
 				) : undefined,
 			)),
 		})),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		MenuRegistry.appendMenuItem(contextMenu, {
 			command: {
 				id: MARK_SESSION_READ_COMMAND_ID,
 				title: localize('markAutomationRunSessionReadAction', "Mark as Read"),
@@ -1178,7 +1200,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 1,
 			when: ContextKeyExpr.and(SessionIsReadContext.negate(), SessionIsArchivedContext.negate()),
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		MenuRegistry.appendMenuItem(contextMenu, {
 			command: {
 				id: MARK_SESSION_UNREAD_COMMAND_ID,
 				title: localize('markAutomationRunSessionUnreadAction', "Mark as Unread"),
@@ -1187,7 +1209,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 1,
 			when: ContextKeyExpr.and(SessionIsReadContext, SessionIsArchivedContext.negate()),
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		MenuRegistry.appendMenuItem(contextMenu, {
 			command: {
 				id: RENAME_SESSION_COMMAND_ID,
 				title: localize('renameAutomationRunSessionAction', "Rename..."),
@@ -1196,18 +1218,18 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 1,
 			when: SessionSupportsRenameContext,
 		}),
-		...[Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext].map(menu => MenuRegistry.appendMenuItem(menu, {
+		...[toolbarMenu, contextMenu].map(menu => MenuRegistry.appendMenuItem(menu, {
 			command: {
 				id: ARCHIVE_SESSION_COMMAND_ID,
 				title: archivePresentation.archive.title,
 				icon: archivePresentation.archive.icon,
 				precondition: AutomationRunCanArchiveContext,
 			},
-			group: menu === Menus.AutomationsHistoryItem ? 'navigation' : '1_state',
+			group: menu === toolbarMenu ? 'navigation' : '1_state',
 			order: 2,
 			when: SessionIsArchivedContext.negate(),
 		})),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		MenuRegistry.appendMenuItem(contextMenu, {
 			command: {
 				id: UNARCHIVE_SESSION_COMMAND_ID,
 				title: archivePresentation.unarchive.title,
@@ -1216,24 +1238,22 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			order: 2,
 			when: SessionIsArchivedContext,
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		MenuRegistry.appendMenuItem(contextMenu, {
 			command: {
 				id: DELETE_AUTOMATION_HISTORY_COMMAND_ID,
 				title: localize('deleteRetainedAutomationHistoryAction', "Delete Run History..."),
 				precondition: AutomationRunCanDeleteHistoryContext,
 			},
-			group: '2_delete',
-			order: 1,
+			...deletion,
 			when: AutomationRunHistoryStateContext.isEqualTo('retained'),
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+		MenuRegistry.appendMenuItem(contextMenu, {
 			command: {
 				id: RETRY_DELETE_AUTOMATION_HISTORY_COMMAND_ID,
 				title: localize('retryDeleteRetainedAutomationHistoryAction', "Retry Delete Run History..."),
 				precondition: AutomationRunCanDeleteHistoryContext,
 			},
-			group: '2_delete',
-			order: 1,
+			...deletion,
 			when: AutomationRunHistoryStateContext.isEqualTo('interrupted'),
 		}),
 	);

@@ -9,6 +9,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -19,9 +20,13 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/ac
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotification, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome } from '../../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatContextPickService } from '../../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -110,6 +115,9 @@ suite('agentHostAgentPicker', () => {
 				upcastPartial<INewSessionComposerService>({}),
 				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
 				TestProductService,
+				new ChatSubmitRequestHandlerService(),
+				upcastPartial<ISessionsManagementService>({}),
+				new TestNotificationService(),
 			));
 			const scenario = onboardingScenarioRegistry.getScenario(AGENT_PICKER_SPOTLIGHT_ID)!;
 			const ready = () => scenario.trigger.kind === 'observable' && scenario.trigger.signal.get();
@@ -301,7 +309,7 @@ suite('agentHostAgentPicker', () => {
 
 	for (const kind of agentHostConnectionKinds) {
 		for (const [scheme, clientId, rememberedSource] of ([['agent-host-copilotcli', undefined], ['custom-host', undefined], ['custom-host', 'vscode'], ['custom-host', 'foreign']] as const).flatMap(([scheme, clientId]) => [[scheme, clientId, false], [scheme, clientId, true]] as const)) {
-			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''} (${clientId ?? 'host'}, ${kind.name})`, () => {
+			test(`keeps the selection while the agent is unavailable (${scheme}, ${clientId ?? 'host'}, ${kind.name}, draft source: ${rememberedSource})`, async () => {
 				const storage = disposables.add(new TestStorageService());
 				const fromHost = (uri: URI) => kind.resourceUris.fromAgentHost(uri);
 				const alpha = { ...agents[0], uri: 'file:///agents/alpha.agent.md' };
@@ -332,7 +340,7 @@ suite('agentHostAgentPicker', () => {
 				const provider = upcastPartial<IAgentHostSessionsProvider>({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCustomAgents: () => availableAgents,
-					resolveCustomAgent: (_id, uri) => rememberedSource && uri === rememberedUri ? availableAgents.find(agent => agent.uri === alpha.uri) : undefined,
+					resolveCustomAgent: (_id, uri) => uri === clientAlpha || (rememberedSource && uri === rememberedUri) ? availableAgents.find(agent => agent.uri === alpha.uri) : undefined,
 					getCustomizations: () => clientId !== undefined
 						? [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///client/plugin', name: 'Plugin', clientId, children: [...availableAgents] }]
 						: [{ type: CustomizationType.Directory, id: 'agents', uri: 'file:///agents', name: 'Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: [...availableAgents] }],
@@ -346,6 +354,9 @@ suite('agentHostAgentPicker', () => {
 				disposables.add(providers.registerProvider(provider));
 				// What it reports as the user's choice of agent.
 				const userSelections: string[] = [];
+				const handlers = new ChatSubmitRequestHandlerService();
+				let warnings = 0;
+				const request = { sessionResource: running.session.resource, input: 'draft' };
 				const contribution = disposables.add(new AgentHostAgentPickerContribution(
 					new NullActionViewItemService(),
 					focusedSessionHostServiceOf(activeSession),
@@ -365,29 +376,45 @@ suite('agentHostAgentPicker', () => {
 					upcastPartial<INewSessionComposerService>({ notifyUserAgentSelection: ({ sessionId, agent }) => userSelections.push(`${sessionId} ${agent?.uri ?? 'default'}`) }),
 					upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 					TestProductService,
+					handlers,
+					upcastPartial<ISessionsManagementService>({
+						getSessionForChatResource: resource => isEqual(resource, request.sessionResource)
+							? { session: running.session, chat: running.session.activeChat.get()! } : undefined,
+					}),
+					new class extends TestNotificationService {
+						override notify(notification: INotification) {
+							warnings += Number(notification.severity === Severity.Warning);
+							return super.notify(notification);
+						}
+					},
 				));
 				const snapshot = () => ({
 					mode: activeSession.get()?.mode.get()?.id,
 					remembered: storage.get(key, StorageScope.PROFILE),
 				});
-				const afterFallback = snapshot();
+				const unavailable = (await handlers.tryHandle(request)).outcome;
+				const whileMissing = snapshot();
 				activeSession.set(draft.session, undefined);
 				const beforeDiscovery = snapshot();
 				availableAgents = [alpha, beta];
 				agentsChanged.fire();
 				const afterDiscovery = snapshot();
+				const available = (await handlers.tryHandle(request)).outcome;
 				// Selecting the remembered agent on its own is not the user's choice; the user's pick and clear are.
 				const internal = [...userSelections];
 				const selectMode = Reflect.get(contribution, '_selectMode') as (mode: IChatMode, session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService) => void;
 				selectMode.call(contribution, upcastPartial<IChatMode>({ id: beta.uri, name: constObservable('Beta') }), draft.session, providers);
 				selectMode.call(contribution, upcastPartial<IChatMode>({ id: ChatMode.Agent.id }), draft.session, providers);
 
-				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery, internal, userSelections }, {
-					afterFallback: { mode: undefined, remembered: rememberedUri },
+				assert.deepStrictEqual({ whileMissing, beforeDiscovery, afterDiscovery, internal, userSelections, unavailable, available, warnings }, {
+					whileMissing: { mode: clientAlpha, remembered: rememberedUri },
 					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
 					afterDiscovery: { mode: clientAlpha, remembered: rememberedUri },
 					internal: [],
 					userSelections: [`draft ${beta.uri}`, 'draft default'],
+					unavailable: ChatSubmitRequestOutcome.Cancelled,
+					available: ChatSubmitRequestOutcome.Continue,
+					warnings: 1,
 				});
 			});
 		}

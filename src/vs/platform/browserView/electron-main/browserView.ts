@@ -203,7 +203,7 @@ export class BrowserView extends Disposable {
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined);
+			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined, !this._ownerWindow.config?.isSessionsWindow);
 			if (action !== 'integrated') {
 				if (consumeUserGesture) {
 					this._lastUserGestureTimestamp = -Infinity;
