@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as playwright from '@playwright/test';
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
 import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
@@ -224,20 +225,55 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Opens the Remote Environments editor, connects the remote `name` unless it is connected, and waits for an enabled
-	 * action of its row labeled `actionLabel`.
+	 * Opens Remote Environments, connects the remote named `name` unless it is connected, and waits until the More Actions
+	 * menu of its row offers the enabled action labeled `actionLabel`. A narrow table hides the Connect and Disconnect
+	 * buttons of its rows, so that menu connects the remote then.
 	 */
 	async waitForRemoteAction(name: string, actionLabel: string, timeoutMs: number = 60_000): Promise<void> {
 		await this.quickaccess.runCommand('sessions.openRemotes');
 		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
 		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
 		const disconnect = widget.getByLabel(`Disconnect ${name}`, { exact: true });
-		await connect.or(disconnect).first().waitFor({ timeout: 30_000 });
-		if (await connect.isVisible()) {
+		// A hidden button keeps its label, so it still identifies the row and whether the remote is connected.
+		const row = widget.locator('.monaco-list-row').filter({ has: connect.or(disconnect) }).first();
+		await row.waitFor({ timeout: 30_000 });
+		if (await connect.count()) {
 			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
-			await connect.click();
+			if (await connect.isVisible()) {
+				await connect.click();
+			} else {
+				await this.openRemoteRowMenu(row);
+				await this.remoteRowMenuItem('Connect', true).click({ timeout: 30_000 });
+			}
 		}
-		await widget.locator('.action-label:not(.disabled)').and(widget.getByLabel(actionLabel, { exact: true })).waitFor({ timeout: timeoutMs });
+		// The menu keeps the items it opened with, so it is opened again until the action is enabled.
+		const deadline = Date.now() + timeoutMs;
+		while (!await this.isRemoteRowMenuActionEnabled(row, actionLabel)) {
+			if (Date.now() > deadline) {
+				throw new Error(`The More Actions menu of ${name} did not offer an enabled '${actionLabel}' within ${timeoutMs} ms`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 1000));
+		}
+	}
+
+	private remoteRowMenuItem(label: string, enabledOnly: boolean) {
+		const page = this.code.driver.currentPage;
+		return page.locator(enabledOnly ? '.monaco-menu .action-menu-item:not(.disabled)' : '.monaco-menu .action-menu-item').filter({ has: page.getByLabel(label, { exact: true }) }).first();
+	}
+
+	private async openRemoteRowMenu(row: playwright.Locator): Promise<void> {
+		// The actions of a row show while it is hovered or focused.
+		await row.hover();
+		await row.locator('.monaco-toolbar .codicon-toolbar-more').click();
+		await this.code.driver.currentPage.locator('.monaco-menu').first().waitFor({ timeout: 10_000 });
+	}
+
+	private async isRemoteRowMenuActionEnabled(row: playwright.Locator, label: string): Promise<boolean> {
+		await this.openRemoteRowMenu(row);
+		const enabled = await this.remoteRowMenuItem(label, true).isVisible();
+		await this.code.driver.currentPage.keyboard.press('Escape');
+		await this.code.driver.currentPage.locator('.monaco-menu').first().waitFor({ state: 'hidden', timeout: 10_000 });
+		return enabled;
 	}
 
 	async getRemoteConnectionDiagnostics(): Promise<string> {
