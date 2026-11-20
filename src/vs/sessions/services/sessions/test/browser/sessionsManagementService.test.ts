@@ -263,7 +263,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override getModelPickerOptions(): ISessionModelPickerOptions { return { showUnavailableFeatured: false, showManageModelsAction: false }; }
 	override readonly onDidChangeModels = Event.None;
 	override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { }
-	override async archiveSession(): Promise<void> { }
+	override async archiveSession(_sessionId: string): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async setSessionReadState(_sessionId: string, _isRead: boolean): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
@@ -3368,6 +3368,97 @@ suite('SessionsManagementService', () => {
 		await assert.rejects(() => service.archiveSession(session), /cancel failed/);
 
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('bulk archive bounds concurrency and waits for every outcome, including failures', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const sessions = Array.from({ length: 90 }, (_, index) => stubSession({ sessionId: `session-${index}`, providerId: 'test' }));
+		let active = 0;
+		let maximumActive = 0;
+		const failure = new Error('archive failed');
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSession(sessionId: string): Promise<void> {
+				active++;
+				maximumActive = Math.max(maximumActive, active);
+				await timeout(10);
+				active--;
+				if (sessionId === sessions[1].sessionId) {
+					throw failure;
+				}
+			}
+		}(sessions[0]);
+		const { service } = createSessionsManagementService(sessions[0], disposables, provider);
+		const archived: string[] = [];
+		disposables.add(service.onDidArchiveSession(session => archived.push(session.sessionId)));
+
+		const results = await service.archiveSessions(sessions);
+
+		assert.deepStrictEqual({ active, maximumActive, results, archived }, {
+			active: 0,
+			maximumActive: 4,
+			results: sessions.map((_, index) => index === 1 ? { status: 'rejected', reason: failure } : { status: 'fulfilled', value: undefined }),
+			archived: sessions.filter((_, index) => index !== 1).map(session => session.sessionId),
+		});
+	}));
+
+	test('bulk archive routes provider batches and excludes sessions whose cancellation fails', async () => {
+		const running = stubSession({ sessionId: 'running', providerId: 'test', status: constObservable(SessionStatus.InProgress) });
+		const idle = stubSession({ sessionId: 'idle', providerId: 'test' });
+		const other = stubSession({ sessionId: 'other', providerId: 'other' });
+		const failure = new Error('cancel failed');
+		const batches: string[][] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSessions(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]> {
+				batches.push([...sessionIds]);
+				return sessionIds.map(() => ({ status: 'fulfilled', value: undefined }));
+			}
+			override async archiveSession(): Promise<void> {
+				assert.fail('Expected the provider bulk archive operation');
+			}
+		}(running);
+		const individuallyArchived: string[] = [];
+		const otherProvider = new class extends TestSessionsProvider {
+			override readonly id = 'other';
+			override async archiveSession(sessionId: string): Promise<void> {
+				individuallyArchived.push(sessionId);
+			}
+		}(other);
+		const { service, chatService } = createSessionsManagementService(running, disposables, [provider, otherProvider]);
+		chatService.cancelError = failure;
+		const archived: string[] = [];
+		disposables.add(service.onDidArchiveSession(session => archived.push(session.sessionId)));
+
+		const results = await service.archiveSessions([running, idle, other]);
+
+		assert.deepStrictEqual({ results, batches, individuallyArchived, archived }, {
+			results: [{ status: 'rejected', reason: failure }, { status: 'fulfilled', value: undefined }, { status: 'fulfilled', value: undefined }],
+			batches: [['idle']],
+			individuallyArchived: ['other'],
+			archived: ['idle', 'other'],
+		});
+	});
+
+	test('bulk archive reports a provider batch failure without suppressing another provider', async () => {
+		const first = stubSession({ sessionId: 'first', providerId: 'test' });
+		const second = stubSession({ sessionId: 'second', providerId: 'other' });
+		const failure = new Error('provider disconnected');
+		const provider = new class extends TestSessionsProvider {
+			override async archiveSessions(): Promise<readonly PromiseSettledResult<void>[]> {
+				throw failure;
+			}
+		}(first);
+		const otherProvider = new class extends TestSessionsProvider {
+			override readonly id = 'other';
+		}(second);
+		const { service } = createSessionsManagementService(first, disposables, [provider, otherProvider]);
+		const archived: string[] = [];
+		disposables.add(service.onDidArchiveSession(session => archived.push(session.sessionId)));
+
+		const results = await service.archiveSessions([first, second]);
+
+		assert.deepStrictEqual({ results, archived }, {
+			results: [{ status: 'rejected', reason: failure }, { status: 'fulfilled', value: undefined }],
+			archived: ['second'],
+		});
 	});
 
 	test('openSession waits for a loading session before opening chat content', async () => {
