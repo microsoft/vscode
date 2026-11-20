@@ -17,6 +17,9 @@ import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult 
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 
 const troubleshootName = 'troubleshoot';
+
+/** Names of the skills {@link createCopilotSkillProvider} serves. */
+export const copilotHostSkillNames: ReadonlySet<string> = new Set([troubleshootName, ModelRouterSkillName]);
 const skillsDirectory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
 const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/troubleshoot/SKILL.md' });
 const modelRouterUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/model-router/SKILL.md' });

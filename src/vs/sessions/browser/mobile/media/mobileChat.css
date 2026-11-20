@@ -273,7 +273,8 @@
 
 /* The invisible part of the 44px target. */
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item > .action-label.codicon::after,
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label::after {
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .model-picker-name.chat-phone-input-chip::after {
 	content: '';
 	position: absolute;
 	inset: calc(-1 * var(--vscode-spacing-size40));
@@ -301,7 +302,8 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config,
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label {
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .model-picker-name.chat-phone-input-chip {
 	overflow: visible;
 }
 
@@ -318,6 +320,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .chat-input-picker-item > .action-label.chat-phone-input-chip,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .model-picker-name.chat-phone-input-chip,
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label,
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-config-toolbar .monaco-action-bar .action-item > .action-label:not(.separator) {
 	position: relative;
@@ -333,6 +336,12 @@
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-label1);
 	line-height: var(--mobile-line-height-label);
+}
+
+@container mobile-new-session (max-width: 320px) {
+	.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .chat-input-toolbars .action-label.chat-phone-input-chip {
+		padding-inline: var(--vscode-spacing-size80);
+	}
 }
 
 /* Status pills under the composer (mode, approvals, context usage): one quiet

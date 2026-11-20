@@ -86,7 +86,7 @@ suite('SessionCustomizationDiscovery', () => {
 	}
 
 	test('groups discovered customizations by parent folder', async () => {
-		await seed('/workspace/.github/agents/one.agent.md', '---\nmodel-policy: required\n---\n');
+		await seed('/workspace/.github/agents/one.agent.md', '---\nmodel-policy: required\nvscode:\n  welcome-message: Hello\n---\n');
 		await seed('/workspace/.github/agents/two.agent.md', '---\nreasoning-effort: medium\n---\n');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
@@ -125,7 +125,7 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 		const agent = agentsInAgentsDir.children?.find(child => child.name === 'One');
 		assert.deepStrictEqual(agent?.type === CustomizationType.Agent ? { model: agent.model, meta: agent._meta } : undefined, {
-			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' },
+			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello' },
 		});
 		assert.deepStrictEqual(agentsInAgentsDir.children?.find(child => child.name === 'Two')?._meta, {
 			userInvocable: true, 'vscode.reasoningEffort': 'medium',
@@ -400,7 +400,7 @@ suite('SessionCustomizationDiscovery', () => {
 					{ id: 'opaque-user', hookType: 'sessionStart', origin: 'user', enabled: false },
 				];
 				if (nativeRepositoryHook || request.hookDirectories) {
-					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: nativeRepositoryHook ? 'repository' : 'user', enabled: false });
+					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: nativeRepositoryHook ? 'repository' : 'user', projectPath: nativeRepositoryHook ? workspace.fsPath : undefined, enabled: false });
 				}
 				if (request.hookDirectories) {
 					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: 'user', enabled: true });
@@ -425,8 +425,9 @@ suite('SessionCustomizationDiscovery', () => {
 				],
 				load: { kind: CustomizationLoadStatus.Degraded, message: 'SDK partial error\nSDK warning' },
 				requests: [
-					{ projectPaths: [workspace.fsPath] },
-					...nativeRepositoryHook ? [] : [{ projectPaths: [workspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath] }],
+					{ projectPaths: [workspace.fsPath, secondWorkspace.fsPath] },
+					// A folder the runtime already reports repository hooks for needs no fallback.
+					{ projectPaths: [workspace.fsPath, secondWorkspace.fsPath], hookDirectories: [...nativeRepositoryHook ? [] : [inMemoryPathToUri('/workspace/.github/hooks').fsPath], inMemoryPathToUri('/workspace2/.github/hooks').fsPath] },
 				],
 			});
 		});
@@ -504,6 +505,17 @@ suite('SessionCustomizationDiscovery', () => {
 		setWorkspaceTrust({ enabled: true, trustedUris: [] });
 		setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
 		assert.strictEqual(changes, 1);
+	});
+
+	test('lists a user hook once when the runtime reports it for every project path', async () => {
+		const secondWorkspace = inMemoryPathToUri('/workspace2');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async request => ({
+			hooks: (request.projectPaths ?? []).map(() => ({ id: 'user', hookType: 'sessionStart' as const, origin: 'user' as const, enabled: true })),
+			warnings: [], errors: [],
+		}));
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(result.filter(item => item.contents === CustomizationType.Hook).flatMap(item => item.children?.map(child => child.id) ?? []), ['user']);
 	});
 
 	test('workspace hook fallback failure preserves successful native discovery', async () => {
@@ -1275,7 +1287,7 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual({ wasCancellationError, errors }, { wasCancellationError: true, errors: [] });
 	});
 
-	test('discover includes hooks from the primary working directory only', async () => {
+	test('discover includes hooks from every working directory', async () => {
 		const secondWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace2' });
 		await seed('/workspace/.github/hooks/pre-tool.json', '{"PreToolUse": []}');
 		await seed('/workspace2/.github/hooks/pre-tool.json', '{"PreToolUse": []}');
@@ -1298,8 +1310,8 @@ suite('SessionCustomizationDiscovery', () => {
 		};
 		await discovery.discover(client, CancellationToken.None);
 		assert.deepStrictEqual(requests, [
-			{ projectPaths: [workspace.fsPath] },
-			{ projectPaths: [workspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath] },
+			{ projectPaths: [workspace.fsPath, secondWorkspace.fsPath] },
+			{ projectPaths: [workspace.fsPath, secondWorkspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath, inMemoryPathToUri('/workspace2/.github/hooks').fsPath] },
 		]);
 	});
 

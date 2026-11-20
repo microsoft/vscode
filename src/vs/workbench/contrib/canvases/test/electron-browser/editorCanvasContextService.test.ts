@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -80,6 +81,7 @@ suite('EditorCanvasContextService', () => {
 			groupsService,
 			new TestConfigurationService(),
 			upcastPartial<IWorkbenchLayoutService>({ getContainer: ((_window: Window, part?: Parts) => part === Parts.CHAT_PART ? chatPart : undefined) as IWorkbenchLayoutService['getContainer'] }),
+			new NullLogService(),
 		));
 		function createOwner(id: string, group?: IEditorGroup, editorResource?: URI, inChatPart = false) {
 			const resource = URI.parse(`agent-host-copilotcli:/${id}`);
@@ -121,6 +123,18 @@ suite('EditorCanvasContextService', () => {
 		}
 		return { service, groups, additions, models, sessionRemoved, createOwner, addGroup, setActiveGroup: (group: IEditorGroup) => activeGroup = group };
 	}
+
+	test('resolves the owner of a session-model pill to the visible chat widget\'s canvas owner', () => {
+		const harness = createHarness();
+		const visible = harness.createOwner('pill', harness.groups[0]);
+		const pillOwner: ICanvasOwner = { providerId: 'local-agent-host', session: URI.parse('agent-host-copilotcli:/pill'), chat: URI.parse('agent-host-copilotcli:/pill') };
+		const unknownOwner: ICanvasOwner = { providerId: 'local-agent-host', session: URI.parse('agent-host-copilotcli:/other'), chat: URI.parse('agent-host-copilotcli:/other') };
+		assert.deepStrictEqual({
+			pill: harness.service.resolveOwner(pillOwner)?.chat.toString(),
+			canonical: harness.service.resolveOwner(visible.owner)?.chat.toString(),
+			unknown: harness.service.resolveOwner(unknownOwner),
+		}, { pill: visible.owner.chat.toString(), canonical: visible.owner.chat.toString(), unknown: undefined });
+	});
 
 	test('keeps split owners eligible independently of focus and isolates visibility changes', () => {
 		const harness = createHarness();

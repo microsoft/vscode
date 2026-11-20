@@ -32,9 +32,10 @@ import { readRuntimePluginEnablement } from '../../../../../../platform/agentHos
 import { readCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
 import { readCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
+import { getHookSourceFormat, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
@@ -70,6 +71,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	protected readonly _sourceFolderReadinessTimeoutMs: number = SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS;
 	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
 	private _listsCustomAgentHooks = false;
+	/** The client's workspace folders, set when this provider lists the local hook files that its agent host won't run. */
+	private _hooksNotRunningWorkspaceFolders: (() => readonly URI[]) | undefined;
 	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
 	constructor(
@@ -96,6 +99,16 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	/** Lists the hooks declared in custom agent files, for agent hosts whose runtime runs them. */
 	setListsCustomAgentHooks(lists: boolean): void {
 		this._listsCustomAgentHooks = lists;
+		this._onDidChange.fire();
+	}
+
+	/**
+	 * Lists the hook files that VS Code's own harness runs and this agent host doesn't. Only for the local Copilot agent
+	 * host, which shares the client's file system and reads hooks from the same kind of files.
+	 */
+	listHooksNotRunning(workspaceFolders: () => readonly URI[]): void {
+		this._hooksNotRunningWorkspaceFolders = workspaceFolders;
+		this._register(this._promptsService.onDidChangeHooks(() => this._onDidChange.fire()));
 		this._onDidChange.fire();
 	}
 
@@ -348,7 +361,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				source: sources[index].source,
 				tools: undefined,
 				agents: undefined,
-				argumentHint: undefined,
+				argumentHint: meta['vscode.argumentHint'],
+				welcomeMessage: meta['vscode.welcomeMessage'],
 				handOffs: undefined,
 				hooks: undefined,
 				model: meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined),
@@ -541,6 +555,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (const item of this._listsCustomAgentHooks ? await this.getCustomAgentHooks([...items.values()]) : []) {
 			items.set(item.itemKey ?? item.uri.toString(), item);
 		}
+		for (const item of await this.getHooksNotRunning(sessionResource, directoryCustomizations, [...items.values()], token)) {
+			items.set(item.itemKey ?? item.uri.toString(), item);
+		}
+		if (token.isCancellationRequested) {
+			return [];
+		}
 		return [...items.values()];
 	}
 
@@ -583,6 +603,68 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			})));
 		}));
 		return hooks.flat();
+	}
+
+	/**
+	 * Hook files that VS Code's own harness runs and this agent host doesn't, found by comparing files rather than
+	 * by knowing the host's rules.
+	 */
+	private async getHooksNotRunning(sessionResource: URI, directories: readonly DirectoryCustomization[], items: readonly ICustomizationItem[], token: CancellationToken): Promise<ICustomizationItem[]> {
+		const workspaceFolders = this._hooksNotRunningWorkspaceFolders?.();
+		// Without the host's complete hook inventory, supported files would wrongly look unsupported. Disabled degraded
+		// directories only list files that won't run, such as those of untrusted folders.
+		const hookDirectories = directories.filter(directory => directory.contents === CustomizationType.Hook && directory.enabled !== false);
+		if (!workspaceFolders || hookDirectories.length === 0 || hookDirectories.some(directory => directory.load !== undefined && directory.load.kind !== CustomizationLoadStatus.Loaded)) {
+			return [];
+		}
+		let files;
+		try {
+			files = (await this._promptsService.getDiscoveryInfo(PromptsType.hook, token)).files;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._logService.warn('[AgentCustomizationItemProvider] Failed to discover local hook files', error);
+			return [];
+		}
+		const sessionRoots = this._customAgentsService.getClientWorkingDirectoryUris(sessionResource);
+		const isUnder = (uri: URI, roots: readonly URI[]) => roots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root));
+		// A workspace file belongs to this session when it is in one of the session's folders, or in a configured
+		// location outside every workspace folder. Files of another workspace folder, such as the repository of a
+		// worktree session, are not this session's.
+		const belongsToSession = (uri: URI, source: PromptFileSource | undefined) => isUnder(uri, sessionRoots)
+			|| source === PromptFileSource.ConfigWorkspace && !isUnder(uri, workspaceFolders);
+		const toHostFile = (uri: URI) => this._connection.resourceUris.toAgentHost(uri).with({ fragment: '' });
+		const hostFiles = new ResourceSet(items.filter(item => item.type === PromptsType.hook).map(item => toHostFile(item.uri)), uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		const result: ICustomizationItem[] = [];
+		for (const { status, promptPath } of files) {
+			// Claude Code hook files are out of scope here, and plugin and extension hooks are listed with their plugin.
+			if (status !== 'loaded' || (promptPath.storage !== PromptStorage.local && promptPath.storage !== PromptStorage.user)
+				|| getHookSourceFormat(promptPath.uri) === HookSourceFormat.Claude
+				|| promptPath.source === PromptFileSource.ClaudeWorkspace || promptPath.source === PromptFileSource.ClaudeWorkspaceLocal || promptPath.source === PromptFileSource.ClaudePersonal
+				|| promptPath.storage === PromptStorage.local && !belongsToSession(promptPath.uri, promptPath.source)
+				|| hostFiles.has(toHostFile(promptPath.uri))) {
+				continue;
+			}
+			const reason = promptPath.source === PromptFileSource.ConfigWorkspace || promptPath.source === PromptFileSource.ConfigPersonal
+				? localize('hookFromConfiguredLocationNotRunning', "Copilot doesn't read hooks from folders added in {0}. Move the file to .github/hooks or ~/.copilot/hooks, and check that its scripts work with Copilot.", 'chat.hookFilesLocations')
+				: localize('hookFromUnsupportedLocationNotRunning', "Copilot doesn't read hooks from this location. Move the file to .github/hooks or ~/.copilot/hooks, and check that its scripts work with Copilot.");
+			result.push({
+				itemKey: `hook-not-running:${promptPath.uri.toString()}`,
+				uri: promptPath.uri,
+				type: PromptsType.hook,
+				name: basename(promptPath.uri),
+				source: promptPath.storage === PromptStorage.local ? AICustomizationSources.local : AICustomizationSources.user,
+				enabled: false,
+				status: 'degraded',
+				statusMessage: reason,
+				badge: localize('customizationWontRun', "Won't run"),
+				badgeTooltip: reason,
+				extensionId: undefined,
+				pluginUri: undefined,
+			});
+		}
+		return result;
 	}
 
 	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {

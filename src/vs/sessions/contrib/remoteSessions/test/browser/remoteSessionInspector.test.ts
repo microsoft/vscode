@@ -37,6 +37,7 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { RemoteSessionInspector } from '../../browser/remoteSessionInspector.js';
 import { readRemoteSessionState } from '../../browser/remoteSessionSource.js';
 
@@ -385,14 +386,14 @@ suite('RemoteSessionInspector', () => {
 		const prepared = await tool.prepareToolInvocation({ parameters: { session: resource.toString() }, toolCallId: 'inspect', chatSessionResource: undefined }, CancellationToken.None);
 		assert.deepStrictEqual({
 			name: data.toolReferenceName, runsInWorkspace: data.runsInWorkspace,
-			keys: data.when?.keys().sort(), confirmation: prepared.confirmationMessages, subscriptions: first.subscribed,
+			keys: [...new Set(data.when?.keys())].sort(), confirmation: prepared.confirmationMessages, subscriptions: first.subscribed,
 			noPolling: data.modelDescription.includes('do not sleep or poll'),
 			readOnly: data.modelDescription.includes('Read-only'),
 			noReasoning: data.modelDescription.includes('Excludes reasoning'),
 			exactReference: data.modelDescription.includes('exact host-qualified references, not bare IDs or "origin"'),
 		}, {
 			name: 'get_remote_session', runsInWorkspace: false,
-			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
+			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`, `config.${DevContainerHandoffEnabledSettingId}`].sort(),
 			confirmation: undefined, subscriptions: [], noPolling: true, readOnly: true, noReasoning: true, exactReference: true,
 		});
 	});

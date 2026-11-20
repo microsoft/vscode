@@ -1236,6 +1236,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeHooks = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
 		override readonly onDidChangeAgentInstructions = Event.None;
 

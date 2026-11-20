@@ -22,6 +22,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStatWithMetadata } from '../../../files/common/files.js';
@@ -32,7 +33,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
@@ -67,7 +68,7 @@ import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService
 import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -2222,6 +2223,20 @@ suite('getCopilotAgentSelectionName', () => {
 		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
 			getCopilotAgentSelectionName(customizations, uri.toString())),
 			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+		// The agent host reads a selected agent's parsed options (e.g. its Assisted permissions instructions) back by name.
+		assert.deepStrictEqual([...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', 'unknown'].map(name =>
+			getCopilotAgentCustomization(customizations, name)?.uri),
+			[...uris.map(uri => uri.toString()), nativeUri.toString(), undefined]);
+	});
+
+	test('carries an agent file\'s Assisted permissions instructions to the selected agent', () => {
+		const uri = URI.parse('client-agent:/fixer');
+		const customizations = {
+			plugins: [], nativeAgents: [], additionalRootInstructions: [],
+			discoveredAgents: [toParsedAgent({ uri, name: 'Fixer', assistedApprovalInstructions: 'Always ask before pushing.' })],
+		};
+		const agent = getCopilotAgentCustomization(customizations, getSdkCustomAgentName(uri));
+		assert.deepStrictEqual(agent && readAgentCustomizationMeta(agent)['vscode.assistedApprovalInstructions'], 'Always ask before pushing.');
 	});
 
 	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
@@ -4361,6 +4376,41 @@ suite('CopilotSessionLauncher resume config', () => {
 			allFoldersTrusted: ['guard.agent.md', 'helper.agent.md', 'copied.agent.md'],
 			additionalFolderUntrusted: [],
 			primaryFolderUntrusted: [],
+		});
+	});
+
+	test('chat.useHooks off leaves out repository, custom agent and VS Code-run plugin hooks, but keeps VS Code\'s own callbacks', async () => {
+		const store = disposables.add(new DisposableStore());
+		const agent = URI.file('/workspace/.github/agents/guard.agent.md');
+		const snapshot: CopilotSessionLaunchPlan['snapshot'] = {
+			discoveredAgents: [{ name: 'guard', uri: agent, customization: { type: CustomizationType.Agent, id: agent.toString(), uri: agent.toString(), name: 'guard' } }],
+			additionalRootInstructions: [], tools: [], mcpServers: {},
+			// A plugin without a folder, whose hooks VS Code runs through SDK callbacks.
+			plugins: [{
+				format: PluginFormat.Copilot, mcpServers: [], agents: [], skills: [], instructions: [],
+				hooks: [{ type: 'SessionStart', commands: [{ command: 'echo start' }], uri: URI.file('/plugin/hooks.json'), originalId: 'SessionStart', customization: { type: CustomizationType.Hook, id: 'hook:start', uri: 'file:///plugin/hooks.json', name: 'hooks.json' } }],
+			}],
+		};
+		const configFor = async (hooksEnabled: boolean | undefined) => {
+			const config = await buildResumeConfig(createLauncher(store, {
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file('/workspace').toString()] },
+				[AgentHostHooksEnabledConfigKey]: hooksEnabled,
+			}, '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody'), undefined, snapshot);
+			return {
+				repositoryHooks: config.hooks?.enableRepositoryHooks,
+				customAgentHooks: config.agents?.definitions?.find(definition => definition.name === getSdkCustomAgentName(agent))?.hooks !== undefined,
+				handlers: Object.keys(config.hooks?.handlers ?? {}).sort(),
+			};
+		};
+		const vscodeCallbacks = ['onPostToolUse', 'onPostToolUseFailure', 'onPreToolUse', 'onUserPromptSubmitted'];
+		assert.deepStrictEqual({
+			unset: await configFor(undefined),
+			on: await configFor(true),
+			off: await configFor(false),
+		}, {
+			unset: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			on: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			off: { repositoryHooks: false, customAgentHooks: false, handlers: vscodeCallbacks },
 		});
 	});
 
