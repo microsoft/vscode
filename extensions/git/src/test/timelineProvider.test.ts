@@ -5,7 +5,9 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getWorkspaceTimelinePage } from '../timelineProvider';
+import { Uri } from 'vscode';
+import { Operation } from '../operation';
+import { getWorkspaceTimelinePage, isTimelineRelevantOperation, isTimelineRelevantRepositoryChange } from '../timelineProvider';
 
 suite('git timeline', () => {
 	interface TestCommit {
@@ -49,5 +51,22 @@ suite('git timeline', () => {
 			'/a': [{ hash: 'A', timestamp: 100 }, { hash: 'B', timestamp: 1 }, { hash: 'C', timestamp: 90 }],
 			'/b': [{ hash: 'D', timestamp: 95 }],
 		}, 2), [['A', 'D'], ['B', 'C']]);
+	});
+
+	test('timeline ignores the FETCH_HEAD writes of a fetch', () => {
+		assert.deepStrictEqual(['FETCH_HEAD', 'HEAD', 'index', 'ORIG_HEAD', 'refs/heads/main'].map(name => isTimelineRelevantRepositoryChange(Uri.file(`/repo/.git/${name}`))), [false, true, true, true, true]);
+	});
+
+	test('timeline refreshes after a fetch only when it moves the upstream commit', () => {
+		assert.deepStrictEqual([
+			isTimelineRelevantOperation({ operation: Operation.Fetch(false), error: undefined }, 'a', 'a'),
+			isTimelineRelevantOperation({ operation: Operation.Fetch(true), error: undefined }, undefined, undefined),
+			isTimelineRelevantOperation({ operation: Operation.Fetch(false), error: undefined }, 'a', 'b'),
+			isTimelineRelevantOperation({ operation: Operation.Fetch(false), error: undefined }, undefined, 'b'),
+			isTimelineRelevantOperation({ operation: Operation.Commit, error: undefined }, 'a', 'a'),
+			isTimelineRelevantOperation({ operation: Operation.Commit, error: new Error() }, 'a', 'a'),
+			isTimelineRelevantOperation({ operation: Operation.Status, error: undefined }, 'a', 'a'),
+			isTimelineRelevantOperation({ operation: Operation.Log(false), error: undefined }, 'a', 'a'),
+		], [false, false, true, true, true, false, false, false]);
 	});
 });
