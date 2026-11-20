@@ -17,16 +17,19 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IToolInvocation } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
-import { ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
 import { CreateDevContainerTool, ShowDevContainerEnvironmentLogCommandId } from '../../browser/createDevContainerTool.js';
 
 suite('CreateDevContainerTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const workspaceUri = URI.parse('vscode-agent-host://container/file/-/workspaces/dev-container');
+	/** The chat that invokes the tool, in a session of the provider named by its path. */
+	const chatOn = (providerId: string) => URI.from({ scheme: 'agent-host-copilot', path: `/${providerId}`, fragment: 'chat' });
 
 	function setup(options: { readonly hosts?: readonly string[]; readonly handoff?: boolean } = {}) {
 		const configuration = new TestConfigurationService({
@@ -52,6 +55,7 @@ suite('CreateDevContainerTool', () => {
 		const trusted: string[] = [];
 		const devContainerService = upcastPartial<IDevContainerAgentHostService>({
 			environmentHosts: observableValue('hosts', new Set(options.hosts ?? [LocalDevContainerEnvironmentHost, 'ssh:build'])),
+			environments: observableValue<readonly IDevContainerEnvironment[]>('environments', [{ address: 'devcontainer:1', sourceAddress: 'ssh:build', providerId: container.id }]),
 			createEnvironment: async (sourceAddress: string, createOptions?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> => {
 				created.push(sourceAddress);
 				const environment = { address: 'devcontainer:1', sourceAddress, providerId: container.id };
@@ -67,6 +71,10 @@ suite('CreateDevContainerTool', () => {
 			}),
 			upcastPartial<IWorkspaceTrustManagementService>({ setUrisTrust: async uris => { trusted.push(...uris.map(uri => uri.toString())); } }),
 			configuration,
+			upcastPartial<ISessionsManagementService>({
+				getSessionForChatResource: resource => ({ session: upcastPartial<ISession>({ providerId: resource.path.slice(1) }), chat: upcastPartial<IChat>({ resource }) }),
+				getSession: () => undefined,
+			}),
 		);
 		const announceSessionTypes = () => {
 			Object.assign(container, { sessionTypes: [upcastPartial<ISessionType>({ id: 'copilotcli' })] });
@@ -75,9 +83,9 @@ suite('CreateDevContainerTool', () => {
 		return { tool, created, trusted, announceSessionTypes };
 	}
 
-	async function prepare(tool: CreateDevContainerTool, parameters: unknown) {
+	async function prepare(tool: CreateDevContainerTool, parameters: unknown, originatingChatResource?: URI) {
 		try {
-			const prepared = await tool.prepareToolInvocation({ toolCallId: 'prepare', parameters, chatSessionResource: undefined }, CancellationToken.None);
+			const prepared = await tool.prepareToolInvocation({ toolCallId: 'prepare', parameters, chatSessionResource: undefined, originatingChatResource }, CancellationToken.None);
 			return prepared.invocationMessage;
 		} catch (error) {
 			return { error: (error as Error).message };
@@ -108,9 +116,26 @@ suite('CreateDevContainerTool', () => {
 		});
 	});
 
+	test('defaults to the host that the invoking session runs on, when that host can run Dev Containers', async () => {
+		const { tool } = setup();
+		assert.deepStrictEqual({
+			remoteSession: await prepare(tool, {}, chatOn('agenthost-build')),
+			containerSession: await prepare(tool, {}, chatOn('agenthost-container')),
+			localSession: await prepare(tool, {}, chatOn(LOCAL_AGENT_HOST_PROVIDER_ID)),
+			hostWithoutDocker: await prepare(tool, {}, chatOn('agenthost-other')),
+			requestedHost: await prepare(tool, { host: 'local' }, chatOn('agenthost-build')),
+		}, {
+			remoteSession: 'Creating Dev Container on Build',
+			containerSession: 'Creating Dev Container on Build',
+			localSession: 'Creating Dev Container on This Computer',
+			hostWithoutDocker: 'Creating Dev Container on This Computer',
+			requestedHost: 'Creating Dev Container on This Computer',
+		});
+	});
+
 	test('creates the environment, trusts its new workspace, and returns what create_remote_session needs once its agents are known', async () => {
 		const { tool, created, trusted, announceSessionTypes } = setup();
-		const invocation: IToolInvocation = { callId: 'call', toolId: tool.getToolData().id, parameters: { host: 'agenthost-build' }, context: undefined };
+		const invocation: IToolInvocation = { callId: 'call', toolId: tool.getToolData().id, parameters: {}, originatingChatResource: chatOn('agenthost-build'), context: undefined };
 		const reported: unknown[] = [];
 		const result = tool.invoke(invocation, async () => 0, { report: step => reported.push(step.message) }, CancellationToken.None);
 		await timeout(0);

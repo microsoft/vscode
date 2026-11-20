@@ -13,11 +13,11 @@ A plain Dev Container is a Linux container from the Ubuntu base image (`mcr.micr
 
 If the user didn't explicitly ask to move the work into a Dev Container, ask once before creating one. Say where it runs and that the new session starts without this conversation's history.
 
-The container runs on this computer by default. For an SSH, Tunnel, or WSL host the user names, get its exact ID from `list_agent_hosts`.
+The container runs on the same host as this session by default: this computer, or the SSH, Tunnel, or WSL host this session runs on. For another host the user names, get its exact ID from `list_agent_hosts`.
 
 ## 2. Create the container
 
-Call `create_dev_container`, with `host` only when it shouldn't run on this computer. If the tool isn't available, explain that Dev Containers can't be created from this window. Building one can take a few minutes. If it fails, explain the error, such as Docker not running, and help fix it before calling it again: each call creates another container.
+Call `create_dev_container`, with `host` only when it should run on a different host than this session. If the tool isn't available, explain that Dev Containers can't be created from this window. Building one can take a few minutes. If it fails, explain the error, such as Docker not running, and help fix it before calling it again: each call creates another container.
 
 The result has the container's `hostId` and its empty `workspace` folder.
 

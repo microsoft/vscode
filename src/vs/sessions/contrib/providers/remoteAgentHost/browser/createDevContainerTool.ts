@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -18,8 +19,9 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, IDevContainerAgentHostService, isDevContainerHandoffEnabled, LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export const CreateDevContainerToolId = 'vscode_create_dev_container';
 
@@ -64,6 +66,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		@ISessionsProvidersService private readonly providersService: ISessionsProvidersService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
 	) { }
 
 	getToolData(): IToolData {
@@ -72,7 +75,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			toolReferenceName: 'create_dev_container',
 			displayName: localize('createDevContainer.displayName', "Create Dev Container"),
 			userDescription: localize('createDevContainer.userDescription', "Create a Dev Container with an agent host running inside"),
-			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker. Use when work should continue in an isolated container. The container persists, keeps its files in a Docker volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to this computer when Docker is available there. Returns the container\'s `hostId` and its empty `workspace` folder; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
+			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker. Use when work should continue in an isolated container. The container persists, keeps its files in a Docker volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remoteExplorer,
 			when: ContextKeyExpr.and(
@@ -88,14 +91,14 @@ export class CreateDevContainerTool implements IToolImpl {
 				type: 'object',
 				additionalProperties: false,
 				properties: {
-					host: { type: 'string', description: '`local` for this computer, or the exact ID of an SSH, Tunnel, or WSL host from list_agent_hosts.' },
+					host: { type: 'string', description: '`local` for this computer, or the exact ID of an SSH, Tunnel, or WSL host from list_agent_hosts. Omit to use the host this session runs on.' },
 				},
 			},
 		};
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
-		const host = this.resolveHost(context.parameters);
+		const host = this.resolveHost(context.parameters, context.originatingChatResource ?? context.chatSessionResource);
 		return {
 			invocationMessage: creatingMessage(host.label),
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
@@ -107,7 +110,7 @@ export class CreateDevContainerTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const host = this.resolveHost(invocation.parameters);
+		const host = this.resolveHost(invocation.parameters, invocation.originatingChatResource ?? invocation.context?.sessionResource);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -142,7 +145,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		};
 	}
 
-	private resolveHost(parameters: unknown): IDevContainerHost {
+	private resolveHost(parameters: unknown, chatResource: URI | undefined): IDevContainerHost {
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
@@ -157,8 +160,10 @@ export class CreateDevContainerTool implements IToolImpl {
 		if (!hosts.length) {
 			throw new Error(localize('createDevContainer.noHosts', "No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
 		}
+		const sessionHostAddress = requested === undefined ? this.getSessionHostAddress(chatResource) : undefined;
 		const host = requested !== undefined ? hosts.find(host => host.id === requested)
-			: hosts.find(host => host.id === LocalDevContainerEnvironmentHost) ?? (hosts.length === 1 ? hosts[0] : undefined);
+			: (sessionHostAddress !== undefined ? hosts.find(host => host.address === sessionHostAddress) : undefined)
+			?? hosts.find(host => host.id === LocalDevContainerEnvironmentHost) ?? (hosts.length === 1 ? hosts[0] : undefined);
 		if (!host) {
 			const available = JSON.stringify(hosts.map(({ id, label }) => ({ id, label })));
 			throw new Error(requested !== undefined
@@ -166,6 +171,26 @@ export class CreateDevContainerTool implements IToolImpl {
 				: localize('createDevContainer.hostRequired', "Docker is not available on this computer. Choose a host: {0}", available));
 		}
 		return host;
+	}
+
+	/**
+	 * The address of the host that the invoking session runs on, as in {@link IDevContainerHost.address}. For a
+	 * session in a Dev Container environment, that is the host that runs the container.
+	 */
+	private getSessionHostAddress(chatResource: URI | undefined): string | undefined {
+		const session = chatResource && (this.sessionsService.getSessionForChatResource(chatResource)?.session ?? this.sessionsService.getSession(chatResource));
+		if (!session) {
+			return undefined;
+		}
+		const environment = this.devContainerService.environments.get().find(environment => environment.providerId === session.providerId);
+		if (environment) {
+			return environment.sourceAddress;
+		}
+		if (session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+			return LocalDevContainerEnvironmentHost;
+		}
+		const provider = this.providersService.getProvider(session.providerId);
+		return provider && isAgentHostProvider(provider) ? provider.remoteAddress : undefined;
 	}
 
 	/** This computer first, then the connected hosts that can run Dev Containers now, as in Remote Environments. */
