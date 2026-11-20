@@ -99,10 +99,10 @@ suite('git.artifactProvider.worktrees', () => {
 		const groups = await didChangeWorktrees;
 
 		assert.deepStrictEqual({
-			before,
+			before: before.map(worktreePath => path.normalize(worktreePath)).sort(),
 			groups,
-			after: await getWorktreeArtifacts(repository),
-			worktrees: repository.worktrees.map(worktree => worktree.path)
+			after: (await getWorktreeArtifacts(repository)).map(worktreePath => path.normalize(worktreePath)).sort(),
+			worktrees: repository.worktrees.map(worktree => path.normalize(worktree.path))
 		}, {
 			before: [root, worktreePath, otherWorktreePath].sort(),
 			groups: ['worktrees'],
