@@ -98,7 +98,7 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 	// Generic SSH URI: ssh://[user@]host[:port]/owner/repo[.git]
 	match = /^ssh:\/\/(?:[^@]+@)?([^/:]+)(?::\d+)?\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
-		return { owner: match[2], repo: match[3], baseUrl: `https://${new URL(url).hostname}` };
+		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
 	}
 
 	// Generic SSH SCP syntax: git@host:owner/repo[.git]
@@ -116,7 +116,11 @@ export function getRepositoryFromQuery(query: string): { owner: string; repo: st
 }
 
 export function repositoryHasGitHubRemote(repository: Repository) {
-	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
+	return !!repository.state.remotes.find(remote => {
+		if (!remote.fetchUrl) { return false; }
+		const repo = getRepositoryFromUrl(remote.fetchUrl);
+		return repo?.baseUrl === 'https://github.com';
+	});
 }
 
 export function getRepositoryDefaultRemoteUrl(repository: Repository, order: string[]): string | undefined {
