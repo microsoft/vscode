@@ -2750,6 +2750,41 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('labels calls a hook denied with the hook, and keeps its reason beside the row, in live and restored transcripts', () => {
+			const deniedByHook = (source?: string) => ({ 'vscode.deniedByHook': source ? { hookType: 'preToolUse', source } : { hookType: 'preToolUse' } });
+			const cases: Record<string, { readonly toolName: string; readonly toolInput: string; readonly meta?: Record<string, unknown> }> = {
+				explicit: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook() },
+				crashed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook('.github/hooks/policy.json') },
+				mcp: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: { ...deniedByHook(), mcpServerName: 'docs' } },
+				terminal: { toolName: 'bash', toolInput: '{"command":"rm -rf ./scratch"}', meta: { ...deniedByHook(), toolKind: 'terminal' } },
+				failed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}' },
+			};
+			const results = Object.fromEntries(Object.entries(cases).map(([name, { toolName, toolInput, meta }]) => {
+				const running = createToolCallState({ toolName, displayName: 'Read', toolInput });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success: false, pastTenseMessage: '"Read" failed',
+					error: { message: 'Denied by preToolUse hook: not in this repo (policy R-17).', code: 'denied' }, _meta: meta,
+				});
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+				const views = [live, live.toJSON(), restored].map(tool => JSON.stringify({
+					title: name === 'failed' ? undefined : tool.pastTenseMessage && (typeof tool.pastTenseMessage === 'string' ? tool.pastTenseMessage : renderAsPlaintext(tool.pastTenseMessage)),
+					origin: tool.originMessage,
+					summary: getToolGroupSummary([tool], [], 1, extUri),
+				}));
+				return [name, new Set(views).size === 1 ? JSON.parse(views[0]) : views];
+			}));
+			const reason = 'Denied by preToolUse hook: not in this repo (policy R-17).';
+			assert.deepStrictEqual(results, {
+				explicit: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				crashed: { title: '"Read" blocked because Pre-Tool Use hook .github/hooks/policy.json failed', summary: '1 tool call blocked by a hook' },
+				mcp: { title: '"Read" blocked by Pre-Tool Use hook', origin: `docs (MCP Server) · ${reason}`, summary: '1 tool call blocked by a hook' },
+				terminal: { origin: reason, summary: '1 tool call blocked by a hook' },
+				failed: { summary: '1 tool call failed' },
+			});
+		});
+
 		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
 			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
 				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });

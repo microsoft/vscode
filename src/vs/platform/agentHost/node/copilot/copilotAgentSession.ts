@@ -114,6 +114,7 @@ import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './c
 import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { CopilotGrepSearchNudge } from './copilotGrepSearchNudge.js';
 import { createHookFailureNotification } from './copilotHookNotices.js';
+import { CopilotHookToolDenials } from './copilotHookToolDenials.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
@@ -1602,6 +1603,7 @@ export class CopilotAgentSession extends Disposable {
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
 	private readonly _grepSearchNudge: CopilotGrepSearchNudge;
+	private readonly _hookToolDenials = new CopilotHookToolDenials();
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -6485,7 +6487,13 @@ export class CopilotAgentSession extends Disposable {
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
 			createModelRouterTools: () => this._modelRouterTools?.() ?? [],
 			reloadExtensions: () => this.reloadExtensions(),
-			handlePreToolUse: input => this._handlePreToolUse(input),
+			handlePreToolUse: async input => {
+				const output = await this._handlePreToolUse(input);
+				if (output?.permissionDecision === 'deny') {
+					this._hookToolDenials.recordSelfDenial(input.toolCallId);
+				}
+				return output;
+			},
 			handlePostToolUse: input => this._handlePostToolUse(input),
 			handlePostToolUseFailure: input => this._handlePostToolUseFailure(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
@@ -11875,6 +11883,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
+			const deniedByHook = this._hookToolDenials.takeDenial(e.data.toolCallId, e.data);
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			this._clientToolReadyWaits.delete(e.data.toolCallId);
 			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
@@ -11949,6 +11958,9 @@ export class CopilotAgentSession extends Disposable {
 			const viewedResourceType = e.data.success && tracked.meta?.['vscode.toolInputContract'] ? getViewedResourceType(tracked.toolName, e.data.toolTelemetry) : undefined;
 			if (viewedResourceType) {
 				tracked.meta = { ...tracked.meta, 'vscode.viewedResourceType': viewedResourceType };
+			}
+			if (deniedByHook) {
+				tracked.meta = { ...tracked.meta, 'vscode.deniedByHook': deniedByHook };
 			}
 			this._emitPendingImageReady(tracked);
 
@@ -14966,6 +14978,7 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
 			this._reportHookFailure(e);
+			this._hookToolDenials.recordHookEnd(e.data);
 		}));
 
 		store.add(wrapper.onSystemMessage(e => {
