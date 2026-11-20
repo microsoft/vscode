@@ -36,6 +36,7 @@ import type { IAgentHostGitHubEnvironmentRegistration, IAgentHostMcpAuthenticati
 import type { IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
+import type { IAgentHostRequestSearchResult } from './agentHostRequestSearch.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -178,6 +179,9 @@ export const AgentHostMcpToolRoutingEnabledSettingId = 'chat.agentHost.experimen
 
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
+
+/** Configuration key controlling whether hosts index sent requests so they can be searched across hosts. */
+export const AgentHostRequestSearchEnabledSettingId = 'chat.agentHost.requestSearch.enabled';
 
 /** Configuration key enabling the initial workspace file-name snapshot in Copilot agent-host chats. */
 export const AgentHostWorkspaceSnapshotEnabledSettingId = 'chat.experimental.workspaceSnapshot';
@@ -1046,6 +1050,8 @@ export interface IAgentService {
 	createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI>;
 	/** Reads persisted exact-chat history without restoring its executable provider. */
 	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
+	/** Searches the indexed text of requests sent to this host's chats, without restoring any chat. */
+	searchRequests?(query: string, limit: number | undefined): Promise<IAgentHostRequestSearchResult>;
 	/** Records a verified Copilot continuation and archives only safely covered saved chats. */
 	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Removes an Automation and returns exact backend session URIs deleted by this request. */
@@ -1474,6 +1480,11 @@ export interface IAgentConnection {
 	// ---- Session lifecycle --------------------------------------------------
 	/** Requires the saved-chat capability advertised by the local native host. */
 	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
+	/**
+	 * Searches the requests sent to the host's chats. Rejects when the host does not advertise
+	 * request search; the result is validated, but its text remains host-supplied content.
+	 */
+	searchRequests?(query: string, limit: number | undefined): Promise<IAgentHostRequestSearchResult>;
 	/** Requires the local native host's saved-chat continuation capability. */
 	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */

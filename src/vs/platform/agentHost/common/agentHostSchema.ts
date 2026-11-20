@@ -691,6 +691,9 @@ export type AgentHostTitleGenerationStrategy = AgentHostSelectableTitleGeneratio
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
+/** Root config key controlling the host's index of sent requests, which `vscode/searchRequests` reads. */
+export const AgentHostRequestSearchEnabledConfigKey = 'requestSearchEnabled';
+
 /** Root config key controlling the initial workspace file-name snapshot in Copilot chats. */
 export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnabled';
 
@@ -1091,6 +1094,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
 		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
 		default: false,
+	}),
+	[AgentHostRequestSearchEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.requestSearchEnabled.title', "Request Search"),
+		description: localize('agentHost.config.requestSearchEnabled.description', "Whether this host keeps a local index of the requests sent to its chats so connected clients can search them. Turning it off stops indexing and deletes the index."),
+		default: true,
 	}),
 	[AgentHostWorkspaceSnapshotEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

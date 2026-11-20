@@ -20,6 +20,7 @@ import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSession
 import type { IAgentHostScratchFolderDatabase } from '../../node/agentHostScratchFolderDatabase.js';
 import type { IAgentHostWorktreeRemovalDatabase } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { AgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import type { IAgentHostRequestIndex } from '../../node/agentHostRequestIndex.js';
 import type { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 export function createLegacyChatMetadataPersistence(service: ISessionDataService): Pick<IAgentHostPeerChatPersistenceService, 'persistMetadata' | 'readNormalizedChat' | 'persistDefaultChatTitleSnapshot'> {
@@ -462,6 +463,17 @@ export function createTestSessionStateStore(database: IAgentHostDatabase, servic
 export function createTestWorktreeCleanupService(disposables: Pick<DisposableStore, 'add'>, worktree: IAgentHostWorktreeIsolation, database: IAgentHostDatabase = disposables.add(new AgentHostDatabase(':memory:'))): AgentHostWorktreeCleanupService {
 	return disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService(), upcastPartial<IAgentHostGitService>({})));
 }
+
+/** A request index that records nothing, for graphs that do not exercise request search. */
+export const nullAgentHostRequestIndex: IAgentHostRequestIndex = {
+	_serviceBrand: undefined,
+	recordTurn: () => { },
+	truncateChat: () => { },
+	removeChat: () => { },
+	moveChat: () => { },
+	setTitle: () => { },
+	search: async () => ({ indexEnabled: false, hits: [], truncated: false }),
+};
 
 /** The chat rows of a real session state store over `service`; the store and its database are released with `disposables`. */
 export function createTestChatRows(service: ISessionDataService, disposables: Pick<DisposableStore, 'add'>): IAgentHostChatRowStore {

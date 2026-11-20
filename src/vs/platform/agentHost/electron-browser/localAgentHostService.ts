@@ -40,6 +40,7 @@ import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.j
 import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
+import type { IAgentHostRequestSearchResult } from '../common/agentHostRequestSearch.js';
 import type { AgentCanvasOpenAnswer, AgentCanvasOpenResult, AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
@@ -606,6 +607,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
 		return this._requireClient().readSavedChat(session, chat);
+	}
+
+	searchRequests(query: string, limit: number | undefined): Promise<IAgentHostRequestSearchResult> {
+		return this._requireClient().searchRequests(query, limit);
 	}
 
 	completeSavedChatContinuation(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult> {

@@ -67,6 +67,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostRequestIndex } from '../../node/agentHostRequestIndex.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -99,7 +100,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService, nullAgentHostRequestIndex } from './chatMetadataTestHelpers.js';
 import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -342,6 +343,7 @@ function createTestSideEffects(
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
+	services.set(IAgentHostRequestIndex, nullAgentHostRequestIndex);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,

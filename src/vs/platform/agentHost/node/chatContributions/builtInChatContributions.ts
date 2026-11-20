@@ -28,6 +28,7 @@ import { PullRequestChatContribution } from './pullRequest/pullRequestChatContri
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSessionOriginContribution.js';
+import { RequestIndexContribution } from './requestIndex/requestIndexContribution.js';
 import { ScheduledChatMovesContribution } from './scheduledChatMoves/scheduledChatMovesContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
@@ -78,6 +79,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	registrations.add(contributions.registerContribution(ChatReadContribution));
+	registrations.add(contributions.registerContribution(RequestIndexContribution));
 	registrations.add(contributions.registerContribution(SessionSummaryTelemetryContribution));
 	return registrations;
 }

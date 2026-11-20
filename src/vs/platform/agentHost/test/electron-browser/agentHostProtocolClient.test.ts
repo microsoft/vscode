@@ -27,6 +27,7 @@ import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHo
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, GitHubEnvironmentChangedNotification } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostRequestSearchCapabilityMetaKey } from '../../common/meta/agentHostRequestSearchMeta.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
@@ -4313,6 +4314,29 @@ suite('AgentHostProtocolClient', () => {
 				await assert.rejects(completion, /cannot complete saved chat continuations/);
 				assert.deepStrictEqual(transport.sentMessages, []);
 			}
+		}
+	});
+
+	test('request search requires its capability and rejects malformed host results', async () => {
+		for (const supported of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, supported ? { [AgentHostRequestSearchCapabilityMetaKey]: true } : {});
+			transport.sentMessages.length = 0;
+			if (!supported) {
+				await assert.rejects(client.searchRequests('login', 5), /cannot search requests/);
+				assert.deepStrictEqual(transport.sentMessages, []);
+				continue;
+			}
+			const result = { indexEnabled: true, hits: [{ session: 'ahp-session:/s', chat: 'ahp-chat:/c', turnId: 'opaque-turn', startedAt: '2026-11-01T00:00:00.000Z', snippet: 'login', sessionTitle: 'S' }], truncated: false };
+			const valid = client.searchRequests('login', 5);
+			transport.fireMessage({ jsonrpc: '2.0', id: 2, result });
+			const malformed = client.searchRequests('login', undefined);
+			transport.fireMessage({ jsonrpc: '2.0', id: 3, result: { indexEnabled: true, hits: [{ session: 1 }], truncated: false } });
+			assert.deepStrictEqual({ result: await valid, sent: transport.sentMessages.map(message => (message as JsonRpcRequest).params) }, {
+				result,
+				sent: [{ query: 'login', limit: 5 }, { query: 'login' }],
+			});
+			await assert.rejects(malformed);
 		}
 	});
 

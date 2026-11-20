@@ -61,6 +61,7 @@ import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMeth
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
+import { supportsAgentHostRequestSearch } from '../../common/meta/agentHostRequestSearchMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } from '../../common/clientArtifactIntegrations.js';
@@ -2224,6 +2225,65 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({ supported: supportsAgentHostSavedChat(initialized.result as InitializeResult), response: await pending }, {
 				supported: false,
 				response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/readSavedChat' } },
+			});
+		});
+	}
+
+	test('advertises request search and validates queries before searching', async () => {
+		const calls: [string, number | undefined][] = [];
+		const service: IAgentService = agentService;
+		service.searchRequests = async (query, limit) => {
+			calls.push([query, limit]);
+			return { indexEnabled: true, hits: [{ session: 'ahp-session:/found', turnId: 'turn-1', startedAt: '2026-11-01T00:00:00.000Z', snippet: 'fix login' }], truncated: false };
+		};
+		const transport = connectClient('request-search');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const found = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/searchRequests', { query: 'login', limit: 5 }));
+		const invalidCodes: (number | undefined)[] = [];
+		for (const [index, params] of [undefined, {}, { query: '  ' }, { query: 'x'.repeat(201) }, { query: 'a b c d e f g h i' }, { query: 'ok', limit: 0 }, { query: 'ok', limit: 1.5 }].entries()) {
+			const pending = waitForResponse(transport, 30 + index);
+			transport.simulateMessage(request(30 + index, 'vscode/searchRequests', params));
+			const response = await pending;
+			invalidCodes.push(hasKey(response, { error: true }) ? response.error?.code : undefined);
+		}
+		assert.deepStrictEqual({
+			supported: supportsAgentHostRequestSearch(initialized.result as InitializeResult),
+			response: await found,
+			calls,
+			invalidCodes,
+		}, {
+			supported: true,
+			response: { jsonrpc: '2.0', id: 20, result: { indexEnabled: true, hits: [{ session: 'ahp-session:/found', turnId: 'turn-1', startedAt: '2026-11-01T00:00:00.000Z', snippet: 'fix login' }], truncated: false } },
+			calls: [['login', 5]],
+			invalidCodes: Array(7).fill(JsonRpcErrorCodes.InvalidParams),
+		});
+	});
+
+	for (const mode of ['unsupported', 'relay'] as const) {
+		test(`does not expose request search to ${mode} clients`, async () => {
+			const service: IAgentService = agentService;
+			if (mode !== 'unsupported') {
+				service.searchRequests = async () => { assert.fail('Blocked client reached the request index'); };
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, localServer, { allowExtensionMethods: mode === 'relay' },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, mode === 'relay' ? `search-${mode}` : undefined);
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `search-${mode}` }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/searchRequests', { query: 'login' }));
+			assert.deepStrictEqual({ supported: supportsAgentHostRequestSearch(initialized.result as InitializeResult), response: await pending }, {
+				supported: false,
+				response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/searchRequests' } },
 			});
 		});
 	}

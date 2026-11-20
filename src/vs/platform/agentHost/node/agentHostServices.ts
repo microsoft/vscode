@@ -54,6 +54,7 @@ import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubsc
 import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentHostRequestIndex, IAgentHostRequestIndex } from './agentHostRequestIndex.js';
 import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
@@ -107,6 +108,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 		? joinPath(dirname(inputs.rootConfigResource), 'agent-host.db').fsPath
 		: ':memory:';
 	services.set(IAgentHostDatabase, inputs.orchestratorDatabase ?? new SyncDescriptor(AgentHostDatabase, [databasePath]));
+	services.set(IAgentHostRequestIndex, new SyncDescriptor(AgentHostRequestIndex, [inputs.rootConfigResource ? joinPath(dirname(inputs.rootConfigResource), 'request-index.db').fsPath : ':memory:']));
 	services.set(IAgentSessionRegistry, new SyncDescriptor(AgentSessionRegistry));
 	services.set(IArtifactIntegrationRegistry, new SyncDescriptor(ArtifactIntegrationRegistry));
 	services.set(IAgentHostArtifactEventService, new SyncDescriptor(AgentHostArtifactEventService));

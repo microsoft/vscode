@@ -492,6 +492,16 @@ Behind the root setting `multipleChatProviders.enabled` (workbench `chat.agentHo
 - **Session-scoped surfaces.** Session customization publishing, MCP server start/stop and the customization snapshot handed to providers stay scoped to the session's agent for now. Archiving and unarchiving a session also notify (`onArchivedChanged`) the agents of its chats that use their own.
 - **Moves.** A chat keeps its agent. Between sessions of different agents only a chat that uses its own agent in both moves (with the setting on), keeping its config; a chat that would gain or lose its own agent, a session moved under a session of another agent and the promotion of a chat with its own agent are refused with `differentProvider`, because a chat's schema cannot change while clients observe it.
 
+## 3e. Request Search Index
+
+Each host keeps its own index of the requests sent to its chats in `request-index.db`, next to `agent-host.db` (`node/agentHostRequestIndex.ts`), and answers `vscode/searchRequests` from it (`common/agentHostRequestSearch.ts`), so a client can search requests across hosts without restoring or pinning any chat. Provider stores are not read: the Copilot SDK's cross-session store covers only Copilot, has no query API outside a session, and its schema is not ours.
+
+- **What is indexed.** `requestIndex` (a chat contribution) records every turn as it starts, from any origin; only visible `user`-origin messages are searchable, the rest keep their position for truncations. Subagent and ephemeral sessions are skipped. History from before the index existed, or from while it was off, is not backfilled; results report `indexedSince`. Responses are not indexed.
+- **Keeping it current.** Client truncations drop the turns after the kept one (server truncations only refresh history), removed chats are dropped, moved chats follow their new owner, and titles follow `session/titleChanged` and `session/chatUpdated`. Hits of deleted or hidden sessions are skipped at query time (`isSessionSuppressed`). Text beyond 10,000 characters per request is not searchable, and the oldest requests are dropped beyond 20,000.
+- **Turn IDs.** A hit's `turnId` is the one the host exposes now: the original ID while the chat stays loaded with it, otherwise the provider ID the chat's session database maps it to (`getTurnEventId`), which a restore uses. Providers that record no mapping reuse the original ID.
+- **Off switch.** Root config `requestSearchEnabled` (workbench `chat.agentHost.requestSearch.enabled`, default on) stops indexing when off and deletes the index; searches then return `indexEnabled: false`.
+- **Access.** Only direct clients get the capability (`vscode.searchRequests`) and the method; relay lanes, which are scoped to granted roots, do not. Hits carry host-supplied text: clients validate the shape and treat titles and snippets as untrusted content.
+
 ## 4. Capabilities Gating
 
 `AgentCapabilities` (`common/state/protocol/channels-root/state.ts:AgentCapabilities`) is the protocol-level contract:

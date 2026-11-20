@@ -63,6 +63,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostRequestIndex } from '../../node/agentHostRequestIndex.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -89,7 +90,7 @@ import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTit
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows, nullAgentHostRequestIndex } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import '../../node/localCommands/localChatCommands.contribution.js';
@@ -1020,6 +1021,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		sendTurnMessage: () => observed?.push('queueDrain'),
 	};
 	disposables.add(service.registerHost(host));
+	services.set(IAgentHostRequestIndex, nullAgentHostRequestIndex);
 	disposables.add(registerBuiltInChatContributions(service));
 	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory, providerService };
 }

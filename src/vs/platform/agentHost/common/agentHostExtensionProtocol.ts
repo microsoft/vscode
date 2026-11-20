@@ -38,6 +38,8 @@ import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactI
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
+import { AgentHostRequestSearchCapabilityMetaKey } from './meta/agentHostRequestSearchMeta.js';
+import { SearchAgentHostRequestsExtensionMethod, type IAgentHostRequestSearchResult, type SearchAgentHostRequestsParams } from './agentHostRequestSearch.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -173,6 +175,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostCreateSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatContinuationCapabilityMetaKey]?: true;
+	readonly [AgentHostRequestSearchCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionMoveCapabilityMetaKey]?: true;
@@ -379,6 +382,7 @@ export interface IAgentHostExtensionCommandMap {
 	[RemoveSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[RefreshSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[ReadSavedChatExtensionMethod]: { params: ValidatorType<typeof readSavedChatParamsValidator>; result: IAgentHostSavedChatDto };
+	[SearchAgentHostRequestsExtensionMethod]: { params: SearchAgentHostRequestsParams; result: IAgentHostRequestSearchResult };
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[DeleteAutomationExtensionMethod]: { params: ValidatorType<typeof deleteAutomationParamsValidator>; result: readonly string[] };
 	[AcknowledgeAutomationDeletionExtensionMethod]: { params: ValidatorType<typeof acknowledgeAutomationDeletionParamsValidator>; result: void };
