@@ -169,6 +169,11 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 
 		this._list = append(this._domNode, $('.prompt-timeline-gutter-panel'));
 		this._list.id = panelId;
+		this._register(addDisposableListener(this._list, EventType.SCROLL, () => {
+			if (this._loadOlder) {
+				this._updateOlderHistoryChevron();
+			}
+		}));
 		let lastWheelTime = -Infinity;
 		let pagedInGesture = false;
 		this._register(addDisposableListener(this._list, 'wheel', e => {
@@ -176,7 +181,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 				pagedInGesture = false;
 			}
 			lastWheelTime = e.timeStamp;
-			if (!pagedInGesture && this._loadOlder && e.deltaY < 0 && !e.ctrlKey && !e.shiftKey && this._list.scrollTop <= 1) {
+			if (!pagedInGesture && this._loadOlder && e.deltaY < 0 && !e.ctrlKey && !e.shiftKey && this._atHistoryStart()) {
 				pagedInGesture = true;
 				void this._requestOlder();
 			}
@@ -186,7 +191,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			touchY = e.touches.length === 1 ? e.touches[0].clientY : undefined;
 		}, { passive: true }));
 		this._register(addDisposableListener(this._list, 'touchmove', (e: TouchEvent) => {
-			if (touchY !== undefined && e.touches.length === 1 && e.touches[0].clientY > touchY && this._list.scrollTop <= 1) {
+			if (touchY !== undefined && e.touches.length === 1 && e.touches[0].clientY > touchY && this._atHistoryStart()) {
 				touchY = undefined;
 				void this._requestOlder();
 			}
@@ -277,7 +282,17 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			this._historyError = undefined;
 			this._list.classList.toggle('has-older-prompts', !!loadOlder);
 			this._rest.classList.toggle('has-older-prompts', !!loadOlder);
+			this._rest.ariaDescription = loadOlder ? localize('promptTimeline.gutter.olderPromptsHint', "Press Up Arrow on the first prompt to load earlier prompts.") : null;
+			this._updateOlderHistoryChevron();
 		}
+	}
+
+	private _atHistoryStart(): boolean {
+		return this._list.scrollTop <= 1;
+	}
+
+	private _updateOlderHistoryChevron(): void {
+		this._list.classList.toggle('show-older-prompts-chevron', !!this._loadOlder && this._atHistoryStart());
 	}
 
 	private async _requestOlder(): Promise<void> {
@@ -449,8 +464,8 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		if (!container) {
 			return;
 		}
-		const top = container.offsetTop;
-		const bottom = top + container.offsetHeight;
+		const top = index === 0 && this._loadOlder ? 0 : container.offsetTop;
+		const bottom = container.offsetTop + container.offsetHeight;
 		const viewTop = this._list.scrollTop;
 		const viewBottom = viewTop + this._list.clientHeight;
 		if (top < viewTop) {
@@ -630,6 +645,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	private _focusCell(rowIndex: number, column: RowColumn): void {
 		this._updateTabStops(rowIndex, column);
 		this._cell(this._focusRow, this._focusColumn)?.focus();
+		if (this._loadOlder && this._focusRow === 0) {
+			this._list.scrollTop = 0;
+		}
 	}
 
 	/**

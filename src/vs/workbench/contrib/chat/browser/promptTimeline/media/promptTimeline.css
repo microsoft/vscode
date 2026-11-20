@@ -715,15 +715,20 @@
 }
 
 .prompt-timeline-gutter-panel.has-older-prompts {
-	background-image: linear-gradient(to bottom, var(--vscode-scrollbar-shadow), transparent);
-	background-repeat: no-repeat;
-	background-size: 100% var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size160);
 	overscroll-behavior-y: contain;
 }
 
-.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-panel.has-older-prompts {
-	background-image: none;
-	border-top-style: dashed;
+.prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-panel.show-older-prompts-chevron::before {
+	content: var(--vscode-icon-chevron-up-compact-content) / '';
+	font-family: var(--vscode-icon-chevron-up-compact-font-family);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: 1;
+	position: absolute;
+	top: var(--vscode-spacing-size20);
+	inset-inline: 0;
+	text-align: center;
+	pointer-events: none;
 }
 
 .prompt-timeline-gutter-error {

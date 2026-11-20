@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { getIconsStyleSheet } from '../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { PromptTimelineGutterRail, restDotCount } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
 import { PromptTick } from '../../../browser/promptTimeline/promptTimelineModel.js';
 
@@ -39,6 +40,33 @@ suite('PromptTimelineGutterRail', () => {
 	function keydown(target: HTMLElement, key: string, keyCode: number): void {
 		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 	}
+
+	test('shows the chevron only at the open, loadable top edge without loading on hover', () => {
+		const rail = createRail(Array.from({ length: 10 }, (_, i) => tick(151 + i)));
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		const handle = rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!;
+		append(rail.domNode, $('style')).textContent = store.add(getIconsStyleSheet(undefined)).getCSS().toString();
+		panel.style.maxHeight = '100px';
+		const visible = () => getWindow(panel).getComputedStyle(panel, '::before').content !== 'none';
+		const hover = () => panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		hover();
+		const complete = visible();
+		panel.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+		let loads = 0;
+		rail.setOlderHistoryLoader(async () => { loads++; });
+		const closed = visible();
+		hover();
+		const atTop = visible();
+		panel.scrollTop = panel.scrollHeight;
+		panel.dispatchEvent(new Event('scroll'));
+		const scrolled = visible();
+		keydown(rowParts(rail).at(-1)!.jump, 'Home', 36);
+		panel.dispatchEvent(new Event('scroll'));
+		const afterHome = visible();
+		rail.setOlderHistoryLoader(undefined);
+		assert.deepStrictEqual({ complete, closed, atTop, scrolled, afterHome, exhausted: visible(), hint: handle.ariaDescription, loads },
+			{ complete: false, closed: false, atTop: true, scrolled: false, afterHome: true, exhausted: false, hint: null, loads: 0 });
+	});
 
 	test('loads one older page at the gutter boundary and preserves the focused row and column', async () => {
 		const stat = { added: 1, removed: 0, fileCount: 1 };
