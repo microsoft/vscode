@@ -6503,6 +6503,7 @@ suite('NewChatWidget', () => {
 					_workspaceOptOutTarget: constObservable(undefined),
 					_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
 					_pendingRequestedAgent: disposables.add(new MutableDisposable()),
+					_pendingRequestedModel: disposables.add(new MutableDisposable()),
 					_applyingRequestedSelection: undefined,
 					// Its requested targets work in their folders: New Worktree is tested on its own
 					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
