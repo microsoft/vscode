@@ -19,10 +19,13 @@ import { IEditorPartUIState } from '../../../workbench/browser/parts/editor/edit
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
 import { PaneComposite } from '../../../workbench/browser/panecomposite.js';
 import { GroupIdentifier } from '../../../workbench/common/editor.js';
+import { ActiveEditorContext } from '../../../workbench/common/contextkeys.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedEditorInput } from '../../../workbench/browser/parts/editor/dockedEditorInput.js';
+import { DesktopChangesEditorTransitionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { EmptyFileEditorInput } from '../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../workbench/contrib/sessions/common/changes.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
@@ -43,8 +46,9 @@ import { EmptyEditorGroupAddTab } from '../../../workbench/browser/parts/session
  * that docks and sizes the auxiliary bar inside the editor part. The header itself
  * is rendered by the editor group from the group's configured header
  * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
- * that row for text file editors. The part only reacts to the tab row's height to
- * reposition the docked auxiliary bar.
+ * that row for text file editors. The header of the Changes tab spans the auxiliary bar
+ * docked beside the editor content; the part only reacts to the title's height to
+ * reposition the auxiliary bar below that header, or below the tab row otherwise.
  */
 export class DesktopMainEditorPart extends MainEditorPart {
 
@@ -64,12 +68,40 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
-				tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab
+				tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
+				// The Agents window keeps a plain add-tab menu
+				tabsBarAddTabRecentFirst: false
 			},
 			showHeader: true,
 			useModernUITabs: true,
-			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			reserveHeaderSpace: editor => this._showsChangesHeader()
+				|| (editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)),
+			headerSpansContentInset: () => this._showsChangesHeader()
 		};
+	}
+
+	/**
+	 * Whether the group shows the header of the Changes tab, which is reserved also while the
+	 * editor content is hidden, and spans across the auxiliary bar docked beside the editor
+	 * content, which then starts below it. It follows the editor that the group shows rather
+	 * than one it is still opening, so that the header, its changeset picker and the auxiliary
+	 * bar below change in the same frame once the editor shows. It also holds while a session
+	 * switch replaces the Changes editor, so that the layout stays.
+	 */
+	private _showsChangesHeader(): boolean {
+		// The header queries this while the part's first group is still being created.
+		const group: IEditorGroupView | undefined = this.activeGroup;
+		if (!group) {
+			return false;
+		}
+		if (DesktopChangesEditorTransitionContext.getValue(group.scopedContextKeyService) === true) {
+			return true;
+		}
+
+		// The group publishes the editor it shows once opening it completes. The docked editors
+		// are the Changes and Files tabs.
+		const shownEditorId = ActiveEditorContext.getValue(group.scopedContextKeyService);
+		return !!shownEditorId && group.editors.some(editor => editor instanceof DockedEditorInput && !(editor instanceof EmptyFileEditorInput) && editor.editorId === shownEditorId);
 	}
 
 	// Double-click balances Sessions against editor content while reserving Details.
@@ -203,6 +235,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				},
 				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
 				getEditorContentTop: () => (this.activeGroup as EditorGroupView).titleHeight.total,
+				headerSpansDetails: () => this._showsChangesHeader(),
 			},
 			{
 				isEnabled: () => layoutService.isAuxiliaryBarFloating(),

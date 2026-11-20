@@ -836,14 +836,16 @@ per-word capitalization does not survive translation. */
 	border-color: var(--vscode-contrastBorder, transparent);
 }
 
-/* "Managed by your organization" tag for customizations controlled by the user's organization */
-.inline-badge.organization-managed-tag {
+/* Tags next to a customization's name: "Managed by your organization" and "Managed by your GitHub Team" */
+.inline-badge.organization-managed-tag,
+.inline-badge.team-provided-tag {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 }
 
-.inline-badge.organization-managed-tag .codicon {
+.inline-badge.organization-managed-tag .codicon,
+.inline-badge.team-provided-tag .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
@@ -1922,7 +1924,8 @@ per-word capitalization does not survive translation. */
 /* Embedded plugin detail view */
 .ai-customization-management-editor .marketplace-detail-container,
 .ai-customization-management-editor .plugin-detail-container,
-.ai-customization-management-editor .connector-detail-container {
+.ai-customization-management-editor .connector-detail-container,
+.ai-customization-management-editor .mcp-install-container {
 	position: relative;
 	height: 100%;
 	display: flex;
@@ -2123,6 +2126,22 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail {
 	margin-inline: auto;
+}
+
+/* While an installation is configured, its form takes the place of the current page. */
+.ai-customization-management-editor .content-inner.configuring-installation > :not(.mcp-install-container) {
+	display: none;
+}
+
+/* The install form fills the page's height, so its fields scroll while its title and buttons stay in view. */
+.ai-customization-management-editor .mcp-install-container {
+	align-items: center;
+}
+
+.ai-customization-management-editor .mcp-install-container .mcp-install-form {
+	flex: 1;
+	width: calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400));
+	height: auto;
 }
 
 /* Shared embedded detail component foundation */
@@ -4405,6 +4424,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .customization-detail-mode .editor-header,
+.ai-customization-management-editor .customization-detail-mode .migration-detail-warning,
 .ai-customization-management-editor .customization-detail-mode .editor-preview-scroll-container,
 .ai-customization-management-editor .customization-detail-mode .embedded-editor-container {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);

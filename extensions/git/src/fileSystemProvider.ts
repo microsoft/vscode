@@ -138,6 +138,15 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
 		let repository = this.model.getRepository(uri);
+		const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
+		if (repository && !this.model.isOpeningFolderLocationOf(fsPath)) {
+			return repository;
+		}
+
+		// The repository of a location that a workspace folder switched to (ex: another worktree) can still be opening,
+		// while the open repository of the resource is the one of a location that contains it
+		await this.model.whenFolderLocationSwitchesOpened();
+		repository = this.model.getRepository(uri);
 		if (repository) {
 			return repository;
 		}
@@ -146,7 +155,6 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		// so we need to explicitly open a repository before we can serve git content for the
 		// given git resource.
 		if (workspace.workspaceFolders === undefined || workspace.isAgentSessionsWorkspace) {
-			const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
 			this.logger.info(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
 
 			await this.model.openRepository(fsPath, true, true);

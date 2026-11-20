@@ -54,6 +54,7 @@ export const enum AccessibleViewProviderId {
 	WebviewFindHelp = 'webviewFindHelp',
 	OutputFindHelp = 'outputFindHelp',
 	ChatFindHelp = 'chatFindHelp',
+	ChatViewSessionsList = 'chatViewSessionsList',
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
 	ArtifactDetails = 'artifactDetails',

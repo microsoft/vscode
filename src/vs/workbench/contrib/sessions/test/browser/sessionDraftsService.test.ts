@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -32,7 +32,7 @@ import { getPendingSessionAriaLabel, IPendingSessionItem, PendingSessionRenderer
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISavedSessionDraft } from '../../common/savedSessionDrafts.js';
+import { ISavedSessionDraft, SavedSessionDrafts } from '../../common/savedSessionDrafts.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SESSIONS_DRAFTS_ENABLED_SETTING } from '../../common/sessionConfig.js';
@@ -173,6 +173,48 @@ suite('Saved session draft lifecycle', () => {
 		await assert.rejects(async () => instantiation.invokeFunction(command.handler, ...args), /no longer available/);
 	});
 
+	test('draft creation notifies only once across new drafts and service recreation', () => {
+		const first = create();
+		const composer = first.service.createComposer();
+		const registration = disposables.add(first.service.registerComposer(composer, async () => { }, () => { }));
+		const counts: number[] = [];
+		for (const inputText of ['First draft', 'Second draft']) {
+			composer.updateInput({ inputText, attachments: [] });
+			first.service.stowAndClear(composer);
+			counts.push(first.infoNotifications.length);
+		}
+		registration.dispose();
+		first.service.dispose();
+
+		const next = create(true, first.storage);
+		const nextComposer = next.service.createComposer();
+		disposables.add(next.service.registerComposer(nextComposer, async () => { }, () => { }));
+		nextComposer.updateInput({ inputText: 'After reload', attachments: [] });
+		nextComposer.updateTarget({ folderUri: URI.file('/another-workspace') });
+		next.service.stowAndClear(nextComposer);
+
+		assert.deepStrictEqual({
+			counts, afterReload: next.infoNotifications.length,
+			drafts: next.service.sections.get().flatMap(section => section.items.map(item => item.title)).sort(),
+		}, { counts: [1, 1], afterReload: 0, drafts: ['After reload', 'First draft', 'Second draft'] });
+	});
+
+	test('silent saves do not consume the one-time draft creation notification', () => {
+		const { service, infoNotifications } = create();
+		const composer = service.createComposer();
+		composer.updateInput({ inputText: 'Silently saved', attachments: [] });
+		service.stow(composer);
+		service.stow(composer, { notifyCreated: true });
+		const afterSilentSave = infoNotifications.length;
+
+		const next = service.createComposer();
+		next.updateInput({ inputText: 'New draft', attachments: [] });
+		service.stow(next, { notifyCreated: true });
+		assert.deepStrictEqual({
+			afterSilentSave, notifications: infoNotifications.map(message => message.toString()),
+		}, { afterSilentSave: 0, notifications: ['Created draft. Open Draft'] });
+	});
+
 	test('draft notifications exclude disabled, empty, scheduling, restoration, and background saves', () => {
 		const results = ['disabled', 'empty', 'scheduling', 'restoring', 'background'].map(reason => {
 			const { service, infoNotifications } = create(reason !== 'disabled');
@@ -267,6 +309,35 @@ suite('Saved session draft lifecycle', () => {
 		states.push(composer.hasScheduledChanges.get());
 		assert.deepStrictEqual(states, [false, false, true, false, true]);
 	});
+
+	test('failed scheduled preview edits do not overwrite a resumed saved draft', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, storage } = create();
+		const saved = service.save({ inputText: 'Ordinary draft', attachments: [] }, {});
+		const persisted = disposables.add(new SavedSessionDrafts(storage));
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async draft => {
+			composer.updateInput(draft.input);
+			if (composer.preview.get()) {
+				throw new Error('Target unavailable');
+			}
+		}, () => { }));
+		await service.open(saved.id);
+		await assert.rejects(() => service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, {
+			request: constObservable(upcastPartial<IChatScheduledRequest>({ runAt: '2099-01-01T00:00:00Z' })),
+			save: async () => { }, sendNow: async () => { }, reschedule: async () => { },
+		}), /Target unavailable/);
+		composer.updateInput({ inputText: 'Edited scheduled input', attachments: [] });
+		composer.updateTarget({ modelId: 'another-model' });
+		await timeout(300);
+		await storage.flush();
+		assert.deepStrictEqual({
+			titles: service.sections.get()[0].items.map(item => item.title),
+			persisted: persisted.drafts.get().map(draft => ({ text: draft.input.inputText, target: draft.target })),
+			dirty: composer.hasScheduledChanges.get(),
+		}, {
+			titles: ['Ordinary draft'], persisted: [{ text: 'Ordinary draft', target: {} }], dirty: true,
+		});
+	}));
 
 	for (const enabled of [true, false]) {
 		test(`scheduled preview restoration blocks New Session until complete, drafts enabled: ${enabled}`, async () => {
@@ -487,7 +558,7 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual({ restoringBeforeStartup, restores, openedOnStartup, opens, target: changed?.target, input: changed?.input, infoNotifications }, {
 			restoringBeforeStartup: true,
 			restores: [{ id: saved.id, inputText: input.inputText, target, preserveFocus: true }],
-			openedOnStartup: [], opens: 0, target: changedTarget, input, infoNotifications: [],
+			openedOnStartup: [], opens: 1, target: changedTarget, input, infoNotifications: [],
 		});
 	});
 
@@ -511,8 +582,178 @@ suite('Saved session draft lifecycle', () => {
 		await service.open(draft.id);
 		await service.open(draft.id);
 		assert.deepStrictEqual({ opens, restores, focuses, input: composer.input.inputText }, {
-			opens: 1, restores: 1, focuses: 2, input: 'edited',
+			opens: 3, restores: 1, focuses: 2, input: 'edited',
 		});
+	});
+
+	test('editing a resumed draft updates its sidebar workspace and input without navigating away', async () => {
+		const { service } = create();
+		const draft = service.save({ inputText: 'original', attachments: [] }, { folderUri: URI.file('/original') });
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async value => {
+			composer.updateInput(value.input);
+		}, () => { }));
+		await service.open(draft.id);
+		composer.updateTarget({ folderUri: URI.file('/selected') });
+		composer.updateInput({ inputText: 'edited', attachments: [] });
+		assert.deepStrictEqual(service.sections.get()[0].items.map(item => ({
+			id: item.id, title: item.title, description: item.description,
+		})), [{ id: draft.id, title: 'edited', description: 'selected' }]);
+	});
+
+	test('typing keeps sidebar labels live while coalescing storage revisions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, storage } = create();
+		const draft = service.save({ inputText: 'original', attachments: [] }, {});
+		const persisted = disposables.add(new SavedSessionDrafts(storage));
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+		await service.open(draft.id);
+		let writes = 0;
+		disposables.add(storage.onDidChangeValue(StorageScope.PROFILE, undefined, disposables.add(new DisposableStore()))(event => {
+			if (event.key.startsWith('sessions.savedDrafts.revision.') && storage.get(event.key, StorageScope.PROFILE)) {
+				writes++;
+			}
+		}));
+		for (let i = 0; i < 20; i++) {
+			composer.updateInput({ inputText: `edit ${i}`, attachments: draft.input.attachments });
+		}
+		const before = { writes, title: service.sections.get()[0].items[0].title };
+		await timeout(299);
+		const pending = persisted.drafts.get()[0].input.inputText;
+		await timeout(1);
+		assert.deepStrictEqual({ before, pending, writes, saved: persisted.drafts.get()[0].input.inputText }, {
+			before: { writes: 0, title: 'edit 19' }, pending: 'original', writes: 1, saved: 'edit 19',
+		});
+	}));
+
+	for (const boundary of ['navigation', 'send', 'shutdown', 'disposal'] as const) {
+		test(`flushes pending saved edits on ${boundary}`, async () => {
+			const { service, storage, lifecycle } = create();
+			const draft = service.save({ inputText: 'original', attachments: [] }, {});
+			const persisted = disposables.add(new SavedSessionDrafts(storage));
+			const composer = service.createComposer();
+			const registration = disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			await service.open(draft.id);
+			composer.updateInput({ inputText: 'latest', attachments: [] });
+			composer.updateTarget({ folderUri: URI.file('/latest') });
+			switch (boundary) {
+				case 'navigation':
+					service.stowAndClear();
+					break;
+				case 'send':
+					composer.willSend(composer.input);
+					break;
+				case 'shutdown':
+					lifecycle.willShutdown = true;
+					await storage.flush();
+					break;
+				case 'disposal':
+					registration.dispose();
+					break;
+			}
+			assert.deepStrictEqual(persisted.drafts.get().map(value => ({ id: value.id, text: value.input.inputText, target: value.target })), [
+				{ id: draft.id, text: 'latest', target: { folderUri: URI.file('/latest') } },
+			]);
+		});
+	}
+
+	for (const input of [
+		{ inputText: 'saved text', attachments: [] },
+		{ inputText: '', attachments: [{ kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/file.ts') }] },
+	]) {
+		test(`temporarily emptying a resumed draft preserves its identity for Undo (${input.inputText ? 'text' : 'attachments'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, storage } = create();
+			const draft = service.save(input, {});
+			const composer = service.createComposer();
+			disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			await service.open(draft.id);
+			composer.updateInput({ inputText: '', attachments: [] });
+			await timeout(300);
+			const emptyIds = service.sections.get()[0].items.map(item => item.id);
+			composer.updateInput(input);
+			await storage.flush();
+			assert.deepStrictEqual({ emptyIds, id: composer.id, saved: service.sections.get()[0].items.map(item => item.id) }, {
+				emptyIds: [draft.id], id: draft.id, saved: [draft.id],
+			});
+		}));
+	}
+
+	for (const accepted of [false, true]) {
+		test(`pending persistence respects a scheduling handoff (accepted: ${accepted})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, storage } = create();
+			const draft = service.save({ inputText: 'original', attachments: [] }, {});
+			const persisted = disposables.add(new SavedSessionDrafts(storage));
+			const composer = service.createComposer();
+			disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			await service.open(draft.id);
+			composer.updateInput({ inputText: 'latest', attachments: [] });
+			composer.isScheduling = true;
+			await timeout(300);
+			const pendingRevision = persisted.drafts.get()[0].revision;
+			if (accepted) {
+				service.finishScheduledComposer(composer, draft.revision);
+			}
+			composer.isScheduling = false;
+			await storage.flush();
+			assert.deepStrictEqual({ unchangedWhileScheduling: pendingRevision === draft.revision, saved: persisted.drafts.get().map(value => value.input.inputText) }, {
+				unchangedWhileScheduling: true, saved: accepted ? [] : ['latest'],
+			});
+		}));
+	}
+
+	for (const action of ['newSession', 'targetSelection'] as const) {
+		test(`${action} cancels reload recovery without restoring stale input or target`, async () => {
+			const { service, storage, notifications } = create();
+			const saved = service.save({ inputText: 'recovered', attachments: [] }, { folderUri: URI.file('/old') });
+			const other = service.save({ inputText: 'other', attachments: [] }, {});
+			writeNewChatDraftState(storage, saved.input, saved.id);
+			const composer = service.createComposer();
+			const started = new DeferredPromise<void>();
+			let cancelled = false;
+			disposables.add(service.registerComposer(composer, async (draft, token, preserveFocus) => {
+				if (draft.id === saved.id && preserveFocus) {
+					await new Promise<void>(resolve => {
+						disposables.add(token!.onCancellationRequested(() => {
+							cancelled = true;
+							resolve();
+						}));
+						started.complete();
+					});
+					return;
+				}
+				composer.updateInput(draft.input);
+			}, () => { }));
+			await started.p;
+			if (action === 'newSession') {
+				service.stowAndClear();
+			} else {
+				composer.cancelRecovery();
+			}
+			const newId = composer.id;
+			composer.updateInput({ inputText: 'new choice', attachments: [] });
+			composer.updateTarget({ folderUri: URI.file('/new') });
+			await service.open(other.id);
+			await service.open(newId);
+			assert.deepStrictEqual({ cancelled, id: composer.id, input: composer.input.inputText, target: composer.target, notifications }, {
+				cancelled: true, id: newId, input: 'new choice', target: { folderUri: URI.file('/new') }, notifications: [],
+			});
+		});
+	}
+
+	test('reveals only the restored destination when a custom surface covers the composer', async () => {
+		const { service, view } = create();
+		const draft = service.save({ inputText: 'saved', attachments: [] }, {});
+		const composer = service.createComposer();
+		const revealed: string[] = [];
+		disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+		view.openNewSession = async options => {
+			assert.strictEqual(options?.preserveNavigation, true);
+			revealed.push(composer.input.inputText);
+			return { session: undefined, trustDeclined: false };
+		};
+		await service.open(draft.id);
+		await service.open(draft.id);
+		assert.deepStrictEqual(revealed, ['saved', 'saved']);
 	});
 
 	test('opening another draft cancels the recovered composer restoration', async () => {

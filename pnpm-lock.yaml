@@ -192,9 +192,6 @@ importers:
       '@devcontainers/cli':
         specifier: 0.88.0
         version: 0.88.0
-      '@github/copilot-sdk':
-        specifier: 1.0.33-preview.0
-        version: 1.0.33-preview.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -204,6 +201,9 @@ importers:
       '@microsoft/1ds-post-js':
         specifier: ^3.2.13
         version: 3.2.13(tslib@2.8.1)
+      '@microsoft/copilot-sdk':
+        specifier: 2.0.1
+        version: 2.0.1
       '@microsoft/dev-tunnels-connections':
         specifier: ^1.3.61
         version: 1.3.61(@microsoft/dev-tunnels-ssh-tcp@3.12.22)(@microsoft/dev-tunnels-ssh@3.12.22)
@@ -523,9 +523,9 @@ importers:
       deemon:
         specifier: ^1.13.6
         version: 1.13.6
-      event-stream:
-        specifier: 3.3.4
-        version: 3.3.4
+      duplexer:
+        specifier: 0.1.1
+        version: 0.1.1
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -2135,6 +2135,9 @@ importers:
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
+      '@vscode/rollup-plugin-esm-url':
+        specifier: ^1.0.1-1
+        version: 1.0.1-22(rollup@4.68.2)
       axe-playwright:
         specifier: ^2.1.0
         version: 2.1.0(playwright@1.61.1)
@@ -2153,9 +2156,15 @@ importers:
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
+      rollup:
+        specifier: ^4.59.0
+        version: 4.68.2
       style-loader:
         specifier: ^3.3.2
         version: 3.3.4(webpack@5.105.4)
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@24.12.4)
       warnings-to-errors-webpack-plugin:
         specifier: ^2.3.0
         version: 2.3.0(webpack@5.105.4)
@@ -3676,54 +3685,6 @@ packages:
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-RR4RrOKleNmo+n90FMT/jNQuvOzrjwtruBHzElR9dEik4uacQ7bOGrKTpZk/u9RMVRtfVHyu0pVLtZVjD7UHkQ==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@github/copilot-sdk-darwin-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-/CmMuyAXl/6JpzTB9HeDDzCQXlIw+pVvj4N/tQcg+bhbLN/xvJcewtvJ1EGyejyUWImjdBai1pQxr+d6oxabQA==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@github/copilot-sdk-linux-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-ho/QH+L/FiFUEjfA0/iBTuUR7IE6B6DEIDwRt7ywPxMYuCPbNIC6dpPONheL6xir+BpEZB0ChQnbO6bvhMUC+A==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@github/copilot-sdk-linux-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-Q/8P9P6y+MhuV/c36i8Uu7pg1xnntL5hokIzpcORWaRAhYdiYaVeakp2+huMtjL43qSMdLqfmT1g3ivMD7OEVg==}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-CMnJlH90HXfuz6LivbBEOD2P7agzccFqEZmYYcwZToJHSEeQLOcub+6gqB25vXUQjAzFibAaklIMLGy64Y95Kg==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@github/copilot-sdk-linuxmusl-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-N/kcKAiqKI/j46qNoKT06vlPEEzyvnzTZ0cxgTWr/si0tQx/2UQuVyTlRRBn1QtzvJJTpBclK4+4NwI2RsCFaw==}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@github/copilot-sdk-win32-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-3gv/SYtdaVEAc6mpMkt0mKloPk1gHGdtY6IMykb+lkb6RCtC+bFmCst1L1f67tx8rNBQ5IGu96X5xfz+uPAhnw==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@github/copilot-sdk-win32-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-n3bJbIKlOagcdrZtj8vhUs/5ArJk5Qtv/dbvgWgBhEObWBYbOjTls4q3rVE/8QC5hGEeli+c8eTaZEwXF8ThSA==}
-    cpu: [x64]
-    os: [win32]
-
-  '@github/copilot-sdk@1.0.33-preview.0':
-    resolution: {integrity: sha512-7vNdfXrLlhmaoLEJoLc8P9EivPApXmR93PrsE9TCvvIVUl3e4y7ZiSpJHm0b1UTwPFWuD72+i/NnbTzQgoHP3w==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-
   '@github/copilot-win32-arm64@1.0.73':
     resolution: {integrity: sha512-DbPeXiYzQjpOy9oboaBvuCzjRwfcL987c3bG09cK1crdCDrKfkTJ7NXpcp1KWRPIRFO1FQm1qToNE89J+L3uvg==}
     cpu: [arm64]
@@ -4099,6 +4060,54 @@ packages:
 
   '@microsoft/applicationinsights-web-snippet@1.0.1':
     resolution: {integrity: sha512-2IHAOaLauc8qaAitvWS+U931T+ze+7MNWrDHY47IENP5y2UA0vqJDu67kWZDdpCN1fFC77sfgfB+HV7SrKshnQ==}
+
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.1':
+    resolution: {integrity: sha512-KqBScY+1w5/znWkWMnLvyiXz/xlk4DXc5EcXUABT/z0jbE2tpJLiTfnmewAUiGvC9jLi+tmEzy2346zUm9+0YQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@microsoft/copilot-sdk-darwin-x64@2.0.1':
+    resolution: {integrity: sha512-thwynJE+nNQRHn2f4DxsXXsDHF66sOAquOyZwmGH9Z6y/VXyNWskKW6lXCuGl5aBxSvZA3UQpEVsKZ8XAVy4OQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@microsoft/copilot-sdk-linux-arm64@2.0.1':
+    resolution: {integrity: sha512-NTgh6x6HDp/YvYKPsw9hmRK7Pgt4TzwoNayGFIdtI0PStvJKCjxKjI32Ip9aoBuCPIwM5P6W5sUT8ZhsPYcANw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@microsoft/copilot-sdk-linux-x64@2.0.1':
+    resolution: {integrity: sha512-yT4YouoPuK9ReXG2FySTxSWXejMh++Eh35fkVFyQoLHptWBia8dsSHaORt1scFA5bWgyuk/QwB2fJV0tots1TA==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.1':
+    resolution: {integrity: sha512-wwPihies9JL3uqeCn0+dvk5Nw8h8afdRppB/ZCQyhyprEcnuU9nauYX1noSeaBnMkFn9noLmR8l7TDfpiVIB1Q==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.1':
+    resolution: {integrity: sha512-kdpjVoPe37cIbsOGDrkV5m95F+kY1OQHNeI1jnuwMGHL/KQ+pNc/vgzVfBwxI6sicleqRXFy8+XLJftN96ZjZA==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@microsoft/copilot-sdk-win32-arm64@2.0.1':
+    resolution: {integrity: sha512-O6wrd/GpKrREpq4iijhoYVQBSO7xkk1aflvMFqr1xBrcgp+WqoSVXkwJtKP3YfsJ/NjwwFPXyJ0EOLHP6RQ1YA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@microsoft/copilot-sdk-win32-x64@2.0.1':
+    resolution: {integrity: sha512-psjAzQUhOSsHQtUioGGgfuiHPI10VMA+1f0Lpa6h40P0jiF9904j/o7+zv8MOxO77ai/JacWwlbG4ib6Z0d08A==}
+    cpu: [x64]
+    os: [win32]
+
+  '@microsoft/copilot-sdk@2.0.1':
+    resolution: {integrity: sha512-5ENTz3aTL2duoa9VcfWH9pZjxBlQdIqBu3uN9M/lzggz1Gj0fXh3oCsjZ/a/8qp5N1JDHIcS0FqhH6VJtf0GTg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
   '@microsoft/dev-tunnels-connections@1.3.61':
     resolution: {integrity: sha512-Y1/K9IciafblRMS+XDY8uXoA/12bAxF/40Fiw2hd4QF1fi0Jlze4s0UARP/bHppJ4cqD5tqiV97StRJ+xnGvjw==}
@@ -4905,11 +4914,154 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
+  '@rollup/rollup-android-arm-eabi@4.68.2':
+    resolution: {integrity: sha512-ItKrNMkEL3hy85kLBXwB0+M6CWWVI8vr7RV+Eb7oDlQIMXLaiEhGfdaj5jAUadYn2v3nwzAhIRl/nLyjAqV9vQ==}
+    cpu: [arm]
+    os: [android]
+
+  '@rollup/rollup-android-arm64@4.68.2':
+    resolution: {integrity: sha512-dCkT8BMPLo6X6GCFVtuzrnr981PpJSeK4ZO/d/mZdJ/ao61Qa1Usd/OHIQ69MQgw4qQclR/X6uRRUONiWwD8cw==}
+    cpu: [arm64]
+    os: [android]
+
+  '@rollup/rollup-android-x64@4.68.2':
+    resolution: {integrity: sha512-p2jkKiscqQOGmyL6qu+KvJctvBc3SQTd+Xi2lQYn5QvFLEWz+QI8Z9iI+xcIjez6vKRsSnWP56Y3Ep7g3Stiug==}
+    cpu: [x64]
+    os: [android]
+
+  '@rollup/rollup-darwin-arm64@4.68.2':
+    resolution: {integrity: sha512-aVIfOteo5zoX8aL742H/S3QsyN6aokNYjdzrLnQBKxgRVoh4cibTErpi61RzSmrv2hBzDB1i751hwwdc8QK0vQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@rollup/rollup-darwin-x64@4.68.2':
+    resolution: {integrity: sha512-+Wuf4TFTHiE/WnjKgH1SkNf/9D5ddoed1UR0p3jxjNAGemdeeQRL+r1bJ1LlZyha0VKDBYLB2U/a9a9KlSw4Kw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rollup/rollup-freebsd-arm64@4.68.2':
+    resolution: {integrity: sha512-feKK2dc13j/6D9mAp7XKhBM/VUqn0N/xRgP6rT7/mdRVVJUaeZ4lsJ9hN90aTi0k3OD+mkjlcN01vQ96Ac9VzQ==}
+    cpu: [arm64]
+    os: [freebsd]
+
+  '@rollup/rollup-freebsd-x64@4.68.2':
+    resolution: {integrity: sha512-s1oGXPGX1PNqdi9TLWD+RwtPEYf/BOTbCcq4anJBqNbzyjucti86ldYH37eKvsyTP7Bl5/Hf8XmbIxCz/iafTA==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@rollup/rollup-linux-arm-gnueabihf@4.68.2':
+    resolution: {integrity: sha512-ksR3ZmzHrm6HOUP8UlDBy5hNTcG9cEIa3EyGnxn5BjorLRjBh4ucxhwjwwVEm0dqcIN4Egc/XjDUiPQwN1ic9A==}
+    cpu: [arm]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-arm-musleabihf@4.68.2':
+    resolution: {integrity: sha512-STZVVBM35wULVsQah0xKfCBQMPpHliOfjnRaUNT35jrbpfapUrD8ix6Yhl7tLHW0xQSWotXSSghjUi/DclwRSw==}
+    cpu: [arm]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-linux-arm64-gnu@4.68.2':
+    resolution: {integrity: sha512-Fm/GPC2R0zlJYQIp9aY9L1lO2z+P+UrcvXG6fhubfo/BbMOLZlLXshnbECOTqr3pxfZFb6nNn0QgDETDtrX7TQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-arm64-musl@4.68.2':
+    resolution: {integrity: sha512-VoqlckWcwNF3WqsUkLZg91zYFgBvrC37Lc5e8AU+BKdCUFDMPoN0Rsin/LvF+rBVF527gWo5KT0oHkaAZaL1GA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-linux-loong64-gnu@4.68.2':
+    resolution: {integrity: sha512-Zr8X/SUf7Jjwxt99BqPDF/Wq+sz4oUBIP6HBaFQWwb8wO1nV6LBIpD6jB9cMybLho93Z+B8rrN0uXEL6oNOUJQ==}
+    cpu: [loong64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-loong64-musl@4.68.2':
+    resolution: {integrity: sha512-2EhrYEJNXIyhSZESwm/kCke1tiH7QAPOU3v3MsLM9J+Nfn2QCDe/pGROUAvYFK0BL2MEbzNgfrqrbnE5CFXkLw==}
+    cpu: [loong64]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-linux-ppc64-gnu@4.68.2':
+    resolution: {integrity: sha512-IC0dYuEQknw0m2FYBNBKlbrgBJBH5OMRiaRfCc4CFSpYnmDnqTpNSv+TgX+loezGTdRjBNZuYZi3t+Oc5NxNYg==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-ppc64-musl@4.68.2':
+    resolution: {integrity: sha512-Zlzm6fGuDvtAqMEl071/g17vxq6u2Y2v/rON/gDY4NvzWLJ41BGAlwhF3QuAzwq05zIPo4LYzdqwhx3oisYCUw==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-linux-riscv64-gnu@4.68.2':
+    resolution: {integrity: sha512-KhEpYRtHZ3Kj4shavjXeH+K1bQlA6UbP6MJ45rMPF/11JlZb1SRNLeuWCdigUEoMMaFO4+LwwcS+ew1SoLJu/g==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-riscv64-musl@4.68.2':
+    resolution: {integrity: sha512-LPn9qvPsM/Ofd6Ekq3im6nB8Tk1ruJhTd3x/2bJkTR8m/XTsfxA+EU0RJ23WJqgJg123kitHAqbEK7B4cL1uPg==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-linux-s390x-gnu@4.68.2':
+    resolution: {integrity: sha512-Q1+E+pzSP+FiXuIZtxKR+pK7l2KQ9gsM+VaFPv1LR277kp7l61crG46WGLKLLay3Js5cvyU9Keqdzxa1EcFO+g==}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
   '@rollup/rollup-linux-x64-gnu@4.40.0':
     resolution: {integrity: sha512-RcDGMtqF9EFN8i2RYN2W+64CdHruJ5rPqrlYw+cgM3uOVPSsnAQps7cpjXe9be/yDp8UC7VLoCoKC8J3Kn2FkQ==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+
+  '@rollup/rollup-linux-x64-gnu@4.68.2':
+    resolution: {integrity: sha512-3Btp4Lca/WzsmbaKu9Lh9d/XwyRDIegd/5khRBusHGw/Ll6SoF5Shn63OrjPdkLcpNi2PGDApXzNmxriRxGYjA==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rollup/rollup-linux-x64-musl@4.68.2':
+    resolution: {integrity: sha512-5SKVaUiVs18+DGBnpg0mORGxgq/0udczngGxV/vf2nvK1djqpOKIxY/+8rBWxAbWGRE4RnnwxWabDwJN3pCwIQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@rollup/rollup-openbsd-x64@4.68.2':
+    resolution: {integrity: sha512-KBpm48/lESsHgWd+dRlcy18APBYhXU4Jb6VlJoqbpWNwfpztFXwP22qVv9aHd3k1quSrmLeJwYLc7rpQ+BFZrw==}
+    cpu: [x64]
+    os: [openbsd]
+
+  '@rollup/rollup-openharmony-arm64@4.68.2':
+    resolution: {integrity: sha512-o0D0bfRW8QGA1Ph6OzqVHMq5LRu1xkr1iM7qQIXUSFuR60ddXeDhN9UR4bUBPLYsrT46sZwwgQa51TWtBV3r5g==}
+    cpu: [arm64]
+    os: [openharmony]
+
+  '@rollup/rollup-win32-arm64-msvc@4.68.2':
+    resolution: {integrity: sha512-r17kcu5kmd6WQwokYmfBnfwM/icureCWCPjpJVALcrSv5Lfy6Ggk9azxXor6hILhCHbc/4IfEiv+L5RXaOHinA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@rollup/rollup-win32-ia32-msvc@4.68.2':
+    resolution: {integrity: sha512-yUtOqq7ZrQoZ3WiHSR6QGTdOl4YgMHqXIYSBYU6siIcC0YF0pEwx7aGsPTm2mRwrmW6SMJkxzEdFm6wqXpmbNw==}
+    cpu: [ia32]
+    os: [win32]
+
+  '@rollup/rollup-win32-x64-gnu@4.68.2':
+    resolution: {integrity: sha512-5IYoWxQGo5WECbJbImIf2w33uCHJNLv4o/FQtSyeYDed7AC6zx84NsEcGYccoI2geDEYkrxUXcsYK/6EhwVSIg==}
+    cpu: [x64]
+    os: [win32]
+
+  '@rollup/rollup-win32-x64-msvc@4.68.2':
+    resolution: {integrity: sha512-ee+c14ggUiM7lg4PtCjSBYU9O9dHp4FFespRnd5yj7SilUBJCL3x3aHlB+sIqbGjcPo3pEyODASnfKJuZ26YBw==}
+    cpu: [x64]
+    os: [win32]
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -5120,6 +5272,9 @@ packages:
 
   '@types/eslint@9.6.1':
     resolution: {integrity: sha512-FXx2pKgId/WyYo2jXw63kk7/+TY7u7AziEJxJAnSFzHlqTAS3Ync6SvgYAN/k4/PQpnnVuzoMuVnByKK2qp0ag==}
+
+  '@types/estree@1.0.10':
+    resolution: {integrity: sha512-lTyOMnOcmRBzdCv6/4zUZCrEhV0xrqQiUZBZtVcbmLHBXKLnN8q89v/wKRF/Q0HbwVsqbIG3o5HDoFl9sduM+g==}
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
@@ -5642,6 +5797,11 @@ packages:
 
   '@vscode/ripgrep@1.17.1':
     resolution: {integrity: sha512-xTs7DGyAO3IsJYOCTBP8LnTvPiYVKEuyv8s0xyJDBXfs8rhBfqnZPvb6xDT+RnwWzcXqW27xLS/aGrkjX7lNWw==}
+
+  '@vscode/rollup-plugin-esm-url@1.0.1-22':
+    resolution: {integrity: sha512-VgQtmsAmCKQsW71lxwQhf+2THcEJjrV1UNbeCDRYu+iUrQQGfGEpSnxjj2zkG8rrAu+OdY4JmiKlwbmeveyrSQ==}
+    peerDependencies:
+      rollup: ^3.0.0 || ^4.0.0
 
   '@vscode/sandbox-runtime@0.0.1':
     resolution: {integrity: sha512-Jy3iKmNXGD1HcLJkT3YS2l+n5S7H41buvMsZER/EC3nx24fSu1vhg1y9RDzLDwq7wEh7CZTEJBwRcYjV9OAFvQ==}
@@ -10506,6 +10666,11 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
+  rollup@4.68.2:
+    resolution: {integrity: sha512-xzt45rKOxzEuqjTdkGTIEaePcq9xRELlFI1uoazlKap8T6bENJkONSCfhK51P6XFTixa4rosPcDHihSdduXndQ==}
+    engines: {node: '>=18.0.0', npm: '>=8.0.0'}
+    hasBin: true
+
   roughjs@4.6.6:
     resolution: {integrity: sha512-ZUz/69+SYpFN/g/lUlo2FXcIjRkSu3nDarreVdGGndHEBJ6cXPdKguS8JGxwj5HA5xIbVKSmLgr5b3AWxtRfvQ==}
 
@@ -14071,46 +14236,6 @@ snapshots:
   '@github/copilot-linuxmusl-x64@1.0.73':
     optional: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-darwin-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linux-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linux-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linuxmusl-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-win32-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-win32-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk@1.0.33-preview.0':
-    dependencies:
-      koffi: 3.2.1
-      lossless-json: 4.3.3
-      vscode-jsonrpc: 10.0.0
-      zod: 4.6.7
-    optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-darwin-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-linux-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-linux-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-win32-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-win32-x64': 1.0.33-preview.0
-
   '@github/copilot-win32-arm64@1.0.73':
     optional: true
 
@@ -14563,6 +14688,46 @@ snapshots:
       tslib: 2.8.1
 
   '@microsoft/applicationinsights-web-snippet@1.0.1': {}
+
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-darwin-x64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-linux-arm64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-linux-x64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-win32-arm64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk-win32-x64@2.0.1':
+    optional: true
+
+  '@microsoft/copilot-sdk@2.0.1':
+    dependencies:
+      koffi: 3.2.1
+      lossless-json: 4.3.3
+      vscode-jsonrpc: 10.0.0
+      zod: 4.6.7
+    optionalDependencies:
+      '@microsoft/copilot-sdk-darwin-arm64': 2.0.1
+      '@microsoft/copilot-sdk-darwin-x64': 2.0.1
+      '@microsoft/copilot-sdk-linux-arm64': 2.0.1
+      '@microsoft/copilot-sdk-linux-x64': 2.0.1
+      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.1
+      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.1
+      '@microsoft/copilot-sdk-win32-arm64': 2.0.1
+      '@microsoft/copilot-sdk-win32-x64': 2.0.1
 
   '@microsoft/dev-tunnels-connections@1.3.61(@microsoft/dev-tunnels-ssh-tcp@3.12.22)(@microsoft/dev-tunnels-ssh@3.12.22)':
     dependencies:
@@ -15313,7 +15478,85 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
+  '@rollup/rollup-android-arm-eabi@4.68.2':
+    optional: true
+
+  '@rollup/rollup-android-arm64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-android-x64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-darwin-arm64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-darwin-x64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-freebsd-arm64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-freebsd-x64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-arm-gnueabihf@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-arm-musleabihf@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-arm64-gnu@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-arm64-musl@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-loong64-gnu@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-loong64-musl@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-ppc64-gnu@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-ppc64-musl@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-riscv64-gnu@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-riscv64-musl@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-s390x-gnu@4.68.2':
+    optional: true
+
   '@rollup/rollup-linux-x64-gnu@4.40.0':
+    optional: true
+
+  '@rollup/rollup-linux-x64-gnu@4.68.2':
+    optional: true
+
+  '@rollup/rollup-linux-x64-musl@4.68.2':
+    optional: true
+
+  '@rollup/rollup-openbsd-x64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-openharmony-arm64@4.68.2':
+    optional: true
+
+  '@rollup/rollup-win32-arm64-msvc@4.68.2':
+    optional: true
+
+  '@rollup/rollup-win32-ia32-msvc@4.68.2':
+    optional: true
+
+  '@rollup/rollup-win32-x64-gnu@4.68.2':
+    optional: true
+
+  '@rollup/rollup-win32-x64-msvc@4.68.2':
     optional: true
 
   '@sec-ant/readable-stream@0.4.1': {}
@@ -15565,6 +15808,8 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
       '@types/json-schema': 7.0.15
+
+  '@types/estree@1.0.10': {}
 
   '@types/estree@1.0.8': {}
 
@@ -16190,6 +16435,10 @@ snapshots:
       yauzl: 3.3.1
     transitivePeerDependencies:
       - supports-color
+
+  '@vscode/rollup-plugin-esm-url@1.0.1-22(rollup@4.68.2)':
+    dependencies:
+      rollup: 4.68.2
 
   '@vscode/sandbox-runtime@0.0.1':
     dependencies:
@@ -21745,6 +21994,38 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.0.3
       '@rolldown/binding-win32-x64-msvc': 1.0.3
 
+  rollup@4.68.2:
+    dependencies:
+      '@types/estree': 1.0.10
+    optionalDependencies:
+      '@rollup/rollup-android-arm-eabi': 4.68.2
+      '@rollup/rollup-android-arm64': 4.68.2
+      '@rollup/rollup-android-x64': 4.68.2
+      '@rollup/rollup-darwin-arm64': 4.68.2
+      '@rollup/rollup-darwin-x64': 4.68.2
+      '@rollup/rollup-freebsd-arm64': 4.68.2
+      '@rollup/rollup-freebsd-x64': 4.68.2
+      '@rollup/rollup-linux-arm-gnueabihf': 4.68.2
+      '@rollup/rollup-linux-arm-musleabihf': 4.68.2
+      '@rollup/rollup-linux-arm64-gnu': 4.68.2
+      '@rollup/rollup-linux-arm64-musl': 4.68.2
+      '@rollup/rollup-linux-loong64-gnu': 4.68.2
+      '@rollup/rollup-linux-loong64-musl': 4.68.2
+      '@rollup/rollup-linux-ppc64-gnu': 4.68.2
+      '@rollup/rollup-linux-ppc64-musl': 4.68.2
+      '@rollup/rollup-linux-riscv64-gnu': 4.68.2
+      '@rollup/rollup-linux-riscv64-musl': 4.68.2
+      '@rollup/rollup-linux-s390x-gnu': 4.68.2
+      '@rollup/rollup-linux-x64-gnu': 4.68.2
+      '@rollup/rollup-linux-x64-musl': 4.68.2
+      '@rollup/rollup-openbsd-x64': 4.68.2
+      '@rollup/rollup-openharmony-arm64': 4.68.2
+      '@rollup/rollup-win32-arm64-msvc': 4.68.2
+      '@rollup/rollup-win32-ia32-msvc': 4.68.2
+      '@rollup/rollup-win32-x64-gnu': 4.68.2
+      '@rollup/rollup-win32-x64-msvc': 4.68.2
+      fsevents: 2.3.3
+
   roughjs@4.6.6:
     dependencies:
       hachure-fill: 0.5.2
@@ -22930,6 +23211,17 @@ snapshots:
   vite-plugin-wasm@3.6.0(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)):
     dependencies:
       vite: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+
+  vite@8.0.16(@types/node@24.12.4):
+    dependencies:
+      lightningcss: 1.32.0
+      picomatch: 4.0.4
+      postcss: 8.5.26
+      rolldown: 1.0.3
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.12.4
+      fsevents: 2.3.3
 
   vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3):
     dependencies:

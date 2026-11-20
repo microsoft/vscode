@@ -55,9 +55,10 @@ export class DecisionsModelRouterPicker implements IModelRouterPicker {
 		if (request.candidates.length > MODEL_ROUTER_MAX_ROUTES) {
 			throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, `A router picks between at most ${MODEL_ROUTER_MAX_ROUTES} models`);
 		}
+		const built = buildRequest(request);
 		let result: IAgentDecisionsResult;
 		try {
-			result = await this._ask(buildModelRouterDecisionsRequest(request));
+			result = await this._ask(built.decisions);
 		} catch (error) {
 			const kind = agentDecisionErrorKind(error);
 			throw new ModelRouterPickerError(
@@ -65,7 +66,7 @@ export class DecisionsModelRouterPicker implements IModelRouterPicker {
 				`decisions.ask failed: ${kind ?? (error instanceof Error ? error.name : 'unknown')}`,
 			);
 		}
-		return toPick(result);
+		return toPick(result, built.facts);
 	}
 }
 
@@ -100,6 +101,11 @@ export function truncateToEscapedBytes(text: string, maxBytes: number): string {
 }
 
 export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest): IAgentDecisionsRequest {
+	return buildRequest(request).decisions;
+}
+
+/** The request to ask, and the facts about the turn that are in it: each is cut to a line, and all are left out when the request has no room. */
+function buildRequest(request: IModelRouterPickRequest): { readonly decisions: IAgentDecisionsRequest; readonly facts: readonly string[] } {
 	const { followUp } = request;
 	// Each fact stays one bounded line, so none can pose as another or crowd out the message.
 	const facts = (request.situation ?? []).map(line => line.replace(/\s+/g, ' ').trim().slice(0, modelRouterRequestLimits.situationLine)).filter(line => line).slice(0, modelRouterRequestLimits.situationLines);
@@ -153,7 +159,7 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 	if (escapedBytes(built) > modelRouterRequestLimits.request || (!prompt.trim() && !situation)) {
 		throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'The router\'s routes and guidance leave no room for the request');
 	}
-	return built;
+	return { decisions: built, facts: situation ?? [] };
 }
 
 function describeRoute(candidate: IModelRouterPickRequest['candidates'][number]): string {
@@ -161,7 +167,7 @@ function describeRoute(candidate: IModelRouterPickRequest['candidates'][number])
 }
 
 /** A tied or refused model answer is no pick, so the router falls back rather than choosing between equals. */
-function toPick(result: IAgentDecisionsResult): IModelRouterPick {
+function toPick(result: IAgentDecisionsResult, facts: readonly string[]): IModelRouterPick {
 	const answer = (name: string) => result.answers.find(candidate => candidate.name === name);
 	const model = answer('model');
 	const effort = answer('effort');
@@ -171,5 +177,6 @@ function toPick(result: IAgentDecisionsResult): IModelRouterPick {
 		confidence: clearModel?.confidence ?? 0,
 		probabilities: model?.kind === 'choice' ? Object.fromEntries(model.probabilities.map(entry => [entry.value, entry.probability])) : {},
 		...(effort?.kind === 'score' ? { effortScore: effort.score } : {}),
+		...(facts.length ? { facts } : {}),
 	};
 }

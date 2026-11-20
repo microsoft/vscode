@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import '../../../../platform/github/electron-browser/githubService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -31,12 +32,12 @@ export class NativeWorkbenchGitHubService extends WorkbenchGitHubService {
 		super(authenticationService, defaultAccountService, logService, telemetryService, productService, configurationService);
 	}
 
-	override acquireAnonymousApiClient(signal: AbortSignal): Promise<IGitHubAnonymousClient> {
-		return this.sharedGitHubService.acquireAnonymousClient(signal);
+	override acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient> {
+		return this.sharedGitHubService.acquireAnonymousClient(cancellationToken);
 	}
 
-	protected override acquireApiClient(options: GitHubClientOptions, signal: AbortSignal): Promise<IGitHubAccountClient> {
-		return this.sharedGitHubService.acquireClient(options.authorization, signal);
+	protected override acquireApiClient(options: GitHubClientOptions, cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+		return this.sharedGitHubService.acquireClient(options.authorization, cancellationToken);
 	}
 }
 

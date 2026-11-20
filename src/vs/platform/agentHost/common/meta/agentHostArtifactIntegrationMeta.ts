@@ -10,6 +10,7 @@ import { isObject } from '../../../../base/common/types.js';
 import { ArtifactRequestPresentation, ArtifactRunInitiator } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { isArtifactRequestPresentation } from '../../../artifactIntegrations/common/artifactPresentationValidation.js';
 import { hasArtifactAutomationEnabledRules, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges } from '../../../artifactIntegrations/common/artifactIntegrationNotices.js';
+import { isArtifactIntegrationLabel } from '../../../artifactIntegrations/common/artifactIntegrationValidation.js';
 
 export const AgentHostArtifactIntegrationsCapabilityMetaKey = 'vscode.artifactIntegrations';
 export const AgentHostArtifactNoticesCapabilityMetaKey = 'vscode.artifactIntegrationNotices';
@@ -52,7 +53,7 @@ export function readArtifactIntegrationNotice(source: { readonly _meta?: Record<
 		return undefined;
 	}
 	const { kind, iconId } = value as Record<string, unknown>;
-	if (kind !== 'enabled' && kind !== 'changed' && kind !== 'disabled') {
+	if (kind !== 'enabled' && kind !== 'changed' && kind !== 'disabled' && kind !== 'status') {
 		return undefined;
 	}
 	return { kind, iconId: typeof iconId === 'string' ? iconId : undefined };
@@ -62,6 +63,7 @@ export function readArtifactIntegrationNotice(source: { readonly _meta?: Record<
 export interface IArtifactIntegrationNoticeChanges {
 	readonly artifactId: string;
 	readonly artifactLabel: string;
+	readonly artifactKind?: string;
 	readonly changes: readonly ArtifactAutomationNoticeChange[];
 	readonly enabledRules: readonly ArtifactAutomationEnabledRules[];
 }
@@ -75,8 +77,8 @@ export function readArtifactIntegrationNoticeChanges(source: { readonly _meta?: 
 	if (!readArtifactIntegrationNotice(source) || !isObject(value)) {
 		return undefined;
 	}
-	const { artifactId, artifactLabel, changes, enabledRules } = value as Record<string, unknown>;
+	const { artifactId, artifactLabel, artifactKind, changes, enabledRules } = value as Record<string, unknown>;
 	return typeof artifactId === 'string' && typeof artifactLabel === 'string' && isArtifactAutomationNoticeChanges(changes) && isArtifactAutomationEnabledRules(enabledRules)
 		&& hasArtifactAutomationEnabledRules(changes, enabledRules)
-		? { artifactId, artifactLabel, changes, enabledRules } : undefined;
+		? { artifactId, artifactLabel, ...(isArtifactIntegrationLabel(artifactKind) ? { artifactKind } : {}), changes, enabledRules } : undefined;
 }

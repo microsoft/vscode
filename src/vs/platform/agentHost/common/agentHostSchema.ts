@@ -698,6 +698,11 @@ export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnab
 export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
 export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
+/** Root config key controlling whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options. */
+export const AgentHostSessionModelOptionsConfigKey = 'sessionModelOptions';
+export const agentHostSessionModelOptionsValues = ['off', 'inline', 'tool'] as const;
+export type AgentHostSessionModelOptions = typeof agentHostSessionModelOptionsValues[number];
+
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 export const AgentHostChatResourcesConfigKey = 'chatResources';
@@ -726,6 +731,24 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  * Copilot draft starts its SDK session and MCP servers before the first send.
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+export const AgentHostKeepAwakeConfigKey = 'keepAwakeWhileWorking';
+
+export const enum AgentHostKeepAwakeMode {
+	Never = 'never',
+	Always = 'always',
+	WhenPluggedIn = 'whenPluggedIn',
+}
+
+export const agentHostKeepAwakeConfiguration = {
+	type: 'string' as const,
+	enum: [AgentHostKeepAwakeMode.Never, AgentHostKeepAwakeMode.Always, AgentHostKeepAwakeMode.WhenPluggedIn],
+	enumDescriptions: [
+		localize('agentHost.config.keepAwake.never', "Allow idle sleep while a chat is working."),
+		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
+		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
+	],
+	default: AgentHostKeepAwakeMode.WhenPluggedIn,
+};
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -1086,6 +1109,18 @@ export const platformRootSchema = createSchema({
 		],
 		default: 'on',
 	}),
+	[AgentHostSessionModelOptionsConfigKey]: schemaProperty<AgentHostSessionModelOptions>({
+		type: 'string',
+		title: localize('agentHost.config.sessionModelOptions.title', "Session Model Options"),
+		description: localize('agentHost.config.sessionModelOptions.description', "Controls whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options."),
+		enum: [...agentHostSessionModelOptionsValues],
+		enumDescriptions: [
+			localize('agentHost.config.sessionModelOptions.off', "Agents choose only a model in `create_session`."),
+			localize('agentHost.config.sessionModelOptions.inline', "Agents can also choose a reasoning effort and context size, and `create_session` lists the models and their options when the agent loads it through tool search."),
+			localize('agentHost.config.sessionModelOptions.tool', "Agents can also choose a reasoning effort and context size, and list the models and their options with `list_models`."),
+		],
+		default: 'off',
+	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
@@ -1140,6 +1175,11 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: true,
+	}),
+	[AgentHostKeepAwakeConfigKey]: schemaProperty<AgentHostKeepAwakeMode>({
+		...agentHostKeepAwakeConfiguration,
+		title: localize('agentHost.config.keepAwake.title', "Keep Awake While Working"),
+		description: localize('agentHost.config.keepAwake.description', "Controls when this Agent Host prevents idle sleep while a chat is working. The display can turn off and explicit sleep is not inhibited."),
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

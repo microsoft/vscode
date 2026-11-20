@@ -258,6 +258,19 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			}, undefined);
 		};
 		progress(localize('devContainerAgentHost.preparing', "Preparing Dev Container"));
+		// List the draft like the Dev Container's session it becomes while the container starts, which can take a while.
+		const title = draft.session.title.get();
+		const hostLabel = draft.session.workspace.get()?.label;
+		const containerLabel = workspaceUri && this._devContainerSupport?.service.getWorkspaceLabel?.(workspaceUri);
+		const restoreHostLabel = () => {
+			if (hostLabel !== undefined && this._getNewSession(sessionId) === draft) {
+				draft.setWorkspaceLabel(hostLabel);
+			}
+		};
+		draft.setRequestTitle(query);
+		if (containerLabel) {
+			draft.setWorkspaceLabel(containerLabel);
+		}
 		try {
 			if (awaitingAvailability) {
 				await raceCancellationError(availability, preparation.token);
@@ -269,9 +282,16 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				throw new Error(localize('devContainerAgentHost.requiredUnavailable', "The selected Dev Container is not available. Restore its configuration and connection, or explicitly select the host workspace to continue without a container."));
 			}
 			if (!this._devContainerDrafts.has(sessionId)) {
+				restoreHostLabel();
 				return { session: draft.session };
 			}
 			return await this._prepareDevContainerSession(sessionId, preparation.token, query, progress);
+		} catch (error) {
+			if (this._getNewSession(sessionId) === draft) {
+				draft.setTitle(title);
+			}
+			restoreHostLabel();
+			throw error;
 		} finally {
 			draft.preparationProgress.set(undefined, undefined);
 			preparation.dispose();

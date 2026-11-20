@@ -821,7 +821,7 @@ export enum MessageKind {
 	 * worker chat whose first message carries a seed prompt.
 	 */
 	Tool = 'tool',
-	/** Emitted automatically when an automation run starts a session. */
+	/** Sent by an automation run. */
 	Automation = 'automation',
 	/** A system-generated notification rather than a direct user message. */
 	SystemNotification = 'systemNotification',

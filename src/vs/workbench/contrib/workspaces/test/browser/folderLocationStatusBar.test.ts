@@ -6,18 +6,20 @@
 import assert from 'assert';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { runWhenWindowIdle } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUri } from '../../../../../base/common/resources.js';
+import { extUri, extUriIgnorePathCase, IExtUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -28,6 +30,13 @@ import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../..
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, SWITCH_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { WorkspaceFolderLocationService } from '../../../../services/workspaces/common/workspaceFolderLocationService.js';
 
 function identityFake(getWorkspace: () => Workspace) {
 	return {
@@ -40,14 +49,15 @@ suite('FolderLocationStatusBarContribution', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const primary = URI.file('/work/project');
+	const defaultPrimary = primary;
 	const alternate = URI.file('/work/project-alt');
 	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
 
-	function createFixture(shown = { value: false }) {
+	function createFixture(shown = { value: false }, options: { alternates?: IFolderLocation[]; primary?: URI; extUri?: IExtUri } = {}) {
+		const primary = options.primary ?? defaultPrimary;
 		const entries: IStatusbarEntry[] = [];
 		const added: { alignment: unknown; priority: unknown }[] = [];
 		let visible = false;
-		const executed: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 		const onDidChangeEntryVisibility = ds.add(new Emitter<{ id: string; visible: boolean }>());
@@ -57,11 +67,16 @@ suite('FolderLocationStatusBarContribution', () => {
 
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+		const onDidChangeLocations = ds.add(new Emitter<void>());
+		const alternates: IFolderLocation[] = [...options.alternates ?? []];
 
 		const contribution = ds.add(new FolderLocationStatusBarContribution(
-			{ ...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
+			{
+				...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event,
+				canSetLocation: () => true, getLocations: async () => [...alternates], onDidChangeLocations: onDidChangeLocations.event, onDidChangeProviders: Event.None, onDidChangeCanSetLocation: Event.None
+			} as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
-			{ getFolderLocationLabel: () => currentLocation ? `${currentLocation.label} · ${currentLocation.description}` : undefined } as unknown as ILabelService,
+			{ getFolderLocationLabel: () => currentLocation?.label } as unknown as ILabelService,
 			{
 				onDidChangeEntryVisibility: onDidChangeEntryVisibility.event,
 				addEntry(entry: IStatusbarEntry, _id: string, alignment: unknown, priority: unknown) {
@@ -72,23 +87,28 @@ suite('FolderLocationStatusBarContribution', () => {
 				}
 			} as unknown as IStatusbarService,
 			{ getContainer: () => statusbarContainer, onDidChangePartVisibility: onDidChangePartVisibility.event } as unknown as IWorkbenchLayoutService,
-			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
-			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService
+			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService,
+			{ extUri: options.extUri ?? extUri } as unknown as IUriIdentityService
 		));
 
 		return {
-			contribution, entries, executed, added, statusbarContainer,
+			contribution, entries, added, statusbarContainer,
 			entryVisibilityChanged: () => onDidChangeEntryVisibility.fire({ id: 'status.workspace.folderLocation', visible: true }),
 			partVisibilityChanged: () => onDidChangePartVisibility.fire({ partId: Parts.STATUSBAR_PART, visible: true }),
 			isVisible: () => visible,
+			setAlternates(value: IFolderLocation[]) {
+				alternates.splice(0, alternates.length, ...value);
+				onDidChangeLocations.fire();
+			},
 			switchTo() {
 				currentLocation = location;
 				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 				onDidChangeCurrentLocation.fire();
 			},
-			returnToPrimary() {
+			/** Back at the folder's own location, which the workspace may name with other casing, such as on Windows. */
+			returnToPrimary(identity = primary) {
 				currentLocation = undefined;
-				workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+				workspace = new Workspace('id', [new WorkspaceFolder({ uri: identity, name: 'project', index: 0 })], false, null, () => false, undefined, identity);
 				onDidChangeCurrentLocation.fire();
 			}
 		};
@@ -107,13 +127,79 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate · feature/x (alternate location of 'project')` });
+			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate (alternate location of 'project')` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
 	});
 
-	test('the introduction is a spotlight on the entry that can return to the primary', async () => {
+	test('at its own location, the folder shows while it has worktrees, looked up once the window is idle and again as they change; it does not introduce itself there', async () => {
+		const fixture = createFixture(undefined, { alternates: [location] });
+		const trigger = onboardingScenarioRegistry.getScenario('workbench.folderLocation.introduction')!.trigger;
+		const introduces = () => trigger.kind === 'observable' && trigger.signal.get();
+		const element = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		element.id = 'status.workspace.folderLocation';
+		element.style.cssText = 'width: 10px; height: 10px; display: block';
+		ds.add({ dispose: () => element.remove() });
+		const settle = async () => {
+			await new Promise<void>(resolve => runWhenWindowIdle(mainWindow, () => resolve()));
+			await timeout(0);
+		};
+		const state = () => fixture.isVisible() ? { text: fixture.entries.at(-1)!.text, kind: fixture.entries.at(-1)!.kind, ariaLabel: fixture.entries.at(-1)!.ariaLabel, tooltip: fixture.entries.at(-1)!.tooltip } : 'none';
+
+		const steps: unknown[] = [state()];
+		await settle();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		steps.push(state(), { introduces: introduces() });
+		fixture.setAlternates([]);
+		await timeout(0);
+		steps.push(state());
+		fixture.setAlternates([location]);
+		await timeout(0);
+		steps.push(state());
+		fixture.switchTo();
+		steps.push(state());
+
+		const atPrimary = { text: '$(folder) project', kind: undefined, ariaLabel: 'Folder Location, project', tooltip: 'project (Switch Folder Location)' };
+		assert.deepStrictEqual(steps, [
+			'none',
+			atPrimary,
+			{ introduces: false },
+			'none',
+			atPrimary,
+			{ text: '$(git-branch) Alternate', kind: 'prominent', ariaLabel: 'Folder Location, Alternate', tooltip: `Alternate (alternate location of 'project')` },
+		]);
+	});
+
+	test('on Windows, the folder at its own location is named by its last segment, also at a drive or UNC share root, and is still at its own location with its path in other case', async () => {
+		const settle = async () => {
+			await new Promise<void>(resolve => runWhenWindowIdle(mainWindow, () => resolve()));
+			await timeout(0);
+		};
+		const windowsFixture = (folder: URI) => createFixture(undefined, { alternates: [location], primary: folder, extUri: extUriIgnorePathCase });
+		// One at a time: each registers the entry's onboarding target
+		const shownText = async (folder: URI, recasedIdentity?: URI) => {
+			const fixture = windowsFixture(folder);
+			await settle();
+			if (recasedIdentity) {
+				fixture.switchTo();
+				fixture.returnToPrimary(recasedIdentity);
+			}
+			const text = fixture.isVisible() ? fixture.entries.at(-1)!.text : 'none';
+			fixture.contribution.dispose();
+			return text;
+		};
+		const drive = URI.from({ scheme: 'file', path: '/c:/Users/me/Repo' });
+
+		assert.deepStrictEqual({
+			drive: await shownText(drive),
+			driveRoot: await shownText(URI.from({ scheme: 'file', path: '/c:/' })),
+			uncShareRoot: await shownText(URI.from({ scheme: 'file', authority: 'server', path: '/share/' })),
+			recased: await shownText(drive, URI.from({ scheme: 'file', path: '/C:/users/ME/repo' })),
+		}, { drive: '$(folder) Repo', driveRoot: '$(folder) c:', uncShareRoot: '$(folder) share', recased: '$(folder) repo' });
+	});
+
+	test('the introduction is a spotlight on the entry with only Got It', async () => {
 		const fixture = createFixture();
 		const scenario = () => onboardingScenarioRegistry.getScenario('workbench.folderLocation.introduction')!;
 		const signal = () => {
@@ -139,11 +225,8 @@ suite('FolderLocationStatusBarContribution', () => {
 		}
 		const [step] = await (scenario().presentation.payload as ISpotlightPayload).resolveSteps!();
 		assert.deepStrictEqual(
-			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel, focusEndTour: step.focusEndTour },
-			{ whileHidden: false, signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It', focusEndTour: true });
-
-		await step.primaryAction!.run(undefined as never);
-		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
+			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction, endTour: step.endTourLabel, focusEndTour: step.focusEndTour, hideNext: step.hideNext },
+			{ whileHidden: false, signal: true, target: true, primaryAction: undefined, endTour: 'Got It', focusEndTour: true, hideNext: true });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(signal(), false);
@@ -268,7 +351,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			let workspace = new Workspace('id', [new WorkspaceFolder({ uri: atPrimary ? primary : alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-					: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, getLocations: async () => { await lookup; return [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }]; } }
+					: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, group: 'Worktrees', providerId: 'worktrees' }, getLocationGroups: async () => { await lookup; return [{ providerId: 'worktrees', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }]; } }
 						: id === IUriIdentityService ? { extUri }
 							: id === IQuickInputService ? {
 								createQuickPick: () => {
@@ -305,7 +388,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			assert.deepStrictEqual({ labels: firstShown!.items.map(item => item.label), busy: firstShown!.busy }, { labels: ['project', 'Alternate'], busy: true });
 			assert.deepStrictEqual({ shown: shown.map(item => ({ ...item, uri: (item as unknown as { uri: URI }).uri.toString() })), active: (activeItem as unknown as { uri: URI }).uri.toString(), calls }, {
 				shown: [
-					{ uri: primary.toString(), label: 'project', iconClass: 'codicon codicon-folder', description: 'Primary Location' },
+					{ uri: primary.toString(), label: 'project', iconClass: 'codicon codicon-folder', description: undefined },
 					{ uri: alternate.toString(), label: 'Alternate', iconClass: 'codicon codicon-git-branch', description: 'feature/x (Current)' },
 					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClass: 'codicon codicon-git-branch-checkout', description: undefined }
 				],
@@ -340,7 +423,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			}
 		});
 
-		test('invoked from the status entry the list is anchored there, starts on the current location and selecting it works', async () => {
+		test('invoked from the status entry the list is anchored there with a row of the worktrees above the folder, opens with no submenu open, marks only the current worktree in the submenu, which says it is the current one, and selecting it works', async () => {
 			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 			anchor.id = 'status.workspace.folderLocation';
 			const label = anchor.appendChild(mainWindow.document.createElement('a'));
@@ -348,7 +431,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			label.tabIndex = -1;
 			try {
 				type Entry = { id: string; label: string; description?: string; checked: boolean };
-				type ListItem = { item: Entry; labelIcon: { id: string }; group: { icon: { id: string } } };
+				type ListItem = { item: Entry; labelIcon: { id: string }; group: { icon: { id: string } }; submenuActions?: { label: string; tooltip: string; checked?: boolean }[]; openSubmenuOnClick?: boolean };
 				const calls: string[] = [];
 				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 				let shownAnchor: unknown;
@@ -362,17 +445,20 @@ suite('FolderLocationStatusBarContribution', () => {
 				const widget = {
 					show: (_user: string, _preview: boolean, items: ListItem[], shownDelegate: typeof delegate, anchorElement: unknown, _container: unknown, _actions: unknown, accessibility: { getAriaLabel(item: ListItem): string }, options: unknown) => {
 						shownOptions = options; shownAnchor = anchorElement; shownItems = items; delegate = shownDelegate; aria = accessibility.getAriaLabel;
-						initiallyFocused = items.find(item => item.item.checked)?.item.id;
+						// Like the real widget: the checked row, else the first
+						initiallyFocused = (items.find(item => item.item.checked) ?? items[0])?.item.id;
 						// like the real widget, selecting an item is followed by a hide that reports it synchronously
 						queueMicrotask(() => delegate.onSelect(items.find(item => item.item.id === initiallyFocused)!.item));
 					},
-					focusItemById: () => { },
+					// Focusing a row with a submenu opens it
+					focusItemById: (id: string) => { focusedById.push(id); },
 					updateItems: () => { },
 					hide: () => delegate.onHide()
 				};
+				const focusedById: string[] = [];
 				const accessor = {
 					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-						: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => ({ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranchCheckout }), getLocations: async () => { await lookup; return []; } }
+						: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => ({ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranchCheckout, group: 'Worktrees', providerId: 'worktrees' }), getLocationGroups: async () => { await lookup; return []; } }
 							: id === IUriIdentityService ? { extUri }
 								: id === IActionWidgetService ? widget
 									: id === IWorkspaceEditingService ? { setFolderLocation: async (l: URI) => { calls.push(l.toString()); } } : undefined
@@ -382,20 +468,205 @@ suite('FolderLocationStatusBarContribution', () => {
 				assert.deepStrictEqual({
 					anchored: shownAnchor === anchor,
 					options: shownOptions,
-					items: shownItems.map(item => ({ id: item.item.id, aria: aria!(item), icon: item.labelIcon.id, check: item.group.icon.id })),
+					items: shownItems.map(item => ({ id: item.item.id, aria: aria!(item), icon: item.labelIcon.id, check: item.group.icon.id, submenu: item.submenuActions?.map(action => ({ label: action.label, tooltip: action.tooltip, checked: action.checked })), opensOnClick: item.openSubmenuOnClick })),
 					initiallyFocused,
+					focusedById,
 					calls,
 					focusReturnedToLabel: mainWindow.document.activeElement === label
 				}, {
 					anchored: true,
 					options: { preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true },
 					items: [
-						{ id: extUri.getComparisonKey(primary), aria: 'project, Primary Location', icon: 'folder', check: 'blank' },
-						{ id: extUri.getComparisonKey(alternate), aria: 'Alternate, feature/x, Current', icon: 'git-branch-checkout', check: 'check' }
+						{ id: 'group:worktrees', aria: 'Worktrees', icon: 'git-branch-checkout', check: 'blank', submenu: [{ label: 'Alternate', tooltip: 'feature/x (Current)', checked: true }], opensOnClick: true },
+						{ id: extUri.getComparisonKey(primary), aria: 'project', icon: 'folder', check: 'blank', submenu: undefined, opensOnClick: undefined }
 					],
-					initiallyFocused: extUri.getComparisonKey(alternate),
+					initiallyFocused: 'group:worktrees',
+					focusedById: [],
 					calls: [alternate.toString()],
 					focusReturnedToLabel: true
+				});
+			} finally {
+				anchor.remove();
+			}
+		});
+
+		test('choosing a worktree in the submenu of the status entry switches to it as a user choice; at the primary, the Worktrees row comes as they resolve, and with none there is only the folder', async () => {
+			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			anchor.id = 'status.workspace.folderLocation';
+			try {
+				type Entry = { id: string };
+				type ListItem = { item: Entry; submenuActions?: { label: string; run(): void }[] };
+				const other = URI.file('/work/other');
+				const pick = async (folder: URI, locations: { uri: URI; label: string }[], choose: (items: ListItem[]) => Entry) => {
+					const calls: string[] = [];
+					const workspace = new Workspace('id', [new WorkspaceFolder({ uri: folder, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+					let shownItems: ListItem[] = [];
+					let seededRows = 0;
+					const focused: string[] = [];
+					let updateOptions: unknown;
+					let delegate!: { onSelect(item: Entry): void; onHide(): void };
+					const widget = {
+						show: (_user: string, _preview: boolean, items: ListItem[], shownDelegate: typeof delegate) => { shownItems = items; seededRows = items.length; delegate = shownDelegate; },
+						focusItemById: (id: string) => { focused.push(id === extUri.getComparisonKey(primary) ? 'folder' : id); },
+						// Once the locations resolve, the user chooses
+						updateItems: (items: ListItem[], _focusItemId: string | undefined, options: unknown) => { shownItems = items; updateOptions = options; queueMicrotask(() => delegate.onSelect(choose(shownItems))); },
+						hide: () => delegate.onHide()
+					};
+					const accessor = {
+						get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
+							: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => extUri.isEqual(folder, primary) ? undefined : ({ uri: alternate, label: 'Alternate', group: 'Worktrees', providerId: 'worktrees' }), getLocationGroups: async () => locations.length ? [{ providerId: 'worktrees', label: 'Worktrees', locations }] : [] }
+								: id === IUriIdentityService ? { extUri }
+									: id === IActionWidgetService ? widget
+										: id === IWorkspaceEditingService ? { setFolderLocation: async (l: URI) => { calls.push(l.toString()); } } : undefined
+					} as unknown as ServicesAccessor;
+					await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+					return { calls, seededRows, rows: shownItems.length, focused, updateOptions };
+				};
+				const worktrees = [{ uri: alternate, label: 'Alternate' }, { uri: other, label: 'Other' }];
+				const chooseWorktree = (label: string) => (items: ListItem[]) => {
+					// As the submenu runs its action, then selects its row
+					const row = items.find(item => item.submenuActions)!;
+					row.submenuActions!.find(action => action.label === label)!.run();
+					return row.item;
+				};
+
+				const chooseOther = await pick(alternate, worktrees, chooseWorktree('Other'));
+				const atPrimaryWithWorktrees = await pick(primary, worktrees, chooseWorktree('Alternate'));
+				const atPrimaryWithNone = await pick(primary, [], items => items[0].item);
+
+				assert.deepStrictEqual({ chooseOther, atPrimaryWithWorktrees, atPrimaryWithNone }, {
+					chooseOther: { calls: [other.toString()], seededRows: 2, rows: 2, focused: [], updateOptions: { preserveHover: true } },
+					atPrimaryWithWorktrees: { calls: [alternate.toString()], seededRows: 1, rows: 2, focused: [], updateOptions: { preserveHover: true } },
+					atPrimaryWithNone: { calls: [primary.toString()], seededRows: 1, rows: 1, focused: [], updateOptions: { preserveHover: true } },
+				});
+			} finally {
+				anchor.remove();
+			}
+		});
+
+		test('the locations of a provider with a label are a row with a submenu, those of a provider without one rows of their own, above the folder, which alone is checked at its own location', async () => {
+			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			anchor.id = 'status.workspace.folderLocation';
+			try {
+				type ListItem = { item: { id: string; checked: boolean }; label: string; group: { icon: { id: string } }; submenuActions?: { label: string }[] };
+				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+				let rows: ListItem[] = [];
+				let delegate!: { onSelect(item: unknown): void; onHide(): void };
+				const widget = {
+					show: (_user: string, _preview: boolean, _items: ListItem[], shownDelegate: typeof delegate) => { delegate = shownDelegate; },
+					focusItemById: () => { },
+					updateItems: (items: ListItem[]) => { rows = items; queueMicrotask(() => delegate.onHide()); },
+					hide: () => delegate.onHide()
+				};
+				const accessor = {
+					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
+						: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => undefined, getLocationGroups: async () => [{ providerId: 'worktrees', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate' }] }, { providerId: 'cloud', label: undefined, locations: [{ uri: URI.file('/work/cloud'), label: 'Cloud', icon: Codicon.cloud }] }] }
+							: id === IUriIdentityService ? { extUri }
+								: id === IActionWidgetService ? widget
+									: id === IWorkspaceEditingService ? { setFolderLocation: async () => { } } : undefined
+				} as unknown as ServicesAccessor;
+				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+
+				assert.deepStrictEqual(rows.map(row => ({ label: row.label, check: row.group.icon.id, submenu: row.submenuActions?.map(action => action.label) })), [
+					{ label: 'Worktrees', check: 'blank', submenu: ['Alternate'] },
+					{ label: 'Cloud', check: 'blank', submenu: undefined },
+					{ label: 'project', check: 'check', submenu: undefined },
+				]);
+			} finally {
+				anchor.remove();
+			}
+		});
+
+		test('names the row of each provider\'s locations as the provider names them, with no name of its own for any kind of location', async () => {
+			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			anchor.id = 'status.workspace.folderLocation';
+			try {
+				type ListItem = { label: string; submenuActions?: { label: string }[] };
+				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+				const contextService = new TestContextService(workspace);
+				const labelService = new class extends mock<ILabelService>() {
+					override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
+				}();
+				const uriIdentityService = ds.add(new UriIdentityService(ds.add(new FileService(new NullLogService()))));
+				const folderLocationService = ds.add(new WorkspaceFolderLocationService(uriIdentityService, contextService, labelService));
+				const provider = (id: string, label: string, locations: IFolderLocation[]): IWorkspaceFolderLocationProvider => ({
+					id,
+					label,
+					provideLocations: async () => locations,
+					resolveLocation: async (_primary, uri) => locations.find(candidate => extUri.isEqual(candidate.uri, uri)),
+				});
+				ds.add(folderLocationService.registerProvider(provider('worktrees', 'Worktrees', [{ uri: alternate, label: 'Alternate' }])));
+				ds.add(folderLocationService.registerProvider(provider('copies', 'Cloud Copies', [{ uri: URI.file('/work/copy'), label: 'Copy' }])));
+				let rows: ListItem[] = [];
+				let delegate!: { onSelect(item: unknown): void; onHide(): void };
+				const widget = {
+					show: (_user: string, _preview: boolean, _items: ListItem[], shownDelegate: typeof delegate) => { delegate = shownDelegate; },
+					focusItemById: () => { },
+					updateItems: (items: ListItem[]) => { rows = items; queueMicrotask(() => delegate.onHide()); },
+					hide: () => delegate.onHide()
+				};
+				const accessor = {
+					get: (id: unknown) => id === IWorkspaceContextService ? contextService
+						: id === IWorkspaceFolderLocationService ? folderLocationService
+							: id === IUriIdentityService ? uriIdentityService
+								: id === IActionWidgetService ? widget
+									: id === IWorkspaceEditingService ? { setFolderLocation: async () => { } } : undefined
+				} as unknown as ServicesAccessor;
+				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+
+				assert.deepStrictEqual(rows.map(row => ({ label: row.label, submenu: row.submenuActions?.map(action => action.label) })), [
+					{ label: 'Worktrees', submenu: ['Alternate'] },
+					{ label: 'Cloud Copies', submenu: ['Copy'] },
+					{ label: 'project', submenu: undefined },
+				]);
+			} finally {
+				anchor.remove();
+			}
+		});
+
+		test('the row of each provider is its own, also where providers share a label: a submenu open on the current location\'s provider stays on it as the locations resolve, and choosing there switches within it', async () => {
+			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			anchor.id = 'status.workspace.folderLocation';
+			try {
+				type Entry = { id: string };
+				type ListItem = { item: Entry; submenuActions?: { label: string; run(): void }[] };
+				const [first, second] = [URI.file('/work/first'), URI.file('/work/second')];
+				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+				const calls: string[] = [];
+				let openRow: string | undefined;
+				let refreshed: { rows: string[]; openSubmenu: string[] | undefined } | undefined;
+				let delegate!: { onSelect(item: Entry): void; onHide(): void };
+				const widget = {
+					// The user opens the submenu of the seeded row, of the current location's provider, before the locations resolve
+					show: (_user: string, _preview: boolean, items: ListItem[], shownDelegate: typeof delegate) => { delegate = shownDelegate; openRow = items.find(item => item.submenuActions)?.item.id; },
+					// As the real widget, an update keeps the open submenu on the first row with its id, which now shows that row's actions
+					updateItems: (items: ListItem[]) => {
+						const reopened = items.find(item => item.item.id === openRow);
+						refreshed = { rows: items.map(item => item.item.id), openSubmenu: reopened?.submenuActions?.map(action => action.label) };
+						queueMicrotask(() => {
+							reopened?.submenuActions?.find(action => action.label === 'Second')?.run();
+							delegate.onSelect(reopened!.item);
+						});
+					},
+					hide: () => delegate.onHide()
+				};
+				const accessor = {
+					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
+						: id === IWorkspaceFolderLocationService ? {
+							...identityFake(() => workspace),
+							getLocation: () => ({ uri: alternate, label: 'Alternate', group: 'Worktrees', providerId: 'two' }),
+							getLocationGroups: async () => [{ providerId: 'one', label: 'Worktrees', locations: [{ uri: first, label: 'First' }] }, { providerId: 'two', label: 'Worktrees', locations: [{ uri: alternate, label: 'Alternate' }, { uri: second, label: 'Second' }] }]
+						}
+							: id === IUriIdentityService ? { extUri }
+								: id === IActionWidgetService ? widget
+									: id === IWorkspaceEditingService ? { setFolderLocation: async (l: URI) => { calls.push(l.toString()); } } : undefined
+				} as unknown as ServicesAccessor;
+				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+
+				assert.deepStrictEqual({ openRow, refreshed, calls }, {
+					openRow: 'group:two',
+					refreshed: { rows: ['group:one', 'group:two', extUri.getComparisonKey(primary)], openSubmenu: ['Alternate', 'Second'] },
+					calls: [second.toString()],
 				});
 			} finally {
 				anchor.remove();
@@ -410,7 +681,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		});
 
 		test('at the primary location the picker lists the locations, marks the primary and switches as a user choice', async () => {
-			const atPrimaryPick = await pickLocation(items => { assert.deepStrictEqual(items.map(item => item.description), ['Primary Location (Current)', 'feature/x', undefined]); return 1; }, undefined, undefined, true);
+			const atPrimaryPick = await pickLocation(items => { assert.deepStrictEqual(items.map(item => item.description), ['Current', 'feature/x', undefined]); return 1; }, undefined, undefined, true);
 			assert.deepStrictEqual(atPrimaryPick.calls, [[alternate.toString(), 'user']]);
 		});
 

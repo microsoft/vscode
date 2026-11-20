@@ -13,6 +13,7 @@ import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	AgentHostAgentOrchestrationLimitsSettingId,
+	AgentHostSessionModelOptionsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
@@ -45,6 +46,8 @@ import {
 import {
 	AgentHostAhpJsonlLoggingEnabledConfigKey,
 	AgentHostAgentOrchestrationLimitsConfigKey,
+	AgentHostSessionModelOptionsConfigKey,
+	agentHostSessionModelOptionsValues,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostByokModelsEnabledDefault,
@@ -57,6 +60,8 @@ import {
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
 	AgentHostPrewarmSessionsConfigKey,
+	AgentHostKeepAwakeConfigKey,
+	agentHostKeepAwakeConfiguration,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 	AgentHostMcpSkillsEnabledConfigKey,
@@ -234,6 +239,13 @@ configurationRegistry.registerConfiguration({
 		},
 		...chatMoveConfigurationProperties,
 		...titleGenerationConfigurationProperties,
+		'sessions.keepAwakeWhileWorking': {
+			...agentHostKeepAwakeConfiguration,
+			tags: ['preview'],
+			scope: ConfigurationScope.MACHINE,
+			description: nls.localize('sessions.keepAwakeWhileWorking', "Controls when each connected Agent Host keeps its machine from idle-sleeping while a chat is working, where supported. The hold is released shortly after work ends and does not require an open window. The display can turn off and explicit sleep is not inhibited."),
+			agentHost: { key: AgentHostKeepAwakeConfigKey },
+		},
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
@@ -280,7 +292,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', 'advanced', 'experimental'],
-			included: false,
 			agentHost: { key: ModelRouterEnabledConfigKey },
 		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
@@ -330,6 +341,21 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			agentHost: { key: AgentHostAgentOrchestrationLimitsConfigKey },
+		},
+		[AgentHostSessionModelOptionsSettingId]: {
+			type: 'string',
+			enum: [...agentHostSessionModelOptionsValues],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.sessionModelOptions.off', "Agents choose only the model."),
+				nls.localize('chat.agentHost.sessionModelOptions.inline', "Agents can also choose the reasoning effort and context size. The session creation tool lists the available models and their options when an agent loads it through tool search."),
+				nls.localize('chat.agentHost.sessionModelOptions.tool', "Agents can also choose the reasoning effort and context size, and list the available models and their options with a separate tool."),
+			],
+			description: nls.localize('chat.agentHost.sessionModelOptions', "Controls whether Agent Host agents can choose the reasoning effort and context size of the model when they create a session or chat, and how they find the available models and options."),
+			default: 'off',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostSessionModelOptionsConfigKey },
 		},
 		[AgentHostSystemProxyEnabledSettingId]: {
 			type: 'boolean',

@@ -3,60 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type WebSocket from 'ws';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { createHash } from 'crypto';
 import { EventEmitter as NodeEventEmitter } from 'events';
 import { mkdtemp, rm, stat } from 'fs/promises';
 import { Duplex } from 'stream';
+import type WebSocket from 'ws';
+import { SequencerByKey } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { join, posix } from '../../../base/common/path.js';
-import { StopWatch } from '../../../base/common/stopwatch.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
-import { hasKey } from '../../../base/common/types.js';
-import { findExecutable } from '../../../base/node/processes.js';
-import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { join, posix } from '../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { vArray, vLiteral, vObj, vOptionalProp, vString, vUnknown } from '../../../base/common/validation.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import { localize } from '../../../nls.js';
-import { ILogService } from '../../log/common/log.js';
-import { IProductService } from '../../product/common/productService.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IGitHubService } from '../../github/common/githubService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
-import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
-import { IRelayMessage } from '../common/relayTransport.js';
-import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
+import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
+import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
+import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
+import { IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
+import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
+import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
+import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
+import { IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
+import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
+	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
+	ISshExec,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
-	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
 	formatAgentHostUrlHost,
 	getRemoteCLIDataDir,
-	ISshExec,
 	resolveRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
-import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
-import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
-import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
-import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
-import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
-import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
-import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -81,15 +83,22 @@ function toDevContainerExec(run: (command: string) => Promise<IDevContainerShell
 	};
 }
 
-function getSourceKey(source: string | IDevContainerSampleSource): string {
+function getSourceKey(source: DevContainerAgentHostSource): string {
 	if (typeof source === 'string') {
 		return extUriBiasedIgnorePathCase.getComparisonKey(URI.file(source));
+	}
+	if (hasKey(source, { environmentId: true })) {
+		return `${devContainerEnvironmentScheme}:${source.environmentId}`;
 	}
 	const sample = devContainerSamples.find(sample => sample.id === source.sampleId);
 	if (!sample) {
 		throw new Error(localize('devContainerAgentHost.unknownSample', "Unknown Dev Container sample: {0}", source.sampleId));
 	}
 	return devContainerSampleUri(sample).toString();
+}
+
+function getConfigSource(config: IDevContainerAgentHostConfig): DevContainerAgentHostSource {
+	return hasKey(config, { workspaceFolder: true }) ? config.workspaceFolder : config;
 }
 
 /** Waits for the relay WebSocket to open while observing every terminal startup condition. */
@@ -264,6 +273,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private readonly _connectionWorkspaces = new Map<string, string>();
 	private readonly _containerIds = new Map<string, string>();
 	private readonly _suspendedWorkspaces = new Set<string>();
+	/** Environment identifiers are never reused, so no client, even when resuming, may recreate a deleted environment. */
+	private readonly _removedEnvironments = new Set<string>();
 	private readonly _containerOperations = new SequencerByKey<string>();
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
@@ -286,7 +297,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		this._disconnect(config.connectionId);
 		const tokenSource = new CancellationTokenSource();
 		this._connectionTokenSources.set(config.connectionId, tokenSource);
-		return this._containerOperations.queue(getSourceKey(hasKey(config, { sampleId: true }) ? config : config.workspaceFolder), async () => {
+		return this._containerOperations.queue(getSourceKey(getConfigSource(config)), async () => {
 			try {
 				if (tokenSource.token.isCancellationRequested) {
 					throw new CancellationError();
@@ -302,10 +313,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private async _connect(config: IDevContainerAgentHostConfig, tokenSource: CancellationTokenSource): Promise<IDevContainerAgentHostConnectResult> {
-		const source = hasKey(config, { sampleId: true }) ? config : config.workspaceFolder;
+		const source = getConfigSource(config);
 		const workspaceKey = getSourceKey(source);
 		if (this._suspendedWorkspaces.has(workspaceKey) && config.resume !== true) {
 			throw new Error(localize('devContainerAgentHost.containerSuspended', "Dev Container for '{0}' is stopped.", config.name));
+		}
+		if (this._removedEnvironments.has(workspaceKey)) {
+			throw new Error(localize('devContainerAgentHost.environmentRemoved', "Dev Container '{0}' was deleted.", config.name));
 		}
 		const store = new DisposableStore();
 		store.add(tokenSource);
@@ -337,6 +351,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
 				repository = prepared.repository;
+			} else if (hasKey(config, { environmentId: true })) {
+				const prepared = await this._prepareEnvironment(config.connectionId, config, tokenSource.token, registerContainer, config.sandboxEnabled, config.persistUserState);
+				upResult = prepared;
+				workspaceSelector = prepared.cliArgs;
 			} else {
 				workspaceSelector = config.workspaceFolder;
 				const configuration = this._readDevContainerConfiguration(config.connectionId, config.workspaceFolder, tokenSource.token);
@@ -510,6 +528,48 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
+	protected _prepareEnvironment(connectionId: string, source: IDevContainerEnvironmentSource, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean, persistUserState?: boolean): Promise<IPreparedDevContainerEnvironment> {
+		let errorValues: IDevContainerStateErrorValues | undefined;
+		return prepareDevContainerEnvironment(source, this._getEnvironmentCacheDirectory(source.environmentId), {
+			onContainerStarted,
+			docker: args => this._runReportedDocker(connectionId, args, token),
+			devcontainer: async args => {
+				const stage = args[0] === 'up' ? 'up' : args[0] === 'run-user-commands' ? 'userCommands' : undefined;
+				if (!stage) {
+					return this._runDevContainer(connectionId, args, token);
+				}
+				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				return { stdout, stderr, code };
+			},
+			linkUserState: async (containerId, remoteUser, selectorArgs, keepExistingFolders) => {
+				errorValues = {
+					// The override configuration has no remoteEnv, so only the image's metadata can set HOME.
+					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
+						selectorArgs,
+						environment: undefined,
+						remoteEnvSetsHome: () => this._containerMetadataSetsHome(containerId, token),
+					}),
+					user: remoteUser,
+				};
+			},
+			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
+				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
+				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
+			testConfiguration: readDevContainerEnvironmentTestConfiguration(process.env),
+		}, sandboxEnabled, persistUserState);
+	}
+
+	private _getEnvironmentCacheDirectory(environmentId: string): string {
+		return join(this._environmentService.userDataPath, 'devContainerEnvironments', environmentId);
+	}
+
+	private async _runReportedDocker(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
+		this._reportOutput(connectionId, `$ docker ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+		const result = await this._runDocker(args, token);
+		this._reportOutput(connectionId, result.stdout + result.stderr);
+		return result;
+	}
+
 	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean, persistUserState?: boolean): Promise<IPreparedDevContainerSample> {
 		let errorValues: IDevContainerStateErrorValues | undefined;
 		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
@@ -544,12 +604,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {
-					const signal = CancellationToken.toAbortSignal(token, lifetime);
-					signal.throwIfAborted();
+					const cancellationToken = token;
+					CancellationToken.throwIfCanceled(cancellationToken);
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
 					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
-					const commitSha = await client.content.resolveRef(repository, 'HEAD', signal, { caller: 'agentHost.devContainerSample' });
-					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', signal, { caller: 'agentHost.devContainerSample' });
+					const commitSha = await client.content.resolveRef(repository, 'HEAD', cancellationToken, { caller: 'agentHost.devContainerSample' });
+					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', cancellationToken, { caller: 'agentHost.devContainerSample' });
 					return { commitSha, content };
 				} finally {
 					lifetime.dispose();
@@ -1225,15 +1285,41 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return this._dockerAvailable;
 	}
 
-	async stopContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
+	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
 	}
 
-	async removeContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
+	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {
+		if (typeof source !== 'string' && hasKey(source, { environmentId: true })) {
+			const environmentId = source.environmentId;
+			return this._containerOperations.queue(getSourceKey(source), () => this._removeEnvironment(environmentId));
+		}
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'rm'));
 	}
 
-	private async _changeContainerState(source: string | IDevContainerSampleSource, operation: 'stop' | 'rm'): Promise<boolean> {
+	/** Deletes an environment on request, including its workspace volume, even while other windows use it. */
+	private async _removeEnvironment(environmentId: string): Promise<boolean> {
+		const key = getSourceKey({ environmentId });
+		// Connections queued behind this removal must not recreate the environment, unless the removal fails and the client keeps it.
+		this._removedEnvironments.add(key);
+		try {
+			const connectionIds = [...this._connectionWorkspaces]
+				.filter(([, workspace]) => workspace === key)
+				.map(([connectionId]) => connectionId);
+			// Other clients' relays are closed on their behalf, so they learn it rather than wait for their requests to time out.
+			for (const connectionId of connectionIds) {
+				this._closeConnection(connectionId);
+			}
+			await removeDevContainerEnvironment(environmentId, this._getEnvironmentCacheDirectory(environmentId), args => this._runDocker(args));
+		} catch (error) {
+			this._removedEnvironments.delete(key);
+			throw error;
+		}
+		this._containerIds.delete(key);
+		return true;
+	}
+
+	private async _changeContainerState(source: DevContainerAgentHostSource, operation: 'stop' | 'rm'): Promise<boolean> {
 		const workspaceKey = getSourceKey(source);
 		const containerId = this._containerIds.get(workspaceKey);
 		if (!containerId) {
@@ -1321,6 +1407,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		this._connectionTokenSources.get(connectionId)?.cancel();
 		this._connectionStores.deleteAndDispose(connectionId);
 		this._connections.deleteAndDispose(connectionId);
+	}
+
+	/** Disconnects a relay, which `_disconnect` does silently, and reports that it closed. */
+	private _closeConnection(connectionId: string): void {
+		const connected = this._connections.has(connectionId);
+		this._disconnect(connectionId);
+		if (connected) {
+			this._onDidRelayClose.fire(connectionId);
+			this._onDidCloseConnection.fire(connectionId);
+		}
 	}
 
 	override dispose(): void {

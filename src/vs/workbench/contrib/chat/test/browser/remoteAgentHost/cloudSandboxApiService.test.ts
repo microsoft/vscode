@@ -5,51 +5,53 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { VSBuffer, bufferToStream, newWriteableBufferStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
+import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../../../platform/github/common/account/accountClient.js';
-import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { LocalApiRequestProvider } from '../../../../../../platform/github/common/client/localApiRequestProvider.js';
 import { LocalMissionControlRequestProvider } from '../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
+import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { SchemaError } from '../../../../../../platform/github/common/client/schema.js';
 import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
 import { GitHubRestTextRequest, GitHubTransport, IGitHubTransport } from '../../../../../../platform/github/common/githubTransport.js';
-import { AccountHandle, RequestError } from '../../../../../../platform/github/common/types.js';
 import { GitHubRequestError, GitHubRequestTimeoutError } from '../../../../../../platform/github/common/githubTypes.js';
 import { ClientTokenResponse } from '../../../../../../platform/github/common/missionControl/environments.js';
 import { MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import type { TaskClient } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { AccountHandle, RequestError } from '../../../../../../platform/github/common/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
-import { asText, IRequestService } from '../../../../../../platform/request/common/request.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IRequestService, asText } from '../../../../../../platform/request/common/request.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
+import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
-import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
-import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
 	return {
@@ -170,6 +172,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
+	readonly defaultAccountService?: IDefaultAccountService;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
@@ -291,6 +294,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
+	instantiationService.stub(IDefaultAccountService, options.defaultAccountService ?? {
+		currentDefaultAccount: null, getDefaultAccount: async () => null,
+	});
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(new class extends mock<ITelemetryService>() {
 			override publicLog2(_eventName: string, data?: ITelemetryData): void {
@@ -310,14 +316,14 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 	}());
 	const transport = store.add(new class extends GitHubTransport {
-		override restText(account: AccountHandle, token: string, request: GitHubRestTextRequest, signal: AbortSignal) {
+		override restText(account: AccountHandle, token: string, request: GitHubRestTextRequest, cancellationToken: CancellationToken) {
 			typedRequests.push(request);
-			return super.restText(account, token, request, signal);
+			return super.restText(account, token, request, cancellationToken);
 		}
-	}(async (input, init = {}) => {
+	}(async (input, init = {}, fetchToken) => {
 		const lifetime = new DisposableStore();
 		try {
-			const token = init.signal ? CancellationToken.fromAbortSignal(init.signal, lifetime) : CancellationToken.None;
+			const token = fetchToken ? fetchToken : CancellationToken.None;
 			const headers = new Headers(init.headers);
 			const headerNames: Record<string, string> = {
 				accept: 'Accept', authorization: 'Authorization', 'content-type': 'Content-Type',
@@ -355,12 +361,12 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			const lifetime = new DisposableStore();
 			const invalidation = lifetime.add(new Emitter<void>());
 			clientInvalidations.push(invalidation);
-			const controller = new AbortController();
+			const controller = new CancellationTokenSource();
+			lifetime.add(toDisposable(() => controller.dispose(true)));
 			const state = { authorization, disposed: false };
 			clientLifetimes.push(state);
 			lifetime.add(toDisposable(() => {
 				state.disposed = true;
-				controller.abort(new CancellationError());
 			}));
 			let refresh = false;
 			const credentials: IGitHubCredentials = {
@@ -372,7 +378,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 					if (!current) {
 						throw new GitHubRequestError('The selected authentication session is unavailable', 'authentication');
 					}
-					return { account: { host: 'api.github.com', accountId: current.account.id }, token: current.accessToken, generation: 0, signal: controller.signal };
+					return { account: { host: 'api.github.com', accountId: current.account.id }, token: current.accessToken, generation: 0, cancellationToken: controller.token };
 				},
 				handleRequestError: (_credential, error) => {
 					refresh ||= error instanceof GitHubRequestError && error.statusCode === 401;
@@ -383,8 +389,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
 				identityApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
 				integrationId: COPILOT_INTEGRATION_ID,
-			}, credentials, transport, options.logService ?? new NullLogService(), controller.signal);
-			const rest = new LocalApiRequestProvider('https://api.github.com', transport, credentials, 'rest', controller.signal);
+			}, credentials, transport, options.logService ?? new NullLogService(), controller.token);
+			const rest = new LocalApiRequestProvider('https://api.github.com', transport, credentials, 'rest', controller.token);
 			return new AccountClient(authorization, {
 				rest, graphql: rest, missionControl: options.missionControlProvider ?? provider,
 				onDidInvalidate: invalidation.event,
@@ -925,9 +931,12 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 
 	test('detail endpoint failures do not block summary discovery or its checkpoint', async () => {
 		let fail = true;
+		// A fixed server date keeps the checkpoint from moving when the two scans straddle a second boundary.
+		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
 		const h = createService(store, {
 			tasks: [task('one', 'One', undefined, 's1', 'e1'), task('two', 'Two', undefined, 's2', 'e2')],
 			repositories: new Map(),
+			discoveryDate: () => date,
 			onRequest: url => fail && url.pathname === '/agents/tasks/two' ? jsonResponse({}, 503) : undefined,
 		});
 		await h.service.listSessions(CancellationToken.None);
@@ -1648,7 +1657,7 @@ suite('CloudSandboxApiService session feed', () => {
 			}, {
 				onDidInvalidate: Event.None,
 				getCredential: async () => ({
-					account: { host: 'github.com', accountId: 'a' }, token: 'tok', generation: 0, signal: new AbortController().signal,
+					account: { host: 'github.com', accountId: 'a' }, token: 'tok', generation: 0, cancellationToken: CancellationToken.None,
 				}),
 				handleRequestError: () => { },
 			}, new class extends mock<IGitHubTransport>() {
@@ -3069,6 +3078,7 @@ suite('Mission Control environment discovery', () => {
 			tasks: [], repositories: new Map(),
 			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{
 				id: 'host', kind: 'user-local', name: 'Native host', status: 'online',
+				last_heartbeat_at: '2026-11-13T12:00:00Z', capabilities: { current_sessions: 3 },
 				webpubsub: {
 					url: 'wss://relay.example.test', hub: 'hub', subprotocol: 'json.reliable.webpubsub.azure.v1',
 					access_token: 'must-not-be-cached', groups: { control: 'control', ingest_ack: 'ack', events: 'events', lifecycle: 'lifecycle' },
@@ -3078,7 +3088,7 @@ suite('Mission Control environment discovery', () => {
 		const first = await service.listEnvironments(CancellationToken.None);
 		assert.strictEqual(await service.listEnvironments(CancellationToken.None), first);
 		assert.strictEqual(service.getCachedEnvironments(), first);
-		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online' }]);
+		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online', lastHeartbeatAt: Date.parse('2026-11-13T12:00:00Z'), reportedSessionCount: 3 }]);
 		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 1);
 		changeAuthentication();
 		assert.strictEqual(service.getCachedEnvironments(), undefined);
@@ -5935,8 +5945,65 @@ suite('CloudSandboxApiService reservation submission', () => {
 });
 
 suite('CloudSandboxApiService session creation', () => {
-
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [false, true, undefined]) {
+		test(`account eligibility ${enabled} gates creation and reservation but not existing task access`, async () => {
+			const account = upcastPartial<IDefaultAccount>({ entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: enabled }) });
+			const { service, typedRequests } = createService(store, {
+				tasks: [task('existing-task', 'Existing', undefined, 'existing-session', 'existing-env')], repositories: new Map(),
+				defaultAccountService: new class extends mock<IDefaultAccountService>() {
+					override readonly currentDefaultAccount = account;
+					override async getDefaultAccount() { return account; }
+				}(),
+				onRequest: (_url, _token, options) => options.type === 'POST'
+					? jsonTaskResponse({
+						id: 'new-task', sessions: [{ id: 'new-session', environment_id: 'new-env' }],
+						...(JSON.parse(options.data ?? '{}').reserve ? { reserved: true, reservation_expires_at: '2030-01-01T00:10:00Z' } : {}),
+					}, 201)
+					: options.type === 'DELETE' ? jsonResponse({}, 204) : undefined,
+			});
+			const create = () => service.createSession({ prompt: 'hello' }, CancellationToken.None);
+			const reserve = () => service.reserveSession({ expectedAccountKey: JSON.stringify(['github', 'a']) }, CancellationToken.None);
+			if (enabled === false) {
+				await assert.rejects(create(), /Cloud session creation is not available/);
+				await assert.rejects(reserve(), /Cloud session creation is not available/);
+			} else {
+				await create();
+				await reserve();
+			}
+			const history = await service.listSessions(CancellationToken.None);
+			await service.deleteTask('existing-task', CancellationToken.None);
+			assert.deepStrictEqual({
+				mutations: typedRequests.filter(request => request.method !== 'GET').map(request => request.method),
+				history: history.kind === 'complete' ? history.sessions.map(session => session.taskId) : history.kind,
+			}, { mutations: enabled === false ? ['DELETE'] : ['POST', 'POST', 'DELETE'], history: ['existing-task'] });
+		});
+	}
+
+	for (const reserve of [false, true]) {
+		test(`rechecks eligibility after authentication before dispatching ${reserve ? 'reservation' : 'creation'}`, async () => {
+			let enabled = true;
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				defaultAccountService: new class extends mock<IDefaultAccountService>() {
+					override get currentDefaultAccount(): IDefaultAccount {
+						return upcastPartial<IDefaultAccount>({ entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: enabled }) });
+					}
+					override async getDefaultAccount() { return this.currentDefaultAccount; }
+				}(),
+				authenticationSessions: async () => {
+					enabled = false;
+					return [{ accessToken: 'token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+				},
+			});
+			let submitted = false;
+			await assert.rejects(reserve
+				? service.reserveSession({ expectedAccountKey: JSON.stringify(['github', 'a']) }, CancellationToken.None)
+				: service.createSession({ prompt: 'hello' }, CancellationToken.None, () => { submitted = true; }), /Cloud session creation is not available/);
+			assert.deepStrictEqual({ requestedUrls, submitted }, { requestedUrls: [], submitted: false });
+		});
+	}
 
 	test('binds creation lifecycle identity after the response and keeps reservation fallback distinct', async () => {
 		const environmentId = generateUuid();

@@ -2866,6 +2866,72 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('connected editor and pane tab outlines use the panel border', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		for (const [name, value] of Object.entries({
+			'--vscode-editorGroupHeader-tabsBorder': '#111111',
+			'--vscode-modernPanel-border': '#222222',
+			'--vscode-contrastBorder': '#333333',
+		})) {
+			root.style.setProperty(name, value);
+		}
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container');
+		const parts = ['sidebar', 'auxiliarybar', 'panel'].map(part => appendElement(root, `part ${part}`));
+		const borders = () => [group, ...parts].map(element => getWindow(root).getComputedStyle(element).getPropertyValue('--modern-ui-connected-tab-border').trim());
+
+		const defaults = borders();
+		root.classList.add('agent-sessions-workbench');
+		const agents = borders()[0];
+		root.classList.remove('agent-sessions-workbench');
+		root.style.removeProperty('--vscode-modernPanel-border');
+		const fallback = borders()[0];
+		root.style.setProperty('--vscode-modernPanel-border', '#222222');
+		root.style.setProperty('--modern-ui-editor-tab-custom-border', '#555555');
+		const customized = borders();
+		root.classList.add('hc-black');
+		const highContrast = borders();
+
+		assert.deepStrictEqual({ defaults, agents, fallback, customized, highContrast }, {
+			defaults: ['#222222', '#222222', '#222222', '#222222'],
+			agents: '#111111',
+			fallback: '#111111',
+			customized: ['#555555', '#222222', '#222222', '#222222'],
+			highContrast: ['#333333', '#333333', '#333333', '#333333'],
+		});
+	});
+
+	test('connected editor tab borders respect explicit color customizations', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs', {
+			[MODERN_PANEL_BORDER]: '#222222',
+			'editorGroupHeader.tabsBorder': '#111111',
+			[TAB_BORDER]: '#333333',
+		});
+		const style = document.createElement('style');
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+		const root = appendElement(document.body, 'connected-outline-theme monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container');
+		const border = (customizations: { [id: string]: string }) => {
+			theme.setCustomColors(customizations);
+			style.textContent = generateColorThemeCSS(theme, '.connected-outline-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return getWindow(group).getComputedStyle(group).getPropertyValue('--modern-ui-connected-tab-border').trim();
+		};
+
+		assert.deepStrictEqual([
+			border({}),
+			border({ [MODERN_PANEL_BORDER]: '#444444' }),
+			border({ 'editorGroupHeader.tabsBorder': '#555555' }),
+			border({ [TAB_BORDER]: '#666666' }),
+			border({ 'editorGroupHeader.tabsBorder': '#555555', [TAB_BORDER]: '#666666' }),
+			border({}),
+		], ['#222222', '#444444', '#555555', '#666666', '#666666', '#222222']);
+	});
+
 	test('uses the modern UI shell background color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -3717,6 +3783,7 @@ suite('ModernUIContribution', () => {
 				[editorBackground]: '#ffffff',
 				'editorGroup.border': '#123456',
 				'editorGroupHeader.tabsBorder': '#445566',
+				[MODERN_PANEL_BORDER]: '#778899',
 				'editorGroupHeader.tabsBackground': '#eeeeee',
 				[EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#ddeeff',
 				[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#abcdef',
@@ -3742,9 +3809,9 @@ suite('ModernUIContribution', () => {
 		});
 
 		assert.deepStrictEqual(results, [
-			{ surface: ['rgb(36, 104, 172)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
-			{ surface: ['rgba(255, 0, 0, 0.5)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
-			{ surface: ['rgba(0, 0, 0, 0)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgb(36, 104, 172)', ...Array(4).fill('rgb(119, 136, 153)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgba(255, 0, 0, 0.5)', ...Array(4).fill('rgb(119, 136, 153)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgba(0, 0, 0, 0)', ...Array(4).fill('rgb(119, 136, 153)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
 		]);
 	});
 
@@ -4100,7 +4167,7 @@ suite('ModernUIContribution', () => {
 			for (const active of [true, false]) {
 				group.classList.toggle('active', active);
 				const highContrast = themeType.startsWith('hc-');
-				const border = highContrast ? (active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)') : 'rgb(37, 37, 38)';
+				const border = highContrast ? (active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)') : 'rgb(0, 255, 255)';
 				const frame = targetWindow.getComputedStyle(group, '::after');
 				assert.deepStrictEqual({
 					geometry: geometry(),

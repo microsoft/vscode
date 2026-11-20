@@ -361,7 +361,6 @@ export const ICopilotCLIAgents = createServiceIdentifier<ICopilotCLIAgents>('ICo
 
 export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	declare _serviceBrand: undefined;
-	private sessionAgents: Record<string, { agentId?: string; createdDateTime: number }> = {};
 	private _agentsPromise?: Promise<readonly CLIAgentInfo[]>;
 	private readonly _onDidChangeAgents = this._register(new Emitter<void>());
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
@@ -389,28 +388,9 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		this._onDidChangeAgents.fire();
 	}
 
-	async trackSessionAgent(sessionId: string, agent: string | undefined): Promise<void> {
-		const details = Object.keys(this.sessionAgents).length ? this.sessionAgents : this.extensionContext.workspaceState.get<Record<string, { agentId?: string; createdDateTime: number }>>(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, this.sessionAgents);
-
-		details[sessionId] = { agentId: agent, createdDateTime: Date.now() };
-		this.sessionAgents = details;
-
-		// Prune entries older than 7 days.
-		const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-		for (const [key, value] of Object.entries(details)) {
-			if (value.createdDateTime < sevenDaysAgo) {
-				delete details[key];
-			}
-		}
-
-		await this.extensionContext.workspaceState.update(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, details);
-	}
-
 	async getSessionAgent(sessionId: string): Promise<string | undefined> {
-		const details = this.extensionContext.workspaceState.get<Record<string, { agentId?: string; createdDateTime: number }>>(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, this.sessionAgents);
-		// Check in-memory cache first before reading from memento.
-		// Possibly the session agent was just set and not yet persisted.
-		const agentId = this.sessionAgents[sessionId]?.agentId ?? details[sessionId]?.agentId;
+		const details = this.extensionContext.workspaceState.get<Record<string, { agentId?: string; createdDateTime: number }>>(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, {});
+		const agentId = details[sessionId]?.agentId;
 		if (agentId === COPILOT_CLI_DEFAULT_AGENT_ID) {
 			return '';
 		}

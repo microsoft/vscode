@@ -13,6 +13,7 @@ import { IDialogService } from '../../../../../../../platform/dialogs/common/dia
 import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../../browser/planReviewFeedback/planReviewFeedbackService.js';
 import { ChatPlanReviewPart, IChatPlanReviewPartOptions } from '../../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
@@ -40,6 +41,11 @@ function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview
 		canProvideFeedback: false,
 		...overrides,
 	};
+}
+
+/** A plan review as the model has it while it is pending, whose comments every widget that shows it shares. */
+function createReviewDataWithPlan(): ChatPlanReviewData {
+	return new ChatPlanReviewData('Review Plan', '# Plan\n- step 1\n- step 2', [{ label: 'Autopilot', default: true }], true, URI.parse('file:///plan.md').toJSON());
 }
 
 function createMockReviewWithPlan(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
@@ -87,6 +93,7 @@ suite('ChatPlanReviewPart', () => {
 	let lastSubmitResult: IChatPlanReviewResult | undefined;
 	let submitCount = 0;
 	let lastFeedbackService: IPlanReviewFeedbackService | undefined;
+	let lastInstantiationService: TestInstantiationService | undefined;
 	let lastEditorService: IEditorService | undefined;
 	let lastTextFileService: ITextFileService | undefined;
 	let lastModelService: IModelService | undefined;
@@ -106,6 +113,7 @@ suite('ChatPlanReviewPart', () => {
 		instantiationService.stub(IPlanReviewFeedbackService, feedbackService); instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
 
 		lastFeedbackService = feedbackService;
+		lastInstantiationService = instantiationService;
 		lastEditorService = instantiationService.get(IEditorService);
 		lastTextFileService = instantiationService.get(ITextFileService);
 		lastModelService = instantiationService.get(IModelService);
@@ -139,6 +147,7 @@ suite('ChatPlanReviewPart', () => {
 		lastSubmitResult = undefined;
 		submitCount = 0;
 		lastFeedbackService = undefined;
+		lastInstantiationService = undefined;
 		lastEditorService = undefined;
 		lastTextFileService = undefined;
 		lastModelService = undefined;
@@ -608,6 +617,47 @@ suite('ChatPlanReviewPart', () => {
 					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Keep this comment',
 				},
 			});
+		});
+
+		test('a review rendered by two widgets that show its chat, one docking it, has one set of inline comments, kept as either lets go of it', async () => {
+			const review = createReviewDataWithPlan();
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			const service = lastFeedbackService!;
+			service.addFeedback(planUri, 5, 1, 'From A');
+			const results: IChatPlanReviewResult[] = [];
+			const createCopy = () => store.add(lastInstantiationService!.createInstance(ChatPlanReviewPart, review, createMockContext(), { onSubmit: result => { results.push(result); } }));
+			const comments = () => service.getFeedback(planUri).map(item => item.text);
+
+			const copy = createCopy();
+			const seenByCopy = comments();
+			copy.dispose();
+			const keptForA = comments();
+			createCopy();
+			const submitted = await service.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual({ seenByCopy, keptForA, submitted, results: results.map(result => result.feedbackInlineMarkdown) }, {
+				seenByCopy: ['From A'],
+				keptForA: ['From A'],
+				submitted: true,
+				results: ['Inline comments on `plan.md`:\n- **Line 5:** From A'],
+			});
+		});
+
+		test('a review\'s overall comment is the same in every widget that shows it: the one registered last submits the comment typed in another', async () => {
+			const review = createReviewDataWithPlan();
+			createWidget(review);
+			const first = widget;
+			const planUri = URI.revive(review.planUri!);
+			const results: IChatPlanReviewResult[] = [];
+			store.add(lastInstantiationService!.createInstance(ChatPlanReviewPart, review, createMockContext(), { onSubmit: result => { results.push(result); } }));
+			const textarea = first.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Written in the first copy';
+			textarea.dispatchEvent(new Event('input'));
+
+			const submitted = await lastFeedbackService!.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual({ submitted, fromFirst: lastSubmitResult, fromLater: results.map(result => result.feedbackOverall) }, { submitted: true, fromFirst: undefined, fromLater: ['Written in the first copy'] });
 		});
 
 		test('renders comments list and updates Submit Feedback count when service has items', async () => {
