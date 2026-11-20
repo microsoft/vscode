@@ -35,7 +35,7 @@ import { isVisibleOnboardingTarget, registerOnboardingTargetProvider } from '../
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingExperiment, IOnboardingScenario } from '../../onboarding/common/onboardingScenario.js';
-import { isOnboardingDeveloperModeEnabled, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../onboarding/common/onboardingScenarioService.js';
+import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../onboarding/common/onboardingScenarioService.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { countOtherMarkdownEditors, countPreviewExtensions, defaultMarkdownEditorKind, IMarkdownEditorNudgeContext, MarkdownEditorNudgeContextClassification, RECENT_MARKDOWN_EDIT_MS } from './markdownEditorNudgeContext.js';
 
@@ -150,6 +150,7 @@ export class MarkdownEditorPromotion extends Disposable {
 		@ILanguageService languageService: ILanguageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionService extensionService: IExtensionService,
+		@IOnboardingScenarioService onboardingService: IOnboardingScenarioService,
 	) {
 		super();
 
@@ -307,14 +308,14 @@ export class MarkdownEditorPromotion extends Disposable {
 			return candidate;
 		});
 
-		// Describe who reaches a nudge, once per profile, in every experiment arm.
-		let contextReported = storageService.getBoolean(NUDGE_CONTEXT_REPORTED_STORAGE_KEY, StorageScope.PROFILE, false);
-		this._register(autorun(reader => {
-			const current = nudge.read(reader);
-			if (!current || contextReported) {
+		// Describe who reaches a nudge, once per profile, in every experiment arm. Logged at the
+		// would-show moment, when the experiment's assignment context already flows into telemetry.
+		this._register(onboardingService.onDidReachWouldShow(scenarioId => {
+			const current = nudge.get();
+			// Re-read the flag: another window of this profile may have reported in the meantime.
+			if (!current || NUDGE_SCENARIO_IDS[current.kind] !== scenarioId || storageService.getBoolean(NUDGE_CONTEXT_REPORTED_STORAGE_KEY, StorageScope.PROFILE, false)) {
 				return;
 			}
-			contextReported = true;
 			storageService.store(NUDGE_CONTEXT_REPORTED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 			const matches = editorResolverService.getEditorMatches(current.resource);
 			const lastMarkdownEdit = storageService.getNumber(LAST_MARKDOWN_EDIT_STORAGE_KEY, StorageScope.PROFILE);

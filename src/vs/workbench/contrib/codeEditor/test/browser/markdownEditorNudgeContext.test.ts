@@ -36,6 +36,7 @@ suite('Markdown Editor nudge context', () => {
 			extension({ 'markdown.markdownItPlugins': true }),
 			extension({ 'markdown.previewStyles': ['./a.css'], 'markdown.previewScripts': ['./a.js'] }),
 			extension({ 'markdown.markdownItPlugins': true }, true),
+			extension({ 'markdown.markdownItPlugins': false, 'markdown.previewScripts': [], 'markdown.previewStyles': [] }),
 			extension({ languages: [] }),
 			extension(undefined),
 		]), 2);

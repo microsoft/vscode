@@ -9,8 +9,9 @@ import { EditorMatches, isUnconfiguredUniversalOptionalEditorMatch } from '../..
 
 const BUILTIN_MARKDOWN_EDITOR_IDS = new Set([DEFAULT_EDITOR_ASSOCIATION.id, 'vscode.markdown.editor', 'vscode.markdown.preview.editor']);
 
-/** Contribution points through which extensions change how the Markdown preview renders. */
-const MARKDOWN_PREVIEW_CONTRIBUTION_POINTS = ['markdown.markdownItPlugins', 'markdown.previewScripts', 'markdown.previewStyles'];
+function isNonEmptyArray(value: unknown): boolean {
+	return Array.isArray(value) && value.length > 0;
+}
 
 /** A `.md` file edited within this time counts as recent Markdown writing. */
 export const RECENT_MARKDOWN_EDIT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -37,9 +38,15 @@ export type MarkdownEditorNudgeContextClassification = {
 };
 
 export function countPreviewExtensions(extensions: readonly IExtensionDescription[]): number {
+	// Same rules as `MarkdownContributions.fromExtension` in the Markdown extension, so inactive contributions do not count.
 	return extensions.filter(extension => {
-		const contributes: object | undefined = extension.contributes;
-		return !extension.isBuiltin && contributes && MARKDOWN_PREVIEW_CONTRIBUTION_POINTS.some(point => Object.hasOwn(contributes, point));
+		// The Markdown contribution points are not part of the typed contributions.
+		const contributes = extension.contributes as Record<string, unknown> | undefined;
+		return !extension.isBuiltin && !!contributes && (
+			!!contributes['markdown.markdownItPlugins']
+			|| isNonEmptyArray(contributes['markdown.previewScripts'])
+			|| isNonEmptyArray(contributes['markdown.previewStyles'])
+		);
 	}).length;
 }
 
