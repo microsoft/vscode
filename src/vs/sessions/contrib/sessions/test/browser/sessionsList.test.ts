@@ -102,7 +102,7 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -8302,7 +8302,7 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}) {
 			let currentGrouping = grouping;
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -8350,6 +8350,9 @@ suite('Sessions - SessionsList', () => {
 				}
 			});
 			const container = harness.createContainer(400, 800);
+			for (const [key, value] of Object.entries(settings)) {
+				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(key, value);
+			}
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => currentGrouping,
 				sorting: () => SessionsSorting.Created,
@@ -8573,6 +8576,57 @@ suite('Sessions - SessionsList', () => {
 					],
 				});
 			}
+		});
+
+		test('draws indent guides only beside the rows that step in below a header', () => {
+			const outline = (indentItems: boolean) => {
+				const { container } = render(SessionsGrouping.Workspace, new Map(), false, {
+					'workbench.tree.renderIndentGuides': 'onHover',
+					[SESSIONS_LIST_INDENT_ITEMS_SETTING]: indentItems,
+				});
+				for (const size of [2, 6, 10, 16]) {
+					container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+				}
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => {
+						const indent = row.querySelector<HTMLElement>('.monaco-tl-indent')!.getBoundingClientRect();
+						const shownGuides = [...row.querySelectorAll('.monaco-tl-indent > .indent-guide')]
+							.filter(guide => guide.getBoundingClientRect().left < indent.right).length;
+						return `${'  '.repeat(shownGuides)}${labelOf(row)}`;
+					});
+			};
+
+			assert.deepStrictEqual({ indentItemsOff: outline(false), indentItemsOn: outline(true) }, {
+				indentItemsOff: [
+					'Release work',
+					'  Hotfixes',
+					'    Urgent',
+					'    Patch CVE',
+					'  Fix login',
+					'  Docs',
+					'  No session',
+					'Ship notes',
+					'Triage',
+					'Flaky test',
+					'vscode',
+					'Ungrouped',
+				],
+				indentItemsOn: [
+					'Release work',
+					'  Hotfixes',
+					'    Urgent',
+					'      Patch CVE',
+					'    Fix login',
+					'  Docs',
+					'    No session',
+					'  Ship notes',
+					'Triage',
+					'  Flaky test',
+					'vscode',
+					'  Ungrouped',
+				],
+			});
 		});
 
 		test('drops a group inside another group, next to a nested group, or back at the top level, but never inside itself', () => {
