@@ -631,6 +631,7 @@ export class NewChatWidget extends Disposable {
 				this._newChatInput.focus();
 			},
 			inputEditorOptions: this.options.inputEditorOptions,
+			separateSessionControls: this.options.newSessionPresentation.separateSessionControls,
 			submitOverride: anchor => this._submitScheduledDraft(anchor),
 			shouldPersistInput: () => !this._isDraftPreview.get(),
 			session: this._session,

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../../base/common/equals.js';
@@ -4626,6 +4626,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
 	protected readonly _onDidChangeSessions = this._register(new PauseableEmitter<ISessionChangeEvent>({ merge: mergeSessionChangeEvents }));
+	private readonly _archiveSessionLimiter = this._register(new Limiter<void>(4));
+	private _archiveSessionBatches = 0;
+	private readonly _pendingArchiveSessionChanges = new Map<string, ISession>();
+	private readonly _archiveSessionChangeScheduler = this._register(new RunOnceScheduler(() => this._flushArchiveSessionChanges(), 0));
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
 	/** The changes of every session, also of those the listing scope hides: see {@link getAllSessions}. */
@@ -8021,6 +8025,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async archiveSessions(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]> {
+		this._archiveSessionBatches++;
+		try {
+			return await Promise.allSettled(sessionIds.map(sessionId => this._archiveSessionLimiter.queue(() => this.archiveSession(sessionId))));
+		} finally {
+			this._archiveSessionBatches--;
+			this._flushArchiveSessionChanges();
+		}
+	}
+
+	private _flushArchiveSessionChanges(): void {
+		this._archiveSessionChangeScheduler.cancel();
+		const changed = [...this._pendingArchiveSessionChanges.values()];
+		this._pendingArchiveSessionChanges.clear();
+		if (changed.length > 0) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed });
+		}
+	}
+
 	async importSession(sessionId: string): Promise<void> {
 		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
@@ -8377,7 +8400,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return false;
 		}
 		cached.isArchived.set(isArchived, undefined);
-		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		if (this._archiveSessionBatches > 0) {
+			this._pendingArchiveSessionChanges.set(sessionId, cached);
+			if (!this._archiveSessionChangeScheduler.isScheduled()) {
+				this._archiveSessionChangeScheduler.schedule();
+			}
+		} else {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
 		return true;
 	}
 
