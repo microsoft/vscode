@@ -29,6 +29,8 @@ const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 const REMOTES_WIDGET = '.remotes-widget:visible';
+// The workbench keeps other, hidden menus in the DOM, such as those of the custom title bar.
+const OPEN_MENU = '.monaco-menu:visible';
 
 // The Agents Window active session input reuses the workbench `ChatInputPart`,
 // so its model picker renders the same `.model-picker-name` / `.model-picker-config`
@@ -262,21 +264,21 @@ export class AgentsWindow {
 
 	private remoteRowMenuItem(label: string, enabledOnly: boolean) {
 		const page = this.code.driver.currentPage;
-		return page.locator(enabledOnly ? '.monaco-menu .action-menu-item:not(.disabled)' : '.monaco-menu .action-menu-item').filter({ has: page.getByLabel(label, { exact: true }) }).first();
+		return page.locator(`${OPEN_MENU} .action-menu-item${enabledOnly ? ':not(.disabled)' : ''}`).filter({ has: page.getByLabel(label, { exact: true }) }).first();
 	}
 
 	private async openRemoteRowMenu(row: playwright.Locator): Promise<void> {
 		// The actions of a row show while it is hovered or focused.
 		await row.hover();
 		await row.locator('.monaco-toolbar .codicon-toolbar-more').click();
-		await this.code.driver.currentPage.locator('.monaco-menu').first().waitFor({ timeout: 10_000 });
+		await this.code.driver.currentPage.locator(OPEN_MENU).first().waitFor({ timeout: 10_000 });
 	}
 
 	private async isRemoteRowMenuActionEnabled(row: playwright.Locator, label: string): Promise<boolean> {
 		await this.openRemoteRowMenu(row);
 		const enabled = await this.remoteRowMenuItem(label, true).isVisible();
 		await this.code.driver.currentPage.keyboard.press('Escape');
-		await this.code.driver.currentPage.locator('.monaco-menu').first().waitFor({ state: 'hidden', timeout: 10_000 });
+		await this.code.driver.currentPage.locator(OPEN_MENU).first().waitFor({ state: 'detached', timeout: 10_000 });
 		return enabled;
 	}
 
