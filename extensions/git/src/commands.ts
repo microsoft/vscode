@@ -5431,6 +5431,14 @@ export class CommandCenter {
 			return;
 		}
 
+		if (repository.kind === 'worktree' && pathEquals(artifact.id, repository.root)) {
+			// A repository cannot delete its own worktree, as that would dispose
+			// it while the delete operation is still running. Delete the worktree
+			// through the main repository instead.
+			await this.deleteWorktree(repository);
+			return;
+		}
+
 		await repository.deleteWorktree(artifact.id);
 	}
 
