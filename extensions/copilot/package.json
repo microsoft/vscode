@@ -167,7 +167,6 @@
         "label": "Agentic",
         "settings": {
 	        "chat.viewSessions.orientation": "sideBySide",
-	        "chat.editorWindow.enableWorktree": true,
 	        "chat.viewSessions.openInChatPart": true,
 	        "chat.viewSessions.sessionsList.enabled": true
         },

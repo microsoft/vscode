@@ -365,6 +365,11 @@ export interface IViewContainerModel {
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 
+	/**
+	 * All view descriptors in the order in which the view container shows them while their order was not changed.
+	 */
+	readonly allViewDescriptorsInDefaultOrder: ReadonlyArray<IViewDescriptor>;
+
 	readonly activeViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 

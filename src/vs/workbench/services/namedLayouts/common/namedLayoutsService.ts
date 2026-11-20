@@ -8,6 +8,8 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { equals, mixin } from '../../../../base/common/objects.js';
 import { dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isObject, isString } from '../../../../base/common/types.js';
@@ -21,6 +23,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getLayoutOverridableSettings, ILayoutSettings, isLayoutOverridableSetting, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
@@ -68,6 +71,22 @@ function isStoredNamedLayout(candidate: unknown): candidate is IStoredNamedLayou
 
 function getContributedLayoutId(extensionId: string, id: string): string {
 	return `${ExtensionIdentifier.toKey(extensionId)}/${id}`;
+}
+
+/**
+ * Returns the name of the folder of the settings file of a layout. Different identifiers get
+ * different names, also on file systems that ignore case: characters other than lowercase
+ * letters, digits, dots and dashes, as well as dots at the start or end, are escaped as `_`
+ * followed by the four hexadecimal digits of their character code.
+ */
+function toSettingsFolderName(layoutId: string): string {
+	let name = '';
+	for (let index = 0; index < layoutId.length; index++) {
+		const char = layoutId[index];
+		const isDotAtEdge = char === '.' && (index === 0 || index === layoutId.length - 1);
+		name += /[a-z0-9.-]/.test(char) && !isDotAtEdge ? char : `_${layoutId.charCodeAt(index).toString(16).padStart(4, '0')}`;
+	}
+	return name;
 }
 
 /**
@@ -166,10 +185,16 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private activeLayoutModified = false;
 	private readonly changeDetector = this._register(new RunOnceScheduler(() => this.detectChanges(), NamedLayoutsService.CHANGE_DETECTION_DELAY));
 
+	/**
+	 * The settings files that editors show read-only because their layouts are locked, with the names of the layouts.
+	 */
+	private readonlySettingsFiles = new ResourceMap<string>();
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IFileService private readonly fileService: IFileService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService
@@ -209,9 +234,16 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeStoredLayouts()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeLockedLayouts()));
-		this._register(this.onDidChangeLayouts(() => this.updateLayoutSettings()));
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.sequencer.queue(() => this.reapplyLayoutSettingsOfProfile())
-			.catch(error => this.logService.error('[named layouts] Failed to apply the settings of the active layout in the profile.', error))));
+		this._register(this.onDidChangeLayouts(() => {
+			this.updateLayoutSettings();
+			this.updateReadonlySettingsFiles();
+		}));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
+			this.updateReadonlySettingsFiles();
+			this.sequencer.queue(() => this.reapplyLayoutSettingsOfProfile())
+				.catch(error => this.logService.error('[named layouts] Failed to apply the settings of the active layout in the profile.', error));
+		}));
+		this.updateReadonlySettingsFiles();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NAMED_LAYOUTS_ENABLED_SETTING) && !this.isEnabled()) {
 				this.queueSwitchToDefaultLayout(true);
@@ -682,8 +714,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 * Returns the settings file of the given named layout. Like the layouts, it is stored in the profile.
 	 */
 	private getSettingsResource(layoutId: string): URI {
-		// The identifiers of contributed layouts contain a slash
-		return joinPath(this.userDataProfileService.currentProfile.location, NamedLayoutsService.SETTINGS_FOLDER_NAME, layoutId.replace(/[^\w.-]/g, '_'), 'settings.json');
+		return joinPath(this.userDataProfileService.currentProfile.location, NamedLayoutsService.SETTINGS_FOLDER_NAME, toSettingsFolderName(layoutId), 'settings.json');
 	}
 
 	private getLayoutSettings(layoutId: string): ILayoutSettings {
@@ -771,6 +802,30 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		const storedLayout = this.getStoredLayout(this.activeLayoutId);
 		if (storedLayout && !isEqual(this.configurationService.layoutSettings?.resource, this.getSettingsResource(storedLayout.id))) {
 			await this.applyLayoutSettings(storedLayout);
+		}
+	}
+
+	/**
+	 * Makes editors show the settings files of locked layouts read-only, so that their settings cannot be changed.
+	 */
+	private updateReadonlySettingsFiles(): void {
+		const readonlySettingsFiles = new ResourceMap<string>();
+		for (const layout of this.layouts) {
+			if (layout.locked) {
+				readonlySettingsFiles.set(this.getSettingsResource(layout.id), layout.name);
+			}
+		}
+
+		const writableSettingsFiles = [...this.readonlySettingsFiles.keys()].filter(resource => !readonlySettingsFiles.has(resource));
+		const changedSettingsFiles = [...readonlySettingsFiles].filter(([resource, name]) => this.readonlySettingsFiles.get(resource) !== name);
+		this.readonlySettingsFiles = readonlySettingsFiles;
+
+		const onError = (error: unknown) => this.logService.error('[named layouts] Failed to update the read-only state of the settings files of locked layouts.', error);
+		if (writableSettingsFiles.length) {
+			this.filesConfigurationService.updateReadonly(writableSettingsFiles, 'reset').catch(onError);
+		}
+		for (const [resource, name] of changedSettingsFiles) {
+			this.filesConfigurationService.updateReadonly(resource, new MarkdownString(localize('lockedLayoutSettingsReadonly', "The layout '{0}' is locked. Unlock the layout to change its settings.", name))).catch(onError);
 		}
 	}
 

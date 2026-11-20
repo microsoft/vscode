@@ -321,6 +321,33 @@ suite('ViewContainerModel', () => {
 		});
 	});
 
+	test('views without an order return to the sequence in which they were added when their stored order is removed', () => {
+		// eslint-disable-next-line local/code-no-any-casts
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1') };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2') };
+		ViewsRegistry.registerViews([view1, view2], container);
+		const storageKey = getViewsStateStorageId('test.state');
+		const getViews = () => ({ model: testObject.visibleViewDescriptors.map(({ id }) => id), events: target.elements.map(({ id }) => id), defaultOrder: testObject.allViewDescriptorsInDefaultOrder.map(({ id }) => id) });
+
+		// For example switching to a layout that orders the views differently
+		storageService.store(storageKey, JSON.stringify([
+			{ id: 'view1', isHidden: false, order: 1 },
+			{ id: 'view2', isHidden: false, order: 0 }
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		const afterSwitch = getViews();
+
+		// For example switching back to a layout that never stored the state of this view container
+		storageService.remove(storageKey, StorageScope.PROFILE);
+
+		assert.deepStrictEqual({ afterSwitch, afterSwitchBack: getViews() }, {
+			afterSwitch: { model: ['view2', 'view1'], events: ['view2', 'view1'], defaultOrder: ['view1', 'view2'] },
+			afterSwitchBack: { model: ['view1', 'view2'], events: ['view1', 'view2'], defaultOrder: ['view1', 'view2'] }
+		});
+	});
+
 	test('uses the stored order of a view that was not registered while the stored order changed', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);

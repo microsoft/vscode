@@ -121,8 +121,9 @@ suite('NamedLayoutParticipants', () => {
 		const openEditors = createView('openEditors', 3, true);
 		const chatView = createView('chatView', 1);
 		const sessions = createView('sessions', 2);
-		const createModel = (viewDescriptors: IViewDescriptor[], visibleIds: string[]) => new class extends mock<IViewContainerModel>() {
+		const createModel = (viewDescriptors: IViewDescriptor[], visibleIds: string[], defaultOrder = viewDescriptors) => new class extends mock<IViewContainerModel>() {
 			override readonly allViewDescriptors = viewDescriptors;
+			override readonly allViewDescriptorsInDefaultOrder = defaultOrder;
 			override readonly activeViewDescriptors = viewDescriptors;
 			override isVisible(id: string) { return visibleIds.includes(id); }
 		};
@@ -131,7 +132,7 @@ suite('NamedLayoutParticipants', () => {
 		const models = new Map<ViewContainer, IViewContainerModel>([
 			[explorer, createModel([outline, timeline, openEditors], [outline.id])],
 			[search, createModel([], [])],
-			[chat, createModel([sessions, chatView], [chatView.id, sessions.id])]
+			[chat, createModel([sessions, chatView], [chatView.id, sessions.id], [chatView, sessions])]
 		]);
 		const viewDescriptorService = new class extends mock<IViewDescriptorService>() {
 			override getViewContainersByLocation(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? [explorer, search, chat] : []; }

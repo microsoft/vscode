@@ -8,8 +8,11 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
@@ -25,6 +28,7 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { TestLifecycleService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ILayoutSettings } from '../../../configuration/common/configuration.js';
+import { IFilesConfigurationService } from '../../../filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
@@ -163,6 +167,7 @@ suite('NamedLayoutsService', () => {
 
 	let configurationService: TestLayoutConfigurationService;
 	let fileService: IFileService;
+	let readonlyFiles: ResourceMap<string>;
 	let storageService: TestStorageService;
 	let instantiationService: TestInstantiationService;
 
@@ -177,6 +182,18 @@ suite('NamedLayoutsService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
+		readonlyFiles = new ResourceMap<string>();
+		instantiationService.stub(IFilesConfigurationService, new class extends mock<IFilesConfigurationService>() {
+			override async updateReadonly(resources: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
+				for (const resource of Array.isArray(resources) ? resources : [resources]) {
+					if (readonly === 'reset') {
+						readonlyFiles.delete(resource);
+					} else if (typeof readonly === 'object') {
+						readonlyFiles.set(resource, readonly.value);
+					}
+				}
+			}
+		}());
 		instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(toUserDataProfile('default', 'Default', PROFILE_LOCATION, joinPath(PROFILE_LOCATION, 'cache')))));
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
@@ -454,6 +471,24 @@ suite('NamedLayoutsService', () => {
 		assert.deepStrictEqual(JSON.parse((await fileService.readFile(settingsFile)).value.toString()), { [LAYOUT_SETTING]: 'contributedValue' });
 	});
 
+	test('layouts with different identifiers have different settings files, also on file systems that ignore case', async () => {
+		const testObject = createService(new TestParticipant());
+		const ids = ['focus/one', 'focus_one', 'Focus_one'];
+		testObject.setContributedLayouts(ids.map(id => ({ extensionId: 'publisher.extension', extensionName: 'Extension', id, label: id, definition: { settings: { [LAYOUT_SETTING]: id } } })));
+		const settings: { folder: string | undefined; setting: unknown }[] = [];
+		for (const id of [...ids, ids[0]]) {
+			await testObject.switchLayout(testObject.layouts.find(layout => layout.contribution?.id === id)!);
+			settings.push({ folder: configurationService.layoutSettings!.resource.path.split('/').at(-2), setting: configurationService.getValue(LAYOUT_SETTING) });
+		}
+
+		assert.deepStrictEqual(settings, [
+			{ folder: 'publisher.extension_002ffocus_002fone', setting: 'focus/one' },
+			{ folder: 'publisher.extension_002ffocus_005fone', setting: 'focus_one' },
+			{ folder: 'publisher.extension_002f_0046ocus_005fone', setting: 'Focus_one' },
+			{ folder: 'publisher.extension_002ffocus_002fone', setting: 'focus/one' }
+		]);
+	});
+
 	test('changes to a locked layout are not saved and can be reverted, unlocking keeps them', async () => {
 		const participant = new TestParticipant();
 		const testObject = createService(participant);
@@ -490,6 +525,21 @@ suite('NamedLayoutsService', () => {
 			afterSwitchBack: 'debug state',
 			afterUnlock: { locked: undefined, settingsLocked: false, state: 'changed state' },
 			lockDefaultError: 'The default layout cannot be locked.'
+		});
+	});
+
+	test('editors show the settings file of a locked layout read-only', async () => {
+		const testObject = createService(new TestParticipant());
+		const layout = await testObject.createLayout('Debug');
+		const settingsFile = configurationService.layoutSettings!.resource;
+
+		await testObject.setLayoutLocked(layout, true);
+		const locked = readonlyFiles.get(settingsFile);
+		await testObject.setLayoutLocked(testObject.activeLayout, false);
+
+		assert.deepStrictEqual({ locked, unlocked: readonlyFiles.has(settingsFile) }, {
+			locked: `The layout 'Debug' is locked. Unlock the layout to change its settings.`,
+			unlocked: false
 		});
 	});
 

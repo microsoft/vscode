@@ -16,7 +16,6 @@ import { IWorkbenchLayoutService, isHorizontal, PanelAlignment, Parts, positionF
 import { ISharedLayoutStateService } from '../../../services/layout/common/sharedLayoutState.js';
 import { INamedLayoutDefinition, INamedLayoutEditorGroupDefinition, INamedLayoutPanelDefinition, INamedLayoutPartDefinition, INamedLayoutParticipant, INamedLayoutViewContainerDefinition, INamedLayoutViewDefinition, NamedLayoutViewContainerLocation } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { compareViewDescriptorsByDefaultOrder } from '../../../services/views/common/viewContainerModel.js';
 
 interface IPaneCompositePartLayoutState {
 	readonly visible: boolean;
@@ -445,7 +444,7 @@ export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
 		// Views moved into another view container cannot be described
 		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
 		const viewDescriptors = model.allViewDescriptors.filter(viewDescriptor => this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id) === viewContainer);
-		const hasDefaultOrder = arrayEquals(viewDescriptors, [...viewDescriptors].sort(compareViewDescriptorsByDefaultOrder));
+		const hasDefaultOrder = arrayEquals(viewDescriptors, model.allViewDescriptorsInDefaultOrder.filter(viewDescriptor => viewDescriptors.includes(viewDescriptor)));
 
 		viewDescriptors.forEach((viewDescriptor, index) => {
 			// The visibility of a view whose when clause does not match is not known

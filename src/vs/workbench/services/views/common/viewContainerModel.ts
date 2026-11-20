@@ -35,13 +35,6 @@ function compareViewGroups(a: IViewDescriptor, b: IViewDescriptor): number {
 	return a.group < b.group ? -1 : 1;
 }
 
-/**
- * Compares views like a view container orders its views while their order was not changed.
- */
-export function compareViewDescriptorsByDefaultOrder(a: IViewDescriptor, b: IViewDescriptor): number {
-	return compareViewOrders(a.order, b.order) || compareViewGroups(a, b);
-}
-
 interface IStoredWorkspaceViewState {
 	collapsed: boolean;
 	isHidden: boolean;
@@ -355,6 +348,12 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private viewDescriptorItems: IViewDescriptorItem[] = [];
 	private viewDescriptorsState: ViewDescriptorsState;
 
+	/**
+	 * The sequence in which the views were first added. Views without a distinguishing
+	 * order and group are shown in this sequence while their order was not changed.
+	 */
+	private readonly addedSequence = new Map<string, number>();
+
 	// Container Info
 	private _title!: string;
 	get title(): string { return this._title; }
@@ -370,6 +369,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 
 	// All View Descriptors
 	get allViewDescriptors(): ReadonlyArray<IViewDescriptor> { return this.viewDescriptorItems.map(item => item.viewDescriptor); }
+	get allViewDescriptorsInDefaultOrder(): ReadonlyArray<IViewDescriptor> {
+		return this.viewDescriptorItems.map(item => item.viewDescriptor).sort((a, b) => compareViewOrders(a.order, b.order) || compareViewGroups(a, b) || this.compareAddedSequence(a, b));
+	}
 	private _onDidChangeAllViewDescriptors = this._register(new Emitter<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>());
 	readonly onDidChangeAllViewDescriptors = this._onDidChangeAllViewDescriptors.event;
 
@@ -616,6 +618,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		const addedItems: IViewDescriptorItem[] = [];
 		for (const addedViewDescriptorState of addedViewDescriptorStates) {
 			const viewDescriptor = addedViewDescriptorState.viewDescriptor;
+			if (!this.addedSequence.has(viewDescriptor.id)) {
+				this.addedSequence.set(viewDescriptor.id, this.addedSequence.size);
+			}
 
 			if (viewDescriptor.when) {
 				for (const key of viewDescriptor.when.keys()) {
@@ -824,7 +829,11 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			return 0;
 		}
 
-		return compareViewOrders(this.getViewOrder(a), this.getViewOrder(b)) || compareViewGroups(a.viewDescriptor, b.viewDescriptor);
+		return compareViewOrders(this.getViewOrder(a), this.getViewOrder(b)) || compareViewGroups(a.viewDescriptor, b.viewDescriptor) || this.compareAddedSequence(a.viewDescriptor, b.viewDescriptor);
+	}
+
+	private compareAddedSequence(a: IViewDescriptor, b: IViewDescriptor): number {
+		return (this.addedSequence.get(a.id) ?? Number.MAX_VALUE) - (this.addedSequence.get(b.id) ?? Number.MAX_VALUE);
 	}
 
 	private getViewOrder(viewDescriptorItem: IViewDescriptorItem): number | undefined {
