@@ -202,7 +202,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const active = model.activePrompt.read(reader);
 			const pinned = model.activePinned.read(reader);
 			if (active && pinned) {
-				sticky.update(active.text, active.index, model.olderHistoryLoader.read(reader) ? undefined : active.total);
+				sticky.update(active.text, active.index, active.total);
 			}
 			sticky.setVisible(!!active && pinned);
 		}));

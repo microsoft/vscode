@@ -21,6 +21,7 @@ import { getChatRequestText } from '../chatRequestText.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
@@ -48,7 +49,7 @@ export interface IPromptScrollLayout {
 	/** Each prompt's top offset in the rail's estimated content space. */
 	readonly marks: readonly { readonly requestId: string; readonly top: number }[];
 	/** Total content height in the estimated space, matching `marks`. */
-	readonly total: number;
+	readonly total: number | undefined;
 	/** Current scroll offset (px, the transcript's real scroll space) — drives the rail's own scrollbar thumb. */
 	readonly scrollTop: number;
 	/** Full scrollable content height (px, the transcript's real scroll space). */
@@ -149,6 +150,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/** The chat session resource, tracked reactively so the editing session can be resolved. */
 	private readonly _sessionResource: IObservable<URI | undefined>;
+	private readonly _activeModel: IObservable<IChatModel | undefined>;
 	readonly olderHistoryLoader: IObservable<(() => Promise<void>) | undefined>;
 
 	/** The chat editing session for this chat, if one exists (local or agent-host). */
@@ -232,7 +234,9 @@ export class PromptTimelineModel extends Disposable {
 		}
 		const prompts = this._prompts.read(reader);
 		const index = prompts.findIndex(p => p.requestId === id);
-		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: prompts.length };
+		const model = this._activeModel.read(reader);
+		const partial = model?.olderHistoryCursor?.read(reader) !== undefined || model?.olderHistoryUnavailable?.read(reader);
+		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: partial ? undefined : prompts.length };
 	});
 	get activePrompt(): IObservable<IActivePrompt | undefined> { return this._activePrompt; }
 
@@ -260,9 +264,9 @@ export class PromptTimelineModel extends Disposable {
 		// Assigned here (not as a field initializer) because it reads `this.widget`,
 		// which parameter properties only assign once the constructor body runs.
 		this._sessionResource = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel?.sessionResource);
-		const activeModel = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel?.model);
+		this._activeModel = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel?.model);
 		this.olderHistoryLoader = derived(this, reader => {
-			const model = activeModel.read(reader);
+			const model = this._activeModel.read(reader);
 			return model?.olderHistoryCursor?.read(reader) !== undefined ? model.loadOlderHistory : undefined;
 		});
 		this._register(this.widget.onDidChangeViewModel(() => this._bindViewModel()));

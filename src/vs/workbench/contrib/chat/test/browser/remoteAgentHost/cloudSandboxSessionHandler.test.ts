@@ -286,8 +286,12 @@ suite('CloudSandboxSessionHandler', () => {
 		cursors.push(session.olderHistoryCursor?.get());
 		handler.clearLiveProvider();
 		await session.loadOlderHistory!();
-		assert.deepStrictEqual({ cursors: [...cursors, session.olderHistoryCursor?.get()], unavailable: session.olderHistoryUnavailable?.get(), loads },
-			{ cursors: [undefined, 'older', 'oldest', undefined], unavailable: true, loads: 1 });
+		cursors.push(session.olderHistoryCursor?.get());
+		const suspended = session.olderHistoryUnavailable?.get();
+		handler.setLiveProvider({ provideChatSessionContent: async () => store.add(new LiveSession()) });
+		await waitForState(session.isInputBlocked!, blocked => !blocked);
+		assert.deepStrictEqual({ cursors, suspended, reconnected: session.olderHistoryUnavailable?.get(), loads },
+			{ cursors: [undefined, 'older', 'oldest', undefined], suspended: true, reconnected: false, loads: 1 });
 	});
 
 	test('publishes a refreshed recorded title without replacing the open conversation', async () => {
@@ -557,10 +561,12 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({
 			prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
 			warnings: session.history.flatMap(item => item.type === 'response' ? item.parts.filter(part => part.kind === 'warning').map(part => part.content.value) : []),
+			incomplete: session.olderHistoryUnavailable?.get(),
 			readOnly: session.isReadOnly?.get(), status: session.historyStatus?.get(),
 		}, {
 			prompts: ['custom-chat:/opaque-main'],
 			warnings: ['This conversation is incomplete. Its recorded history ends mid-response, so the last exchange may be missing.'],
+			incomplete: true,
 			readOnly: true, status: undefined,
 		});
 	});

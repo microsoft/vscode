@@ -145,8 +145,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 				const readOnly = source.isReadOnly?.read(reader) ?? false;
 				const blocked = !live || (source.isInputBlocked?.read(reader) ?? false);
 				const backgroundShellCount = source.backgroundShellCount?.read(reader);
-				const olderHistoryCursor = source.loadOlderHistory && source.olderHistoryCursor?.read(reader);
-				const unavailable = source.olderHistoryUnavailable?.read(reader) ?? false;
+				const cursor = source.olderHistoryCursor?.read(reader);
+				const unavailable = !!source.olderHistoryUnavailable?.read(reader) || (cursor !== undefined && !source.loadOlderHistory);
 				const canvasContext = source.canvasContext?.read(reader);
 				if (live && (previousProgress !== progress || previousComplete !== complete)) {
 					this._invalidateHistory();
@@ -159,7 +159,7 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 					this.isReadOnly.set(readOnly, tx);
 					this.isInputBlocked.set(blocked, tx);
 					this.backgroundShellCount.set(backgroundShellCount, tx);
-					this.olderHistoryCursor.set(olderHistoryCursor, tx);
+					this.olderHistoryCursor.set(source.loadOlderHistory ? cursor : undefined, tx);
 					this.olderHistoryUnavailable.set(unavailable, tx);
 					this.canvasContext.set(canvasContext, tx);
 				});
