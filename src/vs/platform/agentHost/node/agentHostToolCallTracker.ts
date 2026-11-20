@@ -16,7 +16,7 @@ import { IAgentHostTelemetryReporter, type AgentHostExecutorClientConnectionStat
 import { IAgentHostTurnTracker, type AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
-import type { IToolCallSource } from './shared/delegatedMessageAttribution.js';
+import type { IOriginatingTrigger, IToolCallSource } from './shared/delegatedMessageAttribution.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
 
@@ -43,6 +43,7 @@ export function deriveToolInvokedResult(result: ToolCallResult): ToolInvokedResu
 
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
 interface IToolCallTiming {
+	readonly originatingTrigger?: IOriginatingTrigger;
 	readonly providerChat: string;
 	readonly toolCallId: string;
 	readonly ambiguousStart: boolean;
@@ -109,6 +110,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		const resolvedModel = this._turnModels.get(this._turnKey(session, turnId));
 		const key = this._key(session, toolCallId);
 		this._toolCalls.set(key, {
+			originatingTrigger: this._turnTracker.getOriginatingTrigger(session, turnId),
 			providerChat,
 			toolCallId,
 			ambiguousStart: this._toolCalls.has(key),
@@ -138,10 +140,15 @@ export class AgentHostToolCallTracker extends Disposable {
 				if (source || call.ambiguousStart || call.toolId !== toolName) {
 					return undefined;
 				}
-				source = { session: call.owner, chat: call.session, turnId: call.turnId };
+				source = { session: call.owner, chat: call.session, turnId: call.turnId, originatingTrigger: call.originatingTrigger };
 			}
 		}
 		return source;
+	}
+
+	getSpawningTrigger(parentChat: string, toolCallId: string): IOriginatingTrigger | undefined {
+		const call = this._toolCalls.get(this._key(parentChat, toolCallId));
+		return call && !call.ambiguousStart ? call.originatingTrigger : undefined;
 	}
 
 	updateTurnModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void {

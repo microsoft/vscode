@@ -12,6 +12,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { observableValue } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -145,9 +146,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(ready = true, workingDirectories?: string[], isEphemeral = false): void {
+	function setupSession(ready = true, workingDirectories?: string[], isEphemeral = false, resource = sessionKey): void {
 		stateManager.createSession({
-			resource: sessionKey,
+			resource,
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
@@ -155,10 +156,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			modifiedAt: new Date().toISOString(),
 			...(workingDirectories ? { workingDirectories } : {}),
 			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
-			defaultChat: buildDefaultChatUri(sessionKey),
+			defaultChat: buildDefaultChatUri(resource),
 		});
 		if (ready) {
-			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+			stateManager.dispatchServerAction(resource, { type: ActionType.SessionReady });
 		}
 	}
 
@@ -1177,6 +1178,30 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
+	test('a steering successor inherits a confirmed origin or starts a fresh occurrence on runtime delivery', () => {
+		const session = AgentSession.uri('mock', generateUuid()).toString();
+		const chat = buildDefaultChatUri(session);
+		setupSession(true, undefined, false, session);
+		for (const delivery of ['steering', 'idle', 'queued', 'unknown'] as const) {
+			const first = generateUuid();
+			const next = generateUuid();
+			startHostTurn(first, { text: 'scheduled work', origin: { kind: MessageKind.Automation } }, chat);
+			const message: Message = { text: 'follow-up', origin: { kind: MessageKind.User } };
+			applyClientAction({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'pending', message }, chat);
+			fire(chatTurnComplete(first, 1), chat);
+			Object.assign(agent, { getTurnInteraction: (_chat: URI, id: string) => id === next ? {
+				sdkSessionId: 'sdk', interactionIds: [], interactionIdsTruncated: false, steeringDelivery: delivery,
+				originalTurnId: delivery === 'steering' ? first : delivery === 'unknown' ? undefined : next,
+			} : undefined });
+			fire({ type: ActionType.ChatTurnStarted, turnId: next, startedAt: new Date().toISOString(), message, queuedMessageId: 'pending' }, chat);
+			fire(chatTurnComplete(next, 1), chat);
+			const row = telemetry.events.find(event => event.eventName === 'agentHost.turnCompleted' && event.data?.turnId === next)?.data;
+			assert.ok(row);
+			assert.deepStrictEqual([row.originatingTriggerId, row.originatingTriggerKind], delivery === 'steering'
+				? [first, 'automation'] : delivery === 'unknown' ? [undefined, undefined] : [next, 'user']);
+		}
+	});
+
 	test('request token availability is independent of success, failure, cancellation and missing snapshots', () => {
 		setupSession();
 		const observed: IAgentTurnTokenUsage = {
@@ -1551,6 +1576,29 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [
 			{ isSubagentSession: true, timeToFirstEdit: 400 },
 			{ isSubagentSession: false, timeToFirstEdit: undefined },
+		]);
+	});
+
+	test('a background child keeps its spawning trigger after its parent ends; reuse needs fresh evidence', () => {
+		const session = AgentSession.uri('mock', generateUuid()).toString();
+		const chat = buildDefaultChatUri(session);
+		setupSession(true, undefined, false, session);
+		const first = generateUuid();
+		const second = generateUuid();
+		const child = buildSubagentChatUri(session, 'spawn');
+		startTurn(first, 'Delegate', undefined, chat);
+		stateManager.addChat(session, child, creationTimeChatStorageResource(session, child, chat));
+		fire(chatToolCallStart(first, 'spawn', 'task', 'Task'), chat);
+		agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(chat), toolCallId: 'spawn', agentName: 'explore', agentDisplayName: 'Explore' });
+		const initial = stateManager.getActiveTurnId(child)!;
+		fire(chatTurnComplete(first, 1), chat);
+		startTurn(second, 'Unrelated', undefined, chat);
+		fire(chatTurnComplete(initial, 1), child);
+		agent.fireProgress({ kind: 'subagent_resumed', chat: URI.parse(chat), toolCallId: 'spawn' });
+		const reused = stateManager.getActiveTurnId(child)!;
+		fire(chatTurnComplete(reused, 1), child);
+		assert.deepStrictEqual(telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted' && e.data?.isSubagentSession).map(e => [e.data?.turnId, e.data?.originatingTriggerId]), [
+			[initial, first], [reused, undefined],
 		]);
 	});
 

@@ -36140,12 +36140,15 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('delegation admission attributes a queued replacement to its worker, not the active parent or original sender', async () => {
+		async function createDelegationHarness() {
 			const rows: ITelemetryData[] = [];
+			const completions: ITelemetryData[] = [];
 			const telemetry = new class extends NullTelemetryServiceShape {
 				override publicLog2(name?: string, data?: ITelemetryData): void {
-					if (name === 'agentHost.userMessageSent' && data?.messageActorKind === MessageKind.Agent) {
+					if (name === 'agentHost.userMessageSent' && data) {
 						rows.push(data);
+					} else if (name === 'agentHost.turnCompleted' && data) {
+						completions.push(data);
 					}
 				}
 			};
@@ -36155,6 +36158,52 @@ suite('AgentService (node dispatcher)', () => {
 			const state = getStateManager(svc);
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const parent = buildDefaultChatUri(session);
+			return { rows, completions, svc, host, state, session, parent };
+		}
+
+		test('propagates the initiating request through a separate session and queued reply on admission and completion', async () => {
+			const { svc, host, state, session, parent, rows, completions } = await createDelegationHarness();
+			const first = `request_${generateUuid()}`;
+			const busy = generateUuid();
+			const followUp = generateUuid();
+			const startTool = (chat: string, turnId: string, name: string, callId: string) => copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(chat),
+				action: { type: ActionType.ChatToolCallStart, toolName: name, displayName: name, toolCallId: callId, turnId },
+			});
+			const complete = (chat: string, turnId: string) => copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(chat), action: chatTurnComplete(turnId, 1) });
+			await svc.dispatchAction(parent, chatTurnStarted(first, 'Review this'), 'client', 1);
+			startTool(parent, first, SessionServerToolName.CreateSession, 'create');
+			await host.executeTool(parent, SessionServerToolName.CreateSession, { relationship: 'independent', title: 'Review', prompt: 'Review' }, 'create');
+			const target = state.getSessionUris().find(uri => uri !== session.toString())!;
+			const peer = state.getDefaultChat(target)!;
+			const peerTurn = state.getActiveTurnId(peer)!;
+			complete(parent, first);
+			await svc.dispatchAction(parent, chatTurnStarted(busy, 'Independent task'), 'client', 2);
+			startTool(peer, peerTurn, SessionServerToolName.SendMessage, 'reply');
+			await host.executeTool(peer, SessionServerToolName.SendMessage, { session: buildOpenSessionLinkUri(session.toString()), message: 'Review result' }, 'reply');
+			complete(peer, peerTurn);
+			complete(parent, busy);
+			const reply = state.getActiveTurnId(parent)!;
+			complete(parent, reply);
+			await svc.dispatchAction(peer, chatTurnStarted(followUp, 'New question'), 'client', 3);
+			complete(peer, followUp);
+
+			const project = (row: ITelemetryData) => [row.turnId, row.originatingTriggerId, row.originatingTriggerSessionId, row.originatingTriggerChatSessionId, row.originatingTriggerKind];
+			const root = (turnId: string, id: string, owner: string, chat: string) => [turnId, id, AgentSession.id(owner), getTelemetryChatSessionId(chat), 'user'];
+			const original = root(first, first, session.toString(), parent);
+			const delegated = root(peerTurn, first, session.toString(), parent);
+			const independent = root(busy, busy, session.toString(), parent);
+			const returned = root(reply, first, session.toString(), parent);
+			const follow = root(followUp, followUp, target, peer);
+			assert.deepStrictEqual({ admissions: rows.map(project), completions: completions.map(project), replySender: rows.find(row => row.turnId === reply)?.sourceTurnId }, {
+				admissions: [original, delegated, independent, returned, follow],
+				completions: [original, delegated, independent, returned, follow],
+				replySender: peerTurn,
+			});
+		});
+
+		test('delegation admission attributes a queued replacement to its worker, not the active parent or original sender', async () => {
+			const { rows, svc, host, state, session, parent } = await createDelegationHarness();
 			const first = generateUuid();
 			const successor = generateUuid();
 			const toolStart = (toolName: string, toolCallId: string, turnId: string, parentToolCallId?: string) => copilotAgent.fireProgress({
@@ -36179,6 +36228,7 @@ suite('AgentService (node dispatcher)', () => {
 			toolStart(SessionServerToolName.CreateSession, 'pending-approval', first);
 			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(parent), action: chatTurnComplete(first, 1) });
 			await svc.dispatchAction(parent, chatTurnStarted(successor, 'Independent work'), 'client', 2);
+			toolStart('task', 'spawn', successor);
 			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parent), toolCallId: 'spawn', agentName: 'explore', agentDisplayName: 'Explore' });
 			const worker = state.getSessionState(session.toString())?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
 			assert.ok(worker);
@@ -36188,10 +36238,10 @@ suite('AgentService (node dispatcher)', () => {
 			await send('replace', { operation: 'replace', expectedRevision: 1, messageId, message: 'Worker revision' });
 			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(targetChat), action: chatTurnComplete(targetTurn, 1) });
 			await host.executeTool(parent, SessionServerToolName.CreateSession, { relationship: 'independent', title: 'Late approval', prompt: 'Start' }, 'pending-approval');
-			assert.deepStrictEqual(rows.map(row => [row.source, row.sourceAgentSessionId, row.sourceChatSessionId, row.sourceTurnId, row.delegationMessageId, row.delegationMessageRevision]), [
-				['direct', AgentSession.id(session), getTelemetryChatSessionId(parent), first, undefined, undefined],
-				['queued', AgentSession.id(session), getTelemetryChatSessionId(worker.resource), workerTurn, messageId, 2],
-				['direct', undefined, undefined, undefined, undefined, undefined],
+			assert.deepStrictEqual(rows.filter(row => row.messageActorKind === MessageKind.Agent).map(row => [row.source, row.sourceAgentSessionId, row.sourceChatSessionId, row.sourceTurnId, row.delegationMessageId, row.delegationMessageRevision, row.originatingTriggerId]), [
+				['direct', AgentSession.id(session), getTelemetryChatSessionId(parent), first, undefined, undefined, first],
+				['queued', AgentSession.id(session), getTelemetryChatSessionId(worker.resource), workerTurn, messageId, 2, successor],
+				['direct', undefined, undefined, undefined, undefined, undefined, undefined],
 			]);
 		});
 
