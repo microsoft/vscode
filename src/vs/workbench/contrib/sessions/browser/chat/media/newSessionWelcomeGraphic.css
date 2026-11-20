@@ -78,6 +78,12 @@
 	fill: var(--welcome-graphic-fill);
 }
 
+/* Without a fill in high contrast, a border keeps the copies of a project apart. */
+.monaco-workbench:is(.hc-black, .hc-light) .new-session-welcome-graphic .welcome-graphic-copy {
+	stroke: var(--welcome-graphic-stroke);
+	vector-effect: non-scaling-stroke;
+}
+
 .new-session-welcome-graphic .welcome-graphic-file-icon {
 	stroke: var(--welcome-graphic-muted);
 }
