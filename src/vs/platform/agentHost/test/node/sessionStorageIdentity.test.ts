@@ -1435,9 +1435,14 @@ suite('Session storage identity compatibility', () => {
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, target,
 			));
 			const first = createService(db);
-			registerTestAgentProvider(first, store.add(new class extends MockAgent {
-				override async createChat() { return { provisional: true }; }
-			}('copilotcli')));
+			const firstAgent = store.add(new MockAgent('copilotcli'));
+			const originalCreateChat = firstAgent.chats.createChat;
+			const createChatStub = stub(firstAgent.chats, 'createChat').callsFake(async (chatUri, context, options) => ({
+				...(await originalCreateChat(chatUri, context, options)),
+				provisional: true,
+			}));
+			store.add(toDisposable(() => createChatStub.restore()));
+			registerTestAgentProvider(first, firstAgent);
 			const targetSession = URI.parse('ahp-session:/recreated-provisional');
 			await first.createSession({ legacyChatUris: false, provider: 'copilotcli', session: targetSession });
 			const firstDefault = getTestAgentStateManager(first).getSessionState(targetSession.toString())!.defaultChat!;
