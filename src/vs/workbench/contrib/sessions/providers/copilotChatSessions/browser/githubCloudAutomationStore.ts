@@ -20,7 +20,7 @@ import { IGitHubAccountClient } from '../../../../../../platform/github/common/a
 import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ListModelsResponse } from '../../../../../../platform/github/common/missionControl/models.js';
-import { Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { ITasksClient, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../chat/common/automations/automationService.js';
@@ -53,6 +53,11 @@ export interface ICloudAutomationHistoryEntry {
 	readonly task: Task;
 }
 
+export interface ICloudAutomationTaskAccess {
+	readonly isKnownRun: (id: string) => boolean;
+	readonly withTasks: <T>(token: CancellationToken, operation: (tasks: Pick<ITasksClient, 'get' | 'getEvents' | 'steer'>, token: CancellationToken) => Promise<T>) => Promise<T>;
+}
+
 /** Provider-local coordination. Construction and account changes never initiate network requests. */
 export class GitHubCloudAutomationStore extends Disposable {
 	private readonly cachedEntries = observableValue<readonly ICloudAutomationEntry[]>(this, []);
@@ -79,6 +84,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	readonly toolCatalog: IObservable<CloudAutomationToolCatalog | undefined> = this.cachedTools;
 	readonly triggerCatalog = observableValue<AutomationTriggerCatalog | undefined>(this, undefined);
 	readonly modelCatalog = observableValue<CloudAutomationModelCatalog | undefined>(this, undefined);
+	readonly taskAccess = observableValue<ICloudAutomationTaskAccess | undefined>(this, undefined);
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
@@ -714,7 +720,26 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.refreshPromise = undefined;
 		this.operations = new Sequencer();
 		const account = this.defaultAccountService.currentDefaultAccount;
+		const lifetime = this.lifetime.token;
 		transaction(tx => {
+			this.taskAccess.set(account && !account.enterprise ? {
+				isKnownRun: id => !lifetime.isCancellationRequested && this.cachedHistory.get().some(run => run.task.id === id),
+				withTasks: async (token, operation) => {
+					const scope = new DisposableStore();
+					try {
+						const combined = CancellationToken.any([lifetime, token], scope);
+						CancellationToken.throwIfCanceled(combined);
+						const result = await this.withClient(lifetime, client => {
+							CancellationToken.throwIfCanceled(combined);
+							return operation(client.tasks, combined);
+						});
+						CancellationToken.throwIfCanceled(combined);
+						return result;
+					} finally {
+						scope.dispose();
+					}
+				},
+			} : undefined, tx);
 			this.cachedEntries.set([], tx);
 			this.cachedHistory.set([], tx);
 			this.uncertain.set(false, tx);
@@ -773,6 +798,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.clearTargetEligibility();
 		super.dispose();
 		transaction(tx => {
+			this.taskAccess.set(undefined, tx);
 			this.cachedEntries.set([], tx);
 			this.cachedHistory.set([], tx);
 			this.state.set('unavailable', tx);
