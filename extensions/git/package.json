@@ -1719,7 +1719,7 @@
         },
         {
           "command": "git.openMergeEditor",
-          "when": "false"
+          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && git.activeResourceHasMergeConflicts"
         },
         {
           "command": "git.manageUnsafeRepositories",
