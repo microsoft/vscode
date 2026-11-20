@@ -204,7 +204,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			return [];
 		}
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
-		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration, this._lines.getHiddenAreas());
 	}
 
 	private _getCustomLineHeightsForLines(fromLineNumber: number, toLineNumber: number): CustomLineHeightData[] {
@@ -214,7 +214,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 		const modelRange = new Range(fromLineNumber, 1, toLineNumber, this.model.getLineMaxColumn(toLineNumber));
 		const decorations = this.model.getCustomLineHeightsDecorationsInRange(modelRange, this._editorId);
-		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration, this._lines.getHiddenAreas());
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -481,8 +481,9 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
 						const { decorationId, lineNumber, lineHeightMultiplier } = change;
-						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeightMultiplier !== null) {
+						// Hidden model lines can map to visible lines; their height changes must not resize those lines.
+						if (lineHeightMultiplier !== null && this.coordinatesConverter.modelPositionIsVisible(new Position(lineNumber, 1))) {
+							const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
@@ -885,15 +886,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		const relativeLineNumber = lineNumber - visibleRange.startLineNumber;
 		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[relativeLineNumber];
 		const hasVariableFonts = viewportDecorationsCollection.hasVariableFonts[relativeLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations);
+		const lineFontSize = viewportDecorationsCollection.lineFontSizes[relativeLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations, lineFontSize);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations, decorationsCollection.lineFontSizes[0]);
 	}
 
-	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[], lineFontSize: string | null): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
@@ -918,7 +920,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			tabSize,
 			lineData.startVisibleColumn,
 			this._getTextDirection(lineNumber, decorations),
-			hasVariableFonts
+			hasVariableFonts,
+			lineFontSize
 		);
 	}
 

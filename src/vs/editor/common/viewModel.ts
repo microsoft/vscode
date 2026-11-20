@@ -349,6 +349,10 @@ export class ViewLineRenderingData {
 	 * Whether the line has variable fonts
 	 */
 	public readonly hasVariableFonts: boolean;
+	/**
+	 * The line font size override, or null to inherit the editor font size.
+	 */
+	public readonly lineFontSize: string | null;
 
 	constructor(
 		minColumn: number,
@@ -362,7 +366,8 @@ export class ViewLineRenderingData {
 		tabSize: number,
 		startVisibleColumn: number,
 		textDirection: TextDirection,
-		hasVariableFonts: boolean
+		hasVariableFonts: boolean,
+		lineFontSize: string | null
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -378,6 +383,7 @@ export class ViewLineRenderingData {
 		this.startVisibleColumn = startVisibleColumn;
 		this.textDirection = textDirection;
 		this.hasVariableFonts = hasVariableFonts;
+		this.lineFontSize = lineFontSize;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {

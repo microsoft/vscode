@@ -22,7 +22,7 @@ function createModelDecoration(id: string, range: Range, options: IModelDecorati
 
 suite('InlineModelDecorationsComputer', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('no decorations', () => {
 		const model = createTextModel('hello world');
@@ -35,9 +35,41 @@ suite('InlineModelDecorationsComputer', () => {
 		assert.deepStrictEqual(result, {
 			decorations: [],
 			inlineDecorations: [[]],
-			hasVariableFonts: [false]
+			hasVariableFonts: [false],
+			lineFontSizes: [null]
 		});
 		model.dispose();
+	});
+
+	test('collects whole-line font sizes relative to the viewport without overriding the first match', () => {
+		const model = store.add(createTextModel('one\ntwo\nthree\nfour\nfive\nsix'));
+		model.deltaDecorations([], [
+			{
+				range: new Range(1, 2, 4, 3),
+				options: { description: 'test-multiline-font', isWholeLine: true, fontSize: '10px' }
+			},
+			{
+				range: new Range(3, 1, 3, 4),
+				options: { description: 'test-overlapping-font', isWholeLine: true, fontSize: '12px' }
+			},
+			{
+				range: new Range(5, 1, 5, 5),
+				options: { description: 'test-whole-line-inline-font', isWholeLine: true, inlineClassName: 'test-font', fontSize: '30px' }
+			},
+			{
+				range: new Range(6, 1, 6, 3),
+				options: { description: 'test-inline-font', fontSize: '40px' }
+			}
+		]);
+		const coordinatesConverter = new IdentityCoordinatesConverter(model);
+		const context: IInlineModelDecorationsComputerContext = {
+			getModelDecorations: viewRange => model.getDecorationsInRange(viewRange)
+		};
+		const computer = new InlineModelDecorationsComputer(context, model, coordinatesConverter);
+
+		assert.deepStrictEqual(computer.getDecorations(new Range(2, 1, 6, 4), false, false).lineFontSizes, [
+			'10px', '10px', '10px', null, null
+		]);
 	});
 
 	test('inline class name decoration on a single line', () => {

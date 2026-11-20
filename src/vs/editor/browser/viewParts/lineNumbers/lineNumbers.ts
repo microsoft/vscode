@@ -25,6 +25,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
 
 	private _lineHeight!: number;
+	private _fontSize!: number;
 	private _renderLineNumbers!: RenderLineNumbersType;
 	private _renderCustomLineNumbers!: ((lineNumber: number) => string) | null;
 	private _renderFinalNewline!: 'off' | 'on' | 'dimmed';
@@ -49,6 +50,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _readConfig(): void {
 		const options = this._context.configuration.options;
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._fontSize = options.get(EditorOption.fontInfo).fontSize;
 		const lineNumbers = options.get(EditorOption.lineNumbers);
 		this._renderLineNumbers = lineNumbers.renderType;
 		this._renderCustomLineNumbers = lineNumbers.renderFn;
@@ -163,6 +165,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const modelLineNumber: number = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
+			const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
+			let fontSizeStyle = '';
+			if (lineHeight < this._lineHeight) {
+				fontSizeStyle = `font-size:${this._fontSize * lineHeight / this._lineHeight}px;`;
+			}
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
 			let extraClassNames = '';
@@ -198,7 +205,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 
 			output[lineIndex] = (
-				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
+				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;${fontSizeStyle}">${renderLineNumber}</div>`
 			);
 		}
 
