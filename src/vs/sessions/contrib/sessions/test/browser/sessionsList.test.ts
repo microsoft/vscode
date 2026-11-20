@@ -5932,7 +5932,7 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
-		for (const scenario of ['sidebar', 'transcript', 'postApproval', 'lateRequest', 'newSession', 'off', 'screenReader', 'empty', 'denied', 'automatic', 'background', 'navigated', 'removed'] as const) {
+		for (const scenario of ['sidebar', 'transcript', 'postApproval', 'lateRequest', 'newSession', 'off', 'screenReader', 'empty', 'denied', 'automatic', 'background', 'navigated', 'removed', 'undone', 'undoneBeforeTracking', 'partialUndo'] as const) {
 			test(`Inbox approvals use accessibility-aware auto-advance (${scenario})`, async () => {
 				const source = createTestSession('source', { status: SessionStatus.NeedsInput, updatedAt: new Date(2) });
 				const next = createTestSession('next', { updatedAt: new Date(1) });
@@ -5969,6 +5969,13 @@ suite('Sessions - SessionsList', () => {
 				if (scenario !== 'lateRequest') {
 					request.response!.updateContent(tool);
 				}
+				if (scenario === 'undoneBeforeTracking') {
+					request.shouldBeRemovedOnSend = { requestId: request.id };
+					request.response!.shouldBeRemovedOnSend = request.shouldBeRemovedOnSend;
+				}
+				if (scenario === 'partialUndo') {
+					request.response!.addUndoStop({ kind: 'undoStop', id: 'edit' });
+				}
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
 				const opened: string[] = [];
@@ -5987,6 +5994,10 @@ suite('Sessions - SessionsList', () => {
 				if (scenario === 'removed') {
 					chatModel.removeRequest(request.id);
 				}
+				if (scenario === 'undone' || scenario === 'partialUndo') {
+					request.shouldBeRemovedOnSend = { requestId: request.id, afterUndoStop: scenario === 'partialUndo' ? 'edit' : undefined };
+					request.response!.shouldBeRemovedOnSend = request.shouldBeRemovedOnSend;
+				}
 				if (scenario === 'sidebar') {
 					list.getItemRow({ session: source.session.resource })!.querySelector<HTMLElement>('.session-approval-button .monaco-button')!.click();
 				} else {
@@ -5999,7 +6010,7 @@ suite('Sessions - SessionsList', () => {
 				}
 				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-				const advances = scenario === 'sidebar' || scenario === 'transcript' || scenario === 'postApproval' || scenario === 'lateRequest';
+				const advances = scenario === 'sidebar' || scenario === 'transcript' || scenario === 'postApproval' || scenario === 'lateRequest' || scenario === 'partialUndo';
 				assert.deepStrictEqual({
 					commands: commands.args,
 					opened,
