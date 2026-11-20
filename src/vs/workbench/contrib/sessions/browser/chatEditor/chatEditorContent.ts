@@ -125,6 +125,8 @@ export class ChatEditorContent extends Disposable {
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
 		this._showHeader = _hostOptions?.showHeader ?? true;
 		this._header.setVisible(this._showHeader);
+		this._header.setShowsWorkingProgress(!!_hostOptions?.showTitleProgress);
+		this.element.classList.toggle('title-progress', !!_hostOptions?.showTitleProgress);
 		// It drags the editor that shows the chat (see `ChatEditorView.dragHandle`), which carries the session.
 		this._header.setDragsEditor(true);
 		this._headerContainer.appendChild(this._header.element);
