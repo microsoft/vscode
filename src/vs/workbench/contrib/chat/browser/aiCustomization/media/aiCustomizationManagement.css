@@ -4424,6 +4424,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .customization-detail-mode .editor-header,
+.ai-customization-management-editor .customization-detail-mode .migration-detail-warning,
 .ai-customization-management-editor .customization-detail-mode .editor-preview-scroll-container,
 .ai-customization-management-editor .customization-detail-mode .embedded-editor-container {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
