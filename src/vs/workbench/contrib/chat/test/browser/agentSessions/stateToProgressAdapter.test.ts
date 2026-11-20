@@ -27,7 +27,7 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
@@ -4755,6 +4755,45 @@ suite('stateToProgressAdapter', () => {
 				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
 				text: `${text} Retry`,
 			});
+		});
+
+		test('shows a failed Copilot hook as a warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookFailure = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return {
+					text: rendered.element.textContent,
+					links: rendered.element.querySelectorAll('a').length,
+					keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed,
+					mute: part.mute,
+				};
+			};
+			const crash = { type: 'preToolUse', outcome: AgentHookOutcome.Failed, source: '.github/hooks/policy.json', message: 'Error: Hook command failed with code 1 [x](command:evil)' };
+			const warning = (text: string) => ({
+				text,
+				links: 0,
+				keepVisibleWhenCollapsed: true,
+				mute: { commandId: 'workbench.action.chat.disableHookWarnings', tooltip: 'Disable Hook Warnings' },
+			});
+
+			assert.deepStrictEqual([
+				summarize(hookFailure(crash, true)),
+				// A hook event the client cannot label is shown with the host's text.
+				summarize(hookFailure({ ...crash, type: 'notAHook' }, true)),
+				hookFailure(crash, false),
+				hookFailure(crash),
+			], [
+				warning('The Pre-Tool Use hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1 [x](command:evil)'),
+				warning('The host text.'),
+				undefined,
+				undefined,
+			]);
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {

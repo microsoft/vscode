@@ -2353,6 +2353,13 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
+		[ChatConfiguration.HooksShowWarnings]: {
+			type: 'boolean',
+			title: nls.localize('chat.hooks.showWarnings.title', "Show Hook Warnings",),
+			markdownDescription: nls.localize('chat.hooks.showWarnings.description', "Controls whether the chat shows a warning when a hook fails to start or exits with an error. This setting is only used by the Copilot harness.",),
+			default: product.quality !== 'stable',
+			tags: ['preview', 'hooks', 'agent'],
+		},
 		[PromptsConfig.USE_CLAUDE_HOOKS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useClaudeHooks.title', "Use Claude Hooks",),
