@@ -59,6 +59,7 @@ suite('git.repositories.deleteWorktree', () => {
 
 	setup(async () => {
 		directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-delete-worktree-'));
+		directory = await fs.promises.realpath(directory);
 		root = path.join(directory, 'repository');
 		worktreePath = path.join(directory, 'feature');
 		await fs.promises.mkdir(root);
