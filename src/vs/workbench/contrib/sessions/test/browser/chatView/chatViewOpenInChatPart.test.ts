@@ -123,7 +123,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
 		// The chat part's host registers as chats open in the chat part, or later, where it is late
 		const hostReady = observableValue('hostReady', !options.lateHost);
-		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader));
+		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader) && chatPartOptions.some(o => o.enabled.read(reader)));
 		const hostInUse = () => replaced.get() ? 'part' : 'view';
 		// What asked the hosts to show something, as the seam counts it
 		const requests = observableValue('requests', 0);
@@ -270,6 +270,19 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			editorArea: { presenters: 1, chatPartOn: false, opens: ['/session-1 active true', '/session-1 side false'] },
 			chatArea: { presenters: 0, chatPartOn: true, opens: [] },
 			chatPanel: { presenters: 0, chatPartOn: false, opens: [] },
+		});
+	});
+
+	test('editorArea shows the Chat view as chatArea does, only its sessions, and chatPanel keeps its chat', () => {
+		const shows = (chatOpenIn: string) => {
+			const fixture = setup({ chatOpenIn });
+			return { registered: fixture.registered, sessionsOnly: fixture.sessionsOnly.get(), localChatHidden: fixture.localChatAvailability.hidden.get() };
+		};
+		const chatArea = shows('chatArea');
+		assert.deepStrictEqual({ editorArea: shows('editorArea'), chatArea, chatPanel: shows('chatPanel') }, {
+			editorArea: chatArea,
+			chatArea: { registered: [{ sessionsOnly: true }], sessionsOnly: true, localChatHidden: true },
+			chatPanel: { registered: [], sessionsOnly: false, localChatHidden: false },
 		});
 	});
 

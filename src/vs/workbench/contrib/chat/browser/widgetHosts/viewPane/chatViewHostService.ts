@@ -247,7 +247,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		// Remote windows and the Agents window keep the Chat view's own list: nothing there provides another
 		const providable = !environmentService.isSessionsWindow && !environmentService.remoteAuthority;
 		this.sessionsListExpected = derived(this, reader => providable && chatViewSessionsListService.enabled.read(reader) && !this.sessionsList.read(reader));
-		this.sessionsOnly = derived(this, reader => this.contributions.read(reader).some(contribution => contribution.sessionsOnly) && this._replaced.read(reader) && !this.chatViewHosts.read(reader));
+		this.sessionsOnly = derived(this, reader => this.contributions.read(reader).some(contribution => contribution.sessionsOnly) && !(this._replaced.read(reader) && this.chatViewHosts.read(reader)));
 	}
 
 	register(contribution: IChatViewContribution): IDisposable {

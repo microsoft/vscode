@@ -538,14 +538,14 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(changes, [a, b, a, undefined]);
 	});
 
-	test('the Chat view shows only its sessions while a contribution asks for it, a host replaces it, and it does not host the chat shown last', () => {
+	test('the Chat view shows only its sessions while a contribution asks for it, unless it hosts the chat shown last of a host that replaces it', () => {
 		const { service, shownSession, showView } = createService();
 		showView();
 		const localChat = URI.parse('vscode-chat-session://local/session');
 		const steps = [service.sessionsOnly.get()];
 		const first = service.register({ sessionsOnly: true });
 		const second = service.register({ sessionsOnly: true });
-		// No host replaces the Chat view
+		// No host replaces the Chat view: its chats open elsewhere
 		steps.push(service.sessionsOnly.get());
 		const host = service.register({ host: { ...upcastPartial<IChatViewHost>({}), canShow: resource => resource.scheme !== localChat.scheme } });
 		steps.push(service.sessionsOnly.get());
@@ -561,7 +561,7 @@ suite('ChatViewHostService', () => {
 		steps.push(service.sessionsOnly.get());
 		again.dispose();
 
-		assert.deepStrictEqual(steps, [false, false, true, false, true, false]);
+		assert.deepStrictEqual(steps, [false, true, true, false, true, false]);
 	});
 
 	test('what shows the chats steps: a request takes the host and supersedes a New Chat under way, a host shows a chat on its own, and a host that went changes nothing', () => {
