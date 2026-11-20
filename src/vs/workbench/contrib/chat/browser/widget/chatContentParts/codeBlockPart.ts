@@ -11,7 +11,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
@@ -502,17 +502,21 @@ export class CodeBlockPart extends Disposable {
 		if (this.requestContainerWidthObserver.value) {
 			return;
 		}
-		const observer = new dom.DisposableResizeObserver('CodeBlockPart.requestContainerWidth', entries => {
-			const entry = entries.at(-1);
+		const store = new DisposableStore();
+		const scheduledLayout = store.add(new MutableDisposable());
+		const observer = store.add(new dom.DisposableResizeObserver('CodeBlockPart.requestContainerWidth', entries => {
+			const width = entries.at(-1)?.contentRect.width;
 			// A hidden code block (e.g. in sticky scroll) reports 0, keep the last known width
-			if (!entry || entry.contentRect.width === 0 || entry.contentRect.width === this.requestContainerWidth) {
+			if (!width || width === this.requestContainerWidth) {
 				return;
 			}
-			this.requestContainerWidth = entry.contentRect.width;
-			this.layout();
-		}, dom.getWindow(this.element));
-		observer.observe(this.element);
-		this.requestContainerWidthObserver.value = observer;
+			this.requestContainerWidth = width;
+			// Lay out outside of the observer callback: with word wrap, a new width changes the
+			// editor's height, which would notify this observer again in the same frame
+			scheduledLayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.element), () => this.layout());
+		}, dom.getWindow(this.element)));
+		store.add(observer.observe(this.element));
+		this.requestContainerWidthObserver.value = store;
 	}
 
 	private getContentHeight() {
