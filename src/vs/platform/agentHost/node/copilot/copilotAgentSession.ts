@@ -86,7 +86,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type SystemNotificationResponsePart, type ToolCallContributor, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
@@ -113,6 +113,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { CopilotGrepSearchNudge } from './copilotGrepSearchNudge.js';
+import { createHookFailureNotification } from './copilotHookNotices.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
@@ -2445,6 +2446,8 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedWaitActivity: string | undefined;
 	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
 	private _unshownManagedPluginFailure: string | undefined;
+	/** Root hook failures reported while no turn could show them; shown in the next sent turn. */
+	private _unshownHookFailures: SystemNotificationResponsePart[] = [];
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
 	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
@@ -11309,6 +11312,8 @@ export class CopilotAgentSession extends Disposable {
 			} else if (!this._currentTurn.value) {
 				this._beginProviderInitiatedTurn(e);
 			}
+			// Only now does a steering or provider-initiated message have its own turn.
+			this._showUnshownHookFailures();
 			const turn = this._currentTurn.value;
 			if (turn) {
 				if (steering) {
@@ -14032,6 +14037,42 @@ export class CopilotAgentSession extends Disposable {
 		}, undefined, true);
 	}
 
+	/**
+	 * Shows a hook that could not start or crashed where it happened: in its
+	 * subagent's chat, or in the root turn. A root failure reported while no
+	 * turn can show it, such as between turns or after a cancellation, is shown
+	 * in the next sent turn instead of being lost.
+	 */
+	private _reportHookFailure(e: SessionEventPayload<'hook.end'>): void {
+		const part = createHookFailureNotification(e.data);
+		if (!part) {
+			return;
+		}
+		const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+		if (parentToolCallId) {
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: this._turnId, part }, parentToolCallId);
+			return;
+		}
+		// A failure from an unknown subagent is still shown, in the root chat.
+		const turn = this._currentTurn.value;
+		if (turn && (turn.isPending || !this._dropLateRootTurnEvents)) {
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part }, undefined, true);
+			return;
+		}
+		this._unshownHookFailures.push(part);
+	}
+
+	/** Shows root hook failures that were reported while no turn could show them. */
+	private _showUnshownHookFailures(): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		for (const part of this._unshownHookFailures.splice(0)) {
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part }, undefined, true);
+		}
+	}
+
 	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
 		const turn = this._currentTurn.value;
 		if (!turn) {
@@ -14924,6 +14965,7 @@ export class CopilotAgentSession extends Disposable {
 
 		store.add(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
+			this._reportHookFailure(e);
 		}));
 
 		store.add(wrapper.onSystemMessage(e => {
