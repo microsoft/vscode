@@ -757,9 +757,12 @@ export class ModelPickerWidget extends Disposable {
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
-		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()
-			&& this._delegate.showPicker(anchor ?? (showDetails ? this._configButton : this._nameButton) ?? anchorElement, showDetails)) {
-			return;
+		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()) {
+			const button = showDetails ? this._configButton : this._nameButton;
+			const focusTarget = anchorElement === this._domNode ? button ?? anchorElement : anchorElement;
+			if (this._delegate.showPicker(focusTarget, showDetails)) {
+				return;
+			}
 		}
 		if (this._tabbedPicker.value?.isVisible) {
 			if (options) {

@@ -479,6 +479,29 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 		});
 	}
 
+	test('closing a command-opened model sheet returns to a button that Enter and Space can reopen', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { container, instantiationService, newChatModelPicker, currentSheet, close } = createHarness(2, { cloud: true });
+			instantiationService.stub(INewChatModelPickerService, newChatModelPicker);
+			const modelPicker = store.add(instantiationService.createInstance(ModelPicker, constObservable(false)));
+			modelPicker.render(dom.append(container, dom.$('div')));
+			const button = container.querySelector<HTMLElement>('.model-picker-name')!;
+			newChatModelPicker.openModelPicker();
+
+			const reopened = [];
+			for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+				close();
+				await timeout(500);
+				const focused = mainWindow.document.activeElement;
+				focused?.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+				reopened.push({ focused: focused === button, title: currentSheet()?.querySelector('.mobile-picker-sheet-title')?.textContent });
+			}
+			close();
+			await timeout(500);
+			assert.deepStrictEqual(reopened, [{ focused: true, title: 'Configure Session' }, { focused: true, title: 'Configure Session' }]);
+		});
+	});
+
 	for (const control of ['model name', 'overflow model', 'mode', 'permissions', 'running permissions'] as const) {
 		test(`${control} pill opens Configure Session rather than a desktop popup`, async () => {
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
