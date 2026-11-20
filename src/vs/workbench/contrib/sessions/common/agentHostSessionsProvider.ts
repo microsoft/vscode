@@ -361,8 +361,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * there since the schema is still being resolved.
 	 */
 	replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void>;
-	/** Returns dynamic completions; new-session branch lists reuse the request started when their workspace was selected. */
+	/** Returns dynamic completions; concurrent new-session branch requests share an in-flight load, but later opens refresh it. */
 	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
+	/** Returns richer HEAD, branch, remote and tag descriptions for branch creation. */
+	getBranchCreationSources(sessionId: string): Promise<readonly SessionConfigValueItem[]>;
 	/** Returns the resolved config that should be sent to createSession. */
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */

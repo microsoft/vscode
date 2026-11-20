@@ -20,7 +20,7 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, Respon
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import type { IAgentHostPullRequestResolver, IResolvedPullRequest } from '../../../node/shared/pullRequestResolver.js';
-import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, formatCommitAge, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import type { Database } from '@vscode/sqlite3';
@@ -129,6 +129,7 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
+			getCurrentBranchName: async () => 'feature',
 			getHEAD: async () => headCommit ? localBranch('feature') : undefined,
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getDefaultBranch2: async () => localBranch('main'),
@@ -786,6 +787,63 @@ suite('WorktreeIsolation', () => {
 		}, {
 			withDir: { items: [{ value: 'feature', label: 'feature' }, { value: 'main', label: 'main' }] },
 			noDir: { items: [] },
+		});
+	});
+
+	test('branchCompletions includes the current branch before the first commit', async () => {
+		const gitService = createGitService();
+		gitService.getBranches = async () => [];
+		gitService.getCurrentBranchName = async () => 'newbranch';
+		const isolation = createIsolation(disposables, { gitService });
+		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot), {
+			items: [{ value: 'newbranch', label: 'newbranch' }],
+		});
+	});
+
+	test('branchCompletions excludes the detached HEAD commit from branch names', async () => {
+		const gitService = createGitService();
+		gitService.getCurrentBranch = async () => 'abc1234';
+		gitService.getCurrentBranchName = async () => undefined;
+		gitService.getBranches = async () => [];
+		gitService.getDefaultBranch = async () => undefined;
+		const isolation = createIsolation(disposables, { gitService });
+
+		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot), { items: [] });
+	});
+
+	for (const detached of [false, true]) {
+		test(`branch creation completions describe ${detached ? 'detached' : 'attached'} HEAD and preserve full refs`, async () => {
+			const gitService = createGitService();
+			gitService.getBranchCreationSources = async () => [
+				{ ref: 'HEAD', name: 'feature', kind: detached ? GitRefType.DetachedHead : GitRefType.Head, commit: 'a'.repeat(40), author: 'Author', subject: 'Commit subject', timestamp: Date.now() },
+				{ ref: 'refs/tags/v1', name: 'v1', kind: GitRefType.Tag, commit: 'b'.repeat(40), author: 'Author', subject: 'Earlier commit', timestamp: Date.now() },
+			];
+			const isolation = createIsolation(disposables, { gitService });
+			assert.deepStrictEqual(await isolation.branchCompletions(repoRoot, true), {
+				items: [
+					{ value: 'HEAD', label: detached ? 'HEAD (Detached at aaaaaaa)' : 'HEAD (feature, aaaaaaa)', description: 'Author \u2022 aaaaaaa \u2022 now \u2022 Commit subject' },
+					{ value: 'refs/tags/v1', label: 'v1', description: 'Author \u2022 bbbbbbb \u2022 now \u2022 Earlier commit' },
+				],
+			});
+		});
+	}
+
+	test('branch creation completions count completed units like the Git extension', () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.now();
+		assert.deepStrictEqual([
+			formatCommitAge(now - 6.7 * day),
+			formatCommitAge(now - 3.8 * 7 * day),
+			formatCommitAge(now - 10 * 1000),
+		], ['6 days ago', '3 weeks ago', 'now']);
+	});
+
+	test('branch creation completions describe HEAD before the first commit', async () => {
+		const gitService = createGitService();
+		gitService.getBranchCreationSources = async () => [{ ref: 'HEAD', name: 'main', kind: GitRefType.Head, unborn: true }];
+		const isolation = createIsolation(disposables, { gitService });
+		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot, true), {
+			items: [{ value: 'HEAD', label: 'HEAD (main, No Commits Yet)' }],
 		});
 	});
 

@@ -1645,6 +1645,7 @@ export class AgentPolicyError extends Error {
 export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {
 	readonly property: string;
 	readonly query?: string;
+	readonly _meta?: Record<string, unknown>;
 }
 
 export type IAgentResolveSessionConfigParams = IAgentResolveChatConfigParams;

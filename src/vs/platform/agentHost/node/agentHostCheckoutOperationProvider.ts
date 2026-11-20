@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCheckoutOperationHandler } from './agentHostCheckoutOperationHandler.js';
@@ -29,6 +29,7 @@ export class AgentHostCheckoutOperationContribution extends Disposable implement
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
 		const handler = this._instantiationService.createInstance(AgentHostCheckoutOperationHandler, getSessionState, (sessionKey: string) => this._onCheckedOut(sessionKey));
 		store.add(registry.registerChangesetOperationHandler(AgentHostCheckoutOperationHandler.OPERATION_CHECKOUT, handler));
+		store.add(registry.registerChangesetOperationHandler(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
@@ -46,6 +47,12 @@ export class AgentHostCheckoutOperationContribution extends Disposable implement
 		return [{
 			id: AgentHostCheckoutOperationHandler.OPERATION_CHECKOUT,
 			label: localize('agentHost.changeset.checkout', "Checkout"),
+			group: 'checkout',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		}, {
+			id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+			label: localize('agentHost.changeset.createBranch', "Create Branch"),
 			group: 'checkout',
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,

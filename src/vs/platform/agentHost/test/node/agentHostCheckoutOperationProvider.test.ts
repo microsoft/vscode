@@ -41,11 +41,11 @@ suite('AgentHostCheckoutOperationContribution', () => {
 	test('advertises Checkout only for the uncommitted changeset on a new session', () => {
 		const { contribution, stateManager } = createContribution();
 
-		const checkoutOperation = contribution.getOperations({
+		const checkoutOperations = contribution.getOperations({
 			sessionKey,
 			changesetUri: uncommittedChangesetUri,
 			changesetKind: ChangesetKind.Uncommitted,
-		})?.[0];
+		});
 		const branchOperations = contribution.getOperations({
 			sessionKey,
 			changesetUri: branchChangesetUri,
@@ -59,14 +59,20 @@ suite('AgentHostCheckoutOperationContribution', () => {
 			changesetKind: ChangesetKind.Uncommitted,
 		});
 
-		assert.deepStrictEqual({ checkoutOperation, branchOperations, readySessionOperations }, {
-			checkoutOperation: {
+		assert.deepStrictEqual({ checkoutOperations, branchOperations, readySessionOperations }, {
+			checkoutOperations: [{
 				id: 'checkout',
 				label: 'Checkout',
 				group: 'checkout',
 				scopes: [ChangesetOperationScope.Changeset],
 				status: ChangesetOperationStatus.Idle,
-			},
+			}, {
+				id: 'create-branch',
+				label: 'Create Branch',
+				group: 'checkout',
+				scopes: [ChangesetOperationScope.Changeset],
+				status: ChangesetOperationStatus.Idle,
+			}],
 			branchOperations: undefined,
 			readySessionOperations: undefined,
 		});
