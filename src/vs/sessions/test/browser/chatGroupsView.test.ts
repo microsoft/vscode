@@ -501,7 +501,7 @@ suite('Sessions - ChatGroupsView', () => {
 	test('clearing a chat group releases its activity action observation', async () => {
 		const { instantiationService, configurationService } = createHarness(disposables, true, true);
 		await configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
-		const group = disposables.add(instantiationService.createInstance(ChatGroupView, undefined));
+		const group = disposables.add(instantiationService.createInstance(ChatGroupView, undefined, undefined));
 		let observations = 0;
 		const actions = derived<readonly IAction[]>(reader => {
 			observations++;
@@ -2024,6 +2024,31 @@ suite('Sessions - ChatGroupsView', () => {
 			during: ['chat'],
 			after: ['newSession'],
 		});
+	});
+
+	test('keeps focus in the chat when its view is swapped, but only if the old view held it', () => {
+		const focusedKindAfterSwap = (focusOldView: boolean, windowFocused = true) => {
+			const { view, chatViewFactory, focus } = createHarness(disposables);
+			const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+			disposables.add(toDisposable(() => outside.remove()));
+			const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+			view.setSession(paneContent(view, draft), options);
+			if (focusOldView) {
+				chatViewFactory.views[0].focus();
+			} else {
+				outside.focus();
+			}
+			focus.viewWindow = windowFocused;
+			draft.isNewSessionRequestInProgress.set(true, undefined);
+			const active = mainWindow.document.activeElement;
+			return active === outside ? 'outside' : active?.closest<HTMLElement>('.chat-view')?.dataset.kind ?? 'body';
+		};
+
+		assert.deepStrictEqual({
+			focused: focusedKindAfterSwap(true),
+			elsewhere: focusedKindAfterSwap(false),
+			otherWindowFocused: focusedKindAfterSwap(true, false),
+		}, { focused: 'chat', elsewhere: 'outside', otherWindowFocused: 'body' });
 	});
 
 	test('opening a hidden chat to the side removes its temporary active-group assignment', async () => {

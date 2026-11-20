@@ -356,7 +356,7 @@ export class ChatGroupsView extends Themable {
 		const store = new DisposableStore();
 		this._groupDisposables.set(id, store);
 		// Register the view first so a throw below leaves it owned by this group store (never orphaned).
-		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView, this._hostOptions));
+		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView, this._hostOptions, this._hasWindowFocus));
 		// A reused view must not see an empty group before the first reconcile, or it would swap its
 		// chat view for a composer. Seed what reconcile would assign to a lone group anyway.
 		const activeChat = reusableView ? content.chat.get() : undefined;
