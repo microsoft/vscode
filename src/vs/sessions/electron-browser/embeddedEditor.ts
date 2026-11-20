@@ -10,6 +10,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../base/common/observable.js';
 import { Event } from '../../base/common/event.js';
+import { equals } from '../../base/common/arrays.js';
 import { URI } from '../../base/common/uri.js';
 import { ipcRenderer } from '../../base/parts/sandbox/electron-browser/globals.js';
 import { localize } from '../../nls.js';
@@ -71,28 +72,51 @@ const COVERED_PARTS = [Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.AUXILIARYBA
 const EMBEDDED_EDITOR_STORAGE_KEY = 'sessions.embeddedEditor.folders';
 
 /**
- * Remembers the folders of the editor window that the Agents window shows, so that a restart shows it again.
+ * What an editor window in the Agents window shows: the folders it opens, and the repositories they are worktrees of.
+ */
+export interface IEmbeddedEditorContent {
+	readonly folders: readonly IFolderToOpen[];
+	readonly repositories: readonly string[];
+}
+
+/**
+ * Whether selecting a session that shows `next` switches the editor window from `shown` to its folders: the
+ * session works in another worktree of the same repositories.
+ */
+export function shouldSwitchEditorFolders(shown: IEmbeddedEditorContent | undefined, next: IEmbeddedEditorContent): boolean {
+	const folderKeys = (content: IEmbeddedEditorContent) => content.folders.map(folder => folder.folderUri.toString());
+	return !!shown && shown.repositories.length > 0 && equals(shown.repositories, next.repositories) && !equals(folderKeys(shown), folderKeys(next));
+}
+
+/**
+ * Remembers what the editor window that the Agents window shows opens, so that a restart shows it again.
  */
 export class EmbeddedEditorMemory {
 
 	constructor(private readonly storageService: IStorageService) { }
 
-	get folders(): IFolderToOpen[] | undefined {
+	get content(): IEmbeddedEditorContent | undefined {
 		try {
-			const value: unknown = JSON.parse(this.storageService.get(EMBEDDED_EDITOR_STORAGE_KEY, StorageScope.WORKSPACE, 'null'));
-			if (!Array.isArray(value) || value.length === 0) {
-				return undefined;
-			}
-			return value
-				.filter((folder): folder is { folderUri: string; label?: string } => typeof folder?.folderUri === 'string')
-				.map(folder => ({ folderUri: URI.parse(folder.folderUri), label: typeof folder.label === 'string' ? folder.label : undefined }));
+			const value = JSON.parse(this.storageService.get(EMBEDDED_EDITOR_STORAGE_KEY, StorageScope.WORKSPACE, 'null'));
+			const folders: unknown[] = Array.isArray(value?.folders) ? value.folders : [];
+			const content = {
+				folders: folders
+					.filter((folder): folder is { folderUri: string; label?: string } => typeof (folder as { folderUri?: unknown })?.folderUri === 'string')
+					.map(folder => ({ folderUri: URI.parse(folder.folderUri), label: typeof folder.label === 'string' ? folder.label : undefined })),
+				repositories: Array.isArray(value?.repositories) ? value.repositories.filter((repository: unknown): repository is string => typeof repository === 'string') : [],
+			};
+			return content.folders.length ? content : undefined;
 		} catch {
 			return undefined;
 		}
 	}
 
-	remember(folders: readonly IFolderToOpen[]): void {
-		this.storageService.store(EMBEDDED_EDITOR_STORAGE_KEY, JSON.stringify(folders.map(folder => ({ folderUri: folder.folderUri.toString(), label: folder.label }))), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	remember(content: IEmbeddedEditorContent): void {
+		const value = {
+			folders: content.folders.map(folder => ({ folderUri: folder.folderUri.toString(), label: folder.label })),
+			repositories: content.repositories,
+		};
+		this.storageService.store(EMBEDDED_EDITOR_STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	forget(): void {
@@ -112,6 +136,9 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 
 	/** The chat that the editor window shows in its chat view, as handed to it from here. */
 	private handedChat: string | undefined;
+
+	/** What the editor window shows, or is about to. */
+	private shown: IEmbeddedEditorContent | undefined;
 
 	get enabled(): boolean {
 		return this.configurationService.getValue<boolean>(EMBEDDED_EDITOR_SETTING) === true;
@@ -142,6 +169,7 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			if (visibleWindowId === undefined && !lifecycleService.willShutdown) {
 				this.memory.forget();
 				this.handedChat = undefined;
+				this.shown = undefined;
 			}
 			this.visibleWindowId.set(visibleWindowId, undefined);
 		};
@@ -172,21 +200,30 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			}
 			restored = true;
 
-			const folders = this.memory.folders;
-			if (folders) {
+			const content = this.memory.content;
+			if (content) {
 				const active = activeChat.read(undefined);
 				const chatSessionToOpen = active && this.targetResolver.resolveChatSession(active.session, active.chat, { notify: false });
-				void this.showFolders(folders, chatSessionToOpen).catch(error => {
+				void this.showContent(content, chatSessionToOpen).catch(error => {
 					this.memory.forget();
 					this.logService.error('[EmbeddedEditor] could not restore the editor window', error);
 				});
 			}
 		}));
 
-		// While the editor window shows, selecting a chat shows it in the chat view of the editor window
+		// While the editor window shows, selecting a chat shows it in the chat view of the editor window, and the
+		// editor window switches to the worktree of the chat when it works in another worktree of the same repository
 		this._register(autorun(reader => {
 			const active = activeChat.read(reader);
 			if (!active || this.visibleWindowId.read(reader) === undefined) {
+				return;
+			}
+
+			// The folders of a chat can arrive after the chat
+			(active.chat ?? active.session.mainChat.read(reader)).workspace.read(reader);
+			const target = this.targetResolver.resolve(active.session, active.chat, { notify: false });
+			if (target.kind === 'folders' && shouldSwitchEditorFolders(this.shown, target)) {
+				void this.showContent(target, target.chatSessionToOpen).catch(error => this.logService.error('[EmbeddedEditor] could not switch the editor window to the worktree of the chat', error));
 				return;
 			}
 
@@ -204,20 +241,21 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			return false;
 		}
 
-		await this.showFolders(target.folders, target.chatSessionToOpen);
+		await this.showContent(target, target.chatSessionToOpen);
 		return true;
 	}
 
-	private async showFolders(folders: IFolderToOpen[], chatSessionToOpen: URI | undefined): Promise<void> {
+	private async showContent(content: IEmbeddedEditorContent, chatSessionToOpen: URI | undefined): Promise<void> {
 		const bounds = this.computeBounds();
 		if (!bounds) {
 			this.logService.warn('[EmbeddedEditor] the Agents window has no room to show an editor window');
 			return;
 		}
 
-		this.memory.remember(folders);
+		this.shown = { folders: content.folders, repositories: content.repositories };
+		this.memory.remember(this.shown);
 		this.handedChat = chatSessionToOpen?.toString();
-		await this.nativeHostService.showEmbeddedEditorWindow(folders, { chatSessionToOpen, bounds });
+		await this.nativeHostService.showEmbeddedEditorWindow([...content.folders], { chatSessionToOpen, bounds });
 	}
 
 	async hide(): Promise<void> {

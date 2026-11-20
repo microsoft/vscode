@@ -19,7 +19,7 @@ import { IChat, ISession, isSessionCreated } from '../../workbench/services/sess
 
 export type EditorWindowTarget =
 	| { readonly kind: 'empty'; readonly options: IOpenEmptyWindowOptions | undefined }
-	| { readonly kind: 'folders'; readonly folders: IFolderToOpen[]; readonly chatSessionToOpen: URI | undefined };
+	| { readonly kind: 'folders'; readonly folders: IFolderToOpen[]; readonly repositories: string[]; readonly chatSessionToOpen: URI | undefined };
 
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
@@ -66,7 +66,9 @@ export class EditorWindowTargetResolver {
 			});
 		}
 
-		return { kind: 'folders', folders: foldersToOpen, chatSessionToOpen: this.resolveChatSession(session, chat, options) };
+		// The roots of the folders, which are the same for the worktrees of a repository
+		const repositories = folders.map(folder => folder.root.toString());
+		return { kind: 'folders', folders: foldersToOpen, repositories, chatSessionToOpen: this.resolveChatSession(session, chat, options) };
 	}
 
 	/**
