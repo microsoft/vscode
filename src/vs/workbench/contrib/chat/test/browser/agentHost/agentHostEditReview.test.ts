@@ -144,7 +144,10 @@ class TestAgentHost extends mock<IAgentConnection>() {
 }
 
 suite('AgentHostEditReview', () => {
-	// Load @vscode/diff before the tests run on fake timers.
+	// @vscode/diff (behind the 'advanced' diff algorithm) is loaded with a dynamic import() of a node_modules URL,
+	// which is real I/O, not a microtask. Load it before the tests run on fake timers, which would otherwise
+	// advance virtual time while it loads. Remove once npm packages can be imported statically:
+	// https://github.com/microsoft/vscode/issues/349469
 	suiteSetup(() => linesDiffComputers.getAdvanced());
 
 	const store = new DisposableStore();
