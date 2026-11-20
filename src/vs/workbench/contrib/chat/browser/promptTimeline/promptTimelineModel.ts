@@ -49,7 +49,7 @@ export interface IPromptScrollLayout {
 	/** Each prompt's top offset in the rail's estimated content space. */
 	readonly marks: readonly { readonly requestId: string; readonly top: number }[];
 	/** Total content height in the estimated space, matching `marks`. */
-	readonly total: number | undefined;
+	readonly total: number;
 	/** Current scroll offset (px, the transcript's real scroll space) — drives the rail's own scrollbar thumb. */
 	readonly scrollTop: number;
 	/** Full scrollable content height (px, the transcript's real scroll space). */
@@ -136,7 +136,7 @@ function promptsEqual(a: readonly PromptItem[], b: readonly PromptItem[]): boole
 export interface IActivePrompt {
 	readonly text: string;
 	readonly index: number;
-	readonly total: number;
+	readonly total: number | undefined;
 }
 
 /**

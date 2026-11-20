@@ -24,6 +24,7 @@ import './media/promptTimeline.css';
 const MAX_REST_DOTS = 50;
 /** Never sample below this: two dots are the fewest that can still span the session's start and end. */
 const MIN_REST_DOTS = 2;
+const WHEEL_GESTURE_GAP_MS = 120;
 /**
  * Resting-dot geometry, mirrored from the `--prompt-timeline-gutter-*` variables in
  * `promptTimeline.css` so {@link restDotCount} can size the column without measuring it (which would
@@ -168,8 +169,15 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 
 		this._list = append(this._domNode, $('.prompt-timeline-gutter-panel'));
 		this._list.id = panelId;
+		let lastWheelTime = -Infinity;
+		let pagedInGesture = false;
 		this._register(addDisposableListener(this._list, 'wheel', e => {
-			if (e.deltaY < 0 && !e.ctrlKey && !e.shiftKey && this._list.scrollTop <= 1) {
+			if (e.timeStamp - lastWheelTime > WHEEL_GESTURE_GAP_MS || e.deltaY > 0) {
+				pagedInGesture = false;
+			}
+			lastWheelTime = e.timeStamp;
+			if (!pagedInGesture && this._loadOlder && e.deltaY < 0 && !e.ctrlKey && !e.shiftKey && this._list.scrollTop <= 1) {
+				pagedInGesture = true;
 				void this._requestOlder();
 			}
 		}));

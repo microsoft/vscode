@@ -81,7 +81,7 @@ suite('PromptTimelineGutterRail', () => {
 			{ affordance: true, rows: 0, idleLoads: 0, loads: 1 });
 	});
 
-	test('a failed wheel request can be retried without leaving the gutter', async () => {
+	test('a failed wheel request waits for a new gesture to retry, without leaving the gutter', async () => {
 		const rail = createRail([tick(90), tick(91)]);
 		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
 		let attempts = 0;
@@ -92,14 +92,20 @@ suite('PromptTimelineGutterRail', () => {
 			rail.setTicks([tick(89), tick(90), tick(91)]);
 		});
 		panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		const wheel = () => panel.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
-		wheel();
+		const wheel = (timeStamp: number) => {
+			const event = new WheelEvent('wheel', { deltaY: -1, bubbles: true });
+			Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+			panel.dispatchEvent(event);
+		};
+		wheel(1000);
 		await Promise.resolve();
 		const notified = !!panel.querySelector('[role=status]');
-		wheel();
+		wheel(1010);
+		const afterMomentum = attempts;
+		wheel(2000);
 		await Promise.resolve();
-		assert.deepStrictEqual({ notified, error: !!panel.querySelector('[role=status]'), attempts, rows: rowParts(rail).map(r => r.jump.textContent) },
-			{ notified: true, error: false, attempts: 2, rows: ['89', '90', '91'] });
+		assert.deepStrictEqual({ notified, afterMomentum, error: !!panel.querySelector('[role=status]'), attempts, rows: rowParts(rail).map(r => r.jump.textContent) },
+			{ notified: true, afterMomentum: 1, error: false, attempts: 2, rows: ['89', '90', '91'] });
 	});
 
 	test('highlights a row previewed from a dot, but leaves a row under the pointer to its own halves', () => {
