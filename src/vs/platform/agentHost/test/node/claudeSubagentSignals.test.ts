@@ -466,7 +466,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			duplicateKinds: [],
 			messages: [
 				'debug [claudeSubagentSignals] task_notification status=completed task_id=t has no tool_use_id; no subagent chat closed',
-				'info [claudeSubagentSignals] task_notification status=failed for tool_use_id=toolu_unknown matches no open subagent spawn; no subagent chat closed',
+				'debug [claudeSubagentSignals] task_notification status=failed for tool_use_id=toolu_unknown matches no open subagent spawn (background shell / MCP task, or a spawn lost on rebuild); no subagent chat closed',
 				'debug [claudeSubagentSignals] task_notification status=completed for tool_use_id=toolu_known ignored; spawn already completed',
 			],
 		});

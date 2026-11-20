@@ -101,8 +101,12 @@ export function tagWithParent(
  *
  * Does not need a turn id: the router also calls it while the parent
  * is idle, which is when most background subagents finish. A terminal
- * `task_notification` that cannot be mapped to an open spawn is logged,
- * because the subagent chat it was meant to close stays active.
+ * `task_notification` that cannot be mapped to an open spawn is logged
+ * at debug. Most of these are not subagents at all: the SDK also sends
+ * `task_notification` for background Bash commands and auto-backgrounded
+ * MCP tool calls, and the notification carries no `task_type` to tell
+ * them apart from a subagent spawn this registry has lost (for example
+ * after a session rebuild).
  */
 export function mapSubagentSystemMessage(
 	message: Extract<SDKMessage, { type: 'system' }>,
@@ -135,7 +139,7 @@ export function mapSubagentSystemMessage(
 				logService?.debug(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} ignored; spawn already completed`);
 				return [];
 			}
-			logService?.info(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} matches no open subagent spawn; no subagent chat closed`);
+			logService?.debug(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} matches no open subagent spawn (background shell / MCP task, or a spawn lost on rebuild); no subagent chat closed`);
 			return [];
 		}
 		if (!spawn.markCompleted()) {
