@@ -532,7 +532,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	async responses(): Promise<Response> { throw new Error('not used'); }
 	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
 		this.restrictedTelemetryContextCalls.push(githubToken);
-		return this.restrictedTelemetryContexts.get(githubToken) ?? {
+		const context = this.restrictedTelemetryContexts.get(githubToken) ?? {
 			restrictedTelemetryEnabled: false,
 			trackingId: undefined,
 			telemetryEndpoint: undefined,
@@ -540,6 +540,8 @@ class TestCopilotApiService implements ICopilotApiService {
 			userName: undefined,
 			isVscodeTeamMember: false,
 		};
+		this.onDidRefreshCopilotUserEmitter.fire({ githubToken, context });
+		return context;
 	}
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 	async resolveUserLogin() { return this.userLogin; }
@@ -7417,42 +7419,69 @@ suite('CopilotAgent', () => {
 	});
 
 	test('updates restricted telemetry when CopilotApiService refreshes discovery for the active token', async () => {
-		const copilotApiService = new TestCopilotApiService();
-		copilotApiService.restrictedTelemetryContexts.set('active-token', {
-			restrictedTelemetryEnabled: true,
-			trackingId: 'tid-1',
-			telemetryEndpoint: 'https://telemetry.example/',
-			isInternal: false,
-			userName: 'octocat',
-			isVscodeTeamMember: false,
-		});
-		const enabledStates: boolean[] = [];
-		const initialResolved = new DeferredPromise<void>();
-		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
-			override setRestrictedTelemetryEnabled(enabled: boolean): void {
-				enabledStates.push(enabled);
-				super.setRestrictedTelemetryEnabled(enabled);
-				if (enabled) {
-					initialResolved.complete();
+		const clock = useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+		try {
+			const normalResponse = new DeferredPromise<Response>();
+			const entitlementResponse = new DeferredPromise<Response>();
+			const secondRequestStarted = new DeferredPromise<void>();
+			let requests = 0;
+			const copilotApiService = disposables.add(new CopilotApiService(async () => {
+				if (++requests === 1) {
+					return new Response(JSON.stringify({
+						access_type_sku: 'no_access',
+						analytics_tracking_id: 'tid-1',
+						restricted_telemetry: true,
+						endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+					}), { status: 200 });
 				}
-			}
-		}(NullTelemetryService));
-		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
-		afterTest(() => disposeAgent(agent));
-		await agent.authenticate('https://api.github.com', 'active-token');
-		await initialResolved.p;
+				if (requests === 2) {
+					secondRequestStarted.complete();
+					return normalResponse.p;
+				}
+				return entitlementResponse.p;
+			}, new NullLogService(), { _serviceBrand: undefined, ...product }, createTestGitHubEndpointService(), NullTelemetryService));
+			const enabledStates: boolean[] = [];
+			const initialResolved = new DeferredPromise<void>();
+			const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
+				override setRestrictedTelemetryEnabled(enabled: boolean): void {
+					enabledStates.push(enabled);
+					super.setRestrictedTelemetryEnabled(enabled);
+					if (enabled) {
+						initialResolved.complete();
+					}
+				}
+			}(NullTelemetryService));
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'active-token');
+			await initialResolved.p;
+			await agent.refreshModels();
 
-		// Refresh for a different token is ignored; refresh for the active token flips rt to false without token rotation.
-		copilotApiService.onDidRefreshCopilotUserEmitter.fire({
-			githubToken: 'other-token',
-			context: { restrictedTelemetryEnabled: false, trackingId: 'tid-2', telemetryEndpoint: undefined },
-		});
-		copilotApiService.onDidRefreshCopilotUserEmitter.fire({
-			githubToken: 'active-token',
-			context: { restrictedTelemetryEnabled: false, trackingId: 'tid-1', telemetryEndpoint: undefined },
-		});
+			// Expire the 30-min cache, start a periodic model refresh (`_resolveRestrictedTelemetry`),
+			// and complete an entitlement refresh (`restricted_telemetry: false`) before the ordinary refresh (`restricted_telemetry: true`) settles.
+			clock.tick(26 * 60 * 1000);
+			const refreshingModels = agent.refreshModels();
+			await secondRequestStarted.p;
+			const refreshingEntitlement = copilotApiService.refreshCopilotUser('active-token', 'tid-1', 'copilot_enterprise_seat_quota');
+			entitlementResponse.complete(new Response(JSON.stringify({
+				access_type_sku: 'copilot_enterprise_seat_quota',
+				analytics_tracking_id: 'tid-1',
+				restricted_telemetry: false,
+				endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+			}), { status: 200 }));
+			await refreshingEntitlement;
+			normalResponse.complete(new Response(JSON.stringify({
+				access_type_sku: 'no_access',
+				analytics_tracking_id: 'tid-1',
+				restricted_telemetry: true,
+				endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+			}), { status: 200 }));
+			await refreshingModels;
 
-		assert.deepStrictEqual(enabledStates, [false, true, false]);
+			assert.deepStrictEqual(enabledStates, [false, true, false]);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('advertises Copilot as its display name', async () => {

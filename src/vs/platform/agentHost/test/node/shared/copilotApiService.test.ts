@@ -317,25 +317,27 @@ suite('CopilotApiService', () => {
 						entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
 					}
 					if (entitlementFinishesFirst) {
-						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'refreshed-analytics' }));
+						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'refreshed-analytics', restricted_telemetry: false }));
 						await entitlement;
-						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' }));
+						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics', restricted_telemetry: true }));
 						await normal;
 					} else {
-						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' }));
+						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics', restricted_telemetry: true }));
 						await normal;
-						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'refreshed-analytics' }));
+						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'refreshed-analytics', restricted_telemetry: false }));
 						await entitlement;
 					}
 					assert.deepStrictEqual({
 						requests,
 						sku: service.getCachedCopilotSku('token'),
 						trackingId: read()?.copilotTrackingId,
+						restrictedTelemetry: (await service.resolveRestrictedTelemetryContext('token')).restrictedTelemetryEnabled,
 						outcomes: telemetry.events.slice(1).map(event => ({ trigger: event.data?.trigger, outcome: event.data?.outcome, sku: event.data?.copilotSku })),
 					}, {
 						requests: 3,
 						sku: 'free',
 						trackingId: 'refreshed-analytics',
+						restrictedTelemetry: false,
 						outcomes: entitlementFinishesFirst ? [
 							{ trigger: 'entitlementChange', outcome: 'published', sku: 'free' },
 							{ trigger: 'cacheRefresh', outcome: 'superseded', sku: 'no_access' },

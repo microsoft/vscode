@@ -4244,8 +4244,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _resolveRestrictedTelemetry(githubToken: string): Promise<void> {
 		try {
 			const ctx = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
-			if (this._githubCredentials.token !== githubToken) {
-				return; // token changed while resolving; a newer call owns the state
+			if (this._githubCredentials.token !== githubToken || this._copilotApiService.onDidRefreshCopilotUser) {
+				return; // token changed while resolving, or publication events already applied the authoritative state
 			}
 			this._applyRestrictedTelemetry({
 				...ctx,
