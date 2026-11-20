@@ -107,6 +107,19 @@ function getUpdateLabel(update: NonNullable<NonNullable<IRemoteTroubleshootingIn
 	}
 }
 
+/**
+ * A verbose SSH command for the connection, offered only when its destination means the same in POSIX shells,
+ * PowerShell and cmd, so pasting it can't run anything else. `--` keeps the destination from being read as an option.
+ */
+function getSSHTestCommand(ssh: IRemoteTroubleshootingInfo['ssh'], address: string): string | undefined {
+	const destination = ssh?.alias ?? `${ssh?.user ? `${ssh.user}@` : ''}${ssh?.hostName ?? address}`;
+	const port = !ssh?.alias && ssh?.port !== undefined && ssh.port !== 22 ? ssh.port : undefined;
+	if (!/^\w[\w.@:-]*$/.test(destination) || port !== undefined && !Number.isSafeInteger(port)) {
+		return undefined;
+	}
+	return `ssh -v${port !== undefined ? ` -p ${port}` : ''} -- ${destination}`;
+}
+
 /** The remote's state and connection error, explained per connection type with the actions that may unblock it. */
 export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info: IRemoteTroubleshootingInfo, error: string | undefined): IRemoteTroubleshootingGuide {
 	const status = remote.connectionStatus;
@@ -173,16 +186,18 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					}
 				} else if (failed) {
 					const match = sshErrors.find(([pattern]) => pattern.test(error));
-					guidance.push(match ? match[1]() : localize('remotes.sshGeneric', "Run the command below in a terminal to see where the connection fails."));
+					const testCommand = getSSHTestCommand(ssh, remote.detail);
+					guidance.push(match ? match[1]() : testCommand
+						? localize('remotes.sshGeneric', "Run the command below in a terminal to see where the connection fails.")
+						: localize('remotes.sshGenericNoCommand', "Check the host, user, and port in your SSH configuration, and that the remote computer can be reached from this network."));
 					for (const action of match?.[2] ?? []) {
 						if (action !== 'forgetHostKey' || ssh?.hasSavedHostKey) {
 							actions.push(action);
 						}
 					}
-					command = {
-						label: localize('remotes.sshTestCommand', "Test the connection in a terminal"),
-						value: ssh?.alias ? `ssh -v ${ssh.alias}` : `ssh -v ${ssh?.user ? `${ssh.user}@` : ''}${ssh?.hostName ?? remote.detail}${ssh?.port !== undefined && ssh.port !== 22 ? ` -p ${ssh.port}` : ''}`,
-					};
+					if (testCommand) {
+						command = { label: localize('remotes.sshTestCommand', "Test the connection in a terminal"), value: testCommand };
+					}
 				}
 				actions.push('openSSHConfig');
 			}
@@ -289,15 +304,15 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 			const container = info.devContainer;
 			if (container) {
 				facts.push({ label: localize('remotes.containerHost', "Host"), value: container.hostName });
-				if (container.dockerAvailable !== undefined) {
-					facts.push({ label: localize('remotes.docker', "Docker"), value: container.dockerAvailable ? localize('remotes.dockerAvailable', "Available") : localize('remotes.dockerUnavailable', "Not available") });
+				if (container.dockerAvailable) {
+					facts.push({ label: localize('remotes.docker', "Docker"), value: localize('remotes.dockerAvailable', "Available") });
 				}
 			}
 			if (!connected && !pending) {
 				if (container && !container.hostConnected) {
 					primary = 'connectHost';
 					guidance.push(localize('remotes.containerHostDisconnected', "This Dev Container runs on {0}, which isn't connected. Connect {0} first.", container.hostName));
-				} else if (container?.dockerAvailable === false || failed && /Docker is not available/i.test(error)) {
+				} else if (failed && /Docker is not available/i.test(error)) {
 					guidance.push(localize('remotes.containerDocker', "Docker isn't available on {0}. Start Docker Desktop or the Docker service, then retry.", container?.hostName ?? remote.detail));
 				} else if (failed && /was deleted/i.test(error)) {
 					guidance.push(localize('remotes.containerDeleted', "The container was deleted outside VS Code. Delete this Dev Container and create a new one."));

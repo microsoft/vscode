@@ -199,6 +199,7 @@ suite('RemotesModel', () => {
 		const trustedHostKeys = new Map<string, ISSHTrustedHostKey[]>();
 		const forgottenHosts: string[] = [];
 		instantiationService.stub(ISSHHostKeyTrustService, {
+			onDidChangeTrustedHosts: Event.None,
 			getTrustedKeys: (host, port) => trustedHostKeys.get(`${host}:${port}`) ?? [],
 			forgetHost: (host, port) => {
 				forgottenHosts.push(`${host}:${port}`);
@@ -206,6 +207,7 @@ suite('RemotesModel', () => {
 			},
 		});
 		instantiationService.stub(IExtensionService, {
+			onDidChangeExtensions: Event.None,
 			getExtension: async id => id === 'publisher.jobs' ? upcastPartial<IExtensionDescription>({ version: '1.4.2', bugs: { url: 'https://github.com/publisher/jobs/issues' } }) : undefined,
 		});
 		instantiationService.stub(IQuickInputService, {
@@ -781,6 +783,8 @@ suite('RemotesModel', () => {
 		const { model, storage, diagnosticEvents, trustedHostKeys, forgottenHosts, confirmations, connectionChanges } = setup();
 		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
 		trustedHostKeys.set('build.example:22', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:abc', addedAt: 0 }]);
+		// Trust saved under the alias belongs to another identity; the connector trusts the resolved host name here.
+		trustedHostKeys.set('removed:22', [{ keyType: 'ssh-rsa', fingerprint: 'SHA256:other', addedAt: 0 }]);
 		diagnosticEvents.push(
 			{ address: 'ssh:removed', operationId: '1', phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: { name: 'Error', message: 'Host key verification failed' } },
 			{ address: 'ssh:removed', operationId: '1', phase: 'connection.closed', outcome: 'info', timestamp: 3 },
@@ -790,13 +794,14 @@ suite('RemotesModel', () => {
 		await model.forgetSSHHostKey('ssh:removed');
 		const forgotten = (await model.getTroubleshootingInfo('ssh:removed')).ssh?.hasSavedHostKey;
 		const forgetAgain = await model.forgetSSHHostKey('ssh:removed').then(() => 'forgotten', (error: Error) => error.message);
-		assert.deepStrictEqual({ saved, forgottenHosts, confirmations: confirmations.map(({ message, detail }) => ({ message, detail })), forgotten, forgetAgain, connectionChanges }, {
+		assert.deepStrictEqual({ saved, forgottenHosts, remainingTrust: [...trustedHostKeys.keys()], confirmations: confirmations.map(({ message, detail }) => ({ message, detail })), forgotten, forgetAgain, connectionChanges }, {
 			saved: {
 				lastStep: { phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: 'Error: Host key verification failed' },
 				ssh: { alias: 'removed', hostName: 'build.example', user: 'developer', port: 22, hasSavedHostKey: true },
 				versions: { client: { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } } },
 			},
 			forgottenHosts: ['build.example:22'],
+			remainingTrust: ['removed:22'],
 			confirmations: [{
 				message: 'Forget the saved host key for \'Saved host\'?',
 				detail: 'The next time you connect, you\'ll be asked to verify the remote computer\'s host key. Only continue if you know why the key changed.\n\nssh-ed25519 SHA256:abc',
@@ -808,10 +813,12 @@ suite('RemotesModel', () => {
 	});
 
 	test('troubleshooting info describes tunnels, extension remotes and Dev Container hosts', async () => {
-		const { model, extensionHosts, devContainers, setConfiguration } = setup();
+		const { model, extensionHosts, devContainers, setConfiguration, setCachedTunnels } = setup();
 		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
 		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		setCachedTunnels([{ ...tunnel, tunnelId: 'saved', name: 'Saved', authProvider: 'github' }, { ...tunnel, tunnelId: 'other', name: 'Other account', authProvider: 'microsoft' }]);
 		await model.refresh(CancellationToken.None);
+		const savedTunnels = { saved: (await model.getTroubleshootingInfo('tunnel:saved')).tunnel, otherAccount: (await model.getTroubleshootingInfo('tunnel:other')).tunnel };
 		const registration = extensionHosts.registerHost({ extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner', name: 'Runner Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
 		devContainers.hosts.set(new Set(['ssh:build']), undefined);
 		await model.setConnected('ssh:build', true);
@@ -824,11 +831,13 @@ suite('RemotesModel', () => {
 			hostConnected, hostDisconnected,
 		};
 		registration.dispose();
-		assert.deepStrictEqual(info, {
+		assert.deepStrictEqual({ ...info, savedTunnels }, {
 			tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 1 },
 			extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' },
 			hostConnected: { hostId: 'ssh:build', hostName: 'build', hostConnected: true, dockerAvailable: true },
 			hostDisconnected: { hostId: 'ssh:build', hostName: 'build', hostConnected: false },
+			// Saved tunnels have no host count, and discovery with one account says nothing about another's tunnels.
+			savedTunnels: { saved: { authProvider: 'github', inLastDiscovery: false }, otherAccount: { authProvider: 'microsoft' } },
 		});
 	});
 
@@ -1192,17 +1201,18 @@ suite('RemotesModel', () => {
 		});
 	}));
 
-	test('Update Server preserves already-current and failure notifications', async () => {
+	test('Update Server notifies already-current hosts and rejects with failures, for the caller to show', async () => {
 		const { model, providers, upgrade, upgrades, notifications, connectionChanges } = setup();
 		await model.refresh(CancellationToken.None);
 		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Update required', ['1'], undefined, 'vendor/update'), undefined);
 		await model.updateServer('tunnel:laptop');
 		upgrade.result = { ok: false, error: 'Download failed' };
-		await model.updateServer('tunnel:laptop');
+		const notStarted = await model.updateServer('tunnel:laptop').then(() => 'updated', (error: Error) => error.message);
 		upgrade.failure = new Error('Connection lost');
-		await model.updateServer('tunnel:laptop');
-		assert.deepStrictEqual({ calls: upgrades.length, messages: notifications.map(notification => notification.message), connectionChanges }, {
-			calls: 3, messages: ['Laptop is already on the latest version.', 'Failed to update Laptop: Download failed', 'Failed to update Laptop: Connection lost'], connectionChanges: [],
+		const failed = await model.updateServer('tunnel:laptop').then(() => 'updated', (error: Error) => error.message);
+		assert.deepStrictEqual({ calls: upgrades.length, messages: notifications.map(notification => notification.message), notStarted, failed, connectionChanges }, {
+			calls: 3, messages: ['Laptop is already on the latest version.'],
+			notStarted: 'Failed to update Laptop: Download failed', failed: 'Failed to update Laptop: Connection lost', connectionChanges: [],
 		});
 	});
 
@@ -1255,7 +1265,7 @@ suite('RemotesModel', () => {
 		const declined = new DeferredPromise<IConfirmationResult>();
 		void declined.complete({ confirmed: false });
 		environmentState.pendingConfirmation = declined;
-		await model.updateServer('tunnel:laptop');
+		await assert.rejects(model.updateServer('tunnel:laptop'), isCancellationError);
 		const afterDecline = [...upgrades];
 		environmentState.pendingConfirmation = undefined;
 		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };

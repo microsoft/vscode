@@ -47,6 +47,7 @@ import { INewSessionComposer, INewSessionComposerService } from '../../../../bro
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
+	readonly onDidChangeTroubleshootingInfo: IRemotesModel['onDidChangeTroubleshootingInfo'] = () => Disposable.None;
 	readonly environmentsEnabled = observableValue(this, false);
 	readonly canCreateDevContainer = observableValue(this, false);
 	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
@@ -138,9 +139,13 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, gitHubEnvironment: shared ? { state: 'enabled' } : undefined } : remote), undefined);
 	}
 
+	deletionFailure: Error | undefined;
 	async deleteTunnel(id: string): Promise<void> {
 		this.tunnelDeletions.push(id);
 		await this.pendingManagement?.p;
+		if (this.deletionFailure) {
+			throw this.deletionFailure;
+		}
 		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
 
@@ -3500,11 +3505,11 @@ suite('RemotesWidget', () => {
 				facts: ['Environment: Build server', 'Status: Connection failed', 'Connection type: SSH', 'Host address: build.example.com', 'Resolved host: build.example.com', 'User: dev'],
 				feedback: 'Connection failed: Host key verification failed',
 				guidance: ['The remote computer\'s host key doesn\'t match the saved key. Verify the new key with the computer\'s administrator before you forget the saved key.'],
-				command: 'ssh -v build',
+				command: 'ssh -v -- build',
 				actions: ['Retry Connection', 'Forget Saved Host Key...', 'Open SSH Configuration'],
 				links: ['SSH connection guide', 'Open Diagnostic Report'],
 			},
-			copiedCommand: 'ssh -v build',
+			copiedCommand: 'ssh -v -- build',
 			afterForget: ['Retry Connection', 'Open SSH Configuration'],
 			report: 'Connection diagnostics\n\nLatest error for Build server:\nHost key verification failed',
 			commands: ['agentHost.exportDebugLogs'],
@@ -3564,6 +3569,28 @@ suite('RemotesWidget', () => {
 			errors: [],
 			troubleshootingActions: ['restartWSLDistribution:wsl:Ubuntu'],
 			restarted: ['New Session', 'Disconnect', 'Restart Distribution...'],
+		});
+	});
+
+	test('the troubleshooting page shows failed refreshes and deletions on the page instead of notifying', async () => {
+		const { parent, model, errors } = createWidget();
+		model.troubleshootingInfo = { tunnel: { inLastDiscovery: false } };
+		runMenuAction(parent, 'tunnel:laptop', 'troubleshoot');
+		await timeout(0);
+		const actions = readTroubleshooting(parent).actions;
+		model.failedKinds = ['tunnel'];
+		clickTroubleshootingButton(parent, 'Refresh');
+		await timeout(0);
+		const refreshFeedback = readTroubleshooting(parent).feedback;
+		model.deletionFailure = new Error('The tunnel service is unavailable');
+		clickTroubleshootingButton(parent, 'Delete Dev Tunnel...');
+		await timeout(0);
+		assert.deepStrictEqual({ actions, refreshFeedback, deleteFeedback: readTroubleshooting(parent).feedback, deletions: model.tunnelDeletions, errors }, {
+			actions: ['Connect', 'Refresh', 'Delete Dev Tunnel...'],
+			refreshFeedback: 'Couldn\'t refresh tunnels. Check your sign-in and network connection. See the Window log for more details.',
+			deleteFeedback: 'The tunnel service is unavailable',
+			deletions: ['tunnel:laptop'],
+			errors: [],
 		});
 	});
 

@@ -55,6 +55,7 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, 
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
+	readonly onDidChangeTroubleshootingInfo = Event.None;
 	readonly environmentsEnabled = observableValue(this, false);
 	readonly canCreateDevContainer = observableValue(this, false);
 	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);

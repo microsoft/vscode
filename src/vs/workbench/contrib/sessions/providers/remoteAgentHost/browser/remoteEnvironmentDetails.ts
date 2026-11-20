@@ -10,6 +10,7 @@ import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/ho
 import { Radio } from '../../../../../../base/browser/ui/radio/radio.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -133,6 +134,12 @@ export class RemoteEnvironmentDetails extends Disposable {
 		} else {
 			this.renderTroubleshooting();
 			void this.loadTroubleshootingInfo();
+			const reload = this._register(new RunOnceScheduler(() => {
+				if (!this.busy) {
+					void this.loadTroubleshootingInfo();
+				}
+			}, 100));
+			this._register(model.onDidChangeTroubleshootingInfo(() => reload.schedule()));
 		}
 		const observer = this._register(new dom.DisposableResizeObserver('RemoteEnvironmentDetails', () => this.scrollable.scanDomNode(), dom.getWindow(this.domNode)));
 		this._register(observer.observe(this.domNode));
@@ -334,7 +341,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 		const request = ++this.infoRequest;
 		try {
 			const info = await this.model.getTroubleshootingInfo(this.remote.id);
-			if (request === this.infoRequest && !this._store.isDisposed) {
+			if (request === this.infoRequest && !this._store.isDisposed && JSON.stringify(info) !== JSON.stringify(this.info)) {
 				this.info = info;
 				if (!this.busy) {
 					this.renderTroubleshooting();
@@ -518,37 +525,41 @@ export class RemoteEnvironmentDetails extends Disposable {
 				void this.run(() => this.delegate.refresh(), 'action');
 				break;
 			case 'newSession':
+				// Opening a session leaves this page, which can't show what happens next.
 				void this.delegate.newSession();
 				break;
 			case 'openSSHConfig':
-				void this.delegate.openConfiguration('ssh');
+				void this.run(() => this.delegate.openConfiguration('ssh'), 'action');
 				break;
 			case 'openEnvironmentSettings':
-				void this.delegate.openConfiguration('environment');
+				void this.run(() => this.delegate.openConfiguration('environment'), 'action');
 				break;
 			case 'connectViaSSH':
-				void this.executeCommand(RemoteAgentHostCommandIds.connectViaSSH);
+				void this.run(async () => { await this.commandService.executeCommand(RemoteAgentHostCommandIds.connectViaSSH); }, 'action');
 				break;
-			case 'showExtension':
-				if (this.remote.contributedBy) {
-					void this.delegate.showExtension(this.remote.contributedBy.extensionId);
+			case 'showExtension': {
+				const extension = this.remote.contributedBy;
+				if (extension) {
+					void this.run(() => this.delegate.showExtension(extension.extensionId), 'action');
 				}
 				break;
+			}
 			case 'reportExtensionIssue': {
 				const url = this.info?.extension?.issuesUrl;
 				if (url) {
-					void this.openerService.open(url).catch(error => this.notificationService.error(error));
+					void this.run(async () => { await this.openerService.open(url); }, 'action');
 				}
 				break;
 			}
 			case 'deleteTunnel':
 			case 'removeEnvironment':
 			case 'deleteDevContainer':
-				void this.delegate.deleteRemote();
+				void this.run(() => this.delegate.deleteRemote(), 'action');
 				break;
 		}
 	}
 
+	/** Runs a command with its own progress, such as exporting logs, without blocking the page. */
 	private async executeCommand(id: string): Promise<void> {
 		try {
 			await this.commandService.executeCommand(id);
@@ -605,10 +616,10 @@ export class RemoteEnvironmentDetails extends Disposable {
 			case 'connect': return localize('remotes.connectionFailureDetail', "Connection failed: {0}", sanitizeConnectionDiagnosticText(error));
 			case 'connectHost': return localize('remotes.hostConnectionFailed', "Couldn't connect {0}: {1}", this.info?.devContainer?.hostName ?? '', sanitizeConnectionDiagnosticText(error));
 			case 'disconnect': return localize('remotes.disconnectFailed', "Couldn't disconnect. Try again, or open the diagnostic report for details.");
-			case 'update': return localize('remotes.updateFailed', "Couldn't update the server: {0}", sanitizeConnectionDiagnosticText(error));
+			case 'update': return sanitizeConnectionDiagnosticText(error);
 			case 'restart': return localize('remotes.restartFailed', "Couldn't restart the distribution: {0}", sanitizeConnectionDiagnosticText(error));
 			case 'diagnostics': return localize('remotes.reportFailed', "Couldn't open or copy the diagnostic report. Try again.");
-			case 'action': return localize('remotes.actionFailed', "Couldn't complete the action: {0}", sanitizeConnectionDiagnosticText(error));
+			case 'action': return sanitizeConnectionDiagnosticText(error);
 			default: return this.selectedPreference !== undefined && this.model.getPreferredAgentLocation(this.remote.id) === this.selectedPreference
 				? localize('remotes.runBehaviorReconnectFailed', "Your choice was saved, but reconnection failed: {0}", sanitizeConnectionDiagnosticText(error))
 				: localize('remotes.runBehaviorSaveFailed', "Couldn't save your choice. Try again.");

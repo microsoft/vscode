@@ -46,12 +46,14 @@ export function selectConnectionLogLines(text: string): readonly string[] {
  */
 export function selectSharedProcessLogEntries(text: string): readonly (readonly string[])[] {
 	const message = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \[(?<level>trace|debug|info|warning|error|critical)\] \[(?:SSHRemoteAgentHost|WSLRemoteAgentHost|TunnelAgentHost|DevContainerAgentHost)\] /;
+	// Commands may come from user settings, which can contain credentials.
+	const command = /^(?<message>.*\] (?:Starting remote agent host|Using custom agent host command|Spawning dedicated standalone agent host|Opening agent relay channel|bootstrap script): ).*/;
 	const entries: string[][] = [];
 	let output: string[] | undefined;
 	for (const line of text.split(/\r?\n/)) {
 		const level = message.exec(line)?.groups?.level;
 		if (level) {
-			const entry = [line];
+			const entry = [line.replace(command, '$<message>[redacted command]')];
 			entries.push(entry);
 			output = level === 'warning' || level === 'error' || level === 'critical' ? entry : undefined;
 		} else if (timestamp.test(line)) {

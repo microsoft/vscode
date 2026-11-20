@@ -108,19 +108,21 @@ suite('getRemoteTroubleshootingGuide', () => {
 			key: failure('Cannot parse privateKey: Encrypted private key detected, but no passphrase given'),
 			remoteSetup: failure('Timed out waiting for the agent host to register'),
 			unknown: failure('Something unexpected'),
+			unsafeDestination: failure('Something unexpected', { ssh: { hostName: 'build.example.com', user: '$(touch pwned)', port: 22, hasSavedHostKey: false } }),
 			incompatible: summarize(remote('ssh', { connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2']) }), info).guidance,
 		}, {
 			facts: { 'Resolved host': 'build.example.com', 'User': 'dev', 'Identity files': '~/.ssh/id_ed25519' },
-			authentication: { primary: 'retry', actions: ['connectViaSSH', 'openSSHConfig'], guidance: ['The SSH server rejected the sign-in'], command: 'ssh -v build' },
-			hostKey: { primary: 'retry', actions: ['forgetHostKey', 'openSSHConfig'], guidance: ['The remote computer\'s host key doesn\'t match the saved key'], command: 'ssh -v build' },
-			hostKeyNotSaved: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer\'s host key doesn\'t match the saved key'], command: 'ssh -v dev@build.example.com -p 2222' },
-			refused: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer refused the connection'], command: 'ssh -v build' },
-			dns: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The host name couldn\'t be resolved'], command: 'ssh -v build' },
-			network: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer couldn\'t be reached from this network'], command: 'ssh -v build' },
-			proxy: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyJump or ProxyCommand configuration failed'], command: 'ssh -v build' },
-			key: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The SSH key couldn\'t be used'], command: 'ssh -v build' },
-			remoteSetup: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Signing in worked, but starting the agent host on the remote computer failed'], command: 'ssh -v build' },
-			unknown: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Run the command below in a terminal to see where the connection fails.'], command: 'ssh -v build' },
+			authentication: { primary: 'retry', actions: ['connectViaSSH', 'openSSHConfig'], guidance: ['The SSH server rejected the sign-in'], command: 'ssh -v -- build' },
+			hostKey: { primary: 'retry', actions: ['forgetHostKey', 'openSSHConfig'], guidance: ['The remote computer\'s host key doesn\'t match the saved key'], command: 'ssh -v -- build' },
+			hostKeyNotSaved: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer\'s host key doesn\'t match the saved key'], command: 'ssh -v -p 2222 -- dev@build.example.com' },
+			refused: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer refused the connection'], command: 'ssh -v -- build' },
+			dns: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The host name couldn\'t be resolved'], command: 'ssh -v -- build' },
+			network: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer couldn\'t be reached from this network'], command: 'ssh -v -- build' },
+			proxy: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyJump or ProxyCommand configuration failed'], command: 'ssh -v -- build' },
+			key: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The SSH key couldn\'t be used'], command: 'ssh -v -- build' },
+			remoteSetup: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Signing in worked, but starting the agent host on the remote computer failed'], command: 'ssh -v -- build' },
+			unknown: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Run the command below in a terminal to see where the connection fails.'], command: 'ssh -v -- build' },
+			unsafeDestination: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Check the host, user, and port in your SSH configuration, and that the remote computer can be reached from this network.'], command: undefined },
 			incompatible: ['The agent host on the remote computer doesn\'t support this version of VS Code'],
 		});
 	});
@@ -193,7 +195,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 		const connectedHost: IRemoteTroubleshootingInfo = { devContainer: { hostId: 'ssh:build', hostName: 'Build server', hostConnected: true, dockerAvailable: true }, canShowLog: true };
 		assert.deepStrictEqual({
 			hostDisconnected: summarize(onHost, { devContainer: { hostId: 'ssh:build', hostName: 'Build server', hostConnected: false }, canShowLog: true }),
-			dockerUnavailable: summarize({ ...local, lastConnectionError: 'Docker is not available.' }, { devContainer: { hostName: 'This Computer', hostConnected: true, dockerAvailable: false }, canShowLog: true }),
+			dockerUnavailable: summarize({ ...local, lastConnectionError: 'Docker is not available.' }, { devContainer: { hostName: 'This Computer', hostConnected: true }, canShowLog: true }),
 			deleted: summarize({ ...onHost, lastConnectionError: 'Dev Container \'Project\' was deleted.' }, connectedHost),
 			stoppedOnHost: summarize({ ...onHost, lastConnectionError: 'Dev Container for \'Project\' is stopped.' }, connectedHost).guidance,
 			stoppedLocally: summarize({ ...local, lastConnectionError: 'Dev Container for \'Project\' is stopped.' }, connectedHost).guidance,
@@ -203,7 +205,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 				primary: 'connectHost', actions: ['showLog'], guidance: ['This Dev Container runs on Build server, which isn\'t connected'], facts: { 'Host': 'Build server' },
 			},
 			dockerUnavailable: {
-				primary: 'retry', actions: ['showLog'], guidance: ['Docker isn\'t available on This Computer'], facts: { 'Host': 'This Computer', 'Docker': 'Not available' },
+				primary: 'retry', actions: ['showLog'], guidance: ['Docker isn\'t available on This Computer'], facts: { 'Host': 'This Computer' },
 			},
 			deleted: {
 				primary: undefined, actions: ['showLog', 'deleteDevContainer'], guidance: ['The container was deleted outside VS Code'],

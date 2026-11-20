@@ -85,6 +85,25 @@ suite('Connection diagnostics log excerpt', () => {
 		]);
 	});
 
+	test('redacts commands, which may come from user settings, and token arguments in output', () => {
+		const entries = selectSharedProcessLogEntries([
+			`${prefix} [info] [SSHRemoteAgentHost] Using custom agent host command: my-host --auth secret123; skipping endpoint discovery/selection`,
+			`${prefix} [info] [SSHRemoteAgentHost] Starting remote agent host: bash -l -c 'exec code agent-host --port 0'`,
+			`${prefix} [trace] [WSLRemoteAgentHost] bootstrap script: export API_KEY=abc`,
+			`${prefix} [error] [SSHRemoteAgentHost] Agent host exited`,
+			'Output: started with --connection-token abc and --without-connection-token --port 0',
+		].join('\n'));
+		assert.deepStrictEqual(entries, [
+			[`${prefix} [info] [SSHRemoteAgentHost] Using custom agent host command: [redacted command]`],
+			[`${prefix} [info] [SSHRemoteAgentHost] Starting remote agent host: [redacted command]`],
+			[`${prefix} [trace] [WSLRemoteAgentHost] bootstrap script: [redacted command]`],
+			[
+				`${prefix} [error] [SSHRemoteAgentHost] Agent host exited`,
+				'Output: started with --connection-token [redacted] and --without-connection-token --port 0',
+			],
+		]);
+	});
+
 	test('shows repeated messages once, at their latest time, so retries of one host keep the others', () => {
 		const attempt = (second: number) => [
 			`2026-09-16 12:00:0${second}.000 [info] [SSHRemoteAgentHost] Connecting to ssh:wsl-ubuntu`,

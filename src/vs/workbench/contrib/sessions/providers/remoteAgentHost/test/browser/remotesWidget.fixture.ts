@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { OperatingSystem, OS } from '../../../../../../../base/common/platform.js';
@@ -86,7 +87,7 @@ const troubleshooting: Record<string, { readonly remote: ICustomizationRemote; r
 	},
 	DevContainerDockerUnavailable: {
 		remote: { id: 'devcontainer:local:1', kind: 'devContainer', name: 'Dev Container', detail: 'This Computer', description: 'This Computer', canRemove: false, canDelete: true, availability: 'unknown', lastConnectionError: 'Docker is not available.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-		info: { devContainer: { hostName: 'This Computer', hostConnected: true, dockerAvailable: false }, canShowLog: true },
+		info: { devContainer: { hostName: 'This Computer', hostConnected: true }, canShowLog: true },
 	},
 };
 
@@ -128,6 +129,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		disposableStore.add(toDisposable(() => pendingSignIn.complete()));
 	}
 	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
+		readonly onDidChangeTroubleshootingInfo = Event.None;
 		readonly environmentsEnabled = observableValue(this, environments);
 		readonly canCreateDevContainer = observableValue(this, false);
 		readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, signInRequired ? 'github' : undefined);
