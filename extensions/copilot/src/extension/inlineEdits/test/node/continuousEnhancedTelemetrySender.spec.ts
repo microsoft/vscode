@@ -225,4 +225,33 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		expect(calls).toBe(2);
 		expect(throwingTelemetry.enhancedEvents).toHaveLength(1);
 	});
+
+	test('refreshes an expired Copilot token before sending a slice', async () => {
+		const order: string[] = [];
+		const authService = {
+			copilotToken: { isExpired: () => true },
+			getCopilotToken: vi.fn(async () => {
+				order.push('getCopilotToken');
+			}),
+		};
+		const orderedTelemetry = new (class extends RecordingTelemetryService {
+			override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+				order.push('sendEnhancedGHTelemetryEvent');
+				super.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+			}
+		})();
+		sender = new ContinuousEnhancedTelemetrySender(
+			recorder,
+			workspace,
+			orderedTelemetry,
+			new NullGitExtensionService(),
+			authService as never,
+		);
+
+		addDocAndEdit('a');
+		await vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS);
+
+		expect(authService.getCopilotToken).toHaveBeenCalledTimes(1);
+		expect(order).toEqual(['getCopilotToken', 'sendEnhancedGHTelemetryEvent']);
+	});
 });
