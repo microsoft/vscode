@@ -5,7 +5,7 @@
 
 import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteFile, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewNetworkFileSystem, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
-import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
+import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, getLocalFileBrowserViewSession, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -55,6 +55,12 @@ import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
+export const BrowserUserAgentSettingId = 'workbench.browser.userAgent';
+
+/** The renderer shares Electron's default user agent with the browser views. */
+export function getDefaultBrowserUserAgent(): string {
+	return mainWindow.navigator.userAgent;
+}
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
 /** How long creation waits for the local extension host to provide network proxies. */
@@ -206,7 +212,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			) {
 				this.notificationService.info(localize('browser.networkFilteringEnabled', "Agent access to browser tabs was revoked because network filtering was enabled."));
 			}
-			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserUserAgentSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
 				void this._updateWindowConfiguration();
 			}
 		}));
@@ -640,9 +646,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 		if (!request) {
 			const network = this.resolveNetwork(owner);
-			// A local file can't be read through a remote network, so it opens in an isolated session on the local network.
-			if (network && associatedResource?.scheme === Schemas.file) {
-				return toBrowserViewSessionOptions(BrowserViewStorageScope.Ephemeral, undefined, undefined);
+			const localFileSession = getLocalFileBrowserViewSession(associatedResource, network);
+			if (localFileSession) {
+				return localFileSession;
 			}
 			request = { network, affinity: network && this._networkResolver?.resolveStorageAffinity?.(owner) };
 		}
@@ -950,11 +956,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			userAgent: this._getUserAgent(),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			remoteNetworks: this._getRemoteNetworks(trustedRoots, trustAllFiles),
 			trustedLocalFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
 			trustAllLocalFiles: trustAllFiles,
 		});
+	}
+
+	/** Returns the configured user agent, or `undefined` when it matches the default so views keep following Electron's. */
+	private _getUserAgent(): string | undefined {
+		const userAgent = this.configurationService.getValue<string>(BrowserUserAgentSettingId)?.trim();
+		return userAgent && userAgent !== getDefaultBrowserUserAgent() ? userAgent : undefined;
 	}
 
 	/** The remote networks with a published proxy, each with the trusted folders on its file system. */

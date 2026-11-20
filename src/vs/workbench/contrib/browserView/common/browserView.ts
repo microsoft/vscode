@@ -230,6 +230,11 @@ export type IBrowserViewSessionRequest = IBrowserViewSessionOptions | {
 	readonly network?: IBrowserViewNetwork;
 };
 
+/** Local file resources in a remote context need an isolated session on the local network. */
+export function getLocalFileBrowserViewSession(resource: URI | undefined, network: IBrowserViewNetwork | undefined): IBrowserViewSessionOptions | undefined {
+	return resource?.scheme === Schemas.file && network ? { scope: BrowserViewStorageScope.Ephemeral } : undefined;
+}
+
 /** View state carried in editor options and saved with browser tabs. */
 export interface IBrowserEditorViewState {
 	readonly url?: string;
@@ -805,11 +810,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.onDidNavigate(e => {
-			// Clear favicon on navigation to a different host
-			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
-				this._favicon = undefined;
-			}
-
 			this._zoomHost = parseZoomHost(e.url);
 			this._url = e.url;
 			this._title = e.title;

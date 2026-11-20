@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -10,6 +11,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { CanvasDefinitionOpener, CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -24,7 +26,7 @@ import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEdit
 import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { canvasOwnerKey, ICanvas, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
-import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
+import { openCanvasForUser } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -88,6 +90,13 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				// A chat window restores and reconciles its canvases without taking focus, as an unfocused one does.
 				add(focusedSession, focusedChat, getWindowHost(focusedHost)?.kind === SessionHostKind.ChatWindow);
 			}
+			// The main window presents the canvases of its chat while another window has focus.
+			const mainWindowHost = this.sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader);
+			const mainSession = mainWindowHost?.session.read(reader);
+			const mainChat = mainWindowHost?.chat.read(reader);
+			if (mainSession && mainChat) {
+				add(mainSession, mainChat, true);
+			}
 			// Every chat of every chat window presents its canvases there, whichever chat is active or focused.
 			for (const resource of this.chatWindowChats.read(reader)) {
 				const owner = this.sessionsManagementService.getSessionForChatResource(resource);
@@ -124,6 +133,14 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...event.removed, ...archived]) {
 				this.removeOwners(owner => ownsSession(owner, session));
+			}
+		}));
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(session => {
+			this.removeOwners(owner => ownsSession(owner, session));
+		}));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (!isEqual(from.resource, to.resource)) {
+				this.removeOwners(owner => ownsSession(owner, from));
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => {
@@ -266,6 +283,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ICanvasService private readonly canvasService: ICanvasService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
 		@ILogService logService: ILogService,
 	) {
 		super();
@@ -304,22 +322,12 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		if (!chat) {
 			return;
 		}
-		try {
-			await this.openCanvasIn(session, chat, canvas);
-		} catch (error) {
-			if (!(error instanceof CanvasExtensionConsentDeniedError)) {
-				throw error;
+		await openCanvasForUser(this.progressService, this.notificationService, canvas.displayName || canvas.canvasId, async options => {
+			// A retry runs later, when the session may no longer present canvases.
+			if (this.canvasService.enabled.get() && session.capabilities.get().supportsCanvases === true) {
+				await this.openCanvasIn(session, chat, canvas, options);
 			}
-			notifyCanvasExtensionConsentDenied(this.notificationService, error, () => this.retryOpenCanvas(session, chat, canvas));
-		}
-	}
-
-	/** Asks about the declined extension of `canvas` again, if the session still presents canvases. */
-	private async retryOpenCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition): Promise<void> {
-		if (!this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
-			return;
-		}
-		await this.openCanvasIn(session, chat, canvas, { retryDeniedConsent: true });
+		});
 	}
 
 	private openCanvasIn(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, options?: ICanvasOpenOptions): Promise<void> {

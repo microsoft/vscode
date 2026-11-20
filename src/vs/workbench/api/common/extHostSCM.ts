@@ -586,6 +586,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { activeRepositoryName: activeRepositoryName ?? null });
 	}
 
+	private _isHidden: boolean;
+
+	get isHidden(): boolean {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._isHidden;
+	}
+
+	set isHidden(isHidden: boolean) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._isHidden === isHidden) {
+			return;
+		}
+
+		this._isHidden = isHidden;
+		this._setHidden(this.handle, isHidden);
+	}
+
 	private _contextValue: string | undefined = undefined;
 
 	get contextValue(): string | undefined {
@@ -838,9 +856,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _rootUri?: vscode.Uri,
 		_iconPath?: vscode.IconPath,
 		_isHidden?: boolean,
-		_parent?: ExtHostSourceControl
+		_parent?: ExtHostSourceControl,
+		private readonly _setHidden: (handle: number, isHidden: boolean) => void = () => { }
 	) {
 		this.#proxy = proxy;
+		this._isHidden = !!_isHidden;
 
 		const inputBoxDocumentUri = URI.from({
 			scheme: Schemas.vscodeSourceControl,
@@ -868,6 +888,14 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
+		this.addResourceGroups();
+	}
+
+	private addResourceGroups(): void {
+		if (this.createdResourceGroups.size === 0) {
+			return;
+		}
+
 		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /*multiDiffEditorEnableViewChanges*/ boolean][] = [];
 		const splices: SCMRawResourceSplices[] = [];
 
@@ -903,6 +931,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyUpdateResourceStates(): void {
+		this.updateResourceStates();
+	}
+
+	private updateResourceStates(): void {
 		const splices: SCMRawResourceSplices[] = [];
 
 		this.updatedResourceGroups.forEach(group => {
@@ -920,6 +952,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		}
 
 		this.updatedResourceGroups.clear();
+	}
+
+	/**
+	 * Sends the resource groups and resource states that are waiting to be sent right away,
+	 * for example before the source control is shown.
+	 */
+	flushResourceUpdates(): void {
+		this.addResourceGroups();
+		this.updateResourceStates();
 	}
 
 	getResourceGroup(handle: GroupHandle): ExtHostSourceControlResourceGroup | undefined {
@@ -1028,6 +1069,33 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
+	private readonly _pendingHidden = new Map<number, boolean>();
+
+	/**
+	 * Sends the visibility changes of the source controls made in the same tick together, so that
+	 * showing one source control and hiding another one is a single change of the views.
+	 */
+	private setSourceControlHidden(handle: number, isHidden: boolean): void {
+		const isScheduled = this._pendingHidden.size > 0;
+		this._pendingHidden.set(handle, isHidden);
+
+		if (!isScheduled) {
+			queueMicrotask(() => {
+				const changes = [...this._pendingHidden];
+				this._pendingHidden.clear();
+
+				// A source control that is shown has its resources before it appears
+				for (const [handle, isHidden] of changes) {
+					if (!isHidden) {
+						this._sourceControls.get(handle)?.flushResourceUpdates();
+					}
+				}
+
+				this._proxy.$setSourceControlsHidden(changes);
+			});
+		}
+	}
+
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
@@ -1042,7 +1110,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl, (handle, isHidden) => this.setSourceControlHidden(handle, isHidden));
 		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];

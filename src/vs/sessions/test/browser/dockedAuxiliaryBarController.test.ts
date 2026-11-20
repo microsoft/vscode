@@ -37,6 +37,7 @@ suite('Sessions - Docked Details Position', () => {
 		let editorVisible = true;
 		let contentTop = 65;
 		let floating = false;
+		let headerSpansDetails = false;
 		let collapses = 0;
 		let insets = [0, 0, 0, 0];
 		let lastLayout: number[] = [];
@@ -55,6 +56,7 @@ suite('Sessions - Docked Details Position', () => {
 			setEditorContentInsets: (right, top, bottom, left) => { insets = [right, top, bottom, left]; },
 			getTabsHeight: () => 33,
 			getEditorContentTop: () => contentTop,
+			headerSpansDetails: () => headerSpansDetails,
 		};
 		const controller = store.add(new DockedAuxiliaryBarController(editor, auxiliaryBarPart, host, {
 			isEnabled: () => floating,
@@ -73,6 +75,7 @@ suite('Sessions - Docked Details Position', () => {
 			setEditorVisible: (value: boolean) => { editorVisible = value; controller.layout(); },
 			setContentTop: (value: number) => { contentTop = value; controller.layout(); },
 			setFloating: (value: boolean) => { floating = value; controller.layout(); },
+			setHeaderSpansDetails: (value: boolean) => { headerSpansDetails = value; controller.layout(); },
 			show: () => { visible = true; controller.layout(); },
 			hide: () => { visible = false; controller.layout(); },
 			snapshot: () => ({ insets, layout: lastLayout, requestedHeight: height, collapses }),
@@ -161,6 +164,24 @@ suite('Sessions - Docked Details Position', () => {
 		setEditorVisible(false);
 		assert.deepStrictEqual({ state: snapshot(), enabledSashes: editor.querySelectorAll('.monaco-sash:not(.disabled)').length }, {
 			state: { insets: [0, 0, 0, 0], layout: [800, 566, 33, 0], requestedHeight: 200, collapses: 0 }, enabledSashes: 0,
+		});
+	});
+
+	test('detail-only presentation above or below editor content starts below a header that spans the details', () => {
+		const { part, setPosition, setEditorVisible, setHeaderSpansDetails, snapshot } = createHost();
+		setEditorVisible(false);
+		setHeaderSpansDetails(true);
+		const placement = (position: 'top' | 'bottom') => {
+			setPosition(position);
+			return { layout: snapshot().layout, allocated: [part.style.top, part.style.height] };
+		};
+		const top = placement('top');
+		const bottom = placement('bottom');
+		setHeaderSpansDetails(false);
+		assert.deepStrictEqual({ top, bottom, withoutSpanningHeader: placement('bottom') }, {
+			top: { layout: [800, 534, 65, 0], allocated: ['65px', '535px'] },
+			bottom: { layout: [800, 534, 65, 0], allocated: ['65px', '535px'] },
+			withoutSpanningHeader: { layout: [800, 566, 33, 0], allocated: ['33px', '567px'] },
 		});
 	});
 

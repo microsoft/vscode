@@ -600,7 +600,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		await service.openReporter(data());
 		const input = inputs()[0];
 		editDraft(input);
-		const signal = input.submissionSignal;
+		const cancellationToken = input.submissionToken;
 		const description = input.descriptionInput.value;
 		const otherVeto = new DeferredPromise<boolean>();
 		store.add(lifecycle.onBeforeShutdown(event => event.veto(otherVeto.p, 'otherParticipant')));
@@ -610,7 +610,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const quitting = shutdown(ShutdownReason.QUIT);
 		await controls.confirmGate.complete();
 		await timeout(0);
-		const afterDiscard = { disposed: input.isDisposed(), description: input.descriptionInput.value, oldSubmissionAborted: signal.aborted, nextSubmissionAborted: input.submissionSignal.aborted };
+		const afterDiscard = { disposed: input.isDisposed(), description: input.descriptionInput.value, oldSubmissionAborted: cancellationToken.isCancellationRequested, nextSubmissionAborted: input.submissionToken.isCancellationRequested };
 		await otherVeto.complete(true);
 		const quitResult = await quitting;
 		controls.confirmGate = undefined;
@@ -867,7 +867,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const cancelled = assert.rejects(submission.firstCall.returnValue, isCancellationError);
 		await token.complete('late-token');
 		await cancelled;
-		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), cancelled: inputs()[0].submissionSignal.aborted, previews }, {
+		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), cancelled: inputs()[0].submissionToken.isCancellationRequested, previews }, {
 			disposed: true, cancelled: true, previews: [],
 		});
 	});

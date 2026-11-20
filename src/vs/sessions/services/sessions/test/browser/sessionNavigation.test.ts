@@ -134,6 +134,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
 	readonly onDidAcceptNewSessionRequest = Event.None;
+	readonly onDidDispatchNewSessionRequest = Event.None;
 	readonly onDidEndNewSessionRequest = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
@@ -175,6 +176,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	getAllSessions(): ISession[] { return this.getSessions(); }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 	getInFlightNewSessionRequest(): undefined { return undefined; }
 
@@ -283,6 +285,7 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: ISession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	archiveSessions(_sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]> { throw new Error('not implemented'); }
 	prepareSessionWorktreeCleanup(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -998,6 +1001,25 @@ suite('SessionsNavigation', () => {
 			before: ['["newSession","saved"]'],
 			after: ['["newSession","saved"]'],
 			cleared: [{ kind: 'newSession' }],
+		});
+	});
+
+	test('switching directly between saved drafts preserves both Back/Forward destinations', async () => {
+		const opened: string[] = [];
+		store.savedDraftOpener = async id => {
+			opened.push(id);
+			nav.setCurrentDraftId(id);
+			return true;
+		};
+		nav.setCurrentDraftId('first');
+		nav.setCurrentDraftId('second');
+		const before = recency.entries.map(getRecencyEntryKey);
+		await nav.goBack();
+		await nav.goForward();
+		assert.deepStrictEqual({ opened, before, after: recency.entries.map(getRecencyEntryKey) }, {
+			opened: ['first', 'second'],
+			before: ['["newSession","second"]', '["newSession","first"]'],
+			after: ['["newSession","second"]', '["newSession","first"]'],
 		});
 	});
 

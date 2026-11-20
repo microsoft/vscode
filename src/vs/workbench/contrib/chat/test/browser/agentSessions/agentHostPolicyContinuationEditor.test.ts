@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -79,7 +80,8 @@ suite('Editor Agent Host policy continuation presenter', () => {
 		// The sidebar is the Chat view, as in the workbench
 		services.stub(IViewDescriptorService, {});
 		services.stub(IWorkbenchLayoutService, {});
-		services.stub(IChatViewHostService, services.createInstance(ChatViewHostService));
+		stubChatViewHostServiceDependencies(services);
+		services.stub(IChatViewHostService, store.add(services.createInstance(ChatViewHostService)));
 		const presenter = services.createInstance(EditorAgentHostPolicyContinuationPresenter);
 		return {
 			state, navigation,

@@ -19,11 +19,11 @@ import { activeContrastBorder } from '../../../../platform/theme/common/colorReg
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, InputDropTargetHints, isContentDropTarget, isInputDropTarget, registerPassThroughDropTarget, ResourcesDropHandler } from '../../dnd.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, InputDropTargetHints, isContentDropTarget, isInputDropTarget, isPassThroughModifierHeld, PASS_THROUGH_MODIFIER_LABEL, registerPassThroughDropTarget, ResourcesDropHandler } from '../../dnd.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, GroupTransferKind, IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
@@ -56,10 +56,11 @@ function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationSer
 }
 
 /** The key, as it shows, that drops into the editor while it is held (see {@link isDragIntoEditorEvent}). */
-const DROP_INTO_EDITOR_MODIFIER_LABEL = isMacintosh ? '⇧' : 'Shift';
+const DROP_INTO_EDITOR_MODIFIER_LABEL = PASS_THROUGH_MODIFIER_LABEL;
 
+/** Whether the key that drops into the editor is held: the one that lets drags through other placement overlays too, such as to attach to a chat. */
 function isDragIntoEditorEvent(e: DragEvent): boolean {
-	return e.shiftKey;
+	return isPassThroughModifierHeld(e);
 }
 
 /**
@@ -290,7 +291,7 @@ class DropOverlay extends Themable {
 
 		if (this.enableDropIntoEditor) {
 			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __{0}__ to drop into editor", DROP_INTO_EDITOR_MODIFIER_LABEL), {});
-			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
+			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt', 'drop-overlay-label');
 			this.overlay.appendChild(this.dropIntoPromptElement);
 		}
 
@@ -317,20 +318,6 @@ class DropOverlay extends Themable {
 		overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
 		overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
 		overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
-
-		if (this.dropIntoPromptElement) {
-			this.dropIntoPromptElement.style.backgroundColor = this.getColor(EDITOR_DROP_INTO_PROMPT_BACKGROUND) ?? '';
-			this.dropIntoPromptElement.style.color = this.getColor(EDITOR_DROP_INTO_PROMPT_FOREGROUND) ?? '';
-
-			const borderColor = this.getColor(EDITOR_DROP_INTO_PROMPT_BORDER);
-			if (borderColor) {
-				this.dropIntoPromptElement.style.borderWidth = '1px';
-				this.dropIntoPromptElement.style.borderStyle = 'solid';
-				this.dropIntoPromptElement.style.borderColor = borderColor;
-			} else {
-				this.dropIntoPromptElement.style.borderWidth = '0';
-			}
-		}
 	}
 
 	/**

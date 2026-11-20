@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { PermissionDecisionSource, PermissionRequestResult, PermissionResult } from '@github/copilot-sdk';
+import type { PermissionDecisionSource, PermissionRequestResult, PermissionResult } from '@microsoft/copilot-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { attributePermissionResult, permissionResultToConfirmKind } from '../../node/copilot/copilotPermissionAttribution.js';
 

@@ -43,7 +43,6 @@ paths-ignore:
   - 'extensions/*/tests/**'
   - 'extensions/configuration-editing/src/test/**'
   - 'extensions/copilot/src/extension/**/test/**'
-  - 'extensions/copilot/src/extension/agents/node/adapters/openaiAdapterForSTests.ts'
   - 'extensions/copilot/src/extension/typescriptContext/serverPlugin/fixtures/**'
   - 'extensions/copilot/src/lib/**/test/**'
   - 'extensions/copilot/src/platform/**/test/**'

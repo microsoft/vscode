@@ -5,16 +5,19 @@
 
 import assert from 'assert';
 import { $, append } from '../../../base/browser/dom.js';
-import { Grid, Direction, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
+import { Grid, Direction, ISerializableView, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
+import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
 import { PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { Extensions as ViewExtensions, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
 
 suite('Workbench layout sash endpoints', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -145,6 +148,12 @@ suite('Workbench layout chat part', () => {
 		readonly alignment: PanelAlignment;
 		/** The chat part, with the layout it was left in; none without a chat part. */
 		readonly chat?: { readonly visible: boolean; readonly size: number } | 'noLayout';
+		/** The location of the view the chat part docks beside; `null` for a view that is not known; no anchor without. */
+		readonly anchor?: ViewContainerLocation | null;
+		/** Whether that view is registered, as it is by default; one that is not keeps a location saved for it. */
+		readonly anchorRegistered?: boolean;
+		/** The width of the window and of its bars, 1600, 250 and 260 by default. */
+		readonly widths?: { readonly window?: number; readonly sideBar?: number; readonly auxiliaryBar?: number };
 	}
 
 	/** The state a window left, to start another window from, as after a reload. */
@@ -170,6 +179,9 @@ suite('Workbench layout chat part', () => {
 				override updateStyles() { }
 				override toJSON() { return { type: id }; }
 			}();
+			// The priorities of the real parts: the editor area takes what a window gains or loses first, unless hidden for the chat part
+			const priorities = new Map<Parts, LayoutPriority>([[Parts.EDITOR_PART, LayoutPriority.High], [Parts.SIDEBAR_PART, LayoutPriority.Low], [Parts.AUXILIARYBAR_PART, LayoutPriority.Low], [Parts.CHAT_PART, LayoutPriority.Low]]);
+			Object.defineProperty(part, 'priority', { get: () => id === Parts.CHAT_PART && Reflect.get(part, 'fillsEditorArea') ? LayoutPriority.High : priorities.get(id) });
 			views.set(id, part);
 			return part;
 		};
@@ -191,23 +203,35 @@ suite('Workbench layout chat part', () => {
 			['panel.hidden', false],
 			['auxiliaryBar.hidden', false],
 		]);
-		const initialization = new Map<string, unknown>([['sideBar.size', 250], ['auxiliaryBar.size', 260], ['panel.size', 200]]);
+		const initialization = new Map<string, unknown>([['sideBar.size', configuration.widths?.sideBar ?? 250], ['auxiliaryBar.size', configuration.widths?.auxiliaryBar ?? 260], ['panel.size', 200]]);
+		const anchor = { location: configuration.anchor ?? null, registered: configuration.anchorRegistered ?? true };
+		const viewEvents = { location: store.add(new Emitter<void>()), container: store.add(new Emitter<void>()), containerLocation: store.add(new Emitter<void>()), containers: store.add(new Emitter<void>()) };
 		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
+		const focus = { chat: false, focused: [] as string[] };
 		const layout = store.add(new class extends Layout {
 			override isVisible(part: Parts, targetWindow?: Window): boolean {
 				return part === Parts.TITLEBAR_PART || super.isVisible(part, targetWindow);
 			}
-			override hasFocus() { return false; }
+			override hasFocus(part: Parts) { return part === Parts.CHAT_PART && focus.chat; }
+			override focusPart(part: Parts) { focus.focused.push(part.split('.').pop()!); }
 			override isFloatingPanelsEnabled() { return false; }
 			protected override getPart(id: Parts) { return views.get(id)!; }
 		}(mainWindow.document.body));
 		Object.assign(layout, {
 			...parts,
-			_mainContainerDimension: { width: 1600, height: 900 },
+			_mainContainerDimension: { width: configuration.widths?.window ?? 1600, height: 900 },
 			telemetryService: NullTelemetryService,
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
-			viewDescriptorService: { getViewContainersByLocation: () => [] },
+			viewDescriptorService: {
+				getViewContainersByLocation: () => [],
+				getViewDescriptorById: () => anchor.registered ? {} : null,
+				getViewLocationById: () => anchor.location,
+				onDidChangeLocation: viewEvents.location.event,
+				onDidChangeContainer: viewEvents.container.event,
+				onDidChangeContainerLocation: viewEvents.containerLocation.event,
+				onDidChangeViewContainers: viewEvents.containers.event,
+			},
 			configurationService: { getValue: () => undefined },
 			storageService: { get: () => stored, store: (_key: string, value: string) => stored = value },
 			stateModel: {
@@ -216,12 +240,15 @@ suite('Workbench layout chat part', () => {
 				getInitializationValue: (key: { name: string; defaultValue: unknown }) => initialization.get(key.name) ?? key.defaultValue,
 			},
 		});
+		if (configuration.anchor !== undefined) {
+			layout.setChatPartAnchor({ viewId: 'sessions' });
+		}
 		const descriptor = (Reflect.get(layout, 'createGridDescriptor') as () => ISerializedGrid).call(layout);
 		const save = (): ISavedLayout => {
 			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
 			return { runtime, stored };
 		};
-		return { layout, views, descriptor, save };
+		return { layout, views, descriptor, save, anchor, focus, viewEvents };
 	}
 
 	/** The parts of `node`, nested as the grid nests them, marking hidden parts. */
@@ -296,14 +323,16 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual(chat.map(node => ({ part: shape(node), size: node.size })).filter(node => node.part === '(chat)'), [{ part: '(chat)', size: 480 }]);
 	});
 
-	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
-		const { layout, views, descriptor, save } = createLayout(configuration, saved);
+	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout, laidOut = true) {
+		const { layout, views, descriptor, save, anchor, focus, viewEvents } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
-		grid.layout(1600, 900);
-		Object.assign(layout, { workbenchGrid: grid });
+		if (laidOut) {
+			grid.layout(configuration.widths?.window ?? 1600, 900);
+		}
+		Object.assign(layout, { workbenchGrid: grid, initialized: laidOut });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle, save };
+		return { layout, grid, middle, save, anchor, views, focus, viewEvents };
 	}
 
 	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
@@ -322,6 +351,51 @@ suite('Workbench layout chat part', () => {
 			hidden: { sideBarRight: 'editor', editorLeft: 'sidebar', chatLeft: undefined, chatRight: undefined },
 			absent: { sideBarRight: 'editor', editorLeft: 'sidebar', chatLeft: undefined, chatRight: undefined },
 		});
+	});
+
+	for (const sideBar of [Position.LEFT, Position.RIGHT]) {
+		test(`hiding the primary side bar beside the chat part gives its room to the chat part, not the editor, and showing it takes the room from the chat part, side bar ${sideBar === Position.LEFT ? 'left' : 'right'}`, () => {
+			const { layout, grid, views } = createGridLayout({ sideBar, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+			const width = (id: Parts) => grid.getViewSize(views.get(id)!).width;
+			const widths = () => ({ bar: layout.isVisible(Parts.SIDEBAR_PART) ? width(Parts.SIDEBAR_PART) : 0, chat: width(Parts.CHAT_PART), editor: width(Parts.EDITOR_PART) });
+			const before = widths();
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			const hidden = widths();
+			layout.setPartHidden(false, Parts.SIDEBAR_PART);
+			const shown = widths();
+
+			assert.deepStrictEqual({ hidden, shown }, {
+				hidden: { bar: 0, chat: before.chat + before.bar, editor: before.editor },
+				shown: before,
+			});
+		});
+	}
+
+	for (const { bar, anchor, beside } of [
+		{ bar: Parts.AUXILIARYBAR_PART, anchor: ViewContainerLocation.AuxiliaryBar, beside: true },
+		{ bar: Parts.AUXILIARYBAR_PART, anchor: ViewContainerLocation.Sidebar, beside: false },
+	]) {
+		test(`hiding the secondary side bar ${beside ? 'beside' : 'away from'} the chat part ${beside ? 'gives its room to the chat part, not the editor' : 'gives its room to the editor'}, and showing it takes the room back from there`, () => {
+			const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor });
+			const width = (id: Parts) => grid.getViewSize(views.get(id)!).width;
+			const widths = () => ({ bar: layout.isVisible(bar) ? width(bar) : 0, chat: width(Parts.CHAT_PART), editor: width(Parts.EDITOR_PART) });
+			const before = widths();
+			layout.setPartHidden(true, bar);
+			const hidden = widths();
+			layout.setPartHidden(false, bar);
+			const shown = widths();
+
+			assert.deepStrictEqual({ hidden, shown }, {
+				hidden: beside ? { bar: 0, chat: before.chat + before.bar, editor: before.editor } : { bar: 0, chat: before.chat, editor: before.editor + before.bar },
+				shown: before,
+			});
+		});
+	}
+
+	test('hiding the side bar before the first layout does not throw', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } }, undefined, false);
+
+		assert.doesNotThrow(() => layout.setPartHidden(true, Parts.SIDEBAR_PART));
 	});
 
 	test('the grid without a chat part is as before it existed', () => {
@@ -360,6 +434,23 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('the auxiliary bar hides Maximize while any claim is held, and tells only as it starts and stops', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		const events: boolean[] = [];
+		store.add(layout.onDidChangeAuxiliaryBarMaximizeHidden(hidden => events.push(hidden)));
+		const steps: Record<string, unknown> = { initial: layout.isAuxiliaryBarMaximizeHidden() };
+		const first = layout.hideAuxiliaryBarMaximize();
+		steps.claimed = layout.isAuxiliaryBarMaximizeHidden();
+		const second = layout.hideAuxiliaryBarMaximize();
+		first.dispose();
+		first.dispose();
+		steps.oneLeft = layout.isAuxiliaryBarMaximizeHidden();
+		second.dispose();
+		steps.released = layout.isAuxiliaryBarMaximizeHidden();
+		steps.events = events;
+		assert.deepStrictEqual(steps, { initial: false, claimed: true, oneLeft: true, released: false, events: [true, false] });
+	});
+
 	test('hides the chat part with the editor for a maximized panel and shows it again with the editor, as showing the chat part does', () => {
 		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
 		const visible = () => ({ chat: layout.isVisible(Parts.CHAT_PART), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), panel: layout.isVisible(Parts.PANEL_PART) });
@@ -385,6 +476,19 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('fires the chat part visibility event once per change, also for a maximized panel, and not while it stays as it is', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		const events: boolean[] = [];
+		store.add(layout.onDidChangeChatPartVisibility(visible => events.push(visible)));
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		layout.toggleMaximizedPanel();
+		layout.toggleMaximizedPanel();
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		assert.deepStrictEqual(events, [false, true, false, true]);
+	});
+
 	test('a chat part hidden for a maximized panel or secondary side bar stays hidden after a reload, and shows again when that is restored', () => {
 		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
 		const reload = (toggleMaximized: (layout: Layout) => void) => {
@@ -404,6 +508,133 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	suite('editor area hidden for the chat part', () => {
+
+		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
+
+		function state(layout: Layout) {
+			return { hiddenByChat: layout.isEditorHiddenByChat(), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), chat: layout.isVisible(Parts.CHAT_PART), panel: layout.isVisible(Parts.PANEL_PART) };
+		}
+
+		test('hides and shows the editor area, and the chat part takes its width', () => {
+			const { layout, grid, views } = createGridLayout(configuration);
+			const chat = views.get(Parts.CHAT_PART)!;
+			const editorWidth = grid.getViewSize(views.get(Parts.EDITOR_PART)!).width;
+			const chatWidth = grid.getViewSize(chat).width;
+			const steps: Record<string, unknown> = {};
+			layout.setEditorHiddenByChat(true);
+			steps.hidden = state(layout);
+			const grown = grid.getViewSize(chat).width > chatWidth + editorWidth / 2;
+			layout.setEditorHiddenByChat(false);
+			steps.shown = state(layout);
+			assert.deepStrictEqual({ ...steps, chatTookTheWidth: grown }, {
+				hidden: { hiddenByChat: true, editor: false, chat: true, panel: true },
+				shown: { hiddenByChat: false, editor: true, chat: true, panel: true },
+				chatTookTheWidth: true,
+			});
+		});
+
+		test('does not hide the editor area without a visible chat part', () => {
+			const hidden = createGridLayout({ ...configuration, chat: { visible: false, size: 400 } });
+			hidden.layout.setEditorHiddenByChat(true);
+			const absent = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+			absent.layout.setEditorHiddenByChat(true);
+			assert.deepStrictEqual({ hidden: state(hidden.layout), absent: absent.layout.isEditorHiddenByChat() }, {
+				hidden: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				absent: false,
+			});
+		});
+
+		test('an editor opening shows the editor area again, as a maximized panel does not take its place', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			const panelMaximized = layout.isPanelMaximized();
+			layout.toggleMaximizedPanel();
+			assert.deepStrictEqual({ panelMaximized, afterToggle: state(layout), panelMaximizedAfter: layout.isPanelMaximized() }, {
+				panelMaximized: false,
+				afterToggle: { hiddenByChat: false, editor: false, chat: false, panel: true },
+				panelMaximizedAfter: true,
+			});
+		});
+
+		test('hiding the chat part, also with the panel hidden, shows the editor area again', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			const withPanel = state(layout);
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			layout.setEditorHiddenByChat(true);
+			layout.setPartHidden(true, Parts.PANEL_PART);
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			assert.deepStrictEqual({ withPanel, withoutPanel: state(layout) }, {
+				withPanel: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				withoutPanel: { hiddenByChat: false, editor: true, chat: false, panel: false },
+			});
+		});
+
+		test('stays hidden after a reload, with the panel hidden too, and shows again when the chat part no longer does', () => {
+			const before = createGridLayout(configuration);
+			before.layout.setPartHidden(true, Parts.PANEL_PART);
+			before.layout.setEditorHiddenByChat(true);
+			const saved = before.save();
+			const reloaded = createGridLayout(configuration, saved);
+			const withoutChat = createGridLayout(configuration, { ...saved, stored: JSON.stringify({ version: 1, visible: false, size: 400 }) });
+			assert.deepStrictEqual({ reloaded: state(reloaded.layout), withoutChat: state(withoutChat.layout) }, {
+				reloaded: { hiddenByChat: true, editor: false, chat: true, panel: false },
+				withoutChat: { hiddenByChat: false, editor: true, chat: false, panel: false },
+			});
+		});
+
+		test('hiding the chat part while a maximized secondary side bar had hidden it shows the editor area again', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			layout.toggleMaximizedAuxiliaryBar();
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			assert.deepStrictEqual({ afterHide: state(layout), maximized: layout.isAuxiliaryBarMaximized() }, {
+				afterHide: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				maximized: false,
+			});
+		});
+
+		test('maximizing the secondary side bar and restoring it keeps the editor area hidden', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			layout.toggleMaximizedAuxiliaryBar();
+			const maximized = state(layout);
+			layout.toggleMaximizedAuxiliaryBar();
+			assert.deepStrictEqual({ maximized, restored: state(layout) }, {
+				maximized: { hiddenByChat: true, editor: false, chat: false, panel: false },
+				restored: { hiddenByChat: true, editor: false, chat: true, panel: true },
+			});
+		});
+
+		test('a reload without a chat part, with the secondary side bar maximized, keeps the editor area hidden until it is restored', () => {
+			const before = createGridLayout(configuration);
+			before.layout.setEditorHiddenByChat(true);
+			before.layout.toggleMaximizedAuxiliaryBar();
+			const { layout } = createGridLayout({ ...configuration, chat: undefined }, before.save());
+			const reloaded = state(layout);
+			layout.toggleMaximizedAuxiliaryBar();
+			assert.deepStrictEqual({ reloaded, restored: state(layout) }, {
+				reloaded: { hiddenByChat: false, editor: false, chat: false, panel: false },
+				restored: { hiddenByChat: false, editor: true, chat: false, panel: true },
+			});
+		});
+
+		test('focus goes to the chat part, not the hidden editor area', () => {
+			const { layout } = createGridLayout(configuration);
+			const focused: Parts[] = [];
+			Object.assign(layout, { focusPart: (part: Parts) => focused.push(part) });
+			layout.focus();
+			layout.setEditorHiddenByChat(true);
+			layout.focus();
+			// An auxiliary editor window being active keeps its editor focused
+			Object.defineProperty(layout, 'activeContainer', { value: $('div') });
+			layout.focus();
+			assert.deepStrictEqual(focused, [Parts.EDITOR_PART, Parts.CHAT_PART, Parts.EDITOR_PART]);
+		});
+	});
+
 	test('a chat part hidden for a maximized panel shows after a reload when the panel no longer opens maximized there, as for a justified bottom panel', () => {
 		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
 		const before = createGridLayout(configuration);
@@ -414,4 +645,255 @@ suite('Workbench layout chat part', () => {
 		const { layout } = createGridLayout(configuration, { ...saved, runtime });
 		assert.deepStrictEqual({ panelMaximized: layout.isPanelMaximized(), chat: layout.isVisible(Parts.CHAT_PART) }, { panelMaximized: false, chat: true });
 	});
+
+	test('docks the chat part beside the editor on the side of its anchor view\'s container', () => {
+		const middle = (configuration: Omit<ILayoutConfiguration, 'chat' | 'alignment'>) => shape((createLayout({ alignment: 'center', chat: { visible: true, size: 400 }, ...configuration }).descriptor.root.data as ISerializedNode[])[2]);
+		assert.deepStrictEqual({
+			sideBar: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Sidebar }),
+			sideBarRight: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Sidebar }),
+			auxiliaryBar: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: ViewContainerLocation.AuxiliaryBar }),
+			auxiliaryBarSideBarRight: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.AuxiliaryBar }),
+			auxiliaryBarWithPanelOnItsSide: middle({ sideBar: Position.LEFT, panel: Position.RIGHT, anchor: ViewContainerLocation.AuxiliaryBar }),
+			rightPanel: middle({ sideBar: Position.LEFT, panel: Position.RIGHT, anchor: ViewContainerLocation.Panel }),
+			bottomPanel: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Panel }),
+			unknownView: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: null }),
+			unregisteredViewWithSavedMove: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: ViewContainerLocation.AuxiliaryBar, anchorRegistered: false }),
+		}, {
+			sideBar: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			sideBarRight: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
+			auxiliaryBar: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			auxiliaryBarSideBarRight: ['auxiliarybar', [['chat', 'editor'], 'panel'], 'sidebar', 'activitybar'],
+			auxiliaryBarWithPanelOnItsSide: ['activitybar', 'sidebar', 'editor', 'chat', 'panel', 'auxiliarybar'],
+			rightPanel: ['activitybar', 'sidebar', 'editor', 'chat', 'panel', 'auxiliarybar'],
+			bottomPanel: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
+			unknownView: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			unregisteredViewWithSavedMove: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part follows its anchor view as the view moves, the side bar flips and the panel moves', () => {
+		const { layout, middle, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const setSideBarPosition = (position: Position) => (Reflect.get(layout, 'setSideBarPosition') as (position: Position) => void).call(layout, position);
+		// As the view descriptor service tells the layout that a view or a view container moved
+		const moveAnchor = (location: ViewContainerLocation) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		const step = () => ({ grid: middle(), position: layout.getChatPartPosition() });
+		const steps: Record<string, unknown> = {};
+		steps.auxiliaryBar = step();
+		setSideBarPosition(Position.RIGHT);
+		steps.sideBarRight = step();
+		moveAnchor(ViewContainerLocation.Sidebar);
+		steps.movedToSideBar = step();
+		moveAnchor(ViewContainerLocation.Panel);
+		layout.setPanelPosition(Position.LEFT);
+		steps.movedToLeftPanel = step();
+		layout.setPanelPosition(Position.RIGHT);
+		steps.panelRight = step();
+		layout.setPanelPosition(Position.BOTTOM);
+		steps.panelBottom = step();
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		steps.movedWhileHidden = step();
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		steps.shownAgain = step();
+		assert.deepStrictEqual(steps, {
+			auxiliaryBar: { grid: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'], position: Position.RIGHT },
+			sideBarRight: { grid: ['auxiliarybar', [['chat', 'editor'], 'panel'], 'sidebar', 'activitybar'], position: Position.LEFT },
+			movedToSideBar: { grid: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'], position: Position.RIGHT },
+			movedToLeftPanel: { grid: ['auxiliarybar', 'panel', 'chat', 'editor', 'sidebar', 'activitybar'], position: Position.LEFT },
+			panelRight: { grid: ['auxiliarybar', 'editor', 'chat', 'panel', 'sidebar', 'activitybar'], position: Position.RIGHT },
+			panelBottom: { grid: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'], position: Position.RIGHT },
+			movedWhileHidden: { grid: ['auxiliarybar', [['(chat)', 'editor'], 'panel'], 'sidebar', 'activitybar'], position: Position.LEFT },
+			shownAgain: { grid: ['auxiliarybar', [['chat', 'editor'], 'panel'], 'sidebar', 'activitybar'], position: Position.LEFT },
+		});
+	});
+
+	test('the chat part keeps its width as it follows its anchor view, shown or hidden', () => {
+		const { layout, grid, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const moveAnchor = (location: ViewContainerLocation) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		// The width the grid gives the chat part, or would give it once shown
+		const chatWidth = (node: ISerializedNode): number | undefined => node.type === 'leaf'
+			? (node.data as { type: string }).type === Parts.CHAT_PART ? node.size : undefined
+			: (node.data as ISerializedNode[]).reduce<number | undefined>((width, child) => width ?? chatWidth(child), undefined);
+		const widths: (number | undefined)[] = [];
+		moveAnchor(ViewContainerLocation.Sidebar);
+		widths.push(chatWidth(grid.serialize().root));
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		widths.push(chatWidth(grid.serialize().root));
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		moveAnchor(ViewContainerLocation.Sidebar);
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		widths.push(chatWidth(grid.serialize().root));
+		assert.deepStrictEqual(widths, [400, 400, 400]);
+	});
+
+	test('a chat part docked beside the secondary side bar hides while that is maximized and shows again on its side', () => {
+		const { layout, middle } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const steps: Record<string, unknown> = {};
+		layout.toggleMaximizedAuxiliaryBar();
+		steps.maximized = layout.isVisible(Parts.CHAT_PART);
+		layout.toggleMaximizedAuxiliaryBar();
+		steps.restored = middle();
+		assert.deepStrictEqual(steps, {
+			maximized: false,
+			restored: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part keeps the focus as it moves to its anchor view\'s side, and follows the view as it is deregistered', () => {
+		const { layout, middle, anchor, focus } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const moveAnchor = (location: ViewContainerLocation | null) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		focus.chat = true;
+		moveAnchor(ViewContainerLocation.Sidebar);
+		const focused = [...focus.focused];
+		focus.chat = false;
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		// As the view deregisters, it is no view the layout knows
+		moveAnchor(null);
+
+		assert.deepStrictEqual({ focused, focusedAfter: focus.focused, deregistered: middle() }, {
+			focused: ['chat'],
+			focusedAfter: ['chat'],
+			deregistered: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('listens to the views only while it has an anchor view to follow', () => {
+		const { layout, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		const listening = () => viewEvents.location.hasListeners();
+
+		const withoutAnchor = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchored = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchoredAgain = listening();
+		layout.setChatPartAnchor(undefined);
+
+		assert.deepStrictEqual({ withoutAnchor, anchored, anchoredAgain, cleared: listening() }, { withoutAnchor: false, anchored: true, anchoredAgain: true, cleared: false });
+	});
+
+	test('follows its anchor view through the events of the views as they move, deregister and register again', () => {
+		const { middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		const container = upcastPartial<ViewContainer>({ id: 'test.chatPartAnchor' });
+		const view = upcastPartial<IViewDescriptor>({ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' } });
+		const steps: Record<string, unknown> = {};
+
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		viewEvents.location.fire();
+		steps.viewMoved = middle();
+		anchor.location = ViewContainerLocation.Sidebar;
+		viewEvents.containerLocation.fire();
+		steps.containerMoved = middle();
+		viewsRegistry.registerViews([view], container);
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		viewEvents.container.fire();
+		steps.viewContainerChanged = middle();
+		anchor.registered = false;
+		viewsRegistry.deregisterViews([view], container);
+		steps.deregistered = middle();
+		anchor.registered = true;
+		viewsRegistry.registerViews([view], container);
+		steps.registeredAgain = middle();
+		viewsRegistry.deregisterViews([view], container);
+
+		assert.deepStrictEqual(steps, {
+			viewMoved: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			containerMoved: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			viewContainerChanged: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			deregistered: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			registeredAgain: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part gives the focus back to what had it inside, such as a button of its toolbar, as it moves to its anchor view\'s side', () => {
+		const { layout, middle, anchor, focus, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
+		mainWindow.document.body.appendChild(layout.mainContainer);
+		store.add(toDisposable(() => layout.mainContainer.remove()));
+		const button = append(views.get(Parts.CHAT_PART)!.element, $('button'));
+		button.focus();
+		focus.chat = true;
+		const focusedBefore = mainWindow.document.activeElement === button;
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		(Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout);
+
+		assert.deepStrictEqual({ focusedBefore, moved: middle(), focusedAfter: mainWindow.document.activeElement === button, defaultFocus: focus.focused }, {
+			focusedBefore: true,
+			moved: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			focusedAfter: true,
+			defaultFocus: [],
+		});
+	});
+
+	/** The widths across the window, of the parts the editor's row has, and whether those fit the window without overflowing. */
+	function widthsAcross(layout: Layout, grid: SerializableGrid<ISerializableView>, views: Map<Parts, Part>, window: number) {
+		const width = (part: Parts) => layout.isVisible(part) ? grid.getViewSize(views.get(part)!).width : 0;
+		const chat = width(Parts.CHAT_PART);
+		const editor = width(Parts.EDITOR_PART);
+		const total = width(Parts.ACTIVITYBAR_PART) + width(Parts.SIDEBAR_PART) + editor + chat + width(Parts.AUXILIARYBAR_PART);
+		return { fits: total === window, chatAtLeastItsMinimum: chat >= 280, editorAtLeastItsMinimum: editor >= 220 };
+	}
+
+	test('the chat part shown beside a wide secondary side bar takes room from it, rather than overflow the editor\'s column', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 590 } });
+		const auxiliaryBarBefore = grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width;
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore, chatAtItsSavedWidth: grid.getViewSize(views.get(Parts.CHAT_PART)!).width === 400 }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true, chatAtItsSavedWidth: true,
+		});
+	});
+
+	test('the chat part shown beside a wide primary side bar takes room from it', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 400 }, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, sideBar: 600 } });
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual(widthsAcross(layout, grid, views, 1200), { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true });
+	});
+
+	test('the chat part that follows its anchor view to a wide secondary side bar takes room from it', () => {
+		const { layout, grid, views, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, auxiliaryBar: 590 } });
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		(Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout);
+
+		assert.deepStrictEqual(widthsAcross(layout, grid, views, 1200), { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true });
+	});
+
+	test('the chat part shown at its minimum width beside a wide secondary side bar, whose column is narrower than the editor\'s and its minimum together, takes room from the bar', () => {
+		const shown = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 280 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 590 } });
+		shown.layout.setPartHidden(false, Parts.CHAT_PART);
+		const moved = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 280 }, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, auxiliaryBar: 590 } });
+		moved.anchor.location = ViewContainerLocation.AuxiliaryBar;
+		(Reflect.get(moved.layout, 'updateChatPartPosition') as () => void).call(moved.layout);
+
+		assert.deepStrictEqual({ shown: widthsAcross(shown.layout, shown.grid, shown.views, 1200), moved: widthsAcross(moved.layout, moved.grid, moved.views, 1200) }, {
+			shown: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
+			moved: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
+		});
+	});
+
+	test('the chat part shown beside a secondary side bar at its minimum takes the room it still needs from the wide side bar on the other side', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 162 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, sideBar: 600, auxiliaryBar: 170 } });
+		const sideBarBefore = grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width;
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), sideBarShrank: grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width < sideBarBefore }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, sideBarShrank: true,
+		});
+	});
+
+	for (const alignment of ['center', 'left', 'right'] satisfies PanelAlignment[]) {
+		for (const sideBar of [Position.LEFT, Position.RIGHT]) {
+			test(`the chat part at its minimum width fits beside a wide secondary side bar as it shows or follows its anchor there, panel aligned ${alignment}, side bar ${sideBar === Position.LEFT ? 'left' : 'right'}`, () => {
+				const widths = { window: 1200, auxiliaryBar: 590 };
+				const shown = createGridLayout({ sideBar, panel: Position.BOTTOM, alignment, chat: { visible: false, size: 280 }, anchor: ViewContainerLocation.AuxiliaryBar, widths });
+				shown.layout.setPartHidden(false, Parts.CHAT_PART);
+				const moved = createGridLayout({ sideBar, panel: Position.BOTTOM, alignment, chat: { visible: true, size: 280 }, anchor: ViewContainerLocation.Sidebar, widths });
+				moved.anchor.location = ViewContainerLocation.AuxiliaryBar;
+				(Reflect.get(moved.layout, 'updateChatPartPosition') as () => void).call(moved.layout);
+
+				const fit = { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true };
+				assert.deepStrictEqual({ shown: widthsAcross(shown.layout, shown.grid, shown.views, 1200), moved: widthsAcross(moved.layout, moved.grid, moved.views, 1200) }, { shown: fit, moved: fit });
+			});
+		}
+	}
 });

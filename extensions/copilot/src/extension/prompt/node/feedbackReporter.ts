@@ -39,5 +39,3 @@ export class NullFeedbackReporterImpl implements IFeedbackReporter {
 		// nothing
 	}
 }
-
-export const NullFeedbackReporter = new NullFeedbackReporterImpl();

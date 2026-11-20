@@ -45,7 +45,7 @@ export class CopilotSubagentTracking extends Disposable {
 		if (!child.accountContextCaptured) {
 			// An unavailable initial context must not be replaced by a later root's account.
 			child.accountContext = parentToolCallId ? this.getAccountContext(parentToolCallId) : rootTurn?.telemetryContext;
-			child.invocationTurnId = parentToolCallId ? this.getInvocationTurnId(parentToolCallId) : rootTurn?.id;
+			child.invocationTurnId ??= parentToolCallId ? this.getInvocationTurnId(parentToolCallId) : rootTurn?.id;
 			child.accountContextCaptured = true;
 			child.initialPrompt = taskPrompt;
 		}
@@ -128,8 +128,21 @@ export class CopilotSubagentTracking extends Disposable {
 		return this._children.get(toolCallId)?.invocationTurnId;
 	}
 
+	/** A background Task can finish before the SDK announces the child. */
+	recordInvocationTurn(toolCallId: string, turnId: string | undefined): void {
+		if (turnId) {
+			this._getOrCreateChild(toolCallId).invocationTurnId ??= turnId;
+		}
+	}
+
 	getToolCallId(agentId: string): string | undefined {
 		return this._toolCallsByAgent.get(agentId);
+	}
+
+	seedToolCallId(agentId: string, toolCallId: string): void {
+		if (!this._toolCallsByAgent.has(agentId)) {
+			this._toolCallsByAgent.set(agentId, toolCallId);
+		}
 	}
 
 	getAgentId(toolCallId: string): string | undefined {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IMenu, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -17,6 +17,7 @@ export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
 	private readonly _toDispose = new DisposableStore();
 	private _actions: IAction[] = [];
+	private readonly _actionButtons = new Map<IAction, IButton>();
 
 	constructor(
 		private readonly keybindingService: IKeybindingService,
@@ -28,18 +29,23 @@ export class CommentFormActions implements IDisposable {
 		private readonly supportDropdowns?: boolean,
 	) { }
 
-	setActions(menu: IMenu, hasOnlySecondaryActions: boolean = false) {
+	setActions(menu: IMenu, hasOnlySecondaryActions: boolean = false, additionalActions: readonly IAction[] = []) {
 		this._toDispose.clear();
 
 		this._buttonElements.forEach(b => b.remove());
 		this._buttonElements = [];
+		this._actionButtons.clear();
 
-		const groups = menu.getActions({ shouldForwardArgs: true });
+		const menuGroups = menu.getActions({ shouldForwardArgs: true });
+		const groups = additionalActions.length > 0
+			? [['', [...additionalActions]] as [string, IAction[]], ...menuGroups]
+			: menuGroups;
+		this._actions = additionalActions.length > 0 ? [...additionalActions] : [];
 		let isPrimary: boolean = !hasOnlySecondaryActions;
-		for (const group of groups) {
-			const [, actions] = group;
-
-			this._actions = actions;
+		for (const [, actions] of groups) {
+			if (additionalActions.length === 0) {
+				this._actions = actions;
+			}
 			for (const current of actions) {
 				const dropDownActions = this.supportDropdowns && current instanceof SubmenuItemAction ? current.actions : [];
 				const action = dropDownActions.length ? dropDownActions[0] : current;
@@ -66,6 +72,7 @@ export class CommentFormActions implements IDisposable {
 
 				isPrimary = false;
 				this._buttonElements.push(button.element);
+				this._actionButtons.set(action, button);
 
 				this._toDispose.add(button);
 				this._toDispose.add(button.onDidClick(() => this.actionHandler(action)));
@@ -77,6 +84,14 @@ export class CommentFormActions implements IDisposable {
 					return;
 				}
 			}
+		}
+	}
+
+	updateAction(action: IAction): void {
+		const button = this._actionButtons.get(action);
+		if (button) {
+			button.enabled = action.enabled;
+			button.label = action.label;
 		}
 	}
 

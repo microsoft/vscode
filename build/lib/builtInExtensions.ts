@@ -7,14 +7,14 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import rimraf from 'rimraf';
-import es from 'event-stream';
+import { merge } from './streams.ts';
 import { rename } from './gulp/facade.ts';
 import vfs from 'vinyl-fs';
 import * as ext from './extensions.ts';
 import { getCurrentExtensionTarget, getPlatformSpecificAssetName } from './extensionTarget.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import { Stream } from 'stream';
+import { Readable, Stream } from 'stream';
 
 export interface IExtensionDefinition {
 	name: string;
@@ -90,7 +90,7 @@ function getExtensionDownloadStream(extension: IExtensionDefinition) {
 		// back to the Marketplace (which does not serve those assets) even when a gallery is configured.
 		const asset = resolvePlatformSpecificAsset(extension);
 		if (!asset) {
-			return es.readArray([]);
+			return Readable.from([]);
 		}
 		input = ext.fromGithub(extension, { asset, latest: isInsiders() });
 	} else if (productjson.extensionsGallery?.serviceUrl) {
@@ -137,7 +137,7 @@ function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
 	const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
 	if (isUpToDate(extension)) {
 		log(source, `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
-		return es.readArray([]);
+		return Readable.from([]);
 	}
 
 	rimraf.sync(getExtensionPath(extension));
@@ -153,14 +153,14 @@ function syncExtension(extension: IExtensionDefinition, controlState: 'disabled'
 
 		if (!platforms.has(process.platform)) {
 			log(ansiColors.gray('[skip]'), `${extension.name}@${extension.version}: Platform '${process.platform}' not supported: [${extension.platforms}]`, ansiColors.green('✔︎'));
-			return es.readArray([]);
+			return Readable.from([]);
 		}
 	}
 
 	switch (controlState) {
 		case 'disabled':
 			log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));
-			return es.readArray([]);
+			return Readable.from([]);
 
 		case 'marketplace':
 			return syncMarketplaceExtension(extension);
@@ -168,15 +168,15 @@ function syncExtension(extension: IExtensionDefinition, controlState: 'disabled'
 		default:
 			if (!fs.existsSync(controlState)) {
 				log(ansiColors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but that path does not exist.`));
-				return es.readArray([]);
+				return Readable.from([]);
 
 			} else if (!fs.existsSync(path.join(controlState, 'package.json'))) {
 				log(ansiColors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but there is no 'package.json' file in that directory.`));
-				return es.readArray([]);
+				return Readable.from([]);
 			}
 
 			log(ansiColors.blue('[local]'), `${extension.name}: ${ansiColors.cyan(controlState)}`, ansiColors.green('✔︎'));
-			return es.readArray([]);
+			return Readable.from([]);
 	}
 }
 
@@ -214,7 +214,7 @@ export function getBuiltInExtensions(): Promise<void> {
 	writeControlFile(control);
 
 	return new Promise((resolve, reject) => {
-		es.merge(streams)
+		merge(streams)
 			.on('error', reject)
 			.on('end', resolve);
 	});

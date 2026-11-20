@@ -5,9 +5,19 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { parseNextChatResponseChunk } from '../../../electron-browser/actions/voiceChatActions.js';
+import { parseNextChatResponseChunk, StartVoiceChatAction, StopListeningAction } from '../../../electron-browser/actions/voiceChatActions.js';
 
 suite('VoiceChatActions', function () {
+
+	test('keeps voice action menu conditions below the expression size budget', () => {
+		for (const action of [new StartVoiceChatAction(), new StopListeningAction()]) {
+			const menus = action.desc.menu;
+			assert.ok(Array.isArray(menus));
+			for (const menu of menus) {
+				assert.ok(menu.when && menu.when.serialize().length < 10_000, `${action.desc.id} menu condition should stay below 10,000 characters`);
+			}
+		}
+	});
 
 	function assertChunk(text: string, expected: string | undefined, offset: number): { chunk: string | undefined; offset: number } {
 		const res = parseNextChatResponseChunk(text, offset);

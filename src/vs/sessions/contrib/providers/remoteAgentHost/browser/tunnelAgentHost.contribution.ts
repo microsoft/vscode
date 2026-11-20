@@ -521,14 +521,16 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 				const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 				const info = onlineTunnelMap.get(tunnelId);
-				if (info && info.hostConnectionCount > 0) {
+				if (info && info.hostConnectionCount !== undefined && info.hostConnectionCount > 0) {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 
 				} else {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 					// Host is not online — drop any cached sessions we were
 					// showing for it so the UI doesn't list stale entries.
-					provider.unpublishCachedSessions();
+					if (!info || info.hostConnectionCount === 0) {
+						provider.unpublishCachedSessions();
+					}
 				}
 			}
 
@@ -538,7 +540,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._updateConnectionStatuses();
 
 		const totalFound = onlineTunnels?.length ?? 0;
-		const withActiveHost = onlineTunnels?.filter(t => t.hostConnectionCount > 0).length ?? 0;
+		const withActiveHost = onlineTunnels?.filter(t => t.hostConnectionCount !== undefined && t.hostConnectionCount > 0).length ?? 0;
 		this._logService.info(
 			`[TunnelAgentHost] Silent status check (${resolvedTrigger}): totalFound=${totalFound}, withActiveHost=${withActiveHost}, cachedBefore=${cachedBefore}, autoConnect=${autoConnectEnabled}`
 		);

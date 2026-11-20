@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -58,6 +58,14 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { GPUCompositingState } from './gpuCompositingState.js';
 import { AgentHostEditorUpdate, AgentsWindowInvitationState, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { isOnBatteryPower, isPowerSaveBlockerStarted, onDidChangeOnBatteryPower, startPowerSaveBlocker, stopPowerSaveBlocker } from './power.js';
+import { MouseMoveForwarder } from './mouseMoveForwarder.js';
+
+/**
+ * Whether a window that ignores mouse events needs a {@link MouseMoveForwarder} to receive mouse moves: on Windows, Electron 43
+ * forwards none to a window opened with `window.open`, such as an auxiliary window (electron/electron#55098, fixed in Electron 44).
+ */
+const needsMouseMoveForwarder = isWindows && parseInt(process.versions.electron, 10) < 44;
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -68,6 +76,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private readonly gpuCompositingState: GPUCompositingState;
 	private readonly agentsWindowInvitations: AgentsWindowInvitationState;
+	/** The mouse move forwarders of windows that ignore mouse events, by window ID, see {@link needsMouseMoveForwarder}. */
+	private readonly mouseMoveForwarders = this._register(new DisposableMap<number>());
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -142,11 +152,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			this.onDidSuspendOS = Event.fromNodeEventEmitter(powerMonitor, 'suspend');
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-			// Battery power events (macOS and Windows only)
-			this.onDidChangeOnBatteryPower = Event.any(
-				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-ac'), () => false),
-				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-battery'), () => true)
-			);
+			this.onDidChangeOnBatteryPower = onDidChangeOnBatteryPower;
 
 			// Thermal state events (macOS only)
 			this.onDidChangeThermalState = Event.map(
@@ -432,11 +438,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.handleTitleDoubleClick();
 	}
 
-	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle; readonly workArea: IRectangle }> {
 		const point = screen.getCursorScreenPoint();
 		const display = screen.getDisplayNearestPoint(point);
 
-		return { point, display: display.bounds };
+		return { point, display: display.bounds, workArea: display.workArea };
 	}
 
 	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -529,6 +535,32 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setWindowOpacity(windowId: number | undefined, opacity: number, options?: INativeHostOptions): Promise<void> {
 		this.exactWindowById(windowId, options)?.win?.setOpacity(Math.min(1, Math.max(0, opacity)));
+	}
+
+	async setWindowIgnoreMouseEvents(windowId: number | undefined, ignore: boolean, options?: INativeHostOptions): Promise<void> {
+		const win = this.exactWindowById(windowId, options)?.win;
+		if (!win) {
+			return;
+		}
+		win.setIgnoreMouseEvents(ignore, { forward: true });
+		if (!ignore) {
+			this.mouseMoveForwarders.deleteAndDispose(win.id);
+		} else if (needsMouseMoveForwarder && !this.mouseMoveForwarders.has(win.id)) {
+			this.mouseMoveForwarders.set(win.id, this.forwardMouseMoves(win));
+		}
+	}
+
+	private forwardMouseMoves(win: BrowserWindow): DisposableStore {
+		const id = win.id;
+		const store = new DisposableStore();
+		store.add(new MouseMoveForwarder({
+			onDidChangeVisibility: Event.any(Event.fromNodeEventEmitter(win, 'show'), Event.fromNodeEventEmitter(win, 'hide')),
+			isVisible: () => win.isVisible(),
+			getContentBounds: () => win.getContentBounds(),
+			sendMouseMove: (x, y) => win.webContents.sendInputEvent({ type: 'mouseMove', x, y }),
+		}, () => screen.getCursorScreenPoint()));
+		store.add(Event.fromNodeEventEmitter(win, 'closed')(() => this.mouseMoveForwarders.deleteAndDispose(id)));
+		return store;
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
@@ -1858,19 +1890,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async isOnBatteryPower(windowId: number | undefined): Promise<boolean> {
-		return powerMonitor.isOnBatteryPower();
+		return isOnBatteryPower();
 	}
 
 	async startPowerSaveBlocker(windowId: number | undefined, type: PowerSaveBlockerType): Promise<number> {
-		return powerSaveBlocker.start(type);
+		return startPowerSaveBlocker(type);
 	}
 
 	async stopPowerSaveBlocker(windowId: number | undefined, id: number): Promise<boolean> {
-		return powerSaveBlocker.stop(id);
+		return stopPowerSaveBlocker(id);
 	}
 
 	async isPowerSaveBlockerStarted(windowId: number | undefined, id: number): Promise<boolean> {
-		return powerSaveBlocker.isStarted(id);
+		return isPowerSaveBlockerStarted(id);
 	}
 
 	//#endregion

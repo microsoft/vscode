@@ -49,7 +49,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbenc
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionIdContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
@@ -749,6 +749,40 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(localEntries, entries);
 	});
 
+	test('offers a quick chat of a new session the host options that need no workspace', () => {
+		const services = setupServices(store);
+		const repository = makeRepoConfig('main');
+		services.provider.config = {
+			...repository,
+			schema: { ...repository.schema, properties: { ...repository.schema.properties, runner: { title: 'Runner', description: '', type: 'string', enum: ['*', 'm1'], enumLabels: ['Any runner', 'm1'] } } },
+		};
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly gridShown = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+
+		const context = new Context(1, null);
+		context.setValue(ChatContextKeys.enabled.key, true);
+		context.setValue(SessionIdContext.key, SESSION_ID);
+		const shown = (quickChat: boolean) => {
+			context.setValue(IsQuickChatSessionContext.key, quickChat);
+			return MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.') && (item.when?.evaluate(context) ?? true))
+				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		};
+
+		assert.deepStrictEqual({ workspace: shown(false), quickChat: shown(true) }, { workspace: ['Isolation', 'Base Branch', 'Runner'], quickChat: ['Runner'] });
+	});
+
 	test('repository pickers keep their menu action so the composer can identify them', async () => {
 		const services = setupServices(store);
 		const providers = new Map<string, IActionViewItemFactory>();
@@ -933,7 +967,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places running session controls from the scoped composer layout', () => {
+	test('places running session controls from the scoped composer layout, and none with AI features disabled', () => {
 		const runningSessionIds = [
 			'sessions.agentHost.runningSessionModePicker',
 			'sessions.agentHost.runningSessionConfigPicker',
@@ -941,6 +975,7 @@ suite('Agent Host Session Config Picker', () => {
 			'sessions.agentHost.runningSessionCodexApprovalsPicker',
 		];
 		const context = new Context(1, null);
+		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
 		// The chat input of a session host's scope.
 		context.setValue(InSessionHostScopeContext.key, true);
@@ -960,10 +995,15 @@ suite('Agent Host Session Config Picker', () => {
 			primary: visible(MenuId.ChatInput),
 			secondary: visible(MenuId.ChatInputSecondary),
 		};
+		context.setValue(ChatContextKeys.enabled.key, false);
+		const aiDisabledExperimental = [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)];
+		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, false);
+		const aiDisabled = { experimental: aiDisabledExperimental, legacy: [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)] };
 
-		assert.deepStrictEqual({ legacy, experimental }, {
+		assert.deepStrictEqual({ legacy, experimental, aiDisabled }, {
 			legacy: { primary: [], secondary: runningSessionIds },
 			experimental: { primary: runningSessionIds, secondary: [] },
+			aiDisabled: { experimental: [], legacy: [] },
 		});
 	});
 
