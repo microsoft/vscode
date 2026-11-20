@@ -18,12 +18,19 @@ suite('PromptTimelineGutterRail', () => {
 		return { requestId, allRequestIds: [requestId], text: requestId, timestamp: index, count: 1, ariaLabel: requestId, stat };
 	}
 
-	/** Mounts a rail with `ticks` in the document, so focus and keyboard navigation behave for real. */
-	function createRail(ticks: readonly PromptTick[]): PromptTimelineGutterRail {
+	function hoverRail(rail: PromptTimelineGutterRail): void {
+		rail.domNode.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+	}
+
+	/** Mounts the rail in the document so focus and keyboard navigation behave for real. */
+	function createRail(ticks: readonly PromptTick[], revealed = true): PromptTimelineGutterRail {
 		const rail = store.add(new PromptTimelineGutterRail());
 		document.body.appendChild(rail.domNode);
 		store.add(toDisposable(() => rail.domNode.remove()));
 		rail.setTicks(ticks);
+		if (revealed) {
+			hoverRail(rail);
+		}
 		return rail;
 	}
 
@@ -38,6 +45,18 @@ suite('PromptTimelineGutterRail', () => {
 	function keydown(target: HTMLElement, key: string, keyCode: number): void {
 		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 	}
+
+	test('a large outline only builds the resting dots until the user opens the gutter', () => {
+		const rail = createRail(Array.from({ length: 200 }, (_, index) => tick(index)), false);
+		rail.setActive('100');
+		const closed = { rows: rowParts(rail).length, activeDots: rail.domNode.querySelectorAll('.prompt-timeline-gutter-dot.active').length };
+		const handle = rail.domNode.querySelector<HTMLButtonElement>('[aria-expanded]')!;
+		keydown(handle, 'Enter', 13);
+		const rows = rowParts(rail);
+		assert.deepStrictEqual({ closed, open: rows.length, active: rows[100].jump.getAttribute('aria-current'), focused: document.activeElement === rows[100].jump }, {
+			closed: { rows: 0, activeDots: 1 }, open: 200, active: 'location', focused: true,
+		});
+	});
 
 	test('highlights a row previewed from a dot, but leaves a row under the pointer to its own halves', () => {
 		const rail = createRail(Array.from({ length: 3 }, (_, index) => tick(index)));
@@ -82,6 +101,7 @@ suite('PromptTimelineGutterRail', () => {
 		const rail = store.add(new PromptTimelineGutterRail());
 		root.appendChild(rail.domNode);
 		rail.setTicks([tick(0), tick(1)]);
+		hoverRail(rail);
 		rail.setActive('1');
 		const activeJump = rowParts(rail)[1].jump;
 		activeJump.classList.add('hovered');
@@ -112,6 +132,7 @@ suite('PromptTimelineGutterRail', () => {
 	test('maps row hover to the nearest sampled dot when capped', () => {
 		const rail = store.add(new PromptTimelineGutterRail());
 		rail.setTicks(Array.from({ length: 51 }, (_, index) => tick(index)));
+		hoverRail(rail);
 
 		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row'));
 		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-dot'));
@@ -285,7 +306,7 @@ suite('PromptTimelineGutterRail', () => {
 		const rail = store.add(new PromptTimelineGutterRail());
 		host.appendChild(rail.domNode);
 		rail.setTicks(Array.from({ length: 4 }, (_, index) => tick(index)));
-		rail.domNode.classList.add('revealed');
+		hoverRail(rail);
 
 		const transcriptChrome = document.createElement('div');
 		transcriptChrome.style.position = 'absolute';

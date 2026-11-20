@@ -1233,6 +1233,7 @@ suite('stateToProgressAdapter', () => {
 					accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
 				}, {
 					kind: 'markdownContent',
+					historyPartId: 'provider-response',
 					content: new MarkdownString('Provider continued work'),
 				}],
 			});

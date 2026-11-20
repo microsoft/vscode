@@ -1442,7 +1442,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+						parts.push({ kind: 'markdownContent', historyPartId: rp.id, content: new MarkdownString(rp.content) });
 					}
 					break;
 				case ResponsePartKind.ToolCall: {
@@ -1910,7 +1910,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 		switch (rp.kind) {
 			case ResponsePartKind.Markdown:
 				if (rp.content) {
-					parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+					parts.push({ kind: 'markdownContent', historyPartId: rp.id, content: new MarkdownString(rp.content) });
 				}
 				break;
 			case ResponsePartKind.Reasoning:

@@ -673,6 +673,17 @@
 	width: var(--prompt-timeline-scrollbar-gutter);
 }
 
+.prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-panel.has-older-prompts {
+	background-image: linear-gradient(to bottom, var(--vscode-scrollbar-shadow), transparent);
+	background-repeat: no-repeat;
+	background-size: 100% var(--vscode-spacing-size80);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-panel.has-older-prompts {
+	background-image: none;
+	border-top-style: dashed;
+}
+
 .prompt-timeline-gutter-panel::-webkit-scrollbar-track {
 	background: var(--vscode-scrollbar-background);
 }

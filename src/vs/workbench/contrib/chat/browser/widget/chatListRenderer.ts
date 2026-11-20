@@ -1016,7 +1016,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
 	readonly onDidClickFollowup: Event<IChatFollowup> = this._onDidClickFollowup.event;
 
-	private readonly _onDidClickRerunWithAgentOrCommandDetection = this._register(new Emitter<{ readonly sessionResource: URI; readonly requestId: string }>());
+	private readonly _onDidClickRerunWithAgentOrCommandDetection = this._register(new Emitter<IChatRequestViewModel | IChatResponseViewModel>());
 	readonly onDidClickRerunWithAgentOrCommandDetection = this._onDidClickRerunWithAgentOrCommandDetection.event;
 
 
@@ -2009,6 +2009,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.pendingHeightUpdates.deleteAndDispose(templateData);
 		}
 		const readOnly = !!this.rendererOptions.readOnly;
+		ChatContextKeys.readOnly.bindTo(templateData.contextKeyService).set(readOnly);
 		const renderInputRequests = this.rendererOptions.renderInputRequests !== false;
 		const renderHtmlPreviews = !!this.rendererOptions.renderHtmlPreviews && this.configService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled) === true;
 		const nativeComponents = this.rendererOptions.renderNativeComponents ? getChatNativeComponentsRenderer(this.configService) : undefined;
@@ -2243,7 +2244,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.checkpointToolbar.context = element;
 		const supportsForkOrRestoration = this.rendererOptions.supportsFork || (this.rendererOptions.restorable ?? true);
-		const checkpointEnabled = this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled)
+		const checkpointEnabled = !this.viewModel?.model.historyNavigation?.get()?.inHistory.get() && this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled)
 			&& supportsForkOrRestoration;
 		const isPendingRequest = isRequestVM(element) && !!element.pendingKind;
 		const transcriptItems = this.viewModel?.getItems() ?? [];
@@ -2577,7 +2578,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		dom.clearNode(templateData.detail);
 
-		if (element.agentOrSlashCommandDetected) {
+		if (element.agentOrSlashCommandDetected && !this.rendererOptions.readOnly) {
 			const msg = element.slashCommand ? localize('usedAgentSlashCommand', "used {0} [[(rerun without)]]", `${chatSubcommandLeader}${element.slashCommand.name}`) : localize('usedAgent', "[[(rerun without)]]");
 			dom.reset(templateData.detail, renderFormattedText(msg, {
 				actionHandler: {
@@ -3390,6 +3391,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				if (!isStickyScrollRow
+					&& !this.rendererOptions.readOnly
 					&& this.rendererOptions.renderDetectedCommandsWithRequest
 					&& !inlineSlashCommandRendered
 					&& element.agentOrSlashCommandDetected && element.slashCommand
@@ -3398,7 +3400,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (newPart.domNode) {
 						newPart.domNode.style.display = 'inline-flex';
 					}
-					const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionResource: element.sessionResource, requestId: element.id }));
+					const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire(element));
 					contentContainer.appendChild(cmdPart.domNode);
 					parts.push(cmdPart);
 					inlineSlashCommandRendered = true;

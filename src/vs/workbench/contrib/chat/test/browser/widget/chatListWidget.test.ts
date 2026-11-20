@@ -18,7 +18,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -69,7 +69,7 @@ import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatHistoryNavigation, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, IChatScheduledRequestEditing, IChatScheduledRequestViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1575,6 +1575,108 @@ suite('ChatListWidget', () => {
 			dataIdAfterAppend: firstDataId,
 			dataIdAfterRemove: firstDataId,
 			remainingRequestId: firstRequest.id,
+		});
+	});
+
+	test('loads older history from the focused short list, coalescing gestures and discarding stale navigation', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		model.loadOlderHistory = () => { loads++; return page.p; };
+		model.addRequest({ text: 'Recent', parts: [] }, { variables: [] }, 0).response!.complete();
+		widget.layout(300, 500);
+		widget.refresh();
+		widget.focusItem(viewModel.getItems()[0]);
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		const wheel = (deltaY: number) => tree.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true }));
+		wheel(10);
+		await nextFrame();
+		const before = { loads, scrollable: widget.scrollHeight > widget.renderHeight };
+		const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 38 });
+		tree.dispatchEvent(event);
+		await nextFrame();
+		const keyboardLoads = loads;
+		wheel(-10);
+		await nextFrame();
+		const whileLoading = loads;
+		await page.complete();
+		await nextFrame();
+		wheel(-10);
+		widget.setViewModel(undefined);
+		await nextFrame();
+		assert.deepStrictEqual({ before, keyboardLoads, whileLoading, final: loads }, {
+			before: { loads: 0, scrollable: false }, keyboardLoads: 1, whileLoading: 1, final: 1,
+		});
+	});
+
+	test('loads older history by wheel without losing the reading row or tree focus', async () => {
+		const { model, viewModel, widget, container } = createWidget();
+		const question = model.addRequest({ text: 'Recent', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(question, { kind: 'markdownContent', content: new MarkdownString('Recent paragraph\n\n'.repeat(30)) });
+		question.response!.complete();
+		widget.layout(300, 500);
+		widget.refresh();
+		const focused = viewModel.getItems()[1];
+		widget.focusItem(focused);
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		model.loadOlderHistory = () => { loads++; return page.p; };
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		widget.scrollToEnd();
+		tree.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		await nextFrame();
+		const awayFromTop = loads;
+		widget.scrollTop = widget.getElementTop(focused)! + 12;
+		tree.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		await nextFrame();
+		// The user continues reading while the request is in flight.
+		widget.scrollTop = widget.getElementTop(focused)! + 32;
+		const anchor = widget.getScrollAnchor();
+		const insertion: Parameters<ChatModel['addRequest']> = [{ text: 'Older', parts: [] }, { variables: [] }, 0];
+		insertion[24] = { index: 0 };
+		const older = model.addRequest(...insertion);
+		model.acceptResponseProgress(older, { kind: 'markdownContent', content: new MarkdownString('Older paragraph\n\n'.repeat(30)) });
+		older.response!.complete();
+		widget.refresh();
+		await page.complete();
+		await waitForStableLayout(widget);
+		assert.deepStrictEqual({
+			awayFromTop, loads, anchor: widget.getScrollAnchor(), focused: widget.getFocus()[0] === focused && widget.isDOMFocused(),
+		}, { awayFromTop: 0, loads: 1, anchor, focused: true });
+	});
+
+	test('a short reading window pages in both directions only on gesture and offers Scroll to Latest at its bottom', async () => {
+		const { disposables, model, viewModel, container, instantiationService, widget } = createWidget();
+		const page = disposables.add(instantiationService.createInstance(ChatModel, undefined, { resource: model.sessionResource, initialLocation: ChatAgentLocation.Chat, disableBackgroundKeepAlive: true, canUseTools: false }));
+		const request = page.addRequest({ text: 'Prompt 45', parts: [] }, { variables: [] }, 0);
+		request.response!.complete();
+		model.addRequest({ text: 'Prompt 100', parts: [] }, { variables: [] }, 0).response!.complete();
+		const window = observableValue<readonly IChatRequestModel[] | undefined>('window', [request]);
+		const pages: string[] = [];
+		model.historyNavigation.set(upcastPartial<IChatHistoryNavigation>({
+			window, inHistory: window.map(value => !!value),
+			loadPage: async direction => { pages.push(direction); },
+			returnToLatest: async () => { window.set(undefined, undefined); },
+		}), undefined);
+		widget.layout(300, 500);
+		widget.refresh();
+		widget.focusItem(viewModel.getItems()[0]);
+		await nextFrame();
+		const initial = [...pages];
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		tree.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 10 }));
+		await nextFrame();
+		const e = new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowUp' });
+		Object.defineProperty(e, 'keyCode', { get: () => 38 });
+		tree.dispatchEvent(e);
+		await nextFrame();
+		const button = container.querySelector<HTMLElement>('.chat-scroll-down')!;
+		const shown = button.style.display !== 'none';
+		button.click();
+		await nextFrame();
+		assert.deepStrictEqual({ initial, pages, shown, latest: viewModel.getItems().filter(isRequestVM).map(item => item.messageText) }, {
+			initial: [], pages: ['after', 'before'], shown: true, latest: ['Prompt 100'],
 		});
 	});
 

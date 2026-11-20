@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
+import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { Response } from '../../../common/model/chatModel.js';
 
 /** Builds a minimal fake request item satisfying `isRequestVM` (`'message' in item`). */
 function fakeRequest(id: string, messageText: string): ChatTreeItem {
@@ -31,7 +34,7 @@ function fakeResponse(id: string, value: unknown[], errorDetails?: { message: st
 }
 
 function markdown(text: string) {
-	return { kind: 'markdownContent', content: new MarkdownString(text) };
+	return { kind: 'markdownContent' as const, content: new MarkdownString(text) };
 }
 
 function inlineReference(path: string) {
@@ -47,7 +50,7 @@ function toolInvocation(invocationMessage: string, pastTenseMessage?: string, is
 }
 
 suite('ChatFindModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('finds matches across a user request and response markdown', () => {
 		const items = [
@@ -152,6 +155,68 @@ suite('ChatFindModel', () => {
 			oldest: 501,
 		});
 		model.dispose();
+	});
+
+	test('history occurrences count the whole turn side before the UI cap', () => {
+		const item = Object.assign(fakeResponse('reply', [
+			{ ...markdown('match '.repeat(7000)), historyPartId: 'part-a' },
+			{ ...markdown('match '.repeat(3500)), historyPartId: 'part-b' },
+		]), { requestId: 'opaque-turn' });
+		const model = store.add(new ChatFindModel(() => [item]));
+		model.setQuery('match', { isRegex: false, matchCase: true, wholeWord: true });
+
+		const location = (occurrence: number) => ({ turnId: 'opaque-turn', kind: 'response' as const, occurrence });
+		assert.deepStrictEqual({
+			count: model.matches.length,
+			newest: model.locationOf(model.matches[0]),
+			oldest: model.locationOf(model.matches.at(-1)),
+			selected: model.selectLocation(location(7000)) && [model.activeMatch?.partIndex, model.activeMatch?.occurrenceIndex],
+			dropped: model.selectLocation(location(500)),
+		}, { count: 9999, newest: location(10_499), oldest: location(501), selected: [2, 0], dropped: false });
+	});
+
+	test('history locators follow separately rendered Markdown parts, not local UI text', () => {
+		const response = store.add(new Response([]));
+		const source = '> Review **[map &amp; `filter`](https://example.org/map)**';
+		const rendered = store.add(renderMarkdown(new MarkdownString(source), getChatMarkdownRenderOptions()));
+		const visible = 'Review map & filter';
+		assert.strictEqual(rendered.element.textContent.trim(), visible);
+
+		response.updateContent({ ...markdown('> Review **['), historyPartId: '1' });
+		response.updateContent({ ...markdown(source.slice('> Review **['.length)), historyPartId: '1' });
+		response.updateContent({ ...markdown('filter map'), historyPartId: '2' });
+		response.updateContent(markdown('map from a tool card'));
+		response.updateContent({ ...markdown('```ts\nmap()\n```'), historyPartId: '3' });
+		const items = [
+			Object.assign(fakeRequest('system', 'map'), { isSystemInitiated: true }),
+			fakeRequest('opaque', 'map'),
+			Object.assign(fakeResponse('reply', [...response.value], { message: 'map in error details' }), { requestId: 'opaque' }),
+		];
+		const model = store.add(new ChatFindModel(() => items));
+		const options = { isRegex: false, matchCase: true, wholeWord: false };
+		const find = (query: string) => {
+			model.setQuery(query, options);
+			return model.matches.map(match => [match.partIndex, model.locationOf(match)?.kind, model.locationOf(match)?.occurrence]);
+		};
+		assert.deepStrictEqual({
+			visible: find(visible),
+			crossBoundary: find('filterfilter'),
+			hits: find('map'),
+		}, {
+			visible: [[1, 'response', 0]],
+			crossBoundary: [],
+			hits: [[-1, undefined, undefined], [4, 'response', 2], [3, undefined, undefined], [2, 'response', 1], [1, 'response', 0], [-1, 'request', 0], [-1, undefined, undefined]],
+		});
+	});
+
+	test('mixed Unicode regex numbers only nonempty matches', () => {
+		const model = store.add(new ChatFindModel(() => [fakeRequest('turn', '✨😀 map map')]));
+		model.setQuery('(?=.)|$', { isRegex: true, matchCase: true, wholeWord: false });
+		const empty = model.matches.length;
+		model.setQuery('map|(?=.)', { isRegex: true, matchCase: true, wholeWord: false });
+		assert.deepStrictEqual({
+			empty, matches: model.matches.map(match => [match.text, match.start, model.locationOf(match)?.occurrence]),
+		}, { empty: 0, matches: [['map', 8, 1], ['map', 4, 0]] });
 	});
 
 	test('starts at the match nearest the viewport rather than the end of the transcript', () => {

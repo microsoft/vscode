@@ -98,6 +98,7 @@ import { NonReconnectableTransportError } from '../common/state/sessionTransport
 import type { IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
+import type { ListChatTurnsParams, ListChatTurnsResult, ReadChatTurnsParams, ReadChatTurnsResult, SearchChatTurnsParams, SearchChatTurnsResult } from '../common/state/protocol/channels-chat/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
@@ -726,6 +727,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._requireClient().completions(params);
+	}
+
+	listChatTurns(params: ListChatTurnsParams): Promise<ListChatTurnsResult> {
+		return this._requireClient().listChatTurns(params);
+	}
+
+	readChatTurns(params: ReadChatTurnsParams): Promise<ReadChatTurnsResult> {
+		return this._requireClient().readChatTurns(params);
+	}
+
+	searchChatTurns(params: SearchChatTurnsParams): Promise<SearchChatTurnsResult> {
+		return this._requireClient().searchChatTurns(params);
 	}
 
 	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {

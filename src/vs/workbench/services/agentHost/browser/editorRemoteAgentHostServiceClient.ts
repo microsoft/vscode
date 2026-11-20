@@ -33,6 +33,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../pl
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
+import type { ListChatTurnsParams, ListChatTurnsResult, ReadChatTurnsParams, ReadChatTurnsResult, SearchChatTurnsParams, SearchChatTurnsResult } from '../../../../platform/agentHost/common/state/protocol/channels-chat/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -400,6 +401,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._requireClient().completions(params);
+	}
+
+	listChatTurns(params: ListChatTurnsParams): Promise<ListChatTurnsResult> {
+		return this._requireClient().listChatTurns(params);
+	}
+
+	readChatTurns(params: ReadChatTurnsParams): Promise<ReadChatTurnsResult> {
+		return this._requireClient().readChatTurns(params);
+	}
+
+	searchChatTurns(params: SearchChatTurnsParams): Promise<SearchChatTurnsResult> {
+		return this._requireClient().searchChatTurns(params);
 	}
 
 	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {

@@ -6,11 +6,14 @@
 import './chatFindWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
+import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
 import { Range as EditorRange } from '../../../../../../editor/common/core/range.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../../editor/common/editorCommon.js';
@@ -22,16 +25,21 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { SimpleFindWidget } from '../../../../codeEditor/browser/find/simpleFindWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { chatHistoryPages } from '../../../common/chatService/chatHistoryNavigation.js';
+import type { IChatHistoryNavigation } from '../../../common/model/chatModel.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFindController } from '../../chat.js';
 import { IChatListItemTemplate } from '../chatListRenderer.js';
 import { CodeBlockPart } from '../chatContentParts/codeBlockPart.js';
 import { ChatFindCommandId } from './chatFindCommandIds.js';
 import { getChatFindHighlightRegistry, supportsCssHighlightApi } from './chatFindHighlights.js';
-import { ChatFindModel, IChatFindMatch, MAX_FIND_MATCHES } from './chatFindModel.js';
+import { ChatFindModel, historyLocationKey, IChatFindMatch, IChatFindNavigationLocation, IHistoryFindLocation, MAX_FIND_MATCHES } from './chatFindModel.js';
 
 export interface IChatFindHost {
 	readonly transcriptDomNode: HTMLElement;
+	getHistoryNavigation?(): IChatHistoryNavigation | undefined;
+	hasUnloadedHistory?(): boolean;
 	getItems(): readonly ChatTreeItem[];
+	getLiveItemsWhileReading?(): readonly ChatTreeItem[] | undefined;
 	readonly onDidChangeContent: Event<void>;
 	reveal(item: ChatTreeItem, relativeTop?: number): void;
 	getTemplateDataForRequestId(requestId: string | undefined): IChatListItemTemplate | undefined;
@@ -246,6 +254,7 @@ export function findMatchRangesInCodeBlock(codeBlock: CodeBlockPart, regex: RegE
 export class ChatFindWidget extends SimpleFindWidget implements IChatFindController {
 
 	private readonly _model: ChatFindModel;
+	private readonly _liveModel: ChatFindModel;
 
 	private readonly _findWidgetVisibleKey: IContextKey<boolean>;
 	private readonly _findWidgetFocusedKey: IContextKey<boolean>;
@@ -258,6 +267,15 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private readonly _recomputeDelayer = this._register(new Delayer<void>(200));
 	private readonly _searchDelayer = this._register(new Delayer<void>(SEARCH_DEBOUNCE_DELAY));
 	private readonly _codeDecorations = new Map<CodeBlockPart, IEditorDecorationsCollection>();
+	private readonly _historySearchLifetime = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _historyJump = this._register(new MutableDisposable<DisposableStore>());
+	private _historySearch: {
+		readonly navigation: IChatHistoryNavigation;
+		readonly queryKey: string;
+		readonly matches: Map<string, IHistoryFindLocation>;
+		state: 'searching' | 'complete' | 'incomplete';
+		selected?: IChatFindNavigationLocation;
+	} | undefined;
 
 	private _lastFocusedElement: HTMLElement | undefined;
 	private _lastNavigationWasPrevious = false;
@@ -307,12 +325,17 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._findInputFocusedKey = ChatContextKeys.findInputFocused.bindTo(contextKeyService);
 
 		this._model = this._register(new ChatFindModel(() => this.host.getItems(), () => this.host.getViewportAnchorItemId()));
+		this._liveModel = this._register(new ChatFindModel(() => this.host.getLiveItemsWhileReading?.() ?? []));
 		this._register(this._model.onDidChangeMatches(() => this._onMatchesChanged()));
 
 		this._register(this.host.onDidChangeContent(() => {
 			if (this.isVisible()) {
+				if (this._historySearch?.navigation !== this.host.getHistoryNavigation?.()) {
+					this._clearHistorySearch();
+				}
 				this._recomputeDelayer.trigger(() => {
 					this._model.recompute();
+					this._startHistorySearch();
 					// The row usually rerenders before this debounced pass, against the old matches.
 					this._scheduleRepaint();
 				}).catch(() => { });
@@ -344,11 +367,13 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			super.show(seedText);
 		}
 		this._model.setQuery(this.inputValue, this._currentFindOptions());
+		this._startHistorySearch();
 		this._navigateToActive();
 	}
 
 	override hide(): void {
 		super.hide();
+		this._clearHistorySearch();
 		this._findWidgetVisibleKey.reset();
 		this._recomputeDelayer.cancel();
 		this._searchDelayer.cancel();
@@ -383,14 +408,28 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._searchDelayer.cancel();
 		this._pendingSearch = undefined;
 		this._model.setQuery(this.inputValue, this._currentFindOptions());
+		this._startHistorySearch();
 		return true;
 	}
 
 	private _advanceActiveMatch(previous: boolean): void {
+		const search = this._historySearch;
+		if (search) {
+			const locations = this._historyLocations();
+			if (locations.length) {
+				const index = this._historyIndex(locations);
+				const next = index < 0 ? (previous ? locations.length - 1 : 0) : (index + (previous ? -1 : 1) + locations.length) % locations.length;
+				void this._selectHistoryLocation(locations[next]);
+				return;
+			}
+		}
 		if (previous) {
 			this._model.previous();
 		} else {
 			this._model.next();
+		}
+		if (search) {
+			search.selected = this._model.navigationLocationOf(this._model.activeMatch);
 		}
 		this._navigateToActive();
 		void this.updateResultCount();
@@ -417,6 +456,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._searchDelayer.cancel();
 		this._pendingSearch = undefined;
 		this._model.setQuery(this.inputValue, this._currentFindOptions());
+		this._startHistorySearch();
 		this._navigateToActive();
 	}
 
@@ -477,8 +517,10 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		if (!this._isModelStale()) {
 			return;
 		}
+		this._clearHistorySearch();
 		const search = this._searchDelayer.trigger(() => {
 			this._model.setQuery(this.inputValue, this._currentFindOptions());
+			this._startHistorySearch();
 			this._navigateToActive();
 		});
 		this._pendingSearch = search;
@@ -487,6 +529,166 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 				this._pendingSearch = undefined;
 			}
 		});
+	}
+
+	private _clearHistorySearch(): void {
+		this._historySearchLifetime.clear();
+		this._historyJump.clear();
+		this._historySearch = undefined;
+		this._liveModel.clear();
+	}
+
+	private _startHistorySearch(): void {
+		const navigation = this.host.getHistoryNavigation?.();
+		const query = this._model.query;
+		const options = this._model.options;
+		const queryKey = JSON.stringify([query, options.isRegex, options.matchCase, options.wholeWord]);
+		if (!this.isVisible() || !navigation || !query || this._model.isInvalidRegex) {
+			this._clearHistorySearch();
+			return;
+		}
+		if (this._historySearch?.navigation === navigation && this._historySearch.queryKey === queryKey) {
+			this._liveModel.setQuery(query, options);
+			return;
+		}
+		this._clearHistorySearch();
+		this._liveModel.setQuery(query, options);
+		this._historySearch = { navigation, queryKey, matches: new Map(), state: 'searching', selected: this._model.navigationLocationOf(this._model.activeMatch) };
+		const token = cancelOnDispose(this._historySearchLifetime.value = new DisposableStore());
+		void this._readHistoryMatches(navigation, token);
+	}
+
+	private async _readHistoryMatches(navigation: IChatHistoryNavigation, token: CancellationToken): Promise<void> {
+		const search = this._historySearch!;
+		const { query, options } = this._model;
+		try {
+			for await (const { page, first } of chatHistoryPages(cursor => navigation.search(query, options, cursor, token), token)) {
+				if (token.isCancellationRequested || navigation !== this.host.getHistoryNavigation?.()) {
+					return;
+				}
+				if (first) {
+					search.matches.clear();
+				}
+				for (const match of page.items) {
+					search.matches.set(historyLocationKey(match), match);
+					if (search.matches.size >= MAX_FIND_MATCHES) {
+						break;
+					}
+				}
+				if (!search.selected && search.matches.size) {
+					const first = search.matches.values().next().value;
+					if (first) {
+						void this._selectHistoryLocation(first);
+					}
+				}
+				void this.updateResultCount();
+				if (page.nextCursor !== undefined && search.matches.size >= MAX_FIND_MATCHES) {
+					search.state = 'incomplete';
+					return;
+				}
+			}
+			search.state = 'complete';
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				search.state = 'incomplete';
+				onUnexpectedError(error);
+			}
+		} finally {
+			if (!token.isCancellationRequested) {
+				void this.updateResultCount();
+			}
+		}
+	}
+
+	private _historyLocations(): IChatFindNavigationLocation[] {
+		const search = this._historySearch;
+		if (!search) {
+			return [];
+		}
+		const remote = [...search.matches.values()];
+		const positions = new Map(remote.map((hit, index) => [historyLocationKey(hit), index]));
+		const seen = new Set(positions.keys());
+		const insertions = new Map<number, IChatFindNavigationLocation[]>();
+		for (const model of [this._liveModel, this._model]) {
+			let preceding: number | undefined;
+			let pending: IChatFindNavigationLocation[] = [];
+			const insert = (index: number) => {
+				if (pending.length) {
+					insertions.set(index, (insertions.get(index) ?? []).concat(pending));
+					pending = [];
+				}
+			};
+			for (const match of model.matches) {
+				const location = model.navigationLocationOf(match);
+				if (!location) {
+					continue;
+				}
+				const key = historyLocationKey(location);
+				const position = positions.get(key);
+				if (position !== undefined) {
+					// Keep renderer-only text next to the host match it precedes in this window.
+					insert(preceding === undefined ? position : preceding + 1);
+					preceding = position;
+				} else if (!seen.has(key)) {
+					seen.add(key);
+					pending.push(location);
+				}
+			}
+			insert(preceding === undefined ? 0 : preceding + 1);
+		}
+		const ordered: IChatFindNavigationLocation[] = [];
+		for (let i = 0; i <= remote.length && ordered.length < MAX_FIND_MATCHES; i++) {
+			const extras = insertions.get(i);
+			if (extras) {
+				ordered.push(...extras);
+			}
+			if (i < remote.length) {
+				ordered.push(remote[i]);
+			}
+		}
+		return ordered.slice(0, MAX_FIND_MATCHES);
+	}
+
+	private _historyIndex(locations: readonly IChatFindNavigationLocation[]): number {
+		const active = this._historySearch?.selected ?? this._model.navigationLocationOf(this._model.activeMatch);
+		return active ? locations.findIndex(hit => hit.turnId === active.turnId && hit.kind === active.kind && hit.occurrence === active.occurrence && hit.localPartIndex === active.localPartIndex) : -1;
+	}
+
+	private async _selectHistoryLocation(location: IChatFindNavigationLocation): Promise<void> {
+		const search = this._historySearch;
+		if (!search) {
+			return;
+		}
+		search.selected = location;
+		const token = cancelOnDispose(this._historyJump.value = new DisposableStore());
+		try {
+			if (!this._model.selectLocation(location)) {
+				if (this._liveModel.selectLocation(location)) {
+					await search.navigation.returnToLatest();
+				} else {
+					await search.navigation.revealTurn(location.turnId, token);
+				}
+				if (token.isCancellationRequested || this.host.getHistoryNavigation?.() !== search.navigation) {
+					return;
+				}
+				this._model.recompute();
+				this._liveModel.setQuery(this._model.query, this._model.options);
+				if (!this._model.selectLocation(location)) {
+					search.matches.delete(historyLocationKey(location));
+					search.selected = this._model.navigationLocationOf(this._model.activeMatch);
+				}
+			}
+			this._navigateToActive();
+		} catch (error) {
+			if (!isCancellationError(error) && !token.isCancellationRequested) {
+				search.state = 'incomplete';
+				onUnexpectedError(error);
+			}
+		} finally {
+			if (!token.isCancellationRequested) {
+				void this.updateResultCount();
+			}
+		}
 	}
 
 	/** Marks the start of locating an active match, if one is not already in progress. */
@@ -519,12 +721,21 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		}
 	}
 
-	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number; incomplete?: boolean; emptyLabel?: string } | undefined> {
 		await this._whenSettled();
 		if (this._model.isInvalidRegex) {
 			return undefined;
 		}
-		return { resultIndex: this._model.activeIndex, resultCount: this._model.matches.length };
+		const search = this._historySearch;
+		if (search) {
+			const locations = this._historyLocations();
+			return {
+				resultIndex: this._historyIndex(locations), resultCount: locations.length, incomplete: search.state !== 'complete',
+				emptyLabel: search.state === 'searching' ? localize('chat.find.searchingHistory', "Searching…") : search.state === 'incomplete' ? localize('chat.find.searchIncomplete', "Search incomplete") : undefined,
+			};
+		}
+		const incomplete = !!this._model.query && this.host.hasUnloadedHistory?.();
+		return { resultIndex: this._model.activeIndex, resultCount: this._model.matches.length, incomplete, emptyLabel: incomplete ? localize('chat.find.noLoadedResults', "No matches in loaded messages") : undefined };
 	}
 
 	protected _onFocusTrackerFocus(): void {

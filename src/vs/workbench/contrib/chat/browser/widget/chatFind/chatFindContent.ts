@@ -6,6 +6,7 @@
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { canceledName } from '../../../../../../base/common/errors.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { markdownToPlainText } from '../../../../../../base/common/markdown.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../../editor/common/languages.js';
@@ -20,6 +21,7 @@ import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 export interface IChatFindTextPart {
 	readonly partIndex: number;
 	readonly text: string;
+	readonly isHistoryMarkdown?: boolean;
 }
 
 function inlineReferenceLabel(part: { inlineReference: URI | Location | IWorkspaceSymbol; name?: string }): string | undefined {
@@ -99,6 +101,10 @@ export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTex
 	item.response.value.forEach((part, partIndex) => {
 		switch (part.kind) {
 			case 'markdownContent': {
+				if (part.historyPartId !== undefined) {
+					parts.push({ partIndex, text: markdownToPlainText(part.content.value), isHistoryMarkdown: true });
+					break;
+				}
 				// No code fences or link formatting: the ``` markers are consumed by the code
 				// block, and an empty link renders as an empty anchor, so both would contribute
 				// text that is counted here but absent from the DOM.

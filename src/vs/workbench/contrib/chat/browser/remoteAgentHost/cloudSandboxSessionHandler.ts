@@ -20,7 +20,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { getChatSessionHistoryContent, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../common/chatSessionsService.js';
+import { getChatSessionHistoryContent, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionHistoryNavigation, IChatSessionServerRequest } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { CloudSandboxReadOnlySessionHandler, getCloudSandboxTaskId, ICloudSandboxReadOnlyConfig, ReadOnlyChatSession } from './cloudSandboxReadOnlySessionHandler.js';
@@ -47,6 +47,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	readonly isReadOnly = observableValue(this, true);
 	readonly isInputBlocked = observableValue(this, false);
 	readonly historyStatus = observableValue<IChatSessionHistoryStatus | undefined>(this, undefined);
+	readonly hasOlderHistory = observableValue(this, false);
+	readonly historyNavigation = observableValue<IChatSessionHistoryNavigation | undefined>(this, undefined);
 	readonly backgroundShellCount = observableValue<number | undefined>(this, undefined);
 	readonly canvasContext = observableValue<ICanvasContext | undefined>(this, undefined);
 	readonly sessionResource: URI;
@@ -59,6 +61,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	}
 
 	get history() { return this._source.history; }
+	get ownsHistoryRequestIds() { return this._source.ownsHistoryRequestIds; }
+	readonly loadOlderHistory = async () => { await this._source.loadOlderHistory?.(); };
 	get title() { return this._source.title; }
 	get options() { return this._source.options; }
 	get transferredState() { return this._source.transferredState; }
@@ -139,6 +143,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 				const complete = source.isCompleteObs?.read(reader);
 				const readOnly = source.isReadOnly?.read(reader) ?? false;
 				const blocked = !live || (source.isInputBlocked?.read(reader) ?? false);
+				const hasOlderHistory = source.hasOlderHistory?.read(reader) ?? false;
+				const navigation = live ? source.historyNavigation?.read(reader) : undefined;
 				const backgroundShellCount = source.backgroundShellCount?.read(reader);
 				const canvasContext = source.canvasContext?.read(reader);
 				if (live && (previousProgress !== progress || previousComplete !== complete)) {
@@ -151,6 +157,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 					this.isCompleteObs.set(complete ?? true, tx);
 					this.isReadOnly.set(readOnly, tx);
 					this.isInputBlocked.set(blocked, tx);
+					this.hasOlderHistory.set(hasOlderHistory, tx);
+					this.historyNavigation.set(navigation, tx);
 					this.backgroundShellCount.set(backgroundShellCount, tx);
 					this.canvasContext.set(canvasContext, tx);
 				});
@@ -185,6 +193,10 @@ class CloudSandboxChatSessionReference extends Disposable implements IChatSessio
 
 	get sessionResource() { return this._session.sessionResource; }
 	get history() { return this._session.history; }
+	get ownsHistoryRequestIds() { return this._session.ownsHistoryRequestIds; }
+	get loadOlderHistory() { return this._session.loadOlderHistory; }
+	get hasOlderHistory() { return this._session.hasOlderHistory; }
+	get historyNavigation() { return this._session.historyNavigation; }
 	get preserveHistoryItemIdentity() { return this._session.preserveHistoryItemIdentity; }
 	get title() { return this._session.title; }
 	get options() { return this._session.options; }

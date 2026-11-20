@@ -33,7 +33,7 @@ import { isChatViewTitleActionContext } from '../../common/actions/chatActions.j
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { isChatTreeItem, isLiveChatRow, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -405,7 +405,7 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 	const chatService = accessor.get(IChatService);
 	const chatModel = chatService.getSession(sessionResource);
-	if (!chatModel) {
+	if (!chatModel || chatModel.historyNavigation?.get()?.inHistory.get()) {
 		return false;
 	}
 
@@ -419,6 +419,9 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	if (itemIndex === -1) {
 		return false;
 	}
+	const target = chatRequests[itemIndex];
+	const isCurrent = () => widget?.viewModel?.model === chatModel && !chatModel.historyNavigation?.get()?.inHistory.get()
+		&& chatModel.getRequests().includes(target);
 
 	const editsToUndo = chatRequests.length - itemIndex;
 
@@ -454,6 +457,9 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 		})
 		: { confirmed: true };
 
+	if (!isCurrent()) {
+		return false;
+	}
 	if (!confirmation.confirmed) {
 		widget?.viewModel?.model.setCheckpoint(undefined);
 		return false;
@@ -463,11 +469,16 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 		await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
 	}
 
+	if (!isCurrent()) {
+		return false;
+	}
 	await chatService.cancelCurrentRequestForSession(sessionResource, 'restoreCheckpoint');
 
 	// Restore the snapshot to what it was before the request(s) that we deleted
-	const snapshotRequestId = chatRequests[itemIndex].id;
-	await session.restoreSnapshot(snapshotRequestId, undefined);
+	if (!isCurrent()) {
+		return false;
+	}
+	await session.restoreSnapshot(target.id, undefined);
 	return true;
 }
 
@@ -518,7 +529,7 @@ registerAction2(class RemoveAction extends Action2 {
 			item = widget?.getFocus();
 		}
 
-		if (!item) {
+		if (!item || !isLiveChatRow(widget?.viewModel, item)) {
 			return;
 		}
 
@@ -572,11 +583,11 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			item = widget?.getFocus();
 		}
 
-		if (!item) {
+		if (!item || !isLiveChatRow(widget?.viewModel, item)) {
 			return;
 		}
 
-		widget?.viewModel?.model.setCheckpoint(item.id);
+		widget?.viewModel?.model.setCheckpoint(isResponseVM(item) ? item.requestId : item.id);
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
 		if (!confirmed) {
 			return;
@@ -618,11 +629,11 @@ registerAction2(class StartOverAction extends Action2 {
 			item = widget?.getFocus();
 		}
 
-		if (!item) {
+		if (!item || !isLiveChatRow(widget?.viewModel, item)) {
 			return;
 		}
 
-		widget?.viewModel?.model.setCheckpoint(item.id);
+		widget?.viewModel?.model.setCheckpoint(isResponseVM(item) ? item.requestId : item.id);
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
 		if (!confirmed) {
 			return;
@@ -667,7 +678,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		}
 
 		const chatModel = chatService.getSession(sessionResource);
-		if (!chatModel?.editingSession) {
+		if (!chatModel?.editingSession || chatModel.historyNavigation?.get()?.inHistory.get() || (item && !isLiveChatRow(widget?.viewModel, item))) {
 			return;
 		}
 
@@ -721,7 +732,7 @@ registerAction2(class EditAction extends Action2 {
 			return;
 		}
 
-		if (isRequestVM(item)) {
+		if (isRequestVM(item) && isLiveChatRow(widget?.viewModel, item)) {
 			widget?.startEditing(item.id);
 		}
 	}

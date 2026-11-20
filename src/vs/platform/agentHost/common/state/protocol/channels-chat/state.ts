@@ -129,6 +129,12 @@ export interface ChatState {
 	/** Completed turns */
 	turns: Turn[];
 	/**
+	 * When true, the host supports `listChatTurns`, `readChatTurns`, and
+	 * `searchChatTurns` over this chat's retained history, independently of
+	 * the subscription window. Absent or false means unsupported.
+	 */
+	historyNavigation?: boolean;
+	/**
 	 * Cursor for loading older completed turns into this chat state.
 	 *
 	 * Presence means `turns` is a tail window and more historical turns are

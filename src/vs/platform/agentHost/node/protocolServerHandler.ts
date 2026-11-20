@@ -69,13 +69,16 @@ import { ChatMoveDestinationKind, ChatSourceKind } from '../common/state/protoco
 import { AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
+import { MessageAttachmentKind, type AutomationEntry, type ChatState, type RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { compareProtocolVersions, isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
 import { agentHostStateReceiveLimits, negotiateChannelFlowControl } from '../common/agentHostChannel.js';
 import { ChannelRecoveryKind, type ChannelFlowControl, type ResumedChannelSubscription } from '../common/state/protocol/common/state.js';
 import { AgentHostConnectionChannels } from './agentHostConnectionChannels.js';
+import { ChatHistoryView } from './chatHistoryView.js';
+import { ChatHistoryQueries, readChatTurns } from './chatHistoryQueries.js';
+import { DEFAULT_MAX_REASSEMBLY_BYTES } from '../common/webPubSub/chunking.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
@@ -431,7 +434,7 @@ const enum ChannelKind {
  * exposing pre-snapshot actions to the client.
  */
 type ChannelSubscription =
-	| { readonly kind: ChannelKind.State; readonly uri: string; readonly active: boolean }
+	| { readonly kind: ChannelKind.State; readonly uri: string; readonly active: boolean; readonly history?: ChatHistoryView }
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.McpServerLogs; readonly uri: string; readonly session: string; readonly serverName: string; readonly level: OtlpLogLevelName; readonly disposable?: IDisposable }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
@@ -511,6 +514,7 @@ interface IConnectedClient {
 	 * the same logical channel collapse to one entry.
 	 */
 	readonly subscriptions: Map<string, ChannelSubscription>;
+	expiredChatViews?: Map<string, ChatHistoryView>;
 	readonly channels: AgentHostConnectionChannels;
 	readonly knownSessionSummaries: Set<string>;
 	readonly pendingAuthenticationSubscriptions: Set<string>;
@@ -552,6 +556,8 @@ interface IActiveClientRecord {
 }
 
 interface IGraceClientRecord {
+	readonly chatViews?: ReadonlyMap<string, ChatHistoryView>;
+	readonly chatViewPrincipal?: string;
 	readonly legacySessionUris?: boolean;
 	readonly legacyChatUris?: boolean;
 	readonly state: 'grace';
@@ -746,6 +752,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
+	private _lastEvictedServerSeq = 0;
+	private readonly _chatSubscribeResults = new WeakMap<SubscribeResult, Extract<ChannelSubscription, { kind: ChannelKind.State }>>();
+	private readonly _historyQueries = new WeakMap<ChannelSubscription, ChatHistoryQueries>();
 	private readonly _extensionEnvelopes = new WeakSet<ActionEnvelope>();
 	private readonly _relayRootConfigEnvelopes = new WeakMap<ActionEnvelope, ActionEnvelope>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
@@ -865,6 +874,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				const record = client ? this._clients.get(client.clientId) : undefined;
 				if (client && record?.state === 'active') {
 					this._clearScopedModels(client);
+					const expired = this._chatViews(client);
+					client.expiredChatViews = new Map([...expired].map(([channel, view]) => [channel, this._createChatView(client!, channel, view.count)]));
 					this._releaseClientSubscriptions(client, record, true);
 					this._reconcileActiveClientSubscriptions(client);
 					this._rejectPendingReverseRequestsForConnection(client, new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication expired'));
@@ -888,31 +899,31 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				// Handle initialize/reconnect as requests that set up the client
 				if (!client && msg.method === 'initialize') {
 					try {
+						const previousRecord = this._clients.get(msg.params.clientId);
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
 						liveness.reset();
 						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
 							if (!disposables.isDisposed) {
-								transport.send(jsonRpcSuccess(msg.id, { ...response, snapshots: this._projectRelaySnapshots(result.client, response.snapshots) }));
+								transport.send(this._handshakeResponse(result.client, previousRecord, msg.id,
+									() => ({ ...response, snapshots: this._projectRelaySnapshots(result.client, response.snapshots) })));
 								this._onDidChangeQueuedCredentials.fire();
 							}
 						};
 						if (result.response instanceof Promise) {
-							this._trackRequest(result.response).then(
-								sendInitializeResult,
-								err => {
-									if (client === result.client) {
-										client = undefined;
-									}
-									if (!disposables.isDisposed) {
-										transport.send(jsonRpcErrorFrom(msg.id, err));
-									}
-								},
-							);
+							this._trackRequest(result.response).then(sendInitializeResult).catch(err => {
+								if (client === result.client) {
+									client = undefined;
+								}
+								if (!disposables.isDisposed) {
+									transport.send(jsonRpcErrorFrom(msg.id, err));
+								}
+							});
 						} else {
 							sendInitializeResult(result.response);
 						}
 					} catch (err) {
+						client = undefined;
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
 					return;
@@ -921,27 +932,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					let responsePromise: Promise<ReconnectResult>;
 					let reconnectingClient: IConnectedClient;
 					try {
+						const previousRecord = this._clients.get(msg.params.clientId);
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
 						liveness.reset();
 						reconnectingClient = result.client;
 						responsePromise = this._trackRequest(result.responsePromise);
-						responsePromise.then(
-							response => {
-								if (!disposables.isDisposed) {
-									channels.respond(jsonRpcSuccess(msg.id, this._projectRelayReconnectResult(reconnectingClient, response, msg.params.subscriptions)), response.windows?.items);
-									this._onDidChangeQueuedCredentials.fire();
-								}
-							},
-							err => {
-								if (client === reconnectingClient) {
-									client = undefined;
-								}
-								if (!disposables.isDisposed) {
-									transport.send(jsonRpcErrorFrom(msg.id, err));
-								}
-							},
-						);
+						responsePromise.then(response => {
+							if (!disposables.isDisposed) {
+								channels.respond(this._handshakeResponse(reconnectingClient, previousRecord, msg.id,
+									() => this._projectRelayReconnectResult(reconnectingClient, response, msg.params.subscriptions)), response.windows?.items);
+								this._onDidChangeQueuedCredentials.fire();
+							}
+						}).catch(err => {
+							if (client === reconnectingClient) {
+								client = undefined;
+							}
+							if (!disposables.isDisposed) {
+								transport.send(jsonRpcErrorFrom(msg.id, err));
+							}
+						});
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
@@ -1015,6 +1025,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				const connectionIndex = record.connections.indexOf(client);
 				if (connectionIndex !== -1) {
 					const subscriptionCount = client.subscriptions.size;
+					const chatViews = this._chatViews(client);
 					record.connections.splice(connectionIndex, 1);
 					this._releaseClientSubscriptions(client, record);
 					this._rejectPendingReverseRequestsForConnection(client);
@@ -1022,6 +1033,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
 						this._clients.set(client.clientId, {
 							state: 'grace',
+							chatViews,
+							chatViewPrincipal: this._chatViewPrincipal(client.transport),
 							seenConnection: true,
 							legacySessionUris: client.legacySessionUris,
 							legacyChatUris: client.legacyChatUris,
@@ -1397,11 +1410,70 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (offer === undefined || client.transport.relayClientId !== undefined || isAhpRootChannel(channel) || classifyChannel(channel)?.kind !== ChannelKind.State) {
 			return undefined;
 		}
+
 		try {
 			return negotiateChannelFlowControl(channel, offer.receive, agentHostStateReceiveLimits);
 		} catch {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid state channel receive limits');
 		}
+	}
+
+	private _chatViewPrincipal(transport: IProtocolTransport): string | undefined {
+		const auth = transport.relayAuthentication;
+		return auth?.authenticated === false ? undefined : JSON.stringify([transport.relayClientId, auth?.resource, auth?.owner]);
+	}
+
+	private _chatViews(client: IConnectedClient): Map<string, ChatHistoryView> {
+		const views = new Map(client.expiredChatViews);
+		for (const sub of client.subscriptions.values()) {
+			if (sub.kind === ChannelKind.State && sub.history) {
+				views.set(sub.uri, sub.history);
+			}
+		}
+		return views;
+	}
+
+	private _createChatView(client: IConnectedClient, channel: string, count: number): ChatHistoryView {
+		return new ChatHistoryView(count, this._turnProjector(client, channel));
+	}
+
+	private _turnProjector(client: IConnectedClient, channel: string): (turn: ChatState['turns'][number]) => ChatState['turns'][number] {
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
+		return turn => this._usesCopilotModelConfig(channel) ? projectCopilotTurn(turn, vscode) : turn;
+	}
+
+	private _subscribedChatHistory(client: IConnectedClient, channel: string, notFound: typeof AhpErrorCodes.NotFound | typeof AHP_SESSION_NOT_FOUND = AhpErrorCodes.NotFound) {
+		if (typeof channel !== 'string' || !channel) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Missing chat channel');
+		}
+		const sub = client.subscriptions.get(channel);
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (sub?.kind !== ChannelKind.State || !sub.active || !snapshot || !hasKey(snapshot.state, { turns: true })
+			|| !this._isChannelVisible(client, channel) || this._getActiveClient(client.clientId) !== client) {
+			throw new ProtocolError(notFound, `Session not found: ${channel}`);
+		}
+		return { sub, turns: snapshot.state.turns };
+	}
+
+	private _queriesFor(sub: ChannelSubscription): ChatHistoryQueries {
+		let queries = this._historyQueries.get(sub);
+		if (!queries) {
+			queries = new ChatHistoryQueries();
+			this._historyQueries.set(sub, queries);
+		}
+		return queries;
+	}
+
+	private _pagedChatBaseline(client: IConnectedClient, channel: string, view: ChatHistoryView): IStateSnapshot {
+		const snapshot = this._agentService.getSnapshot(channel);
+		if (!snapshot || !hasKey(snapshot.state, { turns: true }) || !this._isChannelVisible(client, channel)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${channel}`);
+		}
+		const base = this._projectRelayRootSnapshot(client, { ...snapshot, state: { ...snapshot.state, turns: [] } });
+		const { turns, turnsNextCursor } = view.baseline(snapshot.state.turns, Buffer.byteLength(JSON.stringify(base)));
+		const fromSeq = this._stateManager.allocateSnapshotSequence();
+		view.recordPrivateDelivery(fromSeq);
+		return { ...base, fromSeq, state: { ...base.state as ChatState, turns, ...(turnsNextCursor ? { turnsNextCursor } : {}) } };
 	}
 
 	private _serveStateWindow(client: IConnectedClient, channel: string, snapshot: IStateSnapshot): void {
@@ -1490,6 +1562,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const priorProtocolVersion = existingRecord.state === 'active'
 			? existingRecord.connections.at(-1)?.protocolVersion
 			: existingRecord.protocolVersion;
+		const views = existingRecord.state === 'active'
+			? this._chatViews(existingRecord.connections.at(-1)!)
+			: existingRecord.chatViews;
+		const sameViewPrincipal = existingRecord.state === 'grace' && existingRecord.chatViewPrincipal !== undefined
+			&& existingRecord.chatViewPrincipal === this._chatViewPrincipal(transport);
 		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
@@ -1522,14 +1599,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// for authority" until the client disconnected and re-initialized.
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
-			const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 			// A global cursor only proves the client saw every ACTION; it says
 			// nothing about whether a given channel ever received state from this
 			// process to apply them to. Force snapshots while any requested
 			// channel still owes a baseline.
-			const canReplay = params.lastSeenServerSeq >= oldestBuffered
+			const canReplay = params.lastSeenServerSeq >= this._lastEvictedServerSeq
+				&& params.lastSeenServerSeq <= this._stateManager.serverSeq
 				&& !this._hasBaselineDebt(params.clientId, params.subscriptions);
-			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay).then(result => {
+			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay, views, sameViewPrincipal).then(result => {
 				// Notifications are not replayed, so a reconnecting client also needs the current GitHub environment status.
 				const githubEnvironmentMeta = this._getGitHubEnvironmentMeta(transport);
 				return (transport.relayHandshakeMeta || Object.keys(githubEnvironmentMeta).length > 0) && typeof result === 'object' && result !== null
@@ -1638,6 +1715,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client: IConnectedClient,
 		params: ReconnectParams,
 		canReplay: boolean,
+		views?: ReadonlyMap<string, ChatHistoryView>,
+		sameViewPrincipal = false,
 	): Promise<ReconnectResult> {
 		const missing = [...new Set([
 			...params.subscriptions,
@@ -1645,7 +1724,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		].filter(channel => channel.startsWith('ahp-tcp:')))];
 		const negotiatedWindows = new Map<string, ChannelFlowControl>();
 		for (const item of params.windows?.items ?? []) {
-			if (!params.subscriptions.includes(item.channel) || negotiatedWindows.has(item.channel)) {
+			if (!params.subscriptions.includes(item.channel) || negotiatedWindows.has(item.channel) || views?.has(item.channel)) {
 				continue;
 			}
 			try {
@@ -1673,6 +1752,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			restoredUris.add(classified.uri);
 			if (client.transport.relayAuthentication?.authenticated === false && !isAhpRootChannel(key)) {
+				const previous = views?.get(key);
+				if (previous) {
+					(client.expiredChatViews ??= new Map()).set(key, this._createChatView(client, key, previous.count));
+				}
 				client.pendingAuthenticationSubscriptions.add(key);
 				missing.push(sub);
 				return undefined;
@@ -1712,7 +1795,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				};
 			}
 			const pendingSubscription: ChannelSubscription = { ...classified, active: false };
-			pendingSubscriptions.push({ pending: pendingSubscription, active: classified });
+			const previous = views?.get(key);
+			const active = previous === undefined ? classified : { ...classified, history: this._createChatView(client, key, previous.count), active: false };
+			pendingSubscriptions.push({ pending: pendingSubscription, active });
 			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
 				const snapshot = await this._subscribeStateChannel(
@@ -1746,9 +1831,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 		// Activate the batch only after every restore settles so no channel can
 		// receive an action both live and through the reconnect replay.
+		const paged = pendingSubscriptions.filter(({ pending, active }) => client.subscriptions.get(pending.uri) === pending && active.kind === ChannelKind.State && active.history);
+		canReplay &&= params.lastSeenServerSeq >= this._lastEvictedServerSeq && paged.every(({ active }) => {
+			const turns = this._stateManager.getChatState(active.uri)?.turns;
+			return sameViewPrincipal && active.kind === ChannelKind.State && !!turns
+				&& active.history!.resume(views!.get(active.uri)!, turns, params.lastSeenServerSeq)
+				&& !this._replayBuffer.some(e => e.serverSeq > params.lastSeenServerSeq && e.channel === active.uri
+					&& (e.action.type === ActionType.ChatTruncated || e.action.type === ActionType.ChatTurnsLoaded));
+		});
 		for (const { pending, active } of pendingSubscriptions) {
 			if (client.subscriptions.get(pending.uri) === pending) {
-				client.subscriptions.set(active.uri, active);
+				client.subscriptions.set(active.uri, canReplay && active.kind === ChannelKind.State && active.history ? { ...active, active: true } : active);
 			}
 		}
 		this._reconcileActiveClientSubscriptions(client);
@@ -1762,18 +1855,27 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
+			const resumed = [...this._stateAndResourceWatchUris(client)];
 			for (const envelope of this._replayBuffer) {
-				if (envelope.serverSeq > params.lastSeenServerSeq && !client.channels.has(envelope.channel)) {
+				if (envelope.serverSeq > params.lastSeenServerSeq && !client.channels.has(envelope.channel) && isActionEnvelopeRelevantToSubscriptionUris(envelope, resumed)) {
 					const projected = this._isRelevantToClient(client, envelope) ? this._projectActionForClient(client, envelope) : undefined;
 					if (projected) {
 						actions.push(projected);
 					}
 				}
 			}
-			return { type: ReconnectResultType.Replay, actions, missing, ...windows };
+			if (!paged.length || !this._isRelayClient(client) || !this._exceedsChatReplayBudget(actions)) {
+				return { type: ReconnectResultType.Replay, actions, missing, ...windows };
+			}
+		}
+		// If several paged chats need fresh baselines, don't resume them together in one relay message.
+		if (paged.length > 1 && this._isRelayClient(client)) {
+			for (const { active } of paged) {
+				this._removeSubscription(client, active.uri);
+			}
 		}
 		const refreshedSnapshots = snapshots.map(snapshot => {
-			if (!snapshot || client.channels.has(snapshot.resource)) {
+			if (!snapshot || client.channels.has(snapshot.resource) || !client.subscriptions.has(snapshot.resource)) {
 				return undefined;
 			}
 			const subscription = client.subscriptions.get(snapshot.resource.toString());
@@ -1789,6 +1891,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return refreshed;
 		});
 		return { type: ReconnectResultType.Snapshot, snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined), ...windows };
+	}
+
+	private _exceedsChatReplayBudget(actions: readonly ActionEnvelope[]): boolean {
+		let bytes = 0;
+		return actions.some(action => (bytes += Buffer.byteLength(JSON.stringify(action))) > 4 * 1024 * 1024);
 	}
 
 	/** Releases active-client and tool ownership not retained by another live connection's subscriptions. */
@@ -2348,7 +2455,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					},
 				};
 			}
-			const flowControl = this._negotiateStateWindow(client, params.channel, params.flowControl);
+			const history = isAhpChatChannel(params.channel) && params.view?.turns !== undefined
+				? this._createChatView(client, params.channel, params.view.turns) : undefined;
+			const flowControl = history ? undefined : this._negotiateStateWindow(client, params.channel, params.flowControl);
 			const existingSubscription = client.subscriptions.get(classified.uri);
 			const pendingSubscription = existingSubscription?.kind === ChannelKind.State && existingSubscription.active
 				? existingSubscription
@@ -2363,7 +2472,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
 					throw new Error(`Subscription cancelled: ${params.channel}`);
 				}
-				client.subscriptions.set(classified.uri, classified);
+				const subscription = history ? { ...classified, history, active: false } : classified;
+				client.subscriptions.set(classified.uri, subscription);
+				client.expiredChatViews?.delete(classified.uri);
 				client.pendingAuthenticationSubscriptions.delete(classified.uri);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				this._clearBaselineDebt(client.clientId, classified.uri);
@@ -2371,10 +2482,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._serveStateWindow(client, classified.uri, snapshot);
 					return { flowControl };
 				}
-				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
-				// the generated wire `Snapshot` union does not list it yet. The value
-				// is JSON over the wire, so narrowing at this boundary is safe.
-				return { snapshot: snapshot as SubscribeResult['snapshot'] };
+				const result: SubscribeResult = { snapshot };
+				if (isAhpChatChannel(classified.uri)) {
+					this._chatSubscribeResults.set(result, subscription);
+				}
+				return result;
 			} catch (err) {
 				// Losing request ownership cancels the subscription, not the resource.
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
@@ -2520,6 +2632,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (params.provider !== undefined) {
 				options = { ...options, provider: params.provider };
 			}
+			if (source) {
+				this._loadReferencedTurn(_client, source.chat, source.turnId);
+			}
+			this._loadChatAttachmentTurns(_client, params.initialMessage);
 			const create = () => this._agentService.createChat(
 				URI.parse(params.channel),
 				URI.parse(params.chat),
@@ -2647,19 +2763,32 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		completions: async (_client, params) => {
 			return this._agentService.completions(params);
 		},
-		fetchTurns: async (_client, params) => {
-			const state = this._stateManager.getChatState(params.channel);
-			if (!state) {
-				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
+		fetchTurns: async (client, params) => {
+			const { sub, turns } = this._subscribedChatHistory(client, params.channel, AHP_SESSION_NOT_FOUND);
+			if (!sub.history && params.cursor !== undefined) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Unrecognized fetchTurns cursor');
 			}
-			if (params.cursor && params.cursor !== state.turnsNextCursor) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unrecognized fetchTurns cursor`);
-			}
-			this._stateManager.dispatchServerAction(params.channel, {
-				type: ActionType.ChatTurnsLoaded,
-				turns: [],
-			});
+			const page = sub.history?.fetch(turns, params.cursor, Buffer.byteLength(JSON.stringify(params.channel)))
+				?? { type: ActionType.ChatTurnsLoaded as const, turns: [] };
+			this._sendAction(client, this._stateManager.createServerActionEnvelope(params.channel, page));
 			return {};
+		},
+		listChatTurns: async (client, params) => {
+			const { sub, turns } = this._subscribedChatHistory(client, params?.channel);
+			return this._queriesFor(sub).list(turns, params);
+		},
+		readChatTurns: async (client, params) => {
+			const { turns } = this._subscribedChatHistory(client, params?.channel);
+			return readChatTurns(turns, params, this._turnProjector(client, params.channel));
+		},
+		searchChatTurns: async (client, params) => {
+			const { sub, turns } = this._subscribedChatHistory(client, params?.channel);
+			const result = await this._queriesFor(sub).search(turns, params);
+			const current = this._subscribedChatHistory(client, params.channel);
+			if (current.sub !== sub || current.turns !== turns) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, 'Chat history changed; restart the query');
+			}
+			return result;
 		},
 		resourceList: async (_client, params) => {
 			return this._agentService.resourceList(URI.parse(params.uri));
@@ -2753,8 +2882,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!result.snapshot) {
 				return result;
 			}
+			const sub = this._chatSubscribeResults.get(result);
+			if (sub && client.subscriptions.get(sub.uri) !== sub) {
+				throw new SubscriptionCancelledError(sub.uri);
+			}
+			if (sub?.history) {
+				try {
+					const snapshot = this._pagedChatBaseline(client, sub.uri, sub.history);
+					client.subscriptions.set(sub.uri, { ...sub, active: true });
+					return { snapshot };
+				} catch (error) {
+					this._removeSubscription(client, sub.uri);
+					throw error;
+				}
+			}
 			// Refresh before the ordinary response discards the window's queued actions.
 			const snapshot = client.channels.getStateSnapshot(result.snapshot.resource) ?? this._projectRelayRootSnapshot(client, result.snapshot);
+			if (sub && client.transport.relayClientId !== undefined && Buffer.byteLength(JSON.stringify(snapshot)) > DEFAULT_MAX_REASSEMBLY_BYTES - 1024) {
+				this._removeSubscription(client, sub.uri);
+				throw new ProtocolError(JsonRpcErrorCodes.InternalError, 'Chat snapshot exceeds the transport message size limit; subscribe with view.turns');
+			}
 			return { ...result, snapshot: snapshot as SubscribeResult['snapshot'] };
 		},
 	};
@@ -2895,7 +3042,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (client.transport.relayPassive && !new Set([
 			'authenticate', 'subscribe', 'listSessions', 'listChats', 'listModels', 'listAgents',
-			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns',
+			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns', 'listChatTurns', 'readChatTurns', 'searchChatTurns',
 			'resourceList', 'resourceRead', 'resourceResolve',
 		]).has(method) && (handler || client.transport.relayClientId === undefined || !this._config.extension?.requests.get(method)?.readOnly)) {
 			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
@@ -3063,6 +3210,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// Rejections are broadcast and replayed; Assisted permissions feedback must not be.
 			this._stateManager.rejectClientAction(params.channel, action.type === ActionType.ChatToolCallConfirmed ? withoutAgentPermissionFeedback(action) : action, origin, rejection);
 		} else if (isHandledClientAction(action)) {
+			try {
+				if (action.type === ActionType.ChatTurnResume) {
+					this._loadReferencedTurn(client, params.channel, action.turnId);
+				}
+				if (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatPendingMessageSet) {
+					this._loadChatAttachmentTurns(client, action.message);
+				}
+			} catch (error) {
+				if (!(error instanceof ProtocolError)) {
+					throw error;
+				}
+				checkAuthorization();
+				this._stateManager.rejectClientAction(params.channel, action, origin, error.message);
+				return;
+			}
 			return this._agentService.dispatchAction(params.channel, action, client.clientId, params.clientSeq, client.telemetryContext,
 				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 		}
@@ -3341,7 +3503,29 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectRelaySnapshots(client: IConnectedClient, snapshots: readonly IStateSnapshot[]): IStateSnapshot[] {
 		return snapshots
 			.filter(snapshot => client.transport.relayAuthentication?.authenticated !== false || isAhpRootChannel(snapshot.resource))
-			.map(snapshot => this._projectRelayRootSnapshot(client, snapshot));
+			.filter(snapshot => !isAhpChatChannel(snapshot.resource) || (client.subscriptions.has(snapshot.resource) && this._isChannelVisible(client, snapshot.resource)))
+			.map(snapshot => {
+				const sub = client.subscriptions.get(snapshot.resource);
+				if (sub?.kind === ChannelKind.State && sub.history) {
+					const baseline = this._pagedChatBaseline(client, sub.uri, sub.history);
+					client.subscriptions.set(sub.uri, { ...sub, active: true });
+					return baseline;
+				}
+				return this._projectRelayRootSnapshot(client, snapshot);
+			});
+	}
+
+	private _handshakeResponse(client: IConnectedClient, previousRecord: IClientRecord | undefined, id: number, project: () => IAgentHostExtensionInitializeResult | ReconnectResult): JsonRpcResponse {
+		try {
+			const response = jsonRpcSuccess(id, project());
+			if (client.transport.relayClientId !== undefined && Buffer.byteLength(JSON.stringify(response)) > DEFAULT_MAX_REASSEMBLY_BYTES) {
+				throw new ProtocolError(JsonRpcErrorCodes.InternalError, 'Handshake exceeds the transport message size limit; subscribe to chats separately with view.turns');
+			}
+			return response;
+		} catch (error) {
+			this._rollbackFailedInitialization(client, previousRecord);
+			throw error;
+		}
 	}
 
 	private _projectRelayReconnectResult(client: IConnectedClient, result: ReconnectResult, requestedSubscriptions: readonly string[]): ReconnectResult {
@@ -3501,6 +3685,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		if (!this._config.relayRoots && isAhpChatChannel(snapshot.resource) && hasKey(snapshot.state, { turns: true })) {
+			snapshot = { ...snapshot, state: { ...snapshot.state, historyNavigation: true } };
+		}
 		if ((this._config.relayRootMeta || this._config.extension) && isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = {
 				...snapshot, state: {
@@ -4563,7 +4750,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		this._replayBuffer.push(envelope);
 		if (this._replayBuffer.length > REPLAY_BUFFER_CAPACITY) {
-			this._replayBuffer.shift();
+			this._lastEvictedServerSeq = this._replayBuffer.shift()!.serverSeq;
 		}
 		this._broadcastAction(envelope);
 	}
@@ -4573,13 +4760,84 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const record of this._clients.values()) {
 			const client = this._getActiveClientFromRecord(record);
 			if (client && this._isRelevantToClient(client, envelope)) {
+				const sub = client.subscriptions.get(envelope.channel);
+				if (sub?.kind === ChannelKind.State && sub.history && !envelope.rejectionReason && this._sendChatViewAction(client, sub.history, envelope)) {
+					continue;
+				}
 				const projected = this._projectActionForClient(client, envelope);
 				if (projected) {
-					const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: this._projectRelayRootAction(client, projected) };
-					client.channels.send(msg);
+					this._sendAction(client, this._projectRelayRootAction(client, projected));
 				}
 			}
 		}
+	}
+
+	private _sendAction(client: IConnectedClient, envelope: ActionEnvelope): void {
+		if (envelope.action.type === ActionType.ChatTurnsLoaded) {
+			const sub = client.subscriptions.get(envelope.channel);
+			if (sub?.kind === ChannelKind.State) {
+				sub.history?.recordPrivateDelivery(envelope.serverSeq);
+			}
+		}
+		const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
+		client.channels.send(msg);
+	}
+
+	private _loadChatAttachmentTurns(client: IConnectedClient, message: Message | undefined): void {
+		for (const attachment of message?.attachments ?? []) {
+			if (attachment.type === MessageAttachmentKind.Chat && attachment.endTurn !== undefined) {
+				this._loadReferencedTurn(client, attachment.resource, attachment.endTurn);
+			}
+		}
+	}
+
+	private _loadReferencedTurn(client: IConnectedClient, channel: string, turnId: string): void {
+		const sub = client.subscriptions.get(channel);
+		if (sub?.kind !== ChannelKind.State || !sub.active || !sub.history?.hiddenCount) {
+			return;
+		}
+		const checkAuthorization = this._captureRelayAuthorization(client);
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (!snapshot || !hasKey(snapshot.state, { turns: true }) || !this._isChannelVisible(client, channel)) {
+			return;
+		}
+		const turns = snapshot.state.turns;
+		const target = turns.findIndex(turn => turn.id === turnId);
+		while (target >= 0 && target < sub.history.hiddenCount) {
+			checkAuthorization();
+			if (client.subscriptions.get(channel) !== sub || this._getActiveClient(client.clientId) !== client) {
+				throw new SubscriptionCancelledError(channel);
+			}
+			const page = sub.history.fetch(turns, undefined, Buffer.byteLength(JSON.stringify(channel)));
+			this._sendAction(client, this._stateManager.createServerActionEnvelope(channel, page));
+		}
+	}
+
+	private _sendChatViewAction(client: IConnectedClient, view: ChatHistoryView, envelope: ActionEnvelope): boolean {
+		const { channel, action } = envelope;
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (!snapshot || !hasKey(snapshot.state, { turns: true })) {
+			return true;
+		}
+		const turns = snapshot.state.turns;
+		if (action.type === ActionType.ChatTurnsLoaded) {
+			const page = view.prepend(turns, Buffer.byteLength(JSON.stringify(channel)));
+			this._sendAction(client, { ...envelope, action: page });
+			return true;
+		}
+		if (action.type === ActionType.ChatTruncated && view.truncate(turns, action.turnId)) {
+			// Reset to the retained prefix instead of sending history the truncation discards.
+			this._sendAction(client, { ...envelope, action: { type: ActionType.ChatTruncated } });
+			const sub = client.subscriptions.get(channel);
+			if (sub?.kind !== ChannelKind.State || sub.history !== view || !this._isRelevantToClient(client, envelope)) {
+				return true;
+			}
+			const page = view.rebaseline(turns, Buffer.byteLength(JSON.stringify(channel)));
+			this._sendAction(client, this._stateManager.createServerActionEnvelope(channel, page));
+			return true;
+		}
+		view.observeTurns(turns);
+		return false;
 	}
 
 	private _broadcastNotification(notification: INotification): void {
@@ -4852,6 +5110,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * and tears down the agent-service refcount for state channels.
 	 */
 	private _removeSubscription(client: IConnectedClient, channel: string): void {
+		client.expiredChatViews?.delete(channel);
 		client.channels.remove(channel);
 		const classified = classifyChannel(channel);
 		if (!classified) {

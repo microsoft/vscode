@@ -54,7 +54,7 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 			// just the plain label so the output stays readable.
 			const previousText = previousItem?.kind === 'markdownContent' ? previousItem.content.value : '';
 			if (isInsideCodeContext(previousText)) {
-				if (previousItem?.kind === 'markdownContent') {
+				if (previousItem?.kind === 'markdownContent' && previousItem.historyPartId === undefined) {
 					const merged = appendMarkdownString(previousItem.content, new MarkdownString(label));
 					result[previousItemIndex] = {
 						content: { ...previousItem, content: merged },
@@ -73,7 +73,7 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 
 				const annotationMetadata = { [refId]: item };
 
-				if (previousItem?.kind === 'markdownContent') {
+				if (previousItem?.kind === 'markdownContent' && previousItem.historyPartId === undefined) {
 					const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 					result[previousItemIndex] = {
 						content: { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } },
@@ -86,7 +86,7 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 					});
 				}
 			}
-		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && !previousItem.codeblockUri && !item.codeblockUri) {
+		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && item.historyPartId === previousItem.historyPartId && !previousItem.codeblockUri && !item.codeblockUri) {
 			if (canMergeMarkdownStrings(previousItem.content, item.content)) {
 				const merged = appendMarkdownString(previousItem.content, item.content);
 				result[previousItemIndex] = {

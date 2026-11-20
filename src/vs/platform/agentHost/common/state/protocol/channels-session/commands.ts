@@ -120,7 +120,7 @@ export interface DisposeSessionParams extends BaseParams { }
  * channel's `turns` state, ahead of the already-loaded window, and update or
  * clear `turnsNextCursor`.
  *
- * Before applying any operation that references a turn outside the currently
+ * Before applying any state-changing operation that references a turn outside the currently
  * loaded window, the host MUST eagerly load enough older turns into state for
  * that operation to reduce against valid state.
  *

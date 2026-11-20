@@ -532,6 +532,14 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		entry.onDidError.fire(error);
 	}
 
+	applyChatSnapshot(state: ChatState): void {
+		const entry = this._liveSubscriptions.get(state.resource);
+		assert.ok(entry);
+		this.chatStates.set(state.resource, state);
+		entry.state = state;
+		entry.emitter.fire(state);
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
@@ -2124,12 +2132,12 @@ suite('AgentHostChatContribution', () => {
 		}
 
 		suite('checkpoint truncation', () => {
-			async function openRestoredSession(keepFirstTurn: boolean) {
+			async function openRestoredSession(keepFirstTurn: boolean, turnsNextCursor?: string) {
 				const turns = ['turn-1', 'turn-2', 'turn-3'].map(id => ({
 					id, message: { text: id, origin: { kind: MessageKind.User } },
 					responseParts: [], usage: undefined, state: TurnState.Complete,
 				}));
-				const context = await openWireSession({ chat: { turns } });
+				const context = await openWireSession({ chat: { turns, turnsNextCursor } });
 				const controller = disposables.add(new AgentHostSnapshotController(context.sessionResource, context.client, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
 				for (const turn of turns) {
 					controller.ensureRequestCheckpoint(turn.id);
@@ -2162,6 +2170,58 @@ suite('AgentHostChatContribution', () => {
 						return state.turns.map(turn => turn.id);
 					},
 				};
+			}
+
+			test('restoring the first displayed checkpoint retains turns from earlier pages', async () => {
+				const context = await openRestoredSession(false, 'previous-page');
+				const fetching = context.peer.nextRequest('fetchTurns');
+				const truncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+				const starting = context.peer.nextDispatch(ActionType.ChatTurnStarted);
+				const invoking = context.invoke();
+				const page = await fetching;
+				context.fire({
+					type: ActionType.ChatTurnsLoaded,
+					turns: [{ id: 'previous-turn', message: { text: 'Previous', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete }],
+					turnsNextCursor: 'even-earlier',
+				});
+				context.peer.deliver({ jsonrpc: '2.0', id: page.id, result: {} });
+				const truncate = await truncating;
+				assert.deepStrictEqual(truncate.action, { type: ActionType.ChatTruncated, turnId: 'previous-turn' });
+				context.echo(truncate);
+				context.echo(await starting);
+				context.fire(chatTurnComplete('replacement', 1));
+				await invoking;
+				assert.deepStrictEqual(context.turnIds(), ['previous-turn', 'replacement']);
+			});
+
+			test('an unconfirmed page boundary never sends a truncate-all action', async () => {
+				const context = await openRestoredSession(false, 'previous-page');
+				const fetching = context.peer.nextRequest('fetchTurns');
+				const invoking = assert.rejects(context.invoke(), /chat history changed/i);
+				context.peer.deliver({ jsonrpc: '2.0', id: (await fetching).id, result: {} });
+				await invoking;
+				assert.deepStrictEqual(context.dispatched, []);
+			});
+
+			for (const modelAlreadyOpen of [false, true]) {
+				test(`fetched turns become restorable checkpoints (model already open: ${modelAlreadyOpen})`, async () => {
+					const turn = (id: string) => ({ id, message: { text: id, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete });
+					const context = await openWireSession({ chat: { turns: [turn('recent')], turnsNextCursor: 'before-recent' } });
+					const controller = disposables.add(new AgentHostSnapshotController(context.sessionResource, context.client, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
+					const attachModel = () => context.chatService.setSession(context.sessionResource, upcastPartial<IChatModel>({
+						sessionResource: context.sessionResource, editingSession: controller,
+						getRequests: () => [], getPendingRequests: () => [], onDidChangePendingRequests: Event.None,
+					}));
+					if (modelAlreadyOpen) {
+						attachModel();
+					}
+					context.fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('older')] });
+					if (!modelAlreadyOpen) {
+						attachModel();
+					}
+					await controller.restoreSnapshot('older', undefined);
+					assert.deepStrictEqual(controller.requestDisablement.get().map(request => request.requestId), ['older', 'recent']);
+				});
 			}
 
 			for (const keepFirstTurn of [false, true]) {
@@ -21876,6 +21936,159 @@ suite('AgentHostChatContribution', () => {
 				}, serverSeq: 1, origin: undefined
 			});
 			assert.deepStrictEqual(updates.map(history => history.filter(item => item.type === 'request').map(item => item.prompt)), [['Later message']]);
+		});
+
+		test('loads older history only on demand from the advertised chat and cursor', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'paged');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/paged' });
+			const chat = 'ahp-chat:/opaque/transcript-42';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Paged', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			const turn = (id: string): Turn => ({ id, message: { text: id, origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined });
+			const chatSummary = createDefaultChatSummary(summary, chat);
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat, chats: [chatSummary] });
+			agentHostService.chatStates.set(chat, { ...createChatState(chatSummary), turns: [turn('newest')], turnsNextCursor: 'first cursor' });
+			const calls: [string, string][] = [];
+			let page = new DeferredPromise<void>();
+			agentHostService.fetchTurns = (uri, cursor) => {
+				calls.push([uri.toString(), cursor]);
+				return page.p;
+			};
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			assert.strictEqual(session.historyNavigation?.get(), undefined);
+			const newest = session.history[0];
+			const initial = { prompt: newest.type === 'request' && newest.prompt, fetches: calls.length };
+			const first = Promise.all([session.loadOlderHistory!(), session.loadOlderHistory!()]);
+			await page.error(new Error('offline'));
+			await assert.rejects(first, /offline/);
+			page = new DeferredPromise<void>();
+			const retry = session.loadOlderHistory!();
+			agentHostService.fireAction({
+				channel: chat, action: { type: ActionType.ChatTurnsLoaded, turns: [turn('older'), turn('newest')], turnsNextCursor: 'second cursor' },
+				serverSeq: 1, origin: undefined,
+			});
+
+			await page.complete();
+			await retry;
+			const afterRetry = calls.length;
+			await session.loadOlderHistory!();
+			agentHostService.fireAction({
+				channel: chat, action: { type: ActionType.ChatTurnsLoaded, turns: [turn('oldest')] }, serverSeq: 2, origin: undefined,
+			});
+			await session.loadOlderHistory!();
+			assert.deepStrictEqual({
+				initial, calls, afterRetry, requests: session.history.flatMap(item => item.type === 'request' ? [item.prompt] : []),
+				retained: session.history.includes(newest),
+			}, {
+				initial: { prompt: 'newest', fetches: 0 }, calls: [[chat, 'first cursor'], [chat, 'first cursor'], [chat, 'second cursor']],
+				afterRetry: 2, requests: ['oldest', 'older', 'newest'], retained: true,
+			});
+		});
+
+		test('history navigation uses the advertised chat, opaque cursors and exact workbench request IDs', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'indexed');
+			const chat = 'ahp-chat:/other-authority/unrelated-transcript';
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/indexed' });
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Indexed', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			const chatSummary = createDefaultChatSummary(summary, chat);
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat, chats: [chatSummary] });
+			agentHostService.chatStates.set(chat, { ...createChatState(chatSummary), historyNavigation: true });
+			const calls: object[] = [];
+			const id = 'opaque:host-id';
+			const turn: Turn = { id, message: { text: 'Older prompt', origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined };
+			agentHostService.listChatTurns = async params => { calls.push(params); return { items: [{ turnId: id, preview: 'Older' }] }; };
+			agentHostService.readChatTurns = async params => { calls.push(params); return { turns: [turn], hasBefore: true, hasAfter: true }; };
+			agentHostService.searchChatTurns = async params => { calls.push(params); return { items: [] }; };
+			const token = CancellationToken.None;
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, token));
+			const navigation = session.historyNavigation!.get()!;
+			const opts = { matchCase: true, isRegex: true, wholeWord: false };
+			const list = await navigation.list('list cursor', token);
+			await navigation.search('Old.*', opts, 'search cursor', token);
+			const read = await navigation.read(list.items[0].turnId, 'around', token);
+			assert.deepStrictEqual({ calls, ids: read.history.flatMap(item => item.type === 'request' ? [item.id] : []), live: session.history }, {
+				calls: [{ channel: chat, cursor: 'list cursor' }, { channel: chat, query: 'Old.*', ...opts, cursor: 'search cursor' }, { channel: chat, turnId: id, direction: 'around' }],
+				ids: [id], live: [],
+			});
+		});
+
+		test('reconciles reconnect windows before the next turn and never prepends a replacement transcript', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'reconnect-window');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-window' });
+			const chat = 'ahp-chat:/opaque/reconnect';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Reconnect', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			const chatSummary = createDefaultChatSummary(summary, chat);
+			const base = { ...createChatState(chatSummary), historyNavigation: true as const };
+			const turn = (id: string): Turn => ({ id, message: { text: id, origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined });
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat, chats: [chatSummary] });
+			agentHostService.chatStates.set(chat, { ...base, turns: [turn('b'), turn('c')], turnsNextCursor: 'prev' });
+			let fetches = 0;
+			agentHostService.fetchTurns = async () => { fetches++; };
+			agentHostService.listChatTurns = async () => ({ items: [] });
+			agentHostService.readChatTurns = async () => ({ turns: [], hasBefore: false, hasAfter: false });
+			agentHostService.searchChatTurns = async () => ({ items: [] });
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const navigation = session.historyNavigation!;
+			disposables.add(autorun(reader => navigation.read(reader)));
+			const original = navigation.get();
+			assert.ok(original);
+			const ids = () => session.history.flatMap(item => item.type === 'request' ? [item.id] : []);
+			const atTurnStart: (string | undefined)[][] = [];
+			disposables.add(session.onDidStartServerRequest!(() => atTurnStart.push(ids())));
+			const checkpoints = sessionHandler as unknown as { _prependHistoryCheckpoints(resource: URI, turns: readonly Turn[]): void };
+			const prepends = sinon.spy(checkpoints, '_prependHistoryCheckpoints');
+			disposables.add(toDisposable(() => prepends.restore()));
+			let serverSeq = 0;
+			const fire = (action: ChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin: undefined });
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('a')] });
+			const beforeReconnect = ids();
+			agentHostService.applyChatSnapshot({
+				...base, turns: [turn('c'), turn('offline')], turnsNextCursor: 'new cursor',
+				activeTurn: createActiveTurn('live', turn('live').message, new Date(0).toISOString()),
+			});
+			fire(chatTurnComplete('live', 1));
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('b')], turnsNextCursor: 'final cursor' });
+			const overlap = ids();
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('older'), turn('a')] });
+			const expanded = ids();
+			assert.strictEqual(navigation.get(), original, 'paging, active turns and contiguous appends preserve navigation');
+			agentHostService.applyChatSnapshot({ ...base, turns: [turn('unrelated')], turnsNextCursor: 'unanchored' });
+			const noAnchor = ids();
+			const replacedSource = navigation.get();
+			assert.notStrictEqual(replacedSource, original);
+			const outsideWindow = { type: ActionType.ChatTruncated, turnId: 'outside-window' } as const;
+			agentHostService.fireAction({ channel: chat, action: outsideWindow, serverSeq: ++serverSeq, origin: undefined, rejectionReason: 'rejected' });
+			assert.strictEqual(navigation.get(), replacedSource);
+			fire(outsideWindow);
+			assert.notStrictEqual(navigation.get(), replacedSource, 'accepted truncation resets even without a loaded anchor');
+			const beforeEdit = navigation.get();
+			const changed = turn('unrelated');
+			agentHostService.applyChatSnapshot({ ...base, turns: [{ ...changed, message: { ...changed.message, text: 'edited in place' } }], turnsNextCursor: 'unanchored' });
+			assert.notStrictEqual(navigation.get(), beforeEdit, 'a retained turn with changed contents invalidates the index');
+			fire({ type: ActionType.ChatTruncated });
+			const cleared = ids();
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('replacement'), turn('also-replaced')] });
+			const replaced = ids();
+			fire({ type: ActionType.ChatTruncated, turnId: 'replacement' });
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('earliest'), turn('earlier'), turn('replacement')] });
+			const prependedPages = prepends.args.map(([, turns]) => turns.map(turn => turn.id));
+			assert.deepStrictEqual({ beforeReconnect, atTurnStart, overlap, expanded, noAnchor, cleared, replaced, final: ids(), prependedPages, fetches }, {
+				beforeReconnect: ['a', 'b', 'c'], atTurnStart: [['a', 'b', 'c', 'offline']],
+				overlap: ['a', 'b', 'c', 'offline', 'live'], expanded: ['older', 'a', 'b', 'c', 'offline', 'live'],
+				noAnchor: ['unrelated'], cleared: [], replaced: ['replacement', 'also-replaced'], final: ['earliest', 'earlier', 'replacement'],
+				prependedPages: [['a'], ['older'], ['earliest', 'earlier']], fetches: 0,
+			});
 		});
 
 		test('preserves independent default chat titles and renames without cloud customization', async () => {

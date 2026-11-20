@@ -5,7 +5,9 @@
 
 import { localize } from '../../../../../nls.js';
 import { equals } from '../../../../../base/common/arrays.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -22,6 +24,7 @@ import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import type { IChatHistoryNavigation } from '../../common/model/chatModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
 /** Aggregated diff stats for the edits a prompt (or bucket) produced. */
@@ -131,6 +134,13 @@ function promptsEqual(a: readonly PromptItem[], b: readonly PromptItem[]): boole
 		p.requestId === b[i].requestId && p.text === b[i].text && p.timestamp === b[i].timestamp);
 }
 
+function toPromptTick(prompt: PromptItem): PromptTick {
+	return {
+		requestId: prompt.requestId, allRequestIds: [prompt.requestId], text: prompt.text, timestamp: prompt.timestamp, count: 1,
+		ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
+	};
+}
+
 /** The prompt currently pinned by the sticky header, with its 1-based position among all prompts. */
 export interface IActivePrompt {
 	readonly text: string;
@@ -146,9 +156,29 @@ export class PromptTimelineModel extends Disposable {
 
 	/** All user prompts in the chat, updated as the transcript changes. */
 	private readonly _prompts: ISettableObservable<readonly PromptItem[]> = observableValue<readonly PromptItem[]>(this, []);
+	private readonly _detachedLivePrompts = observableValue<readonly PromptItem[]>(this, []);
+	private _readOutline: (() => Promise<void>) | undefined;
 
 	/** The chat session resource, tracked reactively so the editing session can be resolved. */
 	private readonly _sessionResource: IObservable<URI | undefined>;
+	readonly hasOlderHistory: IObservable<boolean>;
+	private readonly _navigation: IObservable<IChatHistoryNavigation | undefined>;
+	private readonly _jump = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _outline = derived(this, reader => this._navigation.read(reader)?.outline.read(reader));
+	private readonly _gutterPrompts = derived(this, reader => {
+		const loaded = this._prompts.read(reader);
+		const outline = this._outline.read(reader);
+		if (!outline) {
+			return loaded;
+		}
+		const byId = new Map([...loaded, ...this._detachedLivePrompts.read(reader)].map(prompt => [prompt.requestId, prompt]));
+		const indexed = outline.map(entry => {
+			const prompt = byId.get(entry.turnId);
+			byId.delete(entry.turnId);
+			return prompt ?? { requestId: entry.turnId, text: entry.preview, timestamp: Date.parse(entry.startedAt ?? '') || 0 };
+		});
+		return indexed.concat([...byId.values()]);
+	});
 
 	/** The chat editing session for this chat, if one exists (local or agent-host). */
 	private readonly _editingSession = derived(this, reader => {
@@ -184,18 +214,15 @@ export class PromptTimelineModel extends Disposable {
 	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
 	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
 	 */
-	private readonly _basePromptTicks = derived<readonly PromptTick[]>(this, reader => {
-		const prompts = this._prompts.read(reader);
-		return prompts.map((prompt): PromptTick => ({
-			requestId: prompt.requestId,
-			allRequestIds: [prompt.requestId],
-			text: prompt.text,
-			timestamp: prompt.timestamp,
-			count: 1,
-			ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
-		}));
+	private readonly _loadedPromptTicks = this._withDiffStats(derived(this, reader => this._prompts.read(reader).map(toPromptTick)));
+	private readonly _promptTicks = derived(this, reader => {
+		const loaded = this._loadedPromptTicks.read(reader);
+		if (!this._outline.read(reader)) {
+			return loaded;
+		}
+		const loadedById = new Map(loaded.map(tick => [tick.requestId, tick]));
+		return this._gutterPrompts.read(reader).map(prompt => loadedById.get(prompt.requestId) ?? toPromptTick(prompt));
 	});
-	private readonly _promptTicks = this._withDiffStats(this._basePromptTicks);
 	get promptTicks(): IObservable<readonly PromptTick[]> { return this._promptTicks; }
 
 	private _withDiffStats(ticks: IObservable<readonly PromptTick[]>): IObservable<readonly PromptTick[]> {
@@ -229,7 +256,7 @@ export class PromptTimelineModel extends Disposable {
 		if (id === undefined) {
 			return undefined;
 		}
-		const prompts = this._prompts.read(reader);
+		const prompts = this._gutterPrompts.read(reader);
 		const index = prompts.findIndex(p => p.requestId === id);
 		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: prompts.length };
 	});
@@ -259,6 +286,9 @@ export class PromptTimelineModel extends Disposable {
 		// Assigned here (not as a field initializer) because it reads `this.widget`,
 		// which parameter properties only assign once the constructor body runs.
 		this._sessionResource = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel?.sessionResource);
+		const viewModel = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel);
+		this._navigation = derived(this, reader => viewModel.read(reader)?.model?.historyNavigation?.read(reader));
+		this.hasOlderHistory = derived(this, reader => !this._outline.read(reader) && (viewModel.read(reader)?.model?.hasOlderHistory?.read(reader) ?? false));
 		this._register(this.widget.onDidChangeViewModel(() => this._bindViewModel()));
 		this._register(this.widget.onDidScroll(() => { this._updateActive(); this._triggerScrollLayout(); }));
 		this._register(this.widget.onDidChangeContentHeight(() => this._triggerScrollLayout()));
@@ -273,6 +303,28 @@ export class PromptTimelineModel extends Disposable {
 
 	private _triggerScrollLayout(): void {
 		transaction(tx => this._scrollLayoutSignal.trigger(tx));
+	}
+
+	loadGutterOutline(): void {
+		this._register(autorun(reader => {
+			const navigation = this._navigation.read(reader);
+			this._readOutline = undefined;
+			if (!navigation) {
+				return;
+			}
+			const token = cancelOnDispose(reader.store);
+			let pending: Promise<void> | undefined;
+			this._readOutline = () => pending ??= navigation.loadOutline(token).finally(() => { pending = undefined; });
+			void this._readOutline().catch(onUnexpectedError);
+		}));
+	}
+
+	loadPreviousGutterPage(): Promise<void> | undefined {
+		const navigation = this._navigation.get();
+		if (!navigation) {
+			return this.widget.viewModel?.model.loadOlderHistory?.();
+		}
+		return navigation.outline.get() === undefined ? this._readOutline?.() : undefined;
 	}
 
 	/**
@@ -398,6 +450,7 @@ export class PromptTimelineModel extends Disposable {
 	}
 
 	private _bindViewModel(): void {
+		this._jump.clear();
 		// Different session's items have unrelated ids; drop stale per-item caches.
 		this._signalCache.clear();
 		this._previewCache.clear();
@@ -405,12 +458,22 @@ export class PromptTimelineModel extends Disposable {
 		this._recompute();
 	}
 
-	private _recompute(): void {
+	private _promptItems(items: readonly ChatTreeItem[]): PromptItem[] {
 		const prompts: PromptItem[] = [];
-		for (const item of this.widget.viewModel?.getItems() ?? []) {
+		for (const item of items) {
 			if (isPromptTimelineRequest(item)) {
 				prompts.push({ requestId: item.id, text: this._requestPreview(item), timestamp: item.timestamp });
 			}
+		}
+		return prompts;
+	}
+
+	private _recompute(): void {
+		const viewModel = this.widget.viewModel;
+		const prompts = this._promptItems(viewModel?.getItems() ?? []);
+		const live = this._promptItems(viewModel?.getLiveItemsWhileReading?.() ?? []);
+		if (!promptsEqual(live, this._detachedLivePrompts.get())) {
+			this._detachedLivePrompts.set(live, undefined);
 		}
 
 		// Streaming fires onDidChange for every token; only rebuild ticks when the
@@ -509,12 +572,26 @@ export class PromptTimelineModel extends Disposable {
 	}
 
 	/** Reveals the request with the given id at the top of the transcript. */
-	reveal(requestId: string): void {
-		const items = this.widget.viewModel?.getItems();
-		const index = items?.findIndex(i => isRequestVM(i) && i.id === requestId) ?? -1;
-		if (items && index >= 0) {
-			this.widget.reveal(items[index], 0);
+	async reveal(requestId: string): Promise<void> {
+		this._jump.clear();
+		const viewModel = this.widget.viewModel;
+		let item = viewModel?.getItems().find(i => isRequestVM(i) && i.id === requestId);
+		if (!item && viewModel) {
+			const navigation = this._navigation.get();
+			if (!navigation) {
+				return;
+			}
+			const token = cancelOnDispose(this._jump.value = new DisposableStore());
+			await navigation.revealTurn(requestId, token);
+			if (token.isCancellationRequested || viewModel !== this.widget.viewModel) {
+				return;
+			}
+			item = viewModel.getItems().find(i => isRequestVM(i) && i.id === requestId);
 		}
+		if (!item) {
+			return;
+		}
+		this.widget.reveal(item, 0);
 		// Normalize to the owning tick's representative id so the active highlight
 		// works even when the id is a mid-bucket prompt (picker).
 		const owningTick = this._baseTicks.get().find(t => t.allRequestIds.includes(requestId));
@@ -528,7 +605,7 @@ export class PromptTimelineModel extends Disposable {
 	revealActivePrompt(): void {
 		const id = this._activePromptId.get();
 		if (id !== undefined) {
-			this.reveal(id);
+			void this.reveal(id).catch(onUnexpectedError);
 		}
 	}
 
