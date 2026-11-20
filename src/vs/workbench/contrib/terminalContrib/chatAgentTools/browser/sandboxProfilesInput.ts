@@ -17,26 +17,34 @@ import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 export const sandboxProfileGroups = [
-	{ title: localize('sandboxGroup', "Sandbox"), fields: [
-		[Sandbox.AgentSandboxEnabled, localize('enabled', "Enabled")],
-		[Sandbox.AgentSandboxAllowUnsandboxedCommands, localize('bypass', "Allow Sandbox Bypass")],
-		[Sandbox.AgentSandboxMcpServers, localize('mcpServers', "Sandbox MCP Servers")],
-		[Sandbox.AgentSandboxLspServers, localize('lspServers', "Sandbox LSP Servers")],
-	] },
-	{ title: localize('networkGroup', "Network"), fields: [
-		[Sandbox.AgentSandboxAllowNetwork, localize('outbound', "Allow Outbound Connections")],
-		[Network.AllowedNetworkDomains, localize('allowed', "Allowed Domains")],
-		[Network.DeniedNetworkDomains, localize('denied', "Denied Domains")],
-		[Sandbox.AgentSandboxAllowLocalNetwork, localize('localNetwork', "Allow Local Network")],
-	] },
-	{ title: localize('fileSystemGroup', "File System"), fields: [
-		[Sandbox.AgentSandboxAllowDevToolAccess, localize('devTools', "Allow Dev Tool Access")],
-		[Sandbox.AgentSandboxUserConfiguredPaths, localize('paths', "User-Configured Paths")],
-	] },
-	{ title: localize('credentialsGroup', "Credentials"), fields: [
-		[Sandbox.AgentSandboxAuthenticateGit, localize('git', "Authenticate git")],
-		[Sandbox.AgentSandboxAuthenticateGh, localize('gh', "Authenticate gh")],
-	] },
+	{
+		title: localize('sandboxGroup', "Sandbox"), fields: [
+			[Sandbox.AgentSandboxEnabled, localize('enabled', "Enabled")],
+			[Sandbox.AgentSandboxAllowUnsandboxedCommands, localize('bypass', "Allow Sandbox Bypass")],
+			[Sandbox.AgentSandboxMcpServers, localize('mcpServers', "Sandbox MCP Servers")],
+			[Sandbox.AgentSandboxLspServers, localize('lspServers', "Sandbox LSP Servers")],
+		]
+	},
+	{
+		title: localize('networkGroup', "Network"), fields: [
+			[Sandbox.AgentSandboxAllowNetwork, localize('outbound', "Allow Outbound Connections")],
+			[Network.AllowedNetworkDomains, localize('allowed', "Allowed Domains")],
+			[Network.DeniedNetworkDomains, localize('denied', "Denied Domains")],
+			[Sandbox.AgentSandboxAllowLocalNetwork, localize('localNetwork', "Allow Local Network")],
+		]
+	},
+	{
+		title: localize('fileSystemGroup', "File System"), fields: [
+			[Sandbox.AgentSandboxAllowDevToolAccess, localize('devTools', "Allow Dev Tool Access")],
+			[Sandbox.AgentSandboxUserConfiguredPaths, localize('paths', "User-Configured Paths")],
+		]
+	},
+	{
+		title: localize('credentialsGroup', "Credentials"), fields: [
+			[Sandbox.AgentSandboxAuthenticateGit, localize('git', "Authenticate git")],
+			[Sandbox.AgentSandboxAuthenticateGh, localize('gh', "Authenticate gh")],
+		]
+	},
 ] as const;
 
 export class SandboxProfilesInput extends EditorInput implements IModalEditorOptionsProvider {
