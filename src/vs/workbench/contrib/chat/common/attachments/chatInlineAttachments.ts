@@ -555,13 +555,20 @@ export function getMarkdownCodeRanges(text: string): OffsetRange[] {
 /**
  * The ranges of the Markdown tokens of `text` for which `include` holds,
  * including those within lists, block quotes and table cells. The tokens
- * within an included token are not visited.
+ * within an included token are not visited. With `includeUntokenized`, the
+ * block text that the lexer leaves out of its tokens, such as link reference
+ * definitions, is included as well.
  */
-export function getMarkdownTokenRanges(text: string, include: (token: marked.Token) => boolean): OffsetRange[] {
+export function getMarkdownTokenRanges(text: string, include: (token: marked.Token) => boolean, includeUntokenized = false): OffsetRange[] {
 	// The lexer normalizes line breaks, so its offsets are mapped back to those of the text.
 	const normalized = text.replace(/\r\n?/g, '\n');
 	const ranges: OffsetRange[] = [];
-	const visit = (tokens: readonly marked.Token[], within: OffsetRange, inTable: boolean): number => {
+	const keepUntokenized = (range: OffsetRange) => {
+		if (includeUntokenized && /\S/.test(normalized.slice(range.start, range.endExclusive))) {
+			ranges.push(range);
+		}
+	};
+	const visit = (tokens: readonly marked.Token[], within: OffsetRange, inTable: boolean, isBlock = false): number => {
 		let cursor = within.start;
 		for (const token of tokens) {
 			const searched = new OffsetRange(cursor, within.endExclusive);
@@ -570,6 +577,9 @@ export function getMarkdownTokenRanges(text: string, include: (token: marked.Tok
 			if (!range) {
 				continue;
 			}
+			if (isBlock) {
+				keepUntokenized(new OffsetRange(cursor, range.start));
+			}
 			cursor = range.endExclusive;
 			if (include(token)) {
 				ranges.push(range);
@@ -577,7 +587,7 @@ export function getMarkdownTokenRanges(text: string, include: (token: marked.Tok
 			}
 			const children = (token as marked.Tokens.Generic).tokens;
 			if (Array.isArray(children)) {
-				visit(children, range, inTable);
+				visit(children, range, inTable, token.type === 'blockquote' || token.type === 'list_item');
 			}
 			if (token.type === 'list') {
 				visit((token as marked.Tokens.List).items, range, inTable);
@@ -590,9 +600,12 @@ export function getMarkdownTokenRanges(text: string, include: (token: marked.Tok
 				}
 			}
 		}
+		if (isBlock) {
+			keepUntokenized(new OffsetRange(cursor, within.endExclusive));
+		}
 		return cursor;
 	};
-	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length), false);
+	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length), false, true);
 	if (normalized.length === text.length) {
 		return ranges;
 	}

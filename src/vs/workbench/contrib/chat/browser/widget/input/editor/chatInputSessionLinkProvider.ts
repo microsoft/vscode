@@ -112,8 +112,8 @@ export function linkSessionMentions(message: IParsedChatRequest, detector: ChatI
 	}
 
 	const positions = new PositionOffsetTransformer(message.text);
-	// Code renders as written, and authored links and images keep their own text and target.
-	const keptRanges = getMarkdownTokenRanges(message.text, token => token.type === 'code' || token.type === 'codespan' || token.type === 'link' || token.type === 'image');
+	// Code renders as written, and authored links, images and link reference definitions keep their own text and target.
+	const keptRanges = getMarkdownTokenRanges(message.text, token => token.type === 'code' || token.type === 'codespan' || token.type === 'link' || token.type === 'image', true);
 	const matches = links.map(({ range, link }) => ({
 		link,
 		offset: new OffsetRange(positions.getOffset(range.getStartPosition()), positions.getOffset(range.getEndPosition())),
@@ -145,15 +145,14 @@ export function linkSessionMentions(message: IParsedChatRequest, detector: ChatI
 
 /**
  * Whether the link at `range` is plain text in Markdown, rather than part of
- * authored Markdown or HTML, such as `[text](link)`, `<link>`, `href="link"` or a
- * link reference definition, which must keep rendering as written.
+ * authored Markdown or HTML, such as `[text](link)`, `<link>` or `href="link"`,
+ * which must keep rendering as written.
  */
 function isPlainMarkdownLink(text: string, range: OffsetRange): boolean {
 	const lineStart = text.lastIndexOf('\n', range.start - 1) + 1;
 	const before = text.slice(lineStart, range.start);
 	const after = text.charAt(range.endExclusive);
 	return /(?:^|\s|(?:^|[^\]])\()$/.test(before)
-		&& !/^ {0,3}(?:>\s*)*\[[^\]]+\]:\s*$/.test(before)
 		&& /^[\s).,;:!?]?$/.test(after);
 }
 
