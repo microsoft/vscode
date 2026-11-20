@@ -43,6 +43,12 @@ an interactive prompt.
 Without `--tunnel`, `code agent` and `code agent host` still start or reuse a local
 agent host supervisor.
 
+### Cached agent host servers
+
+A standalone supervisor prefers the latest downloaded server. If that build is unavailable, it tries its last started build, then the CLI's own build, before falling back to another cached server. The last-started and CLI-build probes work even when an installation is absent from `servers/lru.json`, without rewriting or pruning the LRU. The existing fallback to other cached builds, including other release channels and web distributions, is preserved. Existing supervisors and their sessions are not replaced by this selection.
+
+The CLI build is a preference, not a compatibility requirement: compatible older cached servers remain usable offline, and the client's Agent Host Protocol handshake remains authoritative. An incompatible handshake is terminal, including during reconnect. The Remote-SSH window reports the incompatibility instead of leaving authentication pending. Update the remote Agent Host or VS Code as appropriate, then use **Reload Window** to reconnect. Reloading or installing a newer CLI alone does not replace an already-running standalone supervisor: restart that supervisor explicitly using its existing connection and data-directory options after updating. Inspect its `agent-host-<quality>.log` for update or download failures; do not delete the server cache to force selection.
+
 ## GitHub environments
 
 Use `code agent host --github-environment --name <name>` to register an agent host as a GitHub environment. Like `code agent host`, it starts in the background by default; `--foreground` keeps it attached to the terminal. By default, it grants access to all accessible local drive roots on Windows and `/` on macOS and Linux, while keeping the launch directory as the shared project and default working directory. Network-backed Windows drives are not added automatically; inaccessible local drives are skipped with a warning. Automatically discovered grants are checked again when the agent host restarts, so a disconnected drive does not prevent registration.

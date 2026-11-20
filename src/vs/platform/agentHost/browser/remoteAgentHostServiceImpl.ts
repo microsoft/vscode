@@ -42,6 +42,7 @@ import {
 	RemoteAgentHostEntryType,
 } from '../common/remoteAgentHostService.js';
 import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/reconnectPolicy.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION } from '../common/state/sessionProtocol.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
@@ -682,6 +683,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			} finally {
 				if (this._pendingConnects.get(address) === attempt) {
 					this._pendingConnects.delete(address);
+					// Terminal notifications can add waiters before the attempt leaves this map.
+					const entry = this._entries.get(address);
+					if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status)) {
+						this._rejectPendingConnectionWait(address, new Error(entry.status.message));
+					}
 					this._onDidChangePendingConnections.fire();
 				}
 				void pendingConnect.complete();
@@ -819,6 +825,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return;
 			}
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
+			// A client that closes with the rejection lost its transport along with it. A rejected
+			// transport that closes later means the host went away, as it does when it is upgraded,
+			// and is redialed below.
+			if (RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && client.connectionError?.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
+				const { message, supportedByClient, offeredByServer } = entry.status;
+				// The rejection stays terminal, but the closed transport can no longer carry an upgrade.
+				entry.status = RemoteAgentHostConnectionStatus.incompatible(message, supportedByClient, offeredByServer);
+				entry.connected = false;
+				entry.client = undefined;
+				disposeEntry(entry);
+				this._rejectPendingConnectionWait(address, new Error(message));
+				this._onDidChangeConnections.fire();
+				return;
+			}
 			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
@@ -888,7 +908,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.status = RemoteAgentHostConnectionStatus.fromConnectError(client.connectionError, getAgentHostSupportedProtocolVersions())
 						?? RemoteAgentHostConnectionStatus.incompatible(message, getAgentHostSupportedProtocolVersions());
 					entry.lastConnectionError = undefined;
-					this._reconnectAttempts.delete(address);
+					// An automatic redial keeps its place in the retry budget, so a host that
+					// rejects and then closes cannot restart the backoff.
+					if (options.userInitiated) {
+						this._reconnectAttempts.delete(address);
+					}
 					if (wasReconnecting) {
 						this._rejectPendingConnectionWait(address, client.connectionError ?? new Error(message));
 					}
@@ -918,7 +942,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
 		} catch (err) {
-			if (!isCurrentEntry()) {
+			if (!isCurrentEntry() || (store.isDisposed && RemoteAgentHostConnectionStatus.isIncompatible(entry.status))) {
 				if (!store.isDisposed) {
 					disposeEntry(entry);
 				}
@@ -938,7 +962,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
 				entry.status = incompatible;
 				entry.lastConnectionError = undefined;
-				this._reconnectAttempts.delete(address);
+				if (options.userInitiated) {
+					this._reconnectAttempts.delete(address);
+				}
 				this._rejectPendingConnectionWait(address, err);
 				this._onDidChangeConnections.fire();
 				return;
