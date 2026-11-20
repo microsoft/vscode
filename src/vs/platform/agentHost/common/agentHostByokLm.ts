@@ -217,6 +217,56 @@ export interface IByokLmModelInfo {
 	readonly supportedReasoningEfforts?: readonly string[];
 	/** Default reasoning effort advertised by the renderer model, when known. */
 	readonly defaultReasoningEffort?: string;
+	/** Whether the model can call tools, when known. Set only alongside {@link direct}. */
+	readonly supportsToolCalls?: boolean;
+	/**
+	 * Set when the agent host's runtime should call the model's endpoint itself
+	 * instead of routing requests back to the renderer through the bridge.
+	 */
+	readonly direct?: IByokLmDirectEndpoint;
+}
+
+/** Where and how the runtime calls a BYOK model's endpoint. */
+export interface IByokLmRuntimeEndpoint {
+	/**
+	 * The runtime provider type. Each type implies the auth header the runtime
+	 * sends the API key in: `Authorization: Bearer` for `openai`, `api-key` for
+	 * `azure` and `x-api-key` for `anthropic`.
+	 */
+	readonly type: 'openai' | 'azure' | 'anthropic';
+	/** The OpenAI wire format, for `openai` and `azure`. */
+	readonly wireApi?: 'completions' | 'responses';
+	/** The URL the runtime appends the API path to. */
+	readonly baseUrl: string;
+	/** The `api-version` of a versioned Azure OpenAI route. */
+	readonly azureApiVersion?: string;
+}
+
+/**
+ * A BYOK model endpoint the runtime calls directly. The payload never carries
+ * the API key: the agent host asks for it separately with
+ * {@link IAgentHostByokLmHandler.resolveCredential}.
+ */
+export interface IByokLmDirectEndpoint extends IByokLmRuntimeEndpoint {
+	/** The provider group whose API key authenticates requests. */
+	readonly group: string;
+	/**
+	 * Changes whenever the group's stored API key is replaced, so a model list
+	 * that is otherwise unchanged still prompts the agent host to fetch the new
+	 * key. Derived from the secret's storage reference, never from the key.
+	 */
+	readonly credentialVersion?: string;
+}
+
+/** Identifies the provider group whose API key the agent host needs. */
+export interface IByokLmCredentialRequest {
+	readonly vendor: string;
+	readonly group: string;
+}
+
+/** The API key of a provider group. Absent when the group has none. */
+export interface IByokLmCredential {
+	readonly apiKey?: string;
 }
 
 /**
@@ -309,6 +359,14 @@ export interface IAgentHostByokLmHandler {
 	 * provider/model config for the SDK runtime.
 	 */
 	listModels(token: CancellationToken): Promise<IByokLmModelInfo[]>;
+
+	/**
+	 * Resolve the API key of a provider group that {@link listModels} reported
+	 * a {@link IByokLmModelInfo.direct} model for. Resolves `undefined` when
+	 * BYOK is disabled by policy or the group no longer routes directly.
+	 * Optional: test fakes may omit it.
+	 */
+	resolveCredential?(request: IByokLmCredentialRequest, token: CancellationToken): Promise<IByokLmCredential | undefined>;
 }
 
 /**
@@ -320,6 +378,8 @@ export interface IAgentHostByokLmHandler {
  */
 export interface IByokLmBridgeConnection {
 	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
+	/** Fetches a direct model's API key; see {@link IAgentHostByokLmHandler.resolveCredential}. */
+	resolveCredential?(request: IByokLmCredentialRequest): Promise<IByokLmCredential | undefined>;
 	/** Emits the renderer's current BYOK model snapshot on subscribe and on every change. */
 	readonly onDidChangeModels: Event<IByokLmModelInfo[]>;
 	/** Emits each streamed delta, tagged with the `requestId` it belongs to. */

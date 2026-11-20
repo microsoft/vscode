@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo, IByokLmStreamDelta } from '../../common/agentHostByokLm.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmCredentialRequest, IByokLmModelInfo, IByokLmStreamDelta } from '../../common/agentHostByokLm.js';
 import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
@@ -165,6 +165,30 @@ suite('agentHostClientByokLmChannel', () => {
 	test('rejects unknown channel commands', async () => {
 		const server = new AgentHostClientByokLmChannel(handlerOf(async () => ({ output: [] })), new NullLogService());
 		await assert.rejects(() => server.call(null, 'frobnicate'), /Unknown command/);
+	});
+
+	test('fetches a provider group key with its own call, apart from the model snapshots', async () => {
+		const requests: IByokLmCredentialRequest[] = [];
+		const connection = bridge({
+			...handlerOf(async () => ({ output: [] })),
+			resolveCredential: async request => {
+				requests.push(request);
+				return request.group === 'Work' ? { apiKey: 'sk-work' } : undefined;
+			},
+		});
+		const withoutHandlerSupport = bridge(handlerOf(async () => ({ output: [] })));
+
+		assert.deepStrictEqual({
+			work: await connection.resolveCredential?.({ vendor: 'customendpoint', group: 'Work' }),
+			refused: await connection.resolveCredential?.({ vendor: 'customendpoint', group: 'Other' }),
+			unsupported: await withoutHandlerSupport.resolveCredential?.({ vendor: 'customendpoint', group: 'Work' }),
+			requests,
+		}, {
+			work: { apiKey: 'sk-work' },
+			refused: undefined,
+			unsupported: undefined,
+			requests: [{ vendor: 'customendpoint', group: 'Work' }, { vendor: 'customendpoint', group: 'Other' }],
+		});
 	});
 
 	test('exposes only the models event', () => {

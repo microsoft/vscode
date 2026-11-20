@@ -25,7 +25,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
-import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmBridgeConnection, type IByokLmCredential, type IByokLmDirectEndpoint, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
@@ -57,6 +57,7 @@ import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName,
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
+import { getDirectByokProviderName, toAgentByokProviderId, toRuntimeByokModelId } from './copilotByokModelIds.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -904,14 +905,18 @@ function toSdkCapiSessionOptions(autoTier: string | undefined): Pick<NonNullable
  * Resolve the BYOK provider/model session config for `sessionId` from the
  * renderer's active bridge. Returns empty — the session launches without BYOK
  * models — when BYOK is gated off (no active bridge), when the renderer reports
- * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
- * at least one model is present.
+ * no BYOK models, or when enumeration fails.
  *
- * Each vendor maps to one `type: 'openai'` / `wireApi: 'responses'` provider
- * whose `baseUrl` points at the proxy and authenticates with the session-scoped
- * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
- * provider-qualified selection id `vendor/[group/]id`, matching what the renderer's
- * `AgentHostByokLmHandler` resolves.
+ * A model the renderer reports with a {@link IByokLmModelInfo.direct} endpoint
+ * gets its own provider (see {@link getDirectByokProviderName}) that the runtime
+ * calls with the provider group's API key, fetched over the bridge and set as
+ * the provider's `apiKey`. Every other model stays on the bridge: each vendor
+ * maps to one `type: 'openai'` / `wireApi: 'responses'` provider whose `baseUrl`
+ * points at the proxy and authenticates with the session-scoped
+ * `Bearer <nonce>.<sessionId>`, and `startProxy` is invoked only when there is at
+ * least one such model. Either way the model keeps the provider-local id
+ * `[group/]id`, which the agent host advertises as `vendor/[group/]id`, matching
+ * what the renderer's `AgentHostByokLmHandler` resolves.
  *
  * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
  * unit-testable without instantiating the launcher; the launcher passes a
@@ -950,24 +955,29 @@ export async function synthesizeByokSessionConfig(
 		seenSelectionIds.add(selectionId);
 		return true;
 	});
+	const direct = await resolveDirectByokSessionConfig(sessionId, byokModels, bridgeRegistry.getServingConnection(), logService);
+	const bridgedModels = byokModels.filter(m => !direct.routed.has(m));
+	if (bridgedModels.length === 0) {
+		return { providers: direct.providers, models: direct.models };
+	}
 	// `startProxy` binds a local loopback listener — unlikely to fail, but it
 	// must never break session materialization (which fires the cross-window
-	// `sessionAdded` broadcast). Degrade to no BYOK config on failure.
+	// `sessionAdded` broadcast). Degrade to the direct models alone on failure.
 	let handle: IByokLmProxyHandle;
 	try {
 		handle = await startProxy();
 	} catch (err) {
 		logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
-		return {};
+		return direct.models.length ? { providers: direct.providers, models: direct.models } : {};
 	}
-	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
+	const providers: NamedProviderConfig[] = [...new Set(bridgedModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
 		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
 	}));
-	const models: ProviderModelConfig[] = byokModels.map(m => ({
+	const models: ProviderModelConfig[] = bridgedModels.map(m => ({
 		id: getByokLmSelectionModelId(m),
 		provider: m.vendor,
 		// Tool/prompt policy uses the canonical model, not the provider group's routing id.
@@ -980,7 +990,88 @@ export async function synthesizeByokSessionConfig(
 		// tool-result images (e.g. from the `view` tool) with a text receipt.
 		...(m.supportsVision !== undefined ? { capabilities: { supports: { vision: m.supportsVision } } } : {}),
 	}));
-	return { providers, models };
+	return { providers: [...providers, ...direct.providers], models: [...models, ...direct.models] };
+}
+
+interface IDirectByokSessionConfig {
+	readonly providers: NamedProviderConfig[];
+	readonly models: ProviderModelConfig[];
+	/** The models these providers serve; every other model stays on the bridge. */
+	readonly routed: ReadonlySet<IByokLmModelInfo>;
+}
+
+/**
+ * Builds the providers of the models the renderer reports with a direct
+ * endpoint. A group's key is fetched once over the bridge and set as the static
+ * `apiKey` of each of its models' providers, which the runtime redacts and never
+ * sends in the `headers` it may echo. A model whose key cannot be fetched stays
+ * on the bridge, so it keeps working.
+ */
+async function resolveDirectByokSessionConfig(sessionId: string, byokModels: readonly IByokLmModelInfo[], connection: IByokLmBridgeConnection | undefined, logService: ILogService): Promise<IDirectByokSessionConfig> {
+	const candidates = byokModels.filter((model): model is IByokLmModelInfo & { readonly direct: IByokLmDirectEndpoint } => !!model.direct);
+	if (candidates.length === 0 || !connection?.resolveCredential) {
+		return { providers: [], models: [], routed: new Set() };
+	}
+	const bridge = connection;
+	const credentials = new Map<string, Promise<IByokLmCredential | undefined>>();
+	const credentialOf = (vendor: string, group: string) => {
+		const key = JSON.stringify([vendor, group]);
+		let credential = credentials.get(key);
+		if (!credential) {
+			credential = (async () => bridge.resolveCredential?.({ vendor, group }))().catch(err => {
+				logService.warn(`[Copilot:${sessionId}] Failed to fetch the API key of a ${vendor} provider group; its models keep using the bridge: ${getErrorMessage(err)}`);
+				return undefined;
+			});
+			credentials.set(key, credential);
+		}
+		return credential;
+	};
+	const resolved = await Promise.all(candidates.map(async model => ({ model, credential: await credentialOf(model.vendor, model.direct.group) })));
+
+	const providers: NamedProviderConfig[] = [];
+	const models: ProviderModelConfig[] = [];
+	const routed = new Set<IByokLmModelInfo>();
+	const providerNames = new Set<string>();
+	for (const { model, credential } of resolved) {
+		const localModelId = getByokLmSelectionModelId(model);
+		const name = getDirectByokProviderName(model.vendor, localModelId);
+		if (!credential || providerNames.has(name)) {
+			continue;
+		}
+		providerNames.add(name);
+		const endpoint = model.direct;
+		providers.push({
+			name,
+			type: endpoint.type,
+			...(endpoint.wireApi && endpoint.type !== 'anthropic' ? { wireApi: endpoint.wireApi } : {}),
+			baseUrl: endpoint.baseUrl,
+			...(endpoint.azureApiVersion ? { azure: { apiVersion: endpoint.azureApiVersion } } : {}),
+			...(credential.apiKey ? { apiKey: credential.apiKey } : {}),
+		});
+		models.push(toDirectByokModelConfig(name, localModelId, model));
+		routed.add(model);
+	}
+	return { providers, models, routed };
+}
+
+function toDirectByokModelConfig(provider: string, localModelId: string, model: IByokLmModelInfo): ProviderModelConfig {
+	const supports = {
+		...(model.supportsVision !== undefined ? { vision: model.supportsVision } : {}),
+		...(model.supportsToolCalls !== undefined ? { toolCalls: model.supportsToolCalls } : {}),
+		...(model.supportedReasoningEfforts?.length ? { reasoningEffort: true } : {}),
+	};
+	return {
+		id: localModelId,
+		provider,
+		// The endpoint is called with the configured model id, never the group-qualified one.
+		wireModel: model.id,
+		modelId: model.id,
+		...(model.name !== undefined ? { name: model.name } : {}),
+		...(model.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: model.maxContextWindowTokens } : {}),
+		...(model.maxPromptTokens !== undefined ? { maxPromptTokens: model.maxPromptTokens } : {}),
+		...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
+		...(Object.keys(supports).length ? { capabilities: { supports } } : {}),
+	};
 }
 
 /**
@@ -993,9 +1084,13 @@ export async function synthesizeByokSessionConfig(
  * from `current` are kept. The runtime deselects a model withdrawn from a live
  * session, and a renderer can transiently report an empty or partial model set
  * (e.g. while a window reloads), which must not silently change the session's model.
+ *
+ * A kept direct provider loses its API key, though: the window stopped serving
+ * it (BYOK was disabled by policy, or the provider group or direct routing was
+ * removed), so requests must fail as they do on the bridge until it returns.
  */
 export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, current: ICopilotByokSessionConfig): ICopilotByokSessionConfig | undefined {
-	const providers = new Map((applied.providers ?? []).map(p => [p.name, p]));
+	const providers = new Map((applied.providers ?? []).map(p => [p.name, withoutDirectByokCredential(p)]));
 	for (const provider of current.providers ?? []) {
 		providers.set(provider.name, provider);
 	}
@@ -1006,6 +1101,14 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 	const merged: ICopilotByokSessionConfig = { providers: [...providers.values()], models: [...models.values()] };
 	const registered: ICopilotByokSessionConfig = { providers: applied.providers ?? [], models: applied.models ?? [] };
 	return objectsEqual(merged, registered) ? undefined : merged;
+}
+
+function withoutDirectByokCredential(provider: NamedProviderConfig): NamedProviderConfig {
+	if (provider.apiKey === undefined || toAgentByokProviderId(provider.name) === undefined) {
+		return provider;
+	}
+	const { apiKey: _apiKey, ...withoutKey } = provider;
+	return withoutKey;
 }
 
 // #region On-device model rows
@@ -1361,7 +1464,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...openConfig,
 			...this._eagerDiagnostics(),
 			sessionId: plan.sessionId,
-			model: plan.model?.id,
+			model: toRuntimeByokModelId(plan.model?.id, { models: config.inference?.models }),
 			inference: {
 				...openConfig.inference,
 				reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
@@ -1618,12 +1721,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents, computerUseTools, pluginDirectories] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, pluginDirectoriesPromise]);
+		const [externalByok, shellTools, rawPluginCustomAgents, computerUseTools, pluginDirectories] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, pluginDirectoriesPromise]);
 		if (externalByok.models?.length) {
-			// The provider base URL carries the proxy's host:port, which correlates a
+			const directModelCount = externalByok.models.filter(model => toAgentByokProviderId(model.provider) !== undefined).length;
+			// The proxy provider's base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
-			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${externalByok.models.length} BYOK model(s) across ${externalByok.providers?.length ?? 0} provider(s) via loopback proxy ${externalByok.providers?.[0]?.baseUrl}`);
+			const proxyBaseUrl = externalByok.providers?.find(provider => toAgentByokProviderId(provider.name) === undefined)?.baseUrl;
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${externalByok.models.length} BYOK model(s) across ${externalByok.providers?.length ?? 0} provider(s): ${directModelCount} called directly${proxyBaseUrl ? `, the others via loopback proxy ${proxyBaseUrl}` : ''}`);
 		}
+		// A custom agent can name a BYOK model, which the runtime knows by its provider-qualified id.
+		const pluginCustomAgents = rawPluginCustomAgents.map(agent => agent.model ? { ...agent, model: toRuntimeByokModelId(agent.model, externalByok) } : agent);
 		// On-device direct-selection rows are added outside the BYOK gate.
 		const localModelConfig = plan.localModelProvider?.contributeSessionConfig();
 		if (localModelConfig?.models.length) {

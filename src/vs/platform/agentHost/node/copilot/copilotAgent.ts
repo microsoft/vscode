@@ -4954,9 +4954,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastByokModelsEnabledConfig = rootConfigValue;
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot] BYOK model publication ${trace}`);
+		const hadModels = this._byokModels.length > 0;
 		if (!enabled) {
 			this._byokModels = [];
 			this._publishModels();
+			if (hadModels) {
+				this._syncByokModelsOnLiveSessions();
+			}
 			return;
 		}
 		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
@@ -4976,16 +4980,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
 		this._publishModels();
-		if (this._byokModels.length) {
-			// Sessions launched before these models were reported (notably chats
-			// restored during startup) must register them before they can select them.
-			// A session still mid-launch is not in `_chatEntriesBySdkId` yet and is
-			// missed here; `CopilotAgentSession.setModel` syncs again, which covers it.
-			for (const entry of this._chatEntriesBySdkId.values()) {
-				entry.chatSession.syncByokModels().catch(err =>
-					this._logService.warn(`[Copilot:${entry.chatSession.sessionId}] Failed to register BYOK models on live session`, err)
-				);
-			}
+		// Sessions launched before these models were reported (notably chats
+		// restored during startup) must register them before they can select them,
+		// and sessions must stop using the key of a model called directly once it
+		// is no longer reported.
+		if (this._byokModels.length || hadModels) {
+			this._syncByokModelsOnLiveSessions();
+		}
+	}
+
+	/**
+	 * Brings every live session's BYOK registration up to date. A session still
+	 * mid-launch is not in `_chatEntriesBySdkId` yet and is missed here;
+	 * `CopilotAgentSession.setModel` syncs again, which covers it.
+	 */
+	private _syncByokModelsOnLiveSessions(): void {
+		for (const entry of this._chatEntriesBySdkId.values()) {
+			entry.chatSession.syncByokModels().catch(err =>
+				this._logService.warn(`[Copilot:${entry.chatSession.sessionId}] Failed to register BYOK models on live session`, err)
+			);
 		}
 	}
 
