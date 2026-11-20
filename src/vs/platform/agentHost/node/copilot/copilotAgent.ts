@@ -13336,11 +13336,10 @@ class SessionPluginController extends Disposable {
 			};
 		};
 		const allWorkspaceDefinitions = mcpDiscovery?.definitions ?? [];
-		const workspaceDefinitions = allWorkspaceDefinitions.filter(definition => isEnabledForSdk(definition.customization));
 		const workspaceMcp = allWorkspaceDefinitions.length ? [{
 			format: PluginFormat.Copilot,
 			hooks: [],
-			mcpServers: workspaceDefinitions.map(definition => resolveCopilotMcpServerInfo(definition, undefined)),
+			mcpServers: allWorkspaceDefinitions.map(definition => resolveCopilotMcpServerInfo(definition, undefined)),
 			disabledMcpServers: allWorkspaceDefinitions.filter(definition => !isEnabledForSdk(definition.customization)).map(definition => definition.name),
 			skills: [],
 			agents: [],

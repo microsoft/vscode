@@ -30535,6 +30535,63 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(await activeClient.getRestartReason(appliedSnapshot), undefined);
 		});
 
+		test('disabled workspace MCP definitions retain definition inventory and do not trigger restart loop (#349480)', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'disabled-workspace-mcp-session');
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
+			const activeClient = getActiveClient(agent, session);
+
+			const mcpServer = {
+				name: 'my-workspace-mcp',
+				configuration: { type: McpServerType.LOCAL as const, command: 'node', args: ['server.js'] },
+				defaultCwd: URI.file('/workspace'),
+				sdkRegistration: 'sessionConfig' as const,
+				uri: URI.file('/workspace/.mcp.json'),
+				customization: {
+					type: CustomizationType.McpServer as const,
+					id: 'my-workspace-mcp',
+					uri: 'file:///workspace/.mcp.json',
+					name: 'my-workspace-mcp',
+					state: { kind: McpServerStatus.Stopped as const },
+				},
+			};
+
+			const appliedSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
+				tools: [],
+				mcpServers: {},
+				plugins: [{
+					format: PluginFormat.Copilot,
+					hooks: [],
+					mcpServers: [mcpServer],
+					disabledMcpServers: ['my-workspace-mcp'],
+					skills: [],
+					agents: [],
+					instructions: [],
+				}],
+			};
+
+			const currentSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
+				tools: [],
+				mcpServers: {},
+				plugins: [{
+					format: PluginFormat.Copilot,
+					hooks: [],
+					mcpServers: [mcpServer],
+					disabledMcpServers: ['my-workspace-mcp'],
+					skills: [],
+					agents: [],
+					instructions: [],
+				}],
+			};
+
+			assert.strictEqual(await activeClient.getRestartReason(appliedSnapshot, undefined, currentSnapshot), undefined);
+		});
+
 		test('stops comparing structural contributions after the first change', async () => {
 			const agent = createTestAgent(disposables);
 			afterTest(() => disposeAgent(agent));
