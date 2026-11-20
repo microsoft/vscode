@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -55,12 +56,21 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		vi.useRealTimers();
 	});
 
-	function makeSender(): ContinuousEnhancedTelemetrySender {
+	function makeAuthService(overrides?: Partial<IAuthenticationService>): IAuthenticationService {
+		return {
+			copilotToken: undefined,
+			getCopilotToken: vi.fn(),
+			...overrides,
+		} as unknown as IAuthenticationService;
+	}
+
+	function makeSender(authService: IAuthenticationService = makeAuthService()): ContinuousEnhancedTelemetrySender {
 		return new ContinuousEnhancedTelemetrySender(
 			recorder,
 			workspace,
 			telemetry,
 			new NullGitExtensionService(),
+			authService,
 		);
 	}
 
@@ -207,6 +217,7 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 			workspace,
 			throwingTelemetry,
 			new NullGitExtensionService(),
+			makeAuthService(),
 		);
 
 		addDocAndEdit('a');
@@ -226,14 +237,15 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		expect(throwingTelemetry.enhancedEvents).toHaveLength(1);
 	});
 
-	test('refreshes an expired Copilot token before sending a slice', async () => {
+	test('refreshes the Copilot token before sending a slice', async () => {
 		const order: string[] = [];
-		const authService = {
-			copilotToken: { isExpired: () => true },
+		const authService = makeAuthService({
+			copilotToken: {} as IAuthenticationService['copilotToken'],
 			getCopilotToken: vi.fn(async () => {
 				order.push('getCopilotToken');
+				return {} as Awaited<ReturnType<IAuthenticationService['getCopilotToken']>>;
 			}),
-		};
+		});
 		const orderedTelemetry = new (class extends RecordingTelemetryService {
 			override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
 				order.push('sendEnhancedGHTelemetryEvent');
@@ -245,7 +257,7 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 			workspace,
 			orderedTelemetry,
 			new NullGitExtensionService(),
-			authService as never,
+			authService,
 		);
 
 		addDocAndEdit('a');

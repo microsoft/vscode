@@ -126,7 +126,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		private readonly _workspace: ObservableWorkspace | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
-		@IAuthenticationService private readonly _authenticationService?: IAuthenticationService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) {
 		super();
 
@@ -219,7 +219,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		const repositoryUrls = this._collectWorkspaceRepositories();
 
 		void (async () => {
-			if (this._authenticationService?.copilotToken?.isExpired()) {
+			if (this._authenticationService.copilotToken) {
 				await this._authenticationService.getCopilotToken();
 			}
 			const properties = await multiplexProperties({
