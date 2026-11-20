@@ -369,6 +369,27 @@ suite('Workbench layout chat part', () => {
 		});
 	}
 
+	for (const { bar, anchor, beside } of [
+		{ bar: Parts.AUXILIARYBAR_PART, anchor: ViewContainerLocation.AuxiliaryBar, beside: true },
+		{ bar: Parts.AUXILIARYBAR_PART, anchor: ViewContainerLocation.Sidebar, beside: false },
+	]) {
+		test(`hiding the secondary side bar ${beside ? 'beside' : 'away from'} the chat part ${beside ? 'gives its room to the chat part, not the editor' : 'gives its room to the editor'}, and showing it takes the room back from there`, () => {
+			const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor });
+			const width = (id: Parts) => grid.getViewSize(views.get(id)!).width;
+			const widths = () => ({ bar: layout.isVisible(bar) ? width(bar) : 0, chat: width(Parts.CHAT_PART), editor: width(Parts.EDITOR_PART) });
+			const before = widths();
+			layout.setPartHidden(true, bar);
+			const hidden = widths();
+			layout.setPartHidden(false, bar);
+			const shown = widths();
+
+			assert.deepStrictEqual({ hidden, shown }, {
+				hidden: beside ? { bar: 0, chat: before.chat + before.bar, editor: before.editor } : { bar: 0, chat: before.chat, editor: before.editor + before.bar },
+				shown: before,
+			});
+		});
+	}
+
 	test('hiding the side bar before the first layout does not throw', () => {
 		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
 		Object.assign(layout, { initialized: false });
