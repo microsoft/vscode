@@ -952,6 +952,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const harness = createHarness(9);
 				const closed = harness.open(harness[source]);
+				const initialFocus = mainWindow.document.activeElement === harness.row('Model 0');
 				harness.row('Model 0').click();
 				await timeout(500);
 				const search = harness.currentSheet()!.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
@@ -964,14 +965,16 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 				await timeout(500);
 				const title = harness.currentSheet()!.querySelector('.mobile-picker-sheet-title')?.textContent;
 				const label = harness.row('Model 8').querySelector('.mobile-picker-sheet-label')?.textContent;
+				const restoredFocus = mainWindow.document.activeElement === harness.row('Model 8');
 				harness.row('High').click();
 				await whenModelConfigValuesSaved(harness.access);
 				harness.close();
 				await closed;
 				assert.deepStrictEqual({
-					results, title, label, writes: harness.writes,
+					initialFocus, restoredFocus, results, title, label, writes: harness.writes,
 					selected: source === 'delegates' ? harness.currentModel.get()?.identifier : harness.session.getSessionContext()?.modelId,
 				}, {
+					initialFocus: true, restoredFocus: true,
 					results: ['Model 8'],
 					title: 'Configure Session',
 					label: 'Model 8',
@@ -981,6 +984,21 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			});
 		});
 	}
+
+	test('cancelling model selection returns to Model even when the sheet opened from Mode', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness(9);
+			const closed = harness.open({ ...harness.session, initialSection: 'mode' });
+			harness.row('Model 0').click();
+			await timeout(500);
+			harness.close();
+			await timeout(500);
+			const focused = mainWindow.document.activeElement === harness.row('Model 0');
+			harness.close();
+			await closed;
+			assert.deepStrictEqual({ focused, writes: harness.writes }, { focused: true, writes: [] });
+		});
+	});
 
 	test('does not reopen configuration for a different chat after nested model selection', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
