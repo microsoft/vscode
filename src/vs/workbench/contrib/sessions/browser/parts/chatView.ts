@@ -162,6 +162,8 @@ export interface INewSessionTarget {
 	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
 	 */
 	readonly placement?: 'worktree';
+	/** Whether {@link placement} is a remembered preference, which the composer drops silently where it cannot apply it. */
+	readonly placementIsPreference?: boolean;
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */

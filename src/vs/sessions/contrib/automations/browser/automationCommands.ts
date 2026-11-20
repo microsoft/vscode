@@ -16,7 +16,7 @@ import { getAutomationAfterDate, isAutomationAfterDateExpired } from '../../../.
 import { AutomationDisableConditionKind } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -34,6 +34,7 @@ import { IAutomationDialogResult, IAutomationDialogService } from '../../../../w
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
@@ -44,7 +45,7 @@ import { ISessionDraftsService } from '../../../../workbench/contrib/sessions/br
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ShowSharedAutomationsByOthersContext } from '../../../common/agentsWindowContextKeys.js';
 import { withAutomationDialogPersistenceTelemetry } from './automationTelemetry.js';
 import { AUTOMATIONS_TOUR_ID } from '../../onboardingTours/browser/tours/automationsTour.js';
 
@@ -53,7 +54,7 @@ export const AutomationCommands = {
 		id: 'sessions.automations.toggleShowSharedByOthers',
 		title: localize2('showOtherSharedAutomations', "Show automations created by others"),
 		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
-		toggled: ContextKeyExpr.equals(`config.${SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING}`, true),
+		toggled: ShowSharedAutomationsByOthersContext,
 	},
 	refresh: {
 		id: 'sessions.automations.refresh',
@@ -514,13 +515,9 @@ registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
 		super(AutomationCommands.showSharedByOthers);
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(
-			SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
-			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) !== true,
-			ConfigurationTarget.USER,
-		);
+	override run(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		setShowSharedAutomationsByOthers(storageService, !getShowSharedAutomationsByOthers(storageService));
 	}
 });
 

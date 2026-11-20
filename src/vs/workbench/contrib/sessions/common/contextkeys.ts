@@ -197,6 +197,7 @@ export const CanGoForwardContext = new RawContextKey<boolean>('sessionsCanGoForw
 
 export const DesktopLayoutContext = new RawContextKey<boolean>('agentSessionsDesktopLayout', false, localize('agentSessionsDesktopLayout', "Whether the Agents window is using the desktop layout"));
 export const DesktopChangesEditorTransitionContext = new RawContextKey<boolean>('agentSessionsDesktopChangesEditorTransition', false, localize('agentSessionsDesktopChangesEditorTransition', "Whether the desktop Changes editor is being replaced during a session switch"));
+export const SessionChangesEditorDrawsHeaderContext = new RawContextKey<boolean>('sessionChangesEditorDrawsHeader', false, localize('sessionChangesEditorDrawsHeader', "Whether the Changes editor draws its own header, where the editor part around it does not, such as in an editor window"));
 export const DesktopDiffEditorInputActiveContext = new RawContextKey<boolean>('agentSessionsDesktopDiffEditorInputActive', false, localize('agentSessionsDesktopDiffEditorInputActive', "Whether the active desktop editor input is a diff, independent of the editor used to render it"));
 
 //#endregion

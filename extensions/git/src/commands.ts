@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -5431,6 +5431,14 @@ export class CommandCenter {
 			return;
 		}
 
+		if (repository.kind === 'worktree' && pathEquals(artifact.id, repository.root)) {
+			// A repository cannot delete its own worktree, as that would dispose
+			// it while the delete operation is still running. Delete the worktree
+			// through the main repository instead.
+			await this.deleteWorktree(repository);
+			return;
+		}
+
 		await repository.deleteWorktree(artifact.id);
 	}
 
@@ -5717,6 +5725,12 @@ export class CommandCenter {
 		// fall back to its modified resource.
 		if (!uri && window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputNotebookDiff) {
 			uri = window.tabGroups.activeTabGroup.activeTab.input.modified;
+		}
+
+		// A custom editor (e.g. the image preview) is neither the active text nor
+		// notebook editor, so fall back to its resource.
+		if (!uri && window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputCustom) {
+			uri = window.tabGroups.activeTabGroup.activeTab.input.uri;
 		}
 
 		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);

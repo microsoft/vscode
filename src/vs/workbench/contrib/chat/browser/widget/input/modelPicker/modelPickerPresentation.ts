@@ -20,10 +20,11 @@ export function isModelRouter(model: ILanguageModelChatMetadataAndIdentifier): b
 	return model.metadata.modelRouterRoutes !== undefined;
 }
 
-export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService): boolean {
+export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService, liveCatalog?: readonly ILanguageModelChatMetadataAndIdentifier[]): boolean {
 	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
 		&& !isUserProvidedModel(model, languageModelsService)
-		&& !languageModelsService.getLanguageModelIds().includes(model.identifier);
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier)
+		&& !liveCatalog?.some(candidate => candidate.identifier === model.identifier);
 }
 
 /**

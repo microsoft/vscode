@@ -78,7 +78,8 @@ import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemServi
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AutomationHistoryActionsContribution } from '../../../automations/browser/automationRunHistory.js';
@@ -2135,8 +2136,9 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(capability.callCount, 0);
 	});
 
-	test('shared creator preference filters cards, history and accessible content without changing the catalogue', async () => {
-		const { widget, automationService, configurationService, instantiationService } = setup();
+	test('shared creator preference filters cards, history and accessible content without changing the catalogue', () => {
+		const { widget, automationService, instantiationService } = setup();
+		const storageService = instantiationService.get(IStorageService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		stubSessionsHostLayout(instantiationService);
 		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
@@ -2163,18 +2165,9 @@ suite('AutomationsCardsWidget', () => {
 			};
 		};
 		const before = snapshot();
-		const setPreference = async (value: boolean) => {
-			await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value);
-			configurationService.onDidChangeConfigurationEmitter.fire({
-				affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
-				affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]),
-				change: { keys: [SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING], overrides: [] },
-				source: ConfigurationTarget.USER,
-			});
-		};
-		await setPreference(true);
+		setShowSharedAutomationsByOthers(storageService, true);
 		const optedIn = snapshot();
-		await setPreference(false);
+		setShowSharedAutomationsByOthers(storageService, false);
 		const own = ['Local', 'Mine', 'Personal'];
 		const all = ['Local', 'Mine', 'Other', 'Personal', 'Unknown'];
 		assert.deepStrictEqual({ before, optedIn, after: snapshot(), stored: automationService.automations.get().length }, {
@@ -2242,12 +2235,11 @@ suite('AutomationsCardsWidget', () => {
 				change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER,
 			});
 		};
-		const writes: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
-		const update = stub(configurationService, 'updateValue').callsFake(async (key, value, target?: ConfigurationTarget) => {
-			writes.push({ key, value, target });
-			await setConfiguration(key, value === true);
-		});
+		const storageService = instantiationService.get(IStorageService);
+		const update = stub(configurationService, 'updateValue').callThrough();
+		const store = stub(storageService, 'store').callThrough();
 		disposables.add(toDisposable(() => update.restore()));
+		disposables.add(toDisposable(() => store.restore()));
 		const header = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService).flatMap(([, actions]) => actions);
 		const moreActions = () => header().find(action => action instanceof SubmenuItemAction && action.item.submenu === AgentsWindowMenus.AutomationsMoreActions);
 		const menu = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService).flatMap(([, actions]) => actions);
@@ -2289,7 +2281,9 @@ suite('AutomationsCardsWidget', () => {
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({
 			withoutCloud, hiddenWithoutCloud, withCloud, catalogueStates, disabledCloud, menuIsLast, refreshInHeader, label: settings.label,
-			states: [before, afterOn, afterOff], withoutChatReady, hiddenWithAI, hiddenWithAutomations: !moreActions(), writes,
+			states: [before, afterOn, afterOff], withoutChatReady, hiddenWithAI, hiddenWithAutomations: !moreActions(),
+			configurationWrites: update.callCount,
+			storageWrites: store.getCalls().map(call => call.args.slice(1)),
 		}, {
 			withoutCloud: ['sessions.automations.toggleShowDisabled'], hiddenWithoutCloud: false,
 			withCloud: ['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
@@ -2306,10 +2300,34 @@ suite('AutomationsCardsWidget', () => {
 			states: [false, true, false],
 			withoutChatReady: { hidden: false, actions: ['sessions.automations.toggleShowDisabled'] },
 			hiddenWithAI: true, hiddenWithAutomations: true,
-			writes: [
-				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: true, target: ConfigurationTarget.USER },
-				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: false, target: ConfigurationTarget.USER },
+			configurationWrites: 0,
+			storageWrites: [
+				[true, StorageScope.PROFILE, StorageTarget.MACHINE],
+				[false, StorageScope.PROFILE, StorageTarget.MACHINE],
 			],
+		});
+	});
+
+	test('shared creator menu choice is restored and stays consistent across views using local storage', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const first = setup('archive', NullHoverService, undefined, storageService);
+		const item = automation({ ownership: 'repository', isCreatedByCurrentUser: false });
+		first.automationService.setAutomations([item]);
+		const command = CommandsRegistry.getCommand('sessions.automations.toggleShowSharedByOthers')!;
+		await first.instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const restored = setup('archive', NullHoverService, undefined, storageService);
+		restored.automationService.setAutomations([item]);
+		const isolated = setup();
+		isolated.automationService.setAutomations([item]);
+		const snapshot = () => ({
+			cards: [first, restored, isolated].map(view => view.widget.element.querySelectorAll('.automations-card-wrapper').length),
+			stored: getShowSharedAutomationsByOthers(storageService),
+		});
+		const shown = snapshot();
+		await restored.instantiationService.invokeFunction(accessor => command.handler(accessor));
+		assert.deepStrictEqual({ shown, hidden: snapshot() }, {
+			shown: { cards: [1, 1, 0], stored: true },
+			hidden: { cards: [0, 0, 0], stored: false },
 		});
 	});
 
@@ -6048,6 +6066,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
