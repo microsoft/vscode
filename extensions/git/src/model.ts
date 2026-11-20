@@ -297,6 +297,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	// Throttle initial repository.status() across repositories to avoid starving the ext host (#318279).
 	private readonly _initialStatusLimiter = new Limiter<void>(5);
 
+	private readonly _initialStatuses = new WeakMap<Repository, Promise<void>>();
+	private _workspaceFoldersReady: Promise<void> = Promise.resolve();
+
 	private disposables: Disposable[] = [];
 
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private readonly telemetryReporter: TelemetryReporter) {
@@ -335,9 +338,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this.logger.trace(`[Model][doInitialScan] Settings: autoRepositoryDetection=${autoRepositoryDetection}, openRepositoryInParentFolders=${parentRepositoryConfig}`);
 
 		// Initial repository scan function
+		this._workspaceFoldersReady = this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] });
 		const initialScanFn = () => Promise.all([
-			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] })
-				.then(() => this.onDidChangeVisibleTextEditors(window.visibleTextEditors)),
+			this._workspaceFoldersReady,
+			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
 			this.scanWorkspaceFolders()
 		]);
 
@@ -654,6 +658,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
+			await this._workspaceFoldersReady;
+			const isInUnopenedWorktree = await this.getUnopenedWorktreeCheck();
+
 			await Promise.all(editors.map(async editor => {
 				const uri = editor.document.uri;
 
@@ -668,7 +675,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 					return;
 				}
 
-				if (await this.isInUnopenedWorktree(uri.fsPath)) {
+				if (isInUnopenedWorktree(uri.fsPath)) {
 					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Editor resource ${uri.fsPath} is in a worktree that is not a workspace folder`);
 					return;
 				}
@@ -815,7 +822,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
 
 			// Do not await this, we want SCM to know about the repo asap.
-			this._initialStatusLimiter.queue(() => repository.status()).then(() => {
+			const initialStatus = this._initialStatusLimiter.queue(() => repository.status());
+			this._initialStatuses.set(repository, initialStatus.then(() => undefined, () => undefined));
+			initialStatus.then(() => {
 				this._repositoryCache.update(repository.remotes, [], repository.root);
 			});
 		} catch (err) {
@@ -1276,29 +1285,27 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return !Array.from(workspaceFolderPaths).some(folder => folder && (pathEquals(folder, repositoryPath) || isDescendant(folder, repositoryPath)));
 	}
 
-	private async isInUnopenedWorktree(fsPath: string): Promise<boolean> {
-		const workspaceFolders = (workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file');
+	protected getWorkspaceFileFolders(): WorkspaceFolder[] {
+		return (workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file');
+	}
+
+	private async getUnopenedWorktreeCheck(): Promise<(fsPath: string) => boolean> {
+		const workspaceFolders = this.getWorkspaceFileFolders();
 		if (workspaceFolders.length === 0) {
-			return false;
+			return () => false;
 		}
 
-		const worktreePaths: string[] = [];
-		await Promise.all(this.repositories
-			.filter(r => !workspace.getConfiguration('git', Uri.file(r.root)).get<boolean>('detectWorktrees'))
-			.map(async r => {
-				try {
-					worktreePaths.push(...(await r.getWorktrees()).map(w => w.path));
-				} catch (err) {
-					this.logger.trace(`[Model][isInUnopenedWorktree] Failed to list worktrees of "${r.root}". Error:${err}`);
-				}
-			}));
+		const repositories = this.repositories
+			.filter(r => !workspace.getConfiguration('git', Uri.file(r.root)).get<boolean>('detectWorktrees'));
+		await Promise.all(repositories.map(r => this._initialStatuses.get(r)));
 
+		const worktreePaths = repositories.flatMap(r => r.worktrees.map(w => w.path));
 		const workspaceFolderPaths = [
 			...workspaceFolders.map(folder => folder.uri.fsPath),
 			...(await Promise.all(workspaceFolders.map(folder => this.getWorkspaceFolderRealPath(folder)))).filter((p): p is string => !!p)
 		];
 
-		return isInUnopenedWorktree(fsPath, worktreePaths, workspaceFolderPaths);
+		return fsPath => isInUnopenedWorktree(fsPath, worktreePaths, workspaceFolderPaths);
 	}
 
 	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
