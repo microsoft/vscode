@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { getFocusedContextView } from '../../../../base/browser/ui/contextview/contextview.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -145,6 +146,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:experimental',
 		`@tag:${EXP_ASSIGNMENT_SETTING_TAG}`,
 		'@tag:agentMerge',
+		'@tag:chatPermissions',
 		`@tag:${ADVANCED_SETTING_TAG}`,
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
@@ -662,7 +664,7 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
 			const element = this.focusedSettingDOMElement;
 			if (element) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const control = element.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
 					(<HTMLElement>control).focus();
@@ -697,7 +699,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTree.domFocus();
 
 		if (focusSettingInput) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const controlInFocusedRow = this.settingsTree.getHTMLElement().querySelector(`.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
 			if (controlInFocusedRow) {
 				(<HTMLElement>controlInFocusedRow).focus();
@@ -967,7 +969,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const targetElement = this.currentSettingsModel?.getElementsByName(evt.targetKey)?.[0];
 		let revealFailed = false;
 		if (targetElement) {
@@ -1008,7 +1010,7 @@ export class SettingsEditor2 extends EditorPane {
 
 				const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
 				if (domElements && domElements[0]) {
-					// eslint-disable-next-line no-restricted-syntax
+					// eslint-disable-next-line eslint-js/no-restricted-syntax
 					const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 					if (control) {
 						(<HTMLElement>control).focus();
@@ -1654,7 +1656,7 @@ export class SettingsEditor2 extends EditorPane {
 				const newModel = this.settingsTreeModel.value;
 				let newElement: SettingsTreeElement | undefined;
 
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const settings = newModel.getElementsByName(anchorId);
 				if (settings && settings.length > 0) {
 					newElement = settings[0];
@@ -1750,12 +1752,9 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// If the context view is focused, delay rendering settings
-		if (this.contextViewFocused()) {
-			// eslint-disable-next-line no-restricted-syntax
-			const element = this.window.document.querySelector('.context-view');
-			if (element) {
-				this.scheduleRefresh(element as HTMLElement, key);
-			}
+		const focusedContextView = getFocusedContextView(this.rootElement.ownerDocument);
+		if (focusedContextView) {
+			this.scheduleRefresh(focusedContextView, key);
 			return;
 		}
 
@@ -1789,7 +1788,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.renderResultCountMessages(false);
 
 		if (key) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const elements = this.currentSettingsModel?.getElementsByName(key);
 			if (elements?.length) {
 				if (elements.length >= 2) {
@@ -1805,10 +1804,6 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		return;
-	}
-
-	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
 	}
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
@@ -1836,7 +1831,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!this.currentSettingsModel) {
 			return;
 		}
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const dataElements = this.currentSettingsModel.getElementsByName(key);
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
 		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);

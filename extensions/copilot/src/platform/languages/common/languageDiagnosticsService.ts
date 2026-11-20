@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { isEqual } from '../../../util/vs/base/common/resources';
-import { DiagnosticSeverity } from '../../../vscodeTypes';
 
 export const ILanguageDiagnosticsService = createServiceIdentifier<ILanguageDiagnosticsService>('ILanguageDiagnosticService');
 
@@ -57,12 +56,4 @@ export abstract class AbstractLanguageDiagnosticsService implements ILanguageDia
 */
 export function rangeSpanningDiagnostics(diagnostics: vscode.Diagnostic[]): vscode.Range {
 	return diagnostics.map(d => d.range).reduce((a, b) => a.union(b));
-}
-
-export function isError(diagnostics: vscode.Diagnostic) {
-	return diagnostics.severity === DiagnosticSeverity.Error;
-}
-
-export function getDiagnosticsAtSelection(diagnostics: vscode.Diagnostic[], selection: vscode.Range, severities: DiagnosticSeverity[] = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning]): vscode.Diagnostic | undefined {
-	return diagnostics.find(d => d.range.contains(selection) && severities.includes(d.severity));
 }

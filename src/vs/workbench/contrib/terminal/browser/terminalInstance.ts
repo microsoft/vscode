@@ -80,9 +80,9 @@ import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
-import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { terminalStrings } from '../common/terminalStrings.js';
+import { getTerminalAccessibleTitle, terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -552,10 +552,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._attachBarrier = new AutoOpenBarrier(1000);
+		this._register(toDisposable(() => {
+			this._containerReadyBarrier.open();
+			this._attachBarrier.open();
+		}));
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
+			if (this.isDisposed) {
+				return;
+			}
 
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
@@ -577,6 +584,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (os && this.shellLaunchConfig.executable) {
 				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
+
+			// Starts the window handle lookup early; createProcess waits for it before starting the shell
+			this._processManager.setParentWindow(dom.getWindow(this._container).vscodeWindowId);
 
 			await this._createProcess();
 
@@ -1084,10 +1094,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+		this._processManager.setParentWindow(dom.getWindow(container).vscodeWindowId);
 
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
 			this.xterm.raw.open(this.xterm.raw.element);
+			this.xterm.updateGpuRendererWindow();
 		}
 
 		this.xterm?.refresh();
@@ -1398,7 +1410,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async focusWhenReady(force?: boolean): Promise<void> {
 		await this._xtermReadyPromise;
 		await this._attachBarrier.wait();
-		this.focus(force);
+		if (!this.isDisposed) {
+			this.focus(force);
+		}
 	}
 
 	async sendText(text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean): Promise<void> {
@@ -1619,14 +1633,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			return;
 		}
-		const trusted = this._isRemoteResolverTerminal || await this._trust();
-		// Allow remote terminals in a remote workspace to be created when trust is denied, but
-		// still block local terminals (those without a remoteAuthority) even when the workspace is remote.
-		const isRemoteTerminal = !!this.remoteAuthority;
-		if (!trusted && !(isRemoteTerminal && this._workbenchEnvironmentService.remoteAuthority)) {
-			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
+		if (!await this._ensureWorkspaceTrustedForProcess()) {
 			return;
-		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && normalizeDriveLetter(this._cwd) !== normalizeDriveLetter(this._userHome)) {
+		}
+		if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && normalizeDriveLetter(this._cwd) !== normalizeDriveLetter(this._userHome)) {
 			// something strange is going on if cwd is not userHome in an empty workspace
 			this._onProcessExit({
 				message: nls.localize('workspaceEmptyCreateTerminalCwd', "Cannot launch a terminal process in an empty workspace with cwd {0} different from userHome {1}", this._cwd, this._userHome)
@@ -1886,6 +1896,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): Promise<void> {
+		// Relaunching reaches the process manager directly, so re-check workspace trust here to
+		// ensure the reuse path cannot bypass the gate enforced on initial process creation.
+		if (!await this._ensureWorkspaceTrustedForProcess()) {
+			return;
+		}
+
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
@@ -1972,6 +1988,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._agentShellTypeFromSequence = undefined;
 		}
 		this.setShellType(shellType);
+	}
+
+	/**
+	 * Ensures the workspace is trusted before a process is (re)launched. When trust is denied the
+	 * terminal is marked as exited and `false` is returned, signalling the caller not to launch a
+	 * process. Remote terminals in a remote workspace are still permitted when trust is denied, to
+	 * match initial creation behavior; local terminals are always blocked.
+	 */
+	private async _ensureWorkspaceTrustedForProcess(): Promise<boolean> {
+		const trusted = this._isRemoteResolverTerminal || await this._trust();
+		const isRemoteTerminal = !!this.remoteAuthority;
+		if (!trusted && !(isRemoteTerminal && this._workbenchEnvironmentService.remoteAuthority)) {
+			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
+			return false;
+		}
+		return true;
 	}
 
 	private async _trust(): Promise<boolean> {
@@ -2078,7 +2110,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Any of the above setting changes could have changed the dimensions of the
 			// terminal, re-evaluate now.
-			this._initDimensions();
+			if (this._lastLayoutDimensions && this._lastLayoutDimensions.width > 0 && this._lastLayoutDimensions.height > 0) {
+				// Use the last layout, the container can have a temporary size while its view is laid out
+				this._evaluateColsAndRows(this._lastLayoutDimensions.width, this._lastLayoutDimensions.height);
+			}
 			cols = this.cols;
 			rows = this.rows;
 
@@ -2128,8 +2163,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
-			if (title && title.length > 0) {
-				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
+			const accessibleTitle = getTerminalAccessibleTitle(title ?? '', this._shellLaunchConfig.hostLabel);
+			if (accessibleTitle) {
+				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, accessibleTitle));
 			} else {
 				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
 			}
@@ -2305,13 +2341,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-				interface ILineWithInternals extends IBufferLine {
-					_line: {
-						isWrapped: boolean;
-					};
-				}
-				const line = this.xterm.raw.buffer.active.getLine(i);
-				(line as ILineWithInternals)._line.isWrapped = false;
+				this.xterm.setBufferLineWrapped(i, false);
 			}
 		}
 	}
@@ -2335,9 +2365,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
-	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
-		if (info.requiresAction) {
+	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo | undefined): void {
+		if (info?.requiresAction) {
 			this.xterm?.raw.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
+		} else {
+			this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
@@ -2453,21 +2485,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
-		if (icon) {
-			this._icon = icon;
-			this._onIconChanged.fire({ instance: this, userInitiated: true });
-			return icon;
+	async changeIcon(icon?: TerminalIcon | null): Promise<TerminalIcon | null | undefined> {
+		if (icon === undefined) {
+			const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
+			try {
+				icon = await iconPicker.pickIcons();
+			} finally {
+				iconPicker.dispose();
+			}
 		}
-		const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
-		const pickedIcon = await iconPicker.pickIcons();
-		iconPicker.dispose();
-		if (!pickedIcon) {
+		if (icon === undefined) {
 			return undefined;
 		}
-		this._icon = pickedIcon;
+		this._icon = icon ?? undefined;
 		this._onIconChanged.fire({ instance: this, userInitiated: true });
-		return pickedIcon;
+		return icon;
 	}
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
@@ -2713,6 +2745,7 @@ interface ITerminalLabelTemplateProperties {
 	workspaceFolderName?: string | null | undefined;
 	workspaceFolder?: string | null | undefined;
 	local?: string | null | undefined;
+	host?: string | null | undefined;
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
 	progress?: string | null | undefined;
@@ -2793,6 +2826,7 @@ export class TerminalLabelComputer extends Disposable {
 			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
 			local: type === 'Local' ? terminalStrings.typeLocal : undefined,
+			host: instance.shellLaunchConfig.hostLabel,
 			process: instance.processName,
 			sequence: instance.sequence,
 			task: type === 'Task' ? terminalStrings.typeTask : undefined,

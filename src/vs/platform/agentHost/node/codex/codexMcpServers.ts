@@ -392,29 +392,34 @@ export function codexStartupErrorNeedsAuth(error: string | null | undefined): bo
 	return /not logged in|mcp login|log in to|unauthori[sz]ed|requires? (?:authentication|authorization|login)|\b401\b/i.test(error);
 }
 
+export interface ICodexMcpAuthToken {
+	readonly url: string;
+	readonly token: string;
+}
+
 /**
- * Returns a copy of `servers` with `Authorization: Bearer <token>` injected
- * into the `http_headers` of every http server whose (normalized) URL has a
- * token in `tokensByNormalizedUrl`. stdio servers and servers without a token
- * are passed through unchanged. Any existing authorization header is removed
- * first -- case-insensitively, since HTTP header names are case-insensitive and
- * a configured lowercase `authorization` would otherwise coexist with the
- * injected value and leave a stale credential in the payload.
+ * Injects bearer credentials, with per-server tokens overriding shared URL tokens and empty overrides revoking only that server.
+ * Replaces existing authorization headers case-insensitively while leaving unrelated headers and stdio servers intact.
  */
 export function injectCodexMcpAuthTokens(
 	servers: Record<string, ICodexMcpServerConfigJson>,
 	tokensByNormalizedUrl: ReadonlyMap<string, string>,
+	tokensByServerName?: ReadonlyMap<string, ICodexMcpAuthToken>,
 ): Record<string, ICodexMcpServerConfigJson> {
-	if (tokensByNormalizedUrl.size === 0) {
+	if (tokensByNormalizedUrl.size === 0 && !tokensByServerName?.size) {
 		return servers;
 	}
 	const out: Record<string, ICodexMcpServerConfigJson> = {};
 	for (const [name, server] of Object.entries(servers)) {
 		const normalized = server.url !== undefined ? normalizeCodexMcpResourceUrl(server.url) : undefined;
-		const token = normalized !== undefined ? tokensByNormalizedUrl.get(normalized) : undefined;
-		out[name] = token !== undefined
-			? { ...server, http_headers: { ...withoutAuthorizationHeaders(server.http_headers), Authorization: `Bearer ${token}` } }
-			: server;
+		const targeted = tokensByServerName?.get(name);
+		const targetedToken = normalized !== undefined && targeted?.url === normalized ? targeted.token : undefined;
+		const token = targetedToken ?? (normalized !== undefined ? tokensByNormalizedUrl.get(normalized) : undefined);
+		out[name] = targetedToken === ''
+			? { ...server, http_headers: withoutAuthorizationHeaders(server.http_headers) }
+			: token !== undefined
+				? { ...server, http_headers: { ...withoutAuthorizationHeaders(server.http_headers), Authorization: `Bearer ${token}` } }
+				: server;
 	}
 	return out;
 }

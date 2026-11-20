@@ -50,4 +50,11 @@ export interface IProtocolMainService {
 	 * Registers the protocol used to load resources from a remote file system.
 	 */
 	registerManagedRemoteResourceProtocol(requestRemoteResource: (url: URI) => Promise<NodeRemoteResourceResponse>): void;
+
+	/**
+	 * Reads a resource through the handler registered with {@link registerManagedRemoteResourceProtocol}
+	 * without going through the protocol, which only serves requests from trusted frames.
+	 * Callers must authorize the request themselves.
+	 */
+	requestManagedRemoteResource(url: URI): Promise<GlobalResponse>;
 }

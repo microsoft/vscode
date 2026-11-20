@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -26,28 +26,16 @@ import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 suite('RetryChatAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
-	// Register actions once for all tests
-	let actionsRegistered = false;
-	function ensureActionsRegistered(): void {
-		if (!actionsRegistered) {
-			registerChatTitleActions();
-			actionsRegistered = true;
-		}
-	}
+	let titleActions: IDisposable;
+	suiteSetup(() => titleActions = registerChatTitleActions());
+	suiteTeardown(() => titleActions.dispose());
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
-		ensureActionsRegistered();
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createMockResponseVM(sessionResource: URI, requestId: string): IChatResponseViewModel {
 		return {

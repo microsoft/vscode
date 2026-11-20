@@ -52,7 +52,10 @@ export class SettingsEditor {
 		await this.code.dispatchKeybinding('Delete', async () => {
 			await this.editor.waitForEditorContents('settings.json', contents => contents === '');
 		});
-		await this.editor.waitForTypeInEditor('settings.json', `{`); // will auto close }
+		// Type both braces in one edit. A single `{` relies on bracket auto-closing, and when that doesn't
+		// happen the saved file is invalid JSON, so every later settings write fails.
+		await this.editor.waitForTypeInEditor('settings.json', `{}`);
+		await this.editor.waitForEditorContents('settings.json', contents => contents === '{}');
 		await this.editors.saveOpenedFile();
 		await this.quickaccess.runCommand('workbench.action.closeActiveEditor');
 	}

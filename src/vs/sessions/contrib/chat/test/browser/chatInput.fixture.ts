@@ -24,26 +24,30 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 // Loaded here (rather than in the workbench-layer fixture) so the
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
 // layout path accounts for is available without a layering violation.
-import '../../browser/media/chatView.css';
-import '../../browser/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 
 /**
- * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
- * With a background, adds `.has-chat-background` and returns a nested `.chat-view` as the input container.
+ * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart > .sessions-chat`, the root a session chat styles
+ * itself from, returning that root as the input container by default.
+ * With a background, adds `.has-chat-background` and returns a nested `.chat-view.sessions-chat` as the input container.
  */
 function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
 	const sessionsPart = document.createElement('div');
-	sessionsPart.classList.add('part', 'sessionspart');
+	sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 	context.container.appendChild(sessionsPart);
 	if (!withBackground) {
-		return { ...context, container: sessionsPart };
+		const chat = document.createElement('div');
+		chat.classList.add('sessions-chat');
+		sessionsPart.appendChild(chat);
+		return { ...context, container: chat };
 	}
 
 	sessionsPart.classList.add('has-chat-background');
 	sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
 	const chatView = document.createElement('div');
-	chatView.classList.add('chat-view');
+	chatView.classList.add('chat-view', 'sessions-chat');
 	sessionsPart.appendChild(chatView);
 	return { ...context, container: chatView };
 }
@@ -124,7 +128,7 @@ const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
 			properties: {
 				reasoningEffort: {
 					type: 'string',
-					title: 'Thinking Effort',
+					title: 'Effort Level',
 					group: 'navigation',
 					enum: ['low', 'medium', 'high', 'max'],
 					enumItemLabels: ['Low', 'Medium', 'High', 'Max'],
@@ -159,7 +163,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		render: async context => {
 			const sessionsContext = sessionsWindowContext(context);
 			const chatView = document.createElement('div');
-			chatView.classList.add('chat-view-chat', 'experimental-session-composer');
+			chatView.classList.add('chat-view', 'sessions-chat', 'chat-view-chat', 'experimental-session-composer');
 			sessionsContext.container.appendChild(chatView);
 			await renderChatInput({ ...sessionsContext, container: chatView }, {
 				models: shortNameModels,

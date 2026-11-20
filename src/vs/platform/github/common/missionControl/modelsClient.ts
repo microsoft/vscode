@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ApiRequestOptions } from '../client/request.js';
 import { parse } from '../client/schema.js';
 import { MissionControlClient } from './missionControlClient.js';
 import { IModelsClient, ListModelsResponse } from './models.js';
@@ -10,13 +12,14 @@ import { IModelsClient, ListModelsResponse } from './models.js';
 export class ModelsClient implements IModelsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	list(signal: AbortSignal): Promise<ListModelsResponse> {
+	list(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ListModelsResponse> {
 		return this._client.request({
+			domain: 'models',
 			method: 'GET',
-			api: 'copilot',
-			path: '/agents/swe/models',
-			expectedStatus: [200],
-		}, signal, response => parseListModelsResponse(response.data));
+			path: '/swe/models',
+			expectedStatus: 200,
+			options,
+		}, cancellationToken, response => parseListModelsResponse(response.data));
 	}
 }
 
@@ -24,12 +27,14 @@ const parseListModelsResponse = parse.object<ListModelsResponse>({
 	data: parse.arrayOf(parse.object({
 		id: parse.nonEmptyString,
 		name: parse.string,
+		version: parse.optional(parse.string),
 		model_picker_enabled: parse.optional(parse.boolean),
 		policy: parse.optional(parse.object({ state: parse.optional(parse.string) })),
 		billing: parse.optional(parse.jsonValue),
 		model_picker_category: parse.optional(parse.string),
 		model_picker_price_category: parse.optional(parse.string),
 		capabilities: parse.optional(parse.object({
+			family: parse.optional(parse.string),
 			limits: parse.optional(parse.object({
 				max_context_window_tokens: parse.optional(parse.nonNegativeInteger),
 				max_prompt_tokens: parse.optional(parse.nonNegativeInteger),
@@ -37,6 +42,7 @@ const parseListModelsResponse = parse.object<ListModelsResponse>({
 			})),
 			supports: parse.optional(parse.object({
 				vision: parse.optional(parse.boolean),
+				tool_calls: parse.optional(parse.boolean),
 				reasoning_effort: parse.optional(parse.strings),
 			})),
 		})),

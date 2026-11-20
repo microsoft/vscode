@@ -8,6 +8,8 @@ import { isObject } from '../../../../../base/common/types.js';
 import { ROOT_STATE_URI, type RootState } from '../../state/sessionState.js';
 
 export const AgentHostSessionUrisCapabilityMetaKey = 'vscode.ahpSessionUris';
+/** Declares support for opaque chat resources whose owning session is not encoded in the URI. */
+export const AgentHostChatUrisCapabilityMetaKey = 'vscode.ahpChatUris';
 export const AgentHostNativeImplementationMetaKey = 'vscode.agentHost';
 
 /** Older native hosts identify their hosting VS Code CLI through the root's hostBuild payload. */
@@ -31,4 +33,9 @@ function isMetadataRecord(value: unknown): value is Record<string, unknown> {
 /** Declares support for mixed immutable session resources with a separate provider identity. */
 export function supportsAgentHostSessionUris(peer: Pick<InitializeParams | InitializeResult | ReconnectParams, '_meta'> | undefined): boolean {
 	return peer?._meta?.[AgentHostSessionUrisCapabilityMetaKey] === true;
+}
+
+/** Whether a peer declared {@link AgentHostChatUrisCapabilityMetaKey}. */
+export function supportsAgentHostChatUris(peer: Pick<InitializeParams | InitializeResult | ReconnectParams, '_meta'> | undefined): boolean {
+	return peer?._meta?.[AgentHostChatUrisCapabilityMetaKey] === true;
 }

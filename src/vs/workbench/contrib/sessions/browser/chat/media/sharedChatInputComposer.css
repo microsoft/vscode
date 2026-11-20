@@ -1,0 +1,100 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The composer hosts a full chat widget for its input only: hide the transcript
+ * and welcome content, and let the widget size to the input. */
+.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-list,
+.sessions-shared-chat-input .sessions-shared-chat-widget .chat-welcome-view,
+.sessions-shared-chat-input .sessions-shared-chat-widget .chat-welcome-view-container {
+	display: none !important;
+}
+
+.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-session {
+	height: auto !important;
+}
+
+/* Flush with the composer's picker rows, through the session view's padding knob. */
+.sessions-shared-chat-input {
+	--session-view-content-horizontal-padding: 0;
+}
+
+/* The Agents window pickers render through registered view items, which the
+ * responsive toolbar does not treat as shrinkable, so it would otherwise widen
+ * the Add Context icon to the shrinkable minimum. */
+.sessions-shared-chat-input .chat-input-toolbars .monaco-toolbar.responsive.responsive-last .monaco-action-bar > .actions-container > .action-item.menu-entry.toolbar-shrinkable-item {
+	min-width: 0;
+}
+
+.sessions-shared-chat-input.hidden,
+.sessions-shared-chat-input-controls.hidden {
+	display: none !important;
+}
+
+.new-chat-bottom-container.sessions-shared-chat-input-controls.empty {
+	display: none;
+}
+
+/* The composer's controls row takes the place of the input's secondary row. */
+.sessions-shared-chat-input .interactive-input-part > .chat-secondary-toolbar {
+	display: none;
+}
+
+/* The composer's editor area: the editor pads its text (see
+ * `COMPOSER_INPUT_EDITOR_PADDING`) and its container adds the rest. Phones get
+ * more room, so the empty input is a comfortable touch surface. */
+.sessions-shared-chat-input .interactive-session .chat-editor-container {
+	padding-top: 2px;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-editor-container {
+	padding-top: 8px;
+	padding-bottom: 6px;
+}
+
+/* Attachment pills sit in the same inset as the composer's text. Padding rather
+ * than margin, so the composer's measured row height includes the inset. */
+.sessions-shared-chat-input .chat-input-container > .chat-attachments-container {
+	margin-top: 0;
+	padding-top: 4px;
+}
+
+/* Progress may render as a toolbar item or replace the comparison picker's
+ * glyph, so rotate the compact loading glyph itself. */
+.sessions-shared-chat-input-busy .codicon-loading-compact,
+.sessions-shared-chat-input .model-picker-split.comparison-busy .codicon-loading-compact {
+	animation: none;
+}
+
+.sessions-shared-chat-input-busy .codicon-loading-compact::before,
+.sessions-shared-chat-input .model-picker-split.comparison-busy .codicon-loading-compact::before {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+.monaco-reduce-motion .sessions-shared-chat-input-busy .codicon-loading-compact::before,
+.monaco-reduce-motion .sessions-shared-chat-input .model-picker-split.comparison-busy .codicon-loading-compact::before {
+	animation: none;
+}
+
+/* On phones, Send is a rounded square sized like the touch targets around it. It
+ * extends past its toolbar row rather than growing the input. */
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button,
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
+	width: 36px;
+	height: 36px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button {
+	margin-block: calc((var(--chat-input-control-height) - 36px) / 2);
+}
+
+/* The onboarding prompt template's placeholder, styled like an inline reference. */
+.sessions-shared-chat-input .monaco-editor .sessions-prompt-template-placeholder {
+	color: var(--vscode-chat-slashCommandForeground);
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}

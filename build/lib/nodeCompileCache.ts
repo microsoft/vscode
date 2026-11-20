@@ -11,6 +11,9 @@ import * as path from 'path';
 const nodeCompileCacheKinds = ['main', 'extension-host', 'shared-process', 'pty-host', 'agent-host'] as const;
 const nodeCompileCacheTagPattern = /^v\d+\.\d+\.\d+-(arm64|x64)-[0-9a-f]{8}$/;
 const nodeCompileCacheEntryPattern = /^[0-9a-f]{8}$/;
+// Node writes each entry to `<entry>.XXXXXX` (uv_fs_mkstemp) and renames it into place, so a process that is
+// stopped while it flushes on exit can leave one behind. The last completed write of that entry is intact.
+const nodeCompileCacheTemporaryEntryPattern = /^[0-9a-f]{8}\.[A-Za-z0-9]{6}$/;
 
 export interface INodeCompileCacheProduct {
 	readonly applicationName: string;
@@ -29,8 +32,7 @@ export function shouldGenerateNodeCompileCache(platform: string, arch: string, p
 		return false;
 	}
 
-	// TODO: Re-enable POSIX caches once the runtime fixes portable caching with eager/read-only options.
-	return platform === 'win32' && arch === 'x64';
+	return platform === 'darwin' ? arch === 'arm64' : (platform === 'linux' || platform === 'win32') && arch === 'x64';
 }
 
 export function getNodeCompileCachePaths(platform: string, outputDirectory: string, versionedResourcesFolder: string, product: INodeCompileCacheProduct): INodeCompileCachePaths {
@@ -104,7 +106,15 @@ export async function validateNodeCompileCache(rootDirectory: string, architectu
 		}
 
 		const cacheDirectory = path.join(kindDirectory, tagDirectories[0].name);
-		const cacheEntries = await fs.promises.readdir(cacheDirectory, { withFileTypes: true });
+		const allCacheEntries = await fs.promises.readdir(cacheDirectory, { withFileTypes: true });
+		const temporaryEntries = allCacheEntries.filter(entry => entry.isFile() && nodeCompileCacheTemporaryEntryPattern.test(entry.name));
+		for (const entry of temporaryEntries) {
+			await fs.promises.rm(path.join(cacheDirectory, entry.name));
+		}
+		if (temporaryEntries.length > 0) {
+			console.log(`Removed ${temporaryEntries.length} interrupted ${kind} Node.js compile cache write(s) in ${cacheDirectory}: ${temporaryEntries.map(entry => entry.name).join(', ')}.`);
+		}
+		const cacheEntries = allCacheEntries.filter(entry => !temporaryEntries.includes(entry));
 		const validCacheEntries = cacheEntries.filter(entry => entry.isFile() && nodeCompileCacheEntryPattern.test(entry.name));
 		const cacheEntryCount = validCacheEntries.length;
 		if (cacheEntryCount === 0) {

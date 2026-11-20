@@ -25,6 +25,4 @@ Review user's request and update code documentation comments in appropriate loca
 
 ## Cleanup Mode
 
-If the user instructed you to "clean up" doc comments (e.g. by passing in "cleanup" as their prompt),
-it is **very important** that you limit your changes to only fixing grammar, punctuation, formatting, and spelling mistakes.
-**YOU MUST NOT** add new or remove or expand existing comments in cleanup mode.
+If the user instructed you to "clean up" doc comments (e.g. by passing in "cleanup" as their prompt), it is **very important** that you limit your changes to only fixing grammar, punctuation, formatting, and spelling mistakes. **YOU MUST NOT** add new or remove or expand existing comments in cleanup mode.

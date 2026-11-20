@@ -8,8 +8,7 @@ import { IToolsService } from '../../src/extension/tools/common/toolsService';
 import { ITestingServicesAccessor } from '../../src/platform/test/node/services';
 import { SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
 import { basename } from '../../src/util/vs/base/common/resources';
-import { Location, Uri } from '../../src/vscodeTypes';
-import { IConversationTestCase } from './scenarioLoader';
+import { Uri } from '../../src/vscodeTypes';
 
 export interface IParsedQuery {
 	query: string;
@@ -17,37 +16,6 @@ export interface IParsedQuery {
 	command?: string;
 	variables: ChatPromptReference[];
 	toolReferences: ChatLanguageModelToolReference[];
-}
-
-/**
- * This has to recreate some of the variable parsing logic in VS Code so that we can write tests easily with variables
- * as strings, but then provide the extension code with the parsed variables in the extension API format.
-*/
-export async function parseQueryForScenarioTest(accessor: ITestingServicesAccessor, testCase: IConversationTestCase, simulationWorkspace: SimulationWorkspace): Promise<IParsedQuery> {
-	const query = await parseQueryForTest(accessor, testCase.question, simulationWorkspace);
-
-	// Simulate implicit context enablement
-	const activeTextEditor = simulationWorkspace.activeTextEditor;
-	if (activeTextEditor) {
-		const selection = activeTextEditor.selections?.[0];
-		if (selection) {
-			query.variables.push({
-				id: 'vscode.implicit',
-				name: `file:${basename(activeTextEditor.document.uri)}`,
-				value: new Location(activeTextEditor.document.uri, selection),
-				modelDescription: `User's active selection`
-			});
-		} else {
-			query.variables.push({
-				id: 'vscode.implicit',
-				name: `file:${basename(activeTextEditor.document.uri)}`,
-				value: activeTextEditor.document.uri,
-				modelDescription: `User's active file`
-			});
-		}
-	}
-
-	return query;
 }
 
 export function createWorkingSetFileVariable(uri: Uri) {

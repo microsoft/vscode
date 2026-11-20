@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { isTypeScriptDocument } from '../configuration/languageIds';
 import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsgo';
 import { ExperimentationService } from '../experimentationService';
 import type { PluginManager } from '../tsServer/plugins.js';
@@ -17,6 +18,11 @@ export async function suggestNativePreview(
 	experimentationService: ExperimentationService,
 	pluginManager: PluginManager
 ): Promise<void> {
+	const activeEditor = vscode.window.activeTextEditor;
+	if (!activeEditor || !isTypeScriptDocument(activeEditor.document)) {
+		return;
+	}
+
 	if (context.globalState.get<boolean>(suggestTS7NoPluginsStorageKey)) {
 		return;
 	}
@@ -50,7 +56,7 @@ export async function suggestNativePreview(
 
 	const selection = await vscode.window.showInformationMessage(
 		vscode.l10n.t("Try TypeScript 7 for significantly faster type checking and language features."),
-		{},
+		{ notificationId: 'typescript.nativePreview' },
 		install,
 		learnMore,
 		dismiss,

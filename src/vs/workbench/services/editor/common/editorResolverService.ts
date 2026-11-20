@@ -182,6 +182,11 @@ export interface IEditorResolverServiceGetAllEditorsOptions {
 	 * Excludes registrations whose editor priority is exclusive.
 	 */
 	readonly excludeExclusiveEditors?: boolean;
+
+	/**
+	 * Excludes registrations that cannot create a diff editor.
+	 */
+	readonly isDiffEditor?: boolean;
 }
 
 export const enum EditorMatchRuleSource {
@@ -349,6 +354,14 @@ export interface IEditorResolverService {
 	 * is updated instead of the general editor association (`workbench.editorAssociations`).
 	 */
 	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void;
+
+	/**
+	 * Removes the user's diff editor association (`workbench.diffEditorAssociations`) for the given
+	 * glob pattern if it applies to the resource, so that the general editor association also applies to diffs.
+	 * @param resource The resource whose diff editor default is being removed.
+	 * @param filenamePattern The glob pattern of the diff editor association to remove.
+	 */
+	removeDiffEditorAssociation(resource: URI, filenamePattern: string): void;
 
 	/**
 	 * Emitted when an editor is registered or unregistered.

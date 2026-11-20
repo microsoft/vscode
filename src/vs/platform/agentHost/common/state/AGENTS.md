@@ -2,6 +2,8 @@
 
 This directory contains the VS Code-facing wrappers around the Agent Host Protocol (AHP) state model. Read this before modifying protocol types.
 
+Before adding or changing protocol constructs or `_meta`, follow the [protocol constructs before `_meta` rules](../../../../../../.github/instructions/agent-host-interoperability.instructions.md#protocol-constructs-before-_meta). Existing protocol constructs must be used instead of metadata where possible; unmet requirements should be raised upstream, and optional metadata must tolerate alternate hosts and UIs that omit or ignore it.
+
 ## Overview
 
 - `sessionState.ts`, `sessionActions.ts`, `sessionReducers.ts`, and `sessionProtocol.ts` are VS Code-facing wrappers and re-exports.
@@ -21,9 +23,19 @@ The generated protocol includes the Changesets model:
 ## Updating generated protocol types
 
 1. Update the source files in the sibling `agent-host-protocol` repo.
-2. Run `npx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
+2. Run `pnpm dlx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
+
+### Current targeted backports
+
+The generated copy uses the `.ahp-version` source commit `d7a5579b` plus targeted source backports for MCP-served skills and optional `AuthenticateParams.accountId`. The account field matches the merged [microsoft/agent-host-protocol#583](https://github.com/microsoft/agent-host-protocol/pull/583) at `eea267f02b9b031aebe6abea12a4e80927da2493`. Preserve these deltas when syncing until the recorded pin includes them. The older `CreateChatParams.title`, deprecated `SessionChatSummary.archived`, and `ChatIsReadChanged` compatibility deltas are already present in this pin.
+
+For a narrow sync, set `AHP_PROTOCOL_REPO` to an isolated protocol source worktree at the recorded pin with those source backports applied, then run the normal sync script. Do not copy unrelated upstream changes or edit generated files to recover the existing deltas.
+
+### Initial-message transport delta
+
+Host-facing `IAgentCreateChatRequestOptions.initialMessage` uses the existing `CreateChatParams.initialMessage` field and is deliberately not part of provider creation options: the host creates the provider chat first, then processes the message through its normal client-aware admission path. Message failures appear in the target chat's turn state rather than a special creation RPC error. Protocol clients serialize a supplied initial message unchanged except that a missing message `model` or `agent` inherits the corresponding request option. Do not add top-level `model` or `agent` fields to `CreateChatParams`.
 
 ## Adding optional fields to existing types
 

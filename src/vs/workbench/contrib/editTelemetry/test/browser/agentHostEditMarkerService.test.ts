@@ -26,6 +26,28 @@ import { AgentHostEditAttributionDeferredError, AgentHostEditMarkerService } fro
 suite('Agent Host Edit Marker Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const coarseDiffCount of [undefined, 0, 3]) {
+		for (const failPrepare of [false, true]) {
+			test(`preserves optional coarse counts through ${failPrepare ? 'recovered' : 'normal'} prepare (${coarseDiffCount})`, async () => {
+				const context = createContext({ coarseDiffCount, failPrepare, cancelOutcome: 'committed' });
+				context.fireMarker(marker(1, 'a', 'ab'));
+				const prepared = await context.service.prepareFlush(context.resource, 'closed', 'stats', false);
+				assert.deepStrictEqual({
+					count: prepared?.coarseDiffCount,
+					reads: context.resourceReads,
+				}, { count: coarseDiffCount, reads: failPrepare ? ['/prepare', '/cancel'] : ['/prepare'] });
+			});
+		}
+	}
+
+	for (const coarseDiffCount of [-1, 0.5, '3']) {
+		test(`rejects invalid coarse diff counts (${coarseDiffCount})`, async () => {
+			const context = createContext({ coarseDiffCount });
+			context.fireMarker(marker(1, 'a', 'ab'));
+			await assert.rejects(context.service.prepareFlush(context.resource, 'closed', 'stats', false), /deferred|invalid|outcome/i);
+		});
+	}
+
 	test('suppresses marker-first and reload-first observations', () => {
 		const context = createContext();
 		const correlation = context.service.createCorrelation(context.resource);
@@ -345,6 +367,29 @@ suite('Agent Host Edit Marker Service', () => {
 		}, {
 			single: 'source:Chat.applyEdits-$modelId:gpt-5-$autoTier:balance-$harness:copilotcli-$origin:agentHost',
 			singleTier: 'balance',
+			mixedSuppressed: true,
+			mixed: undefined,
+		});
+	});
+
+	test('attributes HydraFusion models to reloads and keeps HydraFusion and HydraFusion Max apart', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const source = { modelId: 'gpt-5', conversationId: 'session-1', chatSessionId: 'hashed-chat', requestId: 'turn-1', harness: 'copilotcli' };
+		context.fireMarker(marker(1, 'a', 'ab', { ...source, fusionModel: 'hydrafusion-max' }));
+		const single = correlation.register('a', 'ab');
+		context.fireMarker(marker(2, 'ab', 'abc', { ...source, fusionModel: 'hydrafusion-max' }));
+		context.fireMarker(marker(3, 'abc', 'abcd', { ...source, fusionModel: 'hydrafusion' }));
+		const mixed = correlation.register('ab', 'abcd');
+
+		assert.deepStrictEqual({
+			single: correlation.getResolution?.(single)?.source?.toKey(1),
+			singleFusionModel: correlation.getResolution?.(single)?.source?.props.$fusionModel,
+			mixedSuppressed: correlation.isSuppressed(mixed),
+			mixed: correlation.getResolution?.(mixed)?.source,
+		}, {
+			single: 'source:Chat.applyEdits-$modelId:gpt-5-$fusionModel:hydrafusion-max-$harness:copilotcli-$origin:agentHost',
+			singleFusionModel: 'hydrafusion-max',
 			mixedSuppressed: true,
 			mixed: undefined,
 		});
@@ -739,6 +784,7 @@ suite('Agent Host Edit Marker Service', () => {
 		readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 		readonly cancelStandaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 		readonly cancelLastSequence?: number;
+		readonly coarseDiffCount?: number | string;
 	} = {}) {
 		const {
 			isAmbient = true,
@@ -752,6 +798,7 @@ suite('Agent Host Edit Marker Service', () => {
 			standaloneCoverageGapAcknowledgements,
 			cancelStandaloneCoverageGapAcknowledgements,
 			cancelLastSequence,
+			coarseDiffCount,
 		} = options;
 		const actionEmitter = disposables.add(new Emitter<ActionEnvelope>());
 		const resourceReads: string[] = [];
@@ -775,12 +822,14 @@ suite('Agent Host Edit Marker Service', () => {
 						? prepareResponse ?? JSON.stringify({
 							flushToken: request?.kind === 'prepare' ? request.params.flushToken : '',
 							agentModifiedCount: 2,
+							coarseDiffCount,
 							lastSequence: prepareSequence,
 							standaloneCoverageGapAcknowledgements,
 						})
 						: JSON.stringify({
 							outcome: resource.path === '/commit' ? 'committed' : cancelOutcome,
 							agentModifiedCount: resource.path === '/commit' || cancelOutcome === 'committed' ? 2 : 0,
+							coarseDiffCount,
 							lastSequence: resource.path === '/cancel' ? cancelLastSequence : undefined,
 							standaloneCoverageGapAcknowledgements: resource.path === '/cancel' ? cancelStandaloneCoverageGapAcknowledgements : undefined,
 						}),
@@ -851,6 +900,7 @@ suite('Agent Host Edit Marker Service', () => {
 function marker(sequence: number, before: string, after: string, source?: {
 	readonly modelId?: string;
 	readonly autoTier?: string;
+	readonly fusionModel?: string;
 	readonly conversationId: string;
 	readonly chatSessionId?: string;
 	readonly agentSessionId?: string;

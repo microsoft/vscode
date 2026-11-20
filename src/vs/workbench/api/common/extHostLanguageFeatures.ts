@@ -7,8 +7,8 @@ import type * as vscode from 'vscode';
 import { asArray, coalesce, isFalsyOrEmpty, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { raceCancellationError } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { NotImplementedError, isCancellationError } from '../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError, NotImplementedError, isCancellationError } from '../../../base/common/errors.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
 import { DisposableStore, Disposable as CoreDisposable } from '../../../base/common/lifecycle.js';
 import { equals, mixin } from '../../../base/common/objects.js';
@@ -22,12 +22,11 @@ import { IPosition } from '../../../editor/common/core/position.js';
 import { Range as EditorRange, IRange } from '../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../editor/common/core/selection.js';
 import * as languages from '../../../editor/common/languages.js';
-import { IAutoClosingPairConditional } from '../../../editor/common/languages/languageConfiguration.js';
 import { encodeSemanticTokensDto } from '../../../editor/common/services/semanticTokensDto.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Cache } from './cache.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
@@ -101,6 +100,51 @@ class DocumentSymbolAdapter {
 			}
 		}
 		return res;
+	}
+}
+
+class StructuralDiffAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.StructuralDiffProvider,
+	) { }
+
+	async provideStructuralDiff(originalResource: URI, originalVersion: number, modifiedResource: URI, modifiedVersion: number, context: languages.StructuralDiffContext, token: CancellationToken): Promise<languages.StructuralDiff | undefined> {
+		const originalDocument = this._documents.getDocument(originalResource);
+		const modifiedDocument = this._documents.getDocument(modifiedResource);
+		const isStale = () => originalDocument.isClosed || modifiedDocument.isClosed
+			|| originalDocument.version !== originalVersion || modifiedDocument.version !== modifiedVersion;
+		if (token.isCancellationRequested || isStale()) {
+			throw new CancellationError();
+		}
+
+		const disposables = new DisposableStore();
+		const source = disposables.add(new CancellationTokenSource(token));
+		disposables.add(this._documents.onDidChangeDocument(() => {
+			if (isStale()) {
+				source.cancel();
+			}
+		}));
+		disposables.add(this._documents.onDidRemoveDocument(document => {
+			if (document === originalDocument || document === modifiedDocument) {
+				source.cancel();
+			}
+		}));
+		try {
+			const result = await raceCancellationError(Promise.resolve(this._provider.provideStructuralDiff(
+				originalDocument,
+				modifiedDocument,
+				typeConvert.StructuralDiffContext.to(context),
+				source.token,
+			)), source.token);
+			if (source.token.isCancellationRequested || isStale()) {
+				throw new CancellationError();
+			}
+			return result ? typeConvert.StructuralDiff.from(result) : undefined;
+		} finally {
+			disposables.dispose();
+		}
 	}
 }
 
@@ -2142,7 +2186,7 @@ class DocumentDropEditAdapter {
 	}
 }
 
-type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
+type Adapter = DocumentSymbolAdapter | StructuralDiffAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
 	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
 	| OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
@@ -2276,6 +2320,19 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<languages.DocumentSymbol[] | undefined> {
 		return this._withAdapter(handle, DocumentSymbolAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token), undefined, token);
+	}
+
+	// --- structural diff
+
+	registerStructuralDiffProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.StructuralDiffProvider): vscode.Disposable {
+		checkProposedApiEnabled(extension, 'structuralDiff');
+		const handle = this._addNewAdapter(new StructuralDiffAdapter(this._documents, provider), extension);
+		this._proxy.$registerStructuralDiffProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideStructuralDiff(handle: number, originalResource: UriComponents, originalVersion: number, modifiedResource: UriComponents, modifiedVersion: number, context: languages.StructuralDiffContext, token: CancellationToken): Promise<languages.StructuralDiff | undefined> {
+		return this._withAdapter(handle, StructuralDiffAdapter, adapter => adapter.provideStructuralDiff(URI.revive(originalResource), originalVersion, URI.revive(modifiedResource), modifiedVersion, context, token), undefined, token);
 	}
 
 	// --- code lens
@@ -2995,19 +3052,24 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
 	}
 
-	private static _serializeAutoClosingPair(autoClosingPair: vscode.AutoClosingPair): IAutoClosingPairConditional {
+	private static _serializeAutoClosingPair(autoClosingPair: vscode.AutoClosingPair): extHostProtocol.IAutoClosingPairDto {
 		return {
 			open: autoClosingPair.open,
 			close: autoClosingPair.close,
 			notIn: autoClosingPair.notIn ? autoClosingPair.notIn.map(v => SyntaxTokenType.toString(v)) : undefined,
+			beforeText: autoClosingPair.beforeText ? ExtHostLanguageFeatures._serializeRegExp(autoClosingPair.beforeText) : undefined,
 		};
 	}
 
-	private static _serializeAutoClosingPairs(autoClosingPairs: vscode.AutoClosingPair[]): IAutoClosingPairConditional[] {
+	private static _serializeAutoClosingPairs(autoClosingPairs: vscode.AutoClosingPair[]): extHostProtocol.IAutoClosingPairDto[] {
 		return autoClosingPairs.map(ExtHostLanguageFeatures._serializeAutoClosingPair);
 	}
 
 	setLanguageConfiguration(extension: IExtensionDescription, languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
+		if (configuration.autoClosingPairs?.some(pair => pair.beforeText !== undefined)) {
+			checkProposedApiEnabled(extension, 'autoClosingPairBeforeText');
+		}
+
 		const { wordPattern } = configuration;
 
 		// check for a valid word pattern

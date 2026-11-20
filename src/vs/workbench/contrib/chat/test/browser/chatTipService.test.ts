@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ICommandEvent, ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +22,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker, TipTrackingCommands } from '../../browser/chatTipService.js';
+import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, IChatTipProvider, ITipDefinition, TipEligibilityTracker, TipTrackingCommands } from '../../browser/chatTipService.js';
 import { IChatMode, IChatModes } from '../../common/chatModes.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -46,6 +46,12 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../sessions/common/sessionConfig.js';
+import { ChatInputCanScheduleContext } from '../../../sessions/common/contextkeys.js';
+import { ChatAutomationsEnabledContext } from '../../common/automations/automationsEnabled.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -223,6 +229,311 @@ suite('ChatTipService', () => {
 		assert.ok(tip.content.value.length > 0, 'Tip should have content');
 	});
 
+	test('prefers a contextual provider tip over the catalog tip', () => {
+		const service = createService();
+		const contextualTip: IChatTip = { id: 'connectorRecommendation.linear', content: new MarkdownString('Linear') };
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), contextualTip);
+	});
+
+	test('logs telemetry for contextual provider tip interactions', async () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const firstTip: IChatTip = { id: 'contextual.first', content: new MarkdownString('First') };
+		const secondTip: IChatTip = {
+			id: 'contextual.second',
+			content: new MarkdownString('Second'),
+			enabledCommands: ['contextual.command'],
+		};
+		let currentTip = firstTip;
+		const dismissedTipIds: string[] = [];
+		const service = createService();
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => currentTip,
+			dismissTip: id => dismissedTipIds.push(id),
+			navigateTip: () => currentTip = secondTip,
+		}));
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), firstTip);
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), firstTip);
+		assert.strictEqual(service.navigateToNextTip(), secondTip);
+		commandExecutedEmitter.fire({ commandId: 'contextual.command', args: [] });
+		const dismissedAfterCommand = [...dismissedTipIds];
+		service.dismissTip();
+
+		const hiddenTip: IChatTip = { id: 'contextual.hidden', content: new MarkdownString('Hidden') };
+		const hiddenService = createService();
+		testDisposables.add(hiddenService.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => hiddenTip,
+			dismissTip: () => { },
+		}));
+		hiddenService.getWelcomeTip(contextKeyService);
+		hiddenService.hideTip();
+
+		const disabledTip: IChatTip = { id: 'contextual.disabled', content: new MarkdownString('Disabled') };
+		const disabledService = createService();
+		testDisposables.add(disabledService.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => disabledTip,
+			dismissTip: () => { },
+		}));
+		disabledService.getWelcomeTip(contextKeyService);
+		await disabledService.disableTips();
+
+		assert.deepStrictEqual({
+			dismissedAfterCommand,
+			dismissedTipIds,
+			events: events.map(event => ({
+				eventName: event.eventName,
+				tipId: event.data.tipId,
+				action: event.data.action,
+				commandId: event.data.commandId ?? null,
+			})),
+		}, {
+			dismissedAfterCommand: [],
+			dismissedTipIds: ['contextual.second'],
+			events: [
+				{ eventName: 'chatTip', tipId: 'contextual.first', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.first', action: 'navigateNext', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'commandClicked', commandId: 'contextual.command' },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'dismissed', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'hidden', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'disabled', commandId: null },
+			],
+		});
+	});
+
+	test('applies standard tip visibility gates to contextual provider tips', () => {
+		const disabledService = createService(true, false);
+		testDisposables.add(disabledService.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => ({ id: 'connectorRecommendation.linear', content: new MarkdownString('Linear') }),
+			dismissTip: () => { },
+		}));
+		const disabledTip = disabledService.getWelcomeTip(contextKeyService);
+
+		const hiddenService = createService();
+		testDisposables.add(hiddenService.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => ({ id: 'connectorRecommendation.notion', content: new MarkdownString('Notion') }),
+			dismissTip: () => { },
+		}));
+		hiddenService.hideTipsForSession();
+		const hiddenTip = hiddenService.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual({ disabledTip, hiddenTip }, { disabledTip: undefined, hiddenTip: undefined });
+	});
+
+	test('dismisses contextual tips through their provider', () => {
+		const service = createService();
+		const dismissed: string[] = [];
+		const provider: IChatTipProvider = {
+			onDidChange: Event.None,
+			provideTip: () => ({ id: 'connectorRecommendation.linear', content: new MarkdownString('Linear') }),
+			dismissTip: id => dismissed.push(id),
+		};
+		testDisposables.add(service.registerTipProvider(provider));
+		service.getWelcomeTip(contextKeyService);
+
+		service.dismissTip();
+
+		assert.deepStrictEqual(dismissed, ['connectorRecommendation.linear']);
+	});
+
+	test('clears dismissed tips through contextual providers', () => {
+		const service = createService();
+		let clearCount = 0;
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+			clearDismissedTips: () => clearCount++,
+		}));
+
+		service.clearDismissedTips();
+
+		assert.strictEqual(clearCount, 1);
+	});
+
+	test('resets contextual providers with the chat session', () => {
+		const service = createService();
+		let resetCount = 0;
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+			resetSession: () => resetCount++,
+		}));
+
+		service.resetSession();
+
+		assert.strictEqual(resetCount, 1);
+	});
+
+	test('contextual provider changes notify tip presenters', () => {
+		const service = createService();
+		const onDidChange = testDisposables.add(new Emitter<void>());
+		let changes = 0;
+		testDisposables.add(service.onDidChangeTip(() => changes++));
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: onDidChange.event,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+		}));
+
+		onDidChange.fire();
+
+		assert.strictEqual(changes, 1);
+	});
+
+	test('navigates contextual provider tips', () => {
+		const service = createService();
+		const tips = [
+			{ id: 'connectorRecommendation.linear', content: new MarkdownString('Linear') },
+			{ id: 'connectorRecommendation.notion', content: new MarkdownString('Notion') },
+		];
+		let index = 0;
+		const navigated: string[] = [];
+		testDisposables.add(service.onDidNavigateTip(tip => navigated.push(tip.id)));
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => tips[index],
+			dismissTip: () => { },
+			hasMultipleTips: () => true,
+			navigateTip: direction => {
+				index = (index + direction + tips.length) % tips.length;
+				return tips[index];
+			},
+		}));
+		service.getWelcomeTip(contextKeyService);
+
+		const next = service.navigateToNextTip();
+		const previous = service.navigateToPreviousTip();
+
+		assert.deepStrictEqual({
+			hasMultipleTips: service.hasMultipleTips(),
+			next: next?.id,
+			previous: previous?.id,
+			navigated,
+		}, {
+			hasMultipleTips: true,
+			next: 'connectorRecommendation.notion',
+			previous: 'connectorRecommendation.linear',
+			navigated: ['connectorRecommendation.notion', 'connectorRecommendation.linear'],
+		});
+	});
+
+	test('navigates between a standalone provider tip and catalog tips without losing the selection on rerender', () => {
+		const service = createService();
+		const contextualTip: IChatTip = { id: 'contextual.shortcut', content: new MarkdownString('Enable shortcut') };
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+		service.getWelcomeTip(contextKeyService);
+		const enabled = service.hasMultipleTips();
+		const next = service.navigateToNextTip();
+		const rerendered = service.getWelcomeTip(contextKeyService);
+		const previous = service.navigateToPreviousTip();
+		const wrapped = service.navigateToPreviousTip();
+		const wrappedRerender = service.getWelcomeTip(contextKeyService);
+		const returned = service.navigateToNextTip();
+
+		assert.deepStrictEqual({
+			enabled,
+			nextIsCatalog: next?.id.startsWith('tip.'),
+			rerenderKeepsSelection: rerendered?.id === next?.id,
+			previous: previous?.id,
+			wrappedIsCatalog: wrapped?.id.startsWith('tip.'),
+			wrappedRerenderKeepsSelection: wrappedRerender?.id === wrapped?.id,
+			returned: returned?.id,
+		}, {
+			enabled: true,
+			nextIsCatalog: true,
+			rerenderKeepsSelection: true,
+			previous: contextualTip.id,
+			wrappedIsCatalog: true,
+			wrappedRerenderKeepsSelection: true,
+			returned: contextualTip.id,
+		});
+	});
+
+	test('disables navigation when a standalone provider tip is the only eligible tip', () => {
+		const service = createService();
+		const contextualTip: IChatTip = { id: 'contextual.only', content: new MarkdownString('Only tip') };
+		storageService.store('chat.tip.dismissed', JSON.stringify(TIP_CATALOG.map(tip => tip.id)), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+		service.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual({
+			enabled: service.hasMultipleTips(),
+			next: service.navigateToNextTip(),
+			previous: service.navigateToPreviousTip(),
+		}, { enabled: false, next: undefined, previous: undefined });
+	});
+
+	test('preserves navigation to a second standalone provider on rerender', () => {
+		const service = createService();
+		for (const id of ['contextual.first', 'contextual.second']) {
+			testDisposables.add(service.registerTipProvider({
+				onDidChange: Event.None,
+				provideTip: () => ({ id, content: new MarkdownString(id) }),
+				dismissTip: () => { },
+			}));
+		}
+		service.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual([
+			service.navigateToNextTip()?.id,
+			service.getWelcomeTip(contextKeyService)?.id,
+			service.navigateToPreviousTip()?.id,
+		], ['contextual.second', 'contextual.second', 'contextual.first']);
+	});
+
+	test('restores contextual tip priority when the provider changes or the session resets', () => {
+		const service = createService();
+		const onDidChange = testDisposables.add(new Emitter<void>());
+		const contextualTip: IChatTip = { id: 'contextual.shortcut', content: new MarkdownString('Enable shortcut') };
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: onDidChange.event,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+		service.getWelcomeTip(contextKeyService);
+		service.navigateToNextTip();
+		onDidChange.fire();
+		const afterChange = service.getWelcomeTip(contextKeyService);
+		service.navigateToNextTip();
+		service.resetSession();
+		const afterReset = service.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual({ afterChange: afterChange?.id, afterReset: afterReset?.id }, {
+			afterChange: contextualTip.id,
+			afterReset: contextualTip.id,
+		});
+	});
+
 	test('uses descriptive titles for tip command links', () => {
 		for (const tip of TIP_CATALOG) {
 			const markdown = tip.buildMessage({
@@ -238,6 +549,57 @@ suite('ChatTipService', () => {
 				assert.ok(/\s"[^"]+"$/.test(match[1]), `Expected command link in ${tip.id} to include a descriptive title: ${match[0]}`);
 			}
 		}
+	});
+
+	test('background send tip is experimental and limited to new sessions with AI enabled in the Agents window', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.sendInBackground');
+		assert.ok(tip?.when);
+		const enabled = contextKeyService.createKey<boolean>(`config.${ChatConfiguration.SendInBackgroundTipEnabled}`, false);
+		const agentsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		const aiEnabled = contextKeyService.createKey<boolean>(ChatContextKeys.enabled.key, true);
+		const created = contextKeyService.createKey<boolean>('sessionIsCreated', false);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+		enabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		agentsWindow.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		agentsWindow.set(true);
+		created.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		created.set(false);
+		aiEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		assert.deepStrictEqual(eligibility, [false, true, false, false, false]);
+	});
+
+	test('background send tip resolves the configured shortcut and remains useful when unbound', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.sendInBackground');
+		assert.ok(tip);
+		const messages = ['Ctrl+Enter', undefined].map(label => tip.buildMessage({
+			keybindingService: upcastPartial<IKeybindingService>({
+				lookupKeybinding: commandId => commandId === SEND_IN_BACKGROUND_COMMAND_ID && label
+					? upcastPartial<ResolvedKeybinding>({ getLabel: () => label })
+					: undefined,
+			}),
+			experimentalTipMessages: new Map(),
+		}).value);
+		const link = `command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify([SEND_IN_BACKGROUND_COMMAND_ID]))}`;
+		assert.deepStrictEqual(messages, [
+			`Use Send in Background (Ctrl+Enter) to start a new session without opening it. [Customize the shortcut](${link} "Open Keyboard Shortcuts").`,
+			`Use Send in Background to start a new session without opening it. [Customize the shortcut](${link} "Open Keyboard Shortcuts").`,
+		]);
+	});
+
+	test('removes the background send tip after the command is used', () => {
+		testDisposables.add(CommandsRegistry.registerCommand(SEND_IN_BACKGROUND_COMMAND_ID, () => { }));
+		contextKeyService.createKey(`config.${ChatConfiguration.SendInBackgroundTipEnabled}`, true);
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey('sessionIsCreated', false);
+		const service = createService();
+		assert.ok(findTipById(service, 'tip.sendInBackground'));
+		commandExecutedEmitter.fire({ commandId: SEND_IN_BACKGROUND_COMMAND_ID, args: [] });
+		assertTipNeverShown(service, 'tip.sendInBackground');
 	});
 
 	test('btw tip is controlled by its experiment setting and limited to active side-chat sessions in the Agents window', () => {
@@ -276,6 +638,67 @@ suite('ChatTipService', () => {
 			}).value,
 			'Use `/btw <question>` to ask a side question without adding it to the current conversation.',
 		);
+	});
+
+	test('automate tip is controlled by its experiment setting and limited to the Agents window with chat and automations enabled', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.automate');
+		assert.ok(tip?.when);
+
+		const isEnabled = contextKeyService.createKey<boolean>(`config.${ChatConfiguration.AutomateTipEnabled}`, true);
+		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, false);
+		const isChatEnabled = contextKeyService.createKey<boolean>(ChatContextKeys.enabled.key, false);
+		const isAutomationsEnabled = contextKeyService.createKey<boolean>('chatAutomationsEnabled', false);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+
+		isSessionsWindow.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isChatEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isAutomationsEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isSessionsWindow.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isSessionsWindow.set(true);
+		isChatEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+
+		assert.deepStrictEqual(eligibility, [false, false, false, true, false, true, false, false]);
+		assert.strictEqual(
+			tip.buildMessage({
+				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
+				experimentalTipMessages: new Map(),
+			}).value,
+			'Use `/automate` to have the agent walk you through turning a task into a recurring automation.',
+		);
+	});
+
+	test('send later tip requires the setting and a supported Agents window chat with AI and automations enabled', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.sendLater');
+		assert.ok(tip?.when);
+
+		const isEnabled = contextKeyService.createKey<boolean | undefined>(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, undefined);
+		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		const isChatEnabled = contextKeyService.createKey<boolean>(ChatContextKeys.enabled.key, true);
+		const isAutomationsEnabled = contextKeyService.createKey<boolean>(ChatAutomationsEnabledContext.key, true);
+		const canSchedule = contextKeyService.createKey<boolean>(ChatInputCanScheduleContext.key, true);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+
+		isEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		for (const key of [isSessionsWindow, isChatEnabled, isAutomationsEnabled, canSchedule]) {
+			key.set(false);
+			eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+			key.set(true);
+			eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		}
+
+		assert.deepStrictEqual(eligibility, [false, false, true, false, true, false, true, false, true, false, true]);
 	});
 
 	test('records # file reference usage for attach files tip eligibility', () => {
@@ -1364,25 +1787,24 @@ suite('ChatTipService', () => {
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 
 		const originalRandom = Math.random;
-		try {
-			Math.random = () => 0;
-			const firstTip = service.getWelcomeTip(contextKeyService);
-
-			service.resetSession();
-
-			Math.random = () => 0.9999;
-			const secondTip = service.getWelcomeTip(contextKeyService);
-
-			assert.ok(firstTip);
-			assert.ok(secondTip);
-			assert.notStrictEqual(firstTip.id, secondTip.id, 'Expected different QoL tips for different random values');
-			assert.notStrictEqual(firstTip.id, 'tip.planMode');
-			assert.notStrictEqual(secondTip.id, 'tip.planMode');
-		} finally {
+		testDisposables.add(toDisposable(() => {
 			Math.random = originalRandom;
 			modeKindKey.set(ChatModeKind.Agent);
 			modeNameKey.set('Plan');
-		}
+		}));
+		Math.random = () => 0;
+		const firstTip = service.getWelcomeTip(contextKeyService);
+
+		service.resetSession();
+
+		Math.random = () => 0.9999;
+		const secondTip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(firstTip);
+		assert.ok(secondTip);
+		assert.notStrictEqual(firstTip.id, secondTip.id, 'Expected different QoL tips for different random values');
+		assert.notStrictEqual(firstTip.id, 'tip.planMode');
+		assert.notStrictEqual(secondTip.id, 'tip.planMode');
 	});
 
 	test('resetSession reevaluates foundational tips for the next chat session', () => {
@@ -1393,23 +1815,22 @@ suite('ChatTipService', () => {
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 
 		const originalRandom = Math.random;
-		try {
-			Math.random = () => 0.9999;
-			const qolTip = service.getWelcomeTip(contextKeyService);
-			assert.ok(qolTip);
-			assert.notStrictEqual(qolTip.id, 'tip.planMode');
-
-			service.resetSession();
-			modeNameKey.set('Agent');
-			sessionTypeKey.set(localChatSessionType);
-
-			const foundationalTip = service.getWelcomeTip(contextKeyService);
-			assert.ok(foundationalTip);
-			assert.strictEqual(foundationalTip.id, 'tip.createAgent', 'Expected foundational ordering to restart on new chat session');
-		} finally {
+		testDisposables.add(toDisposable(() => {
 			Math.random = originalRandom;
 			modeKindKey.set(ChatModeKind.Agent);
-		}
+		}));
+		Math.random = () => 0.9999;
+		const qolTip = service.getWelcomeTip(contextKeyService);
+		assert.ok(qolTip);
+		assert.notStrictEqual(qolTip.id, 'tip.planMode');
+
+		service.resetSession();
+		modeNameKey.set('Agent');
+		sessionTypeKey.set(localChatSessionType);
+
+		const foundationalTip = service.getWelcomeTip(contextKeyService);
+		assert.ok(foundationalTip);
+		assert.strictEqual(foundationalTip.id, 'tip.createAgent', 'Expected foundational ordering to restart on new chat session');
 	});
 
 	test('resetSession allows a new welcome tip', () => {
@@ -1951,14 +2372,11 @@ suite('ChatTipService', () => {
 			throw new Error('AbstractContextKeyService has been disposed');
 		};
 
-		try {
-			assert.doesNotThrow(() => submitRequestEmitter.fire({
-				chatSessionResource: URI.parse('chat:session-disposed'),
-				message: { text: 'hello', parts: [] },
-			}));
-		} finally {
-			contextKeyService.contextMatchesRules = originalContextMatchesRules;
-		}
+		testDisposables.add(toDisposable(() => { contextKeyService.contextMatchesRules = originalContextMatchesRules; }));
+		assert.doesNotThrow(() => submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-disposed'),
+			message: { text: 'hello', parts: [] },
+		}));
 	});
 
 });

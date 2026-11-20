@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, markAsDisposed, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -13,6 +13,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEdit
 import { ChatModel, ISerializableChatModelInputState, ISerializedChatDataReference } from './chatModel.js';
 import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import type { IAgentModelConfigurationReport } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 
 export interface IStartSessionProps {
 	readonly initialData?: ISerializedChatDataReference;
@@ -25,6 +26,7 @@ export interface IStartSessionProps {
 	readonly isReadOnly?: IObservable<boolean>;
 	readonly isInputBlocked?: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	readonly backgroundShellCount?: IObservable<number | undefined>;
 	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
@@ -228,6 +230,7 @@ export class ChatModelStore extends Disposable {
 				}
 
 				isDisposed = true;
+				markAsDisposed(wrapped);
 				const owners = this._referenceOwners.get(key);
 				owners?.delete(ownerId);
 				if (owners?.size === 0) {

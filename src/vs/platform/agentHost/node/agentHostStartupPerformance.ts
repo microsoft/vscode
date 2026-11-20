@@ -38,7 +38,6 @@ export interface IAgentHostStartupMetrics {
 	stateFallbackCount?: number;
 	databaseOpenCount?: number;
 	databaseStatCount?: number;
-	catalogEnabled?: boolean;
 	externalSessionsMode?: AgentHostExternalSessionsMode;
 	synchronizedSessionCount?: number;
 	skippedSessionCount?: number;
@@ -52,7 +51,6 @@ export interface IAgentHostStartupMetrics {
 	copilotRegistered?: boolean;
 	claudeRegistered?: boolean;
 	codexRegistered?: boolean;
-	migrateLegacyEnabled?: boolean;
 }
 
 export interface IAgentHostStartupTiming {
@@ -169,7 +167,6 @@ type StartupMarkClassification = {
 	stateFallbackCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Rows added from live host state rather than persisted registrations.' };
 	databaseOpenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Process-wide session database opens during this operation, including overlapping work.' };
 	databaseStatCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Process-wide session database stats during this operation, including overlapping work.' };
-	catalogEnabled?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether session listing used the central catalog.' };
 	externalSessionsMode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded external-session visibility mode used by the listing.' };
 	synchronizedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates synchronized into the central catalog.' };
 	skippedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates already current.' };
@@ -183,7 +180,6 @@ type StartupMarkClassification = {
 	copilotRegistered?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Copilot provider is registered at this host milestone; not SDK, authentication, or connection readiness.' };
 	claudeRegistered?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Claude provider is registered at this host milestone; not SDK, authentication, or connection readiness.' };
 	codexRegistered?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Codex provider is registered at this host milestone; not SDK, authentication, or connection readiness.' };
-	migrateLegacyEnabled?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether legacy chat migration is enabled for this host lifetime.' };
 };
 
 interface IOperationState {

@@ -5,6 +5,7 @@
 
 import { IWorkbench, IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
 import { SessionsBrowserMain } from './web.main.js';
+import { SessionsWorkbenchFactory } from './workbenchFactory.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { mark } from '../../base/common/performance.js';
 import { DeferredPromise } from '../../base/common/async.js';
@@ -15,8 +16,11 @@ const workbenchPromise = new DeferredPromise<IWorkbench>();
 
 /**
  * Creates the Sessions workbench with the provided options in the provided container.
+ *
+ * @param workbenchFactory Optional factory selecting the workbench presentation.
+ * Entry points pass it; embedders use the default of the entry point they loaded.
  */
-export function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
+export function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions, workbenchFactory?: SessionsWorkbenchFactory): IDisposable {
 
 	mark('code/didLoadWorkbenchMain');
 
@@ -34,7 +38,7 @@ export function create(domElement: HTMLElement, options: IWorkbenchConstructionO
 	}
 
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
-	new SessionsBrowserMain(domElement, options).open().then(workbench => {
+	new SessionsBrowserMain(domElement, options, workbenchFactory).open().then(workbench => {
 		instantiatedWorkbench = workbench;
 		workbenchPromise.complete(workbench);
 	});

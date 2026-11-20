@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from '../common/otlp/otlpLogEmitter.js';
 import { Promises } from '../../../base/common/async.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -11,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, AgentSession, type AuthenticateParams, type AuthenticateResult, type IAgent, type IAgentHostNetworkEndpoint, type IMcpNotification } from '../common/agent.js';
+import type { IAgentHostAuthenticationScope } from '../common/agentHostCredentials.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../common/agentService.js';
 import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
@@ -33,11 +35,22 @@ export interface IAgentHostProviderService {
 	resolveProvider(provider?: AgentProvider): IAgent | undefined;
 	getProvider(provider: AgentProvider): IAgent | undefined;
 	getProviderForSession(session: URI | string): IAgent | undefined;
+	/**
+	 * Resolves the agent backing `chat` of `session`: the chat's own agent when
+	 * one is associated with it (a chat whose agent differs from its session's),
+	 * otherwise the session's agent. `undefined` when the chat's own agent is not
+	 * registered: such a chat never falls back to its session's agent.
+	 */
+	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined;
 	getProviders(): readonly IAgent[];
 	associateSession(session: URI | string, provider: AgentProvider): void;
 	releaseSession(session: URI | string, expectedProvider?: AgentProvider): void;
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	/** Records the agent of a chat whose agent differs from its session's. A chat's agent never changes. */
+	associateChat(chat: URI | string, provider: AgentProvider): void;
+	releaseChat(chat: URI | string): void;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	shutdown(): Promise<void>;
@@ -49,6 +62,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _providerRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _providers = this._register(new DisposableMap<AgentProvider, IAgent>());
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
+	private readonly _chatToProvider = new Map<string, AgentProvider>();
 	private readonly _agents: ISettableObservable<readonly IAgent[]> = observableValue(this, []);
 	readonly agents: IObservable<readonly IAgent[]> = this._agents;
 	private readonly _onDidRegisterProvider = this._register(new Emitter<IAgent>());
@@ -139,6 +153,11 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		return undefined;
 	}
 
+	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined {
+		const chatProvider = chat === undefined ? undefined : this._chatToProvider.get(typeof chat === 'string' ? chat : chat.toString());
+		return chatProvider !== undefined ? this._providers.get(chatProvider) : this.getProviderForSession(session);
+	}
+
 	getProviders(): readonly IAgent[] {
 		return [...this._providers.values()];
 	}
@@ -155,8 +174,20 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._sessionToProvider.delete(key);
 	}
 
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		return this._authenticationController.authenticate(params, this._providers.values());
+	associateChat(chat: URI | string, provider: AgentProvider): void {
+		this._chatToProvider.set(typeof chat === 'string' ? chat : chat.toString(), provider);
+	}
+
+	releaseChat(chat: URI | string): void {
+		this._chatToProvider.delete(typeof chat === 'string' ? chat : chat.toString());
+	}
+
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
+		return this._authenticationController.authenticate(params, this._providers.values(), scope, clientId);
+	}
+
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable {
+		return this.getProviderForSession(session)?.subscribeMcpServerLogs?.(session, serverName, level, onRecords) ?? Disposable.None;
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -242,6 +273,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			this._agents.set([], undefined);
 			this._defaultProvider = undefined;
 			this._sessionToProvider.clear();
+			this._chatToProvider.clear();
 		}
 	}
 }

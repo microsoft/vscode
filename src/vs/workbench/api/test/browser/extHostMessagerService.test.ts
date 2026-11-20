@@ -16,12 +16,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { NotificationViewItem } from '../../../common/notifications.js';
 import { LinkedTextNode } from '../../../../base/common/linkedText.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../services/notification/common/notificationService.js';
 import { NotificationActionRunner } from '../../../browser/parts/notifications/notificationsCommands.js';
 import { logNotificationShown } from '../../../common/notificationTelemetry.js';
 import { TestNotificationTelemetryService } from '../../../test/common/testNotificationTelemetry.js';
+import { ExtHostMessageService } from '../../common/extHostMessageService.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { MainThreadMessageServiceShape } from '../../common/extHost.protocol.js';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -112,6 +117,51 @@ suite('ExtHostMessageService', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('notification telemetry', () => {
+		test('requires the notification telemetry proposal before forwarding an ID', () => {
+			const service = new ExtHostMessageService(SingleProxyRPCProtocol(new class extends mock<MainThreadMessageServiceShape>() { }), store.add(new NullLogService()));
+			assert.throws(() => service.showMessage(nullExtensionDescription, Severity.Info, 'private message', { notificationId: 'git.parentRepository' }, []), /notificationTelemetry/);
+		});
+
+		for (const { identifier, notificationId, expected } of [
+			{ identifier: 'vscode.git', notificationId: 'git.parentRepository', expected: 'git.parentRepository' },
+			{ identifier: 'publisher.extension', notificationId: 'git.parentRepository', expected: 'extension.message' },
+			{ identifier: 'vscode.github-authentication', notificationId: 'githubAuthentication.signIn.browser', expected: 'extension.message' },
+			{ identifier: 'vscode.git', notificationId: 'private/path', expected: 'extension.message' }
+		]) {
+			test(`round-trips proposed notification IDs without changing message buttons (${identifier}, ${notificationId})`, async () => {
+				const telemetry = new TestNotificationTelemetryService();
+				const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
+				store.add(toDisposable(() => {
+					for (const item of [...notifications.model.notifications]) {
+						item.close();
+					}
+				}));
+				const mainThread = store.add(new MainThreadMessageService(null!, notifications, emptyCommandService, new TestDialogService(), new TestExtensionService()));
+				const extHost = new ExtHostMessageService(SingleProxyRPCProtocol(mainThread), store.add(new NullLogService()));
+				const extension: IExtensionDescription = { ...nullExtensionDescription, identifier: new ExtensionIdentifier(identifier), enabledApiProposals: ['notificationTelemetry'] };
+				const runner = store.add(new NotificationActionRunner(undefined, telemetry, notifications));
+				const promise = extHost.showMessage(extension, Severity.Info, 'private message', { notificationId }, ['private button']);
+				const item = notifications.model.notifications[0];
+				logNotificationShown(telemetry, item, 'toast');
+				await runner.run(item.actions!.primary![0], item);
+				item.close();
+
+				assert.deepStrictEqual({
+					selected: await promise,
+					attribution: item.telemetry,
+					shown: telemetry.shown.map(event => event.notificationId),
+					actions: telemetry.interactions.map(event => [event.notificationId, event.extensionButtonIndex]),
+					privatePayload: JSON.stringify(telemetry.events).includes('private')
+				}, {
+					selected: 'private button',
+					attribution: { origin: 'extension', notificationId: expected, extensionId: identifier },
+					shown: [expected],
+					actions: [[expected, 0]],
+					privatePayload: false
+				});
+			});
+		}
+
 		for (const identifier of ['Publisher.Extension', undefined, '/private/extension']) {
 			test(`attributes extension messages and button positions without inferring semantics (${identifier ?? 'missing'})`, async () => {
 				const telemetry = new TestNotificationTelemetryService();

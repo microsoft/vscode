@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 
 const TEST_SESSION_URI = 'session://test-session';
@@ -133,6 +134,28 @@ suite('computeSessionDiffs', () => {
 		assert.ok(created.after, 'create has after');
 		assert.ok(deleted.before, 'delete has before');
 		assert.strictEqual(deleted.after, undefined, 'delete has no after');
+	});
+
+	test('counts no removed lines for a created file and no added lines for a deleted one', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/created.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('new'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/deleted.txt', kind: FileEditKind.Delete,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('bye'),
+		});
+
+		// A line diff against empty content counts its single empty line, as the real diff service does.
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, new TestDiffComputeService({ added: 1, removed: 1, changes: [] }));
+
+		assert.deepStrictEqual(result.map(diff => [getDiffUri(diff)?.split('/').at(-1), diff.diff]).sort(), [
+			['created.txt', { added: 1, removed: 0 }],
+			['deleted.txt', { added: 0, removed: 1 }],
+		]);
 	});
 
 	test('skips files with no net change', async () => {
@@ -698,6 +721,32 @@ suite('computeUnionedDiffs', () => {
 			part: 'after',
 		});
 	});
+
+	test('counts the edits a forked chat copied from its parent once, so they do not hide later edits', async () => {
+		const copiedEdit = {
+			turnId: 't1', toolCallId: 'tc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v1'), afterContent: encodeString('v2'),
+		};
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit(copiedEdit);
+		sessionDb.addEdit({ ...copiedEdit, turnId: 't2', toolCallId: 'tc2', beforeContent: encodeString('v2'), afterContent: encodeString('v3\nv4') });
+		const forkDb = new TestSessionDatabase();
+		forkDb.addEdit(copiedEdit);
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: forkDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.deepStrictEqual(result.map(diff => ({ ...simplify(diff), after: parseSessionDbUri(diff.after!.content.uri) })), [{
+			...simpleDiff('/shared.txt', 1, 0),
+			after: { sessionUri: TEST_SESSION_URI, toolCallId: 'tc2', filePath: '/shared.txt', part: 'after' },
+		}]);
+	});
 });
 
 suite('computeTurnDiffs', () => {
@@ -918,5 +967,134 @@ suite('computeTurnDiffs', () => {
 		assert.strictEqual(result.length, 2, 'the moved file (B) and the recreated file (A) are distinct identities');
 		assert.ok(uris.has(URI.file('/repo/b.txt').toString()), 'the renamed file appears at its destination path B');
 		assert.ok(uris.has(URI.file('/repo/a.txt').toString()), 'the recreated file A is a fresh identity');
+	});
+});
+
+suite('sessionDiffAggregator - path spellings', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function addEdit(db: TestSessionDatabase, turnId: string, toolCallId: string, filePath: string, before: string | undefined, after: string): void {
+		db.addEdit({
+			turnId, toolCallId, filePath, kind: before === undefined ? FileEditKind.Create : FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: before === undefined ? undefined : encodeString(before), afterContent: encodeString(after),
+		});
+	}
+
+	/** Diffs in the order of their URIs' code units, which keeps entries with the same URI. */
+	function sorted(diffs: readonly ISessionFileDiff[]): ISimpleDiff[] {
+		return diffs.map(simplify).sort((a, b) => a.uri === b.uri ? 0 : (a.uri ?? '') < (b.uri ?? '') ? -1 : 1);
+	}
+
+	test('shows a file once when its edits spell its path with another case, unless the platform tells such paths apart', async () => {
+		const created = '/repo/Src/file.ts';
+		const edited = '/repo/src/file.ts';
+		const db = new TestSessionDatabase();
+		const diffService = createTestDiffService();
+		addEdit(db, 't1', 'tc1', created, undefined, 'one');
+		addEdit(db, 't1', 'tc2', edited, 'one', 'one\ntwo');
+		const firstTurn = await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] });
+		addEdit(db, 't2', 'tc3', edited, 'one\ntwo', 'one\ntwo\nthree');
+
+		assert.deepStrictEqual({
+			firstTurn: sorted(firstTurn),
+			secondTurn: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't2', previousDiffs: firstTurn })),
+			session: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
+		}, isLinux ? {
+			firstTurn: [simpleDiff(created, 1, 0), simpleDiff(edited, 1, 0)],
+			secondTurn: [simpleDiff(created, 1, 0), simpleDiff(edited, 2, 0)],
+			session: [simpleDiff(created, 1, 0), simpleDiff(edited, 2, 0)],
+			turn: [simpleDiff(created, 1, 0), simpleDiff(edited, 1, 0)],
+		} : {
+			// The file keeps the path it was first recorded with.
+			firstTurn: [simpleDiff(created, 2, 0)],
+			secondTurn: [simpleDiff(created, 3, 0)],
+			session: [simpleDiff(created, 3, 0)],
+			turn: [simpleDiff(created, 2, 0)],
+		});
+	});
+
+	test('keeps a renamed file apart from one created at another spelling of its old path', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', 'tc1', '/repo/A.txt', undefined, 'moved');
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/B.txt', kind: FileEditKind.Rename, originalPath: '/repo/A.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('moved'), afterContent: encodeString('moved\nmore'),
+		});
+		addEdit(db, 't1', 'tc3', '/repo/a.txt', undefined, 'replacement');
+		const diffService = createTestDiffService();
+
+		const expected = [simpleDiff('/repo/B.txt', 2, 0), simpleDiff('/repo/a.txt', 1, 0)];
+		assert.deepStrictEqual({
+			session: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			incremental: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] })),
+			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
+			workingSet: sorted(await computeWorkingSetDiffs([{ sessionUri: TEST_SESSION_URI, db }], diffService)),
+		}, { session: expected, incremental: expected, turn: expected, workingSet: expected });
+	});
+
+	test('shows a file once, at its path without `.` segments, when an edit spells its path with them', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', 'tc1', '/repo/./src/file.ts', 'zero', 'one');
+		addEdit(db, 't1', 'tc2', '/repo/src/file.ts', 'one', 'one\ntwo');
+		const diffService = createTestDiffService();
+		const scope = [URI.file('/repo/src')];
+		const session = await computeSessionDiffs(TEST_SESSION_URI, db, diffService, undefined, scope);
+
+		const expected = [simpleDiff('/repo/src/file.ts', 1, 0)];
+		assert.deepStrictEqual({
+			session: sorted(session),
+			incremental: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] }, scope)),
+			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1', scope)),
+			workingSet: sorted(await computeWorkingSetDiffs([{ sessionUri: TEST_SESSION_URI, db }], diffService, scope)),
+			// Content is still read with the paths the edits recorded.
+			recordedPaths: session.map(diff => [diff.before?.uri, parseSessionDbUri(diff.before!.content.uri)?.filePath, parseSessionDbUri(diff.after!.content.uri)?.filePath]),
+		}, {
+			session: expected, incremental: expected, turn: expected, workingSet: expected,
+			recordedPaths: [[URI.file('/repo/src/file.ts').toString(), '/repo/./src/file.ts', '/repo/src/file.ts']],
+		});
+	});
+
+	test('shows a rename that only changes the case of a path as a rename', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', 'tc1', '/repo/a.txt', 'one', 'two');
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/A.txt', kind: FileEditKind.Rename, originalPath: '/repo/a.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('two'), afterContent: encodeString('two\nthree'),
+		});
+		const diffService = createTestDiffService();
+		const uris = (diffs: readonly ISessionFileDiff[]) => diffs.map(diff => ({ before: diff.before?.uri, after: diff.after?.uri }));
+
+		const expected = [{ before: URI.file('/repo/a.txt').toString(), after: URI.file('/repo/A.txt').toString() }];
+		assert.deepStrictEqual({
+			session: uris(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			turn: uris(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
+			workingSet: uris(await computeWorkingSetDiffs([{ sessionUri: TEST_SESSION_URI, db }], diffService)),
+		}, { session: expected, turn: expected, workingSet: expected });
+	});
+
+	(isWindows ? test : test.skip)('shows a file once for every way Windows spells its path', async () => {
+		const spellings: readonly (readonly [created: string, edited: string])[] = [
+			['C:\\repo\\a.md', 'c:\\repo\\a.md'],
+			['c:\\repo\\src\\b.md', 'c:\\Repo\\Src\\b.md'],
+			['c:\\repo\\src\\c.md', 'c:/repo/src/c.md'],
+			['c:/repo/src/d.md', 'c:\\repo\\src\\d.md'],
+			['c:\\repo\\src\\e.md', 'c:/REPO/src/e.md'],
+			['c:\\repo\\alpha\\beta\\g.md', 'c:\\repo\\alpha/beta\\g.md'],
+		];
+		const db = new TestSessionDatabase();
+		for (const [index, [created, edited]] of spellings.entries()) {
+			addEdit(db, 't1', `create-${index}`, created, undefined, 'one');
+			addEdit(db, 't1', `edit-${index}`, edited, 'one', 'one\ntwo');
+		}
+
+		assert.deepStrictEqual(
+			sorted(await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService())),
+			sorted(spellings.map(([created]) => fileDiff(created, 2, 0))),
+		);
 	});
 });

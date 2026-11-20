@@ -229,19 +229,18 @@ src/vs/workbench/contrib/chat/test/common/tools/builtinTools/runSubagentTool.tes
 src/vs/workbench/contrib/inlineChat/browser/inlineChatWidget.ts
 src/vs/workbench/contrib/mcp/common/mcpSandboxService.ts
 src/vs/workbench/contrib/mcp/common/mcpServer.ts
-src/vs/workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcomeInput.ts
 src/vs/workbench/services/agentHost/test/common/agentHostResourceService.test.ts
 src/vs/workbench/services/chat/common/chatEntitlementService.ts
 
 # Agents Window (11 files)
 src/vs/sessions/contrib/automations/browser/automationService.ts
-src/vs/sessions/contrib/github/browser/githubApiClient.ts
-src/vs/sessions/contrib/github/common/utils.ts
-src/vs/sessions/contrib/providers/agentHost/browser/agentHostAutomationStore.ts
+src/vs/workbench/services/github/browser/githubApiClient.ts
+src/vs/workbench/contrib/sessions/common/github/utils.ts
+src/vs/workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.ts
 src/vs/sessions/contrib/providers/agentHost/test/browser/agentHostAutomationStore.test.ts
-src/vs/sessions/contrib/providers/agentHost/test/browser/agentHostSettingsFileSystemProvider.test.ts
-src/vs/sessions/contrib/providers/agentHost/test/browser/agentSessionSettingsFileSystemProvider.test.ts
-src/vs/sessions/contrib/providers/copilotChatSessions/test/browser/permissionPicker.test.ts
+src/vs/workbench/contrib/sessions/providers/agentHost/test/browser/agentHostSettingsFileSystemProvider.test.ts
+src/vs/workbench/contrib/sessions/providers/agentHost/test/browser/agentSessionSettingsFileSystemProvider.test.ts
+src/vs/workbench/contrib/sessions/providers/copilotChatSessions/test/browser/permissionPicker.test.ts
 src/vs/sessions/contrib/providers/remoteAgentHost/browser/cloudSandboxApiService.ts
 src/vs/sessions/electron-browser/sessions.ts
 src/vs/sessions/test/browser/chatGroupsView.test.ts

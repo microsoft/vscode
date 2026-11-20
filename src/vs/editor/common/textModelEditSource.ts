@@ -5,6 +5,7 @@
 
 import { sumBy } from '../../base/common/arrays.js';
 import { prefixedUuid } from '../../base/common/uuid.js';
+import { normalizeModelRouterTelemetryId } from '../../platform/telemetry/common/telemetry.js';
 import { LineEdit } from './core/edits/lineEdit.js';
 import { BaseStringEdit } from './core/edits/stringEdit.js';
 import { StringText } from './core/text/abstractText.js';
@@ -103,6 +104,7 @@ export const EditSources = {
 	chatApplyEdits(data: {
 		modelId: string | undefined;
 		autoTier?: string;
+		fusionModel?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
@@ -116,8 +118,9 @@ export const EditSources = {
 	}) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
-			$modelId: avoidPathRedaction(data.modelId),
+			$modelId: avoidPathRedaction(normalizeModelRouterTelemetryId(data.modelId)),
 			$autoTier: data.autoTier,
+			$fusionModel: data.fusionModel,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$harness: data.harness,
@@ -135,6 +138,7 @@ export const EditSources = {
 	agentHostChatApplyEdits(data: {
 		modelId: string | undefined;
 		autoTier?: string;
+		fusionModel?: string;
 		sessionId: string;
 		agentSessionId?: string;
 		chatSessionId?: string;
@@ -144,6 +148,7 @@ export const EditSources = {
 		return EditSources.chatApplyEdits({
 			modelId: data.modelId,
 			autoTier: data.autoTier,
+			fusionModel: data.fusionModel,
 			sessionId: data.sessionId,
 			agentSessionId: data.agentSessionId,
 			chatSessionId: data.chatSessionId,
@@ -186,7 +191,7 @@ export const EditSources = {
 	inlineChatApplyEdit(data: { modelId: string | undefined; autoTier?: string; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
-			$modelId: avoidPathRedaction(data.modelId),
+			$modelId: avoidPathRedaction(normalizeModelRouterTelemetryId(data.modelId)),
 			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,

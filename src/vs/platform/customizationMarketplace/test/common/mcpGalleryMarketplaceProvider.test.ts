@@ -5,15 +5,18 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
 import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
+import { McpGalleryInvalidCursorError } from '../../../mcp/common/mcpGalleryService.js';
 
 suite('McpGalleryMarketplaceProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,7 +42,8 @@ suite('McpGalleryMarketplaceProvider', () => {
 	const manifest = (url: string) => new class extends mock<IMcpGalleryManifestService>() {
 		override async getMcpGalleryManifest() { return { url, version: 'v0.1', resources: [] }; }
 	}();
-	const configuration = (url = customUrl) => new TestConfigurationService({
+	const configuration = (url = customUrl, enabled: boolean | undefined = true) => new TestConfigurationService({
+		...(enabled === undefined ? {} : { [mcpGalleryServiceEnablementConfig]: enabled }),
 		[mcpGalleryServiceUrlConfig]: url,
 	});
 
@@ -54,8 +58,8 @@ suite('McpGalleryMarketplaceProvider', () => {
 			}
 		}();
 		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
-		const first = await provider.query({ query: 'server', pageSize: 2 }, CancellationToken.None);
-		const last = await provider.query({ query: 'server', pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
+		const first = await provider.query({ query: 'server', pageSize: 1 }, CancellationToken.None);
+		const last = await provider.query({ query: 'server', pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 		assert.deepStrictEqual({
 			requests,
 			registryUrls,
@@ -67,10 +71,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 				dark: first.items[0].icon?.dark.toString(),
 			},
 		}, {
-			requests: [
-				{ text: 'server', pageSize: 2, cursor: undefined },
-				{ text: 'server', pageSize: 2, cursor: 'opaque+/=' },
-			],
+			requests: [{ text: 'server', pageSize: 100, cursor: undefined }, { text: 'server', pageSize: 100, cursor: 'opaque+/=' }],
 			registryUrls: [customUrl, customUrl],
 			first: {
 				items: [{
@@ -83,7 +84,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 					publisher: 'Owner', publisherUrl: first.items[0].publisherUrl, version: '1.0.0', stars: 42, priority: 1,
 					installation: { kind: 'mcpGallery', name: server.name, registry: 'custom', registryUrl: customUrl },
 				}],
-				total: 2, nextCursor: 'opaque+/=',
+				total: 2, nextCursor: first.nextCursor,
 			},
 			lastCursor: undefined,
 			entryFields: ['identifier', 'displayName', 'description', 'mediaType', 'tags', 'capabilities', 'representativeQueries', 'url', 'externalUrl', 'repository', 'icon', 'publisher', 'publisherUrl', 'version', 'stars', 'priority', 'installation'],
@@ -94,8 +95,246 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
-	test('advertises only the MCP Gallery platform source', () => {
-		assert.deepStrictEqual(getCustomizationMarketplaceSourceInfos().map(source => source.id), ['mcpGallery']);
+	test('uses the registry page size that produces valid continuation cursors', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				const start = options.cursor ? 100 : 0;
+				return {
+					items: Array.from({ length: 100 }, (_, index) => ({ ...server, name: `io.github.owner/server-${start + index}` })),
+					nextCursor: options.cursor ? undefined : 'next',
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 100 }, CancellationToken.None);
+		await provider.query({ pageSize: 100, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual(requests, [
+			{ text: undefined, pageSize: 100, cursor: undefined },
+			{ text: undefined, pageSize: 100, cursor: 'next' },
+		]);
+	});
+
+	test('buffers native pages so visible pagination does not immediately use a registry cursor', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				const start = options.cursor ? 100 : 0;
+				return {
+					items: Array.from({ length: 100 }, (_, index) => ({ ...server, name: `io.github.owner/server-${start + index}` })),
+					nextCursor: options.cursor ? undefined : 'native-next',
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 24 }, CancellationToken.None);
+		const second = await provider.query({ pageSize: 24, cursor: first.nextCursor }, CancellationToken.None);
+		const third = await provider.query({ pageSize: 24, cursor: second.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests,
+			names: [...first.items, ...second.items, ...third.items].map(item => item.identifier),
+		}, {
+			requests: [{ text: undefined, pageSize: 100, cursor: undefined }],
+			names: Array.from({ length: 72 }, (_, index) => `custom:io.github.owner/server-${index}`),
+		});
+	});
+
+	test('retains continuation checkpoints when fetching a later page is cancelled', async () => {
+		const requests: (string | undefined)[] = [];
+		let cancelNextContinuation = true;
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options.cursor);
+				if (options.cursor && cancelNextContinuation) {
+					cancelNextContinuation = false;
+					throw new CancellationError();
+				}
+				const start = options.cursor ? 1 : 0;
+				return {
+					items: [{ ...server, name: `io.github.owner/server-${start}` }],
+					nextCursor: start ? undefined : 'next',
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		await assert.rejects(provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None), error => error instanceof CancellationError);
+		const retried = await provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests,
+			first: first.items.map(item => item.identifier),
+			retried: retried.items.map(item => item.identifier),
+		}, {
+			requests: [undefined, 'next', 'next'],
+			first: ['custom:io.github.owner/server-0'],
+			retried: ['custom:io.github.owner/server-1'],
+		});
+	});
+
+	test('recovers once from a registry-issued invalid cursor with a different native boundary', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const firstServer = { ...server, name: 'io.github.owner/first' };
+		const secondServer = { ...server, name: 'io.github.owner/second' };
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				if (options.cursor === 'invalid') {
+					throw new McpGalleryInvalidCursorError();
+				}
+				if (options.cursor === 'recovery') {
+					return { items: [firstServer, secondServer] };
+				}
+				return options.pageSize === 100
+					? { items: [firstServer], nextCursor: 'invalid' }
+					: { items: [firstServer], nextCursor: 'recovery' };
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		const second = await provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests,
+			first: first.items.map(item => item.identifier),
+			second: second.items.map(item => item.identifier),
+			error: second.error,
+		}, {
+			requests: [
+				{ text: undefined, pageSize: 100, cursor: undefined },
+				{ text: undefined, pageSize: 100, cursor: 'invalid' },
+				{ text: undefined, pageSize: 99, cursor: undefined },
+				{ text: undefined, pageSize: 99, cursor: 'recovery' },
+			],
+			first: ['custom:io.github.owner/first'],
+			second: ['custom:io.github.owner/second'],
+			error: undefined,
+		});
+	});
+
+	test('recovery can replay more than four full native pages', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				const cursor = options.cursor ? Number(options.cursor.split('-')[1]) : 0;
+				if (options.pageSize === 100 && cursor === 400) {
+					throw new McpGalleryInvalidCursorError();
+				}
+				const items = Array.from({ length: options.pageSize }, (_, index) => ({
+					...server,
+					name: `io.github.owner/server-${cursor + index}`,
+				}));
+				return {
+					items,
+					nextCursor: `${options.pageSize === 100 ? 'native' : 'recovery'}-${cursor + options.pageSize}`,
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		let page = await provider.query({ pageSize: 100 }, CancellationToken.None);
+		for (let index = 0; index < 3; index++) {
+			page = await provider.query({ pageSize: 100, cursor: page.nextCursor }, CancellationToken.None);
+		}
+		const recovered = await provider.query({ pageSize: 100, cursor: page.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			recoveryRequests: requests.filter(request => request.pageSize === 99).map(request => request.cursor),
+			recovered: recovered.items.map(item => item.identifier),
+		}, {
+			recoveryRequests: [undefined, 'recovery-99', 'recovery-198', 'recovery-297', 'recovery-396', 'recovery-495'],
+			recovered: Array.from({ length: 100 }, (_, index) => `custom:io.github.owner/server-${400 + index}`),
+		});
+	});
+
+	test('preserves buffered results and ends pagination when cursor recovery also fails', async () => {
+		const firstServer = { ...server, name: 'io.github.owner/first' };
+		const secondServer = { ...server, name: 'io.github.owner/second' };
+		const bufferedServer = { ...server, name: 'io.github.owner/buffered' };
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				if (options.cursor) {
+					throw new McpGalleryInvalidCursorError();
+				}
+				return {
+					items: [firstServer, secondServer, bufferedServer],
+					nextCursor: `invalid-${options.pageSize}`,
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 2 }, CancellationToken.None);
+		const second = await provider.query({ pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			items: second.items.map(item => item.identifier),
+			nextCursor: second.nextCursor,
+			error: second.error,
+		}, {
+			items: ['custom:io.github.owner/buffered'],
+			nextCursor: undefined,
+			error: 'The MCP gallery could not continue loading because the registry rejected its pagination cursor. Retry to refresh the results.',
+		});
+	});
+
+	test('advertises the MCP Gallery platform source only when available and enabled', () => {
+		const sourceIds = (configurationService: IConfigurationService, productService = product) =>
+			getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Available, configurationService, productService).map(source => source.id);
+		const unsetConfiguration = new class extends mock<IConfigurationService>() {
+			override getValue<T>(section?: string | IConfigurationOverrides): T {
+				return (section === mcpGalleryServiceUrlConfig ? productUrl : undefined) as T;
+			}
+		}();
+		assert.deepStrictEqual({
+			enabled: sourceIds(configuration(productUrl, true)),
+			disabled: sourceIds(configuration(productUrl, false)),
+			unset: sourceIds(unsetConfiguration),
+			matchingProductUrl: sourceIds(configuration(`${productUrl}/`, false)),
+			custom: sourceIds(configuration(customUrl, false)),
+			withoutProductMetadata: sourceIds(configuration(undefined, false), {} as IProductService),
+			unavailable: getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Unavailable, configuration(), product).map(source => source.id),
+		}, {
+			enabled: ['mcpGallery'],
+			disabled: [],
+			unset: ['mcpGallery'],
+			matchingProductUrl: [],
+			custom: ['mcpGallery'],
+			withoutProductMetadata: ['mcpGallery'],
+			unavailable: [],
+		});
+	});
+
+	test('retains the registry card URL for provider-owned installation', async () => {
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage() {
+				return { items: [server] };
+			}
+		}();
+		const manifests = new class extends mock<IMcpGalleryManifestService>() {
+			override async getMcpGalleryManifest() {
+				return {
+					url: customUrl,
+					version: 'v0.1',
+					resources: [{
+						type: McpGalleryResourceType.McpServerLatestVersionUri,
+						id: `${customUrl}/v0.1/servers/{name}/versions/latest`,
+					}],
+				};
+			}
+		}();
+		const page = await new McpGalleryMarketplaceProvider('custom', gallery, manifests, configuration(), product).query({}, CancellationToken.None);
+
+		assert.deepStrictEqual(page.items[0].installation, {
+			kind: 'mcpGallery',
+			name: server.name,
+			registry: 'custom',
+			registryUrl: customUrl,
+			cardUrl: `${customUrl}/v0.1/servers/io.github.owner%2Fserver/versions/latest`,
+		});
 	});
 
 	test('uses an item page or repository as its review link, never the registry root', async () => {
@@ -185,6 +424,54 @@ suite('McpGalleryMarketplaceProvider', () => {
 			id: 'mcpGallery.default', sourceId: 'mcpGallery', urls: [productUrl, productUrl], identifier: `default:${server.name}`, priority: 0,
 			installation: { kind: 'mcpGallery', name: server.name, registry: 'default', registryUrl: productUrl },
 			repeated: [`default:${server.name}`],
+		});
+	});
+
+	test('queries the product registry unless the default registry is explicitly disabled', async () => {
+		let galleryCalls = 0;
+		let manifestCalls = 0;
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage() {
+				galleryCalls++;
+				return { items: [], total: 0 };
+			}
+		}();
+		const manifests = new class extends mock<IMcpGalleryManifestService>() {
+			override async getDefaultMcpGalleryManifest(): Promise<IMcpGalleryManifest> {
+				manifestCalls++;
+				return { url: productUrl, version: 'v0.1', resources: [] };
+			}
+		}();
+		const pages = [
+			await new McpGalleryMarketplaceProvider('default', gallery, manifests, new TestConfigurationService({
+				[mcpGalleryServiceEnablementConfig]: false,
+			}), product).query({}, CancellationToken.None),
+			await new McpGalleryMarketplaceProvider('default', gallery, manifests, new TestConfigurationService(), product).query({}, CancellationToken.None),
+		];
+
+		assert.deepStrictEqual({ pages: pages.map(page => ({ items: page.items, total: page.total })), galleryCalls, manifestCalls }, {
+			pages: [{ items: [], total: 0 }, { items: [], total: 0 }],
+			galleryCalls: 1,
+			manifestCalls: 1,
+		});
+	});
+
+	test('continues to query a distinct custom registry when the default registry is disabled', async () => {
+		const registryUrls: string[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(_options: IMcpGalleryQueryPageOptions, _token: CancellationToken, registry?: IMcpGalleryManifest) {
+				registryUrls.push(registry?.url ?? '');
+				return { items: [server], total: 1 };
+			}
+		}();
+		const page = await new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(customUrl, false), product).query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			registryUrls,
+			identifiers: page.items.map(item => item.identifier),
+		}, {
+			registryUrls: [customUrl],
+			identifiers: [`custom:${server.name}`],
 		});
 	});
 

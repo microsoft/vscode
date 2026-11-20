@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, ThrottledDelayer } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer, ThrottledDelayer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileContent, IFileService, IWriteFileOptions, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import type { IAgentPluginEnablementService } from './agentPluginService.js';
 
 const INSTALLED_JSON_FILENAME = 'installed.json';
 const INSTALLED_JSON_VERSION = 1;
@@ -30,7 +31,12 @@ const LEGACY_MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1
  * marketplace when needed.
  */
 interface IInstalledJsonEntry {
+	/** Absolute URI retained for older readers and plugins outside the agent-plugins directory. */
 	readonly pluginUri: string;
+	/** Path relative to the agent-plugins directory, preferred over pluginUri when present. */
+	readonly relativePath?: string;
+	/** Stable enablement identity retained when pluginUri changes, for every user profile. */
+	readonly enablementUri?: string;
 	readonly marketplace: string;
 	readonly name?: string;
 }
@@ -48,6 +54,7 @@ interface IInstalledJson {
  */
 export interface IStoredInstalledPlugin {
 	readonly pluginUri: URI;
+	readonly enablementUri?: URI;
 	readonly marketplace: string;
 	readonly name?: string;
 }
@@ -58,9 +65,9 @@ export interface IStoredInstalledPlugin {
  * the installed-plugin manifest discoverable by external tools (CLIs,
  * other editors, etc.) without depending on VS Code internals.
  *
- * The on-disk format stores only the plugin URI (as a string), marketplace
- * identifier, and plugin name. Full plugin metadata (description, source
- * descriptor, etc.) is read from marketplace data by the discovery layer -
+ * The on-disk format stores the plugin URI, a relative path for managed
+ * plugins, marketplace identifier, and plugin name. Full plugin metadata
+ * (description, source descriptor, etc.) is read by the discovery layer -
  * keeping a single source of truth.
  *
  * On construction the store:
@@ -79,6 +86,9 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private readonly _installed = observableValue<readonly IStoredInstalledPlugin[]>('file/installed.json', []);
 	private readonly _fileUri: URI;
 	private readonly _writeDelayer: ThrottledDelayer<void>;
+	private readonly _reloadScheduler: RunOnceScheduler;
+	private readonly _fileOperationQueue = new Sequencer();
+	private _hasPendingChanges = false;
 	private _suppressFileWatch = false;
 	private _initialized = false;
 
@@ -90,11 +100,13 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		private readonly _fileService: IFileService,
 		private readonly _logService: ILogService,
 		private readonly _storageService: IStorageService,
+		private readonly _pluginEnablementService: IAgentPluginEnablementService,
 	) {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
 		this._writeDelayer = this._register(new ThrottledDelayer<void>(100));
-		void this._initialize();
+		this._reloadScheduler = this._register(new RunOnceScheduler(() => this._fileOperationQueue.queue(() => this._onFileChanged()), 100));
+		void this._fileOperationQueue.queue(() => this._initialize());
 	}
 
 	get(): readonly IStoredInstalledPlugin[] {
@@ -102,17 +114,23 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	}
 
 	set(newValue: readonly IStoredInstalledPlugin[], tx: ITransaction | undefined): void {
-		this._setValue(newValue, tx, true);
+		this._hasPendingChanges = true;
+		this._installed.set(newValue, tx);
+		if (this._initialized) {
+			this._scheduleWrite();
+		}
 	}
 
 	private async _initialize(): Promise<void> {
 		try {
-			const read = await this._readFromFile();
-			if (read !== undefined) {
-				this._setValue(read, undefined, false);
-			} else {
-				// No installed.json yet — attempt migration from legacy storage.
-				await this._migrateFromStorage();
+			const entries = await this._readAndMigrateFromFile();
+			if (!this._hasPendingChanges) {
+				if (entries !== undefined) {
+					this._installed.set(entries, undefined);
+				} else {
+					// No installed.json yet — attempt migration from legacy storage.
+					await this._migrateFromStorage();
+				}
 			}
 		} catch (error) {
 			this._logService.error('[FileBackedInstalledPluginsStore] Initialization failed', error);
@@ -120,11 +138,28 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 		this._initialized = true;
 		this._setupFileWatcher();
+		if (this._hasPendingChanges) {
+			this._scheduleWrite();
+		}
 	}
 
 	// --- File I/O ----------------------------------------------------------------
 
-	private async _readFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
+	private async _readAndMigrateFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
+		let read = await this._readFromFile();
+		if (read?.needsMigration) {
+			const result = await this._writeToFile(read.entries, { mtime: read.content.mtime, etag: read.content.etag });
+			if (result !== 'success') {
+				read = await this._readFromFile();
+				if (result === 'conflict' && read?.needsMigration && !this._store.isDisposed) {
+					this._reloadScheduler.schedule();
+				}
+			}
+		}
+		return read?.entries;
+	}
+
+	private async _readFromFile(): Promise<{ entries: readonly IStoredInstalledPlugin[]; needsMigration: boolean; content: IFileContent } | undefined> {
 		try {
 			const exists = await this._fileService.exists(this._fileUri);
 			if (!exists) {
@@ -138,28 +173,56 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 				return undefined;
 			}
 
-			// Each entry is { pluginUri, marketplace, name? }.
-			return json.installed
+			let needsMigration = false;
+			const entries = json.installed
 				.filter((entry): entry is IInstalledJsonEntry => typeof entry.pluginUri === 'string' && typeof entry.marketplace === 'string')
-				.map(entry => ({
-					pluginUri: URI.parse(entry.pluginUri),
-					marketplace: entry.marketplace,
-					name: typeof entry.name === 'string' ? entry.name : undefined,
-				}));
-		} catch {
+				.map(entry => {
+					const hasRelativePath = typeof entry.relativePath === 'string';
+					const originalUri = URI.parse(entry.pluginUri);
+					let pluginUri = originalUri;
+					if (hasRelativePath) {
+						const relativePluginUri = joinPath(this._agentPluginsHome, entry.relativePath);
+						if (this._getRelativePath(this._agentPluginsHome, relativePluginUri) !== undefined) {
+							pluginUri = relativePluginUri;
+						} else {
+							needsMigration = true;
+							this._logService.warn('[FileBackedInstalledPluginsStore] installed.json contains a relative path outside the plugin home; using pluginUri');
+						}
+					}
+					const relocated = !isEqual(originalUri, pluginUri);
+					const enablementUri = typeof entry.enablementUri === 'string' ? URI.parse(entry.enablementUri) : relocated ? originalUri : undefined;
+					if (relocated || (!hasRelativePath && this._getRelativePath(this._agentPluginsHome, pluginUri) !== undefined)) {
+						needsMigration = true;
+					}
+					if (enablementUri) {
+						this._pluginEnablementService.copyEnablement(enablementUri, pluginUri);
+					}
+					return {
+						pluginUri,
+						...(enablementUri ? { enablementUri } : {}),
+						marketplace: entry.marketplace,
+						name: typeof entry.name === 'string' ? entry.name : undefined,
+					};
+				});
+			return { entries, needsMigration, content };
+		} catch (error) {
+			this._logService.error('[FileBackedInstalledPluginsStore] Failed to read installed.json', error);
 			return undefined;
 		}
 	}
 
 	private _scheduleWrite(): void {
-		void this._writeDelayer.trigger(async () => {
+		void this._writeDelayer.trigger(() => this._fileOperationQueue.queue(async () => {
+			this._hasPendingChanges = false;
 			await this._writeToFile();
-		});
+		}));
 	}
 
-	private async _writeToFile(): Promise<boolean> {
-		const entries: IInstalledJsonEntry[] = this.get().map(e => ({
+	private async _writeToFile(plugins: readonly IStoredInstalledPlugin[] = this.get(), options?: IWriteFileOptions): Promise<'success' | 'conflict' | 'error'> {
+		const entries: IInstalledJsonEntry[] = plugins.map(e => ({
 			pluginUri: e.pluginUri.toString(),
+			relativePath: this._getRelativePath(this._agentPluginsHome, e.pluginUri),
+			...(e.enablementUri ? { enablementUri: e.enablementUri.toString() } : {}),
 			marketplace: e.marketplace,
 			...(e.name ? { name: e.name } : {}),
 		}));
@@ -173,11 +236,15 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			this._suppressFileWatch = true;
 			const content = JSON.stringify(data, undefined, '\t');
 			await this._fileService.createFolder(this._agentPluginsHome);
-			await this._fileService.writeFile(this._fileUri, VSBuffer.fromString(content));
-			return true;
+			await this._fileService.writeFile(this._fileUri, VSBuffer.fromString(content), options);
+			return 'success';
 		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {
+				this._logService.info('[FileBackedInstalledPluginsStore] installed.json changed during migration; reloading');
+				return 'conflict';
+			}
 			this._logService.error('[FileBackedInstalledPluginsStore] Failed to write installed.json', error);
-			return false;
+			return 'error';
 		} finally {
 			this._suppressFileWatch = false;
 		}
@@ -193,35 +260,21 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
 		this._register(watcher);
 
-		const scheduler = this._register(new RunOnceScheduler(() => this._onFileChanged(), 100));
 		this._register(watcher.onDidChange(e => {
 			if (!this._suppressFileWatch && e.affects(this._fileUri)) {
-				scheduler.schedule();
+				this._reloadScheduler.schedule();
 			}
 		}));
 	}
 
 	private async _onFileChanged(): Promise<void> {
-		const read = await this._readFromFile();
-		if (read !== undefined) {
-			// Suppress file write for externally triggered updates.
-			this._suppressFileWatch = true;
-			try {
-				this._setValue(read, undefined, false);
-			} finally {
-				this._suppressFileWatch = false;
-			}
+		if (this._hasPendingChanges) {
+			return;
 		}
-	}
 
-	// --- Write-through to file ----------------------------------------------------
-
-	private _setValue(newValue: readonly IStoredInstalledPlugin[], tx: ITransaction | undefined, scheduleWrite: boolean): void {
-		this._installed.set(newValue, tx);
-		// Only schedule writes after initialization and when not processing
-		// an external file change.
-		if (scheduleWrite && this._initialized && !this._suppressFileWatch) {
-			this._scheduleWrite();
+		const entries = await this._readAndMigrateFromFile();
+		if (entries !== undefined && !this._hasPendingChanges) {
+			this._installed.set(entries, undefined);
 		}
 	}
 
@@ -242,8 +295,12 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			const migrated: IStoredInstalledPlugin[] = (revive(parsed) as { pluginUri: UriComponents; plugin?: { name?: string; marketplaceReference?: { rawValue?: string } } }[]).map(entry => {
 				const uri = URI.revive(entry.pluginUri);
 				const rebased = this._rebasePluginUri(uri);
+				if (rebased) {
+					this._pluginEnablementService.copyEnablement(uri, rebased);
+				}
 				return {
 					pluginUri: rebased ?? uri,
+					...(rebased ? { enablementUri: uri } : {}),
 					marketplace: entry.plugin?.marketplaceReference?.rawValue ?? '',
 					name: entry.plugin?.name,
 				};
@@ -252,9 +309,9 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			this._logService.info(`[FileBackedInstalledPluginsStore] Migrating ${migrated.length} plugin(s) from storage to installed.json`);
 
 			// Set in memory and persist to file before removing legacy keys.
-			this._setValue(migrated, undefined, false);
-			const didPersist = await this._writeToFile();
-			if (!didPersist) {
+			this._installed.set(migrated, undefined);
+			const result = await this._writeToFile();
+			if (result !== 'success') {
 				return;
 			}
 
@@ -264,6 +321,18 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		} catch (error) {
 			this._logService.error('[FileBackedInstalledPluginsStore] Migration from storage failed', error);
 		}
+	}
+
+	private _getRelativePath(root: URI, uri: URI): string | undefined {
+		const normalizedRoot = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(extUriBiasedIgnorePathCase.normalizePath(root));
+		const normalizedUri = extUriBiasedIgnorePathCase.normalizePath(uri);
+		if (!extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, normalizedRoot)) {
+			return undefined;
+		}
+
+		// Native relative paths are case-sensitive on macOS even when containment is not.
+		const relativePath = normalizedUri.path.slice(normalizedRoot.path.length);
+		return relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
 	}
 
 	/**
@@ -276,10 +345,9 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			return undefined;
 		}
 
-		const oldRoot = this._oldCacheRoot;
-		if (!isEqual(uri, oldRoot) && uri.scheme === oldRoot.scheme && uri.path.startsWith(oldRoot.path + '/')) {
-			const relativePart = uri.path.substring(oldRoot.path.length);
-			return uri.with({ path: this._agentPluginsHome.path + relativePart });
+		const relativePath = this._getRelativePath(this._oldCacheRoot, uri);
+		if (relativePath !== undefined) {
+			return joinPath(this._agentPluginsHome, relativePath);
 		}
 		return undefined;
 	}

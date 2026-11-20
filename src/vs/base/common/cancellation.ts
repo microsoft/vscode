@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { DisposableStore, IDisposable } from './lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 export interface CancellationToken {
 
@@ -55,6 +56,66 @@ export namespace CancellationToken {
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
+
+	export function throwIfCanceled(token: CancellationToken): void {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+	}
+
+	/**
+	 * Cancels when any input is cancelled; the lifetime owns the forwarding subscriptions.
+	 * A single distinct active input is returned directly and still reflects cancellation after lifetime disposal.
+	 */
+	export function any(tokens: readonly CancellationToken[], lifetime: DisposableStore): CancellationToken {
+		if (tokens.some(token => token.isCancellationRequested)) {
+			return Cancelled;
+		}
+		const active = [...new Set(tokens.filter(token => token !== None))];
+		if (active.length < 2) {
+			return active[0] ?? None;
+		}
+		const source = new CancellationTokenSource();
+		lifetime.add(toDisposable(() => {
+			// Cancellation owns emitter disposal until every listener has been notified.
+			if (!source.token.isCancellationRequested) {
+				source.dispose();
+			}
+		}));
+		const listeners = lifetime.add(new DisposableStore());
+		for (const token of active) {
+			listeners.add(token.onCancellationRequested(() => {
+				listeners.dispose();
+				source.cancel();
+			}));
+		}
+		return source.token;
+	}
+
+	/**
+	 * Creates a CancellationToken that is tied to the lifetime of the provided AbortSignal.
+	 */
+	export function fromAbortSignal(signal: AbortSignal, lifetime: DisposableStore): CancellationToken {
+		if (signal.aborted) {
+			return CancellationToken.Cancelled;
+		}
+		const token = lifetime.add(new MutableToken());
+		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => token.cancel()));
+		return token;
+	}
+
+	/** Creates an AbortSignal that aborts with CancellationError when the token is cancelled. */
+	export const toAbortSignal = (token: CancellationToken, lifetime: DisposableStore): AbortSignal => {
+		if (token === CancellationToken.None) {
+			return new AbortController().signal;
+		}
+		if (token.isCancellationRequested) {
+			return AbortSignal.abort(new CancellationError());
+		}
+		const controller = new AbortController();
+		lifetime.add(token.onCancellationRequested(() => controller.abort(new CancellationError())));
+		return controller.signal;
+	};
 }
 
 class MutableToken implements CancellationToken {
@@ -145,6 +206,13 @@ export function cancelOnDispose(store: DisposableStore): CancellationToken {
 	const source = new CancellationTokenSource();
 	store.add({ dispose() { source.cancel(); } });
 	return source.token;
+}
+
+/** Creates an AbortSignal that aborts with CancellationError when the store is disposed. */
+export function abortOnDispose(store: DisposableStore): AbortSignal {
+	const controller = new AbortController();
+	store.add({ dispose() { controller.abort(new CancellationError()); } });
+	return controller.signal;
 }
 
 /**

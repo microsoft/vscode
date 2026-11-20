@@ -94,21 +94,15 @@ export class SimulationOptions {
 	public readonly smartChatModel: string | undefined;
 	public readonly fastChatModel: string | undefined;
 	public readonly fastRewriteModel: string | undefined;
-	public readonly summarizeHistory: boolean;
-	public readonly swebenchPrompt: boolean;
 	public readonly embeddingType: EmbeddingType | undefined;
 	public readonly boost: boolean;
 	public readonly parallelism: number;
 	public readonly lmCacheMode: CacheMode;
 	public readonly modelCacheMode: CacheMode;
 	public readonly resourcesCacheMode: CacheMode;
-	public readonly cachePath: string | undefined;
 	public readonly externalBaseline: string | undefined;
 	public readonly externalScenarios: string | undefined;
 	public readonly output: string | undefined;
-	public readonly inline: boolean;
-	public readonly sidebar: boolean;
-	public readonly applyChatCodeBlocks: boolean;
 	public readonly stageCacheEntries: boolean;
 	public readonly ci: boolean;
 	public readonly gc: boolean;
@@ -126,7 +120,6 @@ export class SimulationOptions {
 	 * A label for the current simulation run, to be displayed in the UI for distinguishing between runs.
 	 */
 	public readonly label: string;
-	public readonly runServerPoweredNesProvider: boolean;
 	public readonly nes: 'external' | 'coffe' | undefined;
 	public readonly nesUrl: string | undefined;
 	public readonly nesApiKey: string | undefined;
@@ -137,19 +130,7 @@ export class SimulationOptions {
 
 	public readonly disabledTools: Set<string>;
 
-	/** If true, all tests are run in the extension host */
-	public readonly inExtensionHost: boolean;
-	/** Extensions to ensure are available in the extension host */
-	public readonly installExtensions: string[];
-	/** Whether to run headless (defaults to false) */
-	public readonly headless: boolean;
-	/** @internal Only run a single test number */
-	public readonly runNumber: number;
-	/** Explicit workspace URI to use for stest --in-extension-host */
-	public readonly useScenarioWorkspace: boolean;
-
 	/** If true, will try to use code search using our service. */
-	public readonly useExperimentalCodeSearchService: boolean;
 
 	public readonly configFile: string | undefined;
 
@@ -181,8 +162,6 @@ export class SimulationOptions {
 		this.smartChatModel = this.argv['smart-model'];
 		this.fastChatModel = this.argv['fast-model'];
 		this.fastRewriteModel = this.argv['fast-rewrite-model'];
-		this.summarizeHistory = boolean(argv['summarize-history'], true);
-		this.swebenchPrompt = boolean(argv['swebench-prompt'], false);
 		this.embeddingType = cliOptionsToWellKnownEmbeddingsType(this.argv['embedding-model']);
 		this.parallelism = this.argv['parallelism'] ?? this.argv['p'] ?? 20;
 		this.modelCacheMode = this.argv['skip-model-cache'] ? CacheMode.Disable : CacheMode.Default;
@@ -197,10 +176,6 @@ export class SimulationOptions {
 		this.externalBaseline = this.argv['external-baseline']; // must be set after `externalScenarios`
 		this.validateExternalBaseline();
 		this.output = this.argv['output'];
-		this.cachePath = this.argv['cache-location'];
-		this.inline = boolean(this.argv['inline'], false);
-		this.sidebar = boolean(this.argv['sidebar'], false);
-		this.applyChatCodeBlocks = boolean(this.argv['apply-chat-code-blocks'], false);
 		this.stageCacheEntries = boolean(this.argv['stage-cache-entries'], false);
 		this.ci = boolean(this.argv['ci'], false);
 		this.gc = boolean(this.argv['gc'], false);
@@ -212,13 +187,6 @@ export class SimulationOptions {
 		this.scenarioTest = argv['scenarioTest'] ?? argv['scenario-test'];
 		this.label = argv['label'] ?? '';
 
-		this.inExtensionHost = boolean(argv['in-extension-host'], false);
-		this.installExtensions = argv['install-extension'] ? argv['install-extension'].split(',') : [];
-		this.headless = boolean(argv['headless'], true);
-		this.runNumber = Number(argv['run-number']) || 0;
-
-		this.runServerPoweredNesProvider = boolean(argv['runServerPoweredNesProvider'], false);
-
 		this.nes = SimulationOptions.validateNesArgument(argv['nes']);
 
 		this.nesUrl = argv['nes-url'];
@@ -227,9 +195,7 @@ export class SimulationOptions {
 		SimulationOptions.validateNesUrlOverride(this.nesUrl, this.nesApiKey);
 
 		this.disabledTools = argv['disable-tools'] ? new Set(argv['disable-tools'].split(',')) : new Set();
-		this.useScenarioWorkspace = boolean(argv['scenario-workspace-folder'], false);
 
-		this.useExperimentalCodeSearchService = boolean(argv['use-experimental-code-search-service'], false);
 
 		const isNesDatagen = (argv._ as string[]).includes('nes-datagen');
 		this.subcommand = isNesDatagen ? 'nes-datagen' : undefined;
@@ -270,16 +236,12 @@ export class SimulationOptions {
 		console.log([
 			`Example usages: `,
 			`  npm run simulate`,
-			`  npm run simulate -- --external-scenarios=<path> --inline --output=<path>`,
-			`  npm run simulate -- --external-scenarios=<path> --sidebar --output=<path>`,
-			`  npm run simulate -- --external-scenarios=<path> --nes --output=<path>`,
+			`  npm run simulate -- --external-scenarios=<path> --nes=external --output=<path>`,
 			`  npm run simulate -- --update-baseline`,
 			``,
 			`  -u, --update-baseline              Updates scores in baseline.json if they change as a result of your changes to prompts sent to the model`,
-			`  --external-scenarios               Path to a directory containing scenarios to run`,
-			`  --inline                           Run inline chat external scenarios`,
-			`  --sidebar                          Run sidebar chat external scenarios`,
-			`  --nes                              Run NES external scenarios`,
+			`  --external-scenarios               Path to a directory containing NES scenarios to run (requires --nes)`,
+			`  --nes                              Kind of NES external scenarios: external (default) or coffe`,
 			`  --output                           Path to a directory where to generate output`,
 			`  --n                                Run each scenario N times`,
 			`  --ci                               Equivalent to --n=${BASELINE_RUN_COUNT} but throws if the baseline is not up-to-date`,
@@ -297,7 +259,6 @@ export class SimulationOptions {
 			`  -p, --parallelism                  [experimental] Run tests in parallel (default: 1)`,
 			`  --skip-cache                       [experimental] Do not use the cache for language model requests`,
 			`  --require-cache                    [experimental] Require cache hits, fail on cache misses`,
-			`  --regenerate-cache                 [experimental] Fetch all responses and refresh the cache`,
 			`  --skip-resources-cache             [experimental] Do not use the cache for computed resources`,
 			`  --skip-model-cache                 [experimental] Do not use the cache for model metadata`,
 			`  --stage-cache-entries              [experimental] Stage cache files that were used in current simulation run`,
@@ -310,11 +271,7 @@ export class SimulationOptions {
 			`  --label                            A label for the current simulation run, to be displayed in the UI for distinguishing between runs`,
 			`  --nes-url                           To override endpoint URL for NES (must be used with --nes-api-key)`,
 			`  --nes-api-key                        API key for endpoint URL provided via NES (must be used with --nes-url)`,
-			`  --runServerPoweredNesProvider      Run stests against the http server powered NES provider (server must be run at port 8001)`,
 			`  --disable-tools                    A comma-separated list of tools to disable`,
-			`  --swebench-prompt                  Use the headless swebench prompt for agent mode`,
-			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,
-			`  --scenario-workspace-folder        If true, runs the stest inline in the scenario's workspace folder`,
 			`  --config-file                      Path to a JSON file containing configuration options`,
 			`  --model-config-file                Path to a JSON file containing model configuration options`,
 			``,

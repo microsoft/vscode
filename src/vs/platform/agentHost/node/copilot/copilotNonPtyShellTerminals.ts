@@ -7,6 +7,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IAgentChatOwnerRef } from '../../common/agent.js';
 import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -36,10 +37,16 @@ interface INonPtyShellStream {
 		/** Per stream, an escape sequence that a chunk boundary cut short. */
 		readonly pendingEscapes: Map<string, string>;
 	};
-	/** The attached shell that keeps running after the tool call returned, if any. */
+	/** The shell that keeps running after the tool call returned, if any. */
 	backgroundShellId?: string;
 	/** The last task-list read started before the call went to the background; only later reads can settle the shell. */
 	backgroundSinceRead?: number;
+	/**
+	 * Set while a detached shell's output is read from its log. The read
+	 * settles the channel once it reaches the end of the log of an exited
+	 * shell, so an exit reported sooner doesn't cut off output still unread.
+	 */
+	readingDetachedOutput?: boolean;
 }
 
 /**
@@ -139,6 +146,14 @@ function parseRunningShellId(text: string | undefined): string | undefined {
 	return undefined;
 }
 
+/**
+ * The runtime's text for a detached command, which keeps running after its
+ * tool call returns. Its output goes only to a log, which is read with
+ * `session.rpc.tasks.readOutput`. Reads of a detached shell report its status
+ * in other texts, which don't start anything, so they don't match.
+ */
+const detachedShellPattern = /<command started in detached background with shellId: (?<shellId>[^\s>]+)>/;
+
 const enum StitchConstants {
 	/** Minimum characters of overlap required to treat a rewritten snapshot as a rolling tail. */
 	MinimumOverlapLength = 8
@@ -177,6 +192,13 @@ export interface INonPtyShellToolCompletion {
 	readonly shouldRetire: boolean;
 	/** Set when the command keeps running after the tool call returns; its output keeps streaming into {@link uri}. */
 	readonly backgroundShellId?: string;
+	/**
+	 * Set when that command is detached. Its output must be read from its log
+	 * with {@link NonPtyShellTerminalStreams.appendDetachedShellOutput} until
+	 * {@link NonPtyShellTerminalStreams.completeDetachedShell} or
+	 * {@link NonPtyShellTerminalStreams.stopReadingDetachedShell}.
+	 */
+	readonly detached?: boolean;
 }
 
 /**
@@ -191,7 +213,8 @@ export interface INonPtyShellToolCompletion {
  *
  * An attached command that keeps running after its tool call returns keeps
  * receiving the call's partial output, so its channel stays live until the
- * shell exits.
+ * shell exits. A detached command's channel stays live the same way, but its
+ * output is read from the shell's log instead.
  *
  * Created once per chat and disposed with it, matching the pty-backed
  * `ShellManager` lifecycle.
@@ -201,10 +224,13 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private readonly _streams = new Map<string, INonPtyShellStream>();
 	/** Tool call that started each shell still running in the background, keyed by shell ID. */
 	private readonly _backgroundShells = new Map<string, string>();
+	/** Tool call of each detached shell that exited while its log was still being read, keyed by shell ID. */
+	private readonly _drainingDetachedShells = new Map<string, string>();
 	private _shellTaskReads = 0;
 
 	constructor(
-		private readonly _sessionUri: URI,
+		/** The chat's owner, read when a link or claim is built. */
+		private readonly _owner: IAgentChatOwnerRef,
 		private readonly _storageUri: URI,
 		private readonly _chatUri: URI,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -230,7 +256,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	track(toolCallId: string, title: string): void {
 		if (!this._streams.has(toolCallId)) {
 			this._streams.set(toolCallId, {
-				uri: buildNonPtyShellTerminalUri(this._storageUri, this._sessionUri, this._chatUri, toolCallId),
+				uri: buildNonPtyShellTerminalUri(this._storageUri, this._owner.get(), this._chatUri, toolCallId),
 				title,
 				lastSnapshot: '',
 				sourceTruncated: false,
@@ -351,6 +377,12 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			if (backgroundShellId !== undefined) {
 				return this._continueInBackground(toolCallId, stream, backgroundShellId);
 			}
+			const detachedShellId = toolOutput === undefined ? undefined : detachedShellPattern.exec(toolOutput)?.groups?.shellId;
+			if (detachedShellId !== undefined) {
+				const completion = this._continueInBackground(toolCallId, stream, detachedShellId);
+				stream.readingDetachedOutput = true;
+				return { ...completion, detached: true };
+			}
 			if (!stream.created) {
 				this._streams.delete(toolCallId);
 				return undefined;
@@ -406,17 +438,57 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	/**
 	 * Settles a background shell's channel once the shell exits. The channel
 	 * stays subscribable, because the completed tool call still references it.
+	 * A detached shell whose log is still being read is left to that read,
+	 * which settles it after the output the shell wrote before exiting, unless
+	 * a new command reuses its shell ID first.
 	 */
 	completeBackgroundShell(shellId: string, exitCode: number | undefined): void {
-		const toolCallId = this._backgroundShells.get(shellId);
-		if (toolCallId === undefined) {
+		this._completeBackgroundShell(shellId, exitCode, false);
+	}
+
+	/**
+	 * Appends output read from a detached shell's log. The runtime streams no
+	 * chunks for a detached shell, so each read continues the chunk sequence.
+	 */
+	appendDetachedShellOutput(toolCallId: string, text: string): void {
+		const stream = this._streams.get(toolCallId);
+		if (!stream?.readingDetachedOutput) {
 			return;
 		}
-		this._backgroundShells.delete(shellId);
+		this.appendChunk(toolCallId, { text, sequence: stream.chunks ? stream.chunks.lastSequence + 1 : 0 });
+	}
+
+	/** Whether the log of the detached shell the tool call started is still being read. */
+	isReadingDetachedShell(toolCallId: string): boolean {
+		return this._streams.get(toolCallId)?.readingDetachedOutput === true;
+	}
+
+	/** Settles a detached shell's channel once a read reached the end of the log of the exited shell. */
+	completeDetachedShell(toolCallId: string, exitCode: number | undefined): void {
 		const stream = this._streams.get(toolCallId);
-		if (stream) {
-			this._finalize(stream, exitCode);
+		if (!stream?.readingDetachedOutput) {
+			return;
 		}
+		this._forgetDetachedShell(toolCallId, stream);
+		this._finalize(stream, exitCode);
+	}
+
+	/**
+	 * Stops reading a detached shell's log, for example after a read failed.
+	 * An exit reported meanwhile settles the channel now. Otherwise the task
+	 * list and shell tool results settle it later, as for an attached shell.
+	 */
+	stopReadingDetachedShell(toolCallId: string): void {
+		const stream = this._streams.get(toolCallId);
+		if (!stream?.readingDetachedOutput) {
+			return;
+		}
+		stream.readingDetachedOutput = undefined;
+		if (stream.backgroundShellId !== undefined && this._backgroundShells.get(stream.backgroundShellId) === toolCallId) {
+			return;
+		}
+		this._forgetDetachedShell(toolCallId, stream);
+		this._finalize(stream, undefined);
 	}
 
 	/**
@@ -490,11 +562,53 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _finalize(stream: INonPtyShellStream, exitCode: number | undefined): void {
+		stream.readingDetachedOutput = undefined;
 		if (stream.finalized) {
 			return;
 		}
 		stream.finalized = true;
 		this._terminalManager.finalizeOutputTerminal(stream.uri, exitCode);
+	}
+
+	private _completeBackgroundShell(shellId: string, exitCode: number | undefined, settleDetachedRead: boolean): void {
+		if (settleDetachedRead) {
+			const draining = this._drainingDetachedShells.get(shellId);
+			const drainingStream = draining === undefined ? undefined : this._streams.get(draining);
+			this._drainingDetachedShells.delete(shellId);
+			if (drainingStream) {
+				this._finalize(drainingStream, undefined);
+			}
+		}
+		const toolCallId = this._backgroundShells.get(shellId);
+		if (toolCallId === undefined) {
+			return;
+		}
+		this._backgroundShells.delete(shellId);
+		const stream = this._streams.get(toolCallId);
+		if (!stream) {
+			return;
+		}
+		if (stream.readingDetachedOutput && !settleDetachedRead) {
+			// The read settles the channel once it has drained the log. Remember the
+			// shell meanwhile, so a new command that reuses its ID can still settle it.
+			this._drainingDetachedShells.set(shellId, toolCallId);
+			return;
+		}
+		this._finalize(stream, exitCode);
+	}
+
+	/** Removes a detached shell the tool call started from the shells still running or draining. */
+	private _forgetDetachedShell(toolCallId: string, stream: INonPtyShellStream): void {
+		const shellId = stream.backgroundShellId;
+		if (shellId === undefined) {
+			return;
+		}
+		if (this._backgroundShells.get(shellId) === toolCallId) {
+			this._backgroundShells.delete(shellId);
+		}
+		if (this._drainingDetachedShells.get(shellId) === toolCallId) {
+			this._drainingDetachedShells.delete(shellId);
+		}
 	}
 
 	private _replaceOutput(stream: INonPtyShellStream, output: string): void {
@@ -507,23 +621,27 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _createTerminal(toolCallId: string, stream: INonPtyShellStream): void {
-		const claim = buildNonPtyShellTerminalClaim(this._sessionUri, this._chatUri, toolCallId);
+		const claim = buildNonPtyShellTerminalClaim(this._owner.get(), this._chatUri, toolCallId);
 		this._terminalManager.createOutputTerminal(stream.uri, { title: stream.title, claim });
 		stream.created = true;
 	}
 
 	/**
 	 * Keeps a tool call's channel live after the call returns while its
-	 * command runs on. The runtime keeps sending the call's partial output, so
-	 * the completed tool call and the chat's background work can both show it.
+	 * command runs on. The runtime keeps sending an attached command's
+	 * partial output, and a detached command's output is read from its log,
+	 * so the completed tool call and the chat's background work can both
+	 * show it.
 	 */
 	private _continueInBackground(toolCallId: string, stream: INonPtyShellStream, shellId: string): INonPtyShellToolCompletion {
 		if (!stream.created) {
 			this._createTerminal(toolCallId, stream);
 		}
 		if (this._backgroundShells.get(shellId) !== toolCallId) {
-			// A reused shell ID means the command that held it has finished.
-			this.completeBackgroundShell(shellId, undefined);
+			// A reused shell ID means the command that held it has finished. Settle
+			// even a detached one still being read, because reads by that ID now
+			// reach the new command's log.
+			this._completeBackgroundShell(shellId, undefined, true);
 		}
 		stream.backgroundShellId = shellId;
 		stream.backgroundSinceRead = this._shellTaskReads;

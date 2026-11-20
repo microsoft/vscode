@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
-import { join } from '../../../../../../base/common/path.js';
+import { dirname, join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, type ISandboxConfigValue } from '../../../../common/sandboxConfigSchema.js';
+import { AgentSandboxEnabledValue } from '../../../../../sandbox/common/settings.js';
+import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
+import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -30,7 +34,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		return;
 	}
 
-	async function createPluginSession(includeImages = false) {
+	async function createPluginSession({ includeImages = false, initialize = true, sandboxEnabled = false } = {}) {
 		const root = createTestDirectory(join(tmpdir(), 'ahp-runtime-mcp-'));
 		const workspace = join(root, 'workspace');
 		const plugin = join(root, 'plugin');
@@ -51,10 +55,13 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		].join('\n'));
 
 		const calls = join(workspace, 'mcp-calls.jsonl');
+		const starts = join(root, 'mcp-starts.jsonl');
 		writeFileSync(calls, '');
+		writeFileSync(starts, '');
 		const script = join(plugin, 'probe.cjs');
 		writeFileSync(script, [
 			`const { appendFileSync } = require("fs");`,
+			`appendFileSync(${JSON.stringify(starts)}, JSON.stringify({ pid: process.pid, time: Date.now() }) + "\\n");`,
 			`const { Server } = require(${JSON.stringify(nodeRequire.resolve('@modelcontextprotocol/sdk/server/index.js'))});`,
 			`const { StdioServerTransport } = require(${JSON.stringify(nodeRequire.resolve('@modelcontextprotocol/sdk/server/stdio.js'))});`,
 			`const { CallToolRequestSchema, ListToolsRequestSchema } = require(${JSON.stringify(nodeRequire.resolve('@modelcontextprotocol/sdk/types.js'))});`,
@@ -74,11 +81,27 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			'});',
 			'server.connect(new StdioServerTransport());',
 		].join('\n'));
-		const serverConfig = { command: process.execPath, args: [script], env: { ELECTRON_RUN_AS_NODE: '1' }, tools: ['*'] };
+		// Sandboxed MCP startup cannot load the Electron renderer's framework dependencies.
+		const command = sandboxEnabled ? process.env.npm_node_execpath ?? 'node' : process.execPath;
+		const serverConfig = { command, args: [script], env: { ELECTRON_RUN_AS_NODE: '1' }, tools: ['*'] };
 		writeFileSync(join(plugin, '.mcp.json'), JSON.stringify({ mcpServers: { 'runtime-probe': serverConfig } }));
 		const pluginUri = URI.file(plugin).toString();
 		const clientId = 'runtime-mcp-client';
-		const sessionUri = await createRealSession(context.client, context.config, clientId, context.createdSessions, URI.file(workspace));
+		const config = sandboxEnabled
+			? { ...context.config, sessionConfig: { ...context.config.sessionConfig, [SessionConfigKey.SandboxEnabled]: 'on' } }
+			: context.config;
+		let previousSandbox: ISandboxConfigValue | undefined;
+		const sessionUri = await createRealSession(context.client, config, clientId, context.createdSessions, URI.file(workspace), sandboxEnabled ? async () => {
+			const result = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			previousSandbox = (result.snapshot!.state as RootState).config?.values[AgentHostSandboxConfigKey.Sandbox] as ISandboxConfigValue | undefined;
+			await setSandbox({
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.UserConfiguredPaths]: {
+					readwritePaths: [root],
+					readonlyPaths: [join(dirname(nodeRequire.resolve('@modelcontextprotocol/sdk/server/index.js')), '../../../../..')],
+				},
+			});
+		} : undefined);
 		const customization: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: customizationId(pluginUri),
@@ -96,11 +119,23 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			const state = await pluginState(sessionUri, pluginUri);
 			assert.ok(state.children?.some(child => child.type === CustomizationType.McpServer));
 		}, 100, 100);
-		// Materialize the default chat used by restart tests before waiting for its MCP server.
-		const initialized = await driveTurnToCompletion(context.client, sessionUri, 'runtime-mcp-initialized', 'Reply exactly MCP_READY. Do not call tools.', 2);
-		assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
-		await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
-		return { sessionUri, pluginUri, workspace, calls, customization };
+		if (initialize) {
+			// Materialize the default chat used by restart tests before waiting for its MCP server.
+			const initialized = await driveTurnToCompletion(context.client, sessionUri, 'runtime-mcp-initialized', 'Reply exactly MCP_READY. Do not call tools.', 2);
+			assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
+			await retry(async () => assert.strictEqual((await serverState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
+		}
+		return { sessionUri, pluginUri, workspace, calls, starts, customization, previousSandbox };
+	}
+
+	async function setSandbox(sandbox: ISandboxConfigValue): Promise<void> {
+		context.client.dispatch({
+			channel: ROOT_STATE_URI, clientSeq: 50_000,
+			action: { type: ActionType.RootConfigChanged, config: { [AgentHostSandboxConfigKey.Sandbox]: sandbox } },
+		});
+		await context.client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.RootConfigChanged)
+			&& getActionEnvelope(notification).origin?.clientSeq === 50_000);
 	}
 
 	async function restartPluginSession(session: Awaited<ReturnType<typeof createPluginSession>>): Promise<void> {
@@ -114,7 +149,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			token: context.config.githubToken ?? resolveGitHubToken(),
 		}, 30_000);
 		await context.client.call<SubscribeResult>('subscribe', { channel: session.sessionUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(session.sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(session.sessionUri) });
 		context.client.dispatch({
 			channel: session.sessionUri,
 			clientSeq: 1,
@@ -145,15 +180,106 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	function probeResults(sessionUri: string): string[] {
 		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete')).flatMap(notification => {
 			const { channel, action } = getActionEnvelope(notification);
-			return channel === buildDefaultChatUri(sessionUri) && action.type === ActionType.ChatToolCallComplete
+			return channel === defaultChatChannel(sessionUri) && action.type === ActionType.ChatToolCallComplete
 				? [textFromContent(action.result.content ?? [])].filter(text => text.startsWith('MCP_PROBE:'))
 				: [];
 		});
 	}
 
+	// Skipped: the Copilot runtime loads the MCP graph before the sandbox update applies and restarts sandboxed servers (see KNOWN_ISSUES.md).
+	test.skip('runtime MCP: first turn does not restart MCP servers', async function () {
+		this.timeout(180_000);
+		const session = await createPluginSession({ initialize: false, sandboxEnabled: true });
+		try {
+			const server = await serverState(session.sessionUri, session.pluginUri);
+			const chat = newTestChatUri();
+			// An empty peer materializes its MCP servers without consuming a warm-up turn.
+			await context.client.call('createChat', { channel: session.sessionUri, chat }, 30_000);
+			await context.client.call('subscribe', { channel: chat });
+			const ready = await context.client.waitForNotification(notification => {
+				if (!isActionNotification(notification, ActionType.SessionMcpServerStateChanged)
+					&& !isActionNotification(notification, ActionType.SessionCustomizationUpdated)) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(notification);
+				if (channel !== session.sessionUri) {
+					return false;
+				}
+				if (action.type === ActionType.SessionMcpServerStateChanged) {
+					return action.id === server.id && action.state.kind === McpServerStatus.Ready;
+				}
+				return action.type === ActionType.SessionCustomizationUpdated
+					&& action.customization.id === server.id
+					&& action.customization.type === CustomizationType.McpServer
+					&& action.customization.state.kind === McpServerStatus.Ready;
+			}, 30_000);
+			const readySequence = getActionEnvelope(ready).serverSeq;
+			await driveChatTurnToCompletion(context.client, chat, 'first-turn', 'Reply exactly HELLO. Do not call tools.', 10);
+			const restartStates = context.client.receivedNotifications(notification => isActionNotification(notification, ActionType.SessionMcpServerStateChanged))
+				.flatMap(notification => {
+					const { channel, action, serverSeq } = getActionEnvelope(notification);
+					return channel === session.sessionUri && serverSeq > readySequence
+						&& action.type === ActionType.SessionMcpServerStateChanged && action.id === server.id
+						&& (action.state.kind === McpServerStatus.Stopped || action.state.kind === McpServerStatus.Starting)
+						? [action.state.kind] : [];
+				});
+			assert.deepStrictEqual({
+				processStarts: readFileSync(session.starts, 'utf8').trim().split('\n').filter(Boolean).length,
+				restartStates,
+			}, { processStarts: 1, restartStates: [] });
+		} finally {
+			await context.client.call('disposeSession', { channel: session.sessionUri }, 30_000);
+			context.createdSessions.splice(context.createdSessions.indexOf(session.sessionUri), 1);
+			await setSandbox(session.previousSandbox ?? {});
+		}
+	});
+
+	test('runtime MCP: identical plugin republished under a different URI does not restart servers', async function () {
+		this.timeout(180_000);
+		const session = await createPluginSession();
+		const originalServer = await serverState(session.sessionUri, session.pluginUri);
+		const readySequence = context.client.receivedNotifications(notification => notification.method === 'action').reduce((sequence, notification) => {
+			const { channel, serverSeq } = getActionEnvelope(notification);
+			return channel === session.sessionUri ? Math.max(sequence, serverSeq) : sequence;
+		}, 0);
+		const relocatedPlugin = `${URI.parse(session.pluginUri).fsPath}-rescoped`;
+		cpSync(URI.parse(session.pluginUri).fsPath, relocatedPlugin, { recursive: true });
+		const pluginUri = URI.file(relocatedPlugin).toString();
+		const customization: ClientPluginCustomization = {
+			...session.customization,
+			id: customizationId(pluginUri),
+			uri: pluginUri,
+		};
+		context.client.dispatch({
+			channel: session.sessionUri,
+			clientSeq: 20,
+			action: { type: ActionType.SessionActiveClientSet, activeClient: { clientId: 'runtime-mcp-client', tools: [], customizations: [customization] } },
+		});
+		await retry(async () => {
+			const plugin = await pluginState(session.sessionUri, pluginUri);
+			assert.ok(plugin.children?.some(child => child.type === CustomizationType.McpServer));
+		}, 100, 100);
+		const relocatedServer = await serverState(session.sessionUri, pluginUri);
+		await driveTurnToCompletion(context.client, session.sessionUri, 'after-plugin-rescope', 'Reply exactly MCP_STILL_READY. Do not call tools.', 21);
+		const restartStates = context.client.receivedNotifications(notification => isActionNotification(notification, ActionType.SessionMcpServerStateChanged))
+			.flatMap(notification => {
+				const { channel, action, serverSeq } = getActionEnvelope(notification);
+				return channel === session.sessionUri && serverSeq > readySequence
+					&& action.type === ActionType.SessionMcpServerStateChanged
+					&& (action.id === originalServer.id || action.id === relocatedServer.id)
+					&& (action.state.kind === McpServerStatus.Stopped || action.state.kind === McpServerStatus.Starting)
+					? [action.state.kind] : [];
+			});
+		assert.deepStrictEqual({
+			processStarts: readFileSync(session.starts, 'utf8').trim().split('\n').filter(Boolean).length,
+			restartStates,
+			state: (await serverState(session.sessionUri, pluginUri)).state.kind,
+		}, { processStarts: 1, restartStates: [], state: McpServerStatus.Ready });
+	});
+
 	test('runtime MCP: invalid sibling images are omitted before model requests and cold resume', async function () {
 		this.timeout(240_000);
-		const session = await createPluginSession(true);
+		const session = await createPluginSession({ includeImages: true });
 		const result = await driveTurnToCompletion(context.client, session.sessionUri, 'mixed-images',
 			'Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.', 10);
 		const request = context.observedModelRequestBodies.at(-1)!;
@@ -168,7 +294,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		const completions = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
 			.flatMap(notification => {
 				const { channel, action } = getActionEnvelope(notification);
-				return channel === buildDefaultChatUri(session.sessionUri) && action.type === ActionType.ChatToolCallComplete
+				return channel === defaultChatChannel(session.sessionUri) && action.type === ActionType.ChatToolCallComplete
 					? [action.result.success] : [];
 			});
 		assert.deepStrictEqual({

@@ -31,7 +31,6 @@ export enum RemoteCacheType {
 	Commands = 'commands',
 	Api = 'api',
 	Extensions = 'extensions',
-	ProjectTemplates = 'project-templates',
 	Tools = 'tools'
 }
 
@@ -491,12 +490,6 @@ export abstract class BaseEmbeddingsIndex<V extends { key: string; embedding?: E
 
 	protected set isIndexLoaded(value: boolean) {
 		this._isIndexLoaded = value;
-	}
-
-	public async rebuildCache() {
-		await this._embeddingsCache.clearCache();
-		this._items.clear();
-		return this.calculateEmbeddings();
 	}
 
 	/**

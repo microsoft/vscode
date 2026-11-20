@@ -10,7 +10,7 @@ import type { Annotation, AnnotationEntry } from '../../state/protocol/state.js'
  * Shared convention for carrying agent-feedback semantics inside an
  * {@link Annotation._meta} on the agent host annotations channel.
  *
- * Feedback items round-trip as annotations on `<session>/annotations`; the
+ * Feedback items round-trip on the session's advertised annotations channel; the
  * annotation's own fields cover id / resource / range / resolved, and
  * everything else (lifecycle state, origin kind, code context, PR linkage)
  * lives under {@link FEEDBACK_ANNOTATION_META_KEY}. This module is the single
@@ -96,6 +96,7 @@ export interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePRReviewCommentAuthor?: string;
 	readonly sourcePullRequest?: IFeedbackPullRequest;
 	/**
 	 * Transient marker set by the client when the user reveals this comment to
@@ -206,6 +207,7 @@ export function readFeedbackAnnotationMeta(annotation: Annotation): IFeedbackAnn
 	if (typeof raw.codeSelection === 'string') { result.codeSelection = raw.codeSelection; }
 	if (typeof raw.diffHunks === 'string') { result.diffHunks = raw.diffHunks; }
 	if (typeof raw.sourcePRReviewCommentId === 'string') { result.sourcePRReviewCommentId = raw.sourcePRReviewCommentId; }
+	if (typeof raw.sourcePRReviewCommentAuthor === 'string') { result.sourcePRReviewCommentAuthor = raw.sourcePRReviewCommentAuthor; }
 	if (isFeedbackPullRequest(raw.sourcePullRequest)) { result.sourcePullRequest = raw.sourcePullRequest; }
 	if (typeof raw.pendingAgentReveal === 'boolean') { result.pendingAgentReveal = raw.pendingAgentReveal; }
 	return result;

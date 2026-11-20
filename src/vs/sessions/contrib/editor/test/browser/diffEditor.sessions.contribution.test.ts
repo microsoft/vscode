@@ -13,13 +13,13 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorPane, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
-import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { sessionsEditorWordWrapConfiguration, SessionsDiffEditorCommandsService, SessionsDiffEditorLayoutContribution } from '../../browser/diffEditor.sessions.contribution.js';
 import { TextDiffEditor } from '../../../../../workbench/browser/parts/editor/textDiffEditor.js';
 import { DiffEditorViewMode, IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
-import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsWordWrap } from '../../common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 
 suite('SessionsDiffEditorCommandsService', () => {

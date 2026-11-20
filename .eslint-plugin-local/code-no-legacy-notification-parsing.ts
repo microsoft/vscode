@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type { Node } from 'estree';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Scope, Variable, Visitor } from '@oxlint/plugins';
 import * as path from 'path';
 
 const root = path.resolve(import.meta.dirname, '..');
 const legacyModule = path.join(root, 'src/vs/platform/notification/common/notificationLegacy');
 const capabilityName = 'legacyExtensionLinkParsing';
 
-export default new class implements eslint.Rule.RuleModule {
-	readonly meta: eslint.Rule.RuleMetaData = {
+export default new class implements CreateRule {
+	readonly meta: RuleMeta = {
 		messages: {
 			restrictedCapability: 'Legacy notification link parsing is restricted to the extension API bridges. Use literal strings or NotificationText.link/format/concat in core.',
 			restrictedExport: 'Do not re-export the legacy notification link parsing capability.',
@@ -29,14 +27,14 @@ export default new class implements eslint.Rule.RuleModule {
 		}],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const { allowedFiles } = context.options[0] as { allowedFiles: string[] };
 		const allowed = allowedFiles.some(file => path.resolve(root, file) === path.resolve(context.filename));
-		const capabilityBindings = new Set<eslint.Scope.Variable>();
-		const exportedValues: TSESTree.Node[] = [];
-		const returnedValues = new Map<TSESTree.Node, TSESTree.Node[]>();
+		const capabilityBindings = new Set<Variable>();
+		const exportedValues: ESTree.Node[] = [];
+		const returnedValues = new Map<ESTree.Node, ESTree.Node[]>();
 
-		function isLegacyModule(source: TSESTree.Node): boolean {
+		function isLegacyModule(source: ESTree.Node): boolean {
 			const value = source.type === 'Literal' ? source.value
 				: source.type === 'TemplateLiteral' && source.expressions.length === 0 ? source.quasis[0].value.cooked : undefined;
 			if (typeof value !== 'string') {
@@ -47,21 +45,21 @@ export default new class implements eslint.Rule.RuleModule {
 			return resolved.replace(/\.(?:js|ts)$/, '') === legacyModule;
 		}
 
-		function exposesCapability(node: TSESTree.Node | null | undefined, visited = new Set<TSESTree.Node>()): boolean {
+		function exposesCapability(node: ESTree.Node | null | undefined, visited = new Set<ESTree.Node>()): boolean {
 			if (!node || visited.has(node)) {
 				return false;
 			}
 			visited.add(node);
-			const exposes = (value: TSESTree.Node | null | undefined) => exposesCapability(value, visited);
+			const exposes = (value: ESTree.Node | null | undefined) => exposesCapability(value, visited);
 			switch (node.type) {
 				case 'Identifier': {
-					let scope: eslint.Scope.Scope | null = context.sourceCode.getScope(node as Node);
+					let scope: Scope | null = context.sourceCode.getScope(node);
 					while (scope) {
 						const variable = scope.set.get(node.name);
 						if (variable) {
 							return capabilityBindings.has(variable)
-								|| variable.defs.some(definition => exposes(definition.node as TSESTree.Node))
-								|| variable.references.some(reference => reference.isWrite() && exposes(reference.writeExpr as TSESTree.Node | null));
+								|| variable.defs.some(definition => exposes(definition.node))
+								|| variable.references.some(reference => reference.isWrite() && exposes(reference.writeExpr));
 						}
 						scope = scope.upper;
 					}
@@ -115,8 +113,7 @@ export default new class implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			ImportDeclaration: rawNode => {
-				const node = rawNode as TSESTree.ImportDeclaration;
+			ImportDeclaration: node => {
 				if (node.importKind === 'type' || !isLegacyModule(node.source)) {
 					return;
 				}
@@ -124,7 +121,7 @@ export default new class implements eslint.Rule.RuleModule {
 					if (specifier.type !== 'ImportSpecifier') {
 						context.report({ node: specifier, messageId: 'explicitImport' });
 					} else if (specifier.importKind !== 'type' && (specifier.imported.type === 'Identifier' ? specifier.imported.name : specifier.imported.value) === capabilityName) {
-						const variable = context.sourceCode.getDeclaredVariables(rawNode).find(variable => variable.name === specifier.local.name);
+						const variable = context.sourceCode.getDeclaredVariables(node).find(variable => variable.name === specifier.local.name);
 						if (variable) {
 							capabilityBindings.add(variable);
 						}
@@ -134,8 +131,7 @@ export default new class implements eslint.Rule.RuleModule {
 					}
 				}
 			},
-			ExportNamedDeclaration: rawNode => {
-				const node = rawNode as TSESTree.ExportNamedDeclaration;
+			ExportNamedDeclaration: node => {
 				if (node.exportKind === 'type') {
 					return;
 				}
@@ -153,13 +149,11 @@ export default new class implements eslint.Rule.RuleModule {
 					}
 				}
 			},
-			ExportDefaultDeclaration: rawNode => {
-				const node = rawNode as TSESTree.ExportDefaultDeclaration;
+			ExportDefaultDeclaration: node => {
 				exportedValues.push(node.declaration);
 			},
-			ReturnStatement: rawNode => {
-				const node = rawNode as TSESTree.ReturnStatement;
-				let parent: TSESTree.Node | undefined = node.parent;
+			ReturnStatement: node => {
+				let parent: ESTree.Node | null | undefined = node.parent;
 				while (parent && parent.type !== 'FunctionDeclaration' && parent.type !== 'FunctionExpression' && parent.type !== 'ArrowFunctionExpression') {
 					parent = parent.parent;
 				}
@@ -169,26 +163,22 @@ export default new class implements eslint.Rule.RuleModule {
 					returnedValues.set(parent, values);
 				}
 			},
-			ExportAllDeclaration: rawNode => {
-				const node = rawNode as TSESTree.ExportAllDeclaration;
+			ExportAllDeclaration: node => {
 				if (node.exportKind !== 'type' && isLegacyModule(node.source)) {
 					context.report({ node, messageId: 'restrictedExport' });
 				}
 			},
-			ImportExpression: rawNode => {
-				const node = rawNode as TSESTree.ImportExpression;
+			ImportExpression: node => {
 				if (isLegacyModule(node.source)) {
 					context.report({ node, messageId: 'explicitImport' });
 				}
 			},
-			CallExpression: rawNode => {
-				const node = rawNode as TSESTree.CallExpression;
+			CallExpression: node => {
 				if (node.callee.type === 'Identifier' && node.callee.name === 'require' && node.arguments[0] && isLegacyModule(node.arguments[0])) {
 					context.report({ node, messageId: 'explicitImport' });
 				}
 			},
-			TSImportEqualsDeclaration: (rawNode: Node) => {
-				const node = rawNode as TSESTree.Node;
+			TSImportEqualsDeclaration: node => {
 				if (node.type === 'TSImportEqualsDeclaration' && node.importKind !== 'type' && node.moduleReference.type === 'TSExternalModuleReference' && isLegacyModule(node.moduleReference.expression)) {
 					context.report({ node, messageId: 'explicitImport' });
 				}

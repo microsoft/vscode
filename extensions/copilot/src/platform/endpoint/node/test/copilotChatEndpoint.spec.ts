@@ -671,7 +671,7 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		postOptions: { temperature: 0, top_p: 1 }
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3', 'kimi-k4'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(1);
@@ -682,6 +682,7 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		{ family: 'kimi-k2.6', prefix: 'functions.' },
 		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
 		{ family: 'kimi-k3', prefix: '' },
+		{ family: 'kimi-k4', prefix: '' },
 	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
 		const history = createToolHistory();
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
@@ -855,8 +856,14 @@ describe('ChatEndpoint - model picker notices', () => {
 });
 
 describe('CopilotChatEndpoint - supportsToolSearch auth gating', () => {
-	const createEndpoint = (sku: string | undefined) => {
+	const createEndpoint = (sku: string | undefined, capiProxyUrl?: string, authType?: 'hmac' | 'token') => {
 		const mockServices = createMockServices();
+		if (capiProxyUrl) {
+			mockServices.configurationService.setConfig(ConfigKey.Shared.DebugOverrideCAPIUrl, capiProxyUrl);
+		}
+		if (authType) {
+			mockServices.configurationService.setConfig(ConfigKey.Shared.DebugOverrideAuthType, authType);
+		}
 		const authService = {
 			copilotToken: sku === undefined ? undefined : new CopilotToken(createTestExtendedTokenInfo({ sku })),
 		} as unknown as IAuthenticationService;
@@ -880,11 +887,21 @@ describe('CopilotChatEndpoint - supportsToolSearch auth gating', () => {
 		);
 	};
 
-	it('disables tool search for no-auth users', () => {
-		expect(createEndpoint('no_auth_limited_copilot').supportsToolSearch).toBe(false);
-	});
-
-	it('keeps tool search for signed-in users', () => {
-		expect(createEndpoint('copilot_for_business_seat').supportsToolSearch).toBe(true);
+	it('enables tool search for signed-in users and HMAC-proxied no-auth users only', () => {
+		expect({
+			signedIn: createEndpoint('copilot_for_business_seat').supportsToolSearch,
+			noAuth: createEndpoint('no_auth_limited_copilot').supportsToolSearch,
+			noAuthThroughCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989').supportsToolSearch,
+			noAuthThroughHmacCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989', 'hmac').supportsToolSearch,
+			noAuthThroughTokenCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989', 'token').supportsToolSearch,
+			signedInThroughTokenCapiProxy: createEndpoint('copilot_for_business_seat', 'http://localhost:8989', 'token').supportsToolSearch,
+		}).toEqual({
+			signedIn: true,
+			noAuth: false,
+			noAuthThroughCapiProxy: true,
+			noAuthThroughHmacCapiProxy: true,
+			noAuthThroughTokenCapiProxy: false,
+			signedInThroughTokenCapiProxy: true,
+		});
 	});
 });

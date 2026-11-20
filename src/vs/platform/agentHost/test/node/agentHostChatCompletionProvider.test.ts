@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
@@ -55,7 +54,7 @@ class FakeStateManager extends AgentHostStateManager {
 	private readonly _session: ISessionWithDefaultChat;
 	private readonly _fixtureChatStates = new Map<string, ChatState>();
 
-	constructor(chats: readonly IFixtureChat[], defaultChat?: string) {
+	constructor(chats: readonly IFixtureChat[], defaultChat?: string, private readonly _defaultChat = DEFAULT_CHAT_URI) {
 		super(new NullLogService());
 		const summary: SessionSummary = {
 			resource: SESSION_URI,
@@ -79,20 +78,26 @@ class FakeStateManager extends AgentHostStateManager {
 		return this._fixtureChatStates.get(chat);
 	}
 
+	override getChatOwner(chat: URI): string | undefined {
+		return this._fixtureChatStates.has(chat) || chat === DEFAULT_CHAT_URI ? SESSION_URI : undefined;
+	}
+
 	override getDefaultChatState(): ChatState | undefined {
 		return this._fixtureChatStates.get(DEFAULT_CHAT_URI);
+	}
+
+	override getDefaultChat(session: URI): string | undefined {
+		return session === SESSION_URI ? this._defaultChat : undefined;
 	}
 }
 
 suite('AgentHostChatCompletionProvider', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('announces only "#" as a trigger character via IAgentHostCompletions', () => {
-		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
 		const stateManager = disposables.add(new FakeStateManager([]));
+		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), stateManager));
 		disposables.add(completions.registerProvider(new AgentHostChatCompletionProvider(stateManager)));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Hash]);
 	});
@@ -132,7 +137,7 @@ suite('AgentHostChatCompletionProvider', () => {
 			const provider = new AgentHostChatCompletionProvider(stateManager);
 			return provider.provideCompletionItems(
 				{ kind: CompletionItemKind.UserMessage, channel, text, offset },
-				CancellationToken.None,
+				{ chat: undefined }, CancellationToken.None,
 			);
 		}
 
@@ -187,6 +192,16 @@ suite('AgentHostChatCompletionProvider', () => {
 				endTurn: 'e1',
 				label: 'Peer',
 			}]);
+		});
+
+		test('excludes the recorded default chat, not the default-shaped chat, when the channel is the session URI', async () => {
+			const recordedDefault = buildChatUri(SESSION_URI, 'primary');
+			const stateManager = disposables.add(new FakeStateManager([
+				{ summary: makeChatSummary(recordedDefault, 'Primary', { origin: { kind: ChatOriginKind.User } }), turns: [makeTurn('p1')] },
+				{ summary: makeChatSummary(DEFAULT_CHAT_URI, 'Shaped peer'), turns: [makeTurn('s1')] },
+			], undefined, recordedDefault));
+			const result = await run(stateManager, '#chat:', 6, SESSION_URI);
+			assert.deepStrictEqual(result.map(i => i.attachment), [{ type: MessageAttachmentKind.Chat, resource: DEFAULT_CHAT_URI, endTurn: 's1', label: 'Shaped peer' }]);
 		});
 
 		test('filters by title (case-insensitive) and sorts newest first', async () => {

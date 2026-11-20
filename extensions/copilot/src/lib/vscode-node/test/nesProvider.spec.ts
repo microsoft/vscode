@@ -27,7 +27,7 @@ import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/co
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { ensureDependenciesAreSet } from '../../../util/vs/editor/common/core/text/positionToOffset';
 import { DiagnosticSeverity, Range } from '../../../vscodeTypes';
-import { createNESProvider, ILogTarget, ITelemetrySender, LogLevel } from '../../node/chatLibMain';
+import { createNESProvider, type INESProviderCapabilities, type INESResult, ILogTarget, ITelemetrySender, LogLevel } from '../../node/chatLibMain';
 
 
 class TestFetcher implements IFetcher {
@@ -102,8 +102,10 @@ class TestCopilotTokenManager implements ICopilotTokenManager {
 	_serviceBrand: undefined;
 
 	onDidCopilotTokenRefresh = new Emitter<void>().event;
+	getCopilotTokenCallCount = 0;
 
 	async getCopilotToken(force?: boolean): Promise<CopilotToken> {
+		this.getCopilotTokenCallCount++;
 		return new CopilotToken(createTestExtendedTokenInfo({ token: 'fixedToken' }));
 	}
 
@@ -128,6 +130,212 @@ class TestLogTarget implements ILogTarget {
 }
 
 describe('NESProvider Facade', () => {
+	it('reports when the selected model supports unified completions', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'unified-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'patchBased02Unified' },
+				}]
+			}),
+		});
+		const copilotTokenManager = new TestCopilotTokenManager();
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager,
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		const requestsBeforeQuery = fetcher.requests.length;
+		const tokenRequestsBeforeQuery = copilotTokenManager.getCopilotTokenCallCount;
+		const capabilityChanges: INESProviderCapabilities[] = [];
+		const listener = nextEditProvider.onDidChangeCapabilities(capabilities => capabilityChanges.push(capabilities));
+
+		try {
+			const capabilities = await nextEditProvider.getCapabilities();
+
+			assert.deepStrictEqual({
+				requestsBeforeQuery,
+				tokenRequestsBeforeQuery,
+				tokenRequestsAfterQuery: copilotTokenManager.getCopilotTokenCallCount,
+				modelRequests: fetcher.requests.filter(request => request.url.endsWith('/models')).length,
+				capabilities,
+				capabilityChanges,
+			}, {
+				requestsBeforeQuery: 0,
+				tokenRequestsBeforeQuery: 0,
+				tokenRequestsAfterQuery: 1,
+				modelRequests: 1,
+				capabilities: { inlineCompletions: true },
+				capabilityChanges: [{ inlineCompletions: true }],
+			});
+		} finally {
+			listener.dispose();
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('reports no inline completion support for a non-unified model', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'nes-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'xtab275' },
+				}]
+			}),
+		});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		nextEditProvider.updateTreatmentVariables({
+			'config.github.copilot.chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString': JSON.stringify({
+				modelName: 'default-unified-model',
+				promptingStrategy: 'patchBased02Unified',
+				includeTagsInCurrentFile: false,
+			}),
+		});
+		const capabilityChanges: INESProviderCapabilities[] = [];
+		const listener = nextEditProvider.onDidChangeCapabilities(capabilities => capabilityChanges.push(capabilities));
+
+		try {
+			const capabilities = await nextEditProvider.getCapabilities();
+			assert.deepStrictEqual({
+				modelRequests: fetcher.requests.filter(request => request.url.endsWith('/models')).length,
+				capabilities,
+				capabilityChanges,
+			}, {
+				modelRequests: 1,
+				capabilities: { inlineCompletions: false },
+				capabilityChanges: [{ inlineCompletions: false }],
+			});
+		} finally {
+			listener.dispose();
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('applies the unification treatment to reported capabilities', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'nes-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'xtab275' },
+				}]
+			}),
+		});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		nextEditProvider.updateTreatmentVariables({
+			'config.github.copilot.chat.advanced.inlineEdits.unification': true,
+		});
+
+		try {
+			assert.deepStrictEqual(await nextEditProvider.getCapabilities(), { inlineCompletions: true });
+		} finally {
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('does not discover server models for a locally configured model', async () => {
+		const copilotTokenManager = new TestCopilotTokenManager();
+		const fetcher = new TestFetcher({});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager,
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		await nextEditProvider.setConfigs(new Map([[
+			'chat.inlineEdits.xtabProvider.modelConfiguration',
+			{
+				modelName: 'local-unified-model',
+				promptingStrategy: 'patchBased02Unified',
+				includeTagsInCurrentFile: false,
+			}
+		]]));
+
+		try {
+			assert.deepStrictEqual({
+				capabilities: await nextEditProvider.getCapabilities(),
+				tokenRequests: copilotTokenManager.getCopilotTokenCallCount,
+				modelRequests: fetcher.requests.filter(request => request.url.endsWith('/models')).length,
+			}, {
+				capabilities: { inlineCompletions: true },
+				tokenRequests: 0,
+				modelRequests: 0,
+			});
+		} finally {
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('rejects capability discovery when the model list cannot be loaded', async () => {
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher: new TestFetcher({}),
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+
+		try {
+			await expect(nextEditProvider.getCapabilities()).rejects.toThrow('Failed to fetch model list: 404 Not Found');
+		} finally {
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('cancels capability discovery when the provider is disposed', async () => {
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher: new TestFetcher({}),
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+			waitForTreatmentVariables: true,
+		});
+
+		const capabilities = nextEditProvider.getCapabilities();
+		nextEditProvider.dispose();
+
+		await expect(capabilities).rejects.toThrow('Canceled');
+	});
+
 	it('should handle getNextEdit call with a document URI', async () => {
 		const workspace = new MutableObservableWorkspace();
 		const doc = workspace.addDocument({
@@ -191,8 +399,9 @@ describe('NESProvider Facade', () => {
 
 		assert(result.result);
 
-		const { range, newText, targetDocumentUri } = result.result;
+		const { range, newText, targetDocumentUri, isInlineCompletion } = result.result;
 		assert.strictEqual(targetDocumentUri, doc.id.toString(), 'targetDocumentUri should reference the requested document');
+		assert.strictEqual(isInlineCompletion, false, 'an edit away from the cursor is not an inline completion');
 		const offsetRange = OffsetRange.fromTo(range.start, range.endExclusive);
 		const replace = StringReplacement.replace(offsetRange, newText);
 		doc.applyEdit(replace.toEdit());
@@ -223,6 +432,123 @@ describe('NESProvider Facade', () => {
 		expect(logTarget.logs.length).toBeGreaterThan(0);
 		const errorLogs = logTarget.logs.filter(l => l.level === LogLevel.Error);
 		assert.strictEqual(errorLogs.length, 0, `Unexpected error logs: ${JSON.stringify(errorLogs, null, 2)}`);
+	});
+
+	describe('inline completion classification', () => {
+
+		// Typing `{` leaves the cursor at the end of the first line; the model then inserts a line below it.
+		const cursorAtEndOfFirstLine = 36;
+		const documentEnd = 38;
+		const modelReply = '```\nfunction add(a: number, b: number) {\n\treturn a + b;\n}\n```';
+
+		function toSseReply(content: string): string {
+			const chunk = (delta: object, finishReason: string | null) => `data: ${JSON.stringify({
+				choices: [{ index: 0, delta, finish_reason: finishReason, content_filter_results: {} }],
+				created: 0,
+				id: 'chatcmpl-test',
+				model: 'xtab-test',
+				object: 'chat.completion.chunk',
+			})}\n\n`;
+			return chunk({ role: 'assistant', content }, null) + chunk({}, 'stop') + 'data: [DONE]\n\n';
+		}
+
+		function createProviderWithDocument(options: { configOverrides?: Map<string, unknown>; mimicGhostTextBehavior?: boolean } = {}) {
+			const workspace = new MutableObservableWorkspace();
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/add.ts').toString()),
+				initialValue: 'function add(a: number, b: number) \n}',
+			});
+
+			const provider = createNESProvider({
+				workspace,
+				fetcher: new TestFetcher({
+					'/models': JSON.stringify({ models: [] }),
+					'/chat/completions': toSseReply(modelReply),
+				}),
+				copilotTokenManager: new TestCopilotTokenManager(),
+				telemetrySender: new TestTelemetrySender(),
+				terminalService: new NullTerminalService(),
+				logTarget: new TestLogTarget(),
+				editorInfo: { name: 'my-editor', version: '1.2.3' },
+				editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+				configOverrides: options.configOverrides,
+			});
+			provider.updateTreatmentVariables({
+				'config.github.copilot.chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString': JSON.stringify({
+					modelName: 'xtab-test',
+					promptingStrategy: 'copilotNesXtab',
+					includeTagsInCurrentFile: false,
+					extraDebounceEndOfLine: 0,
+					nesMimicGhostTextBehavior: options.mimicGhostTextBehavior,
+				}),
+			});
+			// The provider only learns about edits made after it starts tracking the workspace.
+			doc.applyEdit(StringEdit.insert(35, '{'));
+			doc.setSelection([OffsetRange.emptyAt(cursorAtEndOfFirstLine)], undefined);
+			return { doc, provider };
+		}
+
+		function summarize(result: INESResult) {
+			return result.result && {
+				isInlineCompletion: result.result.isInlineCompletion,
+				range: { start: result.result.range.start, endExclusive: result.result.range.endExclusive },
+				newText: result.result.newText,
+			};
+		}
+
+		it('returns an edit at the cursor as an inline completion anchored to the cursor', async () => {
+			const { doc, provider } = createProviderWithDocument();
+			try {
+				const result = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual(summarize(result), {
+					isInlineCompletion: true,
+					range: { start: cursorAtEndOfFirstLine, endExclusive: cursorAtEndOfFirstLine },
+					newText: '\n\treturn a + b;',
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
+
+		it('returns the original edit as an inline edit when inline completions are disabled', async () => {
+			const { doc, provider } = createProviderWithDocument({
+				configOverrides: new Map([['chat.advanced.inlineEdits.inlineCompletions.enabled', false]]),
+			});
+			try {
+				const result = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual(summarize(result), {
+					isInlineCompletion: false,
+					range: { start: cursorAtEndOfFirstLine + 1, endExclusive: cursorAtEndOfFirstLine + 1 },
+					newText: '\treturn a + b;\n',
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
+
+		it('does not resurface a suggestion shown as an inline completion as an inline edit', async () => {
+			const { doc, provider } = createProviderWithDocument({ mimicGhostTextBehavior: true });
+			try {
+				const shown = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+				provider.handleShown(shown);
+
+				// After `}` the same cached suggestion can only be rendered as an inline edit.
+				doc.setSelection([OffsetRange.emptyAt(documentEnd)], undefined);
+				const reshown = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual({
+					shown: summarize(shown)?.isInlineCompletion,
+					reshown: summarize(reshown),
+				}, {
+					shown: true,
+					reshown: undefined,
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
 	});
 
 	describe('languageDiagnosticsService injection', () => {

@@ -25,7 +25,7 @@ import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWork
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
 import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
-import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
 import { SessionIdForCLI } from '../../copilotcli/common/utils';
 import { ICopilotCLIModels, ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
@@ -33,12 +33,10 @@ import { ICustomSessionTitleService } from '../../copilotcli/common/customSessio
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIChatSessionInitializer } from '../../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
-import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection } from '../copilotCLIChatSessions';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
-vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).chat = {
@@ -70,7 +68,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override onDidDeleteSession = Event.None;
 	override onDidChangeSession = Event.None;
 	override onDidCreateSession = Event.None;
-	override getSessionWorkingDirectory = vi.fn(() => undefined);
+	override getSessionWorkingDirectory = vi.fn(async () => undefined);
 	override getSessionItem = vi.fn(async () => undefined);
 	override getAllSessions = vi.fn(async () => [] as ICopilotCLISessionItem[]);
 	override createNewSessionId = vi.fn(() => 'new-session');
@@ -99,14 +97,12 @@ class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
 	override getWorktreeProperties = vi.fn(async (_sessionId: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> => undefined);
 	override setWorktreeProperties = vi.fn(async () => { });
 	override getWorktreeChanges = vi.fn<IChatSessionWorktreeService['getWorktreeChanges']>(async () => []);
-	override hasCachedChanges = vi.fn(async () => false);
 	override onDidChangeWorktreeChanges = Event.None;
 }
 
 class TestWorkspaceFolderService extends mock<IChatSessionWorkspaceFolderService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorkspaceChanges = vi.fn(async () => []);
-	override hasCachedChanges = vi.fn(async () => false);
 	override onDidChangeWorkspaceFolderChanges = Event.None;
 }
 
@@ -129,7 +125,6 @@ class TestFolderRepositoryManager extends mock<IFolderRepositoryManager>() {
 		trusted: undefined,
 	}));
 	override getRepositoryInfo = vi.fn(async () => ({ repository: undefined, headBranchName: undefined }));
-	override getFolderMRU = vi.fn(async () => []);
 }
 
 class TestGitService extends mock<IGitService>() {
@@ -460,37 +455,6 @@ describe('re-exported dropdown helpers', () => {
 	});
 });
 
-// ─── resolveSessionDirsForTerminal ──────────────────────────────
-
-describe('resolveSessionDirsForTerminal', () => {
-	it('returns matching terminal sessions before non-matching ones', async () => {
-		const terminal = {} as vscode.Terminal;
-		const otherTerminal = {} as vscode.Terminal;
-		const tracker: ICopilotCLISessionTracker = {
-			_serviceBrand: undefined,
-			getSessionIds: () => ['session-a', 'session-b'],
-			getTerminal: vi.fn(async (id: string) => id === 'session-a' ? terminal : otherTerminal),
-		} as unknown as ICopilotCLISessionTracker;
-
-		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
-		expect(dirs).toHaveLength(2);
-		// First dir should be for the matching session
-		expect(dirs[0].fsPath).toContain('session-a');
-	});
-
-	it('returns empty array when no sessions exist', async () => {
-		const terminal = {} as vscode.Terminal;
-		const tracker: ICopilotCLISessionTracker = {
-			_serviceBrand: undefined,
-			getSessionIds: () => [],
-			getTerminal: vi.fn(async () => undefined),
-		} as unknown as ICopilotCLISessionTracker;
-
-		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
-		expect(dirs).toHaveLength(0);
-	});
-});
-
 // ─── Additional CopilotCLIChatSessionContentProvider tests ──────
 
 describe('CopilotCLIChatSessionContentProvider (additional)', () => {
@@ -541,7 +505,6 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 			worktreePath: '/worktree',
 			autoCommit: true,
 		});
-		worktreeService.hasCachedChanges.mockResolvedValue(true);
 		worktreeService.getWorktreeChanges.mockResolvedValue([
 			{
 				uri: vscodeShim.Uri.file('/repository/file'),

@@ -67,7 +67,7 @@ function navigateTrees(accessor: ServicesAccessor, reverse: boolean) {
 	const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
 	const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-	const currentResponse = focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
+	const currentResponse = focusedResponse ?? widget.viewModel?.getItems().findLast((item): item is IChatResponseViewModel => isResponseVM(item));
 	if (!currentResponse) {
 		return;
 	}

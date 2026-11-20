@@ -87,7 +87,12 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, {
-		canOpenExternalUri(uri: vscode.Uri) {
+		async canOpenExternalUri(uri: vscode.Uri) {
+			// The Integrated Browser offers itself as an opener where it is available
+			if (await shouldUseIntegratedBrowser()) {
+				return vscode.ExternalUriOpenerPriority.None;
+			}
+
 			// We have to replace the IPv6 hosts with IPv4 because URL can't handle IPv6.
 			const originalUri = new URL(uri.toString(true));
 			if (enabledHosts.has(originalUri.hostname)) {
@@ -109,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}, {
 		schemes: ['http', 'https'],
-		label: vscode.l10n.t("Open in simple browser"),
+		label: vscode.l10n.t("Open in Simple Browser"),
 	}));
 }
 

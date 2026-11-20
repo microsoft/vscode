@@ -121,7 +121,7 @@ suite('API proposal registry', () => {
 				fs.renameSync(originalPath, newPath);
 			}
 			assertReadOnly(fixture.root, () => assert.throws(() => checkApiProposalNames(fixture.root), {
-				message: `API proposal registry ${fixture.registryPath} is out of date. Run "npm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
+				message: `API proposal registry ${fixture.registryPath} is out of date. Run "pnpm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
 			}));
 		});
 	}
@@ -137,7 +137,7 @@ suite('API proposal registry', () => {
 		test(`rejects stale ${description} without writes`, context => {
 			const fixture = createFixture(context, registry);
 			assertReadOnly(fixture.root, () => assert.throws(() => checkApiProposalNames(fixture.root), {
-				message: /is out of date.*npm run gulp compile-api-proposal-names/
+				message: /is out of date.*pnpm run gulp compile-api-proposal-names/
 			}));
 		});
 	}
@@ -151,7 +151,7 @@ suite('API proposal registry', () => {
 			}
 			assertReadOnly(fixture.root, () => assert.throws(() => checkApiProposalNames(fixture.root), error => {
 				return error instanceof Error
-					&& error.message === `Cannot read API proposal registry ${fixture.registryPath}. Run "npm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
+					&& error.message === `Cannot read API proposal registry ${fixture.registryPath}. Run "pnpm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
 					&& error.cause instanceof Error;
 			}));
 		});
@@ -232,35 +232,46 @@ suite('API proposal registry tasks', () => {
 		await import('../../gulpfile.ts');
 	});
 
-	test('core-ci awaits the check exactly once before all consumers', async context => {
-		const fixture = createFixture(context);
-		const coreCI = getTask('core-ci');
-		const events: string[] = [];
-		const restore: (() => void)[] = [];
-		const before = snapshot(fixture.root);
-		try {
-			instrumentCoreCI(coreCI, events, restore);
-			await inDirectory(fixture.root, () => task.series(coreCI)());
-		} finally {
-			restore.reverse().forEach(fn => fn());
-		}
-		assert.deepStrictEqual({
-			first: events[0],
-			stages: events.filter(name => /api-proposal-names|tsgo-typecheck|esbuild-/.test(name)),
-			files: snapshot(fixture.root),
-		}, {
-			first: 'check-api-proposal-names',
-			stages: [
-				'check-api-proposal-names',
-				'tsgo-typecheck',
-				'esbuild-out-build',
-				'esbuild-vscode-min',
-				'esbuild-vscode-reh-min',
-				'esbuild-vscode-reh-web-min',
-			],
-			files: before,
+	const outBuildStages = [
+		'check-api-proposal-names',
+		'tsgo-typecheck',
+		'esbuild-out-build',
+	];
+	const expectedStages: Record<string, string[]> = {
+		'core-ci': [
+			...outBuildStages,
+			'esbuild-vscode-min',
+			'esbuild-vscode-reh-min',
+			'esbuild-vscode-reh-web-min',
+		],
+		// Pull request CI does not build the minified bundles.
+		'core-ci-pr': outBuildStages,
+	};
+
+	for (const [taskName, stages] of Object.entries(expectedStages)) {
+		test(`${taskName} awaits the check exactly once before all consumers`, async context => {
+			const fixture = createFixture(context);
+			const coreCI = getTask(taskName);
+			const events: string[] = [];
+			const restore: (() => void)[] = [];
+			const before = snapshot(fixture.root);
+			try {
+				instrumentCoreCI(coreCI, events, restore);
+				await inDirectory(fixture.root, () => task.series(coreCI)());
+			} finally {
+				restore.reverse().forEach(fn => fn());
+			}
+			assert.deepStrictEqual({
+				first: events[0],
+				stages: events.filter(name => /api-proposal-names|tsgo-typecheck|esbuild-/.test(name)),
+				files: snapshot(fixture.root),
+			}, {
+				first: 'check-api-proposal-names',
+				stages,
+				files: before,
+			});
 		});
-	});
+	}
 
 	test('a failed check stops the actual core-ci task before any consumer runs', async context => {
 		const fixture = createFixture(context, 'stale registry\n');
@@ -271,7 +282,7 @@ suite('API proposal registry tasks', () => {
 		try {
 			instrumentCoreCI(coreCI, events, restore);
 			await inDirectory(fixture.root, () => assert.rejects(task.series(coreCI), {
-				message: /is out of date.*npm run gulp compile-api-proposal-names/
+				message: /is out of date.*pnpm run gulp compile-api-proposal-names/
 			}));
 		} finally {
 			restore.reverse().forEach(fn => fn());

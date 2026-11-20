@@ -14,10 +14,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { IWebPubSubRelayTransportOptions, IWebSocketLike, WebPubSubRelayTransport } from '../../browser/webPubSubRelayTransport.js';
 import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { type ConnectionHandshakeMethod, type ConnectionHandshakeState } from '../../common/connectionDiagnostics.js';
 import { JsonRpcRequest, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { ChunkEnvelope, DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_SEGMENTS_PER_GROUP, chunk } from '../../common/webPubSub/chunking.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 
@@ -142,6 +144,68 @@ suite('WebPubSubRelayTransport', () => {
 		}
 		await connected;
 	}
+
+	test('acknowledges a scoped host-offline advisory and closes once without delivering it to AHP', async () => {
+		const fake = new FakeWebSocket();
+		const received: ProtocolMessage[] = [];
+		const errors: unknown[] = [];
+		let closes = 0;
+		const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
+		store.add(transport.onMessage(message => received.push(message)));
+		store.add(transport.onClose(() => closes++));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: { channel: 'ahp-root://' } });
+		const notice = { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' };
+		fake.emitGroupMessage(1, { kind: 'message', data: notice }, 'user.u1.env.e1.clients');
+		fake.emitClose();
+		assert.deepStrictEqual({ closes, received, errors, open: transport.isOpen, closed: fake.closed, acknowledged: fake.highestAcknowledgedSequenceId, reason: transport.closeReason }, {
+			closes: 1, received: [], errors: [], open: false, closed: true, acknowledged: 1, reason: 'hostOffline',
+		});
+	});
+
+	test('rejects a pending relay handshake promptly when MC reports the host offline', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const connecting = transport.connect();
+		fake.emit({ type: 'system', event: 'connected' });
+		fake.emitGroupMessage(1, {
+			kind: 'message', data: {
+				kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z',
+			}
+		}, 'user.u1.env.e1.clients');
+		await assert.rejects(connecting, /Mission Control host is offline/);
+	});
+
+	test('handles the unwrapped MC service advisory on the environment clients lane', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		let closes = 0;
+		store.add(transport.onClose(() => closes++));
+		await connectHandshake(transport, fake);
+		fake.emit({
+			type: 'message', from: 'group', group: 'user.u1.env.e1.clients', dataType: 'json', sequenceId: 1,
+			data: { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' },
+		});
+		assert.deepStrictEqual({ closes, acknowledged: fake.highestAcknowledgedSequenceId, open: transport.isOpen }, {
+			closes: 1, acknowledged: 1, open: false,
+		});
+	});
+
+	test('does not disconnect for foreign, malformed, or ordinary-lane offline messages', async () => {
+		const fake = new FakeWebSocket();
+		const errors: unknown[] = [];
+		const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
+		await connectHandshake(transport, fake);
+		const notice = { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' };
+		fake.emitGroupMessage(1, { kind: 'message', data: notice }, TO_CLIENT);
+		fake.emitGroupMessage(2, { kind: 'message', data: notice }, 'user.other.env.e1.clients');
+		fake.emitGroupMessage(3, { kind: 'message', data: { ...notice, environment_id: 'other' } }, 'user.u1.env.e1.clients');
+		fake.emitGroupMessage(4, { kind: 'message', data: { ...notice, timestamp: 'invalid' } }, 'user.u1.env.e1.clients');
+		fake.emitGroupMessage(5, { kind: 'message', data: { kind: 'future_notice' } }, 'user.u1.env.e1.clients');
+		assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors: errors.length, acknowledged: fake.highestAcknowledgedSequenceId }, {
+			open: true, closed: false, errors: 4, acknowledged: 5,
+		});
+	});
 
 	test('logs connection milestones and a closing summary, not every frame or payload', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const infos: string[] = [];
@@ -388,8 +452,9 @@ suite('WebPubSubRelayTransport', () => {
 			}
 			await timeout(30_001);
 			fake.emit({ type: 'ack', ackId: 5, success: false });
-			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, closes, errors }, {
+			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, closes, errors, reason: transport.closeReason }, {
 				open: false, closed: true, closes: 1,
+				reason: failure === 'write' ? 'sendFailure' : failure === 'rejection' ? 'publishRejected' : 'publishAckTimeout',
 				errors: [failure === 'write' ? 'Error: Failed to publish WPS receive capabilities' : failure === 'rejection' ? 'Error: WPS publish failed' : 'Error: WPS publish acknowledgement timed out'],
 			});
 		}));
@@ -412,8 +477,8 @@ suite('WebPubSubRelayTransport', () => {
 			await timeout(9999);
 			const before = transport.isOpen;
 			await timeout(1);
-			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentApplicationPublishes().length }, {
-				before: true, open: false, closes: 1, errors: ['Error: WPS host handshake timed out'], publishes: 1,
+			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentApplicationPublishes().length, reason: transport.closeReason }, {
+				before: true, open: false, closes: 1, errors: ['Error: WPS host handshake timed out'], publishes: 1, reason: 'hostHandshakeTimeout',
 			});
 		}));
 	}
@@ -435,6 +500,88 @@ suite('WebPubSubRelayTransport', () => {
 		await timeout(1);
 		assert.deepStrictEqual({ initialized, reconnecting, open: transport.isOpen }, { initialized: true, reconnecting: true, open: false });
 	}));
+
+	test('keeps an established socket and protocol handshake across admission token lifetimes', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 3000 }, async () => {
+		const fake = new FakeWebSocket();
+		let socketCreations = 0;
+		let closes = 0;
+		const transport = createTransport(fake, {
+			webSocketFactory: () => { socketCreations++; return fake; },
+		});
+		store.add(transport.onClose(() => closes++));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		const start = Date.now();
+		const snapshots = [];
+		for (const elapsed of [60_000, 120_000, 600_000, 12 * 60 * 60_000]) {
+			await timeout(start + elapsed - Date.now());
+			snapshots.push({ elapsed, open: transport.isOpen, socketClosed: fake.closed, socketCreations, closes, publishes: fake.sentApplicationPublishes().length });
+		}
+		transport.dispose();
+		assert.deepStrictEqual(snapshots, [60_000, 120_000, 600_000, 12 * 60 * 60_000].map(elapsed => ({
+			elapsed, open: true, socketClosed: false, socketCreations: 1, closes: 0, publishes: 1,
+		})));
+	}));
+
+	test('handshake diagnostics exclude relay control and reset for fallback initialization', async () => {
+		const fake = new FakeWebSocket();
+		const progress: [ConnectionHandshakeMethod, ConnectionHandshakeState][] = [];
+		const transport = createTransport(fake, { onHandshakeProgress: (method, state) => progress.push([method, state]) });
+		await connectHandshake(transport, fake);
+		const beforeHandshake = progress.length;
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
+		fake.emit({ type: 'system', event: 'connected' });
+		const afterRelayControl = progress.slice();
+		fake.emitGroupMessage(1, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', id: 99, result: 'private stale response' } });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', method: 'private notification' } }, BROADCAST);
+		fake.emitGroupMessage(3, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, error: { code: -32008, message: 'Not found' } } });
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'initialize', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[1]['ackId'], success: true });
+		const segments = chunk({ jsonrpc: '2.0', id: 2, result: { private: 'x'.repeat(1000) } }, { maxChunkBytes: 512 });
+		for (const [index, segment] of segments.entries()) {
+			fake.emitGroupMessage(index + 4, { ...segment, generation: 8 });
+		}
+		assert.deepStrictEqual({ beforeHandshake, afterRelayControl, progress, open: transport.isOpen }, {
+			beforeHandshake: 0,
+			afterRelayControl: [['reconnect', 'waiting']],
+			progress: [
+				['reconnect', 'waiting'], ['reconnect', 'otherMessagesReceived'], ['reconnect', 'responseReceived'],
+				['initialize', 'waiting'], ['initialize', 'chunksReceived'], ['initialize', 'responseReceived'],
+			],
+			open: true,
+		});
+	});
+
+	for (const traffic of ['silence', 'chunks', 'broadcastChunks', 'otherMessages'] as const) {
+		test(`handshake diagnostics preserve ${traffic} through timeout and ignore late data`, () => runWithFakedTimers({}, async () => {
+			const fake = new FakeWebSocket();
+			const progress: [ConnectionHandshakeMethod, ConnectionHandshakeState][] = [];
+			const transport = createTransport(fake, { onHandshakeProgress: (method, state) => progress.push([method, state]) });
+			await connectHandshake(transport, fake);
+			transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+			fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
+			await timeout(20_000);
+			if (traffic === 'chunks' || traffic === 'broadcastChunks') {
+				const segments = chunk({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(1000) }, { maxChunkBytes: 512 });
+				for (const [index, segment] of segments.slice(0, -1).entries()) {
+					fake.emitGroupMessage(index + 1, { ...segment, generation: 7 }, traffic === 'broadcastChunks' ? BROADCAST : TO_CLIENT);
+				}
+			} else if (traffic === 'otherMessages') {
+				fake.emitGroupMessage(1, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', id: 99, result: null } });
+			}
+			await timeout(10_000);
+			const openAtHandshakeDeadline = transport.isOpen;
+			await timeout(20_000);
+			fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } } });
+			assert.deepStrictEqual({ progress, openAtHandshakeDeadline, open: transport.isOpen, reason: transport.closeReason }, {
+				progress: [['reconnect', 'waiting'], ...(traffic === 'silence' ? [] : [['reconnect', traffic === 'otherMessages' ? 'otherMessagesReceived' : 'chunksReceived']])],
+				openAtHandshakeDeadline: traffic === 'chunks', open: false, reason: 'hostHandshakeTimeout',
+			});
+		}));
+	}
 
 	test('a progressing chunked handshake response keeps recovery alive until reassembly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fake = new FakeWebSocket();
@@ -469,7 +616,7 @@ suite('WebPubSubRelayTransport', () => {
 		assert.strictEqual(transport.isOpen, true);
 		assert.strictEqual(received.length, 1);
 		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 12 } });
-		assert.strictEqual(fake.closed, true);
+		assert.deepStrictEqual({ closed: fake.closed, reason: transport.closeReason }, { closed: true, reason: 'hostLaneClosed' });
 	});
 
 	test('a later-generation answer to an outstanding request detects a lost closure notice', async () => {
@@ -480,7 +627,7 @@ suite('WebPubSubRelayTransport', () => {
 		fake.emitGroupMessage(1, { kind: 'message', generation: 1, data: { jsonrpc: '2.0', id: 1, result: {} } });
 		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: {} });
 		fake.emitGroupMessage(2, { kind: 'message', generation: 2, data: { jsonrpc: '2.0', id: 2, result: {} } });
-		assert.strictEqual(fake.closed, true);
+		assert.deepStrictEqual({ closed: fake.closed, reason: transport.closeReason }, { closed: true, reason: 'generationMismatch' });
 	});
 
 	test('a previous connection closure cannot end the pending reconnect handshake', async () => {
@@ -834,9 +981,21 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual(socket.sentApplicationPublishes(), []);
 	});
 
+	test('refuses a shell authentication answer before publishing, but still sends its cancellation', async () => {
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket);
+		await connectHandshake(transport, socket);
+		const params = { chat: 'copilot:/chat', requestId: 'shell-auth' };
+		assert.throws(() => transport.send({
+			jsonrpc: '2.0', id: 1, method: 'vscode/answerShellAuthentication', params: { ...params, answer: 'relay-test-password' },
+		}), /Refusing to send a shell authentication answer/);
+		const cancellation: JsonRpcRequest = { jsonrpc: '2.0', id: 2, method: 'vscode/answerShellAuthentication', params };
+		transport.send(cancellation);
+		assert.deepStrictEqual(socket.sentApplicationPublishes().map(publish => publish['data']), [{ kind: 'message', data: cancellation }]);
+	});
+
 	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'relay', connectionId: 'client', transport: 'webpubsub' },
 			fileService, new NullLogService(),
@@ -1082,11 +1241,13 @@ suite('WebPubSubRelayTransport', () => {
 
 		assert.deepStrictEqual({
 			openBeforeDeadline, openAtDeadline, closedAt, errors, received,
+			reason: transport.closeReason,
 			publishes: fake.sentApplicationPublishes().length,
 		}, {
 			openBeforeDeadline: true,
 			openAtDeadline: false,
 			closedAt: [30_000],
+			reason: 'publishAckTimeout',
 			errors: [new Error('WPS publish acknowledgement timed out')],
 			received: [2, 3].map(id => ({ jsonrpc: '2.0', id, result: null })),
 			publishes: 4,
@@ -1223,12 +1384,30 @@ suite('WebPubSubRelayTransport', () => {
 		const transport = createTransport(fake);
 		await connectHandshake(transport, fake);
 
-		let closes = 0;
-		store.add(transport.onClose(() => closes++));
+		const reasons: (typeof transport.closeReason)[] = [];
+		store.add(transport.onClose(() => reasons.push(transport.closeReason)));
 		fake.emitClose();
 		fake.emitError();
 
-		assert.strictEqual(closes, 1);
+		assert.deepStrictEqual(reasons, ['socketClose']);
+	});
+
+	test('distinguishes socket errors from intentional disposal and ignores late socket callbacks', async () => {
+		const reasons = [];
+		for (const disposed of [false, true]) {
+			const fake = new FakeWebSocket();
+			const transport = createTransport(fake);
+			await connectHandshake(transport, fake);
+			let closes = 0;
+			store.add(transport.onClose(() => closes++));
+			if (disposed) {
+				transport.dispose();
+			}
+			fake.emitError();
+			fake.emitClose(1008, 'private remote text');
+			reasons.push({ closes, reason: transport.closeReason });
+		}
+		assert.deepStrictEqual(reasons, [{ closes: 1, reason: 'socketError' }, { closes: 0, reason: undefined }]);
 	});
 
 	test('throws when sending after dispose', () => {

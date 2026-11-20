@@ -9,7 +9,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { NullLogService } from '../../../log/common/log.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostCommitOperationContribution } from '../../node/agentHostCommitOperationProvider.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -37,6 +37,7 @@ suite('AgentHostCommitOperationContribution', () => {
 				createdAt: new Date(1).toISOString(),
 				modifiedAt: new Date(1).toISOString(),
 				workingDirectories: ['file:///repo'],
+				defaultChat: buildDefaultChatUri(sessionKey),
 			});
 			stateManager.setSessionConfig(sessionKey, {
 				schema: { type: 'object', properties: {} },

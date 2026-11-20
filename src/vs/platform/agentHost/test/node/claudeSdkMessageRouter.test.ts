@@ -18,17 +18,25 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSignal } from '../../common/agent.js';
+import { AgentSignal, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { mintDefaultChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, resolveChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ToolDefinition } from '../../common/state/sessionState.js';
+import { createAgentChatContext } from '../../node/agentChatContext.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
+import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { isMintedTestDefaultChat } from '../common/mintedChatUri.js';
+import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
@@ -44,6 +52,7 @@ interface IRouterHarness {
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
 	readonly database: TestSessionDatabase;
+	readonly clientTools: SessionClientToolsModel;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -69,6 +78,7 @@ function createRouter(
 	db = new TestSessionDatabase(),
 	sessionDataService: ISessionDataService = createSessionDataService(db),
 	fileService = disposables.add(new FileService(new NullLogService())),
+	owner: IAgentChatOwnerRef = fixedChatOwnerRef(URI.parse('claude:/sess-1')),
 ): IRouterHarness {
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
@@ -78,6 +88,7 @@ function createRouter(
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
+		[IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator())],
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
@@ -86,17 +97,19 @@ function createRouter(
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
+	const clientTools = new SessionClientToolsModel();
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
-		resolveChatUri(URI.parse('claude:/sess-1'), chatChannelUri),
+		owner,
+		isMintedTestDefaultChat(chatChannelUri.toString()) ? URI.parse('claude:/sess-1') : chatChannelUri,
 		dbRef,
 		subagents,
-		undefined,
+		clientTools,
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService, database: db };
+	return { router, signals, fileService, database: db, clientTools };
 }
 
 function assistantMessage(content: unknown, parentToolUseId: string | null = null): Extract<SDKMessage, { type: 'assistant' }> {
@@ -110,6 +123,36 @@ function userMessage(content: unknown, parentToolUseId: string | null = null): E
 suite('ClaudeSdkMessageRouter', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads live client-tool ownership for streaming and subagent calls', async () => {
+		const { router, signals, clientTools } = createRouter(disposables);
+		const tools: ToolDefinition[] = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		clientTools.setTools('first', tools);
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(0, 'top-first', 'mcp__client__echo')), 'turn-1');
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'inner-first', name: 'mcp__client__echo', input: {} },
+		], 'parent'), 'turn-1');
+		clientTools.setTools('second', tools);
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(1, 'top-collision', 'mcp__client__echo')), 'turn-1');
+		clientTools.removeClient('first');
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(2, 'top-second', 'mcp__client__echo')), 'turn-1');
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'inner-second', name: 'mcp__client__echo', input: {} },
+		], 'parent'), 'turn-1');
+		clientTools.removeClient('second');
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(3, 'top-removed', 'mcp__client__echo')), 'turn-1');
+		const starts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart
+			? [{ id: signal.action.toolCallId, contributor: signal.action.contributor }]
+			: []);
+		assert.deepStrictEqual(starts, [
+			{ id: 'top-first', contributor: { kind: ToolCallContributorKind.Client, clientId: 'first' } },
+			{ id: 'inner-first', contributor: { kind: ToolCallContributorKind.Client, clientId: 'first' } },
+			{ id: 'top-collision', contributor: { kind: ToolCallContributorKind.Client, clientId: 'first' } },
+			{ id: 'top-second', contributor: { kind: ToolCallContributorKind.Client, clientId: 'second' } },
+			{ id: 'inner-second', contributor: { kind: ToolCallContributorKind.Client, clientId: 'second' } },
+			{ id: 'top-removed', contributor: undefined },
+		]);
+	});
 
 	test('handle with turnId=undefined produces no signals (turn-less messages are routed to nowhere)', async () => {
 		const { router, signals } = createRouter(disposables);
@@ -344,6 +387,79 @@ suite('ClaudeSdkMessageRouter', () => {
 			});
 		});
 	}
+
+	for (const format of ['shaped', 'opaque'] as const) {
+		test(`attributes subagent edits after registering the ${format} default chat`, async () => {
+			const session = URI.parse('claude:/new-session');
+			const chat = URI.parse(mintDefaultChatUri(format, session.toString(), undefined));
+			const manager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+			const context = createAgentChatContext(manager, authenticationService, session, chat, session.toString(), undefined);
+			const attribution = new RecordingAgentEditAttributionService();
+			const { router, fileService } = createRouter(disposables, chat, attribution, undefined, undefined, undefined, context.owner);
+			manager.createSession({
+				resource: session.toString(),
+				defaultChat: chat.toString(),
+				provider: 'claude',
+				title: 'New session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			});
+			const file = URI.file('/work/subagent-format.txt');
+			await fileService.writeFile(file, VSBuffer.fromString('before'));
+
+			for (const availableAtStart of [true, false]) {
+				const task = availableAtStart ? 'task-start' : 'task-result';
+				const toolUseId = `edit-${task}`;
+				await router.handle(assistantMessage([
+					{ type: 'tool_use', id: toolUseId, name: 'Write', input: { file_path: file.fsPath, content: task } },
+				], availableAtStart ? task : null), 'turn-1');
+				await fileService.writeFile(file, VSBuffer.fromString(task));
+				await router.handle(userMessage([
+					{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' },
+				], availableAtStart ? null : task), 'turn-1');
+			}
+
+			assert.deepStrictEqual({
+				format: context.owner.getSubagentChatUriFormat(),
+				editChats: attribution.recordedChatUris,
+			}, {
+				format,
+				editChats: ['task-start', 'task-result'].map(task => subagentChatUri(format, session.toString(), chat.toString(), task)),
+			});
+		});
+	}
+
+	test('mints subagent chats under the chat\'s owner and format at the time each subagent runs', async () => {
+		const first = 'claude:/sess-1';
+		const second = 'claude:/sess-2';
+		const chatChannelUri = URI.parse(buildChatUri(first, 'peer'));
+		const attributionService = new RecordingAgentEditAttributionService();
+		const owner = disposables.add(new TestChatOwnerRef(URI.parse(first)));
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const { router } = createRouter(disposables, chatChannelUri, attributionService, undefined, undefined, fileService, owner);
+		const file = URI.file('/work/owner-change.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+
+		for (const parentToolUseId of ['before-change', 'after-change']) {
+			if (parentToolUseId === 'after-change') {
+				// The chat's owner changes while it runs.
+				owner.set(URI.parse(second), 'opaque');
+			}
+			const toolUseId = `edit-${parentToolUseId}`;
+			await router.handle(assistantMessage([
+				{ type: 'tool_use', id: toolUseId, name: 'Write', input: { file_path: file.fsPath, content: parentToolUseId } },
+			], parentToolUseId), 'turn-1');
+			await fileService.writeFile(file, VSBuffer.fromString(parentToolUseId));
+			await router.handle(userMessage([{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }]), 'turn-1');
+		}
+
+		assert.deepStrictEqual(attributionService.recordedChatUris, [
+			buildSubagentChatUri(first, 'before-change'),
+			subagentChatUri('opaque', second, chatChannelUri.toString(), 'after-change'),
+		]);
+	});
 
 	test('uses available subagent provenance from edit start and completion', async () => {
 		const sessionUri = 'claude:/sess-1';

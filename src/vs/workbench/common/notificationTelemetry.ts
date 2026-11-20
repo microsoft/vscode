@@ -25,7 +25,7 @@ export type NotificationShownClassification = {
 	owner: 'benibenj';
 	comment: 'A workbench notification was rendered in a visible viewport, once per logical notification and surface.';
 	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Core, extension, or unknown attribution.' };
-	notificationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Audited code-defined notification or operation type; never a deduplication ID or derived from content.' };
+	notificationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Audited code-defined core or extension notification type; extension IDs are allowlisted per originating extension and message/progress kind. Never derived from content.' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Publisher.extension from a trusted extension bridge, or none/unknown. Never a display source.' };
 	instanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Ephemeral renderer-local sequence for joining exposures and interactions; not persisted.' };
 	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Invoking or last observed surface: toast, notification center, accessible view, or unknown.' };

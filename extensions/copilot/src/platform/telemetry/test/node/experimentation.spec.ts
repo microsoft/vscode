@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import { IExperimentationService as ITASExperimentationService } from 'vscode-tas-client';
 import { mock } from '../../../../util/common/test/simpleMock';
@@ -17,6 +17,7 @@ import { ILogService } from '../../../log/common/logService';
 import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { createTasFetch } from '../../vscode-node/tasFetch';
 import { BaseExperimentationService, RevocationGate, TASClientDelegateFn, UserInfoStore } from '../../node/baseExperimentationService';
 
@@ -173,6 +174,7 @@ describe('ExP Service Tests', () => {
 	let expService: TestExperimentationService;
 	let copilotTokenService: ICopilotTokenStore;
 	let extensionContext: IVSCodeExtensionContext;
+	const userInfoStores = new Set<UserInfoStore>();
 
 	const GitHubProToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token-gh-pro', username: 'fake', sku: 'pro', copilot_plan: 'unknown', organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'] }));
 	const GitHubAndMicrosoftEnterpriseToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token-gh-msft-enterprise', username: 'fake', sku: 'enterprise', copilot_plan: 'unknown', organization_list: ['4535c7beffc844b46bb1ed4aa04d759a', 'a5db0bcaae94032fe715fb34a5e4bce2'] }));
@@ -189,6 +191,19 @@ describe('ExP Service Tests', () => {
 		extensionContext = accessor.get(IVSCodeExtensionContext);
 		copilotTokenService = accessor.get(ICopilotTokenStore);
 		expService = accessor.get(IInstantiationService).createInstance(TestExperimentationService);
+	});
+
+	function createUserInfoStore(): UserInfoStore {
+		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		userInfoStores.add(userInfoStore);
+		return userInfoStore;
+	}
+
+	afterEach(() => {
+		for (const userInfoStore of userInfoStores) {
+			userInfoStore.dispose();
+		}
+		userInfoStores.clear();
 	});
 
 	beforeEach(() => {
@@ -297,6 +312,38 @@ describe('ExP Service Tests', () => {
 
 		// Verify refresh was called
 		expect(expService.mockTasService.refreshCallCount).toBe(1);
+	});
+
+	it('should classify Proxima from the token stamp and fail closed while it is unresolved', () => {
+		copilotTokenService.copilotToken = undefined;
+		const userInfoStore = createUserInfoStore();
+		let changes = 0;
+		userInfoStore.onDidChangeUserInfo(() => changes++);
+
+		const values = [userInfoStore.isProxima];
+		copilotTokenService.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'st=proxima' }));
+		values.push(userInfoStore.isProxima);
+		copilotTokenService.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'st=dotcom' }));
+		values.push(userInfoStore.isProxima);
+		copilotTokenService.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=no-stamp' }));
+		values.push(userInfoStore.isProxima);
+		copilotTokenService.copilotToken = undefined;
+		values.push(userInfoStore.isProxima);
+
+		expect({ values, changes }).toEqual({
+			values: [false, true, false, false, false],
+			changes: 3,
+		});
+	});
+
+	it('should use cached Proxima status on initialization', async () => {
+		await extensionContext.globalState.update(UserInfoStore.IS_PROXIMA_STORAGE_KEY, true);
+		copilotTokenService.copilotToken = undefined;
+
+		const userInfoStore = createUserInfoStore();
+
+		expect(userInfoStore.isProxima).toBe(true);
+		await extensionContext.globalState.update(UserInfoStore.IS_PROXIMA_STORAGE_KEY, undefined);
 	});
 
 	it('should handle cached user info on initialization', async () => {
@@ -507,7 +554,7 @@ describe('ExP Service Tests', () => {
 		await treatmentsChangePromise;
 
 		// Verify isVscodeTeamMember is set in UserInfoStore
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.isVscodeTeamMember).toBe(true);
 	});
 
@@ -520,7 +567,7 @@ describe('ExP Service Tests', () => {
 		await treatmentsChangePromise;
 
 		// Verify isVscodeTeamMember is set correctly in UserInfoStore
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.isVscodeTeamMember).toBe(false);
 	});
 
@@ -545,7 +592,7 @@ describe('ExP Service Tests', () => {
 		await extensionContext.globalState.update(UserInfoStore.IS_VSCODE_TEAM_MEMBER_STORAGE_KEY, true);
 
 		// Create new UserInfoStore instance to test initialization
-		const newUserInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const newUserInfoStore = createUserInfoStore();
 
 		// Should use cached value initially (when no token is present)
 		expect(newUserInfoStore.isVscodeTeamMember).toBe(true);
@@ -563,7 +610,7 @@ describe('ExP Service Tests', () => {
 		await treatmentsChangePromise;
 
 		// Verify organization list is correctly tracked
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.organizationList).toBeDefined();
 		expect(userInfoStore.organizationList).toContain('4535c7beffc844b46bb1ed4aa04d759a'); // GitHub org
 		expect(userInfoStore.organizationList).toContain('a5db0bcaae94032fe715fb34a5e4bce2'); // Microsoft org
@@ -593,7 +640,7 @@ describe('ExP Service Tests', () => {
 		await extensionContext.globalState.update(UserInfoStore.ORGANIZATION_LIST_STORAGE_KEY, testOrgList);
 
 		// Create new UserInfoStore instance to test initialization
-		const newUserInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const newUserInfoStore = createUserInfoStore();
 
 		// Should use cached value initially (when no token is present)
 		expect(newUserInfoStore.organizationList).toEqual(testOrgList);
@@ -611,7 +658,7 @@ describe('ExP Service Tests', () => {
 		await treatmentsChangePromise;
 
 		// Verify organization list is empty
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.organizationList).toBeDefined();
 		expect(userInfoStore.organizationList?.length).toBe(0);
 	});
@@ -637,7 +684,7 @@ describe('ExP Service Tests', () => {
 		expect(expService.mockTasService.refreshCallCount).toBe(1);
 
 		// Verify the UserInfoStore has the correct value
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.isVscodeTeamMember).toBe(true);
 	});
 
@@ -650,7 +697,7 @@ describe('ExP Service Tests', () => {
 		await treatmentsChangePromise;
 
 		// Verify isSn is set in UserInfoStore
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.isSn).toBe(true);
 	});
 
@@ -663,7 +710,7 @@ describe('ExP Service Tests', () => {
 		await treatmentsChangePromise;
 
 		// Verify isSn is false in UserInfoStore
-		const userInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const userInfoStore = createUserInfoStore();
 		expect(userInfoStore.isSn).toBe(false);
 	});
 
@@ -688,7 +735,7 @@ describe('ExP Service Tests', () => {
 		await extensionContext.globalState.update(UserInfoStore.IS_SN_STORAGE_KEY, true);
 
 		// Create new UserInfoStore instance to test initialization
-		const newUserInfoStore = new UserInfoStore(extensionContext, copilotTokenService);
+		const newUserInfoStore = createUserInfoStore();
 
 		// Should use cached value initially (when no token is present)
 		expect(newUserInfoStore.isSn).toBe(true);

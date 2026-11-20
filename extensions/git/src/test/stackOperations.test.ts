@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, extensions, LogOutputChannel, Uri, window } from 'vscode';
+import { commands, ConfigurationTarget, extensions, LogOutputChannel, Uri, window, workspace } from 'vscode';
 import type { API, GitExtension, Repository } from '../api/git';
 import { ForcePushMode, GitErrorCodes, RefType } from '../api/git.constants';
 import { findGit, Git, GitError, Repository as GitRepository } from '../git';
@@ -56,11 +56,26 @@ suite('git stack operations', () => {
 		await repository.rebase('main');
 		await repository.rebase('old-base', { onto: 'new-base', rebaseMerges: true });
 		await repository.rebaseAbort();
+		await repository.rebaseContinue();
 
 		assert.deepStrictEqual(calls, [
 			['rebase', 'main'],
 			['rebase', '--rebase-merges', '--onto', 'new-base', 'old-base'],
-			['rebase', '--abort']
+			['rebase', '--abort'],
+			['rebase', '--continue']
+		]);
+	});
+
+	test('merge passes -S only when commit signing is requested', async () => {
+		const { repository, calls } = recordingRepository();
+		await repository.merge('feature');
+		await repository.merge('feature', { signCommit: false });
+		await repository.merge('feature', { signCommit: true });
+
+		assert.deepStrictEqual(calls, [
+			['merge', 'feature'],
+			['merge', 'feature'],
+			['merge', '-S', 'feature']
 		]);
 	});
 
@@ -145,6 +160,16 @@ suite('git stack operations', () => {
 			return (await repository.getCommit('HEAD')).hash;
 		}
 
+		/**
+		 * Closes a repository before its folder is deleted, so that no pending
+		 * background git work (e.g. `check-ignore`) runs in a missing directory.
+		 */
+		async function closeRepository(repositoryToClose: Repository | null): Promise<void> {
+			if (repositoryToClose) {
+				await commands.executeCommand('git.close', repositoryToClose.rootUri);
+			}
+		}
+
 		setup(async () => {
 			directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-stack-'));
 			root = path.join(directory, 'repository');
@@ -161,9 +186,7 @@ suite('git stack operations', () => {
 		});
 
 		teardown(async () => {
-			if (repository) {
-				await commands.executeCommand('git.close', repository.rootUri);
-			}
+			await closeRepository(repository);
 			if (directory) {
 				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
@@ -211,6 +234,35 @@ suite('git stack operations', () => {
 			assert.deepStrictEqual({ parent: rebased.parents[0], changed: rebased.hash !== previous }, { parent: newBase, changed: true });
 		});
 
+		test('merge signs the merge commit only when git.enableCommitSigning is enabled', async () => {
+			await repository.createBranch('feature', true);
+			await commit('feature\n', 'feature', 'feature.txt');
+			await repository.checkout('main');
+			await commit('main\n', 'main', 'main.txt');
+
+			// A missing signing program makes `git merge -S` fail, which shows whether signing was requested
+			await git.exec(root, ['config', 'gpg.program', path.join(directory, 'missing-gpg')]);
+
+			const config = workspace.getConfiguration('git');
+			try {
+				await config.update('enableCommitSigning', true, ConfigurationTarget.Global);
+				const enabled = await repository.merge('feature').then(
+					() => 'merged',
+					(error: { stderr?: string }) => /gpg failed to sign/.test(error.stderr ?? '') ? 'signing requested' : String(error));
+				if (enabled !== 'merged') {
+					await repository.mergeAbort();
+				}
+
+				await config.update('enableCommitSigning', undefined, ConfigurationTarget.Global);
+				await repository.merge('feature');
+				const disabled = (await repository.getCommit('HEAD')).parents.length;
+
+				assert.deepStrictEqual({ enabled, disabled }, { enabled: 'signing requested', disabled: 2 });
+			} finally {
+				await config.update('enableCommitSigning', undefined, ConfigurationTarget.Global);
+			}
+		});
+
 		test('rebases through a detached worktree opened with the public API', async () => {
 			const oldBase = (await repository.getCommit('HEAD')).hash;
 			await repository.createBranch('feature', true);
@@ -245,10 +297,56 @@ suite('git stack operations', () => {
 					feature: oldHead
 				});
 			} finally {
+				await closeRepository(temporaryRepository);
 				await repository.deleteWorktree(worktreePath, { force: true });
 			}
 
 			assert.strictEqual(fs.existsSync(worktreePath), false);
+		});
+
+		test('reports and continues a conflicting rebase in a linked worktree', async () => {
+			const oldBase = (await repository.getCommit('HEAD')).hash;
+			await repository.createBranch('feature', true);
+			const oldHead = await commit('feature\n', 'feature');
+			await repository.checkout('main');
+			const newBase = await commit('main\n', 'main');
+			const worktreePath = path.join(directory, 'conflict-worktree');
+			await repository.createWorktree({ path: worktreePath, commitish: oldHead });
+			let temporaryRepository: Repository | null = null;
+
+			try {
+				temporaryRepository = await api.openRepository(Uri.file(worktreePath));
+				assert.ok(temporaryRepository);
+				await assert.rejects(temporaryRepository.rebase(oldBase, { onto: newBase }), { gitErrorCode: GitErrorCodes.Conflict });
+				await temporaryRepository.status();
+				const stopped = {
+					rebaseCommit: temporaryRepository.state.rebaseCommit?.hash,
+					conflicts: temporaryRepository.state.mergeChanges.map(change => path.basename(change.uri.fsPath))
+				};
+
+				const tracked = path.join(worktreePath, 'tracked.txt');
+				await fs.promises.writeFile(tracked, 'resolved\n');
+				await temporaryRepository.add([tracked]);
+				await temporaryRepository.rebaseContinue();
+				const rebased = await temporaryRepository.getCommit('HEAD');
+
+				assert.deepStrictEqual({
+					stopped,
+					rebaseCommit: temporaryRepository.state.rebaseCommit,
+					parent: rebased.parents[0],
+					message: rebased.message,
+					content: await fs.promises.readFile(tracked, 'utf8')
+				}, {
+					stopped: { rebaseCommit: oldHead, conflicts: ['tracked.txt'] },
+					rebaseCommit: undefined,
+					parent: newBase,
+					message: 'feature',
+					content: 'resolved\n'
+				});
+			} finally {
+				await closeRepository(temporaryRepository);
+				await repository.deleteWorktree(worktreePath, { force: true });
+			}
 		});
 
 		test('updates a branch by CAS, reads remote tips and rejects a stale push lease', async () => {

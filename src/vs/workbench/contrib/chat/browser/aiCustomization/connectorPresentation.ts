@@ -101,6 +101,8 @@ export function getConnectorRowPresentation(connector: ICopilotConnector): IConn
 			return {
 				statusLabel: getConnectorStatusLabel(connector.connectionStatus),
 				statusIcon: 'pending',
+				action: 'retry',
+				actionLabel: localize('connectors.action.tryAgain', "Try Again"),
 			};
 		case 'error':
 			return {

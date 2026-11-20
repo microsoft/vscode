@@ -9,13 +9,17 @@ import { normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { Promises } from '../../../base/node/pfs.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { BrowserViewStorageScope, IBrowserViewSessionOptions } from '../common/browserView.js';
+import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
+import { authorizeRemoteFilePath, type IRemoteFileAccess } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
@@ -57,7 +61,7 @@ export class BrowserSession {
 	 *
 	 * ID derivation rules (one-to-one with Electron sessions):
 	 *  - Global scope         -> `"global"`
-	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
+	 *  - Workspace scope      -> `"workspace:${workspaceId}[:${partition}]"`
 	 *  - Ephemeral per-view   -> `"ephemeral:${viewId}"`
 	 *  - Agent scope          -> `"agent:${identityHash}"`
 	 *  - Custom type          -> `"${type}:${viewId}"`
@@ -135,23 +139,56 @@ export class BrowserSession {
 	static getOrCreateGlobal(instantiationService: IInstantiationService): BrowserSession {
 		const electronSession = session.fromPartition('persist:vscode-browser');
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global);
+			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global, undefined, undefined);
 	}
 
 	/**
-	 * Get or create a workspace-scope session for the given workspace.
+	 * Get workspace storage, optionally partitioned by a hashed affinity.
+	 * Partitions share the workspace's storage lifetime.
 	 */
-	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI): BrowserSession {
-		const storage = joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
+	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI, network?: IBrowserViewNetwork, affinity?: string): BrowserSession {
+		const partition = affinity === undefined ? undefined : createHash('sha256').update(affinity).digest('hex');
+		const storage = partition
+			? joinPath(BrowserSession.getWorkspaceAffinityStorageHome(workspaceStorageHome, workspaceId), partition)
+			: joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
+		const id = partition ? `workspace:${workspaceId}:${partition}` : `workspace:${workspaceId}`;
 		const electronSession = session.fromPath(storage.fsPath);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace);
+			?? instantiationService.createInstance(BrowserSession, id, electronSession, BrowserViewStorageScope.Workspace, network, affinity);
+	}
+
+	private static getWorkspaceAffinityStorageHome(workspaceStorageHome: URI, workspaceId: string): URI {
+		return joinPath(workspaceStorageHome, workspaceId, 'browserStorageAffinities');
+	}
+
+	/**
+	 * Clear workspace storage and all affinity partitions, including unused ones.
+	 */
+	static async clearWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI, storage: IApplicationStorageMainService): Promise<void> {
+		const sessions = [BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome).electronSession];
+		const affinityHome = BrowserSession.getWorkspaceAffinityStorageHome(workspaceStorageHome, workspaceId);
+		let partitions: string[] = [];
+		try {
+			partitions = await Promises.readdir(affinityHome.fsPath);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				throw error;
+			}
+		}
+		for (const partition of partitions) {
+			sessions.push(session.fromPath(joinPath(affinityHome, partition).fsPath));
+		}
+		await Promise.all(sessions.map(electronSession => {
+			const browserSession = BrowserSession._bySession.get(electronSession);
+			browserSession?.connectStorage(storage);
+			return (browserSession ?? electronSession).clearData();
+		}));
 	}
 
 	/**
 	 * Get or create an ephemeral session for the given view or target ID.
 	 */
-	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string): BrowserSession {
+	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string, network?: IBrowserViewNetwork): BrowserSession {
 		if (type === 'workspace' || type === 'ephemeral' || type === 'agent') {
 			throw new Error(`Cannot create session with reserved type '${type}'`);
 		}
@@ -159,11 +196,11 @@ export class BrowserSession {
 		const sessionId = `${type ?? 'ephemeral'}:${viewId}`;
 		const electronSession = session.fromPartition(`vscode-browser-${type}${viewId}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
+			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral, network, undefined);
 	}
 
-	/** Get or create an in-memory agent session by affinity, workspace, or window. */
-	static getOrCreateAgent(instantiationService: IInstantiationService, workspaceId: string | undefined, affinity?: string, windowId?: number): BrowserSession {
+	/** Get or create an in-memory agent session by affinity, workspace, or window, and network. */
+	static getOrCreateAgent(instantiationService: IInstantiationService, workspaceId: string | undefined, affinity?: string, windowId?: number, network?: IBrowserViewNetwork): BrowserSession {
 		let identity: string;
 		if (affinity !== undefined) {
 			identity = `affinity:${affinity}`;
@@ -174,10 +211,13 @@ export class BrowserSession {
 		} else {
 			throw new Error('Agent browser sessions require an affinity, workspace, or window');
 		}
+		if (network) {
+			identity += `\nnetwork:${network.authority}`;
+		}
 		const identityHash = createHash('sha256').update(identity).digest('hex');
 		const electronSession = session.fromPartition(`vscode-browser-agent-${identityHash}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent);
+			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent, network, affinity);
 	}
 
 	/**
@@ -209,30 +249,39 @@ export class BrowserSession {
 				return BrowserSession.getOrCreateGlobal(instantiationService);
 			case BrowserViewStorageScope.Workspace:
 				if (workspaceId) {
-					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome);
+					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome, options.network, options.affinity);
 				}
-				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined, options.network);
 			case BrowserViewStorageScope.Ephemeral:
-				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined, options.network);
 			case BrowserViewStorageScope.Agent:
-				return BrowserSession.getOrCreateAgent(instantiationService, workspaceId, options.affinity, windowId);
+				return BrowserSession.getOrCreateAgent(instantiationService, workspaceId, options.affinity, windowId, options.network);
 		}
 	}
 
-	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
-	private static _trustAllFiles = false;
+	private static readonly _trustedLocalFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
+	private static _trustAllLocalFiles = false;
+	private static _remoteFileAccess = new Map<string, IRemoteFileAccess>();
 
 	/**
-	 * Set trusted file roots for all browser sessions.
+	 * Set trusted file roots for sessions on the local network. Remote sessions use {@link setRemoteFileAccess}.
 	 */
-	static setTrustedFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
-		BrowserSession._trustAllFiles = trustAllFiles;
-		BrowserSession._trustedFileRoots.clear();
+	static setTrustedLocalFileRoots(roots: readonly string[], trustAllLocalFiles: boolean): void {
+		BrowserSession._trustAllLocalFiles = trustAllLocalFiles;
+		BrowserSession._trustedLocalFileRoots.clear();
 		for (const root of roots) {
 			if (root) {
-				BrowserSession._trustedFileRoots.set(normalize(root), true);
+				BrowserSession._trustedLocalFileRoots.set(normalize(root), true);
 			}
 		}
+	}
+
+	/**
+	 * Set the trusted paths on the file system of each remote, keyed by network authority.
+	 * Used for the `file:` requests of sessions bound to that remote's network.
+	 */
+	static setRemoteFileAccess(remotes: ReadonlyMap<string, IRemoteFileAccess>): void {
+		BrowserSession._remoteFileAccess = new Map(remotes);
 	}
 
 	// #endregion
@@ -273,7 +322,11 @@ export class BrowserSession {
 		readonly electronSession: Electron.Session,
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
+		private _network: IBrowserViewNetwork | undefined,
+		private readonly affinity: string | undefined,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
@@ -285,6 +338,29 @@ export class BrowserSession {
 		BrowserSession._bySession.set(electronSession, this);
 		BrowserSession._byId.set(id, new WeakRef(this));
 		BrowserSession._finalizer.register(electronSession, id);
+	}
+
+	/** The remote network this session's traffic is bound to, if any. */
+	get network(): IBrowserViewNetwork | undefined {
+		return this._network;
+	}
+
+	/** Whether the file system of this session's remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
+	get isPathCaseSensitive(): boolean | undefined {
+		return this._network && (BrowserSession._remoteFileAccess.get(this._network.authority)?.caseSensitive ?? true);
+	}
+
+	/** The options that select this session. */
+	get options(): IBrowserViewSessionOptions {
+		return toBrowserViewSessionOptions(this.storageScope, this.affinity, this._network);
+	}
+
+	/**
+	 * Bind the session to another network. Only valid while no view uses the
+	 * session; otherwise views would share storage across networks.
+	 */
+	setNetwork(network: IBrowserViewNetwork | undefined): void {
+		this._network = network;
 	}
 
 	/** Public trust interface for consumers that need cert operations. */
@@ -354,12 +430,42 @@ export class BrowserSession {
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
 		this.electronSession.protocol.handle(Schemas.file, request => {
+			// Sessions on a remote network never serve local files, just like they never reach local servers.
+			if (this._network) {
+				return this.handleRemoteFileRequest(this._network.authority, URI.parse(request.url));
+			}
 			const filePath = normalize(URI.parse(request.url).fsPath);
-			if (!BrowserSession._trustAllFiles && !BrowserSession._trustedFileRoots.findSubstr(filePath)) {
+			if (!BrowserSession._trustAllLocalFiles && !BrowserSession._trustedLocalFileRoots.findSubstr(filePath)) {
 				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 			}
 			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
 		});
+	}
+
+	/**
+	 * Serve a `file:` request from the file system of the remote the session is bound to,
+	 * through the file service of a window connected to that remote.
+	 */
+	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
+		const access = BrowserSession._remoteFileAccess.get(authority);
+		const path = access && authorizeRemoteFilePath(access, uri);
+		if (!access || path === undefined) {
+			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
+		}
+
+		const hostWindowId = this._remote.hostWindowId;
+		const window = hostWindowId === undefined ? undefined : this.windowsMainService.getWindowById(hostWindowId);
+		if (!window) {
+			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
+		}
+
+		return this.protocolMainService.requestManagedRemoteResource(uri.with({
+			path,
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority: `window:${window.id}`,
+			query: new URLSearchParams({ authority, scheme: access.scheme }).toString(),
+			fragment: ''
+		}));
 	}
 
 	/**

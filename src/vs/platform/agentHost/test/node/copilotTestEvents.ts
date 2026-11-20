@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, CopilotClient, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import type { Attachment, CopilotClient, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@microsoft/copilot-sdk';
 import { mock } from '../../../../base/test/common/mock.js';
 
 export function createUnmanagedCopilotSettings(): CopilotClient['rpc']['managedSettings'] {
@@ -58,6 +58,7 @@ export interface ISessionEventToolComplete {
 			/** `content` is result text; `contents` are typed SDK result blocks such as `shell_exit`. */
 			content?: string;
 			contents?: ToolExecutionCompleteContent[];
+			mcpResultMeta?: Record<string, unknown>;
 		};
 		error?: { message: string; code?: string };
 		isUserRequested?: boolean;

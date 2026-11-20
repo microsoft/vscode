@@ -22,16 +22,13 @@ export type PullRequestFragment =
 	| 'core'
 	| 'topLevelComments'
 	| 'submittedReviews'
-	| 'inlineComments'
 	| 'reviewThreads'
 	| 'checks'
-	| 'mergeability'
-	| 'participants';
+	| 'mergeability';
 
 export interface PullRequestConversationInterests {
 	readonly topLevelComments?: boolean;
 	readonly submittedReviews?: boolean;
-	readonly inlineComments?: boolean;
 	readonly reviewThreads?: boolean;
 	readonly includeBodies?: boolean;
 }
@@ -46,7 +43,6 @@ export interface PullRequestInterests {
 	readonly conversation?: PullRequestConversationInterests;
 	readonly checks?: PullRequestChecksInterests;
 	readonly mergeability?: true;
-	readonly participants?: true;
 }
 
 export interface PullRequestSubscriptionOptions extends PullRequestInterests {
@@ -57,6 +53,12 @@ export interface GitHubFragmentError {
 	readonly message: string;
 	readonly kind: RequestErrorKind;
 	readonly statusCode?: number;
+	/**
+	 * The GitHub page where the user authorizes the credential for an
+	 * organization that enforces SAML single sign-on, when it refused the
+	 * request for that. GitHub expires it after an hour.
+	 */
+	readonly ssoAuthorizationUrl?: string;
 }
 
 export interface FragmentState<T> {
@@ -150,9 +152,20 @@ export interface PullRequestCheck {
 	readonly name: string;
 	readonly status?: string;
 	readonly conclusion?: string;
+	/** Whether GitHub reports the check itself as required by the base branch. */
 	readonly required?: boolean;
 	readonly detailsUrl?: string;
 	readonly workflowName?: string;
+	/** The GitHub Actions workflow run that reported the check. */
+	readonly workflowRunId?: string;
+	/** The path of that run's workflow file. */
+	readonly workflowPath?: string;
+	/**
+	 * The unfinished required checks that wait for this check through their
+	 * workflow's `needs:`, directly or through other jobs; see
+	 * `classifyRequiredPullRequestChecks`.
+	 */
+	readonly requiredBy?: readonly string[];
 }
 
 export interface PullRequestCheckSuite {
@@ -167,8 +180,35 @@ export interface PullRequestChecks {
 	readonly headSha: string;
 	readonly checks: readonly PullRequestCheck[];
 	readonly requirednessComplete: boolean;
+	/**
+	 * The names of the checks the base branch's protection and rulesets
+	 * require, including those that have not reported yet. `undefined` when
+	 * they were not requested or could not be read.
+	 */
+	readonly requiredContexts?: readonly string[];
 	readonly expectedSuites: readonly PullRequestCheckSuite[];
 	readonly expectedSuitesComplete: boolean;
+}
+
+/** GitHub's `MergeQueueEntryState`. */
+export type PullRequestMergeQueueEntryState = 'QUEUED' | 'AWAITING_CHECKS' | 'MERGEABLE' | 'UNMERGEABLE' | 'LOCKED';
+
+/** Why and how a pull request last left its merge queue without merging, while nothing was pushed to it since. */
+export interface PullRequestMergeQueueRemoval {
+	/** The node ID of GitHub's `RemovedFromMergeQueueEvent`, which identifies this removal. */
+	readonly id: string;
+	/** GitHub's reason, such as `failed_checks`, `merge_conflict` or `manual`. */
+	readonly reason: string;
+	readonly removedAt: string;
+	/** The login of the person or app that removed it, when it was removed by hand. */
+	readonly removedBy?: string;
+	/** The commit the merge queue tested the pull request in, combined with the base branch and the pull requests ahead of it. */
+	readonly mergeGroupSha?: string;
+	/**
+	 * The checks that failed on {@link mergeGroupSha} when it was removed because checks failed. Some run only in the merge
+	 * queue, so they are not among the pull request's own checks. `undefined` when they were not or could not be read.
+	 */
+	readonly failedChecks?: readonly PullRequestCheck[];
 }
 
 export interface PullRequestMergeability {
@@ -183,16 +223,16 @@ export interface PullRequestMergeability {
 	readonly allowedMergeMethods: readonly PullRequestMergeMethod[];
 	readonly autoMergeEnabled: boolean;
 	readonly mergeQueueEntryId?: string;
+	/** The state of the pull request's merge queue entry, when it is queued and the host reports it. */
+	readonly mergeQueueEntryState?: PullRequestMergeQueueEntryState;
+	/** The 1-based position of the pull request's entry in its merge queue. */
+	readonly mergeQueuePosition?: number;
+	/** GitHub's estimate, in seconds, of how long the queued pull request takes to merge. */
+	readonly mergeQueueEstimatedTimeToMerge?: number;
+	/** The pull request's last removal from its merge queue, when it is not queued and its head has not changed since. */
+	readonly mergeQueueRemoval?: PullRequestMergeQueueRemoval;
 	readonly mergeQueueRequired: boolean;
 	readonly queueRequirementKnown: boolean;
-}
-
-export interface PullRequestParticipant extends GitHubActor {
-	readonly roles: readonly ('author' | 'commenter' | 'reviewer')[];
-}
-
-export interface PullRequestParticipants {
-	readonly participants: readonly PullRequestParticipant[];
 }
 
 export interface PullRequestSnapshot {
@@ -202,11 +242,9 @@ export interface PullRequestSnapshot {
 	readonly core: FragmentState<PullRequestCore>;
 	readonly topLevelComments: FragmentState<readonly PullRequestComment[]>;
 	readonly submittedReviews: FragmentState<readonly PullRequestReview[]>;
-	readonly inlineComments: FragmentState<readonly PullRequestInlineComment[]>;
 	readonly reviewThreads: FragmentState<readonly PullRequestReviewThread[]>;
 	readonly checks: FragmentState<PullRequestChecks>;
 	readonly mergeability: FragmentState<PullRequestMergeability>;
-	readonly participants: FragmentState<PullRequestParticipants>;
 }
 
 export interface PullRequestResource {
@@ -222,4 +260,17 @@ export interface PullRequestSubscription extends IDisposable {
 	readonly resource: PullRequestResource;
 	update(options: PullRequestSubscriptionOptions): void;
 	refresh(fragment?: PullRequestFragment, token?: CancellationToken, options?: PullRequestRefreshOptions): Promise<void>;
+}
+
+export function firstCredentialFailure(snapshot: PullRequestSnapshot, fragments: readonly PullRequestFragment[]): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string; readonly ssoAuthorizationUrl?: string } | undefined {
+	for (const fragment of fragments) {
+		const error = snapshot[fragment].error;
+		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
+			return {
+				id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message,
+				...(error.ssoAuthorizationUrl ? { ssoAuthorizationUrl: error.ssoAuthorizationUrl } : {}),
+			};
+		}
+	}
+	return undefined;
 }

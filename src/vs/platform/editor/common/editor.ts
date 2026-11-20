@@ -159,14 +159,11 @@ export enum EditorActivation {
 export enum EditorResolution {
 
 	/**
-	 * Displays a picker and allows the user to decide which editor to use.
-	 */
-	PICK,
-
-	/**
 	 * Only exclusive editors are considered.
+	 *
+	 * Note: the value is non-zero so that `override` is truthy when set.
 	 */
-	EXCLUSIVE_ONLY
+	EXCLUSIVE_ONLY = 1
 }
 
 export enum EditorOpenSource {

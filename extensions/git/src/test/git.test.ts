@@ -4,11 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
 import * as assert from 'assert';
+import * as path from 'path';
+import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
+	suite('Git process input', () => {
+		let git: Git;
+		let logger: LogOutputChannel;
+
+		suiteSetup(async () => {
+			logger = window.createOutputChannel('git process input test', { log: true });
+			const foundGit = await findGit(['git'], () => true, logger);
+			git = new Git({ gitPath: foundGit.path, userAgent: 'git-process-input-test', version: foundGit.version });
+		});
+
+		suiteTeardown(() => {
+			logger?.dispose();
+		});
+
+		test('does not raise an uncaught error when git exits before reading its input', async () => {
+			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
+			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
+			assert.match(result.stdout, /^git version /);
+		});
+	});
+
 	suite('GitStatusParser', () => {
 		test('empty parser', () => {
 			const parser = new GitStatusParser();
@@ -536,6 +559,38 @@ suite('git', () => {
 		});
 	});
 
+	suite('parseGitFileLog', () => {
+		const header = (hash: string, date: number, parent: string, refNames: string, message: string) =>
+			`${hash}\nJohn Doe\njohn@doe.com\n${date}\n${date}\n${parent}\n${refNames}\n${message}\n\x00\n`;
+		const commits = [
+			header('3d54fbf697580e1c5984306761039cf7e39d5e10', 1767398400, 'd0eecfaa720105f947e2d1aa2754bb2142e391bc', 'HEAD -> main', 'Make binary'),
+			header('d0eecfaa720105f947e2d1aa2754bb2142e391bc', 1767312000, '428a48b6308ea84d416f21edd625c1729df96e3b', '', 'Rename file'),
+			header('428a48b6308ea84d416f21edd625c1729df96e3b', 1767225600, '', '', 'Add file'),
+		];
+		const shortStats = [
+			' 1 file changed, 0 insertions(+), 0 deletions(-)\n',
+			' 1 file changed, 0 insertions(+), 0 deletions(-)\n',
+			' 1 file changed, 1 insertion(+)\n',
+		];
+
+		test('resolves the path of a followed file at each commit', () => {
+			// `git log --format=... -z --shortstat --numstat --follow -- new.txt` for a binary change, a rename and an add
+			const numStats = ['-\t-\tnew.txt\x00', '0\t0\t\x00old name.txt\x00new.txt\x00', '1\t0\told name.txt\x00'];
+			const output = commits.map((commit, index) => commit + numStats[index] + shortStats[index]).join('');
+			const withoutNumStats = commits.map((commit, index) => commit + shortStats[index]).join('');
+
+			assert.deepStrictEqual(
+				parseGitFileLog(output),
+				parseGitCommits(withoutNumStats).map((commit, index) => ({ ...commit, filePath: ['new.txt', 'new.txt', 'old name.txt'][index] }))
+			);
+		});
+
+		test('leaves the path unset for commits without changes to the file', () => {
+			const output = commits[0] + shortStats[0] + commits[1] + '0\t0\tnew.txt\x00' + shortStats[1];
+			assert.deepStrictEqual(parseGitFileLog(output).map(commit => commit.filePath), [undefined, 'new.txt']);
+		});
+	});
+
 	suite('parseLsTree', function () {
 		test('sample', function () {
 			const input = `040000 tree 0274a81f8ee9ca3669295dc40f510bd2021d0043       -	.vscode
@@ -596,6 +651,20 @@ suite('git', () => {
 				{ mode: '100644', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', stage: '0', file: 'what.js' },
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
+			]);
+		});
+	});
+
+	suite('getWorktreePathFromGitdir', () => {
+		test('absolute and relative gitdir', function () {
+			const worktreeGitDirPath = path.resolve('/repo/.git/worktrees/feature');
+
+			assert.deepStrictEqual([
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/worktrees/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '../../../../worktrees/feature/.git')
+			], [
+				'/worktrees/feature',
+				path.resolve('/worktrees/feature')
 			]);
 		});
 	});

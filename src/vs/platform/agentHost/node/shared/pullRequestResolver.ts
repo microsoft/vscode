@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { parsePullRequestUrl } from '../../../github/common/githubUrls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
 
 export const IAgentHostPullRequestResolver = createDecorator<IAgentHostPullRequestResolver>('agentHostPullRequestResolver');
@@ -26,27 +27,27 @@ export interface IResolvedPullRequest {
 /** Resolves pull request URLs a session is created from. */
 export interface IAgentHostPullRequestResolver {
 	readonly _serviceBrand: undefined;
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined;
 	/**
 	 * Parses `pullRequestUrl` and fetches the pull request from GitHub. Throws a
 	 * localized error for malformed URLs, other GitHub hosts, inaccessible or
 	 * merged pull requests, and pull requests from forks.
 	 */
-	resolve(pullRequestUrl: string): Promise<IResolvedPullRequest>;
+	resolve(pullRequestUrl: string, source?: IAgentHostCredentialSource, session?: string): Promise<IResolvedPullRequest>;
 }
 
 export class AgentHostPullRequestResolver extends Disposable implements IAgentHostPullRequestResolver {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _abortController = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 	) {
 		super();
-		this._register(toDisposable(() => this._abortController.abort()));
 	}
 
-	async resolve(pullRequestUrl: string): Promise<IResolvedPullRequest> {
+	async resolve(pullRequestUrl: string, source?: IAgentHostCredentialSource, session?: string): Promise<IResolvedPullRequest> {
 		const parsed = parsePullRequestUrl(pullRequestUrl);
 		if (!parsed) {
 			throw new Error(localize('agentHost.pullRequest.invalidUrl', "'{0}' is not a valid pull request URL.", pullRequestUrl));
@@ -54,8 +55,8 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
-			const { account } = await client.credentials.getCredential(this._abortController.signal);
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._disposeToken, source, session)).object;
+			const { account } = await client.credentials.getCredential(this._disposeToken);
 			// The URL names its own GitHub instance; never query it with an account from another one.
 			if (account.host.toLowerCase() !== parsed.apiHost) {
 				throw new Error(localize('agentHost.pullRequest.hostMismatch', "Pull request #{0} is not on the GitHub instance of the signed-in account.", parsed.number));
@@ -91,5 +92,9 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 		} finally {
 			store.dispose();
 		}
+	}
+
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		return this._gitHubService.captureSessionCredentialSource(session, source);
 	}
 }

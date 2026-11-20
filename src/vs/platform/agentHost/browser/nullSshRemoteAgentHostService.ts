@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import type { ISSHRemoteAgentHostService, ISSHAgentHostConnection, ISSHAgentHostConfig, ISSHConnectProgress, ISSHResolvedConfig } from '../common/sshRemoteAgentHost.js';
+import type { ISSHRemoteAgentHostService, ISSHAgentHostConnection, SSHAgentHostConnectionRequest, ISSHConnectProgress, ISSHResolvedConfig } from '../common/sshRemoteAgentHost.js';
 
 /**
  * Null implementation of {@link ISSHRemoteAgentHostService} for browser contexts
@@ -17,7 +17,7 @@ export class NullSSHRemoteAgentHostService implements ISSHRemoteAgentHostService
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = Event.None;
 	readonly connections: readonly ISSHAgentHostConnection[] = [];
 
-	async connect(_config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection> {
+	async connect(_config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection> {
 		throw new Error('SSH connections are not supported in the browser.');
 	}
 

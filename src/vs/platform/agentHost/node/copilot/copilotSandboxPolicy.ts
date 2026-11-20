@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent } from '@github/copilot-sdk';
+import type { SessionEvent } from '@microsoft/copilot-sdk';
 import { isStringArray } from '../../../../base/common/types.js';
 import { browserChatToolReferenceNames } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import type { ILogService } from '../../../log/common/log.js';
 import { ISandboxNetworkRestrictions, SandboxSettingsResolutionHelper } from '../../../sandbox/common/sandboxSettingsResolutionHelper.js';
-import type { IAgentConfigurationService } from '../agentConfigurationService.js';
+import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getSessionSandboxConfig, type ISessionSandboxPolicy } from '../sessionSandbox.js';
 
 /** Resolves session network restrictions only for Copilot's integrated-browser client tools. */
-export function getCopilotBrowserSandboxNetworkRestrictions(configuration: IAgentConfigurationService, session: string, clientToolName: string): ISandboxNetworkRestrictions | undefined {
+export function getCopilotBrowserSandboxNetworkRestrictions(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget, clientToolName: string): ISandboxNetworkRestrictions | undefined {
 	if (clientToolName !== 'list_browser_pages' && !browserChatToolReferenceNames.some(name => name === clientToolName)) {
 		return undefined;
 	}
-	const sandbox = getSessionSandboxConfig(configuration, session);
+	const sandbox = getSessionSandboxConfig(configuration, target);
 	const network = SandboxSettingsResolutionHelper.getNetworkRestrictions(sandbox.enabled, sandbox.allowNetwork);
 	return {
 		sandboxEnabled: network.sandboxEnabled,

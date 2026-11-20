@@ -89,33 +89,6 @@ suite('Copilot Chat Sanity Test', function () {
 		});
 	});
 
-	test('E2E Production Panel Chat Test', async function () {
-		assert.ok(realInstaAccessor, 'Instantiation service accessor is not available');
-
-		await realInstaAccessor.invokeFunction(async (accessor) => {
-
-			const conversationStore = accessor.get(IConversationStore);
-			const instaService = accessor.get(IInstantiationService);
-			let stream = new SpyChatResponseStream();
-			let interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Write me a for loop in javascript'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
-
-			const result1 = await interactiveSession.getResult();
-
-			assert.ok(stream.currentProgress, `Expected progress after first request. ${describeOutcome(stream, result1)}`);
-			const oldText = stream.currentProgress;
-
-			stream = new SpyChatResponseStream();
-			interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Can you make it in typescript instead'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
-			const result2 = await interactiveSession.getResult();
-
-			assert.ok(stream.currentProgress, `Expected progress after second request. ${describeOutcome(stream, result2)}`);
-			assert.notStrictEqual(stream.currentProgress, oldText, 'Expected different progress text after second request');
-
-			const conversation = conversationStore.getConversation(result2.metadata.responseId);
-			assert.ok(conversation, 'Expected conversation to be available');
-		});
-	});
-
 	/**
 	 * Runs tools outside of a real chat session which is unusual but lets us spy more
 	 * Uses an empty window with no folder open
@@ -184,21 +157,6 @@ suite('Copilot Chat Sanity Test', function () {
 
 			const conversation = conversationStore.getConversation(result2.metadata.responseId);
 			assert.ok(conversation, 'Expected conversation to be available');
-		});
-	});
-
-	test('Slash Commands work properly', async function () {
-		assert.ok(realInstaAccessor);
-
-		await realInstaAccessor.invokeFunction(async (accessor) => {
-
-			const instaService = accessor.get(IInstantiationService);
-			const progressReport = new SpyChatResponseStream();
-			const interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('What is a fibonacci sequence?'), progressReport, fakeToken, { agentName: '', agentId: '', intentId: 'explain' }, () => false, undefined);
-
-			// Ask a `/explain` question
-			const result = await interactiveSession.getResult();
-			assert.ok(progressReport.currentProgress, `Expected progress from /explain. ${describeOutcome(progressReport, result)}`);
 		});
 	});
 

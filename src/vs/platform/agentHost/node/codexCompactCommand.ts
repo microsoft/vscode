@@ -10,7 +10,7 @@ import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletio
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import type { URI } from '../common/state/protocol/common/state.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { extractLeadingSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 export const CODEX_COMPACT_SLASH_COMMAND = 'compact';
@@ -24,7 +24,7 @@ export class CodexCompactCompletionProvider implements IAgentHostCompletionItemP
 		private readonly _providerForSession: (session: URI) => string | undefined = AgentSession.provider,
 	) { }
 
-	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, _token: CancellationToken): Promise<readonly CompletionItem[]> {
 		if (this._providerForSession(params.channel) !== CODEX_AGENT_PROVIDER_ID || !this._hasHistory(params.channel)) {
 			return [];
 		}

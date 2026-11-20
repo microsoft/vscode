@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
@@ -205,6 +206,20 @@ export function validateSettingsEditorOptions(options: ISettingsEditorOptions): 
 		override: DEFAULT_EDITOR_ASSOCIATION.id,
 		pinned: true
 	};
+}
+
+/**
+ * Returns the resource of the default settings that are shown next to the
+ * settings file of the given configuration target in the split settings editor.
+ */
+export function getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
+	switch (configurationTarget) {
+		case ConfigurationTarget.WORKSPACE:
+			return URI.from({ scheme: Schemas.vscode, authority: 'defaultsettings', path: `/workspaceSettings.json` });
+		case ConfigurationTarget.WORKSPACE_FOLDER:
+			return URI.from({ scheme: Schemas.vscode, authority: 'defaultsettings', path: `/resourceSettings.json` });
+	}
+	return URI.from({ scheme: Schemas.vscode, authority: 'defaultsettings', path: `/settings.json` });
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {

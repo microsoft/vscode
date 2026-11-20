@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { RequestError, RequestContext } from '../../common/types.js';
-import { RequestQueue } from '../../common/requestQueue.js';
+import { RequestQueue, RequestQueueOptions } from '../../common/requestQueue.js';
+import { RequestContext, RequestError } from '../../common/types.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 function context(overrides: Partial<RequestContext> = {}): RequestContext {
 	return {
-		kind: 'rest',
 		account: { host: 'github.example.test', accountId: '1' },
 		caller: 'first',
 		resource: 'core',
 		priority: 'interactive',
 		deadline: 60_000,
-		signal: new AbortController().signal,
+		cancellationToken: CancellationToken.None,
 		...overrides,
 	};
 }
@@ -26,9 +28,77 @@ function context(overrides: Partial<RequestContext> = {}): RequestContext {
 suite('RequestQueue', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	const concurrencyCases: {
+		name: string;
+		limit: number;
+		options?: Partial<RequestQueueOptions>;
+		request: (index: number) => RequestContext;
+	}[] = [
+			{
+				name: 'global',
+				limit: 12,
+				request: index => context({ account: { host: `host-${index}.example.test`, accountId: '1' }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'case-insensitive host',
+				limit: 12,
+				options: { maximumConcurrency: 16 },
+				request: index => context({ account: { host: index % 2 ? 'GITHUB.EXAMPLE.TEST' : 'github.example.test', accountId: String(index) }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'account across callers',
+				limit: 10,
+				request: index => context({ account: { host: index % 2 ? 'GITHUB.EXAMPLE.TEST' : 'github.example.test', accountId: '1' }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'anonymous account across callers',
+				limit: 10,
+				request: index => context({ account: { kind: 'anonymous', host: 'github.example.test', origin: 'https://github.example.test' }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'bootstrap and authenticated account',
+				limit: 10,
+				request: index => context({
+					account: index % 2
+						? { kind: 'bootstrap', host: 'github.example.test', origin: 'https://github.example.test', accountId: '1' }
+						: { host: 'github.example.test', accountId: '1' },
+					caller: `caller-${index}`,
+				}),
+			},
+			{
+				name: 'caller across accounts and hosts',
+				limit: 8,
+				request: index => context({ account: { host: `host-${index}.example.test`, accountId: String(index) } }),
+			},
+		];
+
+	for (const { name, limit, options, request } of concurrencyCases) {
+		test(`reaches and enforces the default ${name} concurrency limit`, async () => {
+			const scheduler = store.add(new FakeScheduler());
+			const queue = store.add(new RequestQueue(scheduler, undefined, options));
+			const release = new DeferredPromise<void>();
+			let active = 0;
+			let maximumActive = 0;
+			let completed = 0;
+			const requests = Array.from({ length: limit + 3 }, (_, index) => queue.enqueue(request(index), async () => {
+				maximumActive = Math.max(maximumActive, ++active);
+				await release.p;
+				active--;
+				completed++;
+			}));
+			await Promise.resolve();
+			const beforeRelease = active;
+			await release.complete();
+			await Promise.all(requests);
+			assert.deepStrictEqual({ beforeRelease, maximumActive, completed, timers: scheduler.pendingCount }, {
+				beforeRelease: limit, maximumActive: limit, completed: limit + 3, timers: 0,
+			});
+		});
+	}
+
 	test('prioritizes interactive work and fairly serves callers at the same priority', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler));
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 1 }));
 		const release = new DeferredPromise<void>();
 		const order: string[] = [];
 		const first = queue.enqueue(context(), async () => {
@@ -135,6 +205,27 @@ suite('RequestQueue', () => {
 		});
 	});
 
+	test('honors a lower account concurrency limit without blocking other accounts', async () => {
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 2 }));
+		const release = new DeferredPromise<void>();
+		const started: number[] = [];
+		const requests = Array.from({ length: 4 }, (_, index) => queue.enqueue(context({
+			account: { host: 'github.example.test', accountId: index === 3 ? '2' : '1' },
+			caller: `caller-${index}`,
+		}), async () => {
+			started.push(index);
+			await release.p;
+		}));
+		await Promise.resolve();
+		const beforeRelease = [...started];
+		await release.complete();
+		await Promise.all(requests);
+		assert.deepStrictEqual({ beforeRelease, completed: started.length, timers: scheduler.pendingCount }, {
+			beforeRelease: [0, 1, 3], completed: 4, timers: 0,
+		});
+	});
+
 	test('enforces global and case-insensitive host concurrency limits', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler, undefined, {
@@ -177,7 +268,7 @@ suite('RequestQueue', () => {
 
 	test('expires queued requests without running them', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler));
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 1 }));
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context(), () => release.p);
 		let dispatched = false;
@@ -192,7 +283,7 @@ suite('RequestQueue', () => {
 
 	test('rejects expired queued work after a wall-clock jump without waiting for timers', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler));
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 1 }));
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context(), async () => {
@@ -236,17 +327,17 @@ suite('RequestQueue', () => {
 		test(`reclaims expired active work after a wall-clock jump (dispatched: ${dispatched})`, async () => {
 			const scheduler = store.add(new FakeScheduler());
 			const queue = store.add(new RequestQueue(scheduler, undefined, { maximumRequests: 1 }));
-			const started = new DeferredPromise<AbortSignal>();
+			const started = new DeferredPromise<CancellationToken>();
 			const release = new DeferredPromise<void>();
-			const active = queue.enqueue(context({ deadline: 100 }), async (signal, onDispatch) => {
+			const active = queue.enqueue(context({ deadline: 100 }), async (cancellationToken, onDispatch) => {
 				if (dispatched) {
 					onDispatch();
 				}
-				await started.complete(signal);
+				await started.complete(cancellationToken);
 				await release.p;
 			});
 			const rejected = assert.rejects(active, { kind: 'timeout', requestDispatched: dispatched });
-			const signal = await started.p;
+			const cancellationToken = await started.p;
 			scheduler.advanceWallClockBy(1_000);
 			let freshDispatched = false;
 			const fresh = queue.enqueue(context({ deadline: 2_000 }), async () => { freshDispatched = true; })
@@ -256,7 +347,7 @@ suite('RequestQueue', () => {
 			scheduler.advanceBy(100);
 			await rejected;
 			await release.complete();
-			assert.deepStrictEqual({ aborted: signal.aborted, dispatchedBeforeTimer, outcome: await fresh, timers: scheduler.pendingCount }, {
+			assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, dispatchedBeforeTimer, outcome: await fresh, timers: scheduler.pendingCount }, {
 				aborted: true, dispatchedBeforeTimer: true, outcome: 'completed', timers: 0,
 			});
 		});
@@ -265,19 +356,19 @@ suite('RequestQueue', () => {
 	test('aborts active requests at their deadline and releases capacity', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler));
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<void>();
-		const active = queue.enqueue(context({ deadline: 10 }), async signal => {
-			await started.complete(signal);
+		const active = queue.enqueue(context({ deadline: 10 }), async cancellationToken => {
+			await started.complete(cancellationToken);
 			await release.p;
 		});
 		const rejected = assert.rejects(active, { kind: 'timeout' });
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		scheduler.advanceBy(10);
 		await rejected;
 		const value = await queue.enqueue(context(), async () => 'next');
 		await release.complete();
-		assert.deepStrictEqual({ aborted: signal.aborted, value, timers: scheduler.pendingCount }, {
+		assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, value, timers: scheduler.pendingCount }, {
 			aborted: true, value: 'next', timers: 0,
 		});
 	});
@@ -285,19 +376,19 @@ suite('RequestQueue', () => {
 	test('rejects an overdue active result before its delayed deadline timer fires', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler));
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<string>();
-		const pending = queue.enqueue(context({ deadline: 20 }), async (signal, onDispatch) => {
+		const pending = queue.enqueue(context({ deadline: 20 }), async (cancellationToken, onDispatch) => {
 			onDispatch();
-			await started.complete(signal);
+			await started.complete(cancellationToken);
 			return release.p;
 		});
 		const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		scheduler.advanceWallClockBy(60);
 		await release.complete('too late');
 		await rejected;
-		assert.deepStrictEqual({ aborted: signal.aborted, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
+		assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
 	});
 
 	test('rejects an overdue active failure as a timeout before its delayed timer fires', async () => {
@@ -320,26 +411,25 @@ suite('RequestQueue', () => {
 
 	test('cancels parked work and disposes active and pending work', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0));
-		const controller = new AbortController();
+		const queue = store.add(new RequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0, { maximumAccountConcurrency: 1 }));
+		const controller = store.add(new CancellationTokenSource());
 		let parkedRan = false;
-		const parked = queue.enqueue(context({ resource: 'search', signal: controller.signal }), async () => { parkedRan = true; });
-		const reason = new Error('cancelled');
-		const rejected = assert.rejects(parked, error => error === reason);
-		controller.abort(reason);
+		const parked = queue.enqueue(context({ resource: 'search', cancellationToken: controller.token }), async () => { parkedRan = true; });
+		const rejected = assert.rejects(parked, isCancellationError);
+		controller.cancel();
 		await rejected;
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<void>();
-		const active = queue.enqueue(context(), async signal => { await started.complete(signal); await release.p; });
+		const active = queue.enqueue(context(), async cancellationToken => { await started.complete(cancellationToken); await release.p; });
 		const pending = queue.enqueue(context(), async () => { parkedRan = true; });
 		const completed = Promise.allSettled([active, pending]);
-		const signal = await started.p;
+		const cancellationToken = await started.p;
 		queue.dispose();
 		await completed;
 		await release.complete();
 		scheduler.advanceBy(100_000);
 		await assert.rejects(queue.enqueue(context(), async () => { }), /disposed/);
-		assert.deepStrictEqual({ parkedRan, aborted: signal.aborted, timers: scheduler.pendingCount }, {
+		assert.deepStrictEqual({ parkedRan, aborted: cancellationToken.isCancellationRequested, timers: scheduler.pendingCount }, {
 			parkedRan: false, aborted: true, timers: 0,
 		});
 	});

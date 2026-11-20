@@ -239,8 +239,8 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 				container,
 				new MarkdownString(`Read [](${href}), lines 1 to 2`),
 				undefined,
+				{ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true },
 			));
-			titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 			titlePart.title = new MarkdownString(`Read [](${href}), lines 3 to 4`);
 
 			const widget = container.querySelector('.chat-inline-anchor-widget');

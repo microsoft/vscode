@@ -34,25 +34,14 @@ import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
 
-	private _lastChatAgents: ChatAgents | undefined; // will be cleared when disposed
-
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
-	public debugGetCurrentChatAgents(): ChatAgents | undefined {
-		return this._lastChatAgents;
-	}
 
 	register(): IDisposable {
 		const chatAgents = this.instantiationService.createInstance(ChatAgents);
 		chatAgents.register();
-		this._lastChatAgents = chatAgents;
-		return {
-			dispose: () => {
-				chatAgents.dispose();
-				this._lastChatAgents = undefined;
-			}
-		};
+		return chatAgents;
 	}
 }
 
@@ -208,7 +197,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
 			// Tier attribution is needed even when the routing row is hidden.
-			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
+			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, token, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
 			stream = autoRouting.stream;
 			try {
 				// If we need to switch to the base model, this function will handle it

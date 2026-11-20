@@ -119,6 +119,7 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 					dismissLabel: rendered.options.submissionAcknowledgement.dismissLabel,
 				},
 				shouldAutoFocus: rendered.options.shouldAutoFocus,
+				shouldAutoSelectFirstOption: rendered.options.shouldAutoSelectFirstOption,
 			},
 			events,
 			clearedBeforeAcknowledgementDismiss,
@@ -150,6 +151,7 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 					dismissLabel: 'Dismiss Feedback Acknowledgement',
 				},
 				shouldAutoFocus: true,
+				shouldAutoSelectFirstOption: false,
 			},
 			events: [
 				{ eventName, data: { ...commonData, kind: 'shown' } },

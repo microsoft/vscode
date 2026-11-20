@@ -21,6 +21,7 @@ import { ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../browser/spotl
 import { IOnboardingRunContext } from '../../common/onboardingPresentation.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { IOnboardingSequencePayload, IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult, ONBOARDING_SEQUENCE_PRESENTATION_KIND, onboardingSequenceStepPresentationRegistry } from '../../common/onboardingSequence.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 class TestVisualStepPresentation implements IOnboardingSequenceStepPresentation {
 	readonly countsAsVisualStep = true;
@@ -89,7 +90,7 @@ suite('OnboardingSequencePresentation', () => {
 		mainWindow.document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const spotlight = disposables.add(new SpotlightPresentation(new SequenceTestLayoutService(container), new TestHostService(), contextKeyService));
+		const spotlight = disposables.add(new SpotlightPresentation(new SequenceTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(spotlight));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
 		const counters: string[] = [];
@@ -170,18 +171,23 @@ suite('OnboardingSequencePresentation', () => {
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(visual));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
 		const presentation = disposables.add(new OnboardingSequencePresentation());
+		let impressions = 0;
 
 		const result = await presentation.run(createScenario([
 			{ id: 'skipped', kind: visualKind, payload: undefined },
+			{ id: 'hidden', kind: RUN_ONBOARDING_STEP_KIND, payload: { run: () => ({ shown: false }) } },
 			{ id: 'script', kind: RUN_ONBOARDING_STEP_KIND, payload: { run: () => ({ shown: true }) } },
-		]), context());
+		]), { ...context(), onDidShow: () => impressions++ });
 
-		assert.deepStrictEqual(result, {
-			outcome: OnboardingOutcome.Completed,
-			shown: true,
-			dismissReason: OnboardingDismissReason.Completed,
-			lastStepIndex: 1,
-			stepCount: 2,
+		assert.deepStrictEqual({ impressions, result }, {
+			impressions: 1,
+			result: {
+				outcome: OnboardingOutcome.Completed,
+				shown: true,
+				dismissReason: OnboardingDismissReason.Completed,
+				lastStepIndex: 2,
+				stepCount: 3,
+			},
 		});
 	});
 

@@ -142,7 +142,7 @@ function renderButtons(context: ComponentFixtureContext): void {
 	const instantiationService = createServices(context);
 
 	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
-	const noIcon = action('fixture.publish', 'Publish Branch');
+	const noIcon = action('fixture.publish', 'Publish Test Branch');
 	const disabled = action('fixture.merge', 'Merge', Codicon.gitMerge, false);
 
 	const scenarios: readonly [caption: string, action: IAction, config: ReturnType<IButtonConfigProvider>][] = [

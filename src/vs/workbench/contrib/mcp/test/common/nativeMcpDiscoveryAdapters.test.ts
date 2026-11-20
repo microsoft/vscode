@@ -170,6 +170,23 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		]);
 	});
 
+	test('claudeConfigToServerDefinition reads the OAuth client ID', async () => {
+		const servers = {
+			flat: { type: 'http', url: 'https://example.com/flat', oauthClientId: 'flat-client' },
+			nested: { type: 'http', url: 'https://example.com/nested', oauth: { clientId: 'nested-client' } },
+			both: { type: 'http', url: 'https://example.com/both', oauthClientId: 'flat-client', oauth: { clientId: 'nested-client' } },
+			none: { type: 'http', url: 'https://example.com/none' },
+		};
+		const defs = await claudeConfigToServerDefinition('prefix', VSBuffer.fromString(JSON.stringify({ mcpServers: servers })));
+
+		assert.deepStrictEqual(defs?.map(definition => [definition.label, definition.launch.type === McpServerTransportType.HTTP ? definition.launch.oauth : null]), [
+			['flat', { clientId: 'flat-client' }],
+			['nested', { clientId: 'nested-client' }],
+			['both', { clientId: 'nested-client' }],
+			['none', undefined],
+		]);
+	});
+
 	test('claudeConfigToServerDefinition forwards HTTP headers', async () => {
 		const contents = VSBuffer.fromString(JSON.stringify({
 			mcpServers: {
@@ -263,6 +280,35 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 			cwd: cwd.fsPath,
 			defaultCwd: undefined,
 		});
+	});
+
+	test('native discovery adapters keep the home directory as a URI-backed default cwd', async () => {
+		const contents = VSBuffer.fromString(JSON.stringify({
+			mcpServers: {
+				local: { command: '/home/test/.local/bin/server' },
+				remote: { url: 'https://example.com/mcp' },
+			},
+		}));
+		// The home directory of a remote Linux host, as seen by a (possibly Windows) client.
+		const homedir = URI.parse('vscode-remote://wsl+opensuse/home/test');
+		const details: INativeMcpDiscoveryData = { platform: Platform.Linux, homedir };
+		const adapters = [
+			new ClaudeDesktopMpcDiscoveryAdapter('wsl+opensuse'),
+			new CopilotMpcDiscoveryAdapter('wsl+opensuse'),
+			new CursorDesktopMpcDiscoveryAdapter('wsl+opensuse'),
+			new WindsurfDesktopMpcDiscoveryAdapter('wsl+opensuse'),
+		];
+		const legacyDefs = await claudeConfigToServerDefinition('legacy', contents, { cwd: homedir });
+		const definitions = await Promise.all(adapters.map(adapter => adapter.adaptFile(contents, details)));
+
+		assert.deepStrictEqual(definitions.map(defs => defs?.map(definition => ({
+			cwd: definition.launch.type === McpServerTransportType.Stdio ? definition.launch.cwd : null,
+			defaultCwd: definition.defaultCwd?.toString(),
+			preservesTrustedNonce: definition.cacheNonce === legacyDefs?.find(legacy => legacy.label === definition.label)?.cacheNonce,
+		}))), adapters.map(() => [
+			{ cwd: undefined, defaultCwd: homedir.toString(), preservesTrustedNonce: true },
+			{ cwd: null, defaultCwd: undefined, preservesTrustedNonce: true },
+		]));
 	});
 
 	test('expands environment variables only from the Copilot user configuration', async () => {

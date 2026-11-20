@@ -11,7 +11,7 @@ import * as os from 'os';
 import { dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostEndpointIdentity, IAgentHostEndpointMetadata, getAgentHostEndpointIdentityHashInput } from '../../common/agentHostEndpointRegistry.js';
-import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry } from '../../node/localAgentHostMetadata.js';
+import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry, readLocalAgentHostEndpoint } from '../../node/localAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
 suite('Local Agent Host Endpoint Metadata', () => {
@@ -143,6 +143,49 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		});
 	});
 
+	test('discovers compatible standalone hosts in deterministic order when publication times tie and removes only their own entries', async () => {
+		const editor = createLocalAgentHostEndpointMetadata(userDataPath);
+		const stable = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'a' }, 'stable-token'), quality: 'stable' };
+		const first = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'b' }, 'first-token'), quality: 'insider' };
+		const second = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'c' }, 'second-token'), quality: 'insider' };
+		await Promise.all([second, editor, stable, first].map(entry => publishLocalAgentHostEndpointMetadata(userDataPath, entry)));
+		await Promise.all([second, editor, stable, first].map(entry => fs.promises.utimes(join(entriesDirectory, entryFileName(entry)), 1000, 1000)));
+
+		const preferredEditor = await readLocalAgentHostEndpoint(userDataPath, 'insider', 'editor');
+		const selected = await readLocalAgentHostEndpoint(userDataPath, 'insider');
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, first);
+		const replacement = await readLocalAgentHostEndpoint(userDataPath, 'insider');
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, second);
+		const unavailable = await readLocalAgentHostEndpoint(userDataPath, 'insider');
+
+		assert.deepStrictEqual({
+			preferredEditor: preferredEditor?.instanceId,
+			selected: selected?.instanceId,
+			replacement: replacement?.instanceId,
+			unavailable,
+			remaining: (await readLocalAgentHostEndpointRegistry(userDataPath)).map(entry => entry.instanceId),
+		}, {
+			preferredEditor: editor.instanceId,
+			selected: first.instanceId,
+			replacement: second.instanceId,
+			unavailable: undefined,
+			remaining: [stable.instanceId, editor.instanceId],
+		});
+	});
+
+	test('orders entries by newest publication time, including legacy metadata', async () => {
+		const older = makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'a' }, 'older-token');
+		const newer = makeEntry({ type: 'editor', pid: process.pid, instanceId: 'z' }, 'newer-token');
+		const legacy = makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'legacy' }, 'legacy-token');
+		await Promise.all([older, newer].map(entry => publishLocalAgentHostEndpointMetadata(userDataPath, entry)));
+		await fs.promises.writeFile(legacyMetadataPath, JSON.stringify([legacy]), 'utf8');
+		await fs.promises.utimes(join(entriesDirectory, entryFileName(older)), 1000, 1000);
+		await fs.promises.utimes(legacyMetadataPath, 2000, 2000);
+		await fs.promises.utimes(join(entriesDirectory, entryFileName(newer)), 3000, 3000);
+
+		assert.deepStrictEqual((await readLocalAgentHostEndpointRegistry(userDataPath)).map(entry => entry.instanceId), ['z', 'legacy', 'a']);
+	});
+
 	test('concurrent writers preserve every entry (no lost updates, no lock)', async () => {
 		const writers = Array.from({ length: 5 }, () => createLocalAgentHostEndpointMetadata(userDataPath));
 
@@ -237,6 +280,8 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			endpoint: { type: 'socket', path: join(userDataPath, 'ignored.sock') },
 		};
 		await publishLocalAgentHostEndpointMetadata(userDataPath, winningEntry);
+		await fs.promises.utimes(join(entriesDirectory, entryFileName(winningEntry)), 1000, 1000);
+		await fs.promises.utimes(legacyMetadataPath, 2000, 2000);
 
 		const registry = await readLocalAgentHostEndpointRegistry(userDataPath);
 		assert.deepStrictEqual({

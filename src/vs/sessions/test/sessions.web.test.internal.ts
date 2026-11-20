@@ -7,6 +7,7 @@
 // Mirrors sessions.web.main.internal.ts but uses TestSessionsBrowserMain.
 
 import '../sessions.web.main.js';
+import './web.test.terminal.js';
 import { create } from './web.test.factory.js';
 import { URI } from '../../base/common/uri.js';
 import { Event, Emitter } from '../../base/common/event.js';

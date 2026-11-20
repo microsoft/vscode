@@ -395,8 +395,8 @@
     ]
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:references-view",
-    "watch": "npx gulp watch-extension:references-view",
+    "compile": "pnpm exec gulp compile-extension:references-view",
+    "watch": "pnpm exec gulp watch-extension:references-view",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.json --noEmit",

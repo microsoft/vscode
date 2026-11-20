@@ -46,11 +46,5 @@
 		"requests": [
 			"333128e99913de228e9e2a48353ede2689379ace2bed4090370cb66b090cc5a0"
 		]
-	},
-	{
-		"name": "Debug tools list [context] - typescript",
-		"requests": [
-			"98f16f9c2271d39e94c21d93c0fd507266b91a728953dd2ae42597696db8bf16"
-		]
 	}
 ]

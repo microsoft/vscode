@@ -7,7 +7,8 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { type IAgentCreateSessionConfig } from '../common/agent.js';
 import { IAgentService } from '../common/agentService.js';
-import { buildDefaultChatUri, MessageKind } from '../common/state/sessionState.js';
+import { MessageKind } from '../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostTurnService } from './agentHostTurnService.js';
 
 export const IAgentHostSessionPromptService = createDecorator<IAgentHostSessionPromptService>('agentHostSessionPromptService');
@@ -23,15 +24,20 @@ export class AgentHostSessionPromptService implements IAgentHostSessionPromptSer
 	constructor(
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
 	async startSessionPrompt(config: IAgentCreateSessionConfig, prompt: string): Promise<URI> {
-		const session = await this._agentService.createSession(config);
+		const session = await this._agentService.createSession({ ...config, legacyChatUris: undefined });
 		try {
-			this._turnService.startTurnMessage(URI.parse(buildDefaultChatUri(session.toString())), {
+			const defaultChat = this._chatOwnership.getDefaultChat(session.toString());
+			if (defaultChat === undefined) {
+				throw new Error(`Created session ${session.toString()} has no default chat.`);
+			}
+			this._turnService.startTurnMessage(URI.parse(defaultChat), {
 				text: prompt,
 				origin: { kind: MessageKind.User },
-			});
+			}, config.credentials);
 			return session;
 		} catch (error) {
 			await this._agentService.disposeSession(session);
