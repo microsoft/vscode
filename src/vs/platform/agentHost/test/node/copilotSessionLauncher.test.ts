@@ -32,7 +32,7 @@ import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.j
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmCredentialRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
@@ -68,7 +68,8 @@ import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService
 import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { getDirectByokProviderName, resolveRuntimeByokModelId, toAgentByokCurrentModel, toAgentByokModelId, toRuntimeByokModelId } from '../../node/copilot/copilotByokModelIds.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, hasWithdrawnDirectByokProvider, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -1783,6 +1784,112 @@ suite('synthesizeByokSessionConfig', () => {
 
 		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme', modelId: 'claude', name: 'Acme Claude' }]);
 	});
+
+	test('calls direct models with their group key, alongside bridged vendors', async () => {
+		const credentialRequests: IByokLmCredentialRequest[] = [];
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', {
+			...connectionOf([
+				{ vendor: 'acme', id: 'claude', name: 'Acme Claude' },
+				{ vendor: 'customendpoint', id: 'gpt-x', name: 'GPT X', modelIdentifier: 'customendpoint/Work/gpt-x', maxPromptTokens: 100, supportsToolCalls: true, supportedReasoningEfforts: ['low', 'high'], direct: { type: 'openai', wireApi: 'responses', baseUrl: 'https://api.example.test/v1', group: 'Work', credentialVersion: 'v1' } },
+				{ vendor: 'customendpoint', id: 'sonnet', modelIdentifier: 'customendpoint/Work/sonnet', supportsVision: true, direct: { type: 'anthropic', baseUrl: 'https://api.anthropic.example.test', group: 'Work', credentialVersion: 'v1' } },
+				{ vendor: 'customendpoint', id: 'gpt-4o', modelIdentifier: 'customendpoint/Azure/gpt-4o', direct: { type: 'azure', wireApi: 'completions', baseUrl: 'https://r.openai.azure.com/openai/deployments/gpt-4o', azureApiVersion: '2025-01-01-preview', group: 'Azure' } },
+				{ vendor: 'customendpoint', id: 'llama', modelIdentifier: 'customendpoint/Local/llama', direct: { type: 'openai', wireApi: 'completions', baseUrl: 'http://127.0.0.1:2/v1', group: 'Local' } },
+				{ vendor: 'customendpoint', id: 'refused', modelIdentifier: 'customendpoint/Refused/refused', direct: { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.example.test/v1', group: 'Refused' } },
+			]),
+			resolveCredential: async request => {
+				credentialRequests.push(request);
+				return request.group === 'Refused' ? undefined : request.group === 'Local' ? {} : { apiKey: `key-${request.group}` };
+			},
+		});
+		const proxy = countingProxy();
+
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		const work = getDirectByokProviderName('customendpoint', 'Work/gpt-x');
+		const sonnet = getDirectByokProviderName('customendpoint', 'Work/sonnet');
+		const azure = getDirectByokProviderName('customendpoint', 'Azure/gpt-4o');
+		const local = getDirectByokProviderName('customendpoint', 'Local/llama');
+		assert.deepStrictEqual({ config, credentialRequests, proxyStarts: proxy.starts }, {
+			config: {
+				providers: [
+					{ name: 'acme', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'NONCE.sess-1' },
+					// A model whose key the window does not serve keeps using the bridge.
+					{ name: 'customendpoint', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/customendpoint', bearerToken: 'NONCE.sess-1' },
+					{ name: work, type: 'openai', wireApi: 'responses', baseUrl: 'https://api.example.test/v1', apiKey: 'key-Work' },
+					{ name: sonnet, type: 'anthropic', baseUrl: 'https://api.anthropic.example.test', apiKey: 'key-Work' },
+					{ name: azure, type: 'azure', wireApi: 'completions', baseUrl: 'https://r.openai.azure.com/openai/deployments/gpt-4o', azure: { apiVersion: '2025-01-01-preview' }, apiKey: 'key-Azure' },
+					{ name: local, type: 'openai', wireApi: 'completions', baseUrl: 'http://127.0.0.1:2/v1' },
+				],
+				models: [
+					{ id: 'claude', provider: 'acme', modelId: 'claude', name: 'Acme Claude' },
+					{ id: 'Refused/refused', provider: 'customendpoint', modelId: 'refused' },
+					{ id: 'Work/gpt-x', provider: work, wireModel: 'gpt-x', modelId: 'gpt-x', name: 'GPT X', maxPromptTokens: 100, capabilities: { supports: { toolCalls: true, reasoningEffort: true } } },
+					// Unknown capabilities are left to the runtime's defaults.
+					{ id: 'Work/sonnet', provider: sonnet, wireModel: 'sonnet', modelId: 'sonnet', capabilities: { supports: { vision: true } } },
+					{ id: 'Azure/gpt-4o', provider: azure, wireModel: 'gpt-4o', modelId: 'gpt-4o' },
+					{ id: 'Local/llama', provider: local, wireModel: 'llama', modelId: 'llama' },
+				],
+			},
+			// One request per provider group, shared by its models.
+			credentialRequests: [
+				{ vendor: 'customendpoint', group: 'Work', credentialVersion: 'v1' },
+				{ vendor: 'customendpoint', group: 'Azure', credentialVersion: undefined },
+				{ vendor: 'customendpoint', group: 'Local', credentialVersion: undefined },
+				{ vendor: 'customendpoint', group: 'Refused', credentialVersion: undefined },
+			],
+			proxyStarts: 1,
+		});
+	});
+
+	test('never starts the proxy when every model is called directly', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', {
+			...connectionOf([{ vendor: 'customendpoint', id: 'gpt-x', modelIdentifier: 'customendpoint/Work/gpt-x', direct: { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.example.test/v1', group: 'Work' } }]),
+			resolveCredential: async () => ({ apiKey: 'key' }),
+		});
+		const proxy = countingProxy();
+
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		const name = getDirectByokProviderName('customendpoint', 'Work/gpt-x');
+		assert.deepStrictEqual({ config, proxyStarts: proxy.starts }, {
+			config: {
+				providers: [{ name, type: 'openai', wireApi: 'completions', baseUrl: 'https://api.example.test/v1', apiKey: 'key' }],
+				models: [{ id: 'Work/gpt-x', provider: name, wireModel: 'gpt-x', modelId: 'gpt-x' }],
+			},
+			proxyStarts: 0,
+		});
+	});
+});
+
+suite('direct BYOK model ids', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('translate between agent model ids and runtime selection ids', () => {
+		const direct = getDirectByokProviderName('customendpoint', 'Work/gpt-x');
+		const registered = { models: [{ id: 'Work/gpt-x', provider: direct }, { id: 'Work/llama', provider: 'customendpoint' }] };
+
+		assert.deepStrictEqual({
+			// Pinned: a resumed session finds its journaled model only if the name is stable.
+			providerName: direct,
+			toRuntime: ['customendpoint/Work/gpt-x', 'customendpoint/Work/llama', 'customendpoint/Other/gpt-x', 'gpt-5', 'auto'].map(id => toRuntimeByokModelId(id, registered)),
+			toAgent: [`${direct}/Work/gpt-x`, 'customendpoint/Work/llama', 'Work/gpt-x', 'gpt-5', 'acme~notahash/x'].map(id => toAgentByokModelId(id)),
+			currentModel: toAgentByokCurrentModel({ modelId: 'Work/gpt-x', providerId: direct, reasoningEffort: 'high' }),
+			movedToBridge: resolveRuntimeByokModelId('customendpoint/Work/gpt-x', { models: [{ id: 'Work/gpt-x', provider: 'customendpoint' }] }, registered),
+			omittedFromLatest: resolveRuntimeByokModelId('customendpoint/Work/gpt-x', {}, registered),
+		}, {
+			providerName: 'customendpoint~c4614b87fcfafe94',
+			toRuntime: [`${direct}/Work/gpt-x`, 'customendpoint/Work/llama', 'customendpoint/Other/gpt-x', 'gpt-5', 'auto'],
+			toAgent: ['customendpoint/Work/gpt-x', 'customendpoint/Work/llama', 'Work/gpt-x', 'gpt-5', 'acme~notahash/x'],
+			currentModel: { modelId: 'Work/gpt-x', providerId: 'customendpoint', reasoningEffort: 'high' },
+			movedToBridge: 'customendpoint/Work/gpt-x',
+			omittedFromLatest: `${direct}/Work/gpt-x`,
+		});
+	});
 });
 
 suite('mergeByokSessionConfig', () => {
@@ -1810,6 +1917,36 @@ suite('mergeByokSessionConfig', () => {
 			added: { providers: [acme, other], models: [claude, gpt] },
 			updated: { providers: [acme], models: [{ ...claude, maxPromptTokens: 2000 }] },
 			fromNothing: registered,
+		});
+	});
+
+	test('updates a direct provider in place, and moves it to the bridge once it is no longer reported', () => {
+		const name = getDirectByokProviderName('customendpoint', 'Work/gpt-x');
+		const bridged = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.sess-1' };
+		const direct = { name, type: 'anthropic' as const, baseUrl: 'https://api.example.test', apiKey: 'old' };
+		const claude = { id: 'claude', provider: 'acme' };
+		const gptX = { id: 'Work/gpt-x', provider: name, wireModel: 'gpt-x', modelId: 'gpt-x' };
+		const rotated = { ...direct, apiKey: 'new', baseUrl: 'https://api2.example.test' };
+		const registered = { providers: [bridged, direct], models: [claude, gptX] };
+		const bridgeProvider = (providerName: string, vendor: string) => ({ name: providerName, type: 'openai' as const, wireApi: 'responses' as const, baseUrl: `http://127.0.0.1:1/v/${vendor}`, bearerToken: 'nonce.sess-1' });
+		const viaBridge = { providers: [bridged, bridgeProvider(name, 'customendpoint')], models: [claude, { id: 'Work/gpt-x', provider: name, modelId: 'gpt-x' }] };
+
+		assert.deepStrictEqual({
+			rotated: mergeByokSessionConfig(registered, { providers: [bridged, rotated], models: [claude, gptX] }, bridgeProvider),
+			// BYOK disabled by policy, the group removed, or the model moved to the bridge: the selection stays, its requests go through the bridge.
+			unreported: mergeByokSessionConfig(registered, {}, bridgeProvider),
+			alreadyOnBridge: mergeByokSessionConfig(viaBridge, {}, bridgeProvider),
+			// Without the bridge, the direct entries are withdrawn rather than left calling the endpoint.
+			unreportedWithoutBridge: mergeByokSessionConfig(registered, {}),
+			returnsDirect: mergeByokSessionConfig(viaBridge, { providers: [direct], models: [gptX] }, bridgeProvider),
+			withdrawn: [hasWithdrawnDirectByokProvider(registered, {}), hasWithdrawnDirectByokProvider(registered, { providers: [direct] }), hasWithdrawnDirectByokProvider({ providers: [bridged] }, {})],
+		}, {
+			rotated: { providers: [bridged, rotated], models: [claude, gptX] },
+			unreported: viaBridge,
+			alreadyOnBridge: undefined,
+			unreportedWithoutBridge: { providers: [bridged], models: [claude] },
+			returnsDirect: { providers: [bridged, direct], models: [claude, gptX] },
+			withdrawn: [true, false, false],
 		});
 	});
 });

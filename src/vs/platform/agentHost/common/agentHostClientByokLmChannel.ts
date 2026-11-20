@@ -15,6 +15,8 @@ import {
 	IByokLmBridgeConnection,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmCredential,
+	IByokLmCredentialRequest,
 	IByokLmModelInfo,
 	IByokLmStreamDelta,
 } from './agentHostByokLm.js';
@@ -40,6 +42,7 @@ export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
 	return {
 		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
+		resolveCredential: (request) => channel.call('credential', request) as Promise<IByokLmCredential | undefined>,
 		onDidChangeModels: channel.listen<IByokLmModelInfo[]>('models'),
 		onDidDelta: channel.listen<IByokLmStreamDelta>('delta'),
 	};
@@ -48,8 +51,10 @@ export function createAgentHostClientByokLmConnection(channel: IChannel): IByokL
 /**
  * Server-side channel for in-process reverse BYOK LM RPCs from the local agent
  * host. Thin adapter — forwards `chat` calls to the renderer's
- * {@link IAgentHostByokLmHandler} (backed by `ILanguageModelsService`) and
- * serves the pushed `models` snapshot stream.
+ * {@link IAgentHostByokLmHandler} (backed by `ILanguageModelsService`), serves
+ * the pushed `models` snapshot stream, and answers `credential` calls for
+ * models the runtime calls directly. Keys travel only in `credential` replies,
+ * never in the `models` snapshots, which are cached, compared and logged.
  */
 
 export class AgentHostClientByokLmChannel implements IServerChannel {
@@ -117,6 +122,10 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 			case 'chat': {
 				const result = await this._handler.chat(arg as IByokLmChatRequest, CancellationToken.None);
 				return result as T;
+			}
+			case 'credential': {
+				const credential = await this._handler.resolveCredential?.(arg as IByokLmCredentialRequest, CancellationToken.None);
+				return credential as T;
 			}
 		}
 		throw new Error(`Unknown command '${command}' on AgentHostClientByokLmChannel`);

@@ -7,18 +7,21 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { hash } from '../../../../../../base/common/hash.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { IByokLmChatRequest, IByokLmStreamDelta } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { AgentHostByokCustomEndpointDirectSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsGroup, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 
 interface ICapturedRequest {
 	modelId: string;
@@ -61,6 +64,17 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 		return this._isModelHidden(identifier);
 	}
 
+	groups: ILanguageModelsGroup[] = [];
+	apiKeys = new Map<string, string>();
+
+	override getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
+		return this.groups.filter(group => group.group?.vendor === vendor);
+	}
+
+	override async resolveLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<string | undefined> {
+		return this.apiKeys.get(`${vendorId}/${providerGroupName}`);
+	}
+
 	override async sendChatRequest(modelId: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, _token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		this.captured = { modelId, messages, options };
 		return this._respond(this.captured);
@@ -74,6 +88,18 @@ class TestChatEntitlementService extends mock<IChatEntitlementService>() {
 
 	override get clientByokEnabled(): boolean {
 		return this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === true;
+	}
+}
+
+class TestLanguageModelsConfigurationService extends mock<ILanguageModelsConfigurationService>() {
+	override readonly onDidChangeLanguageModelGroups = Event.None;
+
+	constructor(private readonly _groups: readonly ILanguageModelsProviderGroup[] = []) {
+		super();
+	}
+
+	override getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[] {
+		return this._groups;
 	}
 }
 
@@ -115,9 +141,9 @@ suite('AgentHostByokLmHandler', () => {
 		return { contextKeyService, clientByokEnabled };
 	}
 
-	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
-		const { contextKeyService } = createPolicyContext(true);
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+	function createHandler(service: ILanguageModelsService, options?: { readonly contextKeyService?: IContextKeyService; readonly configurationService?: TestConfigurationService; readonly groups?: readonly ILanguageModelsProviderGroup[] }): AgentHostByokLmHandler {
+		const contextKeyService = options?.contextKeyService ?? createPolicyContext(true).contextKeyService;
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, options?.configurationService ?? new TestConfigurationService(), new TestLanguageModelsConfigurationService(options?.groups)));
 	}
 
 	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
@@ -126,7 +152,7 @@ suite('AgentHostByokLmHandler', () => {
 			() => responseOf([]),
 		);
 		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
-		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+		const handler = createHandler(service, { contextKeyService });
 		let modelChangeCount = 0;
 		store.add(handler.onDidChangeModels(() => modelChangeCount++));
 
@@ -308,6 +334,73 @@ suite('AgentHostByokLmHandler', () => {
 			{ vendor: 'acme', id: 'malformed', name: 'acme malformed', modelIdentifier: 'id-malformed', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
 			{ vendor: 'acme', id: 'plain', name: 'acme plain', modelIdentifier: 'id-plain', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
 		]);
+	});
+
+	test('routes Custom Endpoint models directly only when enabled, and serves their key under the BYOK policy', async () => {
+		const work: ILanguageModelsProviderGroup = {
+			name: 'Work', vendor: 'customendpoint', apiKey: '${input:chat.lm.secret.abc}', models: [
+				{ id: 'gpt-x', url: 'https://example.test/v1/chat/completions', toolCalling: true },
+				{ id: 'llama', url: 'https://example.test/v1', requestHeaders: { 'X-Org': 'a' }, toolCalling: true, vision: true },
+			],
+		};
+		const literalKey: ILanguageModelsProviderGroup = { name: 'Literal', vendor: 'customendpoint', apiKey: 'sk-literal', models: [{ id: 'claude', url: 'https://example.test/v1/messages' }] };
+		const service = new TestLanguageModelsService(
+			new Map([
+				['customendpoint/Work/gpt-x', byokModel('customendpoint', 'gpt-x')],
+				['customendpoint/Work/llama', byokModel('customendpoint', 'llama', { vision: true })],
+				['customendpoint/Literal/claude', byokModel('customendpoint', 'claude')],
+			]),
+			() => responseOf([]),
+		);
+		service.groups = [
+			{ group: work, modelIdentifiers: ['customendpoint/Work/gpt-x', 'customendpoint/Work/llama'] },
+			{ group: literalKey, modelIdentifiers: ['customendpoint/Literal/claude'] },
+		];
+		service.apiKeys.set('customendpoint/Work', 'sk-work');
+		const configurationService = new TestConfigurationService();
+		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
+		const handler = createHandler(service, { contextKeyService, configurationService, groups: [work, literalKey] });
+		const workGroup = { vendor: 'customendpoint', group: 'Work', credentialVersion: hash('chat.lm.secret.abc').toString(16) };
+
+		const disabled = await handler.listModels(CancellationToken.None);
+		const disabledCredential = await handler.resolveCredential(workGroup, CancellationToken.None);
+		await configurationService.setUserConfiguration(AgentHostByokCustomEndpointDirectSettingId, true);
+		const enabled = await handler.listModels(CancellationToken.None);
+		const credential = await handler.resolveCredential(workGroup, CancellationToken.None);
+		const otherVendorCredential = await handler.resolveCredential({ ...workGroup, vendor: 'acme' }, CancellationToken.None);
+		// The key was replaced after the snapshot the agent host holds.
+		const staleCredential = await handler.resolveCredential({ ...workGroup, credentialVersion: hash('chat.lm.secret.old').toString(16) }, CancellationToken.None);
+		clientByokEnabled.set(false);
+		const policyDisabledCredential = await handler.resolveCredential(workGroup, CancellationToken.None);
+
+		const common = { maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000 };
+		assert.deepStrictEqual({
+			disabled: disabled.map(model => ({ id: model.id, direct: model.direct, supportsVision: model.supportsVision })),
+			disabledCredential,
+			enabled,
+			credential,
+			otherVendorCredential,
+			staleCredential,
+			policyDisabledCredential,
+		}, {
+			disabled: [
+				{ id: 'gpt-x', direct: undefined, supportsVision: false },
+				{ id: 'llama', direct: undefined, supportsVision: true },
+				{ id: 'claude', direct: undefined, supportsVision: false },
+			],
+			disabledCredential: undefined,
+			enabled: [
+				// Vision stays unknown rather than false, and the key never enters the model list.
+				{ ...common, vendor: 'customendpoint', id: 'gpt-x', name: 'customendpoint gpt-x', modelIdentifier: 'customendpoint/Work/gpt-x', supportsToolCalls: true, direct: { type: 'openai', wireApi: 'completions', baseUrl: 'https://example.test/v1', group: 'Work', credentialVersion: hash('chat.lm.secret.abc').toString(16) } },
+				// Custom headers and a key written into the settings file keep using the bridge.
+				{ ...common, vendor: 'customendpoint', id: 'llama', name: 'customendpoint llama', modelIdentifier: 'customendpoint/Work/llama', supportsVision: true },
+				{ ...common, vendor: 'customendpoint', id: 'claude', name: 'customendpoint claude', modelIdentifier: 'customendpoint/Literal/claude', supportsVision: false },
+			],
+			credential: { apiKey: 'sk-work' },
+			otherVendorCredential: undefined,
+			staleCredential: undefined,
+			policyDisabledCredential: undefined,
+		});
 	});
 
 	test('chat resolves the configured provider group when models share a vendor and id', async () => {
