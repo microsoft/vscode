@@ -188,8 +188,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 					if (!visible || !workingSetPresented || canvas.source === undefined
 						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
+						if (presentation || existingInput) {
+							this.logService.trace(`[Canvas] Reconcile keeps ${key} closed: visible=${visible} workingSetPresented=${workingSetPresented} (applying=${applyingWorkingSet} restoring=${restoring} owner=${workingSetOwner}) source=${canvas.source !== undefined} dismissed=${!!dismissed} opened=${presentation?.opened} hasInput=${!!existingInput}`);
+						}
 						continue;
 					}
+					this.logService.trace(`[Canvas] Reconcile opens ${key}: opened=${presentation?.opened} hasInput=${!!existingInput} applying=${applyingWorkingSet}`);
 					if ((modalActive || context.background === true) && request?.pending) {
 						continue;
 					}
@@ -238,6 +242,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				// A window without working sets keeps no canvas of a conversation it no longer shows, once it shows another.
 				const followsVisibleOwner = !applyingWorkingSet && !contextService.workingSets && anyOwnerVisible && !contextService.isOwnerVisible(input.reference, reader) && !this.opening.has(input);
 				if (!enabled || followsVisibleOwner || (knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key))) {
+					this.logService.trace(`[Canvas] Closing ${key}: enabled=${enabled} followsVisibleOwner=${followsVisibleOwner} ownerGone=${knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key)}`);
 					void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
 				}
 			}
@@ -570,6 +575,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			// is no dismissal by the user. It shows again once its owner is visible and the swap is done.
 			const workingSetSuspension = this.workingSetSuspensions.delete(input)
 				|| (!this.contextService.workingSets && this.editorGroupsService.isApplyingWorkingSet);
+			this.logService.trace(`[Canvas] Editor closing ${key}: current=${isCurrentInput} programmatic=${this.programmaticCloses.has(input)} suspension=${workingSetSuspension} applying=${this.editorGroupsService.isApplyingWorkingSet} ownerVisible=${this.contextService.isOwnerVisible(reference)} disposed=${this._store.isDisposed}`);
 			if (isCurrentInput) {
 				// First, so nothing that reacts to the presentation changing below still finds this closing editor.
 				this.inputs.deleteAndLeak(key);
