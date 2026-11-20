@@ -4826,16 +4826,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('rebases the selected agent to its worktree twin from the agent list before the working directory flips', () => {
-		const provider = createProvider(disposables, agentHost);
+	test('rebases the selected agent and its matching draft before the working directory flips', () => {
+		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
+		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
+		const draft = observableValue<IChatModelInputState>('draft', { inputText: 'keep this', attachments: [], mode: { id: folderAgent, kind: ChatModeKind.Agent } });
+		const model = upcastPartial<IChatModel>({
+			inputModel: upcastPartial<IInputModel>({ state: draft, setState: update => draft.set({ ...draft.get(), ...update }, undefined) }),
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { getChatModel: () => model });
 		fireSessionAdded(agentHost, 'rebase-worktree', { title: 'Rebase Worktree', workingDirectory: 'file:///Users/me/vscode' });
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Rebase Worktree');
 		assert.ok(session);
 
 		// A folder agent is picked while the session still runs in the repo.
-		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
-		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
 		provider.setAgent?.(session!.sessionId, { uri: folderAgent, name: 'sessions' });
 
 		// The host reports the worktree-pathed agents (the folder twin is gone)
@@ -4843,7 +4847,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// must derive the worktree root from the agent list, not the (still
 		// folder) working directory, so the selection is re-pointed in time.
 		provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
-		agentHost.setSessionState('rebase-worktree', 'copilotcli', {
+		const publishAgent = (uri?: string) => agentHost.setSessionState('rebase-worktree', 'copilotcli', {
 			provider: 'copilotcli',
 			title: 'Rebase Worktree',
 			status: ProtocolSessionStatus.Idle,
@@ -4856,11 +4860,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 				uri: 'plugin://worktree',
 				name: 'worktree plugin',
 				load: { kind: CustomizationLoadStatus.Loaded },
-				children: [{ type: CustomizationType.Agent, id: worktreeAgent, uri: worktreeAgent, name: 'sessions' }],
+				children: uri ? [{ type: CustomizationType.Agent, id: uri, uri, name: 'sessions' }] : [],
 			}],
 		});
-
-		assert.deepStrictEqual(session!.mode.get(), { id: worktreeAgent, kind: 'agent' });
+		publishAgent();
+		const whileMissing = draft.get().mode.id;
+		publishAgent(worktreeAgent);
+		const afterRebase = draft.get();
+		const independentMode = { id: 'file:///other.agent.md', kind: ChatModeKind.Agent };
+		model.inputModel.setState({ mode: independentMode });
+		publishAgent(folderAgent);
+		assert.deepStrictEqual([whileMissing, afterRebase.mode.id, afterRebase.inputText, session!.mode.get()?.id, draft.get().mode], [
+			folderAgent, worktreeAgent, 'keep this', folderAgent, independentMode,
+		]);
 	});
 
 	test('leaves the selected agent untouched when the agent list has no relocated twin', () => {

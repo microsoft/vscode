@@ -9976,7 +9976,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
+		const previous = cached.mode.get()?.id;
 		cached.reconcileSelectedAgent(getEffectiveAgents(state.customizations));
+		const rebased = cached.mode.get()?.id;
+		if (previous && rebased && previous !== rebased) {
+			const inputModel = this._chatService.getSession(cached.mainChat.get().resource)?.inputModel;
+			if (inputModel?.state.get()?.mode.id === previous) {
+				inputModel.setState({ mode: { id: rebased, kind: ChatModeKind.Agent } });
+			}
+		}
 	}
 
 	/**
