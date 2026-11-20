@@ -8,11 +8,18 @@ import { $, registerWindow } from '../../../../../base/browser/dom.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Keybinding, KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfirmation, IConfirmationResult } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorPane } from '../../../../common/editor.js';
@@ -54,6 +61,30 @@ suite('ScreenshotTool', () => {
 			override alert(message: string): void { this.messages.push(message); }
 		}
 
+		/** A keybinding whose chords each hold Ctrl, such as Ctrl+K Ctrl+Z. */
+		function ctrlKeybinding(command: string, ...chords: { keyCode: KeyCode; shift?: boolean }[]): ResolvedKeybindingItem {
+			const [resolved] = USLayoutResolvedKeybinding.resolveKeybinding(new Keybinding(chords.map(({ keyCode, shift }) => new KeyCodeChord(true, !!shift, false, false, keyCode))), OS);
+			return new ResolvedKeybindingItem(resolved, command, null, undefined, true, null, false);
+		}
+
+		/** Binds Undo to Ctrl+Z and Redo to Ctrl+Shift+Z, unless a test binds them otherwise. */
+		class TestKeybindingService extends MockKeybindingService {
+			keybindings = [ctrlKeybinding('undo', { keyCode: KeyCode.KeyZ }), ctrlKeybinding('redo', { keyCode: KeyCode.KeyZ, shift: true })];
+			override getKeybindings(): ResolvedKeybindingItem[] {
+				return this.keybindings;
+			}
+		}
+
+		/** Records the confirmations that it shows and answers them in order, declining once it runs out of answers. */
+		class TestDialogs extends TestDialogService {
+			readonly confirmations: string[] = [];
+			readonly answers: boolean[] = [];
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				this.confirmations.push(confirmation.message);
+				return { confirmed: this.answers.shift() ?? false };
+			}
+		}
+
 		function createImage(width: number, height: number, color: string): VSBuffer {
 			const canvas = $<HTMLCanvasElement>('canvas');
 			canvas.width = width;
@@ -70,6 +101,8 @@ suite('ScreenshotTool', () => {
 			store.add(toDisposable(() => container.remove()));
 			const telemetry = new TestScreenshotToolTelemetryService();
 			const accessibility = new TestAccessibility();
+			const keybindings = new TestKeybindingService();
+			const dialogs = new TestDialogs();
 			const captures: (Window | undefined)[] = [];
 			const focusedWindows: Window[] = [];
 			const windowImage = createImage(mainWindow.innerWidth, mainWindow.innerHeight, '#0000ff');
@@ -91,12 +124,13 @@ suite('ScreenshotTool', () => {
 					override getContainer() { return container; }
 				}(),
 				accessibility,
-				new MockKeybindingService(),
+				keybindings,
 				new MockContextKeyService(),
 				new NullLogService(),
 				upcastPartial<IEditorService>(options.editorService ?? {}),
+				dialogs,
 			));
-			return { service, telemetry, accessibility, container, captures, focusedWindows };
+			return { service, telemetry, accessibility, keybindings, dialogs, container, captures, focusedWindows };
 		}
 
 		function getOverlay(container: HTMLElement): HTMLElement {
@@ -107,8 +141,50 @@ suite('ScreenshotTool', () => {
 			element.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
 		}
 
-		function key(element: HTMLElement, keyName: string, keyCode: number): void {
-			element.dispatchEvent(new KeyboardEvent('keydown', { key: keyName, keyCode, bubbles: true, cancelable: true }));
+		function key(element: HTMLElement, keyName: string, keyCode: number, modifiers?: { ctrlKey?: boolean; shiftKey?: boolean }): void {
+			element.dispatchEvent(new KeyboardEvent('keydown', { key: keyName, keyCode, ...modifiers, bubbles: true, cancelable: true }));
+		}
+
+		/** Clicks the button with a label in an element, such as Cancel and Done in the header of a markup. */
+		function click(element: Element, label: string): void {
+			[...element.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === label)!.click();
+		}
+
+		/** Crops a markup to the whole image, which changes it. */
+		function crop(markUp: HTMLElement): void {
+			markUp.querySelector<HTMLElement>('.crop-btn')!.click();
+			click(markUp.querySelector('.annotation-crop-toolbar')!, 'Apply');
+		}
+
+		function header(markUp: HTMLElement): Element {
+			return markUp.querySelector('.annotation-mark-up-header-end')!;
+		}
+
+		/** Returns the labels of Undo and Redo where they are enabled. */
+		function enabledUndoRedo(markUp: HTMLElement): string[] {
+			return ['Undo', 'Redo'].filter(label => !markUp.querySelector<HTMLButtonElement>(`.tool-btn[aria-label="${label}"]`)!.disabled);
+		}
+
+		/** Records the keys that reach the workbench underneath the markups in `container`. */
+		function recordKeysReaching(container: HTMLElement): string[] {
+			const keys: string[] = [];
+			const onKeyDown = (e: KeyboardEvent) => keys.push(e.key);
+			container.addEventListener('keydown', onKeyDown);
+			store.add(toDisposable(() => container.removeEventListener('keydown', onKeyDown)));
+			return keys;
+		}
+
+		/**
+		 * Presses the pointer on the image of a markup and drags it, where `from` and `to` are fractions of the image, and
+		 * returns a function that releases it.
+		 */
+		function pressAndDrag(markUp: HTMLElement, from: readonly [number, number], to: readonly [number, number]): () => void {
+			const canvas = markUp.querySelector('canvas')!;
+			const { left, top, width, height } = canvas.getBoundingClientRect();
+			const at = ([x, y]: readonly [number, number]) => [left + width * x, top + height * y] as const;
+			pointer(canvas, 'pointerdown', ...at(from));
+			pointer(canvas, 'pointermove', ...at(to));
+			return () => pointer(canvas, 'pointerup', ...at(to));
 		}
 
 		function summarize(result: ScreenshotToolResult) {
@@ -251,14 +327,13 @@ suite('ScreenshotTool', () => {
 			const markUp = await waitForMarkUp(container);
 			const hint = mainWindow.document.getElementById(markUp.getAttribute('aria-describedby')!)?.textContent;
 			const labels = [...markUp.querySelectorAll<HTMLElement>('.tool-btn, .monaco-button')].map(element => element.getAttribute('aria-label') ?? element.textContent);
-			markUp.querySelector<HTMLElement>('.crop-btn')!.click();
-			[...markUp.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Apply')!.click();
-			key(markUp, 'Escape', 27);
+			crop(markUp);
+			click(header(markUp), 'Done');
 			const edit = await first.result;
 
 			// Done without changes keeps the screenshot as it is.
 			const second = store.add(service.markUp(container, Promise.resolve(edit!), ScreenshotToolSurface.Chat));
-			[...(await waitForMarkUp(container)).querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Done')!.click();
+			click(header(await waitForMarkUp(container)), 'Done');
 			assert.deepStrictEqual({
 				label: markUp.getAttribute('aria-label'),
 				hint,
@@ -272,7 +347,7 @@ suite('ScreenshotTool', () => {
 			}, {
 				label: 'Mark Up Image',
 				hint: 'Draw on the image or crop it, then select Done to apply your changes.',
-				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Done'],
+				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Cancel', 'Done'],
 				edit: { annotated: true, size: '40x30', actions: 1, original: true },
 				unchanged: undefined,
 				open: 0,
@@ -281,6 +356,150 @@ suite('ScreenshotTool', () => {
 					{ surface: 'chat', changed: true, annotated: true },
 					{ surface: 'chat', changed: false, annotated: true },
 				],
+			});
+		});
+
+		test('Cancel and Escape end a markup without its changes, once the user confirms discarding them', async () => {
+			const { service, container, dialogs, telemetry } = createService();
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+
+			// Without changes, nothing is lost, so Cancel does not ask.
+			const unchanged = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			click(header(await waitForMarkUp(container)), 'Cancel');
+			const unchangedResult = await unchanged.result;
+
+			const changed = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			const markUp = await waitForMarkUp(container);
+			crop(markUp);
+			const hasChanges = changed.hasChanges;
+			dialogs.answers.push(false, true);
+			const declined = await changed.cancel();
+			const openAfterDeclining = markUp.isConnected;
+			key(markUp, 'Escape', 27);
+			assert.deepStrictEqual({
+				unchangedResult,
+				hasChanges,
+				declined,
+				openAfterDeclining,
+				discarded: await changed.result,
+				hasChangesAfterwards: changed.hasChanges,
+				confirmations: dialogs.confirmations,
+				open: container.querySelectorAll('.screenshot-annotation-editor').length,
+				edits: telemetry.edits,
+			}, {
+				unchangedResult: undefined,
+				hasChanges: true,
+				declined: false,
+				openAfterDeclining: true,
+				discarded: undefined,
+				hasChangesAfterwards: false,
+				confirmations: ['Discard your changes to this image?', 'Discard your changes to this image?'],
+				open: 0,
+				edits: [
+					{ surface: 'chat', changed: false, annotated: false },
+					{ surface: 'chat', changed: false, annotated: false },
+				],
+			});
+		});
+
+		test('a stroke or a move that the pointer has not released yet is a change, which cancelling asks before discarding', async () => {
+			const { service, container, dialogs } = createService();
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+
+			// Escape during the first stroke asks first, and keeping the markup keeps the stroke.
+			const first = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			let markUp = await waitForMarkUp(container);
+			const release = pressAndDrag(markUp, [0.25, 0.5], [0.75, 0.5]);
+			const drawing = first.hasChanges;
+			key(markUp, 'Escape', 27);
+			// Escape is cancelling the markup, so this waits for its confirmation, which the user declines.
+			const endedByEscape = await first.cancel();
+			release();
+			const afterDeclining = enabledUndoRedo(markUp);
+			click(header(markUp), 'Done');
+			const edit = await first.result;
+
+			// The next markup moves that stroke, which changes it before the pointer is released too.
+			const second = store.add(service.markUp(container, Promise.resolve(edit!), ScreenshotToolSurface.Chat));
+			markUp = await waitForMarkUp(container);
+			markUp.querySelector<HTMLElement>('.tool-btn[aria-label="Select / Move"]')!.click();
+			pressAndDrag(markUp, [0.5, 0.5], [0.5, 0.75]);
+			const moving = second.hasChanges;
+			dialogs.answers.push(true);
+			assert.deepStrictEqual({
+				drawing,
+				endedByEscape,
+				afterDeclining,
+				strokes: edit?.annotationState?.actions.length,
+				moving,
+				discarded: await second.cancel(),
+				result: await second.result,
+				confirmations: dialogs.confirmations,
+			}, {
+				drawing: true,
+				endedByEscape: false,
+				afterDeclining: ['Undo'],
+				strokes: 1,
+				moving: true,
+				discarded: true,
+				result: undefined,
+				confirmations: ['Discard your changes to this image?', 'Discard your changes to this image?'],
+			});
+		});
+
+		test('the keybindings of Undo and Redo undo and redo a markup, without reaching the workbench', async () => {
+			const { service, container } = createService();
+			const reached = recordKeysReaching(container);
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+			const markUp = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			const element = await waitForMarkUp(container);
+			crop(element);
+			const states = [enabledUndoRedo(element)];
+			key(element, 'z', 90, { ctrlKey: true });
+			states.push(enabledUndoRedo(element));
+			key(element, 'Z', 90, { ctrlKey: true, shiftKey: true });
+			states.push(enabledUndoRedo(element));
+			click(header(element), 'Done');
+			const edit = await markUp.result;
+			assert.deepStrictEqual({ states, reached, actions: edit?.annotationState?.actions.length, undone: edit?.annotationState?.undoneActions.length }, {
+				states: [['Undo'], ['Redo'], ['Undo']],
+				reached: [],
+				actions: 1,
+				undone: 0,
+			});
+		});
+
+		test('keybindings of several chords, such as Ctrl+K Ctrl+Z, undo and redo a markup without reaching the workbench', async () => {
+			const { service, container, keybindings } = createService();
+			keybindings.keybindings = [
+				ctrlKeybinding('undo', { keyCode: KeyCode.KeyK }, { keyCode: KeyCode.KeyZ }),
+				ctrlKeybinding('redo', { keyCode: KeyCode.KeyK }, { keyCode: KeyCode.KeyY }),
+			];
+			const reached = recordKeysReaching(container);
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+			store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			const markUp = await waitForMarkUp(container);
+			crop(markUp);
+			const states = [enabledUndoRedo(markUp)];
+			// Ctrl+Z alone is no longer bound.
+			key(markUp, 'z', 90, { ctrlKey: true });
+			states.push(enabledUndoRedo(markUp));
+			// Pressing Ctrl alone between the chords keeps them.
+			key(markUp, 'k', 75, { ctrlKey: true });
+			key(markUp, 'Control', 17, { ctrlKey: true });
+			key(markUp, 'z', 90, { ctrlKey: true });
+			states.push(enabledUndoRedo(markUp));
+			// A key that no keybinding continues with ends the chords.
+			key(markUp, 'k', 75, { ctrlKey: true });
+			key(markUp, 'x', 88);
+			key(markUp, 'y', 89, { ctrlKey: true });
+			states.push(enabledUndoRedo(markUp));
+			key(markUp, 'k', 75, { ctrlKey: true });
+			key(markUp, 'y', 89, { ctrlKey: true });
+			states.push(enabledUndoRedo(markUp));
+			assert.deepStrictEqual({ states, reached }, {
+				states: [['Undo'], ['Undo'], ['Redo'], ['Redo'], ['Undo']],
+				reached: [],
 			});
 		});
 

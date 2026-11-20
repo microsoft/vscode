@@ -19,6 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { readCloudSandboxProjects } from '../../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -155,6 +156,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly hostGroup?: IAgentHostGroup;
 	/** Source workspace represented by this Dev Container provider. */
 	readonly devContainerSourceWorkspaceUri?: URI;
+	/** Address of the host that runs the Dev Container environment represented by this provider. */
+	readonly devContainerEnvironmentHost?: string;
 	readonly devContainerWorktreeScope?: string;
 	/** Controls the stopped/removed container while this runtime provider remains registered. */
 	readonly devContainerLifecycle?: {
@@ -207,6 +210,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
+	readonly devContainerEnvironmentHost: string | undefined;
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -377,6 +381,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
+		this.devContainerEnvironmentHost = config.devContainerEnvironmentHost;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,
@@ -991,6 +996,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
+		await this._remoteAgentHostService.waitForConnection(this.remoteAddress);
 	}
 
 	reconnectNow(): void {
@@ -1179,6 +1185,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 
+		this._sessionListVersion.set(0, undefined);
 		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
@@ -1220,6 +1227,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
+		this._sessionListVersion.set(0, undefined);
 		this._devContainerIdleScheduler.cancel();
 		this._devContainerIdleSince = undefined;
 		this._connectionListeners.clear();
@@ -1287,6 +1295,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * entries.
 	 */
 	unpublishCachedSessions(): void {
+		// Abandon a listing in flight, so it can't mark the hidden list ready, then invalidate readiness
+		// before observers can sample the hidden list as an authoritative empty result.
+		this._cancelSessionRefreshRetry();
+		this._sessionListVersion.set(0, undefined);
 		if (this._unpublished) {
 			return;
 		}
@@ -1392,6 +1404,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 */
 	private _isOnThisHost(uri: URI): boolean {
 		return uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority;
+	}
+
+	/**
+	 * Whether this host clones repositories: a cloud sandbox's agent host, which manages projects, as
+	 * {@link cloneRepository} requires.
+	 */
+	get canCloneRepository(): boolean {
+		const connection = this.connection;
+		const root = connection instanceof AgentHostProtocolClient ? connection.rootState.value : undefined;
+		return !!root && !(root instanceof Error) && readCloudSandboxProjects(root) !== undefined;
 	}
 
 	async cloneRepository(repository: URI, token: CancellationToken): Promise<ISessionWorkspace> {

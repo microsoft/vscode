@@ -293,6 +293,8 @@ export interface ISessionWorktreeConfiguration {
  * the provider or session type.
  */
 export interface ISessionModelPickerOptions {
+	/** The provider's catalog is authoritative even for model IDs not registered with the language models service. */
+	readonly hasLiveModelCatalog?: boolean;
 	/** Whether to surface featured models that are currently unavailable. */
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
@@ -582,6 +584,9 @@ export interface ISessionsProvider {
 
 	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
 	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
+
+	/** Whether {@link cloneRepository} can clone on the host it is connected to now. Absent when it always can. */
+	readonly canCloneRepository?: boolean;
 
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;

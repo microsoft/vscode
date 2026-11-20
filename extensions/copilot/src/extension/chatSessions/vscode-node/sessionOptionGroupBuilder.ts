@@ -235,8 +235,7 @@ export function isBranchOptionFeatureEnabled(configurationService: IConfiguratio
 /**
  * Force the isolation option group to workspace and lock it when the
  * selected folder is not a git repository (worktree isolation is a
- * no-op without git). Use {@link resetIsolationLock} to unlock when
- * the folder becomes a git repo (e.g. after git init).
+ * no-op without git).
  */
 function forceWorkspaceIsolation(groups: vscode.ChatSessionProviderOptionGroup[]): void {
 	const isolationIdx = groups.findIndex(g => g.id === ISOLATION_OPTION_ID);
@@ -250,27 +249,6 @@ function forceWorkspaceIsolation(groups: vscode.ChatSessionProviderOptionGroup[]
 				selected: { ...workspaceItem, locked: true },
 			};
 		}
-	}
-}
-
-/**
- * Remove the locked flag from all isolation items.
- * Called when the selected folder turns out to be (or becomes) a git
- * repository, so the worktree option is valid again.
- */
-function resetIsolationLock(groups: vscode.ChatSessionProviderOptionGroup[]): void {
-	const isolationIdx = groups.findIndex(g => g.id === ISOLATION_OPTION_ID);
-	if (isolationIdx !== -1) {
-		const isolationGroup = groups[isolationIdx];
-		const unlock = (item: vscode.ChatSessionProviderOptionItem): vscode.ChatSessionProviderOptionItem => {
-			const { locked: _, ...rest } = item;
-			return rest;
-		};
-		groups[isolationIdx] = {
-			...isolationGroup,
-			items: isolationGroup.items.map(unlock),
-			selected: isolationGroup.selected ? unlock(isolationGroup.selected) : undefined,
-		};
 	}
 }
 

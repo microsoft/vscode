@@ -152,17 +152,19 @@ suite('EditorGroupWatermark', () => {
 		]);
 	});
 
-	test('uses consistent Chat and Settings glyphs and a command-picker glyph distinct from Terminal', () => {
+	test('uses expected default glyphs for watermark shortcuts', () => {
 		const registry = getIconRegistry();
 
 		assert.deepStrictEqual({
 			chat: registry.getIcon('watermark-chat')?.defaults,
 			commands: registry.getIcon('watermark-commands')?.defaults,
+			debug: registry.getIcon('watermark-debug')?.defaults,
 			settings: registry.getIcon('watermark-settings')?.defaults,
 			terminal: registry.getIcon('watermark-terminal')?.defaults,
 		}, {
 			chat: Codicon.chatSparkle,
 			commands: Codicon.listSelection,
+			debug: Codicon.run,
 			settings: Codicon.settings,
 			terminal: Codicon.terminal,
 		});

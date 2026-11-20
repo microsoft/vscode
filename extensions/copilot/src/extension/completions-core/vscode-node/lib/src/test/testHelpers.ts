@@ -4,32 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ActionItem, ICompletionsNotificationSender } from '../notificationSender';
-import { IPosition, IRange } from '../textDocument';
-
-export function positionToString(p: IPosition) {
-	return `${p.line}:${p.character}`;
-}
-
-export function rangeToString(r: IRange) {
-	return `[${positionToString(r.start)}--${positionToString(r.end)}]`;
-}
-
-export function restoreEnvAfterTest() {
-	const origEnv: typeof process.env = { ...process.env };
-	teardown(function () {
-		// remove any keys that were added
-		for (const key of Object.keys(process.env)) {
-			if (!(key in origEnv)) {
-				delete process.env[key];
-			}
-		}
-
-		// restore the original values
-		for (const key of Object.keys(origEnv)) {
-			process.env[key] = origEnv[key];
-		}
-	});
-}
 
 export class TestNotificationSender implements ICompletionsNotificationSender {
 	declare _serviceBrand: undefined;

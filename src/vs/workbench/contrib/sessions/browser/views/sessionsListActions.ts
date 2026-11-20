@@ -36,11 +36,12 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
+import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISideChatPlacementService } from '../sideChatPlacement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { resolveSessionCommandTarget } from '../sessionCommandTarget.js';
@@ -939,6 +940,14 @@ function createSessionsListActions(): DisposableStore {
 		group: 'navigation',
 		order: 10,
 	}));
+	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: Menus.SessionsViewFilter,
+		title: localize2('filterSessions', "Filter Sessions"),
+		icon: Codicon.filter,
+		group: 'navigation',
+		order: 10,
+		when: ChatViewSessionsListTitleContext,
+	}));
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 		command: {
@@ -948,6 +957,16 @@ function createSessionsListActions(): DisposableStore {
 		},
 		group: 'navigation',
 		order: 20,
+	}));
+	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		command: {
+			id: 'sessionsViewPane.find',
+			title: localize2('find', "Find Session"),
+			icon: Codicon.search,
+		},
+		group: 'navigation',
+		order: 20,
+		when: ChatViewSessionsListTitleContext,
 	}));
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
@@ -1069,9 +1088,12 @@ function createSessionsListActions(): DisposableStore {
 				f1: true,
 				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, EditorWindowSessionsContext), available),
 				toggled: InboxModeContext,
-				menu: [Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions].map(id => ({
-					id, group: 'navigation', order: 5, when: available,
-				})),
+				menu: [
+					...[Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions].map(id => ({
+						id, group: 'navigation', order: 5, when: available,
+					})),
+					{ id: MenuId.ViewTitle, group: 'navigation', order: 5, when: ContextKeyExpr.and(available, ChatViewSessionsListTitleContext) },
+				],
 			});
 		}
 		run(accessor: ServicesAccessor): void {
@@ -1187,6 +1209,11 @@ function createSessionsListActions(): DisposableStore {
 					group: '1_view',
 					order: 0,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+				}, {
+					id: MenuId.ViewTitle,
+					group: '1_view',
+					order: 0,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), ChatViewSessionsListTitleContext),
 				}]
 			});
 		}
@@ -1246,7 +1273,10 @@ function createSessionsListActions(): DisposableStore {
 				id: 'sessionsViewPane.collapseAllGroups',
 				title: localize2('collapseAllGroups', "Collapse All Groups"),
 				category: SessionsCategories.Sessions,
-				menu: [{ id: Menus.SidebarSessionsHeader, group: '1_view', order: 1, when: ChatContextKeys.enabled }]
+				menu: [
+					{ id: Menus.SidebarSessionsHeader, group: '1_view', order: 1, when: ChatContextKeys.enabled },
+					{ id: MenuId.ViewTitle, group: '1_view', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatViewSessionsListTitleContext) },
+				]
 			});
 		}
 		override run(accessor: ServicesAccessor) {
@@ -1822,11 +1852,12 @@ function createSessionsListActions(): DisposableStore {
 			}
 			const sessions = Array.isArray(context) ? context : [context];
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const hideSideChats = accessor.get(ISideChatPlacementService).inSidePane.get();
 			void Promise.all(sessions.map(session => {
 				if (session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true) {
 					return;
 				}
-				return sessionsManagementService.markChatsRead(session, getSessionListChats(session).filter(chat => !chat.isRead.get()));
+				return sessionsManagementService.markChatsRead(session, getSessionListChats(session, undefined, false, hideSideChats).filter(chat => !chat.isRead.get()));
 			})).catch(onUnexpectedError);
 		}
 	}));

@@ -195,6 +195,8 @@ export interface IChatUsage {
 		readonly reasoningTokens?: number;
 		readonly cacheWriteTokens?: number;
 		readonly duration?: number;
+		/** The call's own output, when it can differ from `completionTokens`: a subagent's call is reported on its parent turn. */
+		readonly outputTokens?: number;
 		readonly timeToFirstTokenMs?: number;
 		readonly providerCallId?: string;
 		readonly serviceRequestId?: string;
@@ -705,6 +707,8 @@ export interface IChatAutoModeResolutionPart {
 	defaulted?: boolean;
 	/** The chat stayed on the model it was already running. */
 	kept?: boolean;
+	/** Set when the chat stayed on its model and the router changed its effort: the effort before this turn, or none when that was the model's default. */
+	effortChangedFrom?: { readonly effort?: string };
 	/** Auto is presented as Copilot Fusion, so the row names it that way. */
 	fusion?: boolean;
 }

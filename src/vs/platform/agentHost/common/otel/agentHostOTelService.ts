@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TelemetryConfig } from '@github/copilot-sdk';
+import type { TelemetryConfig } from '@microsoft/copilot-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { IAgentSessionComparisonMetadata } from '../state/sessionState.js';
@@ -12,7 +12,7 @@ import type { IChatUserInteractionTiming } from '../../../otel/common/chatUserIn
 
 
 /**
- * Lean service that wires the @github/copilot-sdk telemetry hook to either:
+ * Lean service that wires the @microsoft/copilot-sdk telemetry hook to either:
  *
  *  - **External-only mode**: pass user-configured exporter settings straight through
  *    so the SDK's spawned CLI exports OTel data directly to the user's sink.

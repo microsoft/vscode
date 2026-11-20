@@ -16,7 +16,6 @@ import { Icon } from './icon';
 
 export class CopilotStatusBar extends StatusReporter implements IDisposable {
 	readonly item!: LanguageStatusItem;
-	showingMessage = false;
 	private disposables: Disposable[] = [];
 
 	constructor(
