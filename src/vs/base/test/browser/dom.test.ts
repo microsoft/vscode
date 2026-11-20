@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getActiveDocument, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, getDomNodeZoomLevel, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels, getDevicePixelAlignmentOffset, IDevicePixelAlignment } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getActiveDocument, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, getDomNodeZoomLevel, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels, getDevicePixelAlignmentOffset, IDevicePixelAlignment, addDisposableListener, triggerUpload } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { CodeWindow, ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -16,6 +16,48 @@ import { registerTestIframe } from './testWindow.js';
 
 suite('dom', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('triggerUpload', () => {
+		for (const canceled of [false, true]) {
+			test(`settles and removes its file input after ${canceled ? 'cancellation' : 'selection'}`, async () => {
+				let input: HTMLInputElement | undefined;
+				store.add(addDisposableListener(mainWindow.document.body, 'click', event => {
+					if (event.target instanceof HTMLInputElement && event.target.type === 'file') {
+						event.preventDefault();
+						input = event.target;
+					}
+				}, true));
+
+				const result = triggerUpload('.png,.jpg');
+				assert.ok(input);
+				const pickerState = { connected: input.isConnected, accept: input.accept, multiple: input.multiple };
+				await timeout(0);
+				const keptUntilSelection = input.isConnected;
+				if (canceled) {
+					input.dispatchEvent(new Event('cancel'));
+				} else {
+					const transfer = new DataTransfer();
+					transfer.items.add(new File(['first'], 'first.png'));
+					transfer.items.add(new File(['second'], 'second.jpg'));
+					input.files = transfer.files;
+					input.dispatchEvent(new Event('change'));
+				}
+				const files = await result;
+				assert.deepStrictEqual({
+					pickerState,
+					keptUntilSelection,
+					files: files ? Array.from(files, file => file.name) : undefined,
+					cleanedUp: !input.isConnected,
+				}, {
+					pickerState: { connected: true, accept: '.png,.jpg', multiple: true },
+					keptUntilSelection: true,
+					files: canceled ? undefined : ['first.png', 'second.jpg'],
+					cleanedUp: true,
+				});
+			});
+		}
+	});
+
 	test('hasClass', () => {
 
 		const element = document.createElement('div');

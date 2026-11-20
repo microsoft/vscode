@@ -119,41 +119,11 @@ export function derivePullRequestState(pr: Pick<PullRequestSearchItem, 'state' |
 	return 'open';
 }
 
-export interface PullRequestSearchResult {
-	search: {
-		nodes: PullRequestSearchItem[];
-		pageInfo: {
-			hasNextPage: boolean;
-			endCursor: string | null;
-		};
-		issueCount: number;
-	};
-}
-
 export interface AssignableActor {
 	__typename: string;
 	login: string;
 	avatarUrl?: string;
 	url?: string;
-}
-
-export interface AssignableActorsResponse {
-	repository: {
-		suggestedActors?: {
-			nodes: AssignableActor[];
-			pageInfo: {
-				hasNextPage: boolean;
-				endCursor: string | null;
-			};
-		};
-		assignableUsers?: {
-			nodes: AssignableActor[];
-			pageInfo: {
-				hasNextPage: boolean;
-				endCursor: string | null;
-			};
-		};
-	};
 }
 
 export interface GitHubAPIRequestOptions {

@@ -29,7 +29,7 @@ import { resolveAgentMessageProvenance } from '../common/agentMessageProvenance.
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, resolveSubagentChatParent, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, resolveSubagentChatParent, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentPrewarmClaim, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
@@ -2308,7 +2308,7 @@ export class AgentSideEffects extends Disposable {
 			let providerPreparation: Promise<void> | undefined;
 			// Preparation can materialize the deferred session, so it reports how the send found its warm launch.
 			const prewarmReporters = {
-				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				reportPrewarmedSession: (discardReason?: string, claim?: IAgentPrewarmClaim) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason, claim),
 				reportPrewarmSkipped: (reason: AgentHostPrewarmSkipReason) => this._turnTracker.markPrewarmSkipped(turnChannel, turnId, reason),
 			};
 			if (agent.chats.prepareTurn) {

@@ -49,7 +49,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbenc
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionIdContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
@@ -747,6 +747,40 @@ suite('Agent Host Session Config Picker', () => {
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		assert.deepStrictEqual(localEntries, entries);
+	});
+
+	test('offers a quick chat of a new session the host options that need no workspace', () => {
+		const services = setupServices(store);
+		const repository = makeRepoConfig('main');
+		services.provider.config = {
+			...repository,
+			schema: { ...repository.schema, properties: { ...repository.schema.properties, runner: { title: 'Runner', description: '', type: 'string', enum: ['*', 'm1'], enumLabels: ['Any runner', 'm1'] } } },
+		};
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly gridShown = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+
+		const context = new Context(1, null);
+		context.setValue(ChatContextKeys.enabled.key, true);
+		context.setValue(SessionIdContext.key, SESSION_ID);
+		const shown = (quickChat: boolean) => {
+			context.setValue(IsQuickChatSessionContext.key, quickChat);
+			return MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.') && (item.when?.evaluate(context) ?? true))
+				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		};
+
+		assert.deepStrictEqual({ workspace: shown(false), quickChat: shown(true) }, { workspace: ['Isolation', 'Base Branch', 'Runner'], quickChat: ['Runner'] });
 	});
 
 	test('repository pickers keep their menu action so the composer can identify them', async () => {

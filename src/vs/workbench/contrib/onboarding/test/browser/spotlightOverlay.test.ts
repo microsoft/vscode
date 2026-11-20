@@ -819,6 +819,33 @@ suite('SpotlightOverlay', () => {
 		assert.strictEqual(mainWindow.document.activeElement, getButtons(container).at(-1));
 	});
 
+	for (const activation of ['click', 'keyboard']) {
+		test(`preserves description link focus after replacing a target and handles ${activation}`, () => {
+			const container = createContainer();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const target = createTarget(container, 0, 0, 50, 50);
+			const handled: string[] = [];
+			const stepContent = content({
+				description: new MarkdownString('See [the docs](https://example.com) for more.'),
+				onDidClickLink: link => handled.push(link),
+			});
+			overlay.show(target, stepContent);
+			container.querySelector<HTMLElement>('.spotlight-callout-description a')!.focus();
+			target.remove();
+			overlay.layout();
+			overlay.hide();
+			overlay.show(createTarget(container, 0, 100, 50, 50), stepContent, { preserveFocus: true });
+			const link = container.querySelector<HTMLElement>('.spotlight-callout-description a')!;
+			const focusPreserved = mainWindow.document.activeElement === link;
+			if (activation === 'click') {
+				link.click();
+			} else {
+				link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			}
+			assert.deepStrictEqual({ focusPreserved, handled }, { focusPreserved: true, handled: ['https://example.com'] });
+		});
+	}
+
 	test('dispose removes the overlay from the DOM', () => {
 		const container = createContainer();
 		const overlay = new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver);

@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -37,12 +37,14 @@ import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { ChatEditorInput } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
@@ -1485,6 +1487,30 @@ suite('DesktopLayoutController', () => {
 		);
 	});
 
+	test('[desktop] a side chat tab of a quick chat hides its Details while it is active, and only then', async () => {
+		createDesktopController({ desktopLayout: true, activateAux: true });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
+		const sideChat = Object.create(ChatEditorInput.prototype) as ChatEditorInput;
+		Object.defineProperty(sideChat, 'resource', { value: URI.parse('chat://side') });
+		const detailsVisibleWith = async (editor: EditorInput) => {
+			harness.activeEditorInput = editor;
+			harness.onDidActiveEditorChange.fire();
+			await timeout(0);
+			return harness.partVisibility.get(Parts.AUXILIARYBAR_PART);
+		};
+
+		assert.deepStrictEqual({
+			browser: await detailsVisibleWith(browserEditor),
+			sideChat: await detailsVisibleWith(sideChat),
+			browserAfterSideChat: await detailsVisibleWith(browserEditor),
+		}, { browser: true, sideChat: false, browserAfterSideChat: true });
+	});
+
 	test('[desktop] keeps the side pane visible when a quick chat is active among multiple sessions', async () => {
 		createDesktopController({ desktopLayout: true, activateAux: true });
 		const workspaceSession = makeSession(URI.parse('session:workspace'));
@@ -1956,7 +1982,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] Toggle Details targets the multi diff file list while docked and the widget while floating', () => {
+	test('[desktop] Toggle Details targets the multi diff file list, also while the details float, and the details elsewhere', () => {
 		createDesktopController();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		const configurationService = new TestConfigurationService();
@@ -1993,70 +2019,71 @@ suite('DesktopLayoutController', () => {
 			textEditorActive: { fileListVisible: false, detailsVisible: true },
 			multiDiffEditorGroupToolbar: { fileListVisible: true, detailsVisible: true },
 		});
+		// The details are hidden while a multi diff editor is active, docked or floating, so it toggles its file list either way.
 		harness.layoutService.setAuxiliaryBarFloating(true);
 		assert.deepStrictEqual({
-			hideWidget: toggle(multiDiffEditorGroup),
-			showWidget: toggle(multiDiffEditorGroup),
+			multiDiffEditorActive: toggle(multiDiffEditorGroup),
+			textEditorActive: toggle(textEditorGroup),
 		}, {
-			hideWidget: { fileListVisible: true, detailsVisible: false },
-			showWidget: { fileListVisible: true, detailsVisible: true },
+			multiDiffEditorActive: { fileListVisible: false, detailsVisible: true },
+			textEditorActive: { fileListVisible: false, detailsVisible: false },
 		});
 	});
 
-	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
+	test('[D7 desktop] contributes two Toggle Details split buttons after Maximize with the editor title layout actions', () => {
 		createDesktopController();
 
-		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
 		const maximizeItem = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.maximizeMainEditorPart');
-
-		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
 		assert.ok(maximizeItem, 'Maximize item should be registered');
-		const when = items[0].when?.serialize() ?? '';
-		const expression = items[0].when;
-		assert.ok(expression);
-		const values: Record<string, ContextKeyValue> = Object.fromEntries(expression.keys().map(key => [key, true]));
-		values[IsAuxiliaryWindowContext.key] = false;
-		const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
-		const visibleByMode = [false, true].map(floating => {
-			values[`config.${SESSIONS_FLOATING_DETAILS_SETTING}`] = floating;
-			return expression.evaluate(context);
-		});
+		const describe = (submenu: MenuId, includeDropdown: boolean) => {
+			const entries = MenuRegistry.getMenuItems(submenu).filter(isIMenuItem).sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0));
+			return MenuRegistry.getMenuItems(MenuId.EditorTitleLayout).filter(isISubmenuItem).filter(item => item.submenu === submenu).map(item => ({
+				group: item.group,
+				icon: ThemeIcon.isThemeIcon(item.icon) ? item.icon.id : undefined,
+				afterMaximize: (item.order ?? 0) > (maximizeItem.order ?? 0),
+				isSplitButton: item.isSplitButton,
+				primary: entries.filter(entry => entry.group === 'navigation').map(entry => ({ id: entry.command.id, hasToggled: !!entry.command.toggled })),
+				...(includeDropdown ? {
+					dropdown: entries.filter(entry => entry.group !== 'navigation').map(entry => ({
+						id: entry.command.id,
+						title: typeof entry.command.title === 'string' ? entry.command.title : entry.command.title.value,
+						group: entry.group,
+						hasToggled: !!entry.command.toggled,
+					})),
+				} : {}),
+			}));
+		};
+		const splitButton = { group: 'navigation', icon: Codicon.listSelection.id, afterMaximize: true, isSplitButton: { excludePrimaryActionFromDropdown: true }, primary: [{ id: TOGGLE_DETAILS_COMMAND_ID, hasToggled: true }] };
+
+		// The details positions of the first split button are contributed and tested with the Details Position submenu.
 		assert.deepStrictEqual({
-			group: items[0].group,
-			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
-			order: items[0].order,
-			afterMaximize: (items[0].order ?? 0) > (maximizeItem.order ?? 0),
-			hasToggled: !!items[0].command.toggled,
-			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
-			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
-			gatedOnMultiDiffEditorFileList: when.includes(MultiDiffEditorFileListAvailableContext.key),
-			visibleByMode,
+			details: describe(Menus.DetailsToggle, false),
+			fileList: describe(Menus.MultiDiffFileListToggle, true),
 			commandAvailable: !!CommandsRegistry.getCommand(TOGGLE_DETAILS_COMMAND_ID),
 		}, {
-			group: 'navigation',
-			icon: Codicon.listSelection.id,
-			order: 10,
-			afterMaximize: true,
-			hasToggled: true,
-			gatedOnEditorArea: true,
-			gatedOnDockedDetails: true,
-			gatedOnMultiDiffEditorFileList: true,
-			visibleByMode: [true, false],
+			details: [splitButton],
+			fileList: [{
+				...splitButton,
+				dropdown: [
+					{ id: 'multiDiffEditor.viewFileListAsList', title: 'View as List', group: '1_view', hasToggled: true },
+					{ id: 'multiDiffEditor.viewFileListAsTree', title: 'View as Tree', group: '1_view', hasToggled: true },
+					{ id: 'multiDiffEditor.positionFileListLeft', title: 'Left', group: '2_organize', hasToggled: true },
+					{ id: 'multiDiffEditor.positionFileListRight', title: 'Right', group: '2_organize', hasToggled: true },
+				],
+			}],
 			commandAvailable: true,
 		});
 	});
 
-	test('[D7 desktop] Toggle Details also shows for the Changes tab, including during a session switch', () => {
+	test('[D7 desktop] shows the details split button wherever the details can be toggled, including while floating, and the file list split button for multi diff editors', () => {
 		createDesktopController();
 
-		const [toggleDetails] = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
-		const isShown = (activeEditor: string, options: { hasDockedDetails?: boolean; transition?: boolean } = {}) => {
+		const [details, fileList] = [Menus.DetailsToggle, Menus.MultiDiffFileListToggle].map(submenu => MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === submenu)!);
+		const shown = (activeEditor: string, options: { hasDockedDetails?: boolean; transition?: boolean; fileList?: boolean; floating?: boolean } = {}) => {
 			const values: Record<string, ContextKeyValue> = {
 				[IsSessionsWindowContext.key]: true,
 				[IsAuxiliaryWindowContext.key]: false,
@@ -2066,17 +2093,39 @@ suite('DesktopLayoutController', () => {
 				[HasDockedDetailsContext.key]: options.hasDockedDetails ?? false,
 				[ActiveEditorContext.key]: activeEditor,
 				[DesktopChangesEditorTransitionContext.key]: options.transition ?? false,
+				[MultiDiffEditorFileListAvailableContext.key]: options.fileList ?? false,
+				[`config.${SESSIONS_FLOATING_DETAILS_SETTING}`]: options.floating ?? false,
 			};
 			const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
-			return toggleDetails.when?.evaluate(context) ?? false;
+			return [details, fileList].filter(item => item.when?.evaluate(context)).map(item => item === details ? 'details' : 'fileList');
 		};
 		// The Changes tab keeps the toggle even before the detail target is published.
 		assert.deepStrictEqual({
-			changes: isShown(SessionChangesEditorInput.EDITOR_ID),
-			changesTransition: isShown('', { transition: true }),
-			textFileWithDockedDetails: isShown(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true }),
-			withoutDockedDetails: isShown('test.browserEditor'),
-		}, { changes: true, changesTransition: true, textFileWithDockedDetails: true, withoutDockedDetails: false });
+			changes: shown(SessionChangesEditorInput.EDITOR_ID),
+			changesTransition: shown('', { transition: true }),
+			files: shown(EmptyFileEditorInput.EDITOR_ID, { hasDockedDetails: true }),
+			textFile: shown(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true }),
+			multiDiffWithFileList: shown(MultiDiffEditor.ID, { hasDockedDetails: true, fileList: true }),
+			multiDiffWithoutFileList: shown(MultiDiffEditor.ID, { hasDockedDetails: true }),
+			withoutDockedDetails: shown('test.browserEditor'),
+			// Toggle Details shows and hides the floating details, but keeps toggling the file list of a multi diff editor,
+			// which has no docked details to float.
+			floating: {
+				textFile: shown(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true, floating: true }),
+				changes: shown(SessionChangesEditorInput.EDITOR_ID, { floating: true }),
+				multiDiffWithFileList: shown(MultiDiffEditor.ID, { fileList: true, floating: true }),
+				withoutDockedDetails: shown('test.browserEditor', { floating: true }),
+			},
+		}, {
+			changes: ['details'],
+			changesTransition: ['details'],
+			files: ['details'],
+			textFile: ['details'],
+			multiDiffWithFileList: ['fileList'],
+			multiDiffWithoutFileList: ['details'],
+			withoutDockedDetails: [],
+			floating: { textFile: ['details'], changes: ['details'], multiDiffWithFileList: ['fileList'], withoutDockedDetails: [] },
+		});
 	});
 
 	test('[desktop reload] preserves Aux-only layout while the active session is still restoring', async () => {

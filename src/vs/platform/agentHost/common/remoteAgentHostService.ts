@@ -261,7 +261,12 @@ export type IRemoteAgentHostDevContainerConnection = {
 	readonly address: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
-} & ({ readonly hostPath: string; readonly repository?: never } | { readonly repository: IDevContainerRepository; readonly hostPath?: never });
+} & (
+		| { readonly hostPath: string; readonly repository?: never; readonly environmentId?: never }
+		| { readonly repository: IDevContainerRepository; readonly hostPath?: never; readonly environmentId?: never }
+		/** A Dev Container environment, which has no source folder or repository. */
+		| { readonly environmentId: string; readonly hostPath?: never; readonly repository?: never }
+	);
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection | IRemoteAgentHostExtensionConnection;
 
@@ -834,11 +839,11 @@ export interface IRemoteAgentHostService {
 	 * Ask the remote agent host to upgrade itself via its hosting CLI.
 	 *
 	 * Sends the host-advertised JSON-RPC method (typically
-	 * `_vscodeUpgrade`) on the existing transport — even when the handshake
-	 * has not completed (e.g. the host was just rejected for protocol
-	 * incompatibility). The hosting CLI receives the signal, checks for a
-	 * newer build, and kills+respawns the server on success. The caller
-	 * SHOULD then reconnect to re-attempt the handshake.
+	 * `_vscodeUpgrade`) on the existing transport, on a connected host or
+	 * even when the handshake has not completed (e.g. the host was just
+	 * rejected for protocol incompatibility). The hosting CLI receives the
+	 * signal, checks for a newer build, and kills+respawns the server on
+	 * success. The caller SHOULD then reconnect to re-attempt the handshake.
 	 *
 	 * Resolves with the host's status payload describing what happened
 	 * (whether an upgrade was needed, whether it was started); rejects on

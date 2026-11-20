@@ -3848,6 +3848,18 @@ class NewSession extends Disposable {
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
 	setTitle(title: string): void { this._title.set(title, undefined); }
 
+	/** Shows the request as the title until the agent names the session. */
+	setRequestTitle(query: string, title?: string): void {
+		this.setTitle((title || query.split('\n')[0]).substring(0, 100) || this.untitledTitle);
+	}
+
+	setWorkspaceLabel(label: string): void {
+		const workspace = this._workspace.get();
+		if (workspace && workspace.label !== label) {
+			this._workspace.set({ ...workspace, label }, undefined);
+		}
+	}
+
 	/** Applies the session's Git and GitHub state; `sessionWorkingDirectory` is the backend URI of its first folder. */
 	applySessionMeta(meta: SessionMeta | undefined, sessionWorkingDirectory: string | undefined): boolean {
 		const workspace = this._workspace.get();
@@ -3879,6 +3891,7 @@ class NewSession extends Disposable {
 					isRepository: constObservable(true),
 					branchName: gitState?.branchName ?? currentRepository.branchName,
 					baseBranchName: gitState?.baseBranchName ?? currentRepository.baseBranchName,
+					baseBranchFullName: gitState?.baseBranchFullName ?? currentRepository.baseBranchFullName,
 					hasGitRemote: gitState?.hasGitRemote ?? currentRepository.hasGitRemote,
 					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,
 					upstreamBranchName: gitState?.upstreamBranchName ?? currentRepository.upstreamBranchName,
@@ -4953,6 +4966,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _hydrationRequestedSessions = new Set<string>();
 
 	protected _cacheInitialized = false;
+	protected readonly _sessionListVersion = observableValue(this, 0);
+	readonly sessionListVersion: IObservable<number> = this._sessionListVersion;
 
 	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
 	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
@@ -9385,7 +9400,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Seed the title from the first line of the query so the new-session
 		// tab shows something meaningful immediately. This skeleton is replaced
 		// by the committed AgentHostSession once it arrives.
-		newSession.setTitle((options.title || query.split('\n')[0]).substring(0, 100) || newSession.untitledTitle);
+		newSession.setRequestTitle(query, options.title);
 		const skeleton = newSession.session;
 		this._pendingSessions.set(newSession.sessionId, skeleton);
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
@@ -9976,7 +9991,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
+		const previous = cached.mode.get()?.id;
 		cached.reconcileSelectedAgent(getEffectiveAgents(state.customizations));
+		const rebased = cached.mode.get()?.id;
+		if (previous && rebased && previous !== rebased) {
+			const inputModel = this._chatService.getSession(cached.mainChat.get().resource)?.inputModel;
+			if (inputModel?.state.get()?.mode.id === previous) {
+				inputModel.setState({ mode: { id: rebased, kind: ChatModeKind.Agent } });
+			}
+		}
 	}
 
 	/**
@@ -10552,6 +10575,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 			this._onHostReconciledSessions(new Set(this._sessionCache.keys()));
+			this._sessionListVersion.set(this._sessionListVersion.get() + 1, undefined);
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });

@@ -22,7 +22,7 @@ import { isModelRouterModelId } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import type { JsonPrimitive } from '../../common/state/protocol/state.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -833,12 +833,17 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 	}
 }
 
+/** Whether `folder` names a local folder by its path alone: an absolute `file` URI without a query or fragment. */
+function isLocalFolderUri(folder: URI): boolean {
+	return folder.scheme === Schemas.file && folder.path.startsWith('/') && !folder.query && !folder.fragment;
+}
+
 /** Validates and resolves the workspace requested by `set_workspace`. */
 export function getSetWorkspaceArgs(rawArgs: unknown): { readonly workspaceFolder: URI; readonly isolation: boolean } {
 	const args = (rawArgs ?? {}) as { readonly workspaceFolder?: unknown; readonly isolation?: unknown };
 	const input = getRequiredString(args.workspaceFolder, 'workspaceFolder', SessionServerToolName.SetWorkspace);
 	const workspaceFolder = parseWorkspaceUri(input);
-	if (!workspaceFolder || workspaceFolder.scheme !== Schemas.file || !workspaceFolder.path.startsWith('/') || workspaceFolder.query || workspaceFolder.fragment) {
+	if (!workspaceFolder || !isLocalFolderUri(workspaceFolder)) {
 		throw new Error(`Invalid ${SessionServerToolName.SetWorkspace} input: workspaceFolder must be an absolute local path or file URI.`);
 	}
 	return {
@@ -974,9 +979,13 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 		if (workspace === undefined && worktree !== undefined) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree requires workspace.`);
 		}
+		const chatWorkspace = workspace !== undefined ? resolveWorkspace(workspace, sessions) : undefined;
+		if (chatWorkspace && !isLocalFolderUri(chatWorkspace)) {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace for relationship "currentSession" must be an absolute local path or file URI.`);
+		}
 		return {
 			relationship,
-			...(workspace !== undefined ? { workspace: resolveWorkspace(workspace, sessions) } : {}),
+			...(chatWorkspace !== undefined ? { workspace: chatWorkspace } : {}),
 			...(worktree !== undefined ? { worktree } : {}),
 			prompt,
 			title,
@@ -1378,20 +1387,6 @@ export interface ICreateSessionResult {
 }
 
 /**
- * Whether `chat` is workspace-less in a session described by `metadata`: the session is marked and the chat has
- * no folder of its own or shares the default chat's folder. A chat with its own folder in a marked session is
- * not; unknown chats fail closed as workspace-less.
- */
-export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | undefined, chat: URI | undefined): boolean {
-	if (!readSessionWorkspaceless(metadata?._meta)) {
-		return false;
-	}
-	const folder = metadata?.chats?.find(entry => entry.chat.toString() === chat?.toString())?.workingDirectories?.[0];
-	const defaultFolder = metadata?.chats?.find(entry => entry.kind === 'default')?.workingDirectories?.[0];
-	return folder === undefined || folder === defaultFolder;
-}
-
-/**
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true, executionSource?: IToolCallSource): Promise<ICreateSessionResult> {
@@ -1408,12 +1403,8 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	// Every argument that needs no model catalog is checked first, so a mistake there neither waits for catalog discovery nor is hidden by its failure.
 	const unresolvedArgs = getCreateSessionArgs(rawArgs, sessions, undefined, currentProvider, supportsChatWorkingDirectories, modelOptions);
 	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
-	if (unresolvedArgs.relationship === 'independent') {
-		if (enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
-			throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
-		}
-	} else if (currentSession && unresolvedArgs.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
+	if (unresolvedArgs.relationship === 'independent' && enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
+		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
 	}
 	const getModels = createSessionModelReader(accessor, credentials);
 	const args = (rawArgs as ICreateSessionArgs | undefined)?.model === undefined

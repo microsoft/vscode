@@ -203,7 +203,7 @@ export class BrowserView extends Disposable {
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined);
+			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined, !this._ownerWindow.config?.isSessionsWindow);
 			if (action !== 'integrated') {
 				if (consumeUserGesture) {
 					this._lastUserGestureTimestamp = -Infinity;
@@ -771,6 +771,11 @@ export class BrowserView extends Disposable {
 		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
 		const browserZoomFactor = browserZoomFactors[this._browserZoomIndex];
 		this._view.webContents.setZoomFactor(browserZoomFactor);
+	}
+
+	/** Whether the view was last asked to be shown with {@link setVisible}. */
+	isVisible(): boolean {
+		return this._wantsVisibility;
 	}
 
 	/**

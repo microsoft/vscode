@@ -81,6 +81,7 @@ import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../shared/workspacelessIn
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
+import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
@@ -1144,8 +1145,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _pendingCommandOutputs = new WeakMap<ICodexSession, Map<string, Promise<ToolResultContent[]>>>();
 	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
 	private readonly _turnDiffs = new WeakMap<ICodexSession, CodexTurnDiffTracker>();
-	private readonly _onDidStoreTurnEdits = this._register(new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>());
-	readonly onDidStoreTurnEdits = this._onDidStoreTurnEdits.event;
 
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
 	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -1358,6 +1357,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 	) {
@@ -3336,21 +3336,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		let tracker = this._turnDiffs.get(session);
 		if (!tracker) {
 			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs, discardedTurnIds) => {
-				if (!session.chatStorage || !session.workingDirectory || session.disposed) {
+				const storage = session.chatStorage;
+				const chat = session.chatChannel;
+				if (!storage || !chat || !session.workingDirectory || session.disposed) {
 					return;
 				}
-				const database = this._sessionDataService.openDatabase(session.chatStorage);
+				const database = this._sessionDataService.openDatabase(storage);
 				const cwd = session.workingDirectory;
 				try {
 					const nativeCwd = URI.file(await fs.promises.realpath(cwd.fsPath).catch(() => cwd.fsPath));
 					await storeCodexTurnDiffs(captures, {
-						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService, discardedTurnIds,
+						relatedDiffs, cwd, nativeCwd, fileService: this._fileService, logService: this._logService, discardedTurnIds,
+						storeFileEdit: edit => this._fileEditCoordinator.storeFileEdit(chat, database.object, edit),
 					});
 				} finally {
 					database.dispose();
-				}
-				if (session.chatChannel) {
-					this._onDidStoreTurnEdits.fire({ chat: session.chatChannel, turnIds: [...new Set(captures.flatMap(capture => capture.snapshots.map(snapshot => snapshot.turnId)))] });
 				}
 			});
 			this._turnDiffs.set(session, tracker);

@@ -53,6 +53,7 @@ export class ReadOnlyChatSession extends Disposable implements IChatSession {
 		readonly title: string | undefined,
 		readonly isReadOnly: IObservable<boolean>,
 		onDispose?: () => void,
+		readonly olderHistoryUnavailable?: IObservable<boolean>,
 	) {
 		super();
 		if (onDispose) {
@@ -196,7 +197,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			if (this._chatContexts.get(sessionResource) === context) {
 				this._chatContexts.delete(sessionResource);
 			}
-		});
+		}, constObservable(!!replayed?.truncated || chat?.turnsNextCursor !== undefined));
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {

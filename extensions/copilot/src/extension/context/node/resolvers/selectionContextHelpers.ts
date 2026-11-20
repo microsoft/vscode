@@ -328,14 +328,6 @@ export class FilePathCodeMarker {
 		return `${language.lineComment.start} FILEPATH`;
 	}
 
-	/**
-	 * Checks if the given code starts with a file path marker
-	 */
-	public static testLine(language: ILanguage, code: string): boolean {
-		const filenameMarker = FilePathCodeMarker.forLanguage(language);
-		return code.trimStart().startsWith(filenameMarker);
-	}
-
 }
 
 export async function getStructure(parserService: IParserService, document: TextDocumentSnapshot, formattingOptions: vscode.FormattingOptions | undefined) {

@@ -238,6 +238,29 @@ export class AgentHostGitService implements IAgentHostGitService {
 		this._repositoryRoots.set(roots, undefined);
 	}
 
+	/**
+	 * Forgets the cached repository roots of a removed worktree, so lookups stop resolving to a checkout that is gone.
+	 * Entries cached under the worktree's canonical path, which git reports as the root, are forgotten too.
+	 */
+	private async _forgetRepositoryRoots(worktree: URI): Promise<void> {
+		const removedRoots = [worktree, await this._canonicalizeWorktreePath(worktree)];
+		const roots = this._repositoryRoots.get();
+		const cachedRoot = roots.peek(extUriBiasedIgnorePathCase.getComparisonKey(worktree));
+		if (cachedRoot) {
+			removedRoots.push(cachedRoot);
+		}
+		const isRemoved = (resource: URI) => removedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+		// Collect the keys first: the cache throws when it is modified during iteration.
+		const keys = [...roots].filter(([key, root]) => isRemoved(URI.parse(key)) || (root !== undefined && isRemoved(root))).map(([key]) => key);
+		if (keys.length === 0) {
+			return;
+		}
+		for (const key of keys) {
+			roots.delete(key);
+		}
+		this._repositoryRoots.set(roots, undefined);
+	}
+
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
 		if (workingDirectory.scheme !== Schemas.file) {
 			return undefined;
@@ -467,7 +490,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			if (tree !== await this.revParse(worktree, 'HEAD^{tree}')) {
 				const parent = await this.revParse(worktree, 'HEAD');
-				const commit = await this.commitTree(worktree, tree, parent, `Preserving worktree before removal: ${worktree.fsPath}`);
+				const message = `Preserving worktree before removal: ${worktree.fsPath}`;
+				let commit: string | undefined;
+				try {
+					commit = await this.commitTree(worktree, tree, parent, message);
+				} catch (error) {
+					// For example, the repository has no user identity configured.
+					this._logService.info(`[agentHostGitService] Retrying preservation commit for '${worktree.fsPath}' with the internal identity: ${error instanceof Error ? error.message : String(error)}`);
+					commit = await this.commitTree(worktree, tree, parent, message, { useInternalIdentity: true });
+				}
 				if (!commit) {
 					throw new Error(`Cannot create preservation commit for '${worktree.fsPath}'`);
 				}
@@ -501,6 +532,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				if (!isRetryableWorktreeRemovalError(error)) {
 					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+						await this._forgetRepositoryRoots(worktree);
 						return;
 					}
 					throw error;
@@ -509,6 +541,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
 			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+				await this._forgetRepositoryRoots(worktree);
 				return;
 			}
 			if (gitCommandSucceeded) {
@@ -746,10 +779,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		// A ref can only be passed alongside a
-		// remote; default to `origin` when a ref
-		// is given without one.
+		// remote; resolve the branch's default
+		// push remote when a ref is given without one.
 		if (options?.remote || options?.ref) {
-			args.push(options.remote ?? 'origin');
+			args.push(options.remote ?? await this._resolveDefaultPushRemote(workingDirectory, options.ref) ?? 'origin');
 
 			if (options.ref) {
 				args.push(options.ref);
@@ -757,6 +790,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		await this._runGit(workingDirectory, args, { timeout: 180_000, throwOnError: true });
+	}
+
+	private async _resolveDefaultPushRemote(workingDirectory: URI, ref: string | undefined): Promise<string | undefined> {
+		const branchName = ref?.split(':')[0];
+		const [configuredPushRemote, remotesOutput] = await Promise.all([
+			branchName ? this._getPushRemote(workingDirectory, branchName) : undefined,
+			this._runGit(workingDirectory, ['remote', '-v']),
+		]);
+		return selectDefaultPushRemote(remotesOutput, configuredPushRemote);
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -2282,6 +2324,27 @@ export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, rem
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Selects the remote to push a branch to when the caller does not name one:
+ * the branch's configured push remote (`branch.<name>.pushRemote`,
+ * `remote.pushDefault` or `branch.<name>.remote`), else the remote the GitHub
+ * repository is resolved from (preferring `origin`), else `origin`, else the
+ * only remote.
+ *
+ * Exported for tests.
+ */
+export function selectDefaultPushRemote(remotesOutput: string | undefined, configuredPushRemote: string | undefined): string | undefined {
+	if (configuredPushRemote) {
+		return configuredPushRemote;
+	}
+	const remotes = parseFetchRemotes(remotesOutput) ?? [];
+	const origin = remotes.find(remote => remote.name === 'origin');
+	const ordered = origin ? [origin, ...remotes.filter(remote => remote !== origin)] : remotes;
+	return ordered.find(remote => parseGitHubOwnerRepoFromUrl(remote.url))?.name
+		?? origin?.name
+		?? (remotes.length === 1 ? remotes[0].name : undefined);
 }
 
 function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefined, remoteSelection: string | undefined): { owner: string; repo: string } | undefined {

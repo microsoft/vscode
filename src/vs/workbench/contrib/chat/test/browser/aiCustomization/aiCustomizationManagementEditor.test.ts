@@ -3440,7 +3440,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sameTokens: migrationTokens.every(token => folderTokens.includes(token)),
 			applied,
 		}, {
-			firstCancelled: true, migrationRequests: 10, folderRequests: 2, sameTokens: true, applied: [[candidate]],
+			firstCancelled: true, migrationRequests: 12, folderRequests: 2, sameTokens: true, applied: [[candidate]],
 		});
 	}));
 

@@ -9,7 +9,7 @@ import type { IAgentModelInfo } from './agent.js';
 import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
 import { ContextSizeConfigKey } from './agentModelConfiguration.js';
 import { readAgentModelNoticesMeta } from './agentModelNotices.js';
-import { isAgentModelExperimental } from './meta/agentModelMeta.js';
+import { isAgentModelExperimental, type IAgentModelRouterRoute } from './meta/agentModelMeta.js';
 import { isCopilotHydraFusionModelId } from './copilotCliConfig.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from './reasoningEffort.js';
 import { PolicyState } from './state/protocol/channels-root/state.js';
@@ -853,6 +853,12 @@ export function modelContextSizes(model: IAgentModelInfo | undefined): readonly 
 	return values.filter((value): value is number => typeof value === 'number' && value > 0).sort((a, b) => a - b);
 }
 
+/** The context window, in tokens, that a `context-size` selects on a model: its largest for `long`, when it has more than one, and its smallest for `default`. */
+export function modelContextSizeTokens(model: IAgentModelInfo | undefined, size: ModelRouterContextSize): number | undefined {
+	const sizes = modelContextSizes(model);
+	return size === 'long' ? (sizes.length > 1 ? sizes[sizes.length - 1] : undefined) : sizes[0];
+}
+
 /** The context window, in tokens, a model runs on when nothing selects one. For some models that is the larger window. */
 export function modelDefaultContextSize(model: IAgentModelInfo | undefined): number | undefined {
 	const value = model?.configSchema?.properties[ContextSizeConfigKey]?.default;
@@ -980,4 +986,23 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 		warning(`Only ${routes.length} of this router's models ${routes.length === 1 ? 'is' : 'are'} available, so there is nothing to route between.`);
 	}
 	return { routes: merged.size === 0 ? routes : routes.map(route => route.route.name || !merged.has(route.model.id) ? route : { ...route, merged: merged.get(route.model.id) }), diagnostics };
+}
+
+/**
+ * The routes of a router that this account can use, in the router's order, as its row in the
+ * model picker describes them. A chat starts on the first when none clearly fits.
+ */
+export function summarizeModelRouterRoutes(router: IModelRouter, models: readonly IAgentModelInfo[]): IAgentModelRouterRoute[] {
+	const { routes } = resolveModelRouter(router, models);
+	// Effort is chosen along with the route, so a router with one usable route never chooses it.
+	const choosesEffort = router.effort === 'auto' && routes.length > 1;
+	return routes.map(({ route, model, effort, supportedEfforts, contextSize }) => {
+		const contextTokens = contextSize ? modelContextSizeTokens(model, contextSize) : undefined;
+		return {
+			...(route.name ? { name: route.name } : {}),
+			model: model.name,
+			...(effort ? { effort } : choosesEffort && supportedEfforts.length ? { effort: 'auto' } : {}),
+			...(contextTokens ? { contextTokens } : {}),
+		};
+	});
 }
