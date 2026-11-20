@@ -2244,13 +2244,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync current input state to the input model
 	 */
-	private _syncInputStateToModel(): void {
+	private _syncInputStateToModel(storeMode = false): void {
 		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
 		this._isSyncingToOrFromInputModel = true;
 		const state = this.getCurrentInputState();
+		const savedMode = this._getSavedAgentHostMode();
+		if (!storeMode && savedMode) {
+			state.mode = savedMode;
+		}
 		if (this._chatSessionIsEmpty) {
 			this._emptyInputState.set(state, undefined);
 		}
@@ -2362,7 +2366,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Log first so the upcoming _syncInputStateToModel write can be attributed
 			// to a mode change.
 			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, isUserInitiated=${isUserInitiated}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
-			this._syncInputStateToModel();
+			this._syncInputStateToModel(true);
 		}
 	}
 
@@ -2749,8 +2753,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
+		const storeFallback = !this._getSavedAgentHostMode();
 		if (!validMode) {
-			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
+			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask, storeFallback);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {
@@ -2758,15 +2763,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			this.setChatMode(ChatModeKind.Ask);
+			this.setChatMode(ChatModeKind.Ask, storeFallback);
 			return;
 		}
 		if (currentMode.id === ChatMode.Ask.id) {
 			const askMode = this._currentChatModesObservable.get().custom.find(mode => mode.kind === ChatModeKind.Ask);
 			if (askMode) {
-				this.setChatMode(askMode.id);
+				this.setChatMode(askMode.id, storeFallback);
 			}
 		}
+	}
+
+	/** The saved agent can outlive its entry in the composer catalog. */
+	private _getSavedAgentHostMode(): IChatModelInputState['mode'] | undefined {
+		const resource = this._inputModelSessionResource;
+		if (!resource || !isAgentHostTarget(resource.scheme) || isUntitledChatSession(resource)
+			|| !(this.environmentService.isSessionsWindow || this.options.isSessionsWindow)) {
+			return undefined;
+		}
+		const mode = this._inputModel?.state.get()?.mode;
+		return mode && ![ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(mode.id) ? mode : undefined;
 	}
 
 	/**

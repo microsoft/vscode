@@ -121,6 +121,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			}
 		}
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		if (!accessor.get(IChatEntitlementService).sentiment.hidden && configurationService.getValue<boolean>('chat.disableAIFeatures') !== true) {
+			content.push(localize('sessionsChat.unavailableAgent', "If the selected custom agent is unavailable, the message is not sent and your draft is kept. Try sending again or use the agent picker to choose another agent."));
+		}
 		content.push(getCloudSandboxPreparationAccessibilityHelp());
 		content.push(localize('sessionsChat.offlineDraft', "By default, opening a cloud sandbox conversation connects or wakes its environment in the background. Turn off chat.agentHost.cloudSandbox.autoConnectOnOpen to wait until you start composing or explicitly connect instead. You can read its history and compose a draft while it connects. Connection progress and failures appear in a banner only after you type, paste, or add an attachment. If the session is ready before you start composing, no connection banner appears. Send, mode, and permissions are unavailable until the session is ready. If connecting fails, your draft stays in the input; use Retry in the banner to try again. Connecting never sends your draft automatically."));
 		content.push(localize('sessionsChat.reopenConversation', "If the environment is connected but the conversation cannot be reopened, the banner offers Retry. Use Tab to reach Retry and press Enter or Space to reopen the conversation on the existing connection. The banner reports reopening progress and offers Retry again if it fails. Your draft is preserved and is not sent automatically. Send stays unavailable until the conversation is ready."));
