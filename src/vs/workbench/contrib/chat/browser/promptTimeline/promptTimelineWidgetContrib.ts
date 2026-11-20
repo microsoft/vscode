@@ -179,9 +179,13 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._enablement.add(autorun(reader => {
 			const ticks = ticksObs.read(reader);
+			const loadOlder = rail instanceof PromptTimelineGutterRail ? model.olderHistoryLoader.read(reader) : undefined;
+			if (rail instanceof PromptTimelineGutterRail) {
+				rail.setOlderHistoryLoader(loadOlder);
+			}
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS && !loadOlder);
 			rail.setTicks(ticks);
 		}));
 
