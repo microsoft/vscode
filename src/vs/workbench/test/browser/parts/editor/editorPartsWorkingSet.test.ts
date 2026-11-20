@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -38,6 +39,31 @@ suite('EditorParts - applying working set', () => {
 		assert.deepStrictEqual({ applying: parts.isApplyingWorkingSet, changes }, { applying: true, changes: [true] });
 
 		await first;
+		await second;
+		assert.deepStrictEqual({ applying: parts.isApplyingWorkingSet, changes }, { applying: false, changes: [true, false] });
+	});
+
+	test('stays applying after the first overlapping apply completes while the second is pending', async () => {
+		const parts = await createParts();
+
+		const pending: DeferredPromise<boolean>[] = [];
+		(parts as unknown as { doApplyWorkingSet(): Promise<boolean> }).doApplyWorkingSet = () => {
+			const deferred = new DeferredPromise<boolean>();
+			pending.push(deferred);
+			return deferred.p;
+		};
+
+		const changes: boolean[] = [];
+		disposables.add(parts.onDidChangeApplyingWorkingSet(applying => changes.push(applying)));
+
+		const first = parts.applyWorkingSet('empty');
+		const second = parts.applyWorkingSet('empty');
+
+		await pending[0].complete(true);
+		await first;
+		assert.deepStrictEqual({ applying: parts.isApplyingWorkingSet, changes }, { applying: true, changes: [true] });
+
+		await pending[1].complete(true);
 		await second;
 		assert.deepStrictEqual({ applying: parts.isApplyingWorkingSet, changes }, { applying: false, changes: [true, false] });
 	});
