@@ -24,6 +24,11 @@
 	.chat-welcome-view .chat-welcome-view-tips {
 		display: none;
 	}
+
+	/* except a custom agent's own message (`welcome-message`) */
+	.chat-welcome-view-container.chat-agent-empty-chat-message .chat-welcome-view :is(.chat-welcome-view-icon, .chat-welcome-view-title, .chat-welcome-view-message) {
+		display: revert;
+	}
 }
 
 /* Chat welcome container */

@@ -1,7 +1,7 @@
 steps:
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: 24.x
+      version: 24.x
       checkLatest: true
 
   # Check out the private microsoft/vscode-capi repository using the agent's

@@ -444,7 +444,7 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidSendRequest: Event<ISendRequestSentEvent>;
 
-	/** Fires after a session was successfully archived via {@link archiveSession}. */
+	/** Fires after a session was successfully archived via {@link archiveSession} or {@link archiveSessions}. */
 	readonly onDidArchiveSession: Event<ISession>;
 	/** Fires after a session was successfully unarchived via {@link unarchiveSession}. */
 	readonly onDidUnarchiveSession: Event<ISession>;
@@ -682,6 +682,9 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
+
+	/** Archives every session and returns its settled outcome in input order, after all operations finish. */
+	archiveSessions(sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]>;
 
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;

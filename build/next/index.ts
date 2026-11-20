@@ -25,7 +25,7 @@ import { agentHostCryptoOutDir, bundleAgentHostCrypto } from './agentHostCrypto.
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
-import { getBundleOptions } from './bundle.ts';
+import { assertOneByteStartupBundle, bundleAssetLoaders, desktopWorkbenchEntryPoint, getBundleOptions } from './bundle.ts';
 import { compileStandaloneFiles } from './standalone.ts';
 import { copyMobileLibraries, mobileDirectory, mobileEntryPoint, mobilePlugin, mobileQuality, packageMobileExtensions, prepareMobile, writeMobileManifest } from './mobile.ts';
 
@@ -103,7 +103,7 @@ const desktopWorkerEntryPoints = [
 
 // Desktop workbench and code entry points
 const desktopEntryPoints = [
-	'vs/workbench/workbench.desktop.main',
+	desktopWorkbenchEntryPoint,
 	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
@@ -190,7 +190,7 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 	switch (target) {
 		case 'desktop':
 			return new Set([
-				'vs/workbench/workbench.desktop.main',
+				desktopWorkbenchEntryPoint,
 				'vs/code/electron-browser/workbench/workbench',
 				'vs/sessions/sessions.desktop.main',
 				'vs/sessions/electron-browser/sessions',
@@ -558,12 +558,7 @@ async function bundleToOutput(outDir: string, doMinify: boolean, doNls: boolean,
 			...(needsCssBundling
 				? { outdir: path.join(REPO_ROOT, outDir) }
 				: { outfile: outPath }),
-			loader: {
-				'.ttf': 'file',
-				'.svg': 'file',
-				'.png': 'file',
-				'.sh': 'file',
-			},
+			loader: bundleAssetLoaders,
 			assetNames: 'media/[name]',
 			plugins,
 		};
@@ -700,6 +695,11 @@ async function bundleToOutput(outDir: string, doMinify: boolean, doNls: boolean,
 		} else {
 			await fs.promises.writeFile(mapFile.path, mapFile.contents);
 		}
+	}
+
+	if (doMinify && target === 'desktop') {
+		const file = path.join(outDirPath, `${desktopWorkbenchEntryPoint}.js`);
+		assertOneByteStartupBundle(file, await fs.promises.readFile(file, 'utf8'), () => fs.readFileSync(`${file}.map`, 'utf8'));
 	}
 
 	// Syntax-check JS files that were post-processed (mangle-privates, NLS).

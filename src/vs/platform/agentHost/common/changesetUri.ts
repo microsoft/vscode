@@ -21,11 +21,11 @@ import { isAhpChatChannel, MessageKind, readSessionGitState, ResponsePartKind, S
  *     <ownerUri>/changeset/uncommitted
  *     <ownerUri>/changeset/session
  *     <ownerUri>/changeset/working-set
- *     <ownerUri>/changeset/turn/<turnId>
+ *     <chatUri>/changeset/turn/<turnId>
  *     <ownerUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
  *
  * Catalogue entries may also advertise the
- * URI-template forms `<ownerUri>/changeset/turn/{turnId}` and
+ * URI-template forms `<chatUri>/changeset/turn/{turnId}` and
  * `<ownerUri>/changeset/compare/{originalTurnId}/{modifiedTurnId}`;
  * clients expand the template before subscribing.
  *
@@ -253,16 +253,16 @@ export function buildUncommittedChangesetUri(sessionUri: URI): URI {
  * per-turn changeset; clients expand `{turnId}` to build the
  * subscribable URI via {@link buildTurnChangesetUri}.
  */
-export function buildTurnChangesetUriTemplate(sessionUri: URI): URI {
-	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${TURN_CHANGESET_PREFIX}${TURN_TEMPLATE_VARIABLE}`;
+export function buildTurnChangesetUriTemplate(chatUri: URI): URI {
+	return `${chatUri}${CHANGESET_PATH_SEGMENT}${TURN_CHANGESET_PREFIX}${TURN_TEMPLATE_VARIABLE}`;
 }
 
 /** Returns the subscribable URI for the per-turn changeset of `turnId`. */
-export function buildTurnChangesetUri(sessionUri: URI, turnId: string): URI {
+export function buildTurnChangesetUri(chatUri: URI, turnId: string): URI {
 	if (!turnId || turnId.includes('/')) {
 		throw new Error(`buildTurnChangesetUri: turnId must be non-empty and not contain '/' (got ${JSON.stringify(turnId)})`);
 	}
-	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${TURN_CHANGESET_PREFIX}${turnId}`;
+	return `${chatUri}${CHANGESET_PATH_SEGMENT}${TURN_CHANGESET_PREFIX}${turnId}`;
 }
 
 /**
@@ -305,13 +305,25 @@ export function buildChangesetUri(sessionUri: URI, changesetId: string): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${changesetId}`;
 }
 
-/**
- * Parses a changeset URI back into its owner, id, and kind, or returns
- * `undefined` if `uri` is not a changeset URI we recognise. `sessionUri` is
- * set for session- and folder-owned changesets; the session of a chat-owned
- * changeset is that chat's recorded owner (see {@link changesetSession}).
- */
-export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI | undefined; changesetId: string; kind: ChangesetKind; turnId?: string; originalTurnId?: string; modifiedTurnId?: string } | undefined {
+interface IChangesetAddress {
+	readonly ownerUri: URI;
+	readonly sessionUri: URI | undefined;
+	readonly changesetId: string;
+}
+
+type ParsedChangesetUri = IChangesetAddress & (
+	| { readonly kind: ChangesetKind.Turn; readonly sessionUri: undefined; readonly turnId: string }
+	| { readonly kind: ChangesetKind.Compare; readonly originalTurnId: string; readonly modifiedTurnId: string }
+	| { readonly kind: Exclude<ChangesetKind, ChangesetKind.Turn | ChangesetKind.Compare> }
+);
+
+/** Whether the URI is in the changeset namespace, even if it is not a valid changeset. */
+export function hasChangesetPath(uri: URI): boolean {
+	return uri.includes(CHANGESET_PATH_SEGMENT);
+}
+
+/** Parses a changeset URI. For a turn, `ownerUri` is always a chat URI. */
+export function parseChangesetUri(uri: URI): ParsedChangesetUri | undefined {
 	const idx = uri.lastIndexOf(CHANGESET_PATH_SEGMENT);
 	if (idx < 0) {
 		return undefined;
@@ -321,6 +333,14 @@ export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI | 
 		return undefined;
 	}
 	const ownerUri = uri.slice(0, idx);
+	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
+		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);
+		if (!turnId || turnId.includes('/') || turnId === TURN_TEMPLATE_VARIABLE
+			|| !isAhpChatChannel(ownerUri) || ResourceURI.parse(ownerUri).path.length <= 1) {
+			return undefined;
+		}
+		return { ownerUri, sessionUri: undefined, changesetId, kind: ChangesetKind.Turn, turnId };
+	}
 	const sessionUri = parseFolderChangesetOwnerUri(ownerUri)?.sessionUri ?? (isAhpChatChannel(ownerUri) ? undefined : ownerUri);
 	if (changesetId === BRANCH_CHANGESET_ID) {
 		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Branch };
@@ -333,14 +353,6 @@ export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI | 
 	}
 	if (changesetId === WORKING_SET_CHANGESET_ID) {
 		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.WorkingSet };
-	}
-	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
-		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);
-		// Reject the unexpanded template and any tail with extra segments.
-		if (!turnId || turnId.includes('/') || turnId === TURN_TEMPLATE_VARIABLE) {
-			return undefined;
-		}
-		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Turn, turnId };
 	}
 	if (changesetId.startsWith(COMPARE_CHANGESET_PREFIX)) {
 		const tail = changesetId.slice(COMPARE_CHANGESET_PREFIX.length);
@@ -384,19 +396,16 @@ export function isUncommittedChangesetUri(uri: URI): boolean {
 	return parseChangesetUri(uri)?.kind === ChangesetKind.Uncommitted;
 }
 
-/** Returns the parsed turn id when `uri` is a per-turn changeset URI. */
-export function parseTurnChangesetUri(uri: URI): { ownerUri: URI; turnId: string } | undefined {
+/** Returns the chat URI and turn id when `uri` is a per-turn changeset URI. */
+export function parseTurnChangesetUri(uri: URI): { chatUri: URI; turnId: string } | undefined {
 	const parsed = parseChangesetUri(uri);
-	if (parsed?.kind !== ChangesetKind.Turn || parsed.turnId === undefined) {
-		return undefined;
-	}
-	return { ownerUri: parsed.ownerUri, turnId: parsed.turnId };
+	return parsed?.kind === ChangesetKind.Turn ? { chatUri: parsed.ownerUri, turnId: parsed.turnId } : undefined;
 }
 
 /** Returns the parsed turn ids when `uri` is a compare-turns changeset URI. */
 export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; originalTurnId: string; modifiedTurnId: string } | undefined {
 	const parsed = parseChangesetUri(uri);
-	if (parsed?.kind !== ChangesetKind.Compare || parsed.originalTurnId === undefined || parsed.modifiedTurnId === undefined) {
+	if (parsed?.kind !== ChangesetKind.Compare) {
 		return undefined;
 	}
 	return { ownerUri: parsed.ownerUri, originalTurnId: parsed.originalTurnId, modifiedTurnId: parsed.modifiedTurnId };

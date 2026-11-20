@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench.mobile-workbench .new-chat-widget-container.mobile-new-session {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
+	/* Give the composer up to 304px before spending the full gutter on narrow phones. */
+	padding: var(--vscode-spacing-size80) clamp(var(--vscode-spacing-size80), calc((100% - 304px) / 2), var(--vscode-spacing-size160)) 0;
 	justify-content: flex-start;
 }
 

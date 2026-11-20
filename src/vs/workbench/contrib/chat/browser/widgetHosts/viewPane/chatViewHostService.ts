@@ -10,6 +10,8 @@ import { derived, IObservable, ISettableObservable, observableFromEvent, observa
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
@@ -224,9 +226,12 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	private readonly contributions = observableValue<readonly IChatViewContribution[]>(this, []);
 	readonly sessionsList: IObservable<IChatViewSessionsListProvider | undefined>;
 	readonly sessionsOnly: IObservable<boolean>;
+	readonly sessionsListExpected: IObservable<boolean>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.chatViewHost = instantiationService.createInstance(ChatViewPaneHost);
@@ -239,7 +244,18 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 			return state.newChat ? undefined : state.host.shownSession?.read(reader);
 		});
 		this.sessionsList = derived(this, reader => this.contributions.read(reader).findLast(contribution => contribution.sessionsList)?.sessionsList);
-		this.sessionsOnly = derived(this, reader => this.contributions.read(reader).some(contribution => contribution.sessionsOnly) && this._replaced.read(reader) && !this.chatViewHosts.read(reader));
+		// Remote windows and the Agents window keep the Chat view's own list: nothing there provides another
+		const providable = !environmentService.isSessionsWindow && !environmentService.remoteAuthority;
+		this.sessionsListExpected = derived(this, reader => providable && chatViewSessionsListService.enabled.read(reader) && !this.sessionsList.read(reader));
+		this.sessionsOnly = derived(this, reader => {
+			const contributions = this.contributions.read(reader);
+			const replaced = this._replaced.read(reader);
+			const chatViewHosts = this.chatViewHosts.read(reader);
+			// A new chat that the Chat view started shows its composer, whose session then opens elsewhere
+			const hostsNewChat = chatViewHosts && this.state.read(reader).newChat;
+			return (replaced && !chatViewHosts && contributions.some(contribution => contribution.sessionsOnly))
+				|| (!(replaced && chatViewHosts) && !hostsNewChat && contributions.some(contribution => contribution.chatsOpenElsewhere));
+		});
 	}
 
 	register(contribution: IChatViewContribution): IDisposable {

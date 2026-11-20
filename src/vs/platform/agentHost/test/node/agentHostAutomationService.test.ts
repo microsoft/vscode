@@ -1118,6 +1118,7 @@ suite('AgentHostAutomationService', () => {
 			automationId: hashAutomationTelemetryId('ahp-automation:/review-changes'),
 			runId: AgentSession.id(run.resource),
 			trigger: 'manual',
+			scheduleKind: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
 			provider: 'copilotcli',
 			agentSessionId: undefined,
@@ -1247,6 +1248,7 @@ suite('AgentHostAutomationService', () => {
 			automationId: hashAutomationTelemetryId('ahp-automation:/review-changes'),
 			runId: AgentSession.id(run.resource),
 			trigger: 'manual',
+			scheduleKind: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
 			provider: 'default',
 			agentSessionId: undefined,
@@ -2126,6 +2128,7 @@ suite('AgentHostAutomationService', () => {
 				automationId: hashAutomationTelemetryId('ahp-automation:/review-changes'),
 				runId: AgentSession.id(run.resource),
 				trigger: 'manual',
+				scheduleKind: 'manual',
 				runCreatedAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
 				provider: 'copilotcli',
 				agentSessionId: `${outcome}-session`,
@@ -3321,8 +3324,27 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, trigger: event.data.trigger, scheduleKind: event.data.scheduleKind })), [
 			{ name: 'automation.created', trigger: undefined, scheduleKind: 'scheduled' },
-			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: undefined },
-			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: undefined },
+			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: 'scheduled' },
+			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: 'scheduled' },
+		]);
+	}));
+
+	test('reports a one-time scheduled chat and its run as a scheduledChat schedule kind', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/scheduled-chat-session'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: new Date(Date.UTC(2026, 0, 1, 0, 1)).toISOString() }] },
+		});
+		await started.p;
+
+		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, trigger: event.data.trigger, scheduleKind: event.data.scheduleKind })), [
+			{ name: 'automation.created', trigger: undefined, scheduleKind: 'scheduledChat' },
+			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: 'scheduledChat' },
+			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: 'scheduledChat' },
 		]);
 	}));
 

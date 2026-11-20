@@ -155,8 +155,7 @@ const approvalReplies: Readonly<Record<string, { readonly approve: readonly stri
 };
 
 function normalizeReply(text: string, language = 'en'): string {
-	// allow-any-unicode-next-line
-	return text.normalize('NFC').trim().replace(/[.!。！।]+$/, '').trim().toLocaleLowerCase(language);
+	return text.normalize('NFC').trim().replace(/[.!\u3002\uFF01\u0964]+$/, '').trim().toLocaleLowerCase(language);
 }
 
 /** Speech recognition can merge repeated attempts into one transcript. */

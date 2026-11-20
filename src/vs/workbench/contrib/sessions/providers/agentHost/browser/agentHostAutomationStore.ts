@@ -660,6 +660,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return {
 			id: this._resourceId(run.resource),
 			automationId: this._resourceId(run.automation),
+			...(getAgentHostScheduledChat(run) ? { purpose: 'scheduledChat' as const } : {}),
 			status: lifecycle.status === AutomationRunStatus.Cancelled ? 'failed' : lifecycle.status,
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual
 				? 'manual'

@@ -21,6 +21,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IBrowserViewBounds, IBrowserViewLoadError, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -32,7 +33,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly screenshot?: VSBuffer }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly aiHidden?: boolean; readonly screenshot?: VSBuffer }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -97,6 +98,7 @@ suite('CanvasEditor', () => {
 				return harnessOptions?.openerResult ?? true;
 			},
 		});
+		instantiationService.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ sentiment: upcastPartial<IChatEntitlementService['sentiment']>({ hidden: harnessOptions?.aiHidden === true }) }));
 		instantiationService.stub(ILogService, {
 			warn: message => warningLogged.complete(String(message)),
 			error: message => errors.push(String(message)),
@@ -619,6 +621,23 @@ suite('CanvasEditor', () => {
 				sourceWindowId: mainWindow.vscodeWindowId,
 			},
 		}]);
+	});
+
+	test('opens an agent session link in the workbench only, never as an external link, and not while AI is hidden', async () => {
+		const link = 'agent-host-session://ahp-session/session?chat=chat';
+		const results: Record<string, unknown> = {};
+		for (const aiHidden of [false, true]) {
+			const harness = createHarness({ aiHidden });
+			await harness.open();
+			await harness.modelAttached.p;
+			harness.openExternal.fire(link);
+			await timeout(0);
+			results[aiHidden ? 'aiHidden' : 'aiShown'] = harness.opened;
+		}
+		assert.deepStrictEqual(results, {
+			aiShown: [{ resource: link, options: { fromUserGesture: true, sourceWindowId: mainWindow.vscodeWindowId } }],
+			aiHidden: [],
+		});
 	});
 
 	test('warns when the workbench opener declines an external link request', async () => {

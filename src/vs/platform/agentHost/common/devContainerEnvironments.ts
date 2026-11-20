@@ -17,7 +17,7 @@ export const devContainerEnvironmentImages: readonly string[] = [devContainerEnv
 
 /** Identifies a standalone Dev Container that is not created for a workspace folder. */
 export interface IDevContainerEnvironmentReference {
-	/** Client-chosen identifier that names the container's Docker volume and identity label. */
+	/** Client-chosen identifier that labels the container's Docker volumes. */
 	readonly environmentId: string;
 }
 
