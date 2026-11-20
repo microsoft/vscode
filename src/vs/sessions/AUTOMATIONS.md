@@ -73,7 +73,7 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 
 ## Definitions and session configuration
 
-Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
+Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts load their model catalogue through the core account-bound GitHub client, independently of extension option groups and sandbox enablement. Model identities remain the cloud API's raw IDs, and sandbox-specific model settings are not added to Automation templates.
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
