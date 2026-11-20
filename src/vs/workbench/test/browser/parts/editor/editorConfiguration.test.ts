@@ -24,14 +24,27 @@ suite('DynamicEditorConfigurations', () => {
 
 	teardown(() => sinon.restore());
 
-	test('Markdown defaults update on screen-reader and setting changes, including legacy experiment defaults', async () => {
+	test('Markdown defaults distinguish configured booleans from legacy default assignments at startup and on changes', async () => {
 		const screenReaderChanged = store.add(new Emitter<void>());
 		let screenReaderOptimized = true;
 		const accessibilityService = new class extends TestAccessibilityService {
 			override onDidChangeScreenReaderOptimized = screenReaderChanged.event;
 			override isScreenReaderOptimized() { return screenReaderOptimized; }
 		};
-		const configurationService = new TestConfigurationService({ [markdownDefaultEditorAgentsWindowSettingId]: 'auto' });
+		let defaultMode: MarkdownDefaultEditorMode | boolean = true;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				if (key !== markdownDefaultEditorAgentsWindowSettingId) {
+					return inspected;
+				}
+				return {
+					...inspected,
+					defaultValue: defaultMode as T,
+					value: inspected.value ?? defaultMode as T
+				};
+			}
+		}({ [markdownDefaultEditorAgentsWindowSettingId]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const editorResolverService = new class extends mock<IEditorResolverService>() {
 			override onDidChangeEditorRegistrations = Event.None;
@@ -55,8 +68,7 @@ suite('DynamicEditorConfigurations', () => {
 			screenReaderOptimized = value;
 			screenReaderChanged.fire();
 		};
-		const setMode = async (mode: MarkdownDefaultEditorMode | boolean) => {
-			await configurationService.setUserConfiguration(markdownDefaultEditorAgentsWindowSettingId, mode);
+		const notifyModeChanged = () => {
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
 				affectedKeys: new Set([markdownDefaultEditorAgentsWindowSettingId]),
@@ -64,7 +76,12 @@ suite('DynamicEditorConfigurations', () => {
 				affectsConfiguration: key => key === markdownDefaultEditorAgentsWindowSettingId
 			});
 		};
+		const setMode = async (mode: MarkdownDefaultEditorMode | boolean | undefined) => {
+			await configurationService.setUserConfiguration(markdownDefaultEditorAgentsWindowSettingId, mode);
+			notifyModeChanged();
+		};
 
+		await setMode('auto');
 		setScreenReaderOptimized(false);
 		setScreenReaderOptimized(true);
 		await setMode('on');
@@ -74,11 +91,17 @@ suite('DynamicEditorConfigurations', () => {
 		await setMode('auto');
 		await setMode(true);
 		await setMode(false);
+		await setMode(undefined);
+		setScreenReaderOptimized(false);
+		setScreenReaderOptimized(true);
+		defaultMode = false;
+		notifyModeChanged();
 
 		assert.deepStrictEqual(defaults, [
-			DEFAULT_EDITOR_ASSOCIATION.id, 'vscode.markdown.editor', DEFAULT_EDITOR_ASSOCIATION.id,
+			'vscode.markdown.editor', DEFAULT_EDITOR_ASSOCIATION.id, 'vscode.markdown.editor', DEFAULT_EDITOR_ASSOCIATION.id,
 			'vscode.markdown.editor', 'vscode.markdown.editor', 'vscode.markdown.preview.editor',
-			'vscode.markdown.preview.editor', DEFAULT_EDITOR_ASSOCIATION.id, DEFAULT_EDITOR_ASSOCIATION.id,
+			'vscode.markdown.preview.editor', DEFAULT_EDITOR_ASSOCIATION.id, 'vscode.markdown.editor',
+			'vscode.markdown.preview.editor', DEFAULT_EDITOR_ASSOCIATION.id, 'vscode.markdown.editor', DEFAULT_EDITOR_ASSOCIATION.id,
 			'vscode.markdown.preview.editor'
 		].map(editor => [editor, editor]));
 	});

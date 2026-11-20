@@ -16,7 +16,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ByteSize, getLargeFileConfirmationLimit } from '../../../../platform/files/common/files.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
@@ -162,9 +162,11 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 		// Registers setting for editorAssociations
 		const oldEditorAssociationsConfigurationNode = this.editorAssociationsConfigurationNode;
-		const markdownDefaultEditor = this.configurationService.getValue<MarkdownDefaultEditorMode | boolean>(markdownDefaultEditorAgentsWindowSettingId);
-		// Legacy boolean experiment defaults use automatic screen-reader behavior when enabled.
-		const markdownDefaultEditorMode: MarkdownDefaultEditorMode | undefined = typeof markdownDefaultEditor === 'boolean' ? markdownDefaultEditor ? 'auto' : 'off' : markdownDefaultEditor;
+		const markdownConfiguration = this.configurationService.inspect<MarkdownDefaultEditorMode | boolean>(markdownDefaultEditorAgentsWindowSettingId);
+		const markdownDefaultEditor = markdownConfiguration.value;
+		// Preserve stored boolean preferences before migration; only legacy defaults use automatic behavior.
+		const legacyEnabledMode = isConfigured(markdownConfiguration) || markdownConfiguration.policyValue !== undefined || markdownConfiguration.memoryValue !== undefined ? 'on' : 'auto';
+		const markdownDefaultEditorMode: MarkdownDefaultEditorMode | undefined = typeof markdownDefaultEditor === 'boolean' ? markdownDefaultEditor ? legacyEnabledMode : 'off' : markdownDefaultEditor;
 		const markdownEditorOptions = {
 			markdownDefaultEditor: markdownDefaultEditorMode,
 			screenReaderOptimized: this.accessibilityService.isScreenReaderOptimized()
