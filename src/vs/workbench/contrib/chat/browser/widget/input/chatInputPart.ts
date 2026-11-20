@@ -2746,17 +2746,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			&& gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh;
 	}
 
+	/**
+	 * The same custom agent can change its ID, e.g. from a synced copy to its source file while an agent host session starts.
+	 * Agent names are not unique, so only a single custom agent with the removed agent's name counts as its replacement.
+	 */
+	private findReplacementCustomAgent(removed: IChatMode, modes: IChatModes): IChatMode | undefined {
+		if (removed.isBuiltin) {
+			return undefined;
+		}
+		const sameName = modes.custom.filter(mode => mode.name.get() === removed.name.get());
+		return sameName.length === 1 ? sameName[0] : undefined;
+	}
+
 	private validateCurrentChatMode() {
 		// The refresh gate blocks AI use; it must not replace the user's persisted agent selection.
 		if (this.isManagedSettingsRefreshBlocked) {
 			return;
 		}
 		const currentMode = this._currentModeObservable.get();
-		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
+		const modes = this._currentChatModesObservable.get();
+		const validMode = modes.findModeById(currentMode.id) ?? this.findReplacementCustomAgent(currentMode, modes);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		const storeFallback = !this._getSavedAgentHostMode();
 		if (!validMode) {
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask, storeFallback);
+			return;
+		}
+		if (validMode.id !== currentMode.id) {
+			// Store the new ID, so that syncing from the input model does not bring back the old one.
+			this.setChatMode(validMode.id);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {
