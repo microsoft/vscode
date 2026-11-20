@@ -20,7 +20,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -769,11 +769,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					}
 				},
 				// In a multi diff editor with a changed files list, Toggle Details shows or hides that list instead while the details
-				// are docked, with a dropdown that puts the list on either side of the diffs.
+				// are docked, with a dropdown that switches the list between a list and a tree, and puts it on either side of the diffs.
 				{
 					id: MenuId.EditorTitleLayout, item: {
 						submenu: Menus.MultiDiffFileListToggle,
-						title: localize2('fileListPosition', "Files Position"),
+						title: localize2('filesViewAndPosition', "Files View & Position"),
 						icon: Codicon.listSelection,
 						isSplitButton: { excludePrimaryActionFromDropdown: true },
 						group: 'navigation',
@@ -781,6 +781,16 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 						when: ContextKeyExpr.and(splitButtonWhen, toggleMultiDiffEditorFileListContext),
 					}
 				},
+				...([
+					['multiDiffEditor.viewFileListAsList', localize2('fileListViewAsList', "View as List"), 'list', 1],
+					['multiDiffEditor.viewFileListAsTree', localize2('fileListViewAsTree', "View as Tree"), 'tree', 2],
+				] as const).map(([id, title, viewMode, order]) => ({
+					id: Menus.MultiDiffFileListToggle, item: {
+						command: { id, title, toggled: MultiDiffEditorFileListViewModeContext.isEqualTo(viewMode) },
+						group: '1_view',
+						order,
+					}
+				})),
 				...([
 					['multiDiffEditor.positionFileListLeft', localize2('fileListPositionLeft', "Left"), 'left', 1],
 					['multiDiffEditor.positionFileListRight', localize2('fileListPositionRight', "Right"), 'right', 2],

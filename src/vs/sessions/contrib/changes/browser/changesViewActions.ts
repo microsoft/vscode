@@ -27,12 +27,13 @@ import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorI
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionArtifactIntegrationsEnabledContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
@@ -396,32 +397,9 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	order: 20,
 	when: ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext, notChangesEditor),
 });
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
-	submenu: Menus.ChangesFilesView,
-	title: localize('filesView', "Files View"),
-	group: 'secondary/z_filesView',
-	order: 20,
-	// The files of the side pane; not where the editor shows its own files list, such as in a chat window
-	when: ContextKeyExpr.and(desktopChangesEditorTitle, AuxiliaryBarVisibleContext, MultiDiffEditorFileListAvailableContext.negate()),
-});
-// Where the Changes editor shows its own files list beside the diffs, such as in a chat window, it offers how the list
-// shows and where, as the multi-diff editors do, with their commands.
-const changesEditorFilesListShown = ContextKeyExpr.and(desktopChangesEditorTitleVisible, MultiDiffEditorFileListAvailableContext);
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
-	submenu: Menus.ChangesFilesViewAndPosition,
-	title: localize('filesViewAndPosition', "Files View & Position"),
-	group: 'secondary/2_viewMode',
-	order: 10,
-	when: changesEditorFilesListShown,
-});
-for (const [id, title, group, order, toggled] of [
-	['multiDiffEditor.viewFileListAsList', localize2('viewFileListAsList', "View as List"), '1_view', 1, MultiDiffEditorFileListViewModeContext.isEqualTo('list')],
-	['multiDiffEditor.viewFileListAsTree', localize2('viewFileListAsTree', "View as Tree"), '1_view', 2, MultiDiffEditorFileListViewModeContext.isEqualTo('tree')],
-	['multiDiffEditor.positionFileListLeft', localize2('positionFileListLeft', "Left"), '2_position', 1, MultiDiffEditorFileListPositionContext.isEqualTo('left')],
-	['multiDiffEditor.positionFileListRight', localize2('positionFileListRight', "Right"), '2_position', 2, MultiDiffEditorFileListPositionContext.isEqualTo('right')],
-] as const) {
-	MenuRegistry.appendMenuItem(Menus.ChangesFilesViewAndPosition, { command: { id, title, toggled, precondition: changesEditorFilesListShown }, group, order });
-}
+
+// The Changes editor offers how the Changes view shows its files in the dropdown of Toggle Details, above the details positions.
+const changesEditorActive = ActiveEditorContext.isEqualTo(SessionChangesEditor.ID);
 
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
@@ -433,11 +411,16 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
-			menu: {
+			menu: [{
 				id: Menus.ChangesFilesView,
 				group: '1_viewMode',
 				order: 1,
-			}
+			}, {
+				id: Menus.DetailsToggle,
+				group: '1_viewMode',
+				order: 1,
+				when: changesEditorActive,
+			}]
 		});
 	}
 
@@ -459,11 +442,16 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
-			menu: {
+			menu: [{
 				id: Menus.ChangesFilesView,
 				group: '1_viewMode',
 				order: 2,
-			}
+			}, {
+				id: Menus.DetailsToggle,
+				group: '1_viewMode',
+				order: 2,
+				when: changesEditorActive,
+			}]
 		});
 	}
 
@@ -557,12 +545,14 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	order: 30,
 	when: desktopChangesEditorTitleVisible,
 });
+// While the details are docked, the Toggle Details dropdown offers how a multi diff editor shows its files list and where,
+// so the editor title overflow only offers them while the details float, when Toggle Details shows or hides the details.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: '2_viewMode',
 	order: 10,
-	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext),
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext, ContextKeyExpr.equals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true)),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,

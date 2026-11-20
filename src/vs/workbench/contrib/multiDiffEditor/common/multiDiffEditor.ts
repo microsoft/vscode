@@ -56,10 +56,10 @@ export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
 	MultiDiffEditorFileListAvailableContext,
 )!;
 
-/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. The Agents window offers it in its editor title menu while its details float. */
 export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
 
-/** The Toggle Files split button of the editor title, whose dropdown puts the changed files list on either side of the diffs. */
+/** The Toggle Files split button of the editor title, whose dropdown switches the changed files list between a list and a tree, and puts it on either side of the diffs. */
 export const MultiDiffEditorFileListToggleMenu = new MenuId('MultiDiffEditorFileListToggle');
 
 /**

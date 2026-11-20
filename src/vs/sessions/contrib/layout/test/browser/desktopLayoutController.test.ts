@@ -2037,7 +2037,7 @@ suite('DesktopLayoutController', () => {
 			.find(item => item.command.id === 'workbench.action.agentSessions.maximizeMainEditorPart');
 		assert.ok(maximizeItem, 'Maximize item should be registered');
 		const describe = (submenu: MenuId, includeDropdown: boolean) => {
-			const entries = MenuRegistry.getMenuItems(submenu).filter(isIMenuItem).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+			const entries = MenuRegistry.getMenuItems(submenu).filter(isIMenuItem).sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0));
 			return MenuRegistry.getMenuItems(MenuId.EditorTitleLayout).filter(isISubmenuItem).filter(item => item.submenu === submenu).map(item => ({
 				group: item.group,
 				icon: ThemeIcon.isThemeIcon(item.icon) ? item.icon.id : undefined,
@@ -2048,6 +2048,7 @@ suite('DesktopLayoutController', () => {
 					dropdown: entries.filter(entry => entry.group !== 'navigation').map(entry => ({
 						id: entry.command.id,
 						title: typeof entry.command.title === 'string' ? entry.command.title : entry.command.title.value,
+						group: entry.group,
 						hasToggled: !!entry.command.toggled,
 					})),
 				} : {}),
@@ -2065,8 +2066,10 @@ suite('DesktopLayoutController', () => {
 			fileList: [{
 				...splitButton,
 				dropdown: [
-					{ id: 'multiDiffEditor.positionFileListLeft', title: 'Left', hasToggled: true },
-					{ id: 'multiDiffEditor.positionFileListRight', title: 'Right', hasToggled: true },
+					{ id: 'multiDiffEditor.viewFileListAsList', title: 'View as List', group: '1_view', hasToggled: true },
+					{ id: 'multiDiffEditor.viewFileListAsTree', title: 'View as Tree', group: '1_view', hasToggled: true },
+					{ id: 'multiDiffEditor.positionFileListLeft', title: 'Left', group: '2_organize', hasToggled: true },
+					{ id: 'multiDiffEditor.positionFileListRight', title: 'Right', group: '2_organize', hasToggled: true },
 				],
 			}],
 			commandAvailable: true,
