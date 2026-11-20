@@ -34,7 +34,7 @@ import { IAutomationDialogResult, IAutomationDialogService } from '../../../../w
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
-import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers, ShowSharedAutomationsByOthersContext } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
+import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
@@ -45,6 +45,7 @@ import { ISessionDraftsService } from '../../../../workbench/contrib/sessions/br
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
+import { ShowSharedAutomationsByOthersContext } from '../../../common/agentsWindowContextKeys.js';
 import { withAutomationDialogPersistenceTelemetry } from './automationTelemetry.js';
 import { AUTOMATIONS_TOUR_ID } from '../../onboardingTours/browser/tours/automationsTour.js';
 

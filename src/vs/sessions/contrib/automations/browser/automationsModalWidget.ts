@@ -41,13 +41,14 @@ import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } fr
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { observableShowSharedAutomationsByOthers, ShowSharedAutomationsByOthersContext } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { ShowSharedAutomationsByOthersContext } from '../../../common/agentsWindowContextKeys.js';
 import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons } from '../../sessions/browser/views/automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from '../../sessions/browser/views/automationRunProgress.js';
 import { AutomationCommands } from './automationCommands.js';

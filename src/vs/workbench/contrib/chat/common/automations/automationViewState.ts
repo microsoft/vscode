@@ -5,13 +5,9 @@
 
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { localize } from '../../../../../nls.js';
-import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 const showSharedByOthersStorageKey = 'sessions.automations.showSharedByOthers';
-
-export const ShowSharedAutomationsByOthersContext = new RawContextKey<boolean>('automationsShowSharedByOthers', false, localize('automationsShowSharedByOthers', "Whether shared automations created by others are shown"));
 
 export function getShowSharedAutomationsByOthers(storageService: IStorageService): boolean {
 	return storageService.getBoolean(showSharedByOthersStorageKey, StorageScope.PROFILE, false);

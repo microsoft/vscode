@@ -56,7 +56,7 @@ import { type AutomationDialogCreateInitialValues, IAutomationDialogService } fr
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
-import { observableShowSharedAutomationsByOthers, ShowSharedAutomationsByOthersContext } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
@@ -70,7 +70,7 @@ import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/co
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext } from '../../../../common/agentsWindowContextKeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext, ShowSharedAutomationsByOthersContext } from '../../../../common/agentsWindowContextKeys.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from './automationRunProgress.js';
