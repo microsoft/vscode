@@ -823,8 +823,10 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 /** Names the hook with its Local harness label, since Copilot names hook events as in its hook files (`sessionStart`). */
 function formatHookFailure(hook: IAgentSystemNotificationHookMeta, hostText: string): string {
 	const hookType = resolveCopilotCliHookType(hook.type);
-	return hookType && hook.source && hook.message
-		? localize('agentHost.hookFailed', "The {0} hook from {1} failed: {2}", HOOK_METADATA[hookType].label, hook.source, hook.message)
+	// Host-provided names such as `constructor` resolve to inherited properties, not hook types.
+	const label = hookType && Object.hasOwn(HOOK_METADATA, hookType) ? HOOK_METADATA[hookType].label : undefined;
+	return label && hook.source && hook.message
+		? localize('agentHost.hookFailed', "The {0} hook from {1} failed: {2}", label, hook.source, hook.message)
 		: hostText;
 }
 

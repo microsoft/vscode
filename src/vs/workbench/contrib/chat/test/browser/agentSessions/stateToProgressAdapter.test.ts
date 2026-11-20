@@ -4786,10 +4786,12 @@ suite('stateToProgressAdapter', () => {
 				summarize(hookFailure(crash, true)),
 				// A hook event the client cannot label is shown with the host's text.
 				summarize(hookFailure({ ...crash, type: 'notAHook' }, true)),
+				summarize(hookFailure({ ...crash, type: 'constructor' }, true)),
 				hookFailure(crash, false),
 				hookFailure(crash),
 			], [
 				warning('The Pre-Tool Use hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1 [x](command:evil)'),
+				warning('The host text.'),
 				warning('The host text.'),
 				undefined,
 				undefined,
