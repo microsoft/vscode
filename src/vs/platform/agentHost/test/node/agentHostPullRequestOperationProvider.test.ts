@@ -108,11 +108,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				modifiedAt: new Date(1).toISOString(),
 				workingDirectories: ['file:///repo'],
 			};
-			if (sessionAgentMergeEnabled) {
-				stateManager.restoreSession(session, [], creationTimeChatStorageResource);
-			} else {
-				stateManager.createSession(session);
-			}
+			stateManager.restoreSession(session, [], creationTimeChatStorageResource);
 			stateManager.setSessionConfig('agent:/session', {
 				schema: { type: 'object', properties: {} },
 				values: {
@@ -427,17 +423,22 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		});
 	});
 
-	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
+	test('advertises PR operations for folder sessions only while outgoing changes cannot be synced', () => {
 		const provider = createContribution(undefined, 'folder');
-
-		const operations = provider.getOperations({
+		const operationIdsFor = (upstreamBranchName: string | undefined) => provider.getOperations({
 			sessionKey: 'agent:/session',
-			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2 },
+			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2, upstreamBranchName },
 			changesetKind: ChangesetKind.Branch,
 			changesetUri: '',
-		});
+		})?.map(op => op.id);
 
-		assert.deepStrictEqual(operations, undefined);
+		assert.deepStrictEqual({
+			withUpstream: operationIdsFor('origin/feature/test'),
+			withoutUpstream: operationIdsFor(undefined),
+		}, {
+			withUpstream: undefined,
+			withoutUpstream: ['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID],
+		});
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {
