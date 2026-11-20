@@ -27,6 +27,8 @@ export interface IAgentCustomizationMeta {
 	/** Authored reasoning preference; omitted means inherit the selected model's configuration. */
 	readonly 'vscode.reasoningEffort'?: string;
 	readonly 'vscode.modelPolicy'?: 'preferred' | 'required';
+	/** Authored hint shown in the empty chat input while the agent is selected (`argument-hint`). */
+	readonly 'vscode.argumentHint'?: string;
 	readonly 'vscode.welcomeMessage'?: string;
 	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
 	readonly 'vscode.sourceUri'?: string;
@@ -48,6 +50,9 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	}
 	if (meta?.['vscode.modelPolicy'] === 'preferred' || meta?.['vscode.modelPolicy'] === 'required') {
 		result['vscode.modelPolicy'] = meta['vscode.modelPolicy'];
+	}
+	if (typeof meta?.['vscode.argumentHint'] === 'string') {
+		result['vscode.argumentHint'] = meta['vscode.argumentHint'];
 	}
 	if (typeof meta?.['vscode.welcomeMessage'] === 'string' && meta['vscode.welcomeMessage'].trim()) {
 		result['vscode.welcomeMessage'] = meta['vscode.welcomeMessage'];
