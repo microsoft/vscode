@@ -10,10 +10,11 @@ import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObs
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { isDefined } from '../../../../../../base/common/types.js';
+import { isDefined, isString } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { getSessionWorkspaceProperties, readSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -37,6 +38,8 @@ export interface IAgentHostChangeset extends Changeset {
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
 	/** Live changes layered over the authoritative changeset until its next cached `Recomputing` or `Ready` snapshot. */
 	readonly streamingChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>;
+	/** The session's base branch exactly as it was chosen when the session was configured. */
+	readonly baseBranchName?: string;
 }
 
 /** File changes published by one active turn. */
@@ -175,6 +178,27 @@ export function createChangesets(
 	return sessionChangesets;
 }
 
+/**
+ * Returns the base branch exactly as it was chosen for a worktree session, or
+ * `undefined` when the session is not isolated in a worktree or the chat works
+ * in another folder than the session's primary working directory.
+ */
+function getChosenBaseBranchName(sessionState: SessionState | undefined, chatState: ChatState): string | undefined {
+	const config = sessionState?.config;
+	if (!config) {
+		return undefined;
+	}
+	if (chatState.workingDirectories && chatState.workingDirectories[0] !== sessionState.workingDirectories?.[0]) {
+		return undefined;
+	}
+	const workspace = getSessionWorkspaceProperties(config.schema);
+	if (readSessionIsolation(workspace.isolation, config.values[workspace.isolationKey]) !== 'worktree') {
+		return undefined;
+	}
+	const baseBranchName = workspace.baseBranch ? config.values[workspace.baseBranch.key] : undefined;
+	return isString(baseBranchName) && baseBranchName.length > 0 ? baseBranchName : undefined;
+}
+
 export function createChatChangesets(
 	sessionUri: URI,
 	chatUriObs: IObservable<URI | undefined>,
@@ -200,6 +224,7 @@ export function createChatChangesets(
 	let lastChatUri: URI | undefined;
 	let lastDefaultChatUri: string | undefined;
 	let lastDefaultChangesetKind: DefaultChangesetKind | undefined;
+	let lastBaseBranchName: string | undefined;
 	let lastChangesets: readonly ISessionChangeset[] | undefined;
 	const currentTurnFileChanges = currentTurnChanges
 		? derived(reader => currentTurnChanges.read(reader)?.changes)
@@ -213,7 +238,9 @@ export function createChatChangesets(
 		}
 		const defaultChatUri = sessionState?.defaultChat;
 		const defaultChangesetKind = defaultChangesetKindObs.read(reader);
+		const baseBranchName = getChosenBaseBranchName(sessionState ?? undefined, chatState);
 		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri && defaultChangesetKind === lastDefaultChangesetKind
+			&& baseBranchName === lastBaseBranchName
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
 		}
@@ -229,6 +256,7 @@ export function createChatChangesets(
 		lastChatUri = chatUri;
 		lastDefaultChatUri = defaultChatUri;
 		lastDefaultChangesetKind = defaultChangesetKind;
+		lastBaseBranchName = baseBranchName;
 		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
 			...changeset,
 			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
@@ -238,6 +266,7 @@ export function createChatChangesets(
 				|| changeset.changeKind === ChangesetKind.Session
 				? currentTurnChanges
 				: undefined,
+			baseBranchName: changeset.changeKind === ChangesetKind.Branch ? baseBranchName : undefined,
 		})), chatUri, defaultChangesetKind);
 		return lastChangesets;
 	});
@@ -636,6 +665,8 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	private _description?: string;
 	get description(): string | undefined { return this._description; }
 
+	readonly baseBranchName: string | undefined;
+
 	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;
 
@@ -663,6 +694,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 		this.id = changesetSummary.id ?? changesetSummary.changeKind;
 		this._label = changesetSummary.label;
 		this._description = changesetSummary.description;
+		this.baseBranchName = changesetSummary.baseBranchName;
 
 		this.isDefault = constObservable(changesetSummary.isDefault);
 	}

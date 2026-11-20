@@ -54,7 +54,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
@@ -412,7 +412,6 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
-			override readonly activeSessionStateObs = constObservable<ActiveSessionState | undefined>(undefined);
 		}();
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
@@ -466,28 +465,27 @@ suite('Changes View Actions', () => {
 	});
 
 	test('uses the branch description in the picker tooltip while preserving its accessible label', () => {
-		const createChangeset = (id: string, label: string, description?: string) => upcastPartial<ISessionChangeset>({
+		const createChangeset = (id: string, label: string, description?: string, baseBranchName?: string) => upcastPartial<ISessionChangeset>({
 			id,
 			label,
 			description,
+			baseBranchName,
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
 		});
-		const branch = createChangeset('branch', 'Branch', 'feature -> main');
-		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release');
-		const withoutDescription = createChangeset('branch', 'Branch');
+		const branch = createChangeset('branch', 'Branch', 'feature -> main', 'origin/main');
+		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release', 'origin/release');
+		const withoutDescription = createChangeset('branch', 'Branch', undefined, 'origin/main');
+		const withoutBase = createChangeset('branch', 'Branch', 'feature -> main');
 		const emptyDescription = createChangeset('branch', 'Branch', '');
 		const session = createChangeset('session', 'Session', 'Session description');
-		const withBase = (baseBranchName: string | undefined) => upcastPartial<ActiveSessionState>({ baseBranchName });
 		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
 		const loading = observableValue('picker.loading', false);
-		const state = observableValue<ActiveSessionState | undefined>('picker.state', withBase('main'));
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetsObs = constObservable([branch]);
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
-			override readonly activeSessionStateObs = state;
 		}();
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
@@ -505,8 +503,6 @@ suite('Changes View Actions', () => {
 		});
 
 		const initial = snapshot();
-		state.set(withBase('release'), undefined);
-		const baseChanged = snapshot();
 		selected.set(updatedBranch, undefined);
 		const updated = snapshot();
 		transaction(tx => {
@@ -519,28 +515,21 @@ suite('Changes View Actions', () => {
 			selected.set(withoutDescription, tx);
 		});
 		const missing = snapshot();
-		state.set(withBase(undefined), undefined);
+		selected.set(withoutBase, undefined);
 		const noBase = snapshot();
-		transaction(tx => {
-			selected.set(emptyDescription, tx);
-			state.set(withBase(''), tx);
-		});
+		selected.set(emptyDescription, undefined);
 		const empty = snapshot();
-		transaction(tx => {
-			selected.set(session, tx);
-			state.set(withBase('main'), tx);
-		});
+		selected.set(session, undefined);
 		const otherChangeset = snapshot();
 		selected.set(undefined, undefined);
 		const noChangeset = snapshot();
 
-		assert.deepStrictEqual({ initial, baseChanged, updated, loadingCatalogue, missing, noBase, empty, otherChangeset, noChangeset }, {
-			initial: { label: 'Branch → main', tooltip: 'feature -> main', ariaLabel: 'Branch → main: feature -> main' },
-			baseChanged: { label: 'Branch → release', tooltip: 'feature -> main', ariaLabel: 'Branch → release: feature -> main' },
-			updated: { label: 'Branch → release', tooltip: 'feature -> release', ariaLabel: 'Branch → release: feature -> release' },
-			loadingCatalogue: { label: 'Branch → release', tooltip: 'feature -> release', ariaLabel: 'Branch → release: feature -> release' },
-			missing: { label: 'Branch → release', tooltip: 'Branch → release', ariaLabel: 'Branch → release' },
-			noBase: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, noBase, empty, otherChangeset, noChangeset }, {
+			initial: { label: 'Branch → origin/main', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/main: feature -> main' },
+			updated: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
+			loadingCatalogue: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
+			missing: { label: 'Branch → origin/main', tooltip: 'Branch → origin/main', ariaLabel: 'Branch → origin/main' },
+			noBase: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
 			empty: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
 			otherChangeset: { label: 'Session', tooltip: 'Session', ariaLabel: 'Session' },
 			noChangeset: { label: 'Versions', tooltip: 'Versions', ariaLabel: 'Versions' },
@@ -562,7 +551,6 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetObs = constObservable(changeset);
 			override readonly activeSessionChangesSummaryObs = summary;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
-			override readonly activeSessionStateObs = constObservable<ActiveSessionState | undefined>(undefined);
 		}();
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
@@ -671,7 +659,6 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetObs = constObservable(changeset);
 			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
-			override readonly activeSessionStateObs = constObservable<ActiveSessionState | undefined>(undefined);
 		}();
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());

@@ -28,7 +28,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile, type SessionConfigSchema, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -1014,6 +1014,80 @@ suite('AgentHostSessionChangesets', () => {
 		}, {
 			advertisedDefault: ['branch', 'session', 'turn'],
 			noAdvertisedDefault: ['session', 'turn'],
+		});
+	});
+
+	test('projects the base branch chosen for a worktree session onto Branch Changes only', () => {
+		const sessionUri = URI.parse('ahp-session:/session');
+		const chatUri = URI.parse(buildChatUri(sessionUri.toString(), 'first'));
+		const vscodeSchema: SessionConfigSchema = {
+			type: 'object',
+			properties: {
+				isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+				branch: { type: 'string', title: 'Branch', enumDynamic: true },
+			},
+		};
+		const otherHostSchema: SessionConfigSchema = {
+			type: 'object',
+			properties: {
+				target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'] },
+				baseBranch: { type: 'string', title: 'Base Branch', enumDynamic: true },
+			},
+		};
+		const worktreeConfig: SessionConfigState = { schema: vscodeSchema, values: { isolation: 'worktree', branch: 'origin/main' } };
+		const project = (config: SessionConfigState | undefined, chatWorkingDirectories?: string[]) => {
+			const chat: ChatSummary = { resource: chatUri.toString(), title: 'First', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: chatWorkingDirectories };
+			const sessionSubscription = createMutableSubscription({
+				defaultChat: chat.resource,
+				chats: [chat],
+				workingDirectories: ['file:///repo'],
+				changesets: [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset/session' }],
+				...(config ? { config } : {}),
+			} as unknown as SessionState);
+			const chatSubscription = createMutableSubscription<ChatState>({
+				...createChatState(chat),
+				changesets: [{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' }],
+			});
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
+					const subscription = component === StateComponents.Session ? sessionSubscription : chatSubscription;
+					return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const projected = createChatChangesets(sessionUri, constObservable(chatUri), {
+				environment: 'local',
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+				getBackendDefaultChat: () => chat.resource,
+			}, constObservable(true));
+			let baseBranchNames: Record<string, string | undefined> | undefined;
+			disposables.add(autorun(reader => {
+				baseBranchNames = Object.fromEntries(projected.read(reader)?.map(changeset => [changeset.id, changeset.baseBranchName]) ?? []);
+			}));
+			return baseBranchNames;
+		};
+
+		assert.deepStrictEqual({
+			worktree: project(worktreeConfig),
+			folder: project({ schema: vscodeSchema, values: { isolation: 'folder', branch: 'feature' } }),
+			otherHost: project({ schema: otherHostSchema, values: { target: 'worktree', baseBranch: 'release/1.108' } }),
+			noConfig: project(undefined),
+			peerChat: project(worktreeConfig, ['file:///other']),
+			sameFolderChat: project(worktreeConfig, ['file:///repo']),
+		}, {
+			worktree: { branch: 'origin/main', session: undefined },
+			folder: { branch: undefined, session: undefined },
+			otherHost: { branch: 'release/1.108', session: undefined },
+			noConfig: { branch: undefined, session: undefined },
+			peerChat: { branch: undefined, session: undefined },
+			sameFolderChat: { branch: 'origin/main', session: undefined },
 		});
 	});
 

@@ -639,6 +639,8 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
+	/** The session's base branch exactly as it was chosen when the session was configured (for example `origin/main`). Only set on changesets of the session's branch. */
+	readonly baseBranchName?: string;
 	/** Whether the changeset is enabled. */
 	readonly isEnabled: IObservable<boolean>;
 	/**

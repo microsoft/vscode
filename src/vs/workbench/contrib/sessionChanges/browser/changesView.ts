@@ -789,7 +789,6 @@ interface IChangesPickerLabel {
 }
 
 export function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
-	const baseBranchNameObs = derived(owner, reader => changes.stateObs.read(reader)?.baseBranchName);
 	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
 		const changeset = changes.changesetObs.read(reader);
 		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
@@ -799,10 +798,9 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
-		const baseBranchName = changeset.id === BRANCH_CHANGES_CHANGESET_ID ? baseBranchNameObs.read(reader) : undefined;
 		return {
-			label: baseBranchName
-				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the name of the base branch the changes are compared with, for example main.'] }, "{0} → {1}", changeset.label, baseBranchName)
+			label: changeset.baseBranchName
+				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch exactly as it was chosen for the session, for example origin/main.'] }, "{0} → {1}", changeset.label, changeset.baseBranchName)
 				: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
