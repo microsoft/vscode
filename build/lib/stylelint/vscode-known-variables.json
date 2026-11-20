@@ -282,7 +282,6 @@
 		"--vscode-editorGroup-focusedEmptyBorder",
 		"--vscode-editorGroupHeader-border",
 		"--vscode-editorGroupHeader-connectedTabsBackground",
-		"--vscode-editorGroupHeader-connectedTabsBorder",
 		"--vscode-editorGroupHeader-noTabsBackground",
 		"--vscode-editorGroupHeader-tabsBackground",
 		"--vscode-editorGroupHeader-tabsBorder",

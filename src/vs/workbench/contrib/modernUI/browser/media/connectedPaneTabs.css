@@ -128,12 +128,12 @@
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) :is(.part.sidebar, .part.auxiliarybar) {
 	--modern-ui-connected-tab-surface: var(--vscode-sideBar-background);
-	--modern-ui-connected-tab-border: var(--vscode-editorGroupHeader-connectedTabsBorder, var(--vscode-modernPanel-border, var(--vscode-sideBar-border, transparent)));
+	--modern-ui-connected-tab-border: var(--vscode-modernPanel-border, var(--vscode-sideBar-border, transparent));
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .part.panel {
 	--modern-ui-connected-tab-surface: var(--vscode-panel-background);
-	--modern-ui-connected-tab-border: var(--vscode-editorGroupHeader-connectedTabsBorder, var(--vscode-modernPanel-border, var(--vscode-panel-border, transparent)));
+	--modern-ui-connected-tab-border: var(--vscode-modernPanel-border, var(--vscode-panel-border, transparent));
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench):is(.hc-black, .hc-light) :is(.part.sidebar, .part.auxiliarybar, .part.panel) {

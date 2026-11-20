@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { editorRuler, ghostTextForeground } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { editorFindMatchHighlightBorder, listHoverBackground, minimapFindMatch, overviewRulerFindMatchForeground, quickInputBackground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusHighlightForeground, quickInputListFocusIconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_CONNECTED_TABS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, TAB_BORDER, TAB_DIVIDER, TAB_INACTIVE_FOREGROUND } from '../../../../common/theme.js';
+import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, TAB_BORDER, TAB_DIVIDER, TAB_INACTIVE_FOREGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { resolveTabDividerBorderCustomization } from '../../../../services/themes/common/tabDividerColor.js';
 
@@ -146,11 +146,10 @@ suite('Default theme colors', () => {
 		assert.ok(contrast >= referenceContrast, `Light 2026 ruler contrast ${contrast} is below Light Modern's ${referenceContrast}`);
 	});
 
-	test('Light 2026 connected tabs have a light strip, visible dividers and selection, and readable labels', async () => {
+	test('Light 2026 connected tabs have a light strip, visible dividers, and readable labels', async () => {
 		const theme = await loadDefaultTheme('2026-light.json', 'vs');
 		const strip = theme.getColor(EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND)!.makeOpaque(theme.getColor('editor.background')!);
 		const divider = theme.getColor(TAB_DIVIDER)!.makeOpaque(strip);
-		const selectedBoundary = theme.getColor(EDITOR_GROUP_HEADER_CONNECTED_TABS_BORDER)!.makeOpaque(strip);
 		const activeSurfaces = ['editor.background', 'sideBar.background', 'panel.background'];
 		const inactiveForegrounds = [TAB_INACTIVE_FOREGROUND, 'activityBarTop.inactiveForeground', 'panelTitle.inactiveForeground'];
 
@@ -158,14 +157,12 @@ suite('Default theme colors', () => {
 			lightStrip: strip.getRelativeLuminance() >= 0.85,
 			darkerDivider: divider.getRelativeLuminance() < strip.getRelativeLuminance(),
 			distinctDivider: divider.getContrastRatio(strip) >= 1.3,
-			distinctSelectedBoundary: selectedBoundary.getContrastRatio(strip) >= 1.3,
 			distinctActiveSurfaces: activeSurfaces.map(id => theme.getColor(id)!.getContrastRatio(strip) >= 1.08),
 			readableInactiveForegrounds: inactiveForegrounds.map(id => theme.getColor(id)!.makeOpaque(strip).getContrastRatio(strip) >= 4.5),
 		}, {
 			lightStrip: true,
 			darkerDivider: true,
 			distinctDivider: true,
-			distinctSelectedBoundary: true,
 			distinctActiveSurfaces: activeSurfaces.map(() => true),
 			readableInactiveForegrounds: inactiveForegrounds.map(() => true),
 		});
