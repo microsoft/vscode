@@ -11,7 +11,8 @@ import { spy, stub } from 'sinon';
 import { createHash } from 'crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, toParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
+import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -273,6 +274,9 @@ class MockCopilotSession {
 	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
+	/** The agent `rpc.agent.getCurrent` reports, e.g. the one a resumed session restored. */
+	currentAgent: Awaited<ReturnType<CopilotSession['rpc']['agent']['getCurrent']>>['agent'] = null;
+	currentAgentError: Error | undefined;
 	readonly agentSelections: (string | null)[] = [];
 	currentName: string | null = null;
 	nameGetGate: Promise<void> | undefined;
@@ -587,6 +591,12 @@ class MockCopilotSession {
 		agent: {
 			select: async ({ name }: { name: string }) => { this.agentSelections.push(name); await this.agentSelectGate; },
 			deselect: async () => { this.agentSelections.push(null); await this.agentDeselectGate; },
+			getCurrent: async (): Promise<Awaited<ReturnType<CopilotSession['rpc']['agent']['getCurrent']>>> => {
+				if (this.currentAgentError) {
+					throw this.currentAgentError;
+				}
+				return { agent: this.currentAgent };
+			},
 		},
 		provider: {
 			sync: async (config: ICopilotByokSessionConfig) => {
@@ -2841,6 +2851,44 @@ suite('CopilotAgentSession', () => {
 			} finally {
 				await abortRelease.complete();
 			}
+		});
+
+		suite('from the selected agent', () => {
+			const fixerUri = URI.file('/agents/fixer.agent.md');
+			const fixer = getSdkCustomAgentName(fixerUri);
+			const reviewer = 'review-native:reviewer';
+			const agentSnapshot = (): IActiveClientSnapshot => ({
+				tools: [], plugins: [], mcpServers: {}, additionalRootInstructions: [],
+				discoveredAgents: [toParsedAgent({ uri: fixerUri, name: 'Fixer', assistedApprovalInstructions: 'Approve debugging.' })],
+				nativeAgents: [{ type: CustomizationType.Agent, id: reviewer, uri: 'sdk-native:/reviewer', name: 'Reviewer', _meta: { 'vscode.assistedApprovalInstructions': 'Never approve writes.' } }],
+			});
+			const withAgent = (name: string, text: string) => `${instructions}\n\nInstructions from the "${name}" agent the user selected for this chat:\n${text}`;
+
+			test('apply on create, follow agent changes and drop the previous agent\'s guidance', async () => {
+				const rig = await createAgentSession(disposables, { clientSnapshot: agentSnapshot(), resolvedAgentName: fixer, rootValues: { [AgentHostAssistedApprovalInstructionsConfigKey]: instructions } });
+				await rig.session.setAgent(reviewer);
+				await rig.session.setAgent(undefined);
+				assert.deepStrictEqual(instructionsCalls(rig.mockSession), [
+					{ assistedApprovalInstructions: withAgent('Fixer', 'Approve debugging.') },
+					{ assistedApprovalInstructions: withAgent('Reviewer', 'Never approve writes.') },
+					{ assistedApprovalInstructions: instructions },
+				]);
+			});
+
+			test('apply after resume for the agent the runtime restored, looked up by ID', async () => {
+				const rig = await createAgentSession(disposables, {
+					resume: true, clientSnapshot: agentSnapshot(), rootValues: { [AgentHostAssistedApprovalInstructionsConfigKey]: instructions },
+					configureMockSession: mockSession => { mockSession.currentAgent = { id: reviewer, name: 'reviewer', displayName: 'Reviewer', description: '' }; },
+				});
+				assert.deepStrictEqual(instructionsCalls(rig.mockSession), [{ assistedApprovalInstructions: withAgent('Reviewer', 'Never approve writes.') }]);
+			});
+
+			test('a failed lookup of the restored agent prevents sending', async () => {
+				const rig = await createAgentSession(disposables, { resume: true, clientSnapshot: agentSnapshot() });
+				rig.mockSession.currentAgentError = new Error('agent lookup failed');
+				await assert.rejects(() => rig.session.send('blocked', undefined, 'blocked-agent-lookup'), /agent lookup failed/);
+				assert.strictEqual(rig.mockSession.sendRequests.length, 0);
+			});
 		});
 
 		test('a relaunched SDK session receives the instructions again', async () => {
@@ -12846,6 +12894,32 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 	}
+
+	test('resolves forwarded row accounts from the emitting subagent, the active turn, or not at all for scoped credentials', async () => {
+		const accountA = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
+		const accountB = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
+		const options = { telemetryContext: accountA };
+		const { session, mockSession } = await createAgentSession(disposables, options);
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		options.telemetryContext = accountB;
+		session.resetTurnState('turn-2');
+
+		const scoped = await createAgentSession(disposables, {
+			telemetryContext: accountA,
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }),
+		});
+		scoped.session.resetTurnState('turn-1');
+
+		assert.deepStrictEqual({
+			root: session.telemetryContextForRow(undefined),
+			subagent: session.telemetryContextForRow('agent-1'),
+			unknownSubagent: session.telemetryContextForRow('agent-unknown'),
+			scoped: scoped.session.telemetryContextForRow(undefined),
+		}, { root: accountB, subagent: accountA, unknownSubagent: undefined, scoped: undefined });
+	});
 
 	for (const provisional of [false, true]) {
 		test(`retains the root account context for a subagent spawned by a ${provisional ? 'provisional' : 'committed'} Fusion phase`, async () => {

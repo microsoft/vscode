@@ -49,6 +49,7 @@ suite('CanvasService', () => {
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
+			resolveOwner: candidate => candidate.providerId === 'session-pill' ? owner : undefined,
 			getContext: (owner, reader) => contexts.read(reader).find(context => isCanvasOwner(context.owner, owner)),
 			getEditorGroup: (_owner, _input, restore) => {
 				groupRestores.push(restore);
@@ -133,9 +134,13 @@ suite('CanvasService', () => {
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		let modalActive = false;
+		let applyingWorkingSet = false;
+		const applyingWorkingSetChanged = store.add(new Emitter<boolean>());
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({
 			mainPart: upcastPartial<IEditorPart>({ windowId: 1 }),
 			getGroup: id => groups.find(group => group.id === id),
+			get isApplyingWorkingSet() { return applyingWorkingSet; },
+			onDidChangeApplyingWorkingSet: applyingWorkingSetChanged.event,
 			get activeModalEditorPart() { return modalActive ? upcastPartial<IModalEditorPart>({}) : undefined; },
 		});
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -155,6 +160,10 @@ suite('CanvasService', () => {
 			hideAI: () => { hidden = true; sentiment.fire(); },
 			showAI: () => { hidden = false; sentiment.fire(); },
 			setModalActive: (value: boolean) => modalActive = value,
+			setApplyingWorkingSet: (value: boolean) => {
+				applyingWorkingSet = value;
+				applyingWorkingSetChanged.fire(value);
+			},
 			selectGroup: (id: number) => targetGroup = groups[id - 1],
 			/** Lets the editor service choose the group, as the main window's active group when it is active. */
 			selectNoGroup: () => targetGroup = undefined,
@@ -384,6 +393,49 @@ suite('CanvasService', () => {
 		}, { closedWhileHidden: [true], shownAgain: 1 });
 	});
 
+	test('shows the canvas again once its owner is visible after a folder location working-set swap closed it while the owner was hidden', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		harness.setApplyingWorkingSet(true);
+		harness.visible.set(new Set(), undefined);
+		harness.openEditors.length = 0;
+		input.dispose();
+		harness.setApplyingWorkingSet(false);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ reopened: harness.openEditors.length, opened: harness.opened.length }, { reopened: 1, opened: 2 });
+	});
+
+	test('keeps a canvas the user closed while no owner is visible dismissed once its owner is visible again', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		harness.visible.set(new Set(), undefined);
+		harness.openEditors.length = 0;
+		input.dispose();
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ reopened: harness.openEditors.length, opened: harness.opened.length }, { reopened: 0, opened: 1 });
+	});
+
+	test('shows the canvas again after a folder location working-set swap closed it while its owner was visible', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		harness.setApplyingWorkingSet(true);
+		harness.openEditors.length = 0;
+		input.dispose();
+		await timeout(0);
+		const openedWhileApplying = harness.opened.length;
+		harness.setApplyingWorkingSet(false);
+		await timeout(0);
+		assert.deepStrictEqual({ openedWhileApplying, reopened: harness.openEditors.length, opened: harness.opened.length }, { openedWhileApplying: 1, reopened: 1, opened: 2 });
+	});
+
 	test('closes the canvas of a hidden owner when the visible owner has not settled its canvases', async () => {
 		const harness = createHarness();
 		harness.canvases.set([harness.canvas], undefined);
@@ -451,6 +503,16 @@ suite('CanvasService', () => {
 		assert.deepStrictEqual({ afterHidden, afterUnavailable, afterDisabled: harness.opened.length }, {
 			afterHidden: 1, afterUnavailable: 1, afterDisabled: 1,
 		});
+	});
+
+	test('reveals a canvas through an owner that a pill built outside the chat widget, once the editor was closed', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const reference = harness.opened[0].reference;
+		harness.opened[0].dispose();
+		await harness.service.revealCanvas({ ...reference, providerId: 'session-pill', chat: URI.parse('chat:/pill') });
+		assert.strictEqual(harness.opened.length, 2);
 	});
 
 	test('preserves manual reveal intent while a dismissed canvas source recovers', async () => {

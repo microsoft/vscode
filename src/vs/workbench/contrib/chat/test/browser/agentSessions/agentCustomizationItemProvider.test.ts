@@ -43,11 +43,13 @@ import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 
-function makePromptsService(extensionFiles: readonly IExtensionPromptPath[] = []): IPromptsService {
+function makePromptsService(extensionFiles: readonly IExtensionPromptPath[] = [], localHookFiles: readonly IPromptPath[] = []): IPromptsService {
 	return upcastPartial<IPromptsService>({
 		onDidChangeSkills: Event.None,
 		getDisabledPromptFiles: () => new ResourceSet(),
 		listPromptFilesForStorage: async (_type, storage) => storage === PromptsStorage.extension ? extensionFiles : [],
+		onDidChangeHooks: Event.None,
+		getDiscoveryInfo: async type => ({ type, durationInMillis: 0, files: type === PromptsType.hook ? localHookFiles.map(promptPath => ({ status: 'loaded' as const, promptPath })) : [] }),
 	});
 }
 
@@ -362,6 +364,77 @@ suite('AgentCustomizationItemProvider', () => {
 			copilot: [{ name: 'Session Start', ...running }, { name: 'Session Start', ...running }, { name: 'Pre-Tool Use', ...running }],
 			otherRuntime: [],
 			untrustedFolder: ['Session Start', 'Session Start', 'Pre-Tool Use'].map(name => ({ name, ...running, badge: 'Won\'t run' })),
+		});
+	});
+
+	test('lists hook files the Local harness runs and the local agent host does not as not running', async () => {
+		const workspaceHooks = URI.file('/workspace/.github/hooks/root.json');
+		const configured = URI.file('/workspace/tools/hooks/custom.json');
+		const shared = URI.file('/shared-hooks/guard.json');
+		const subfolder = URI.file('/workspace/sub/.github/hooks/sub.json');
+		const claude = URI.file('/workspace/.claude/settings.json');
+		const configuredClaude = URI.file('/workspace/tools/.claude/settings.json');
+		const hostHooks = (load?: Extract<Customization, { type: CustomizationType.Directory }>['load'], fragment = ''): Customization[] => [{
+			type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+			name: 'Copilot hooks', contents: CustomizationType.Hook, enabled: true, writable: false, load,
+			children: [{ type: CustomizationType.Hook, id: 'root', uri: workspaceHooks.with({ fragment }).toString(), name: 'sessionStart', enabled: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository', hookType: 'sessionStart' }) }],
+		}];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			customizations: readonly Customization[] = hostHooks();
+			roots: readonly URI[] = [URI.file('/workspace')];
+			override getCustomizations(): readonly Customization[] { return this.customizations; }
+			override getClientWorkingDirectoryUris(): readonly URI[] { return this.roots; }
+		}
+		const localFiles: IPromptPath[] = [
+			{ uri: workspaceHooks, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.GitHubWorkspace },
+			{ uri: configured, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ConfigWorkspace },
+			{ uri: shared, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ConfigWorkspace },
+			{ uri: subfolder, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.GitHubWorkspace },
+			{ uri: claude, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ClaudeWorkspace },
+			{ uri: configuredClaude, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ConfigWorkspace },
+		];
+		const notRunning = async (options: { listed?: boolean; customizations?: readonly Customization[]; roots?: readonly URI[] } = {}) => {
+			const service = new TestCustomizationService();
+			service.customizations = options.customizations ?? service.customizations;
+			service.roots = options.roots ?? service.roots;
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}),
+				new NullLogService(), service, makePromptsService([], localFiles), labelService,
+			));
+			if (options.listed !== false) {
+				provider.listHooksNotRunning(() => [URI.file('/workspace')]);
+			}
+			const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+			return items.filter(item => item.badge !== undefined).map(item => item.uri.path);
+		};
+		const message = (await (async () => {
+			const service = new TestCustomizationService();
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}),
+				new NullLogService(), service, makePromptsService([], localFiles), labelService,
+			));
+			provider.listHooksNotRunning(() => [URI.file('/workspace')]);
+			return (await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None)).find(item => item.uri.path === configured.path);
+		})());
+		assert.deepStrictEqual({
+			message: { source: message?.source, enabled: message?.enabled, status: message?.status, statusMessage: message?.statusMessage },
+			copilot: await notRunning(),
+			notListed: await notRunning({ listed: false }),
+			hostFilesWithFragments: await notRunning({ customizations: hostHooks(undefined, 'sessionStart') }),
+			beforeHostInventory: await notRunning({ customizations: [] }),
+			hostDiscoveryFailed: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Error, message: 'failed' }) }),
+			hostDiscoveryLoading: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Loading }) }),
+			worktreeSession: await notRunning({ roots: [URI.file('/worktrees/workspace-1')] }),
+		}, {
+			message: { source: AICustomizationSources.local, enabled: false, status: 'degraded', statusMessage: 'Copilot doesn\'t read hooks from folders added in chat.hookFilesLocations. Move the file to .github/hooks or ~/.copilot/hooks, and check that its scripts work with Copilot.' },
+			copilot: ['/workspace/tools/hooks/custom.json', '/shared-hooks/guard.json', '/workspace/sub/.github/hooks/sub.json'],
+			notListed: [],
+			hostFilesWithFragments: ['/workspace/tools/hooks/custom.json', '/shared-hooks/guard.json', '/workspace/sub/.github/hooks/sub.json'],
+			beforeHostInventory: [],
+			hostDiscoveryFailed: [],
+			hostDiscoveryLoading: [],
+			// Files of the workspace folder belong to its repository, not the worktree; a shared configured folder applies to both.
+			worktreeSession: ['/shared-hooks/guard.json'],
 		});
 	});
 
