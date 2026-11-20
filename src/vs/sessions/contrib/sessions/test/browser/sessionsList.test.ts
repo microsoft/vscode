@@ -6715,7 +6715,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('inbox sorts by recency, preserves pins, and never auto-completes idle sessions', () => {
+		test('inbox prioritizes attention and recent completion, preserves pins, and never auto-completes idle sessions', () => {
 			const pinned = createTestSession('pinned', { status: SessionStatus.InProgress }).session;
 			const waiting = createTestSession('waiting', { status: SessionStatus.NeedsInput, updatedAt: new Date(1) }).session;
 			const finished = createTestSession('finished', { updatedAt: new Date(3) }).session;
