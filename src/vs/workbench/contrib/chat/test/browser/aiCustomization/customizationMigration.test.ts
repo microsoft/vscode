@@ -95,6 +95,7 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
+				[CustomizationMigrationCategoryId.Hooks, [PromptsType.hook]],
 				[CustomizationMigrationCategoryId.McpServers, []],
 				[CustomizationMigrationCategoryId.PluginMarketplaces, []],
 			],
@@ -110,6 +111,7 @@ suite('customizationMigration', () => {
 			{ id: CustomizationMigrationCategoryId.PromptFiles, single: 'Converting 1 prompt file to a skill...', multiple: 'Converting 4 prompt files to skills...' },
 			{ id: CustomizationMigrationCategoryId.UserData, single: 'Migrating 1 user data customization...', multiple: 'Migrating 4 user data customizations...' },
 			{ id: CustomizationMigrationCategoryId.ConfiguredLocations, single: 'Migrating 1 customization from a configured location...', multiple: 'Migrating 4 customizations from configured locations...' },
+			{ id: CustomizationMigrationCategoryId.Hooks, single: 'Migrating 1 hook file...', multiple: 'Migrating 4 hook files...' },
 			{ id: CustomizationMigrationCategoryId.McpServers, single: 'Migrating 1 MCP server...', multiple: 'Migrating 4 MCP servers...' },
 			{ id: CustomizationMigrationCategoryId.PluginMarketplaces, single: 'Migrating 1 plugin marketplace...', multiple: 'Migrating 4 plugin marketplaces...' },
 		]);

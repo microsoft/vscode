@@ -49,6 +49,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
@@ -138,6 +140,7 @@ import { openCustomizationChat } from '../actions/chatActions.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
+import { getLocalFormatHookMessage, resolveHookCommandFiles } from './localFormatHooks.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, customizationMigrationGuidance, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, getIgnoredCustomizationMigrationGroupKeys, storeIgnoredCustomizationMigrationGroupKeys } from './customizationMigrationIgnoredGroups.js';
 import { createCustomizationMigrationRecoveryPlan, ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, restoreCustomizationMigrationSources, updateCustomizationMigrationRecovery } from './customizationMigrationRecovery.js';
@@ -443,6 +446,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorModeButton: HTMLButtonElement | undefined;
 	private editorMigrationDetailActions: IMigrationDetailActions | undefined;
 	private editorMigrationDetailWarning: HTMLElement | undefined;
+	private editorHookMigrationNotice: HTMLElement | undefined;
+	private editorHookMigrationNoticeMessage: HTMLElement | undefined;
+	private editorHookMigrationNoticeLink: HTMLAnchorElement | undefined;
+	/** The list's explanation for a Local-format hook that is not a migration candidate here, such as a plugin hook. */
+	private currentLocalFormatHookMessage: string | undefined;
 	private editorActionButtonInProgress = false;
 	private editorDisplayMode: 'preview' | 'raw' = 'preview';
 	private currentCustomizationDetail = false;
@@ -596,6 +604,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -1694,6 +1703,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.customizationMigrationTargetFoldersByType = targetFoldersByType;
 		this.mcpListWidget?.setMcpServerMigrationCandidates(this.getMcpServerMigrationCandidates());
 		this.refreshMcpDetailMigrationState();
+		this.updateHookMigrationNotice();
 		this.customizationMigrationResultsSettled = true;
 		this.reconcileCustomizationMigrationTargets();
 		this.refreshCustomizationMigrationUi();
@@ -1875,10 +1885,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		try {
+			// Hooks are migrated in place, so the agent is given no destination folders for them.
 			const targetTypes = new Set(customizations
 				.map(({ customization }) => customization)
 				.filter(isFileCustomizationMigrationCandidate)
-				.map(getCustomizationMigrationTargetType));
+				.map(getCustomizationMigrationTargetType)
+				.filter(type => type !== PromptsType.hook));
 			const targetFolderEntries = await Promise.all([...targetTypes].map(async type => [
 				type,
 				await harness.itemProvider?.provideSourceFolders?.(sessionResource, type, CancellationToken.None) ?? [],
@@ -1888,18 +1900,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 
 			const recoveryBundleFolder = URI.joinPath(this.getCustomizationMigrationRecoveryRoot(), migrationFlowId);
+			const hookScriptSources = await this.getHookScriptRecoverySources(customizations.map(({ customization }) => customization));
 			const recovery = await prepareCustomizationMigrationRecovery(
 				this.fileService,
 				recoveryBundleFolder,
 				migrationFlowId,
 				harness,
-				customizations.map(({ customization }) => isMcpServerCustomizationMigrationCandidate(customization)
-					? { uri: customization.sourceUri, storage: customization.storage, type: 'mcpServer' as const }
-					: {
-						uri: customization.type === PromptsType.skill ? dirname(customization.uri) : customization.uri,
-						storage: customization.storage,
-						type: customization.type,
-					}),
+				[
+					...customizations.map(({ customization }) => isMcpServerCustomizationMigrationCandidate(customization)
+						? { uri: customization.sourceUri, storage: customization.storage, type: 'mcpServer' as const }
+						: {
+							uri: customization.type === PromptsType.skill ? dirname(customization.uri) : customization.uri,
+							storage: customization.storage,
+							type: customization.type,
+						}),
+					...hookScriptSources,
+				],
 			);
 
 			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, customizations, new Map(targetFolderEntries));
@@ -1943,6 +1959,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 			onUnexpectedError(error);
 			this.notificationService.error(localize('startAgentMigrationFailed', "Could not start the agent-guided customization migration."));
 		}
+	}
+
+	/**
+	 * Hook migrations rewrite the scripts a hook runs as well as its hook file, so the scripts
+	 * named in each hook's commands are backed up too.
+	 */
+	private async getHookScriptRecoverySources(customizations: readonly CustomizationMigrationCandidate[]): Promise<{ readonly uri: URI; readonly storage: PromptsStorage; readonly type: PromptsType }[]> {
+		const hookFiles = customizations.filter(isFileCustomizationMigrationCandidate).filter(customization => customization.type === PromptsType.hook);
+		if (hookFiles.length === 0) {
+			return [];
+		}
+		const userHomeUri = await this.pathService.userHome();
+		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+		const workspaceRoot = this.workspaceService.activeProjectRoot.get();
+		const scripts = await Promise.all(hookFiles.map(async hookFile =>
+			(await resolveHookCommandFiles(hookFile.uri, workspaceRoot, userHome, this.fileService))
+				.filter(uri => !hookFiles.some(other => isEqual(other.uri, uri)))
+				.map(uri => ({ uri, storage: hookFile.storage, type: PromptsType.hook }))));
+		return scripts.flat();
 	}
 
 	private async closeCustomizationEditor(): Promise<boolean> {
@@ -2547,9 +2582,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private getMigrationItemActionState(item: ICustomizationMigrationDashboardItem): { readonly isMigratable: boolean; readonly canMigrate: boolean; readonly canDelete: boolean } {
 		const match = this.findMigrationCandidate(item);
+		// Agent-only categories (hooks) have no direct migration, so their Migrate actions are hidden.
+		const isMigratable = match !== undefined && !match.category.agentOnly;
 		return {
-			isMigratable: match !== undefined,
-			canMigrate: match !== undefined && !this.customizationMigrationInProgress,
+			isMigratable,
+			canMigrate: isMigratable && !this.customizationMigrationInProgress,
 			canDelete: (match !== undefined && isFileCustomizationMigrationCandidate(match.candidate)) || this.findMigrationMcpWorkbenchServer(item) !== undefined,
 		};
 	}
@@ -2695,22 +2732,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 				...(category.learnMoreUrl ? [localize('migrationAccessibleLearnMore', "Learn More: {0}", category.learnMoreUrl)] : []),
 				...category.items.map(item => category.learnMoreUrl
 					? localize('migrationAccessibleGuidanceItem', "{0}, source {1}. Documentation-only migration guidance.", item.label, item.sourceLabel)
-					: item.changesLabel
-						? localize(
-							'migrationAccessibleSelectableItemWithChanges',
-							"{0}, {1}, source {2}. Migration changes: {3}",
-							item.label,
-							item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
-							item.sourceLabel,
-							item.changesLabel,
-						)
-						: localize(
-							'migrationAccessibleSelectableItem',
-							"{0}, {1}, source {2}",
-							item.label,
-							item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
-							item.sourceLabel,
-						)),
+					: category.agentOnly
+						? localize('migrationAccessibleAgentOnlyItem', "{0}, source {1}. Migrate with the agent.", item.label, item.sourceLabel)
+						: item.changesLabel
+							? localize(
+								'migrationAccessibleSelectableItemWithChanges',
+								"{0}, {1}, source {2}. Migration changes: {3}",
+								item.label,
+								item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
+								item.sourceLabel,
+								item.changesLabel,
+							)
+							: localize(
+								'migrationAccessibleSelectableItem',
+								"{0}, {1}, source {2}",
+								item.label,
+								item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
+								item.sourceLabel,
+							)),
 			].join('\n'))),
 			...(overview.manualReviewItems?.length ? [[
 				localize('migrationAccessibleManualReview', "Needs manual review"),
@@ -2794,7 +2833,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				label: this.getMigrationScopeLabel(storage),
 				count: categories.reduce((count, category) => count + category.count, 0),
 				hasConfigurableDestinations: categories.some(category =>
-					!category.learnMoreUrl && category.id !== CustomizationMigrationCategoryId.McpServers
+					!category.learnMoreUrl && !category.agentOnly && category.id !== CustomizationMigrationCategoryId.McpServers
 					&& category.id !== CustomizationMigrationCategoryId.PluginMarketplaces
 				),
 				categories,
@@ -2864,7 +2903,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return {
 			id: manifest.migrationFlowId,
 			label: localize('agentMigrationRecoveryLabel', "{0} migration from {1}", manifest.harnessLabel, new Date(manifest.createdAt).toLocaleString()),
-			description: localize('agentMigrationRecoveryDescription', "{0} original sources backed up. Status: {1}.", manifest.sources.length, statusLabel),
+			description: manifest.sources.some(source => source.types.includes(PromptsType.hook))
+				? localize('agentMigrationRecoveryDescriptionWithHooks', "{0} original sources backed up, including the scripts named in hook commands. Files that those scripts load are not backed up. Status: {1}.", manifest.sources.length, statusLabel)
+				: localize('agentMigrationRecoveryDescription', "{0} original sources backed up. Status: {1}.", manifest.sources.length, statusLabel),
 			canModify: manifest.status !== 'running',
 		};
 	}
@@ -3043,6 +3084,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 					...destination,
 					items,
 				};
+			case CustomizationMigrationCategoryId.Hooks:
+				return {
+					id, count,
+					label: this.getMigrationDashboardCategoryLabel(id),
+					description: localize('migrationChecklistHooksDescription', "These hooks use the deprecated Local hook format and may not work in Copilot sessions. Migrate them with the agent in a local Copilot session, which updates each hook file and its scripts and asks you to review the changes."),
+					countLabel: count === 1
+						? localize('migrationChecklistOneHookFile', "1 hook file")
+						: localize('migrationChecklistHookFilesCount', "{0} hook files", count),
+					agentOnly: true,
+					migrationInProgress: false,
+					migrateDisabled: true,
+					selectedCount: 0,
+					items: items.map(item => ({ ...item, selected: false })),
+				};
 			default:
 				throw new Error(`Unsupported migration checklist category: ${id}`);
 		}
@@ -3064,6 +3119,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		candidates: readonly CustomizationMigrationCandidate[],
 		storage: PromptsStorage,
 	): Pick<ICustomizationMigrationDashboardCategory, 'destinationLabel' | 'destinationAriaLabel'> {
+		if (getCustomizationMigrationCategory(id).agentOnly) {
+			return {};
+		}
 		const destinationLabel = id === CustomizationMigrationCategoryId.McpServers
 			? this.getMcpMigrationDestinationLabel(candidates.filter(isMcpServerCustomizationMigrationCandidate))
 			: id === CustomizationMigrationCategoryId.PluginMarketplaces
@@ -3157,6 +3215,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return localize('migrationChecklistUserData', "User Data");
 			case CustomizationMigrationCategoryId.ConfiguredLocations:
 				return localize('migrationChecklistConfiguredLocations', "Custom location settings");
+			case CustomizationMigrationCategoryId.Hooks:
+				return localize('migrationChecklistHooks', "Local-Format Hooks");
 			default:
 				throw new Error(`Unknown customization migration category: ${id}`);
 		}
@@ -4762,6 +4822,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 		DOM.append(migrationWarningDetails, $('p.mcp-detail-diagnostic-message', {},
 			getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles).preMigrationConsequences ?? ''));
 
+		this.editorHookMigrationNotice = DOM.append(this.editorContentContainer, $('section.mcp-detail-diagnostic-card.migration.warning.migration-detail-warning.hook-migration-notice'));
+		const hookNoticeHeader = DOM.append(this.editorHookMigrationNotice, $('.mcp-detail-diagnostic-header'));
+		const hookNoticeIcon = DOM.append(hookNoticeHeader, $('.mcp-detail-diagnostic-icon'));
+		hookNoticeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		hookNoticeIcon.setAttribute('aria-hidden', 'true');
+		DOM.append(hookNoticeHeader, $('.mcp-detail-diagnostic-summary', {}, localize('hookMigrationNoticeSummary', "Migrate Hook")));
+		const hookNoticeDetails = DOM.append(this.editorHookMigrationNotice, $('.mcp-detail-diagnostic-details'));
+		this.editorHookMigrationNoticeMessage = DOM.append(hookNoticeDetails, $('p.mcp-detail-migration-description'));
+		this.editorHookMigrationNoticeLink = DOM.append(hookNoticeDetails, $('a.mcp-detail-migration-link')) as HTMLAnchorElement;
+		this.editorHookMigrationNoticeLink.href = '#';
+		this.editorHookMigrationNoticeLink.textContent = localize('hookReviewMigrations', "Review Migrations...");
+		this.editorDisposables.add(DOM.addDisposableListener(this.editorHookMigrationNoticeLink, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			void this.startCustomizationMigration(CustomizationMigrationCategoryId.Hooks);
+		}));
+
 		this.editorPreviewContainer = DOM.append(this.editorContentContainer, $('.editor-preview-container'));
 		this.editorPreviewScrollContainer = DOM.append(this.editorPreviewContainer, $('.editor-preview-scroll-container'));
 		this.editorPreviewScrollContainer.setAttribute('role', 'region');
@@ -4823,15 +4899,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const source = item.source;
 		const isWorkspaceFile = source === AICustomizationSources.local;
 		const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-		await this.showCustomizationDetail(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly, origin, item.marketplace);
+		await this.showCustomizationDetail(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly, origin, item.marketplace, item.localFormatHook ? item.statusMessage : undefined);
 	}
 
-	private async showCustomizationDetail(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, origin: CustomizationDetailOrigin, marketplace?: IAICustomizationListItem['marketplace']): Promise<void> {
+	private async showCustomizationDetail(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, origin: CustomizationDetailOrigin, marketplace?: IAICustomizationListItem['marketplace'], localFormatHookMessage?: string): Promise<void> {
 		if (!hasReadableCustomizationContent(uri)) {
 			return;
 		}
 
 		this.customizationDetailOrigin = origin;
+		this.currentLocalFormatHookMessage = localFormatHookMessage;
 		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, true, marketplace);
 
 		try {
@@ -4856,6 +4933,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		this.currentMigrationDetail = migrationDetail;
+		this.currentLocalFormatHookMessage = undefined;
 		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, false);
 
 		try {
@@ -4976,6 +5054,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorReturnViewMode = 'list';
 		this.customizationDetailOrigin = undefined;
 		this.currentMigrationDetail = undefined;
+		this.currentLocalFormatHookMessage = undefined;
 		this.updateMigrationDetailWarning();
 		const fileUri = this.currentEditingUri;
 		const backgroundSaveRequest = this.createExistingCustomizationSaveRequest();
@@ -6088,6 +6167,29 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private updateMigrationDetailWarning(): void {
 		if (this.editorMigrationDetailWarning) {
 			this.editorMigrationDetailWarning.style.display = this.currentMigrationDetail?.item.promptType === PromptsType.prompt ? '' : 'none';
+		}
+		this.updateHookMigrationNotice();
+	}
+
+	/**
+	 * Shows why the open hook file may not work in Copilot sessions. A file that Migrate with Agent can
+	 * migrate here links to the migration page, unless the user came from it; other Local-format hooks,
+	 * such as plugin hooks, show the list's explanation.
+	 */
+	private updateHookMigrationNotice(): void {
+		if (!this.editorHookMigrationNotice || !this.editorHookMigrationNoticeMessage || !this.editorHookMigrationNoticeLink) {
+			return;
+		}
+		const uri = this.viewMode === 'editor' && this.currentEditingPromptType === PromptsType.hook ? this.currentEditingUri : undefined;
+		const isCandidate = !!uri && (this.customizationsByMigrationCategory.get(CustomizationMigrationCategoryId.Hooks) ?? [])
+			.some(candidate => isFileCustomizationMigrationCandidate(candidate) && isEqual(candidate.uri, uri));
+		const message = isCandidate ? getLocalFormatHookMessage() : uri ? this.currentLocalFormatHookMessage : undefined;
+		const wasVisible = this.editorHookMigrationNotice.style.display !== 'none';
+		this.editorHookMigrationNotice.style.display = message ? '' : 'none';
+		this.editorHookMigrationNoticeMessage.textContent = message ?? '';
+		this.editorHookMigrationNoticeLink.style.display = isCandidate && !this.currentMigrationDetail ? '' : 'none';
+		if (wasVisible !== !!message && this.dimension) {
+			this.layout(this.dimension);
 		}
 	}
 
