@@ -129,18 +129,22 @@ export class BrowserViewDebugger extends Disposable {
 		if (session.targetId !== this.targetId || !dialog || dialog.type === 'login') {
 			return;
 		}
-		session.emitEvent({ method: 'Page.javascriptDialogOpening', params: {
-			type: dialog.type, message: dialog.message ?? '', defaultPrompt: dialog.defaultPrompt ?? '', url: dialog.origin, hasBrowserHandler: true,
-		}, sessionId: session.sessionId });
+		session.emitEvent({
+			method: 'Page.javascriptDialogOpening', params: {
+				type: dialog.type, message: dialog.message ?? '', defaultPrompt: dialog.defaultPrompt ?? '', url: dialog.origin, hasBrowserHandler: true,
+			}, sessionId: session.sessionId
+		});
 	}
 
 	private emitDialogClosed(session: DebugSession, dialog: IBrowserViewDialog, response: IBrowserViewDialogResponse): void {
 		if (session.targetId !== this.targetId || dialog.type === 'login') {
 			return;
 		}
-		session.emitEvent({ method: 'Page.javascriptDialogClosed', params: {
-			result: response.accept, userInput: response.promptText ?? '',
-		}, sessionId: session.sessionId });
+		session.emitEvent({
+			method: 'Page.javascriptDialogClosed', params: {
+				result: response.accept, userInput: response.promptText ?? '',
+			}, sessionId: session.sessionId
+		});
 	}
 
 	async getAccessibilityTree(): Promise<IBrowserViewAccessibilityTree> {
