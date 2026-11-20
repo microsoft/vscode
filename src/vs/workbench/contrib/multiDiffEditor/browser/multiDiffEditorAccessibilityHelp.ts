@@ -27,9 +27,9 @@ class MultiDiffEditorFileListAccessibilityHelp implements IAccessibleViewImpleme
 		const actionsHelp = editor.togglesFileListFromEditorHeader
 			? localize('multiDiffEditor.fileListHelp.editorHeaderActions', "Use Toggle Files, the last action in the header row above the diffs, to show or hide the changed files.")
 			: accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
-				// The Agents window offers Toggle Details instead of Toggle Files, and the submenu in the tab bar's More Actions menu.
-				? localize('multiDiffEditor.fileListHelp.agentsWindowActions', "Use Toggle Details in the editor toolbar{0} to show or hide the changed files while details are docked, and the dropdown beside it to move them to the left or right of the diffs. The Files View & Position submenu in the tab bar's More Actions menu switches between a list and a folder tree, and also moves the files.", '<keybinding:workbench.action.agentSessions.toggleDetails>')
-				: localize('multiDiffEditor.fileListHelp.actions', "Use Toggle Files in the editor toolbar or Command Palette to show or hide the changed files, and the dropdown beside it to move them to the left or right of the diffs. The Files View & Position submenu in the editor toolbar's More Actions menu switches between a list and a folder tree, and also moves the files.");
+				// The Agents window offers Toggle Details instead of Toggle Files, and its chat windows the submenu in the tab bar's More Actions menu.
+				? localize('multiDiffEditor.fileListHelp.agentsWindowActions', "Use Toggle Details in the editor toolbar{0} to show or hide the changed files, and the dropdown beside it to switch between a list and a folder tree, or to move them to the left or right of the diffs. In a chat window, the Files View & Position submenu in the tab bar's More Actions menu offers the same options.", '<keybinding:workbench.action.agentSessions.toggleDetails>')
+				: localize('multiDiffEditor.fileListHelp.actions', "Use Toggle Files in the editor toolbar or Command Palette to show or hide the changed files, and the dropdown beside it to switch between a list and a folder tree, or to move them to the left or right of the diffs.");
 
 		const content = [
 			localize('multiDiffEditor.fileListHelp.overview', "You are in the changed files list of a multi diff editor."),

@@ -56,6 +56,7 @@ import { type AutomationDialogCreateInitialValues, IAutomationDialogService } fr
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
@@ -65,15 +66,16 @@ import { AbstractCustomView, ICustomViewService } from '../../../../../workbench
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext } from '../../../../common/agentsWindowContextKeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext, ShowSharedAutomationsByOthersContext } from '../../../../common/agentsWindowContextKeys.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
-import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { AUTOMATIONS_MODAL_SETTING } from '../../../automations/browser/automationsEditorInput.js';
 
 
 import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
@@ -230,26 +232,29 @@ export class AutomationsCardsWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
 		logAutomationViewShown(this.telemetryService);
+		const showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const visibleContent = derived(this, reader => {
 			configurationChanged.read(reader);
 			return getAutomationsViewContent(
 				this.automationService.automations.read(reader),
 				this.automationService.runs.read(reader),
-				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				showSharedByOthers.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 			);
 		});
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
-			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return getVisibleAutomations(getAutomationsViewContent(
+			return getAutomationsViewContent(
 				this.automationService.automations.read(reader), [],
-				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
-			).automations, sendLaterEnabled);
+				showSharedByOthers.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+			).automations;
 		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
@@ -274,7 +279,7 @@ export class AutomationsCardsWidget extends Disposable {
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));
-		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
+		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead, {}));
 
 		this._register(autorun(reader => {
 			const catalogueState = this.automationService.catalogueState.read(reader);
@@ -1717,6 +1722,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
+	private readonly viewRegistration = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
@@ -1725,28 +1731,48 @@ export class AutomationsCustomViewContribution extends Disposable {
 		@IAutomationService automationService: IAutomationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
 		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
 		const hasOthersContext = AutomationsHasOthersContext.bindTo(contextKeyService);
+		const showOthersContext = ShowSharedAutomationsByOthersContext.bindTo(contextKeyService);
+		const showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		this._register(autorun(reader => {
 			configurationChanged.read(reader);
+			showOthersContext.set(showSharedByOthers.read(reader));
 			const automations = automationService.automations.read(reader);
 			hasOthersContext.set(automations.some(automation => automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true));
 			hasItemsContext.set(getAutomationsViewContent(
 				automations, [],
-				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				showSharedByOthers.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 			).automations.length > 0);
 		}));
 
-		this._register(customViewService.registerCustomView({
-			id: AUTOMATIONS_CUSTOM_VIEW_ID,
-			ctor: new SyncDescriptor(AutomationsCustomView),
-			actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
-		}, {
-			restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+		const updateRegistration = () => {
+			if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+				if (customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+					customViewService.hideCustomView();
+				}
+				this.viewRegistration.clear();
+			} else if (!this.viewRegistration.value) {
+				this.viewRegistration.value = customViewService.registerCustomView({
+					id: AUTOMATIONS_CUSTOM_VIEW_ID,
+					ctor: new SyncDescriptor(AutomationsCustomView),
+					actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
+				}, {
+					restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+				});
+			}
+		};
+		updateRegistration();
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AUTOMATIONS_MODAL_SETTING)) {
+				updateRegistration();
+			}
 		}));
 
 		const automationContextKeys = new Set([ChatAutomationsEnabledContext.key]);
@@ -1811,6 +1837,7 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
 			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
 			accessor.get(IConfigurationService),
+			accessor.get(IStorageService),
 		);
 	}
 });

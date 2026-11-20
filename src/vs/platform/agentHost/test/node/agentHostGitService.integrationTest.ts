@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -1981,6 +1981,81 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/dirty-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree forgets the cached repository roots of the removed worktree', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-root-cache-${Date.now()}`);
+		const worktree = URI.file(wtPath);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/root-cache-worktree',
+				track: false,
+			});
+			mkdirSync(join(wtPath, 'nested'));
+			// Git reports the canonical path, which differs from `wtPath` where the temp directory is a symlink (macOS).
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: wtPath, env, encoding: 'utf8' }).trim());
+			const directories = [worktree, URI.file(join(wtPath, 'nested')), canonicalRoot];
+			const before = await Promise.all(directories.map(directory => svc!.getRepositoryRoot(directory)));
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			const after = await Promise.all(directories.map(directory => svc!.getRepositoryRoot(directory)));
+			assert.deepStrictEqual({
+				before: before.map(root => root?.fsPath),
+				after,
+				hasGitRoot: svc!.hasGitRoot(worktree).get(),
+			}, {
+				before: [canonicalRoot.fsPath, canonicalRoot.fsPath, canonicalRoot.fsPath],
+				after: [undefined, undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/root-cache-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree forgets the canonical root when only a descendant was looked up through a symlinked parent', async () => {
+		const dir = initRepo();
+		const parent = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-wt-parent-')));
+		const linkedParent = `${parent}-link`;
+		const worktree = URI.file(join(linkedParent, 'wt'));
+		try {
+			// A junction on Windows, which needs no symlink privilege; the type is ignored elsewhere.
+			symlinkSync(parent, linkedParent, 'junction');
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/symlinked-parent-worktree',
+				track: false,
+			});
+			mkdirSync(join(parent, 'wt', 'nested'));
+			const nested = URI.file(join(linkedParent, 'wt', 'nested'));
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: join(parent, 'wt'), env, encoding: 'utf8' }).trim());
+			const before = await svc!.getRepositoryRoot(nested);
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			assert.deepStrictEqual({
+				before: before?.fsPath,
+				after: [await svc!.getRepositoryRoot(nested), await svc!.getRepositoryRoot(canonicalRoot)],
+				hasGitRoot: svc!.hasGitRoot(canonicalRoot).get(),
+			}, {
+				before: canonicalRoot.fsPath,
+				after: [undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			// `rmSync` treats a Windows junction as a directory; `rmdirSync` removes the junction without following it.
+			try { (isWindows ? rmdirSync : unlinkSync)(linkedParent); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(parent);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlinked-parent-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 

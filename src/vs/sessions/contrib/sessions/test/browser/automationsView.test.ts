@@ -78,13 +78,17 @@ import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemServi
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AutomationHistoryActionsContribution } from '../../../automations/browser/automationRunHistory.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
+import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -938,16 +942,26 @@ suite('AutomationsCardsWidget', () => {
 		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories, disabledFilter, toggleDisabled };
 	}
 
-	test('pending scheduled chats move out of Automations only while Send Later is enabled', async () => {
-		const { widget, automationService, configurationService } = setup();
+	test('scheduled chats and their run history stay out of Automations while Send Later is enabled', async () => {
+		const { widget, automationService, configurationService, instantiationService } = setup();
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		automationService.setAutomations([
 			automation({ id: 'scheduled', purpose: 'scheduledChat', schedule }),
+			automation({ id: 'dispatched', name: 'Dispatched scheduled chat', purpose: 'scheduledChat', schedule, oneTimeDispatchedAt: schedule.runAt }),
 			automation({ id: 'ordinary-once', schedule }),
 			automation({ id: 'recurring' }),
 		]);
+		automationService.setRuns([run({ automationId: 'dispatched' })]);
+		stubSessionsHostLayout(instantiationService);
+		const view = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => view.getProvider(accessor))!);
 		const cardCount = () => widget.element.querySelectorAll('.automations-card-wrapper').length;
-		const before = cardCount();
+		const snapshot = () => ({
+			cards: cardCount(),
+			history: widget.element.querySelectorAll('.automations-history .session-item').length,
+			accessible: provider.provideContent().includes('Dispatched scheduled chat'),
+		});
+		const before = snapshot();
 		const setEnabled = async (value: boolean) => {
 			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, value);
 			configurationService.onDidChangeConfigurationEmitter.fire({
@@ -958,12 +972,36 @@ suite('AutomationsCardsWidget', () => {
 			});
 		};
 		await setEnabled(true);
-		const whileEnabled = cardCount();
+		const whileEnabled = snapshot();
 		await setEnabled(false);
-		assert.deepStrictEqual({ before, whileEnabled, after: cardCount(), storedDefinitions: automationService.automations.get().length }, {
-			before: 3, whileEnabled: 2, after: 3, storedDefinitions: 3,
+		assert.deepStrictEqual({ before, whileEnabled, after: snapshot(), storedDefinitions: automationService.automations.get().length }, {
+			before: { cards: 4, history: 1, accessible: true },
+			whileEnabled: { cards: 2, history: 0, accessible: false },
+			after: { cards: 4, history: 1, accessible: true }, storedDefinitions: 4,
 		});
 	});
+
+	for (const sendLaterEnabled of [false, true]) {
+		test(`retained scheduled history respects Send Later without hiding ordinary history (enabled: ${sendLaterEnabled})`, async () => {
+			const { widget, automationService, configurationService, instantiationService } = setup();
+			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, sendLaterEnabled);
+			automationService.historyStates.set(AUTOMATION_ID, 'retained');
+			automationService.historyStates.set('scheduled', 'retained');
+			automationService.setRuns([
+				run(),
+				run({ id: 'scheduled-run', automationId: 'scheduled', purpose: 'scheduledChat', status: 'failed', sessionResource: SECOND_SESSION_RESOURCE }),
+			]);
+			stubSessionsHostLayout(instantiationService);
+			const view = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+			const provider = disposables.add(instantiationService.invokeFunction(accessor => view.getProvider(accessor))!);
+			const content = provider.provideContent();
+			assert.deepStrictEqual({
+				history: widget.element.querySelectorAll('.automations-history .session-item').length,
+				ordinaryAccessible: content.includes('Daily review, Completed, started'),
+				scheduledAccessible: content.includes('Daily review, Failed, started'),
+			}, { history: sendLaterEnabled ? 2 : 4, ordinaryAccessible: true, scheduledAccessible: !sendLaterEnabled });
+		});
+	}
 
 	test('disabled cards stay in their ownership sections, sort last, and only personal cards are filtered', () => {
 		const { widget, automationService, disabledFilter, toggleDisabled } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
@@ -1580,6 +1618,28 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
+	for (const replace of [false, true]) {
+		test(`Create with Agent without introduction preserves draft confirmation (replace: ${replace})`, async () => {
+			const { commandService, dialogService, instantiationService } = setup();
+			disposables.add(onboardingScenarioRegistry.register(createAutomationsTour()));
+			instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
+			dialogService.promptButtonIndex = replace ? 0 : -1;
+			const execute = stub(commandService, 'executeCommand').resolves();
+			disposables.add(toDisposable(() => execute.restore()));
+			let introductions = 0;
+			instantiationService.stub(IOnboardingScenarioService, {
+				shouldShowNudge: () => true,
+				runScenario: async () => { introductions++; return OnboardingOutcome.Completed; },
+			});
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor, { skipIntroduction: true }));
+			assert.deepStrictEqual({ introductions, prompts: dialogService.prompts.length, commands: execute.args }, {
+				introductions: 0,
+				prompts: 1,
+				commands: replace ? [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]] : [],
+			});
+		});
+	}
+
 	for (const content of ['empty', 'text', 'attachment', 'mounted'] as const) {
 		for (const choice of ['cancel', 'replace', 'view'] as const) {
 			test(`Create with Agent handles ${choice} for a ${content} draft`, async () => {
@@ -2076,8 +2136,9 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(capability.callCount, 0);
 	});
 
-	test('shared creator preference filters cards, history and accessible content without changing the catalogue', async () => {
-		const { widget, automationService, configurationService, instantiationService } = setup();
+	test('shared creator preference filters cards, history and accessible content without changing the catalogue', () => {
+		const { widget, automationService, instantiationService } = setup();
+		const storageService = instantiationService.get(IStorageService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		stubSessionsHostLayout(instantiationService);
 		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
@@ -2104,18 +2165,9 @@ suite('AutomationsCardsWidget', () => {
 			};
 		};
 		const before = snapshot();
-		const setPreference = async (value: boolean) => {
-			await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value);
-			configurationService.onDidChangeConfigurationEmitter.fire({
-				affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
-				affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]),
-				change: { keys: [SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING], overrides: [] },
-				source: ConfigurationTarget.USER,
-			});
-		};
-		await setPreference(true);
+		setShowSharedAutomationsByOthers(storageService, true);
 		const optedIn = snapshot();
-		await setPreference(false);
+		setShowSharedAutomationsByOthers(storageService, false);
 		const own = ['Local', 'Mine', 'Personal'];
 		const all = ['Local', 'Mine', 'Other', 'Personal', 'Unknown'];
 		assert.deepStrictEqual({ before, optedIn, after: snapshot(), stored: automationService.automations.get().length }, {
@@ -2183,12 +2235,11 @@ suite('AutomationsCardsWidget', () => {
 				change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER,
 			});
 		};
-		const writes: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
-		const update = stub(configurationService, 'updateValue').callsFake(async (key, value, target?: ConfigurationTarget) => {
-			writes.push({ key, value, target });
-			await setConfiguration(key, value === true);
-		});
+		const storageService = instantiationService.get(IStorageService);
+		const update = stub(configurationService, 'updateValue').callThrough();
+		const store = stub(storageService, 'store').callThrough();
 		disposables.add(toDisposable(() => update.restore()));
+		disposables.add(toDisposable(() => store.restore()));
 		const header = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService).flatMap(([, actions]) => actions);
 		const moreActions = () => header().find(action => action instanceof SubmenuItemAction && action.item.submenu === AgentsWindowMenus.AutomationsMoreActions);
 		const menu = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService).flatMap(([, actions]) => actions);
@@ -2230,7 +2281,9 @@ suite('AutomationsCardsWidget', () => {
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({
 			withoutCloud, hiddenWithoutCloud, withCloud, catalogueStates, disabledCloud, menuIsLast, refreshInHeader, label: settings.label,
-			states: [before, afterOn, afterOff], withoutChatReady, hiddenWithAI, hiddenWithAutomations: !moreActions(), writes,
+			states: [before, afterOn, afterOff], withoutChatReady, hiddenWithAI, hiddenWithAutomations: !moreActions(),
+			configurationWrites: update.callCount,
+			storageWrites: store.getCalls().map(call => call.args.slice(1)),
 		}, {
 			withoutCloud: ['sessions.automations.toggleShowDisabled'], hiddenWithoutCloud: false,
 			withCloud: ['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
@@ -2247,10 +2300,34 @@ suite('AutomationsCardsWidget', () => {
 			states: [false, true, false],
 			withoutChatReady: { hidden: false, actions: ['sessions.automations.toggleShowDisabled'] },
 			hiddenWithAI: true, hiddenWithAutomations: true,
-			writes: [
-				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: true, target: ConfigurationTarget.USER },
-				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: false, target: ConfigurationTarget.USER },
+			configurationWrites: 0,
+			storageWrites: [
+				[true, StorageScope.PROFILE, StorageTarget.MACHINE],
+				[false, StorageScope.PROFILE, StorageTarget.MACHINE],
 			],
+		});
+	});
+
+	test('shared creator menu choice is restored and stays consistent across views using local storage', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const first = setup('archive', NullHoverService, undefined, storageService);
+		const item = automation({ ownership: 'repository', isCreatedByCurrentUser: false });
+		first.automationService.setAutomations([item]);
+		const command = CommandsRegistry.getCommand('sessions.automations.toggleShowSharedByOthers')!;
+		await first.instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const restored = setup('archive', NullHoverService, undefined, storageService);
+		restored.automationService.setAutomations([item]);
+		const isolated = setup();
+		isolated.automationService.setAutomations([item]);
+		const snapshot = () => ({
+			cards: [first, restored, isolated].map(view => view.widget.element.querySelectorAll('.automations-card-wrapper').length),
+			stored: getShowSharedAutomationsByOthers(storageService),
+		});
+		const shown = snapshot();
+		await restored.instantiationService.invokeFunction(accessor => command.handler(accessor));
+		assert.deepStrictEqual({ shown, hidden: snapshot() }, {
+			shown: { cards: [1, 1, 0], stored: true },
+			hidden: { cards: [0, 0, 0], stored: false },
 		});
 	});
 
@@ -5989,6 +6066,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
@@ -6021,6 +6099,25 @@ suite('AutomationsCardsWidget', () => {
 			marked: sessionsManagementService.markAllReadSessionCount,
 		}, { ownRead: true, otherRead: false, marked: 1 });
 	});
+
+	for (const sendLaterEnabled of [false, true]) {
+		test(`mark all as read respects Send Later visibility (enabled: ${sendLaterEnabled})`, async () => {
+			const { automationService, sessionsManagementService, instantiationService, configurationService } = setup();
+			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, sendLaterEnabled);
+			automationService.setAutomations([automation(), automation({ id: 'scheduled', purpose: 'scheduledChat' })]);
+			automationService.setRuns([
+				run(),
+				run({ id: 'scheduled-run', automationId: 'scheduled', sessionResource: SECOND_SESSION_RESOURCE }),
+			]);
+			const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
+			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+			assert.deepStrictEqual({
+				ordinaryRead: sessionsManagementService.isRead.get(),
+				scheduledRead: sessionsManagementService.secondIsRead.get(),
+				marked: sessionsManagementService.markAllReadSessionCount,
+			}, { ordinaryRead: true, scheduledRead: !sendLaterEnabled, marked: sendLaterEnabled ? 1 : 2 });
+		});
+	}
 
 	test('mark all as read coalesces history rendering', async () => {
 		const { automationService, sessionsManagementService, widget } = setup();
@@ -6805,7 +6902,7 @@ suite('AutomationsCardsWidget', () => {
 				};
 			}), [
 				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
-				{ widget: false, help: false, view: false },
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
 				{ widget: false, help: false, view: false },
 				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
 				{ widget: true, help: true, view: true },
@@ -7033,21 +7130,25 @@ suite('AutomationsCardsWidget', () => {
 suite('AutomationsCustomViewContribution — context key', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(automationsEnabled = true) {
+	function setup(automationsEnabled = true, modal?: boolean, configuredEnabled = automationsEnabled) {
 		const automationService = new FakeAutomationService();
 		const contextKeyService = new MockContextKeyService();
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(automationsEnabled);
 		let restore: boolean | undefined;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAutomationService, automationService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: configuredEnabled, [AUTOMATIONS_MODAL_SETTING]: modal });
+		instantiationService.stub(IConfigurationService, configurationService);
+		let registrations = 0;
+		let unregisters = 0;
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = constObservable(undefined);
 			override registerCustomView(_descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }) {
+				registrations++;
 				restore = options?.restore;
-				return { dispose() { } };
+				return toDisposable(() => unregisters++);
 			}
 			override hideCustomView() { }
 		}());
@@ -7055,7 +7156,7 @@ suite('AutomationsCustomViewContribution — context key', () => {
 			override register() { return { dispose() { } }; }
 		}());
 		const contribution = disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
-		return { automationService, contextKeyService, contribution, restore };
+		return { automationService, contextKeyService, contribution, restore, configurationService, get registrations() { return registrations; }, get unregisters() { return unregisters; } };
 	}
 
 	test('AutomationsHasItemsContext follows the automations observable (empty → non-empty → empty)', () => {
@@ -7074,9 +7175,57 @@ suite('AutomationsCustomViewContribution — context key', () => {
 		assert.deepStrictEqual({
 			enabled: setup(true).restore,
 			disabled: setup(false).restore,
+			configuredButUnavailable: setup(false, false, true).restore,
 		}, {
 			enabled: true,
 			disabled: false,
+			configuredButUnavailable: false,
 		});
+	});
+
+	test('absent and OFF preserve registration; ON and live transitions release the cards view', async () => {
+		const absent = setup();
+		const off = setup(true, false);
+		const on = setup(true, true);
+		const before = [absent.registrations, off.registrations, on.registrations];
+		await off.configurationService.setUserConfiguration(AUTOMATIONS_MODAL_SETTING, true);
+		off.configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === AUTOMATIONS_MODAL_SETTING,
+			affectedKeys: new Set([AUTOMATIONS_MODAL_SETTING]),
+			change: { keys: [AUTOMATIONS_MODAL_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		assert.deepStrictEqual({ before, unregisters: off.unregisters, refreshes: off.automationService.refreshCalls }, {
+			before: [1, 1, 0], unregisters: 1, refreshes: 0,
+		});
+	});
+
+	test('manage command opts into a required singleton modal only for ON', async () => {
+		const results: string[] = [];
+		const services = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		services.stub(IConfigurationService, configurationService);
+		services.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override showCustomView() { results.push('cards'); }
+			override hideCustomView() { results.push('hide'); }
+		}());
+		services.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor() {
+				results.push('modal');
+				return undefined;
+			}
+		}());
+		const command = CommandsRegistry.getCommand('sessionsView.manageAutomations');
+		assert.ok(command);
+		for (const value of [undefined, false, true]) {
+			await configurationService.setUserConfiguration(AUTOMATIONS_MODAL_SETTING, value);
+			await services.invokeFunction(accessor => command.handler(accessor));
+		}
+		const input = disposables.add(AutomationsEditorInput.getOrCreate());
+		assert.deepStrictEqual({
+			results,
+			requiresModal: !!(input.capabilities & EditorInputCapabilities.RequiresModal),
+			singleton: !!(input.capabilities & EditorInputCapabilities.Singleton),
+		}, { results: ['cards', 'cards', 'hide', 'modal'], requiresModal: true, singleton: true });
 	});
 });

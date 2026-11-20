@@ -2573,13 +2573,19 @@ suite('AgentMergeController', () => {
 			});
 		}));
 
-		test('asks to authorize single sign-on when GitHub refuses reading the bound pull request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+		test('asks to authorize single sign-on without challenging repository credentials when GitHub refuses reading the bound pull request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
 			const ssoAuthorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=bound';
 			const h = createControllerHarness(disposables, { ...repairSnapshot(), core: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 403, message: saml, ssoAuthorizationUrl } } });
+			const authenticationRequests: string[] = [];
+			disposables.add(h.stateManager.onDidEmitNotification(notification => {
+				if (notification.type === 'auth/required') {
+					authenticationRequests.push(notification.resource.resource);
+				}
+			}));
 			enable(h, { owner: 'octo', repo: 'repo', pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature' });
 			await timeout(5 * 60_000);
 
-			assert.deepStrictEqual({ blocked: blocked(h), errors: h.errors }, { blocked: [agentMergeSingleSignOnNotice('octo', ssoAuthorizationUrl)], errors: [] });
+			assert.deepStrictEqual({ blocked: blocked(h), authenticationRequests, errors: h.errors }, { blocked: [agentMergeSingleSignOnNotice('octo', ssoAuthorizationUrl)], authenticationRequests: [], errors: [] });
 		}));
 
 		test('tells the user once when no pull request turns up for the branch', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {

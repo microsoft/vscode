@@ -14,7 +14,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { localize } from '../../../nls.js';
 import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactDetails, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel } from './artifactIntegration.js';
-import { isArtifactActor, isArtifactAuthenticationRequest, isArtifactJsonValue, isArtifactRun, isArtifactSnapshot } from './artifactIntegrationValidation.js';
+import { isArtifactActor, isArtifactAuthenticationRequest, isArtifactIntegrationLabel, isArtifactJsonValue, isArtifactRun, isArtifactSnapshot } from './artifactIntegrationValidation.js';
 import { isArtifactDetails } from './artifactPresentationValidation.js';
 import { hasArtifactAutomationEnabledRules, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges } from './artifactIntegrationNotices.js';
 import { ArtifactAutomationNotice } from './artifactRuntime.js';
@@ -24,7 +24,7 @@ export type ArtifactIntegrationRequest =
 	| { readonly kind: 'release'; readonly subscription: string }
 	| { readonly kind: 'authenticate'; readonly subscription: string; readonly integrationId: string }
 	| { readonly kind: 'configure'; readonly subscription: string; readonly integrationId: string; readonly revision: number; readonly values: Readonly<Record<string, boolean | string>>; readonly actor?: ArtifactActor }
-	| { readonly kind: 'notice'; readonly subscription: string; readonly notice: Pick<ArtifactAutomationNotice, 'kind' | 'content' | 'iconId' | 'changes' | 'enabledRules'> }
+	| { readonly kind: 'notice'; readonly subscription: string; readonly notice: Pick<ArtifactAutomationNotice, 'kind' | 'content' | 'iconId' | 'artifactKind' | 'changes' | 'enabledRules'> }
 	| { readonly kind: 'invoke'; readonly subscription: string; readonly integrationId: string; readonly actionId: string; readonly chat: string; readonly requestId: string; readonly actor?: ArtifactActor; readonly input?: ArtifactJsonValue }
 	| { readonly kind: 'cancel' | 'reconcile'; readonly subscription: string; readonly runId: string }
 	| { readonly kind: 'history'; readonly subscription: string; readonly before?: string; readonly limit?: number }
@@ -77,6 +77,7 @@ export function isArtifactIntegrationRequest(value: unknown): value is ArtifactI
 		case 'notice': return isRecord(value.notice) && ['enabled', 'changed', 'disabled', 'status'].includes(String(value.notice.kind))
 			&& strings(value.notice, 'content') && String(value.notice.content).length <= 64_000
 			&& (value.notice.iconId === undefined || (typeof value.notice.iconId === 'string' && /^[a-zA-Z0-9-]+$/.test(value.notice.iconId)))
+			&& (value.notice.artifactKind === undefined || isArtifactIntegrationLabel(value.notice.artifactKind))
 			// Older clients send only the rendered content, which hosts post without merging. Status notices carry no rule changes.
 			&& (value.notice.changes === undefined ? value.notice.enabledRules === undefined
 				: value.notice.kind !== 'status' && isArtifactAutomationNoticeChanges(value.notice.changes) && isArtifactAutomationEnabledRules(value.notice.enabledRules)
@@ -195,8 +196,8 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 					throw new Error('This artifact coordinator does not support client automation notices');
 				}
 				const { session, artifact } = this.requireArtifact(request.subscription).snapshot.get();
-				const { kind, content, iconId, changes, enabledRules } = request.notice;
-				await this.postNotice({ session, artifact, kind, content, iconId, ...(changes ? { changes, enabledRules } : {}) });
+				const { kind, content, iconId, artifactKind, changes, enabledRules } = request.notice;
+				await this.postNotice({ session, artifact, kind, content, iconId, ...(artifactKind ? { artifactKind } : {}), ...(changes ? { changes, enabledRules } : {}) });
 				break;
 			}
 			case 'authenticate': {

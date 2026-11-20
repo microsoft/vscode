@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { raceCancellationError } from '../../../../base/common/async.js';
+import { Limiter, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -1567,6 +1567,52 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
+		await this._cancelSessionRequests(session);
+		await this._getProvider(session)?.archiveSession(session.sessionId);
+		this._onDidArchiveSession.fire(session);
+	}
+
+	async archiveSessions(sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]> {
+		const store = new DisposableStore();
+		const limiter = store.add(new Limiter<void>(4));
+		try {
+			const results = await Promise.allSettled(sessions.map(session => limiter.queue(() => this._cancelSessionRequests(session))));
+			const byProvider = new Map<ISessionsProvider, { session: ISession; index: number }[]>();
+			for (const [index, session] of sessions.entries()) {
+				if (results[index].status === 'rejected') {
+					continue;
+				}
+				const provider = this._getProvider(session);
+				if (!provider) {
+					results[index] = { status: 'rejected', reason: new Error(localize('sessions.archiveProviderUnavailable', "The session provider is unavailable.")) };
+					continue;
+				}
+				const entries = byProvider.get(provider) ?? [];
+				entries.push({ session, index });
+				byProvider.set(provider, entries);
+			}
+			const batches = [...byProvider];
+			const batchResults = await Promise.allSettled(batches.map(([provider, entries]) => provider.archiveSessions
+				? provider.archiveSessions(entries.map(({ session }) => session.sessionId))
+				: Promise.allSettled(entries.map(({ session }) => limiter.queue(() => provider.archiveSession(session.sessionId))))));
+			for (const [batchIndex, [, entries]] of batches.entries()) {
+				const batch = batchResults[batchIndex];
+				for (const [entryIndex, { index }] of entries.entries()) {
+					results[index] = batch.status === 'fulfilled' ? batch.value[entryIndex] : batch;
+				}
+			}
+			for (const [index, session] of sessions.entries()) {
+				if (results[index].status === 'fulfilled') {
+					this._onDidArchiveSession.fire(session);
+				}
+			}
+			return results;
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private async _cancelSessionRequests(session: ISession): Promise<void> {
 		const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
 		if (activeChats.length === 0 && isActiveSessionStatus(session.status.get())) {
 			await this._cancelChatRequest(session.mainChat.get());
@@ -1574,8 +1620,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		for (const chat of activeChats) {
 			await this._cancelChatRequest(chat);
 		}
-		await this._getProvider(session)?.archiveSession(session.sessionId);
-		this._onDidArchiveSession.fire(session);
 	}
 
 	getSessionWorktreeDiskUsage(session: ISession, token?: CancellationToken): Promise<number | undefined> {

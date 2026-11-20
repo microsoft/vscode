@@ -51,7 +51,6 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
-import { ICopilotApiService } from '../shared/copilotApiService.js';
 import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
@@ -259,6 +258,12 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
 		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
 		...customizations.discoveredAgents,
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
+}
+
+/** The agent the runtime knows under the given ID: an SDK-native agent's ID, or a forwarded agent's SDK name (its ID in the runtime). */
+export function getCopilotAgentCustomization(customizations: ICopilotAppliedCustomizations, sdkId: string): AgentCustomization | undefined {
+	return customizations.nativeAgents?.find(agent => agent.id === sdkId)
+		?? getCopilotCustomAgents(customizations).find(agent => (agent.sdkName ?? getSdkCustomAgentName(agent.uri)) === sdkId)?.customization;
 }
 
 export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): { readonly uri: string; readonly name: string } | undefined {
@@ -570,6 +575,20 @@ export function getCopilotWorkingDirectoryTrust(plan: Pick<CopilotSessionLaunchP
 	const trusted = isAgentHostWorkspaceTrusted(workingDirectory, trust)
 		|| (plan.worktreeRepository !== undefined && isWorktreeUnderRepository(workingDirectory, plan.worktreeRepository) && isAgentHostWorkspaceTrusted(plan.worktreeRepository, trust));
 	return trusted ? 'session' : undefined;
+}
+
+/**
+ * Whether the hooks declared by custom agents run in a session. Their source folder is not always known (agents copied
+ * from other locations, or taken from another chat), so they run only when every folder of the session is trusted.
+ */
+export function areCopilotCustomAgentHooksTrusted(plan: Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository' | 'additionalDirectories' | 'workspace'>, trust: IAgentHostWorkspaceTrust | undefined): boolean {
+	if (plan.workspace?.kind === 'virtual') {
+		return false;
+	}
+	if (plan.workingDirectory && !plan.workspaceless && getCopilotWorkingDirectoryTrust(plan, trust) === undefined) {
+		return false;
+	}
+	return (plan.additionalDirectories ?? []).every(directory => isAgentHostWorkspaceTrusted(directory, trust));
 }
 
 export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter) {
@@ -1139,7 +1158,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
-		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -1237,7 +1255,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await runtime.applyLaunchSandbox(session, plan.kind === 'resume');
 		};
 		if (plan.kind === 'create') {
-			return this._createSession(plan, config, sandboxConfig, runtime, modelPolicy);
+			return this._createSession(plan, config, sandboxConfig, runtime, modelPolicy, built.customAgentHooksEnabled);
 		}
 
 		let fallbackPlan = plan;
@@ -1245,7 +1263,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const raw = await this._resumeSession(session, plan, config);
-			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config, runtime, undefined, built.resetAutoTier);
+			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config, runtime, built.customAgentHooksEnabled, undefined, built.resetAutoTier);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -1257,7 +1275,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig, runtime, undefined, built.resetAutoTier);
+					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig, runtime, built.customAgentHooksEnabled, undefined, built.resetAutoTier);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -1278,7 +1296,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				model: fallbackPlan.fallback.model,
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
-			}, fallbackConfig, sandboxConfig, runtime, modelPolicy);
+			}, fallbackConfig, sandboxConfig, runtime, modelPolicy, built.customAgentHooksEnabled);
 			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -1330,7 +1348,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ICopilotSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, runtime: ICopilotSessionRuntime, policy: CopilotManagedModelPolicy | undefined): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ICopilotSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, runtime: ICopilotSessionRuntime, policy: CopilotManagedModelPolicy | undefined, customAgentHooksEnabled: boolean): Promise<CopilotSessionWrapper> {
 		const model = policy ? omitCopilotManagedModelDefaults(plan.model, policy) : plan.model;
 		const omittedContextDefault = plan.model?.config?.[ContextSizeConfigKey] !== undefined && model?.config?.[ContextSizeConfigKey] === undefined;
 		const workspaceTrust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
@@ -1366,10 +1384,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				throw error;
 			}
 		}
-		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config, runtime, trustWorkingDirectory);
+		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config, runtime, customAgentHooksEnabled, trustWorkingDirectory);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, customAgentHooksEnabled: boolean, trustWorkingDirectory?: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
 			if (plan.kind === 'resume' && plan.accountContext) {
@@ -1411,7 +1429,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return new CopilotSessionWrapper(raw, config.canvases?.requestRenderer === true, {
 			providers: config.inference?.providers && [...config.inference.providers],
 			models: config.inference?.models && [...config.inference.models],
-		}, config.tools.imageGeneration.enabled, config.tools.imageGeneration.watermark, trustWorkingDirectory, config.github?.telemetryEnabled !== false, config.experiments?.flags?.MCP_SKILLS === true, this._logService);
+		}, config.tools.imageGeneration.enabled, config.tools.imageGeneration.watermark, trustWorkingDirectory, customAgentHooksEnabled, config.github?.telemetryEnabled !== false, config.experiments?.flags?.MCP_SKILLS === true, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionOptions): Promise<boolean> {
@@ -1508,27 +1526,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
-	 * Whether the session's own GitHub account is internal (staff or an internal organization).
-	 * Gates staff-only runtime features per session, since root config is shared by every client
-	 * and editable through host settings. Fails closed.
-	 */
-	private async _isInternalAccount(githubToken: string | undefined): Promise<boolean> {
-		if (!githubToken) {
-			return false;
-		}
-		try {
-			return (await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken)).isInternal === true;
-		} catch (error) {
-			this._logService.debug(`[Copilot] Could not resolve whether the account is internal: ${error instanceof Error ? error.message : String(error)}`);
-			return false;
-		}
-	}
-
-	/**
 	 * Builds the SDK session config. `resetAutoTier` is set for a resume whose forced Auto tier leaves routing to the
 	 * runtime: a resume config cannot clear the journaled tier, so the launch clears it once the session is open.
 	 */
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined; resetAutoTier: boolean }> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined; resetAutoTier: boolean; customAgentHooksEnabled: boolean }> {
 		const plugins = plan.snapshot.plugins;
 		const canvasRuntimeEnabled = isCopilotCanvasRuntimeEnabled(this._configurationService, plan.isEphemeral === true);
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
@@ -1546,8 +1547,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
-		const securityReviewSecretDetectionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SecurityReviewSecretDetection) === true
-			&& await this._isInternalAccount(plan.githubCredentials.token);
+		const securityReviewSecretDetectionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SecurityReviewSecretDetection) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			AUTO_APPROVAL: true,
@@ -1595,7 +1595,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// skills and instructions, so it is left alone.
 		// Custom agents run on the model they name, without routing, so a router is never one of their models.
 		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
-		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
+		// Repository hooks, including those declared by the folder's own custom agents, run only in trusted folders.
+		const workspaceTrust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+		const repositoryHooksEnabled = plan.workspace?.kind !== 'virtual' && getCopilotWorkingDirectoryTrust(plan, workspaceTrust) !== undefined;
+		const customAgentHooksEnabled = areCopilotCustomAgentHooksTrusted(plan, workspaceTrust);
+		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds, undefined, customAgentHooksEnabled);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
 		const pluginDirectoriesPromise = Promise.all(coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
@@ -1868,7 +1872,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
 			},
 			hooks: {
-				enableRepositoryHooks: plan.workspace?.kind !== 'virtual',
+				// The runtime loads `.github/hooks` whenever this is on and leaves the trust check to the host.
+				enableRepositoryHooks: repositoryHooksEnabled,
 				handlers: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 					onPreToolUse: input => runtime.handlePreToolUse(input),
 					onPostToolUse: input => runtime.handlePostToolUse(input),
@@ -1923,6 +1928,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				memory: { enabled: memoryEnabled, ...(memoryUserPromptMode ? { mode: 'user-prompt' } : {}) },
 			},
 		};
-		return { config, modelPolicy: resolved, resetAutoTier: resumeAutoTier === null };
+		return { config, modelPolicy: resolved, resetAutoTier: resumeAutoTier === null, customAgentHooksEnabled };
 	}
 }
