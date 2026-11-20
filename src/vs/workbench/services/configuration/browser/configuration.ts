@@ -10,7 +10,7 @@ import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, comb
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from '../../../../platform/files/common/files.js';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
-import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser, createLayoutConfigurationModel, toLayoutSettings } from '../common/configurationModels.js';
+import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser, createLayoutConfigurationModel, parseLayoutSettings } from '../common/configurationModels.js';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
 import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
@@ -178,10 +178,9 @@ export class LayoutConfiguration extends Disposable {
 		super();
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 
-		// The folder of the settings file may not exist yet
-		const watcher = this._register(fileService.createWatcher(uriIdentityService.extUri.dirname(resource), { recursive: false, excludes: [] }));
+		this._register(fileService.watch(resource));
 		this._register(Event.any(
-			Event.filter(watcher.onDidChange, e => e.contains(resource)),
+			Event.filter(fileService.onDidFilesChange, e => e.contains(resource)),
 			Event.filter(fileService.onDidRunOperation, e => (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && uriIdentityService.extUri.isEqualOrParent(resource, e.resource))
 		)(() => this.reloadConfigurationScheduler.schedule()));
 	}
@@ -197,9 +196,7 @@ export class LayoutConfiguration extends Disposable {
 			return ConfigurationModel.createEmptyModel(this.logService);
 		}
 
-		const parser = new ConfigurationModelParser(this.resource.toString(), this.logService);
-		parser.parse(content || '{}');
-		return createLayoutConfigurationModel(toLayoutSettings(parser.configurationModel), this.logService);
+		return createLayoutConfigurationModel(parseLayoutSettings(content, this.resource.toString(), this.logService), this.logService);
 	}
 }
 

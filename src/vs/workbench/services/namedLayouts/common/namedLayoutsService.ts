@@ -4,28 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { equals, mixin } from '../../../../base/common/objects.js';
-import { dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { isObject, isString } from '../../../../base/common/types.js';
-import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getLayoutOverridableSettings, ILayoutSettings, isLayoutOverridableSetting, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { parseLayoutSettings } from '../../configuration/common/configurationModels.js';
 import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
-import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { getLayoutSettingsResource, LAYOUT_SETTINGS_SCHEME, LayoutSettingsFileSystemProvider } from './layoutSettingsFileSystemProvider.js';
 import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
 interface IStoredNamedLayout {
@@ -33,11 +32,9 @@ interface IStoredNamedLayout {
 	readonly name: string;
 
 	/**
-	 * The last known content of the settings file of the layout. It applies until
-	 * the settings file is read, and is the content of the settings file of a
-	 * layout that was stored before layouts had settings files.
+	 * The content of the settings file of the layout, JSON with comments.
 	 */
-	readonly settings: IStringDictionary<unknown>;
+	readonly settings: string;
 	readonly state: IStringDictionary<unknown>;
 
 	/**
@@ -56,37 +53,33 @@ interface IStoredNamedLayoutContribution {
 	readonly locked?: boolean;
 }
 
-function isStoredNamedLayout(candidate: unknown): candidate is IStoredNamedLayout {
+function toStoredNamedLayout(candidate: unknown): IStoredNamedLayout | undefined {
 	if (!isObject(candidate)) {
-		return false;
+		return undefined;
 	}
 
-	const { id, name, settings, state, contribution } = candidate as IStoredNamedLayout;
-	return isString(id)
+	const layout = candidate as IStoredNamedLayout;
+	const { id, name, state, contribution } = layout;
+	const settings: unknown = layout.settings;
+	const isValid = isString(id)
 		&& isString(name)
-		&& isObject(settings)
+		&& (isString(settings) || isObject(settings))
 		&& isObject(state)
 		&& (contribution === undefined || (isObject(contribution) && isString(contribution.extensionId) && isString(contribution.id) && (contribution.locked === undefined || typeof contribution.locked === 'boolean')));
+	if (!isValid) {
+		return undefined;
+	}
+
+	// Layouts stored before the content of their settings file was stored have the settings themselves
+	return isString(settings) ? layout : { ...layout, settings: toSettingsContent(settings) };
+}
+
+function toSettingsContent(settings: object): string {
+	return JSON.stringify(settings, null, '\t');
 }
 
 function getContributedLayoutId(extensionId: string, id: string): string {
 	return `${ExtensionIdentifier.toKey(extensionId)}/${id}`;
-}
-
-/**
- * Returns the name of the folder of the settings file of a layout. Different identifiers get
- * different names, also on file systems that ignore case: characters other than lowercase
- * letters, digits, dots and dashes, as well as dots at the start or end, are escaped as `_`
- * followed by the four hexadecimal digits of their character code.
- */
-function toSettingsFolderName(layoutId: string): string {
-	let name = '';
-	for (let index = 0; index < layoutId.length; index++) {
-		const char = layoutId[index];
-		const isDotAtEdge = char === '.' && (index === 0 || index === layoutId.length - 1);
-		name += /[a-z0-9.-]/.test(char) && !isDotAtEdge ? char : `_${layoutId.charCodeAt(index).toString(16).padStart(4, '0')}`;
-	}
-	return name;
 }
 
 /**
@@ -102,13 +95,14 @@ interface ILayoutSnapshot {
  * workspace. The active layout and the state of the default layout are stored
  * per workspace.
  *
- * The settings of a named layout are stored in its settings file in the profile
- * folder. The configuration service reads and watches the settings file of the
- * active layout, so changes made in any window apply to all windows that use
- * the layout. Changes to the state of the participants made while a named
- * layout is active are saved into that layout whenever the storage is saved
- * and before another layout is applied. If two windows use the same named
- * layout, the window that saves last wins.
+ * The settings of a named layout are stored with the layout. A file system
+ * provider shows them as the settings file of the layout, which the
+ * configuration service reads and watches for the active layout, and which
+ * editors show. So changes made in any window apply to all windows that use the
+ * layout. Changes to the state of the participants made while a named layout
+ * is active are saved into that layout whenever the storage is saved and before
+ * another layout is applied. If two windows use the same named layout, the
+ * window that saves last wins.
  *
  * A layout contributed by an extension starts from its definition the first
  * time it becomes active. Its changes are then saved like the changes of other
@@ -133,7 +127,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private static readonly LOCKED_LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.locked';
 	private static readonly ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.active';
 	private static readonly DEFAULT_LAYOUT_STATE_STORAGE_KEY = 'workbench.namedLayouts.defaultState';
-	private static readonly SETTINGS_FOLDER_NAME = 'layouts';
+	private static readonly EMPTY_SETTINGS = '{}';
 
 	/**
 	 * How long the window must not change before its state is taken as the state of
@@ -190,12 +184,16 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 */
 	private readonlySettingsFiles = new ResourceMap<string>();
 
+	private readonly settingsFileSystemProvider = this._register(new LayoutSettingsFileSystemProvider({
+		getSettings: layoutId => this.getSettingsContent(layoutId),
+		setSettings: (layoutId, content) => this.setSettingsContent(layoutId, content)
+	}));
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -203,6 +201,10 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		this.storedLayouts = this.loadLayouts();
 		this.lockedLayoutIds = this.loadLockedLayoutIds();
+
+		// The configuration service reads the settings of the active layout from the provider
+		this._register(fileService.registerProvider(LAYOUT_SETTINGS_SCHEME, this.settingsFileSystemProvider));
+
 		const storedActiveLayoutId = this.storageService.get(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		this.activeLayoutId = this.restoreActiveLayout();
 
@@ -237,11 +239,6 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this._register(this.onDidChangeLayouts(() => {
 			this.updateLayoutSettings();
 			this.updateReadonlySettingsFiles();
-		}));
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
-			this.updateReadonlySettingsFiles();
-			this.sequencer.queue(() => this.reapplyLayoutSettingsOfProfile())
-				.catch(error => this.logService.error('[named layouts] Failed to apply the settings of the active layout in the profile.', error));
 		}));
 		this.updateReadonlySettingsFiles();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -316,12 +313,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.saveOutgoingLayout();
 
 			// A new layout starts as a copy of the active layout, also of its settings
-			const layout: IStoredNamedLayout = { id: generateUuid(), name: layoutName, settings: this.configurationService.getLayoutConfiguration(), state: this.captureState() };
-			await this.writeSettingsFile(layout.id, layout.settings);
+			const settings = this.getSettingsContent(this.activeLayoutId) ?? NamedLayoutsService.EMPTY_SETTINGS;
+			const layout: IStoredNamedLayout = { id: generateUuid(), name: layoutName, settings, state: this.captureState() };
 			this.storedLayouts = [...this.storedLayouts, layout];
 			this.storeLayouts();
 
-			await this.applyLayoutSettings(layout);
+			this.applyLayoutSettings(layout);
 			this.setActiveLayout(layout.id);
 			this._onDidChangeLayouts.fire();
 
@@ -366,7 +363,6 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				}
 				this._onDidChangeLayouts.fire();
 			}
-			await this.deleteSettingsFile(layout.id);
 		});
 	}
 
@@ -377,13 +373,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				throw new Error(`Unknown contributed layout '${layout.id}'.`);
 			}
 
+			// Other windows that use the layout apply the settings of its definition
 			this.removeStoredLayout(layout.id);
 			if (this.activeLayoutId === layout.id) {
 				await this.applyContributedLayout(layout.id, contributedLayout);
 			} else {
 				this._onDidChangeLayouts.fire();
-				// Other windows that use the layout apply the settings of its definition
-				await this.writeSettingsFile(layout.id, this.getDefinitionSettings(contributedLayout));
 			}
 		});
 	}
@@ -451,6 +446,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	setContributedLayouts(layouts: readonly IContributedNamedLayout[]): void {
 		this.contributedLayouts = new Map(layouts.map(layout => [getContributedLayoutId(layout.extensionId, layout.id), layout]));
 		this.contributedLayoutsKnown = true;
+		this.settingsFileSystemProvider.refresh();
 		this._onDidChangeLayouts.fire();
 
 		// Switch to the default layout if the extension that contributes the active
@@ -511,7 +507,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		// Apply settings first because participants may depend on them
-		await this.applyLayoutSettings(storedLayout);
+		this.applyLayoutSettings(storedLayout);
 		this.setActiveLayout(storedLayout?.id ?? DEFAULT_NAMED_LAYOUT_ID);
 		await this.applyLayoutState(storedLayout, [...this.participants]);
 	}
@@ -524,10 +520,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private async applyContributedLayout(layoutId: string, contributedLayout: IContributedNamedLayout): Promise<void> {
 		const { definition } = contributedLayout;
 
-		const settings = this.getDefinitionSettings(contributedLayout);
-		await this.writeSettingsFile(layoutId, settings);
-		this.configurationService.setLayoutSettings(this.getLayoutSettings(layoutId), settings);
-		await this.configurationService.reloadConfiguration(ConfigurationTarget.LAYOUT);
+		const settings = toSettingsContent(this.getDefinitionSettings(contributedLayout));
+		this.configurationService.setLayoutSettings(this.getLayoutSettings(layoutId), this.parseSettings(layoutId, settings));
 		this.setActiveLayout(layoutId);
 
 		const defaultState = this.loadDefaultLayoutState();
@@ -643,11 +637,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		// The workbench restores the state of the participants itself, participants
 		// that share their state with the default layout are restored when they register.
-		// Only the settings of the layout need to be restored here. The last known settings
-		// apply right away, so that the workbench starts with them, until the file is read
-		this.configurationService.setLayoutSettings(this.getLayoutSettings(storedLayout.id), storedLayout.settings);
-		this.sequencer.queue(() => this.loadLayoutSettings(storedLayout))
-			.catch(error => this.logService.error('[named layouts] Failed to read the settings of the active layout.', error));
+		// Only the settings of the layout need to be restored here
+		this.applyLayoutSettings(storedLayout);
 
 		return storedLayout.id;
 	}
@@ -696,7 +687,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		const updatedLayout: IStoredNamedLayout = {
 			id: this.activeLayoutId,
 			name: contributedLayout?.label ?? activeLayout?.name ?? this.activeLayoutId,
-			settings: this.configurationService.getLayoutConfiguration(),
+			settings: this.getSettingsContent(this.activeLayoutId) ?? NamedLayoutsService.EMPTY_SETTINGS,
 			state: { ...activeLayout?.state, ...this.captureState() },
 			...(contribution ? { contribution } : {})
 		};
@@ -710,71 +701,54 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 	}
 
-	/**
-	 * Returns the settings file of the given named layout. Like the layouts, it is stored in the profile.
-	 */
-	private getSettingsResource(layoutId: string): URI {
-		return joinPath(this.userDataProfileService.currentProfile.location, NamedLayoutsService.SETTINGS_FOLDER_NAME, toSettingsFolderName(layoutId), 'settings.json');
-	}
-
 	private getLayoutSettings(layoutId: string): ILayoutSettings {
-		return { name: this.getLayout(layoutId)?.name ?? layoutId, resource: this.getSettingsResource(layoutId), locked: this.isLocked(layoutId) };
+		return { name: this.getLayout(layoutId)?.name ?? layoutId, resource: getLayoutSettingsResource(layoutId), locked: this.isLocked(layoutId) };
 	}
 
 	/**
 	 * Applies the settings of the given named layout, or none for the default layout.
-	 * Must only be called from a task of the sequencer.
 	 */
-	private async applyLayoutSettings(layout: IStoredNamedLayout | undefined): Promise<void> {
-		if (!layout) {
+	private applyLayoutSettings(layout: IStoredNamedLayout | undefined): void {
+		if (layout) {
+			this.configurationService.setLayoutSettings(this.getLayoutSettings(layout.id), this.parseSettings(layout.id, layout.settings));
+		} else {
 			this.configurationService.setLayoutSettings(undefined);
-			return;
 		}
+	}
 
-		this.configurationService.setLayoutSettings(this.getLayoutSettings(layout.id), layout.settings);
-		await this.loadLayoutSettings(layout);
+	private parseSettings(layoutId: string, content: string): IStringDictionary<unknown> {
+		return parseLayoutSettings(content, getLayoutSettingsResource(layoutId).toString(), this.logService);
 	}
 
 	/**
-	 * Reads the settings file of the given layout. A layout that was stored before layouts
-	 * had settings files gets one with its stored settings. Must only be called from a task
-	 * of the sequencer.
+	 * Returns the content of the settings file of the given layout, `undefined` if there is no such layout.
 	 */
-	private async loadLayoutSettings(layout: IStoredNamedLayout): Promise<void> {
-		try {
-			if (Object.keys(layout.settings).length && !(await this.hasSettingsFile(layout.id))) {
-				await this.writeSettingsFile(layout.id, layout.settings);
-			}
-		} catch (error) {
-			this.logService.error(`[named layouts] Failed to create the settings file of layout '${layout.id}'.`, error);
+	private getSettingsContent(layoutId: string): string | undefined {
+		const storedLayout = this.getStoredLayout(layoutId);
+		if (storedLayout) {
+			return storedLayout.settings;
 		}
-		await this.configurationService.reloadConfiguration(ConfigurationTarget.LAYOUT);
+
+		// A contributed layout starts from its definition
+		const contributedLayout = this.contributedLayouts.get(layoutId);
+		return contributedLayout ? toSettingsContent(this.getDefinitionSettings(contributedLayout)) : undefined;
 	}
 
-	private async hasSettingsFile(layoutId: string): Promise<boolean> {
-		try {
-			await this.fileService.stat(this.getSettingsResource(layoutId));
-			return true;
-		} catch (error) {
-			// Other errors must not be mistaken for a missing file, whose content would be replaced
-			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-				return false;
-			}
-			throw error;
+	/**
+	 * Changes the content of the settings file of the given layout, which the configuration service and editors write.
+	 */
+	private setSettingsContent(layoutId: string, content: string): void {
+		const storedLayout = this.getStoredLayout(layoutId);
+		if (!storedLayout) {
+			throw createFileSystemProviderError(localize('unknownLayoutSettings', "The layout does not exist."), FileSystemProviderErrorCode.FileNotFound);
 		}
-	}
+		if (this.isLocked(layoutId)) {
+			throw createFileSystemProviderError(localize('lockedLayoutSettings', "The layout '{0}' is locked. Unlock the layout to change its settings.", this.getLayout(layoutId)?.name ?? storedLayout.name), FileSystemProviderErrorCode.NoPermissions);
+		}
 
-	private async writeSettingsFile(layoutId: string, settings: IStringDictionary<unknown>): Promise<void> {
-		await this.fileService.writeFile(this.getSettingsResource(layoutId), VSBuffer.fromString(JSON.stringify(settings, null, '\t')));
-	}
-
-	private async deleteSettingsFile(layoutId: string): Promise<void> {
-		try {
-			await this.fileService.del(dirname(this.getSettingsResource(layoutId)), { recursive: true });
-		} catch (error) {
-			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.error(`[named layouts] Failed to delete the settings file of layout '${layoutId}'.`, error);
-			}
+		if (storedLayout.settings !== content) {
+			this.storedLayouts = this.storedLayouts.map(candidate => candidate.id === layoutId ? { ...candidate, settings: content } : candidate);
+			this.storeLayouts();
 		}
 	}
 
@@ -795,24 +769,13 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	/**
-	 * Applies the settings file of the active layout in the profile that became active.
-	 * Must only be called from a task of the sequencer.
-	 */
-	private async reapplyLayoutSettingsOfProfile(): Promise<void> {
-		const storedLayout = this.getStoredLayout(this.activeLayoutId);
-		if (storedLayout && !isEqual(this.configurationService.layoutSettings?.resource, this.getSettingsResource(storedLayout.id))) {
-			await this.applyLayoutSettings(storedLayout);
-		}
-	}
-
-	/**
 	 * Makes editors show the settings files of locked layouts read-only, so that their settings cannot be changed.
 	 */
 	private updateReadonlySettingsFiles(): void {
 		const readonlySettingsFiles = new ResourceMap<string>();
 		for (const layout of this.layouts) {
 			if (layout.locked) {
-				readonlySettingsFiles.set(this.getSettingsResource(layout.id), layout.name);
+				readonlySettingsFiles.set(getLayoutSettingsResource(layout.id), layout.name);
 			}
 		}
 
@@ -936,6 +899,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		this.storedLayouts = storedLayouts;
+		this.settingsFileSystemProvider.refresh();
 		this._onDidChangeLayouts.fire();
 
 		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID || this.getStoredLayout(this.activeLayoutId)) {
@@ -978,7 +942,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		try {
 			const layouts: unknown = JSON.parse(value);
-			return Array.isArray(layouts) ? layouts.filter(isStoredNamedLayout) : [];
+			return Array.isArray(layouts) ? coalesce(layouts.map(toStoredNamedLayout)) : [];
 		} catch (error) {
 			this.logService.error('[named layouts] Failed to parse the stored named layouts.', error);
 			return [];
@@ -991,6 +955,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		} else {
 			this.storageService.remove(NamedLayoutsService.LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
 		}
+		this.settingsFileSystemProvider.refresh();
 	}
 
 	private onDidChangeLockedLayouts(): void {

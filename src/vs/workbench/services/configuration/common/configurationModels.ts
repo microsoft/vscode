@@ -198,3 +198,12 @@ export function toLayoutSettings(layoutConfiguration: ConfigurationModel): IStri
 	}
 	return settings;
 }
+
+/**
+ * Returns the settings in the content of the settings file of a named layout.
+ */
+export function parseLayoutSettings(content: string, name: string, logService: ILogService): IStringDictionary<unknown> {
+	const parser = new ConfigurationModelParser(name, logService);
+	parser.parse(content || '{}');
+	return toLayoutSettings(parser.configurationModel);
+}

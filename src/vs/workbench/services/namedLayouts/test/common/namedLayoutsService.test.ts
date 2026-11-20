@@ -9,8 +9,9 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { parse } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -19,24 +20,20 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IC
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
-import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { TestLifecycleService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ILayoutSettings } from '../../../configuration/common/configuration.js';
 import { IFilesConfigurationService } from '../../../filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../lifecycle/common/lifecycle.js';
-import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
-import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
 import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, NAMED_LAYOUTS_ENABLED_SETTING } from '../../common/namedLayouts.js';
 import { NamedLayoutsService } from '../../common/namedLayoutsService.js';
 
 const LAYOUT_SETTING = 'namedLayoutsTest.setting';
-const PROFILE_LOCATION = URI.file('/User').with({ scheme: 'vscode-tests' });
+const LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts';
 
 /**
  * Reads the settings of the active named layout from its settings file, like the configuration service.
@@ -47,9 +44,10 @@ class TestLayoutConfigurationService extends TestConfigurationService {
 	readonly onDidChangeLayoutSettings = Event.None;
 	private layoutConfiguration: IStringDictionary<unknown> = {};
 
-	constructor(configuration: Record<string, unknown>, private readonly fileService: IFileService) {
-		super(configuration);
-	}
+	/**
+	 * The file service of the window that was opened last.
+	 */
+	fileService: IFileService | undefined;
 
 	override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
 		if (typeof arg1 === 'string' && Object.hasOwn(this.layoutConfiguration, arg1)) {
@@ -63,9 +61,9 @@ class TestLayoutConfigurationService extends TestConfigurationService {
 	}
 
 	override async reloadConfiguration<T>(target?: ConfigurationTarget): Promise<T> {
-		if (target === ConfigurationTarget.LAYOUT && this.layoutSettings) {
+		if (target === ConfigurationTarget.LAYOUT && this.layoutSettings && this.fileService) {
 			try {
-				this.layoutConfiguration = JSON.parse((await this.fileService.readFile(this.layoutSettings.resource)).value.toString());
+				this.layoutConfiguration = parse((await this.fileService.readFile(this.layoutSettings.resource)).value.toString());
 			} catch {
 				this.layoutConfiguration = {};
 			}
@@ -88,7 +86,7 @@ class TestLayoutConfigurationService extends TestConfigurationService {
 	 * Changes the settings file of the active named layout, like the Settings editor.
 	 */
 	async writeLayoutSettings(settings: IStringDictionary<unknown>): Promise<void> {
-		await this.fileService.writeFile(this.layoutSettings!.resource, VSBuffer.fromString(JSON.stringify(settings)));
+		await this.fileService!.writeFile(this.layoutSettings!.resource, VSBuffer.fromString(JSON.stringify(settings)));
 		await this.reloadConfiguration(ConfigurationTarget.LAYOUT);
 	}
 }
@@ -175,13 +173,10 @@ suite('NamedLayoutsService', () => {
 	suiteTeardown(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([configurationNode]));
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(PROFILE_LOCATION.scheme, disposables.add(new InMemoryFileSystemProvider())));
-		configurationService = new TestLayoutConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true, [LAYOUT_SETTING]: 'userValue' }, fileService);
+		configurationService = new TestLayoutConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true, [LAYOUT_SETTING]: 'userValue' });
 		storageService = disposables.add(new TestStorageService());
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IFileService, fileService);
 		readonlyFiles = new ResourceMap<string>();
 		instantiationService.stub(IFilesConfigurationService, new class extends mock<IFilesConfigurationService>() {
 			override async updateReadonly(resources: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
@@ -194,16 +189,26 @@ suite('NamedLayoutsService', () => {
 				}
 			}
 		}());
-		instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(toUserDataProfile('default', 'Default', PROFILE_LOCATION, joinPath(PROFILE_LOCATION, 'cache')))));
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 		instantiationService.stub(ILogService, new NullLogService());
 	});
 
+	/**
+	 * Creates the service of a window. Every window has its own file service, which the
+	 * configuration service and the tests use after the window is opened.
+	 */
 	function createService(participant: INamedLayoutParticipant): NamedLayoutsService {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		configurationService.fileService = fileService;
+		instantiationService.stub(IFileService, fileService);
 		const service = disposables.add(instantiationService.createInstance(NamedLayoutsService));
 		disposables.add(service.registerParticipant(participant));
 		return service;
+	}
+
+	async function readFile(resource: URI): Promise<string> {
+		return (await fileService.readFile(resource)).value.toString();
 	}
 
 	test('switching layouts saves the outgoing layout and applies the incoming one', async () => {
@@ -274,15 +279,16 @@ suite('NamedLayoutsService', () => {
 		assert.deepStrictEqual({ userValue, describesDefaultValue }, { userValue: 'userValue', describesDefaultValue: false });
 	});
 
-	test('a new layout copies the settings of the active layout into its settings file in the profile, which is deleted with the layout', async () => {
+	test('a new layout copies the settings file of the active layout, which is deleted with the layout', async () => {
 		const testObject = createService(new TestParticipant());
 		await testObject.createLayout('Debug');
-		const newLayoutSettings = configurationService.getLayoutConfiguration();
-		await configurationService.writeLayoutSettings({ [LAYOUT_SETTING]: 'debugValue' });
+		const newLayoutSettings = await readFile(configurationService.layoutSettings!.resource);
+		const content = `{\n\t// Debugging\n\t"${LAYOUT_SETTING}": "debugValue"\n}`;
+		await fileService.writeFile(configurationService.layoutSettings!.resource, VSBuffer.fromString(content));
 
 		const copy = await testObject.createLayout('Copy');
 		const copySettingsFile = configurationService.layoutSettings!.resource;
-		const copySettings = JSON.parse((await fileService.readFile(copySettingsFile)).value.toString());
+		const copySettings = await readFile(copySettingsFile);
 		await testObject.deleteLayout(copy);
 
 		assert.deepStrictEqual({
@@ -292,31 +298,51 @@ suite('NamedLayoutsService', () => {
 			copySettingsFileExists: await fileService.exists(copySettingsFile),
 			activeLayoutSettings: configurationService.layoutSettings
 		}, {
-			newLayoutSettings: {},
-			copySettingsFile: joinPath(PROFILE_LOCATION, 'layouts', copy.id, 'settings.json').toString(),
-			copySettings: { [LAYOUT_SETTING]: 'debugValue' },
+			newLayoutSettings: '{}',
+			copySettingsFile: `vscode-layout-settings:/${copy.id}/settings.json`,
+			copySettings: content,
 			copySettingsFileExists: false,
 			activeLayoutSettings: undefined
 		});
 	});
 
-	test('a layout stored before layouts had settings files gets one with its stored settings, an existing settings file is kept', async () => {
-		storageService.store('workbench.namedLayouts', JSON.stringify([
-			{ id: 'old', name: 'Old', settings: { [LAYOUT_SETTING]: 'storedValue' }, state: {} },
-			{ id: 'kept', name: 'Kept', settings: { [LAYOUT_SETTING]: 'storedValue' }, state: {} }
-		]), StorageScope.PROFILE, StorageTarget.USER);
-		await fileService.writeFile(joinPath(PROFILE_LOCATION, 'layouts', 'kept', 'settings.json'), VSBuffer.fromString(JSON.stringify({ [LAYOUT_SETTING]: 'fileValue' })));
+	test('the settings file of a layout shows the content stored with the layout, also when another window changes it', async () => {
 		const testObject = createService(new TestParticipant());
-		const getLayout = (name: string) => testObject.layouts.find(layout => layout.name === name)!;
+		await testObject.createLayout('Debug');
+		const settingsFile = configurationService.layoutSettings!.resource;
+		const content = `{\n\t// Debugging\n\t"${LAYOUT_SETTING}": "debugValue"\n}`;
+		await fileService.writeFile(settingsFile, VSBuffer.fromString(content));
+		await configurationService.reloadConfiguration(ConfigurationTarget.LAYOUT);
+		const storedLayouts = JSON.parse(storageService.get(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE)!);
+		const afterWrite = { stored: storedLayouts[0].settings, setting: configurationService.getValue(LAYOUT_SETTING) };
+		const modificationTime = (await fileService.stat(settingsFile)).mtime;
 
-		await testObject.switchLayout(getLayout('Old'));
-		const old = { setting: configurationService.getValue(LAYOUT_SETTING), file: JSON.parse((await fileService.readFile(joinPath(PROFILE_LOCATION, 'layouts', 'old', 'settings.json'))).value.toString()) };
-		await testObject.switchLayout(getLayout('Kept'));
-		const kept = configurationService.getValue(LAYOUT_SETTING);
+		// Another window changes the settings of the layout
+		let updates = 0;
+		disposables.add(fileService.onDidFilesChange(e => {
+			if (e.contains(settingsFile, FileChangeType.UPDATED)) {
+				updates++;
+			}
+		}));
+		storageService.store(LAYOUTS_STORAGE_KEY, JSON.stringify([{ ...storedLayouts[0], settings: `{ "${LAYOUT_SETTING}": "otherValue" }` }]), StorageScope.PROFILE, StorageTarget.USER);
+		await configurationService.reloadConfiguration(ConfigurationTarget.LAYOUT);
+		const afterChange = { updates, setting: configurationService.getValue(LAYOUT_SETTING), modified: (await fileService.stat(settingsFile)).mtime !== modificationTime };
 
-		assert.deepStrictEqual({ old, kept }, {
-			old: { setting: 'storedValue', file: { [LAYOUT_SETTING]: 'storedValue' } },
-			kept: 'fileValue'
+		assert.deepStrictEqual({ afterWrite, afterChange }, {
+			afterWrite: { stored: content, setting: 'debugValue' },
+			afterChange: { updates: 1, setting: 'otherValue', modified: true }
+		});
+	});
+
+	test('a layout stored before the content of its settings file was stored gets it from its stored settings', async () => {
+		storageService.store(LAYOUTS_STORAGE_KEY, JSON.stringify([{ id: 'old', name: 'Old', settings: { [LAYOUT_SETTING]: 'storedValue' }, state: {} }]), StorageScope.PROFILE, StorageTarget.USER);
+		const testObject = createService(new TestParticipant());
+
+		await testObject.switchLayout(testObject.layouts.find(layout => layout.name === 'Old')!);
+
+		assert.deepStrictEqual({ setting: configurationService.getValue(LAYOUT_SETTING), file: parse(await readFile(configurationService.layoutSettings!.resource)) }, {
+			setting: 'storedValue',
+			file: { [LAYOUT_SETTING]: 'storedValue' }
 		});
 	});
 
@@ -337,23 +363,17 @@ suite('NamedLayoutsService', () => {
 		]);
 	});
 
-	test('restores the settings of the active named layout, the last known settings until its settings file is read', async () => {
+	test('restores the settings of the active named layout', async () => {
 		const first = createService(new TestParticipant());
 		await first.createLayout('Debug');
 		await configurationService.writeLayoutSettings({ [LAYOUT_SETTING]: 'debugValue' });
 		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		// Simulate a new window of the same workspace, the settings file changed meanwhile
-		await fileService.writeFile(configurationService.layoutSettings!.resource, VSBuffer.fromString(JSON.stringify({ [LAYOUT_SETTING]: 'changedValue' })));
+		// Simulate a new window of the same workspace
 		configurationService.setLayoutSettings(undefined);
 		const second = createService(new TestParticipant());
-		const beforeRead = { active: second.activeLayout.name, setting: configurationService.getValue(LAYOUT_SETTING) };
-		await second.switchLayout(second.activeLayout); // queued after reading the settings file
 
-		assert.deepStrictEqual({ beforeRead, afterRead: configurationService.getValue(LAYOUT_SETTING) }, {
-			beforeRead: { active: 'Debug', setting: 'debugValue' },
-			afterRead: 'changedValue'
-		});
+		assert.deepStrictEqual({ active: second.activeLayout.name, setting: configurationService.getValue(LAYOUT_SETTING) }, { active: 'Debug', setting: 'debugValue' });
 	});
 
 	test('restores the default layout when another window deletes the active layout', async () => {
@@ -457,35 +477,48 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('resetting a contributed layout that is not active writes the settings of its definition to its settings file, which other windows use', async () => {
+	test('resetting a contributed layout that is not active changes its settings file back to the settings of its definition', async () => {
 		const testObject = createService(new TestParticipant());
 		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' } } }]);
 		const layout = testObject.layouts.find(candidate => candidate.contribution)!;
 		await testObject.switchLayout(layout);
 		await configurationService.writeLayoutSettings({ [LAYOUT_SETTING]: 'changedValue' });
 		const settingsFile = configurationService.layoutSettings!.resource;
-
 		await testObject.switchLayout(testObject.layouts[0]);
+		const beforeReset = parse(await readFile(settingsFile));
+
+		// Other windows that use the layout are notified
+		let updates = 0;
+		disposables.add(fileService.onDidFilesChange(e => {
+			if (e.contains(settingsFile, FileChangeType.UPDATED)) {
+				updates++;
+			}
+		}));
 		await testObject.resetLayout(layout);
 
-		assert.deepStrictEqual(JSON.parse((await fileService.readFile(settingsFile)).value.toString()), { [LAYOUT_SETTING]: 'contributedValue' });
+		assert.deepStrictEqual({ beforeReset, afterReset: parse(await readFile(settingsFile)), updates }, {
+			beforeReset: { [LAYOUT_SETTING]: 'changedValue' },
+			afterReset: { [LAYOUT_SETTING]: 'contributedValue' },
+			updates: 1
+		});
 	});
 
-	test('layouts with different identifiers have different settings files, also on file systems that ignore case', async () => {
+	test('layouts with different identifiers have different settings files', async () => {
 		const testObject = createService(new TestParticipant());
 		const ids = ['focus/one', 'focus_one', 'Focus_one'];
 		testObject.setContributedLayouts(ids.map(id => ({ extensionId: 'publisher.extension', extensionName: 'Extension', id, label: id, definition: { settings: { [LAYOUT_SETTING]: id } } })));
-		const settings: { folder: string | undefined; setting: unknown }[] = [];
+		const settings: { path: string; setting: unknown }[] = [];
 		for (const id of [...ids, ids[0]]) {
 			await testObject.switchLayout(testObject.layouts.find(layout => layout.contribution?.id === id)!);
-			settings.push({ folder: configurationService.layoutSettings!.resource.path.split('/').at(-2), setting: configurationService.getValue(LAYOUT_SETTING) });
+			const { resource } = configurationService.layoutSettings!;
+			settings.push({ path: resource.path, setting: parse(await readFile(resource))[LAYOUT_SETTING] });
 		}
 
 		assert.deepStrictEqual(settings, [
-			{ folder: 'publisher.extension_002ffocus_002fone', setting: 'focus/one' },
-			{ folder: 'publisher.extension_002ffocus_005fone', setting: 'focus_one' },
-			{ folder: 'publisher.extension_002f_0046ocus_005fone', setting: 'Focus_one' },
-			{ folder: 'publisher.extension_002ffocus_002fone', setting: 'focus/one' }
+			{ path: '/publisher.extension/focus/one/settings.json', setting: 'focus/one' },
+			{ path: '/publisher.extension/focus_one/settings.json', setting: 'focus_one' },
+			{ path: '/publisher.extension/Focus_one/settings.json', setting: 'Focus_one' },
+			{ path: '/publisher.extension/focus/one/settings.json', setting: 'focus/one' }
 		]);
 	});
 
@@ -528,17 +561,19 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('editors show the settings file of a locked layout read-only', async () => {
+	test('editors show the settings file of a locked layout read-only, it cannot be changed', async () => {
 		const testObject = createService(new TestParticipant());
 		const layout = await testObject.createLayout('Debug');
 		const settingsFile = configurationService.layoutSettings!.resource;
 
 		await testObject.setLayoutLocked(layout, true);
 		const locked = readonlyFiles.get(settingsFile);
+		const writeError = await fileService.writeFile(settingsFile, VSBuffer.fromString('{}')).then(() => undefined, error => error.message);
 		await testObject.setLayoutLocked(testObject.activeLayout, false);
 
-		assert.deepStrictEqual({ locked, unlocked: readonlyFiles.has(settingsFile) }, {
+		assert.deepStrictEqual({ locked, writeError, unlocked: readonlyFiles.has(settingsFile) }, {
 			locked: `The layout 'Debug' is locked. Unlock the layout to change its settings.`,
+			writeError: `Unable to write file '${settingsFile.toString()}' (NoPermissions (FileSystemError): The layout 'Debug' is locked. Unlock the layout to change its settings.)`,
 			unlocked: false
 		});
 	});
