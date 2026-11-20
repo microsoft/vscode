@@ -163,7 +163,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			const pageId = output.match(/Page ID:\s*(\S+)/)?.[1];
 			assert.ok(pageId, output);
 			const enterFrame = ' >> internal:control=enter-frame >> ';
-			await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+			// Keep native input visible; the queue/listener tests above cover pages without a visible host.
 			const answerDialog = async (action: string, promptText?: string): Promise<string> => {
 				const handled = await invokeTool('handle_dialog', { pageId, acceptModal: true, promptText });
 				assert.ok(!handled.includes('No active modal dialog') && !handled.includes('Timeout'), handled);
