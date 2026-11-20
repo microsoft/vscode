@@ -7120,9 +7120,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.chatRowHeightReconcile.value = autorun(reader => {
 			for (const session of quickChats) {
-				const tree = this.getTree(session);
-				if (tree.hasElement(session)) {
-					tree.updateElementHeight(session, this._delegate.getHeight(session, reader));
+				if (this.tree.hasElement(session)) {
+					this.tree.updateElementHeight(session, this._delegate.getHeight(session, reader));
 				}
 			}
 			for (const chatItem of chatItems) {
