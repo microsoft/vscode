@@ -19,10 +19,31 @@ export interface Shard {
  * only to balance the shards. Stale entries make shards uneven but never skip
  * a suite. Unlisted suites count as about one app launch.
  */
-const suiteDurations = new Map<string, number>([
-	['Terminal', process.platform === 'linux' ? 10 : 135],
+const suiteDurations = process.platform === 'linux' ? new Map<string, number>([
+	// Medians of 30 clean Linux runs of the pull request workflow, November 2026.
+	['Data Loss (insiders -> insiders)', 105],
+	['Data Loss (stable -> insiders)', 0], // skips itself without a stable build
+	['Agents Window (Dev Container AgentHost)', 70],
+	['Agents Window (SSH Dev Container AgentHost)', 60],
+	['Agents Window (Codex)', 40],
+	['Integrated Browser', 40],
+	['Chat Sandbox (linux)', 35],
+	['Agents Window (local AgentHost)', 30],
+	['Extension Host Restart', 30],
+	['Agents Window (local AgentHost, SDK sandbox)', 25],
+	['Chat Model Configuration', 25],
+	['Chat Sessions', 20],
+	['Chat Sessions (Agent Host)', 20],
+	['Task', 20],
+	['Language Features', 15],
+	['Preferences', 15],
+	['Settings editor', 15],
+	['Statusbar', 15],
+	['Terminal', 10],
+]) : new Map<string, number>([
+	['Terminal', 135],
 	['Data Loss (insiders -> insiders)', 100],
-	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 70 : 15], // skips itself without Docker
+	['Agents Window (Dev Container AgentHost)', 15], // skips itself without Docker
 	['Agents Window (SSH Dev Container AgentHost)', 50],
 	['Agents Window (Codex)', 45],
 	['Integrated Browser', 40],
@@ -33,7 +54,8 @@ const suiteDurations = new Map<string, number>([
 	['Chat Sessions', 25],
 	['Task', 25],
 ]);
-const defaultSuiteDuration = 20;
+// The unlisted Linux suites take 8 to 12 seconds each.
+const defaultSuiteDuration = process.platform === 'linux' ? 10 : 20;
 
 // Coupled to the PR workflows: pr-darwin-test.yml runs the PAC, Kerberos and Basic proxy suites after the last shard.
 // The WSL Dev Container suite runs in its own job instead of a shard (see pr-win32-test.yml).
