@@ -37,7 +37,7 @@ import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreatio
 import { areDevContainerEnvironmentsEnabled, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { isActiveSessionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, getCopyableRemoteAddress, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
+import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmRemoteHostServerUpdate, confirmTunnelDeletion, disconnectSSHEntry, getCopyableRemoteAddress, getRemoteHostUpgradeMethod, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'extension', 'devContainer'] as const;
@@ -117,6 +117,8 @@ export interface ICustomizationRemote {
 	readonly canCreateDevContainer?: boolean;
 	/** Whether this remote connects and disconnects with its host, so it has no connect action of its own. */
 	readonly connectsWithHost?: boolean;
+	/** Whether this remote's server can be updated from here, either to connect again or to a newer version while connected. */
+	readonly canUpdateServer?: boolean;
 }
 
 export function canConnectToRemote(remote: ICustomizationRemote): boolean {
@@ -566,10 +568,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
 		const status = provider.connectionStatus?.get() ?? remote.connectionStatus;
-		if (!RemoteAgentHostConnectionStatus.isIncompatible(status) || !status.vscodeUpgradeMethod) {
+		const upgradeMethod = getRemoteHostUpgradeMethod(status, this.remoteAgentHostService.getConnection(id));
+		if (!upgradeMethod) {
 			throw new Error(localize('remotes.updateUnavailable', "This remote does not support updating its server."));
 		}
-		await upgradeRemoteHost(provider, status.vscodeUpgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService);
+		if (await confirmRemoteHostServerUpdate(this.dialogService, remote.name, status)) {
+			await upgradeRemoteHost(provider, upgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService);
+		}
 	}
 
 	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
@@ -1276,6 +1281,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					...(shares.has(id) ? { gitHubEnvironment: shares.get(id) } : {}),
 				} : {}),
 				connectionStatus,
+				...(getRemoteHostUpgradeMethod(connectionStatus, this.remoteAgentHostService.getConnection(id), reader) ? { canUpdateServer: true } : {}),
 				...(lastConnectionError ? { lastConnectionError } : {}),
 			});
 		}

@@ -8,9 +8,11 @@ import { isWeb } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import Severity from '../../../../../../base/common/severity.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { readAgentHostUpgradeMethod } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -166,9 +168,12 @@ export async function upgradeRemoteHost(
 					const watchStore = new DisposableStore();
 					let reconnectAlreadyInFlight = false;
 					if (provider.connectionStatus) {
+						// A connected host stays connected until its server restarts, so only a later connection counts.
+						let leftConnection = !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get());
 						watchStore.add(autorun(reader => {
 							const next = provider.connectionStatus!.read(reader);
-							if (hasUpgradeReconnectStarted(next)) {
+							leftConnection ||= !RemoteAgentHostConnectionStatus.isConnected(next);
+							if (leftConnection && hasUpgradeReconnectStarted(next)) {
 								reconnectAlreadyInFlight = true;
 							}
 						}));
@@ -220,7 +225,41 @@ export async function upgradeRemoteHost(
 }
 
 export async function runServerUpgrade(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider, upgradeMethod: string): Promise<void> {
-	await upgradeRemoteHost(provider, upgradeMethod, accessor.get(IRemoteAgentHostService), accessor.get(INotificationService), accessor.get(IProgressService));
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const notificationService = accessor.get(INotificationService);
+	const progressService = accessor.get(IProgressService);
+	if (await confirmRemoteHostServerUpdate(accessor.get(IDialogService), provider.label, provider.connectionStatus?.get())) {
+		await upgradeRemoteHost(provider, upgradeMethod, remoteAgentHostService, notificationService, progressService);
+	}
+}
+
+/**
+ * The method that asks a host's managing VS Code CLI to update its server. A host that rejected
+ * this client's protocol version advertises it in the rejection, a connected host in its
+ * `initialize` result. `undefined` when the server can't be updated from here.
+ */
+export function getRemoteHostUpgradeMethod(status: RemoteAgentHostConnectionStatus | undefined, connection: Pick<IAgentConnection, 'initializeResult'> | undefined, reader?: IReader): string | undefined {
+	if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+		return status.vscodeUpgradeMethod;
+	}
+	return RemoteAgentHostConnectionStatus.isConnected(status) ? readAgentHostUpgradeMethod(connection?.initializeResult.read(reader)) : undefined;
+}
+
+/**
+ * Asks before updating a host's server, because the update restarts it. A host that rejected
+ * this client's protocol version runs nothing for this client to interrupt. Any other host may
+ * be serving sessions, including one that is reconnecting: the request waits for the connection.
+ */
+export async function confirmRemoteHostServerUpdate(dialogService: IDialogService, label: string, status: RemoteAgentHostConnectionStatus | undefined): Promise<boolean> {
+	if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+		return true;
+	}
+	const { confirmed } = await dialogService.confirm({
+		message: localize('remoteHostUpdateConnected', "Update the server on '{0}'?", label),
+		detail: localize('remoteHostUpdateConnectedDetail', "If a newer version is available, the server restarts, which interrupts sessions running on it, and then reconnects."),
+		primaryButton: localize({ key: 'remoteHostUpdateConnectedButton', comment: ['&& denotes a mnemonic'] }, "&&Update Server"),
+	});
+	return confirmed;
 }
 
 /**
@@ -570,7 +609,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 
 	const status = provider.connectionStatus?.get();
 	const isConnected = RemoteAgentHostConnectionStatus.isConnected(status);
-	const upgradeMethod = RemoteAgentHostConnectionStatus.isIncompatible(status) ? status.vscodeUpgradeMethod : undefined;
+	const upgradeMethod = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(address));
 	// Distinct from `address` for SSH hosts, whose live address is a
 	// forwarded local endpoint - falls back to `address` for hosts with no
 	// separate stable identity (tunnels, WSL, cloud sandbox).

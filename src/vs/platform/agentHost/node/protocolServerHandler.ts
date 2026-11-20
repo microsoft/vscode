@@ -80,6 +80,7 @@ import { ChatHistoryView } from './chatHistoryView.js';
 import { DEFAULT_MAX_REASSEMBLY_BYTES } from '../common/webPubSub/chunking.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
+import { AgentHostUpgradeMethodCapabilityMetaKey } from '../common/meta/agentHostUpgradeMeta.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
 	AHP_AUTH_REQUIRED,
@@ -956,10 +957,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return;
 				}
 
-				// The VS Code upgrade request rides on the same transport but
-				// is callable pre-`initialize`: by definition we get here when
-				// the client's protocol version was rejected, so the client
-				// never managed to complete the handshake.
+				// The VS Code upgrade request rides on the same transport and is
+				// callable before `initialize`, because a client whose protocol
+				// version was rejected never completes the handshake. Connected
+				// clients may send it too.
 				if ((msg.method as string) === VSCODE_UPGRADE_METHOD) {
 					if (transport.relayClientId !== undefined) {
 						transport.send(jsonRpcError(msg.id, JsonRpcErrorCodes.MethodNotFound, 'Host management is unavailable to relay clients'));
@@ -1255,6 +1256,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...(this._agentService.refreshSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateRefreshCapability]: true } : {}),
 						...this._getGitHubEnvironmentMeta(transport),
+						// Relay clients can't request an upgrade, see the request handler.
+						...(getAgentHostManagementSocketPath() && transport.relayClientId === undefined && !transport.relayPassive
+							? { [AgentHostUpgradeMethodCapabilityMetaKey]: VSCODE_UPGRADE_METHOD } : {}),
 						...transport.relayHandshakeMeta,
 					}),
 					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),
