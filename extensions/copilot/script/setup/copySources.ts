@@ -192,6 +192,9 @@ async function doIt(filepaths: string[]) {
 
 			'vs/base/common/sseParser.ts',
 
+			// Shared with the agent host, which routes Custom Endpoint BYOK models directly.
+			'vs/platform/agentHost/common/customEndpointUrl.ts',
+
 			// SPECIAL IMPLICIT DEPENDENCIES
 			'typings/vscode-globals-nls.d.ts',
 			'typings/vscode-globals-product.d.ts',

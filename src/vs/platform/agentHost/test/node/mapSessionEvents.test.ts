@@ -12,6 +12,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, FileEditKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getDirectByokProviderName } from '../../node/copilot/copilotByokModelIds.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -2318,6 +2319,26 @@ suite('mapSessionEvents — history replay', () => {
 			{ id: 'opus-5' },
 			{ id: 'opus-5' },
 			{ id: 'gpt-5' },
+		]);
+	});
+
+	test('restores a directly called BYOK model under its agent model id', async () => {
+		const direct = getDirectByokProviderName('customendpoint', 'Work/gpt-x');
+		const events: ISessionEvent[] = [
+			{ type: 'session.start', data: { selectedModel: `${direct}/Work/gpt-x` } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'session.model_change', data: { newModel: 'customendpoint/Work/llama' } },
+			{ type: 'user.message', data: { interactionId: 'm2', content: 'bridged' } },
+			{ type: 'session.model_change', data: { newModel: `${direct}/Work/gpt-x` } },
+			{ type: 'user.message', data: { interactionId: 'm3', content: 'direct again' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(t => t.message.model), [
+			{ id: 'customendpoint/Work/gpt-x' },
+			{ id: 'customendpoint/Work/llama' },
+			{ id: 'customendpoint/Work/gpt-x' },
 		]);
 	});
 

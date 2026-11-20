@@ -743,6 +743,14 @@ export interface ILanguageModelsService {
 
 	updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void>;
 
+	/**
+	 * Returns the API key stored for a provider group, for in-product code that
+	 * calls the provider's endpoint itself, such as the local agent host. It
+	 * reads only secrets this service stored for the group, and is not exposed
+	 * to extensions.
+	 */
+	resolveLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<string | undefined>;
+
 	addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void>;
 
 	openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void>;
@@ -1228,9 +1236,24 @@ interface IQueuedModelResolution {
 	readonly promise: Promise<void>;
 }
 
+const LANGUAGE_MODEL_SECRET_KEY_PREFIX = 'chat.lm.secret.';
+
+/**
+ * The secret storage key a provider group setting refers to, when the value is
+ * a reference (`${input:chat.lm.secret.…}`) to a secret {@link LanguageModelsService}
+ * stored. Any other value, including one that holds a key literally, gives `undefined`.
+ */
+export function getLanguageModelSecretStorageKey(value: unknown): string | undefined {
+	if (!isString(value) || !value.startsWith('${input:') || !value.endsWith('}')) {
+		return undefined;
+	}
+	const secretKey = value.slice('${input:'.length, -1);
+	return secretKey.startsWith(LANGUAGE_MODEL_SECRET_KEY_PREFIX) && secretKey.length > LANGUAGE_MODEL_SECRET_KEY_PREFIX.length ? secretKey : undefined;
+}
+
 export class LanguageModelsService implements ILanguageModelsService {
 
-	private static SECRET_KEY_PREFIX = 'chat.lm.secret.';
+	private static SECRET_KEY_PREFIX = LANGUAGE_MODEL_SECRET_KEY_PREFIX;
 	private static SECRET_INPUT = '${input:{0}}';
 
 	readonly _serviceBrand: undefined;
@@ -2053,6 +2076,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 			throw error;
 		}
+	}
+
+	async resolveLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<string | undefined> {
+		const schema = this._vendors.get(vendorId)?.configuration as IJSONSchema | undefined;
+		if (!schema?.properties?.apiKey?.secret) {
+			return undefined;
+		}
+		const group = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().find(group => group.vendor === vendorId && group.name === providerGroupName);
+		const secretKey = getLanguageModelSecretStorageKey(group?.apiKey);
+		return secretKey ? this._secretStorageService.get(secretKey) : undefined;
 	}
 
 	async addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void> {

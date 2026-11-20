@@ -240,6 +240,14 @@ export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.en
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
 /**
+ * Configuration key controlling whether the local agent host calls Custom
+ * Endpoint BYOK models' endpoints directly with the provider group's API key,
+ * instead of sending each request back through the window. Read in the window,
+ * which decides which models route directly and serves their keys.
+ */
+export const AgentHostByokCustomEndpointDirectSettingId = 'chat.agentHost.byokModels.customEndpointDirect.enabled';
+
+/**
  * Optional override that points at an **SDK root directory** containing a
  * `node_modules/@anthropic-ai/claude-agent-sdk` subtree. When set, the agent
  * host loads the Claude SDK from that path instead of the bare import (which

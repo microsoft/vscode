@@ -15,6 +15,7 @@ import {
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostSessionModelOptionsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
+	AgentHostByokCustomEndpointDirectSettingId,
 	AgentHostGitCoalesceReadsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
@@ -430,6 +431,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
+		},
+		[AgentHostByokCustomEndpointDirectSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.byokModels.customEndpointDirect.enabled', "When enabled, local agent-host sessions call Custom Endpoint BYOK models directly with the provider group's API key, instead of sending each request through VS Code. Models whose settings cannot be applied this way, such as custom request headers, keep the current behavior. Requires `#{0}#`.", AgentHostByokModelsEnabledSettingId),
+			default: false,
+			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',

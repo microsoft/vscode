@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { hash } from '../../../../../../base/common/hash.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import {
@@ -14,6 +15,8 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
+	IByokLmCredential,
+	IByokLmCredentialRequest,
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
@@ -21,18 +24,24 @@ import {
 	IByokLmStreamDelta,
 	IByokLmStreamDeltaBody,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { AgentHostByokCustomEndpointDirectSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CUSTOM_ENDPOINT_BYOK_VENDOR, findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	ChatImageMimeType,
 	ChatMessageRole,
+	getLanguageModelSecretStorageKey,
 	getModelContextWindowTotal,
 	IChatMessage,
 	IChatMessagePart,
+	ILanguageModelChatMetadata,
 	ILanguageModelChatRequestOptions,
 	ILanguageModelsService,
 } from '../../../common/languageModels.js';
+import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
@@ -70,6 +79,8 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		@ILogService private readonly _logService: ILogService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
@@ -82,6 +93,14 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			this._onDidChangeModels.fire();
 		}));
 		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
+			this._onDidChangeModels.fire();
+		}));
+		// Direct models carry their endpoint and key version, which change with the
+		// provider group settings even when the group's models stay the same.
+		this._register(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(() => {
+			this._onDidChangeModels.fire();
+		}));
+		this._register(Event.filter(this._configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(AgentHostByokCustomEndpointDirectSettingId))(() => {
 			this._onDidChangeModels.fire();
 		}));
 	}
@@ -180,6 +199,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			return [];
 		}
 
+		const directGroups = this._isCustomEndpointDirectEnabled() ? this._customEndpointGroupsByModel() : undefined;
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
@@ -189,6 +209,8 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
 				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
 				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;
+				const group = directGroups?.get(identifier);
+				const direct = group && this._resolveDirectModel(identifier, metadata, group);
 				const model: IByokLmModelInfo = {
 					vendor: metadata.vendor,
 					id: metadata.id,
@@ -197,7 +219,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					maxContextWindowTokens: getModelContextWindowTotal(metadata),
 					maxPromptTokens: metadata.maxInputTokens,
 					maxOutputTokens: metadata.maxOutputTokens,
-					supportsVision: !!metadata.capabilities?.vision,
+					...(direct ?? { supportsVision: !!metadata.capabilities?.vision }),
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
 				};
@@ -208,6 +230,71 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			}
 		}
 		return models;
+	}
+
+	async resolveCredential(request: IByokLmCredentialRequest, _token: CancellationToken): Promise<IByokLmCredential | undefined> {
+		if (!this._chatEntitlementService.clientByokEnabled || !this._isCustomEndpointDirectEnabled() || request.vendor !== CUSTOM_ENDPOINT_BYOK_VENDOR) {
+			return undefined;
+		}
+		const apiKey = await this._languageModelsService.resolveLanguageModelsProviderGroupApiKey(request.vendor, request.group);
+		return apiKey ? { apiKey } : {};
+	}
+
+	private _isCustomEndpointDirectEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(AgentHostByokCustomEndpointDirectSettingId) === true;
+	}
+
+	/**
+	 * The current settings of each Custom Endpoint model's provider group, by model
+	 * identifier. Read from the configuration file rather than the resolved groups,
+	 * which miss changes that leave the group's models the same, such as a new key.
+	 */
+	private _customEndpointGroupsByModel(): Map<string, ILanguageModelsProviderGroup> {
+		const configuredGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		const groups = new Map<string, ILanguageModelsProviderGroup>();
+		for (const { group, modelIdentifiers } of this._languageModelsService.getLanguageModelGroups(CUSTOM_ENDPOINT_BYOK_VENDOR)) {
+			const configured = group && configuredGroups.find(candidate => candidate.vendor === CUSTOM_ENDPOINT_BYOK_VENDOR && candidate.name === group.name);
+			if (configured) {
+				for (const identifier of modelIdentifiers) {
+					groups.set(identifier, configured);
+				}
+			}
+		}
+		return groups;
+	}
+
+	/**
+	 * The endpoint the agent host's runtime calls a Custom Endpoint model at, with
+	 * the capabilities it declares, when the runtime can send the same requests as
+	 * the extension. The API key stays out of the model list; the agent host
+	 * fetches it with {@link resolveCredential}.
+	 */
+	private _resolveDirectModel(identifier: string, metadata: ILanguageModelChatMetadata, group: ILanguageModelsProviderGroup): Pick<IByokLmModelInfo, 'supportsVision' | 'supportsToolCalls' | 'direct'> | undefined {
+		const settings = findCustomEndpointModelSettings(group, metadata.id);
+		if (!settings) {
+			return undefined;
+		}
+		// A key written into the settings file is not read from secret storage, so it is never forwarded.
+		const secretKey = getLanguageModelSecretStorageKey(group.apiKey);
+		if (group.apiKey !== undefined && !secretKey) {
+			this._logService.trace(`[AgentHostByokLmHandler] ${identifier} keeps using the bridge: its API key is not stored securely`);
+			return undefined;
+		}
+		const resolution = resolveCustomEndpointRuntimeEndpoint(settings);
+		if (!resolution.endpoint) {
+			this._logService.trace(`[AgentHostByokLmHandler] ${identifier} keeps using the bridge: ${resolution.bridgeReason}`);
+			return undefined;
+		}
+		return {
+			// Unknown capabilities stay unknown so the runtime applies its own defaults.
+			...(typeof settings.vision === 'boolean' ? { supportsVision: settings.vision } : {}),
+			...(typeof settings.toolCalling === 'boolean' ? { supportsToolCalls: settings.toolCalling } : {}),
+			direct: {
+				...resolution.endpoint,
+				group: group.name,
+				...(secretKey ? { credentialVersion: hash(secretKey).toString(16) } : {}),
+			},
+		};
 	}
 
 	/**
