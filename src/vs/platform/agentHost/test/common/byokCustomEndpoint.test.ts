@@ -28,9 +28,12 @@ suite('resolveCustomEndpointRuntimeEndpoint', () => {
 			apimWithBearerHeader: { url: 'https://apim.azure-api.net/v1/chat/completions', requestHeaders: { Authorization: 'Bearer ${apiKey}' } },
 			messagesWithApiKeyHeader: { url: 'https://api.anthropic.example.test/v1/messages', requestHeaders: { 'X-Api-Key': '${apiKey}' } },
 			emptyHeaders: { url: 'https://api.example.test/v1/chat/completions', requestHeaders: {} },
+			emptyModelOptions: { url: 'https://api.example.test/v1/chat/completions', modelOptions: {} },
 			// Each of these would send a different request through the runtime, so it keeps using the bridge.
 			unknownApiType: { url: 'https://api.example.test/v1', apiType: 'completions' },
 			streamingOff: { url: 'https://api.example.test/v1', streaming: false },
+			modelOptions: { url: 'https://api.example.test/v1', modelOptions: { temperature: 0.2 } },
+			modelOptionsOmittingParameter: { url: 'https://api.example.test/v1', modelOptions: { top_p: null } },
 			extraHeader: { url: 'https://api.example.test/v1', requestHeaders: { 'X-Org': 'acme' } },
 			literalKeyHeader: { url: 'https://api.example.test/v1', requestHeaders: { Authorization: 'Bearer sk-literal' } },
 			apiKeyHeaderWithOthers: { url: 'https://api.example.test/v1', requestHeaders: { 'api-key': '${apiKey}', 'X-Org': 'acme' } },
@@ -61,8 +64,11 @@ suite('resolveCustomEndpointRuntimeEndpoint', () => {
 			apimWithBearerHeader: { endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://apim.azure-api.net/v1' } },
 			messagesWithApiKeyHeader: { endpoint: { type: 'anthropic', baseUrl: 'https://api.anthropic.example.test' } },
 			emptyHeaders: { endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.example.test/v1' } },
+			emptyModelOptions: { endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.example.test/v1' } },
 			unknownApiType: { bridgeReason: 'apiType' },
 			streamingOff: { bridgeReason: 'streaming' },
+			modelOptions: { bridgeReason: 'modelOptions' },
+			modelOptionsOmittingParameter: { bridgeReason: 'modelOptions' },
 			extraHeader: { bridgeReason: 'requestHeaders' },
 			literalKeyHeader: { bridgeReason: 'requestHeaders' },
 			apiKeyHeaderWithOthers: { bridgeReason: 'requestHeaders' },
@@ -84,7 +90,7 @@ suite('resolveCustomEndpointRuntimeEndpoint', () => {
 			apiType: 'responses',
 			models: [
 				{ id: 'gpt-x', url: 'https://api.example.test/v1', toolCalling: true },
-				{ id: 'claude', url: 'https://api.example.test/v1', apiType: 'messages', vision: true, streaming: true, requestHeaders: { 'x-api-key': '${apiKey}' } },
+				{ id: 'claude', url: 'https://api.example.test/v1', apiType: 'messages', vision: true, streaming: true, requestHeaders: { 'x-api-key': '${apiKey}' }, modelOptions: { temperature: 0 } },
 				{ id: 'no-url' },
 			],
 		};
@@ -95,12 +101,15 @@ suite('resolveCustomEndpointRuntimeEndpoint', () => {
 			withoutUrl: findCustomEndpointModelSettings(group, 'no-url'),
 			undeclared: findCustomEndpointModelSettings(group, 'other'),
 			discoveredGroup: findCustomEndpointModelSettings({ name: 'Discovered', url: 'https://api.example.test/v1' }, 'gpt-x'),
+			// The extension discovers a group's models at its `url` and ignores the URLs in `models`.
+			discoveredGroupWithModels: findCustomEndpointModelSettings({ ...group, url: 'https://discovery.example.test/v1' }, 'gpt-x'),
 		}, {
-			inheritsGroupApiType: { url: 'https://api.example.test/v1', apiType: 'responses', requestHeaders: undefined, streaming: undefined, toolCalling: true, vision: undefined },
-			overridesGroupApiType: { url: 'https://api.example.test/v1', apiType: 'messages', requestHeaders: { 'x-api-key': '${apiKey}' }, streaming: true, toolCalling: undefined, vision: true },
+			inheritsGroupApiType: { url: 'https://api.example.test/v1', apiType: 'responses', requestHeaders: undefined, streaming: undefined, toolCalling: true, vision: undefined, modelOptions: undefined },
+			overridesGroupApiType: { url: 'https://api.example.test/v1', apiType: 'messages', requestHeaders: { 'x-api-key': '${apiKey}' }, streaming: true, toolCalling: undefined, vision: true, modelOptions: { temperature: 0 } },
 			withoutUrl: undefined,
 			undeclared: undefined,
 			discoveredGroup: undefined,
+			discoveredGroupWithModels: undefined,
 		});
 	});
 });

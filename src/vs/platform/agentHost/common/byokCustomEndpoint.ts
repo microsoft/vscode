@@ -26,6 +26,8 @@ export interface ICustomEndpointModelSettings {
 	readonly toolCalling?: unknown;
 	/** The model's `vision` setting. */
 	readonly vision?: unknown;
+	/** The model's `modelOptions`, which the extension applies to each request. */
+	readonly modelOptions?: unknown;
 }
 
 /** Why a Custom Endpoint model cannot be called by the runtime and keeps using the bridge. */
@@ -34,6 +36,8 @@ export type CustomEndpointBridgeReason =
 	| 'apiType'
 	/** Streaming is turned off, and the runtime always streams. */
 	| 'streaming'
+	/** The model sets `modelOptions` (such as `temperature`), which the runtime cannot apply. */
+	| 'modelOptions'
 	/** The headers carry more than one auth header the runtime can send itself. */
 	| 'requestHeaders'
 	/** The URL is not a plain http(s) URL. */
@@ -52,10 +56,12 @@ type CustomEndpointAuth = 'bearer' | 'azureApiKey' | 'anthropicApiKey';
 /**
  * Finds the settings of the model `modelId` in a Custom Endpoint provider
  * group's raw configuration. Returns `undefined` for a model the group does not
- * declare in its `models` list.
+ * declare in its `models` list, and for every model of a group with a `url`:
+ * the extension then discovers the group's models at that URL and ignores the
+ * URLs in `models`.
  */
 export function findCustomEndpointModelSettings(group: { readonly [key: string]: unknown }, modelId: string): ICustomEndpointModelSettings | undefined {
-	if (!Array.isArray(group.models)) {
+	if (group.url || !Array.isArray(group.models)) {
 		return undefined;
 	}
 	const model: unknown = group.models.find(candidate => isRecord(candidate) && candidate.id === modelId);
@@ -69,6 +75,7 @@ export function findCustomEndpointModelSettings(group: { readonly [key: string]:
 		streaming: model.streaming,
 		toolCalling: model.toolCalling,
 		vision: model.vision,
+		modelOptions: model.modelOptions,
 	};
 }
 
@@ -84,6 +91,9 @@ export function resolveCustomEndpointRuntimeEndpoint(route: ICustomEndpointModel
 	}
 	if (route.streaming === false) {
 		return { bridgeReason: 'streaming' };
+	}
+	if (route.modelOptions !== undefined && !(isRecord(route.modelOptions) && Object.keys(route.modelOptions).length === 0)) {
+		return { bridgeReason: 'modelOptions' };
 	}
 	const url = resolveCustomEndpointUrl(route.url, route.apiType);
 	const apiType = route.apiType ?? inferCustomEndpointApiType(url);

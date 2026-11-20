@@ -360,14 +360,16 @@ suite('AgentHostByokLmHandler', () => {
 		const configurationService = new TestConfigurationService();
 		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
 		const handler = createHandler(service, { contextKeyService, configurationService, groups: [work, literalKey] });
-		const workGroup = { vendor: 'customendpoint', group: 'Work' };
+		const workGroup = { vendor: 'customendpoint', group: 'Work', credentialVersion: hash('chat.lm.secret.abc').toString(16) };
 
 		const disabled = await handler.listModels(CancellationToken.None);
 		const disabledCredential = await handler.resolveCredential(workGroup, CancellationToken.None);
 		await configurationService.setUserConfiguration(AgentHostByokCustomEndpointDirectSettingId, true);
 		const enabled = await handler.listModels(CancellationToken.None);
 		const credential = await handler.resolveCredential(workGroup, CancellationToken.None);
-		const otherVendorCredential = await handler.resolveCredential({ vendor: 'acme', group: 'Work' }, CancellationToken.None);
+		const otherVendorCredential = await handler.resolveCredential({ ...workGroup, vendor: 'acme' }, CancellationToken.None);
+		// The key was replaced after the snapshot the agent host holds.
+		const staleCredential = await handler.resolveCredential({ ...workGroup, credentialVersion: hash('chat.lm.secret.old').toString(16) }, CancellationToken.None);
 		clientByokEnabled.set(false);
 		const policyDisabledCredential = await handler.resolveCredential(workGroup, CancellationToken.None);
 
@@ -378,6 +380,7 @@ suite('AgentHostByokLmHandler', () => {
 			enabled,
 			credential,
 			otherVendorCredential,
+			staleCredential,
 			policyDisabledCredential,
 		}, {
 			disabled: [
@@ -395,6 +398,7 @@ suite('AgentHostByokLmHandler', () => {
 			],
 			credential: { apiKey: 'sk-work' },
 			otherVendorCredential: undefined,
+			staleCredential: undefined,
 			policyDisabledCredential: undefined,
 		});
 	});
