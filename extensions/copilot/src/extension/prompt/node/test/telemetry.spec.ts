@@ -165,6 +165,39 @@ suite('sendConversationalMessageTelemetry', () => {
 			reasoning_text: 'The user wants to rename the function.',
 		});
 	});
+
+	test('skips restricted conversation.messageText preparation when restricted telemetry is inactive', async () => {
+		const multiplexSpy = vi.spyOn(telemetry, 'multiplexProperties');
+		const service = new SpyingTelemetryService();
+		Object.defineProperty(service, 'isRestrictedTelemetryActive', { value: false });
+		const standard = vi.spyOn(service, 'sendGHTelemetryEvent');
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const internal = vi.spyOn(service, 'sendInternalMSFTTelemetryEvent');
+
+		sendConversationalMessageTelemetry(
+			service,
+			undefined,
+			ChatLocation.Panel,
+			'<think>reasoning</think>answer',
+			{ source: 'model', headerRequestId: 'request', turnIndex: '1' },
+			{ messageCharLen: 30 },
+			createTelemetryWithId()
+		);
+
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			standardCount: standard.mock.calls.length,
+			multiplexCount: multiplexSpy.mock.calls.length,
+			enhancedCount: enhanced.mock.calls.length,
+			internalCount: internal.mock.calls.length,
+		}, {
+			standardCount: 1,
+			multiplexCount: 0,
+			enhancedCount: 0,
+			internalCount: 0,
+		});
+	});
 });
 
 suite('formatModelMessageTextForTelemetry', () => {
@@ -174,8 +207,11 @@ suite('formatModelMessageTextForTelemetry', () => {
 			closedThink: JSON.parse(formatModelMessageTextForTelemetry('<think>Find all call sites.</think>I renamed `getUser` to `fetchUser`.')),
 			unclosedThinking: JSON.parse(formatModelMessageTextForTelemetry('<thinking>Let me check the config file to find the port setting.')),
 			unclosedThink: JSON.parse(formatModelMessageTextForTelemetry('<think>Checking tests next')),
-			multipleBlocks: JSON.parse(formatModelMessageTextForTelemetry('<think>First thought</think>Part 1 <thinking>Second thought</thinking>Part 2')),
-			fencedCodeIgnored: JSON.parse(formatModelMessageTextForTelemetry('Example:\n```xml\n<think>not reasoning</think>\n```\nDone.')),
+			closedAnalysis: JSON.parse(formatModelMessageTextForTelemetry('<analysis>Compare the two branches.</analysis>Use branch A.')),
+			unclosedAnalysis: JSON.parse(formatModelMessageTextForTelemetry('<analysis>Inspecting symbol references before editing')),
+			multipleBlocks: JSON.parse(formatModelMessageTextForTelemetry('<think>First thought</think>Part 1 <thinking>Second thought</thinking>Part 2 <analysis>Third thought</analysis>Part 3')),
+			fencedCodeIgnored: JSON.parse(formatModelMessageTextForTelemetry('Example:\n```xml\n<think>not reasoning</think>\n<analysis>also not reasoning</analysis>\n```\nDone.')),
+			indentedFenceAfterReasoning: JSON.parse(formatModelMessageTextForTelemetry('<think>Plan</think>\n  ```xml\n  <think>literal code</think>\n  ```')),
 			wireReasoning: JSON.parse(formatModelMessageTextForTelemetry('Answer', 'Wire thought')),
 			wireAndInline: JSON.parse(formatModelMessageTextForTelemetry('<think>Inline thought</think>Answer', 'Wire thought')),
 		}, {
@@ -183,8 +219,11 @@ suite('formatModelMessageTextForTelemetry', () => {
 			closedThink: { role: 'assistant', content: 'I renamed `getUser` to `fetchUser`.', reasoning_text: 'Find all call sites.' },
 			unclosedThinking: { role: 'assistant', content: '', reasoning_text: 'Let me check the config file to find the port setting.' },
 			unclosedThink: { role: 'assistant', content: '', reasoning_text: 'Checking tests next' },
-			multipleBlocks: { role: 'assistant', content: 'Part 1 Part 2', reasoning_text: 'First thought\n\nSecond thought' },
-			fencedCodeIgnored: { role: 'assistant', content: 'Example:\n```xml\n<think>not reasoning</think>\n```\nDone.' },
+			closedAnalysis: { role: 'assistant', content: 'Use branch A.', reasoning_text: 'Compare the two branches.' },
+			unclosedAnalysis: { role: 'assistant', content: '', reasoning_text: 'Inspecting symbol references before editing' },
+			multipleBlocks: { role: 'assistant', content: 'Part 1 Part 2 Part 3', reasoning_text: 'First thought\n\nSecond thought\n\nThird thought' },
+			fencedCodeIgnored: { role: 'assistant', content: 'Example:\n```xml\n<think>not reasoning</think>\n<analysis>also not reasoning</analysis>\n```\nDone.' },
+			indentedFenceAfterReasoning: { role: 'assistant', content: '  ```xml\n  <think>literal code</think>\n  ```', reasoning_text: 'Plan' },
 			wireReasoning: { role: 'assistant', content: 'Answer', reasoning_text: 'Wire thought' },
 			wireAndInline: { role: 'assistant', content: 'Answer', reasoning_text: 'Wire thought\n\nInline thought' },
 		});

@@ -174,9 +174,10 @@ export function sendOffTopicMessageTelemetry(
 	);
 }
 
-const INLINE_THINK_TAGS = [
+const INLINE_REASONING_TAGS = [
 	{ open: '<think>', close: '</think>' },
 	{ open: '<thinking>', close: '</thinking>' },
+	{ open: '<analysis>', close: '</analysis>' },
 ] as const;
 
 interface IStructuredModelMessageText {
@@ -237,6 +238,8 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 	let atLineStart = true;
 	let activeFence: { char: string; length: number } | undefined;
 	let foundTag = false;
+	let nextThink = text.indexOf('<think', 0);
+	let nextAnalysis = text.indexOf('<analysis>', 0);
 	const contentParts: string[] = [];
 	const reasoningParts: string[] = [];
 
@@ -267,7 +270,17 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 			}
 		}
 
-		const nextTag = text.indexOf('<think', pos);
+		if (nextThink !== -1 && nextThink < pos) {
+			nextThink = text.indexOf('<think', pos);
+		}
+		if (nextAnalysis !== -1 && nextAnalysis < pos) {
+			nextAnalysis = text.indexOf('<analysis>', pos);
+		}
+		const nextTag = nextThink === -1
+			? nextAnalysis
+			: nextAnalysis === -1
+				? nextThink
+				: Math.min(nextThink, nextAnalysis);
 		if (nextTag === -1) {
 			break;
 		}
@@ -278,9 +291,9 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 			continue;
 		}
 
-		const matchedTag = INLINE_THINK_TAGS.find(tag => text.startsWith(tag.open, nextTag));
+		const matchedTag = INLINE_REASONING_TAGS.find(tag => text.startsWith(tag.open, nextTag));
 		if (!matchedTag) {
-			pos = nextTag + 6;
+			pos = nextTag + 1;
 			atLineStart = false;
 			continue;
 		}
@@ -310,13 +323,21 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 		}
 		let afterClose = closeIdx + matchedTag.close.length;
 		if (contentParts.length === 0) {
-			while (afterClose < text.length && (text[afterClose] === ' ' || text[afterClose] === '\t' || text[afterClose] === '\r' || text[afterClose] === '\n')) {
-				afterClose++;
+			let scan = afterClose;
+			let lastNewlineEnd = -1;
+			while (scan < text.length && (text[scan] === ' ' || text[scan] === '\t' || text[scan] === '\r' || text[scan] === '\n')) {
+				if (text[scan] === '\n') {
+					lastNewlineEnd = scan + 1;
+				}
+				scan++;
 			}
+			// Preserve leading indentation when a newline separates the closing tag from the
+			// answer so indented fenced code blocks retain both indentation and line-start state.
+			afterClose = lastNewlineEnd !== -1 ? lastNewlineEnd : scan;
 		}
 		chunkStart = afterClose;
 		pos = afterClose;
-		atLineStart = pos === 0 || text[pos - 1] === '\n';
+		atLineStart = contentParts.length === 0 || pos === 0 || text[pos - 1] === '\n';
 	}
 
 	if (!foundTag) {
@@ -335,13 +356,13 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
  * Formats assistant text for restricted `conversation.messageText` telemetry into a
  * structured `{ role, content, reasoning_text? }` JSON payload.
  *
- * Uses an O(1) `indexOf('<think')` fast path so messages without inline reasoning tags
- * incur no parsing overhead. Both closed and unclosed `<think>` / `<thinking>` blocks
- * outside fenced code blocks are extracted into `reasoning_text`.
+ * Uses a native substring scan fast path so messages without inline reasoning tags skip
+ * line/fence parsing. Both closed and unclosed `<think>`, `<thinking>`, and `<analysis>`
+ * blocks outside fenced code blocks are extracted into `reasoning_text` in linear time.
  */
 export function formatModelMessageTextForTelemetry(content: string, wireReasoningText?: string): string {
 	const trimmedWireReasoning = wireReasoningText?.trim();
-	if (content.indexOf('<think') === -1) {
+	if (content.indexOf('<think') === -1 && content.indexOf('<analysis>') === -1) {
 		const payload: IStructuredModelMessageText = trimmedWireReasoning
 			? { role: 'assistant', content, reasoning_text: trimmedWireReasoning }
 			: { role: 'assistant', content };
@@ -396,8 +417,12 @@ export function sendConversationalMessageTelemetry(
 	const prefix = telemetryPrefixForLocation(location);
 
 	telemetryService.sendGHTelemetryEvent(`${prefix}.message`, standardTelemetryData.raw.properties, standardTelemetryData.raw.measurements);
+	if (telemetryService.isRestrictedTelemetryActive === false) {
+		return standardTelemetryData.raw;
+	}
 	void (async () => {
 		try {
+			await Promise.resolve();
 			const rawProperties = isModelMessage && messageText
 				? { ...enhancedTelemetryLogger.raw.properties, messageText: formatModelMessageTextForTelemetry(messageText) }
 				: enhancedTelemetryLogger.raw.properties;

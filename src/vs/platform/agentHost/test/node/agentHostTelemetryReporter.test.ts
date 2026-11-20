@@ -523,24 +523,42 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('modelMessageText separates inline think/thinking tags (closed and unclosed) and wire reasoningText', async () => {
+	test('modelMessageText separates inline think/thinking/analysis tags (closed and unclosed) and wire reasoningText', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
 		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>Find call sites.</think>Renamed `getUser`.', 1, 'req-1');
 		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<thinking>Let me check the config file.', 1, 'req-2');
-		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 1, 'req-3', undefined, 'Wire-only reasoning');
-		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'Example:\n```xml\n<think>literal</think>\n```', 1, 'req-4');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<analysis>Compare options.</analysis>Use option A.', 1, 'req-3');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<analysis>Checking imports before calling tool', 1, 'req-4');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 1, 'req-5', undefined, 'Wire-only reasoning');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'Example:\n```xml\n<think>literal</think>\n<analysis>literal</analysis>\n```', 1, 'req-6');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>Plan</think>\n  ```xml\n  <think>literal code</think>\n  ```', 1, 'req-7');
 
 		assert.deepStrictEqual(
-			service.enhancedEvents.map(event => JSON.parse(event.properties!.messageText!)),
+			service.enhancedEvents.map(event => ({
+				messageText: JSON.parse(event.properties!.messageText!),
+				chunkMatches: zlib.gunzipSync(Buffer.from(event.properties!.messageTextChunk!, 'base64')).toString('utf8') === event.properties!.messageText,
+			})),
 			[
-				{ role: 'assistant', content: 'Renamed `getUser`.', reasoning_text: 'Find call sites.' },
-				{ role: 'assistant', content: '', reasoning_text: 'Let me check the config file.' },
-				{ role: 'assistant', content: '', reasoning_text: 'Wire-only reasoning' },
-				{ role: 'assistant', content: 'Example:\n```xml\n<think>literal</think>\n```' },
+				{ messageText: { role: 'assistant', content: 'Renamed `getUser`.', reasoning_text: 'Find call sites.' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '', reasoning_text: 'Let me check the config file.' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: 'Use option A.', reasoning_text: 'Compare options.' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '', reasoning_text: 'Checking imports before calling tool' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '', reasoning_text: 'Wire-only reasoning' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: 'Example:\n```xml\n<think>literal</think>\n<analysis>literal</analysis>\n```' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '  ```xml\n  <think>literal code</think>\n  ```', reasoning_text: 'Plan' }, chunkMatches: true },
 			]
 		);
+	});
+
+	test('modelMessageText no-ops when restricted telemetry is inactive', async () => {
+		const service = new TestRestrictedTelemetryService();
+		Object.defineProperty(service, 'isRestrictedTelemetryActive', { value: false });
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>reasoning</think>answer', 1, 'req-1');
+		assert.deepStrictEqual({ enhanced: service.enhancedEvents, internal: service.internalEvents }, { enhanced: [], internal: [] });
 	});
 
 	test('text and tools retain SDK conversation identity independently of host grouping and chat hashes', async () => {
