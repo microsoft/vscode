@@ -3846,7 +3846,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 	}
 
-	test('bulk archive bounds confirmed dispatches, merges changes and releases subscriptions after rejection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('bulk archive bounds confirmed dispatches, merges changes and releases subscriptions after rejection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
 		const backends = Array.from({ length: 90 }, (_, index) => URI.parse(`opaque-session://tenant/bulk-${index}`));
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
@@ -3890,15 +3890,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 				elapsedMs: 230,
 				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
 				archived: sessions.map((_, index) => index !== 1),
-				changes: [sessions.filter((_, index) => index !== 1).map(session => session.sessionId)],
+				changes: Array.from({ length: 23 }, (_, batch) => sessions.slice(batch * 4, (batch + 1) * 4)
+					.filter(session => session !== sessions[1]).map(session => session.sessionId)),
 				channels: backends.map(resource => resource.toString()),
 				released: backends.map(() => 1),
 			},
-			changesAfterRetry: 2,
+			changesAfterRetry: 24,
 		});
 	}));
 
-	test('overlapping archive batches share the provider limit and merge changes until both settle', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('overlapping archive batches share the provider limit and publish changes while another batch is pending', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const backends = Array.from({ length: 8 }, (_, index) => URI.parse(`opaque-session://tenant/overlapping-${index}`));
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
@@ -3933,13 +3934,46 @@ suite('LocalAgentHostSessionsProvider', () => {
 			changes: changes.map(event => event.changed.map(session => session.sessionId)),
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		}, {
-			betweenBatches: { active: 4, changes: 0 },
+			betweenBatches: { active: 4, changes: 1 },
 			active: 0, maximumActive: 4,
 			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
 			archived: sessions.map(() => true),
-			changes: [sessions.map(session => session.sessionId)],
+			changes: [sessions.slice(0, 4), sessions.slice(4)].map(batch => batch.map(session => session.sessionId)),
 			released: backends.map(() => 1),
 		});
+	}));
+
+	test('a pending bulk archive does not block listing additions or renames', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('pending-archive', { summary: 'Pending Archive' }));
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const acknowledgement = new DeferredPromise<void>();
+		const dispatched = new DeferredPromise<void>();
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			await dispatched.complete();
+			await acknowledgement.p;
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+		const changes: { added: string[]; changed: string[] }[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push({
+			added: event.added.map(session => session.title.get()),
+			changed: event.changed.map(session => session.title.get()),
+		})));
+
+		const archive = provider.archiveSessions([session.sessionId]);
+		await dispatched.p;
+		agentHost.addSession(createSession('unrelated-listing', { summary: 'Unrelated Listing' }));
+		await provider.refreshForTest();
+		await provider.renameSession(session.sessionId, 'Renamed While Pending');
+		const whilePending = [...changes];
+		await acknowledgement.complete();
+		await archive;
+
+		assert.deepStrictEqual(whilePending, [
+			{ added: ['Unrelated Listing'], changed: [] },
+			{ added: [], changed: ['Renamed While Pending'] },
+		]);
 	}));
 
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

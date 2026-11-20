@@ -78,8 +78,11 @@ async function archiveSessionsWithUndo(
 			}
 		}
 		const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
-		if (errors.length > 0) {
-			throw new AggregateError(errors, errors.map(error => toErrorMessage(error)).join('\n'));
+		if (errors.length === 1) {
+			throw errors[0];
+		}
+		if (errors.length > 1) {
+			throw new AggregateError(errors, toErrorMessage(errors));
 		}
 	} finally {
 		// A partially completed batch must remain undoable even when a later archive fails.

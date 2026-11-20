@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -388,6 +389,61 @@ suite('Sessions - Bulk archive undo', () => {
 		await assert.rejects(test.run(), /archive failed/);
 		await test.state.undo();
 		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['first'] });
+	});
+
+	test('a lone cancellation remains identifiable and successful archives stay undoable', async () => {
+		const harness = setup();
+		const cancellation = new CancellationError();
+		const archiveSession = harness.managementService.archiveSession;
+		harness.managementService.archiveSession = async session => {
+			if (session.sessionId === 'second') {
+				throw cancellation;
+			}
+			await archiveSession(session);
+		};
+
+		const error = await harness.run().catch(error => {
+			if (!(error instanceof Error)) {
+				throw error;
+			}
+			return error;
+		});
+		await harness.state.undo();
+
+		assert.deepStrictEqual({
+			isCancellation: isCancellationError(error),
+			sameError: error === cancellation,
+			message: harness.state.message,
+			restored: harness.restored,
+		}, {
+			isCancellation: true, sameError: true,
+			message: '1 marked done', restored: ['first'],
+		});
+	});
+
+	test('multiple archive failures retain their causes with a concise summary', async () => {
+		const harness = setup();
+		const failure = new Error('archive failed');
+		harness.managementService.archiveSession = async () => { throw failure; };
+
+		const error = await harness.run().then(() => assert.fail('Expected archive failures'), error => {
+			if (!(error instanceof AggregateError)) {
+				throw error;
+			}
+			return error;
+		});
+
+		assert.deepStrictEqual({
+			name: error.name,
+			message: error.message,
+			causes: error.errors,
+			notices: harness.state.notices,
+		}, {
+			name: 'AggregateError',
+			message: 'archive failed (2 errors in total)',
+			causes: [failure, failure],
+			notices: 0,
+		});
 	});
 
 	test('a failed archive waits for a later success before reporting and offering Undo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
