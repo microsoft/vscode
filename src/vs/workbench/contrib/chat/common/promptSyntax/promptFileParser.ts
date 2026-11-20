@@ -101,7 +101,7 @@ export namespace PromptHeaderAttributes {
 
 /** Keys of the `vscode:` map in an agent file. */
 export namespace VSCodeAgentAttributes {
-	export const emptyChatMessage = 'empty-chat-message';
+	export const welcomeMessage = 'welcome-message';
 }
 
 export class PromptHeader {
@@ -214,6 +214,12 @@ export class PromptHeader {
 
 	public get argumentHint(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.argumentHint);
+	}
+
+	public get welcomeMessage(): string | undefined {
+		const options = this.getAttribute(PromptHeaderAttributes.vscode)?.value;
+		const value = options?.type === 'map' ? options.properties.find(property => property.key.value === VSCodeAgentAttributes.welcomeMessage)?.value : undefined;
+		return value?.type === 'scalar' && value.value.trim() ? value.value : undefined;
 	}
 
 	public get target(): string | undefined {

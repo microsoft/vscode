@@ -74,7 +74,7 @@ suite('SessionCustomizationDiscovery', () => {
 	}
 
 	test('groups discovered customizations by parent folder', async () => {
-		await seed('/workspace/.github/agents/one.agent.md', '---\nmodel-policy: required\n---\n');
+		await seed('/workspace/.github/agents/one.agent.md', '---\nmodel-policy: required\nvscode:\n  welcome-message: Hello\n---\n');
 		await seed('/workspace/.github/agents/two.agent.md', '---\nreasoning-effort: medium\n---\n');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
@@ -113,7 +113,7 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 		const agent = agentsInAgentsDir.children?.find(child => child.name === 'One');
 		assert.deepStrictEqual(agent?.type === CustomizationType.Agent ? { model: agent.model, meta: agent._meta } : undefined, {
-			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' },
+			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello' },
 		});
 		assert.deepStrictEqual(agentsInAgentsDir.children?.find(child => child.name === 'Two')?._meta, {
 			userInvocable: true, 'vscode.reasoningEffort': 'medium',

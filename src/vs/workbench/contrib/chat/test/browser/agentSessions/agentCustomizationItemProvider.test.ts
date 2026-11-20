@@ -496,6 +496,23 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('projects host greetings and ignores malformed or absent metadata', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'one', uri: 'other-host:/one', name: 'One', _meta: { 'vscode.welcomeMessage': 'Hello' } },
+			{ type: CustomizationType.Agent, id: 'two', uri: 'other-host:/two', name: 'Two', _meta: { 'vscode.welcomeMessage': 42 } },
+			{ type: CustomizationType.Agent, id: 'three', uri: 'other-host:/three', name: 'Three' },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => new CustomChatMode(agent).toJSON().welcomeMessage), ['Hello', undefined, undefined]);
+	});
+
 	test('does not treat a case-distinct host agent as a client draft', async () => {
 		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
 			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',

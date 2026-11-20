@@ -96,36 +96,24 @@ suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('updates the empty-chat welcome title when agents share a greeting', async () => {
-		const uri = URI.parse('test:/agent.agent.md');
-		const parsedFile = new PromptFileParser().parse(uri, '---\nvscode:\n  empty-chat-message: Hello\n---\n');
-		const firstMode = upcastPartial<IChatMode>({
-			isBuiltin: false,
-			name: constObservable('First Agent'),
-			uri: constObservable(uri),
-		});
-		const secondMode = upcastPartial<IChatMode>({
-			isBuiltin: false,
-			name: constObservable('Second Agent'),
-			uri: constObservable(uri),
-		});
-		const currentMode = observableValue<IChatMode>('mode', firstMode);
+	test('updates the empty-chat welcome title when agents share a greeting', () => {
+		const message = observableValue<string | undefined>('message', 'Hello');
+		const currentMode = observableValue<IChatMode>('mode', upcastPartial<IChatMode>({ name: constObservable('First Agent'), welcomeMessage: constObservable('Hello'), isBuiltin: false }));
 		let renders = 0;
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
-			_store: store,
-			promptsService: upcastPartial<IPromptsService>({ parseNew: async () => parsedFile }),
 			welcomeMessageContainer: dom.$('div'),
 			renderWelcomeViewContentIfNeeded: () => { renders++; },
 		}) as ChatWidget;
-		Object.defineProperty(widget, 'input', { value: { currentModeObs: currentMode } });
-		const update = Reflect.get(ChatWidget.prototype, '_updateAgentEmptyChatMessage') as (this: ChatWidget) => Promise<void>;
+		const observe = Reflect.get(ChatWidget.prototype, '_observeAgentEmptyChatMessage') as (this: ChatWidget, input: ChatInputPart) => IDisposable;
 		const getWelcomeViewContent = Reflect.get(ChatWidget.prototype, 'getWelcomeViewContent') as (this: ChatWidget, additionalMessage: undefined) => IChatViewWelcomeContent;
 
-		await update.call(widget);
-		currentMode.set(secondMode, undefined);
-		await update.call(widget);
-
-		assert.deepStrictEqual({ title: getWelcomeViewContent.call(widget, undefined).title, renders }, { title: 'Second Agent', renders: 2 });
+		store.add(observe.call(widget, upcastPartial<ChatInputPart>({ currentModeObs: currentMode })));
+		currentMode.set(upcastPartial<IChatMode>({ name: constObservable('Second Agent'), welcomeMessage: message, isBuiltin: false }), undefined);
+		const title = getWelcomeViewContent.call(widget, undefined).title;
+		message.set('Updated', undefined);
+		const updated = getWelcomeViewContent.call(widget, undefined).message;
+		currentMode.set(upcastPartial<IChatMode>({ name: constObservable('Agent'), isBuiltin: true }), undefined);
+		assert.deepStrictEqual({ title, updated: typeof updated === 'string' ? updated : updated.value, renders }, { title: 'Second Agent', updated: 'Updated', renders: 4 });
 	});
 
 	test('model binding only resets tip rotation when the widget owns the tip', () => {
@@ -1154,7 +1142,7 @@ suite('ChatWidget', () => {
 			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({ entriesMap }),
 			selectedLanguageModel: observableValue(`${name}.model`, undefined),
 			height: observableValue(`${name}.height`, 0),
-			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
+			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent', name: constObservable('Agent'), isBuiltin: true })),
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidLoadInputState: Event.None,

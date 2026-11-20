@@ -91,7 +91,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
-import { IHandOff, PromptHeader, PromptHeaderAttributes, VSCodeAgentAttributes } from '../../common/promptSyntax/promptFileParser.js';
+import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { captureForkPromptSourceInput, IForkPromptSourceInput } from '../actions/chatForkActions.js';
@@ -508,7 +508,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
-	/** The selected custom agent's `empty-chat-message`, shown as the welcome while the chat is empty. */
+	/** The selected custom agent's `welcome-message`, shown as the welcome while the chat is empty. */
 	private _agentEmptyChatMessage: { readonly agentName: string; readonly markdown: IMarkdownString } | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
@@ -1777,19 +1777,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._gettingStartedTip.value?.update();
 	}
 
-	/** Reads `vscode: empty-chat-message` from the selected custom agent's file. Agent files are trusted, so its command links run. */
-	private async _updateAgentEmptyChatMessage(): Promise<void> {
-		const mode = this.input.currentModeObs.get();
-		const uri = mode.isBuiltin ? undefined : mode.uri?.get();
-		const header = uri && (await this.promptsService.parseNew(uri, CancellationToken.None).catch(() => undefined))?.header;
-		if (this._store.isDisposed || this.input.currentModeObs.get() !== mode) {
-			return;
-		}
-		const options = header?.getAttribute(PromptHeaderAttributes.vscode)?.value;
-		const value = options?.type === 'map' ? options.properties.find(property => property.key.value === VSCodeAgentAttributes.emptyChatMessage)?.value : undefined;
-		const text = value?.type === 'scalar' && value.value.trim() ? value.value : undefined;
+	private _observeAgentEmptyChatMessage(input: ChatInputPart): IDisposable {
+		return autorun(reader => {
+			const mode = input.currentModeObs.read(reader);
+			const name = mode.name.read(reader);
+			const message = mode.isBuiltin ? undefined : mode.welcomeMessage?.read(reader);
+			this._updateAgentEmptyChatMessage(name, message?.trim() ? message : undefined);
+		});
+	}
+
+	private _updateAgentEmptyChatMessage(agentName: string, text: string | undefined): void {
 		const current = this._agentEmptyChatMessage;
-		const agentName = mode.name.get();
 		if (text === current?.markdown.value && (!current || agentName === current.agentName)) {
 			return;
 		}
@@ -3187,9 +3185,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
-			void this._updateAgentEmptyChatMessage();
 		}));
-		void this._updateAgentEmptyChatMessage();
+		if (!isInlineEdit) {
+			store.add(this._observeAgentEmptyChatMessage(input));
+		}
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		store.add(this.contextKeyService.onDidChangeContext(e => {
