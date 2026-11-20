@@ -47,7 +47,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../../../../services/policies/common/organizationSupport.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
-import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
+import { renderChatInputPickerSplit, renderModelChipChevron } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
@@ -757,9 +757,12 @@ export class ModelPickerWidget extends Disposable {
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
-		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()
-			&& this._delegate.showPicker((showDetails ? this._configButton : this._nameButton) ?? anchorElement, showDetails)) {
-			return;
+		if (!options && this._delegate.showPicker && !this.isRestrictedMode() && !this.isSetupRequired()) {
+			const button = showDetails ? this._configButton : this._nameButton;
+			const focusTarget = anchorElement === this._domNode ? button ?? anchorElement : anchorElement;
+			if (this._delegate.showPicker(focusTarget, showDetails)) {
+				return;
+			}
 		}
 		if (this._tabbedPicker.value?.isVisible) {
 			if (options) {
@@ -937,12 +940,14 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
+		const singleButton = presentation.singleButton === true && !comparisonSummary;
+		this._nameButton.classList.toggle('chat-phone-input-chip', singleButton);
 		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
 			? (presentation.showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;
-		if (modelIcon && !noModelsAvailable) {
+		if (modelIcon && !noModelsAvailable && !singleButton) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
@@ -957,12 +962,15 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion"));
-		const showModelLabel = (!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable);
+		const showModelLabel = singleButton || ((!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable));
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
+		}
+		if (singleButton) {
+			nameChildren.push(renderModelChipChevron());
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
@@ -972,7 +980,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable || pendingAutoModel, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, singleButton || !!comparisonSummary || minimal || compact || noModelsAvailable || pendingAutoModel, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);
