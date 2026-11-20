@@ -13,7 +13,7 @@ import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IA
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
 import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/agentHostChatProviders.js';
-import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
+import { type AgentSelection, SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
@@ -541,10 +541,10 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
 	/** Restores the target session and chat before deciding whether a message must be queued. */
 	readonly restoreChat: (session: URI, chat: URI, credentials?: IAgentHostCredentialSource) => Promise<void>;
-	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, agent?: AgentSelection) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider; fork?: { readonly source: URI; readonly turnId: string } }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	/** Whether the session's agent can fork its chats (`multipleChats.fork`), so `fork_session` is offered. */
-	readonly supportsChatForks: (session: URI) => boolean;
+	readonly supportsChatForks: (session: URI, chat?: URI) => boolean;
 	/**
 	 * The agents a new chat of `session` may use (`create_session`'s `harness`): `undefined` unless chats of one session
 	 * may use different agents (`multipleChatProviders.enabled`) and the session's agent supports multiple chats.
@@ -1737,7 +1737,7 @@ async function getForkSessionArgs(rawArgs: unknown, listSessions: () => Promise<
  */
 async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI, sourceTurnId?: string): Promise<IForkSessionResult> {
 	const args = await getForkSessionArgs(rawArgs, () => accessor.listSessions(), currentChannel, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
-	if (!accessor.supportsChatForks(args.session)) {
+	if (!accessor.supportsChatForks(args.session, args.chat)) {
 		throw new Error('Cannot fork: the agent of this session does not support forking.');
 	}
 	const snapshot = await accessor.getChatContext(args.session, args.chat.toString());
@@ -1749,7 +1749,7 @@ async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArg
 	if (!lastTurn) {
 		throw new Error('Cannot fork: the session has no completed turns yet.');
 	}
-	const model = (snapshot.activeTurn?.message ?? lastTurn.message).model;
+	const { model, agent } = snapshot.activeTurn?.message ?? lastTurn.message;
 	const source = currentChatUri(currentChannel);
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
@@ -1767,7 +1767,7 @@ async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArg
 			sourceSession: currentSession.toString(),
 			...(source !== undefined ? { sourceChat: source.toString() } : {}),
 			...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-		}, credentials);
+		}, credentials, agent);
 	}
 	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, getAgentHostChatId(chat)), started: args.prompt !== undefined };
 }

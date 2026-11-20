@@ -19,7 +19,7 @@ import { modelConfigurationSourceKey } from '../../common/agentModelConfiguratio
 import { modelRouterModelId } from '../../common/modelRouter.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import { getCopilotContextTier, getCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
-import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
+import { type AgentSelection, SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
@@ -109,7 +109,7 @@ suite('SessionServerTools', () => {
 			getModelsForCredentials: overrides?.getModelsForCredentials ?? (async () => []),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			restoreChat: overrides?.restoreChat ?? (async () => { }),
-			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
+			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials, agent) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials, agent); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			supportsChatForks: overrides?.supportsChatForks ?? (() => true),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
@@ -3844,7 +3844,7 @@ suite('SessionServerTools', () => {
 					calls.push({ create: session.toString(), fork: { source: options?.fork?.source.toString(), turnId: options?.fork?.turnId }, model: options?.model, title: options?.title });
 				},
 				onRenameChat: (_session, chat, title) => calls.push({ rename: named(chat), title }),
-				onPrompt: (_session, chat, prompt, delegation) => calls.push({ prompt: named(chat), text: prompt, delegation }),
+				onPrompt: (_session, chat, prompt, delegation, _credentials, agent) => calls.push({ prompt: named(chat), text: prompt, delegation, ...(agent ? { agent } : {}) }),
 				...overrides,
 			}));
 			const result = await Promise.resolve(group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.ForkSession, args)).then(text => created ? text.replace(getAgentHostChatId(created), 'NEW') : text, (error: Error) => `error: ${error.message}`);
@@ -3862,6 +3862,21 @@ suite('SessionServerTools', () => {
 					{ rename: 'NEW', title: 'Approach B' },
 					{ prompt: 'NEW', text: 'Try approach B', delegation: { sourceSession: 'copilot:/s1', sourceChat: source, sourceTurnId: 'turn-1' } },
 				],
+			});
+		});
+
+		test('starts the fork with the custom agent of the running turn and checks fork support for the forked chat', async () => {
+			const source = buildDefaultChatUri('copilot:/s1');
+			const peer = buildChatUri('copilot:/s1', 'peer');
+			const agent: AgentSelection = { uri: 'file:///agents/reviewer.agent.md' };
+			const running = { ...completed, activeTurn: { message: { text: 'fork this', origin: { kind: MessageKind.User }, agent }, responseParts: [] } };
+			const supportChecks: string[] = [];
+			const supportsChatForks = (session: URI, chat?: URI) => { supportChecks.push(`${session}|${chat}`); return true; };
+			const { calls } = await runFork({ prompt: 'Review it' }, running, { supportsChatForks });
+			await runFork({ session: buildOpenSessionLinkUri('copilot:/s1', 'peer') }, completed, { supportsChatForks });
+			assert.deepStrictEqual({ prompt: calls.at(-1), supportChecks }, {
+				prompt: { prompt: 'NEW', text: 'Review it', delegation: { sourceSession: 'copilot:/s1', sourceChat: source, sourceTurnId: 'turn-1' }, agent },
+				supportChecks: [`copilot:/s1|${source}`, `copilot:/s1|${peer}`],
 			});
 		});
 
