@@ -2306,7 +2306,11 @@ export class Repository implements Disposable {
 
 			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
 				await this.repository.deleteWorktree(path, options);
-				worktree?.dispose();
+				if (worktree) {
+					// Only a disposed state makes the model close a repository, which also disposes it.
+					// Without it, the deleted worktree stays open until one of its git commands fails.
+					worktree.state = RepositoryState.Disposed;
+				}
 			};
 
 			try {
