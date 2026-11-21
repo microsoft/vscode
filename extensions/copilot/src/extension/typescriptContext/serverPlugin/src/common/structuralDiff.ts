@@ -452,10 +452,7 @@ function getTypeMembers(type: tt.TypeNode | undefined): readonly tt.Node[] | und
  * such as the name of a class that it registers.
  */
 function getCallInfo(node: tt.ExpressionStatement, file: tt.SourceFile): EntityInfo | undefined {
-	let expression = tss.Nodes.skipOuterExpressions(node.expression);
-	while (ts.isAwaitExpression(expression) || ts.isVoidExpression(expression)) {
-		expression = tss.Nodes.skipOuterExpressions(expression.expression);
-	}
+	const expression = getStatementExpression(node);
 	if (!ts.isCallExpression(expression)) {
 		return undefined;
 	}
@@ -598,36 +595,35 @@ function groupEntities(entities: readonly Entity[], keyOf: (entity: Entity) => s
 }
 
 function matchSiblings(original: readonly Entity[], modified: readonly Entity[], originalFile: tt.SourceFile, modifiedFile: tt.SourceFile, changes: readonly DiffTextChange[], checkCancellation: () => void): Map<Entity, Entity> {
-	const originalByKey = groupEntities(original);
-	const modifiedByKey = groupEntities(modified);
 	const matches = new Map<Entity, Entity>();
 	const matchedOriginal = new Set<Entity>();
-	for (const entity of modified) {
-		checkCancellation();
-		const key = entityKey(entity);
-		const candidates = originalByKey.get(key);
-		if (candidates?.length === 1 && modifiedByKey.get(key)?.length === 1) {
-			matches.set(entity, candidates[0]);
-			matchedOriginal.add(candidates[0]);
-		}
-	}
-
 	// Siblings that their names do not tell apart, such as overloads, and calls and tests, whose names change with
-	// their arguments, correspond if they start at the same unchanged text.
+	// their arguments, correspond if they start at the same unchanged text. This comes before matching names, so that a
+	// test whose title changes to the old title of another test is not matched with that test.
 	const originalByStart = new Map<number, Entity>();
 	for (const entity of original) {
-		if (!matchedOriginal.has(entity)) {
-			originalByStart.set(entity.header.start, entity);
-		}
+		originalByStart.set(entity.header.start, entity);
 	}
 	for (const entity of modified) {
 		checkCancellation();
-		const start = matches.has(entity) ? undefined : toOriginalOffset(changes, entity.header.start);
+		const start = toOriginalOffset(changes, entity.header.start);
 		const candidate = start === undefined ? undefined : originalByStart.get(start);
 		if (candidate !== undefined && !matchedOriginal.has(candidate) && candidate.value.kind === entity.value.kind && candidate.value.languageKind === entity.value.languageKind
 			&& (candidate.value.name === entity.value.name || (candidate.isAnonymous && entity.isAnonymous))) {
 			matches.set(entity, candidate);
 			matchedOriginal.add(candidate);
+		}
+	}
+
+	const originalByKey = groupEntities(original);
+	const modifiedByKey = groupEntities(modified);
+	for (const entity of modified) {
+		checkCancellation();
+		const key = entityKey(entity);
+		const candidates = originalByKey.get(key);
+		if (!matches.has(entity) && candidates?.length === 1 && !matchedOriginal.has(candidates[0]) && modifiedByKey.get(key)?.length === 1) {
+			matches.set(entity, candidates[0]);
+			matchedOriginal.add(candidates[0]);
 		}
 	}
 
@@ -901,11 +897,23 @@ function isTriviaKind(kind: tt.SyntaxKind): boolean {
 type TestKind = 'suite' | 'test';
 
 /**
+ * Returns the expression of a statement without the parentheses, type assertions and `await` or `void` operators around
+ * it, such as the call in `await load();`.
+ */
+function getStatementExpression(node: tt.ExpressionStatement): tt.Expression {
+	let expression = tss.Nodes.skipOuterExpressions(node.expression);
+	while (ts.isAwaitExpression(expression) || ts.isVoidExpression(expression)) {
+		expression = tss.Nodes.skipOuterExpressions(expression.expression);
+	}
+	return expression;
+}
+
+/**
  * Returns the item of a statement that registers a suite or a test, such as `test('title', () => {})`, which is named
  * by its title. A suite lists its tests and suites as children.
  */
 function getTestInfo(node: tt.ExpressionStatement, file: tt.SourceFile): EntityInfo | undefined {
-	const test = getTestCall(node.expression);
+	const test = getTestCall(getStatementExpression(node));
 	if (test === undefined) {
 		return undefined;
 	}
@@ -941,16 +949,24 @@ function getTestCall(expression: tt.Expression): { readonly call: tt.CallExpress
 				return { call: node, kind, callback };
 			}
 		}
-		node = node.expression;
+		node = tss.Nodes.skipOuterExpressions(node.expression);
 	}
 	return undefined;
 }
 
+/**
+ * Returns whether a function registers suites or tests, such as `suite`, `test.skip` or Playwright's `test.describe`.
+ */
 function getTestKind(node: tt.Node): TestKind | undefined {
 	if (ts.isIdentifier(node)) {
 		return node.text === 'describe' || node.text === 'suite' ? 'suite' : node.text === 'test' || node.text === 'it' ? 'test' : undefined;
 	}
-	if (ts.isPropertyAccessExpression(node) || ts.isCallExpression(node) || ts.isParenthesizedExpression(node)) {
+	if (ts.isPropertyAccessExpression(node)) {
+		const kind = getTestKind(node.expression);
+		// Variants such as `test.describe.only` register suites as well.
+		return kind !== undefined && node.name.text === 'describe' ? 'suite' : kind;
+	}
+	if (ts.isCallExpression(node) || ts.isParenthesizedExpression(node)) {
 		return getTestKind(node.expression);
 	}
 	// A condition can select a variant, as in `(isWindows ? test.skip : test)('title', () => {})`.

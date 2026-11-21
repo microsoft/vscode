@@ -304,6 +304,18 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		}]);
 	});
 
+	test('matches tests at their unchanged starts even if a title changes to the old title of another test', async () => {
+		const original = 'test("alpha", () => { check(1); });\ntest("bravo", () => { check(2); });';
+		const modified = 'test("bravo", () => { check(1); });\ntest("charl", () => { check(2); });';
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'alpha'), modifiedRange: rangeOf(modified, 'bravo') },
+			{ originalRange: rangeOf(original, 'bravo'), modifiedRange: rangeOf(modified, 'charl') },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.original, node.modified]), [
+			['alpha', 'bravo'], ['bravo', 'charl'],
+		]);
+	});
+
 	test('retains namespaces and assigned object containers without duplicate callable nodes', async () => {
 		const original = 'namespace Example {\n\texport const options = {\n\t\tcalculate: (() => { return 1; }) satisfies Function,\n\t};\n}';
 		const modified = original.replace('return 1', 'return 2');
@@ -649,6 +661,36 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			[['Calculator', 'handles ${input}'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
 			[['Calculator', 'on Windows'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
 			[['Calculator', 'on Windows', 'uses backslashes'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
+		]);
+	});
+
+	test('lists Playwright suites and suite registrations within parentheses or after void', async () => {
+		const original = [
+			'test.describe("Carousel", () => {',
+			'\ttest.beforeEach(async ({ page }) => { await page.goto("/1"); });',
+			'\ttest("advances", async () => { expect(1); });',
+			'});',
+			'test.describe.skip("Skipped", () => {',
+			'\ttest("waits", () => { expect(1); });',
+			'});',
+			'void suite("Voided", () => {',
+			'\ttest("works", () => { assert(1); });',
+			'});',
+			'(describe("Wrapped", () => {',
+			'\tit("works", () => { assert(1); });',
+			'}));',
+		].join('\n');
+		const modified = original.replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['Carousel'], vscode.SymbolKind.Class],
+			[['Carousel', 'advances'], vscode.SymbolKind.Method],
+			[['Skipped'], vscode.SymbolKind.Class],
+			[['Skipped', 'waits'], vscode.SymbolKind.Method],
+			[['Voided'], vscode.SymbolKind.Class],
+			[['Voided', 'works'], vscode.SymbolKind.Method],
+			[['Wrapped'], vscode.SymbolKind.Class],
+			[['Wrapped', 'works'], vscode.SymbolKind.Method],
 		]);
 	});
 
