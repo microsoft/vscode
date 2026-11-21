@@ -339,7 +339,6 @@ export async function preparePathForShell(resource: string | URI, executable: st
 	}
 
 	const hasSpace = originalPath.includes(' ');
-	const hasParens = originalPath.includes('(') || originalPath.includes(')');
 
 	const pathBasename = path.basename(executable, '.exe');
 	const isPowerShell = pathBasename === 'pwsh' ||
@@ -347,12 +346,10 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		pathBasename === 'powershell' ||
 		title === 'powershell';
 
-	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
-		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
-	}
-
-	if (hasParens && isPowerShell) {
-		return `& '${originalPath}'`;
+	// Quote anything beyond plain path characters, since the path may come from terminal
+	// output. PowerShell also treats typographic single quotes as string delimiters.
+	if (isPowerShell && !/^[\p{L}\p{M}\p{N}\\/:._~-]*$/u.test(originalPath)) {
+		return `& '${originalPath.replace(/['\u2018-\u201B]/g, '$&$&')}'`;
 	}
 
 	if (os === OperatingSystem.Windows) {
