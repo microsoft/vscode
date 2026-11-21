@@ -27,6 +27,65 @@ suite('DiffEditorWidget2', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('handles disposed models gracefully without throwing when setting model', () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const original = disposables.add(instantiateTextModel(instantiationService, 'original text'));
+		const modified = disposables.add(instantiateTextModel(instantiationService, 'modified text'));
+		const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+			renderGutterMenu: false,
+		}, {
+			originalEditor: { contributions: [] },
+			modifiedEditor: { contributions: [] },
+		}));
+
+		// Dispose modified model before setting model
+		modified.dispose();
+
+		// Should not throw 'Model is disposed!'
+		widget.setModel({ original, modified });
+		assert.strictEqual(widget.getModel(), null);
+	});
+
+	test('handles disposed model in setDiffModel gracefully without throwing', () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const original = disposables.add(instantiateTextModel(instantiationService, 'original text'));
+		const modified = disposables.add(instantiateTextModel(instantiationService, 'modified text'));
+		const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+			renderGutterMenu: false,
+		}, {
+			originalEditor: { contributions: [] },
+			modifiedEditor: { contributions: [] },
+		}));
+		const vm = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
+
+		// Dispose original model before setting diff model
+		original.dispose();
+
+		// Should not throw 'Model is disposed!'
+		widget.setDiffModel(vm);
+		assert.strictEqual(widget.getModel(), null);
+	});
+
 	for (const renderSideBySide of [true, false]) {
 		test(`compact disclosures expand and collapse with a persistent keyboard target (side by side: ${renderSideBySide})`, async () => {
 			const services = new ServiceCollection();
