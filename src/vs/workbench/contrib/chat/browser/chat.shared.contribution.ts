@@ -25,7 +25,7 @@ import { ChatPetJumpGameAccessibleView } from './accessibility/chatPetJumpGameAc
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -2335,11 +2335,12 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useHooks.title', "Use Chat Hooks",),
-			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",),
+			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['preview', 'prompts', 'hooks', 'agent'],
+			agentHost: { key: AgentHostHooksEnabledConfigKey },
 			policy: {
 				name: 'ChatHooks',
 				category: PolicyCategory.InteractiveSession,
@@ -2348,10 +2349,17 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.useHooks.description',
-						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",)
+						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings.",)
 					}
 				},
 			}
+		},
+		[ChatConfiguration.HooksShowWarnings]: {
+			type: 'boolean',
+			title: nls.localize('chat.hooks.showWarnings.title', "Show Hook Warnings",),
+			markdownDescription: nls.localize('chat.hooks.showWarnings.description', "Controls whether the chat shows a warning when a hook fails to start or exits with an error. This setting is only used by the Copilot harness.",),
+			default: product.quality !== 'stable',
+			tags: ['preview', 'hooks', 'agent'],
 		},
 		[PromptsConfig.USE_CLAUDE_HOOKS]: {
 			type: 'boolean',

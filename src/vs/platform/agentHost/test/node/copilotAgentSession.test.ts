@@ -61,7 +61,7 @@ import { getComputerUseActivationAnswers, readComputerUseActivationCard, readCom
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
@@ -1704,7 +1704,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (duringLaunch) {
 				await duringLaunch;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, true, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] !== false, logService);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, true, true, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] !== false, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -7023,7 +7023,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
-			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, true, true, false, logService));
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, true, true, true, false, logService));
 		}
 
 		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {
@@ -12609,6 +12609,92 @@ suite('CopilotAgentSession', () => {
 				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
 			},
 		]);
+	});
+
+	suite('hook failures', () => {
+		const sessionStartFailure: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: 'hook-session-start', hookType: 'sessionStart', success: false,
+			error: { message: 'Error: spawn /bin/bash ENOENT', source: '.github/hooks/session.json' },
+		};
+		const preToolUseCrash: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: 'hook-pre-tool-use', hookType: 'preToolUse', success: false,
+			output: { 'tc-read': 'Denied by preToolUse hook from ".github/hooks/policy.json" (hook errored)' },
+			error: { message: 'Error: Hook command failed with code 1\nStderr: policy check crashed', source: '.github/hooks/policy.json' },
+		};
+
+		function getHookNotices(signals: readonly AgentSignal[]) {
+			return signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.SystemNotification
+				? [{ turnId: signal.action.turnId, parentToolCallId: signal.parentToolCallId, content: signal.action.part.content, meta: readAgentSystemNotificationMeta(signal.action.part) }] : []);
+		}
+
+		test('shows each failed hook with its source in the active turn, and nothing for a successful or unattributed hook', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('hook.end', sessionStartFailure);
+			mockSession.fire('hook.end', { hookInvocationId: 'hook-ok', hookType: 'userPromptSubmitted', success: true });
+			// VS Code's own callback hooks report no source, so they are not shown as the user's hook.
+			mockSession.fire('hook.end', { hookInvocationId: 'hook-callback', hookType: 'preToolUse', success: false, error: { message: 'callback failed' } });
+			mockSession.fire('hook.end', preToolUseCrash);
+
+			const warning = { severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined };
+			assert.deepStrictEqual(getHookNotices(signals), [
+				{
+					turnId: 'turn-1', parentToolCallId: undefined,
+					content: 'The sessionStart hook from .github/hooks/session.json failed: Error: spawn /bin/bash ENOENT',
+					meta: { kind: AgentSystemNotificationKind.Hook, ...warning, hook: { type: 'sessionStart', outcome: AgentHookOutcome.Failed, source: '.github/hooks/session.json', message: 'Error: spawn /bin/bash ENOENT' } },
+				},
+				{
+					turnId: 'turn-1', parentToolCallId: undefined,
+					content: 'The preToolUse hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1\nStderr: policy check crashed',
+					meta: { kind: AgentSystemNotificationKind.Hook, ...warning, hook: { type: 'preToolUse', outcome: AgentHookOutcome.Failed, source: '.github/hooks/policy.json', message: 'Error: Hook command failed with code 1\nStderr: policy check crashed' } },
+				},
+			]);
+		});
+
+		test('routes a subagent\'s failed hook into the subagent\'s chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('hook.end', { ...preToolUseCrash, parentToolCallId: 'tc-subagent' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual(getHookNotices(signals).map(({ turnId, parentToolCallId, meta }) => ({ turnId, parentToolCallId, source: meta.hook?.source })), [
+				{ turnId: 'turn-1', parentToolCallId: 'tc-subagent', source: '.github/hooks/policy.json' },
+			]);
+		});
+
+		test('shows a failure reported while no turn can show it in the next sent turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('hook.end', sessionStartFailure);
+			const beforeTurn = getHookNotices(signals).length;
+			session.resetTurnState('turn-1');
+			mockSession.fire('user.message', { content: 'Hello' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('user.message', { content: 'Hello again' } as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual({ beforeTurn, shown: getHookNotices(signals).map(({ turnId, meta }) => ({ turnId, type: meta.hook?.type })) }, {
+				beforeTurn: 0,
+				shown: [{ turnId: 'turn-1', type: 'sessionStart' }],
+			});
+		});
+
+		test('shows a held failure in a turn started through the SDK', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('hook.end', sessionStartFailure);
+			mockSession.fire('user.message', {
+				content: 'Play one move.',
+				messageId: 'provider-message',
+				turnId: 'provider-sdk-turn',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const started = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual(getHookNotices(signals).map(({ turnId, meta }) => ({ inStartedTurn: !!started && turnId === started.turnId, type: meta.hook?.type })), [
+				{ inStartedTurn: true, type: 'sessionStart' },
+			]);
+		});
 	});
 
 	for (const restored of [false, true]) {
