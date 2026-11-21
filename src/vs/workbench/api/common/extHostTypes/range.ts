@@ -77,10 +77,11 @@ export class Range {
 				&& this.contains(positionOrRange.end);
 
 		} else if (Position.isPosition(positionOrRange)) {
-			if (Position.of(positionOrRange).isBefore(this._start)) {
+			const pos = Position.of(positionOrRange);
+			if (pos.isBefore(this._start)) {
 				return false;
 			}
-			if (this._end.isBefore(positionOrRange)) {
+			if (this._end.isBefore(pos)) {
 				return false;
 			}
 			return true;
