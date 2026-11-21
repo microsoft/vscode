@@ -269,7 +269,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			const existingSession = await this.getExistingSession();
 			if (existingSession) {
 				this.logService.info(`Found existing authentication session with ID ${existingSession.session.id}`);
-				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
+				return { sessionId: existingSession.session.id, token: existingSession.session.accessToken, providerId: existingSession.session.providerId };
 			} else {
 				this._didSignOut.fire();
 			}
@@ -296,7 +296,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		const authenticationSession = await this.getAccountPreference(reason);
 		if (authenticationSession !== undefined) {
 			this.existingSessionId = authenticationSession.id;
-			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
+			return { sessionId: authenticationSession.id, token: authenticationSession.accessToken, providerId: authenticationSession.providerId };
 		}
 
 		return undefined;
