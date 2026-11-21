@@ -4639,6 +4639,8 @@ export class CopilotAgentSession extends Disposable {
 		return this._controlPlaneDesynchronized;
 	}
 
+	get hasReleasedCanvasProjection(): boolean { return this._canvasPhase === 'released'; }
+
 	get appliedDisabledRootMcpServers(): readonly string[] {
 		return this._launchPlan.disabledRootMcpServers ?? [];
 	}
@@ -5423,10 +5425,17 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	assertCanvasRuntimeAvailable(): void {
+		if (this._canvasPhase === 'released') {
+			throw new Error(localize('copilot.canvasesReleased', "This chat needs to restart before its canvases can be used. Send a message to continue."));
+		}
+	}
+
 	async listCanvases(): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
+		this.assertCanvasRuntimeAvailable();
 		const generation = this._canvasRegistryGeneration;
 		const [result, extensions] = await Promise.all([
 			this._awaitControlPlaneRpc('rpc.canvas.list', this._wrapper.session.rpc.canvas.list()),
@@ -5589,6 +5598,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
+		this.assertCanvasRuntimeAvailable();
 		// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
 		const extension = this._readCanvasOpenExtension(wrapper, request.extensionId);
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);

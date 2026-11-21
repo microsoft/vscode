@@ -4406,6 +4406,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				return this._agentService.listAgentExtensions(session, chat).then(inventory => ({
 					mode: inventory.mode,
+					...(inventory.reconciliation ? { reconciliation: inventory.reconciliation } : {}),
 					extensions: inventory.extensions.map(extension => ({
 						id: extension.id,
 						name: extension.name,
