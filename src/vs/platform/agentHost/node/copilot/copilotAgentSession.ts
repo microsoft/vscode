@@ -113,7 +113,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { CopilotGrepSearchNudge } from './copilotGrepSearchNudge.js';
-import { createHookFailureNotification, createPromptBlockedNotification } from './copilotHookNotices.js';
+import { createHookFailureNotification, createHookWarningNotification, createPromptBlockedNotification, CopilotHookWarnings } from './copilotHookNotices.js';
 import { CopilotHookToolDenials } from './copilotHookToolDenials.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
@@ -731,6 +731,10 @@ const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 const MANAGED_PLUGINS_COMPLETE_EVENT_TYPE = 'managed_plugins_complete';
 /** Type of the `session.warning` event sent when a hook blocks a prompt; its message is the hook's reason. */
 const PROMPT_BLOCKED_WARNING_TYPE = 'policy_blocked';
+/** Type of the `session.warning` event about a hook, such as its stderr when it exits with code 2 where that does not block. */
+const HOOK_WARNING_TYPE = 'hook';
+/** Type of the `session.warning` event sent when part of a hook's answer was not used. */
+const HOOK_OUTPUT_WARNING_TYPE = 'hook_output';
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -2458,10 +2462,11 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedWaitActivity: string | undefined;
 	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
 	private _unshownManagedPluginFailure: string | undefined;
-	/** Root hook failures reported while no turn could show them; shown in the next sent turn. */
+	/** Root hook failures and warnings reported while no turn could show them; shown in the next sent turn. */
 	private _unshownHookFailures: SystemNotificationResponsePart[] = [];
 	/** A prompt block that arrived before its `session.send` returned. */
 	private _earlyPromptBlock: { readonly messageId: string; readonly reason: string } | undefined;
+	private readonly _hookWarnings = new CopilotHookWarnings();
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
 	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
@@ -14080,16 +14085,12 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Shows a hook that could not start or crashed where it happened: in its
-	 * subagent's chat, or in the root turn. A root failure reported while no
-	 * turn can show it, such as between turns or after a cancellation, is shown
-	 * in the next sent turn instead of being lost.
+	 * Shows a hook notice where it happened: in its subagent's chat, or in the
+	 * root turn. A root notice reported while no turn can show it, such as
+	 * between turns or after a cancellation, is shown in the next sent turn
+	 * instead of being lost.
 	 */
-	private _reportHookFailure(e: SessionEventPayload<'hook.end'>): void {
-		const part = createHookFailureNotification(e.data);
-		if (!part) {
-			return;
-		}
+	private _showHookNotice(part: SystemNotificationResponsePart, e: { readonly agentId?: string }): void {
 		const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 		if (parentToolCallId) {
 			this._emitAction({ type: ActionType.ChatResponsePart, turnId: this._turnId, part }, parentToolCallId);
@@ -14695,6 +14696,14 @@ export class CopilotAgentSession extends Disposable {
 					this._earlyPromptBlock = { messageId: e.data.originatingMessageId, reason: e.data.message };
 				}
 			}
+			// Shown only once that hook's hook.end follows directly; any other, such as a hook file that could not be loaded, is only logged.
+			if (e.data.warningType === HOOK_WARNING_TYPE) {
+				this._hookWarnings.hold(e, e.data.message);
+			}
+			// Sent after the hook ended, without naming it.
+			if (e.data.warningType === HOOK_OUTPUT_WARNING_TYPE) {
+				this._showHookNotice(createHookWarningNotification(undefined, e.data.message), e);
+			}
 		}));
 
 		store.add(wrapper.onSessionModelChange(e => {
@@ -15031,7 +15040,13 @@ export class CopilotAgentSession extends Disposable {
 
 		store.add(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
-			this._reportHookFailure(e);
+			for (const message of this._hookWarnings.hookEnded(e)) {
+				this._showHookNotice(createHookWarningNotification(e.data.hookType, message), e);
+			}
+			const failure = createHookFailureNotification(e.data);
+			if (failure) {
+				this._showHookNotice(failure, e);
+			}
 			this._hookToolDenials.recordHookEnd(e.data);
 		}));
 
