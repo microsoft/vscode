@@ -3142,7 +3142,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const assignmentContext of [undefined, '', 'vscode-flight-a:1;vscode-flight-b:2;']) {
-		test(`forwards the VS Code assignment context on create and resume (${JSON.stringify(assignmentContext)})`, async () => {
+		test(`lets the runtime fetch its assignments with the VS Code assignment context on create and resume (${JSON.stringify(assignmentContext)})`, async () => {
 			const configs: ResumeSessionOptions[] = [];
 			const session = {
 				sessionId: 'session-1',
@@ -3179,10 +3179,10 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 			store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime));
 			store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined } }, testRuntime));
 
-			const expected = assignmentContext ? { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } : undefined;
+			const expected = assignmentContext ? { assignments: undefined, fetchAssignments: true, hostAssignmentContext: assignmentContext } : { assignments: undefined, fetchAssignments: undefined, hostAssignmentContext: undefined };
 			assert.deepStrictEqual(configs.map(config => {
-				const experiments: (NonNullable<typeof config.experiments> & { readonly assignments?: unknown }) | undefined = config.experiments;
-				return experiments?.assignments;
+				const experiments: (NonNullable<typeof config.experiments> & { readonly assignments?: unknown; readonly fetchAssignments?: boolean; readonly hostAssignmentContext?: string }) | undefined = config.experiments;
+				return { assignments: experiments?.assignments, fetchAssignments: experiments?.fetchAssignments, hostAssignmentContext: experiments?.hostAssignmentContext };
 			}), [expected, expected]);
 		});
 	}

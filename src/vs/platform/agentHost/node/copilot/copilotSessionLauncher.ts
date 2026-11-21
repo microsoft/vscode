@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionOptions, CreateSessionOptions, SessionEvent, SessionHooks, Tool, Verbosity } from '@microsoft/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionOptions, CreateSessionOptions, SessionEvent, SessionHooks, Tool, Verbosity } from '@microsoft/copilot-sdk';
 import { homedir } from 'os';
 import { getEagerMcpDiagnosticLevel } from './copilotMcpServerLogs.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -167,14 +167,15 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 /**
- * Builds the SDK `expAssignments` that carries only VS Code's ExP assignment context, since VS Code resolves its own treatments.
- * `expAssignments` is `@internal` in the SDK, so it is absent from the published config types.
+ * Lets the runtime fetch its own ExP assignments when VS Code experiments are enabled, and reports VS Code's
+ * assignment context after the runtime's. VS Code's own treatments still reach the session as `flags`, which win.
+ * These options are `@internal` in the SDK, so they are absent from the published config types.
  */
-function toSdkExpAssignments(assignmentContext: unknown): { assignments?: CopilotExpAssignmentResponse } {
+function toSdkExpFetchOptions(assignmentContext: unknown): { fetchAssignments?: boolean; hostAssignmentContext?: string } {
 	if (typeof assignmentContext !== 'string' || !assignmentContext) {
 		return {};
 	}
-	return { assignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } };
+	return { fetchAssignments: true, hostAssignmentContext: assignmentContext };
 }
 
 /** Copilot runtime feature flag that stores memories in the repository's `.github/copilot-memories.jsonl`. */
@@ -1874,7 +1875,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				// HydraFusion, which Auto's service-provided tiers can route to, needs experimental mode.
 				enableExperimentalMode: true,
 				flags: featureFlags,
-				...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
+				...toSdkExpFetchOptions(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
 			},
 			github: {
 				...(enableSessionTelemetry ? {} : { telemetryEnabled: false }),
