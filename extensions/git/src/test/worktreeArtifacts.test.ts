@@ -34,11 +34,11 @@ suite('git.artifactProvider.worktrees', () => {
 	}
 
 	function onDidChangeWorktrees(repository: Repository): Promise<string[]> {
-		return eventToPromise(filterEvent(repository.artifactProvider.onDidChangeArtifacts, groups => groups.includes('worktrees')));
+		return eventToPromise(filterEvent(repository.artifactProvider!.onDidChangeArtifacts, groups => groups.includes('worktrees')));
 	}
 
 	async function getWorktreeArtifacts(repository: Repository): Promise<string[]> {
-		const artifacts = await repository.artifactProvider.provideArtifacts('worktrees');
+		const artifacts = await repository.artifactProvider!.provideArtifacts('worktrees');
 		return artifacts.map(artifact => artifact.id).sort();
 	}
 

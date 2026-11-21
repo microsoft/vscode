@@ -8,7 +8,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, PendingOperations, toDisposable, eventToPromise } from './util';
-import { Git } from './git';
+import { Git, IDotGit } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
@@ -59,7 +59,18 @@ export interface OriginalResourceChangeEvent {
 }
 
 interface OpenRepository extends Disposable {
-	repository: Repository;
+	readonly repository: Repository;
+	detach(): void;
+}
+
+function isSameRepositoryLocation(repository: Repository, dotGit: IDotGit, rootRealPath: string | undefined): boolean {
+	const samePath = (a: string | undefined, b: string | undefined) => a === undefined || b === undefined ? a === b : pathEquals(a, b);
+
+	return samePath(repository.dotGit.path, dotGit.path)
+		&& samePath(repository.dotGit.commonPath, dotGit.commonPath)
+		&& samePath(repository.dotGit.superProjectPath, dotGit.superProjectPath)
+		&& repository.dotGit.isBare === dotGit.isBare
+		&& samePath(repository.rootRealPath, rootRealPath);
 }
 
 class ClosedRepositoriesManager {
@@ -200,6 +211,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private openRepositories: OpenRepository[] = [];
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
+
+	// Repositories without a source control. Opening one again skips most of the repository discovery.
+	private detachedRepositories: Repository[] = [];
 
 	private possibleGitRepositoryPaths = new Set<string>();
 
@@ -784,7 +798,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			// Get .git path and real path
-			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+			const [dotGit, repositoryRootRealPath]: [IDotGit, string | undefined] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+
+			// Reuse a detached repository only while its git directories are the same, because the trust request and the file watchers use them
+			let detachedRepository = this.detachedRepositories.find(r => pathEquals(r.root, repositoryRoot));
+			if (detachedRepository && !isSameRepositoryLocation(detachedRepository, dotGit, repositoryRootRealPath)) {
+				this.logger.trace(`[Model][openRepository] Git directory of detached repository changed: ${repositoryRoot}`);
+				this.detachedRepositories = this.detachedRepositories.filter(r => r !== detachedRepository);
+				detachedRepository.dispose();
+				detachedRepository = undefined;
+			}
 
 			// Check that the folder containing the .git folder is trusted
 			const dotGitPath = dotGit.commonPath ?? dotGit.path;
@@ -799,15 +822,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			// Open repository
-			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
-			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache, isWarm);
+			const repository = detachedRepository ?? new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache, isWarm);
+			detachedRepository?.setWarm(isWarm);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
 
 			this.logger.info(`[Model][openRepository] Opened repository (path): ${repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
-			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
+			this.logger.info(`[Model][openRepository] Opened repository (kind): ${repository.kind}`);
+			this.logger.info(`[Model][openRepository] Opened repository (detached): ${detachedRepository !== undefined}`);
 
 			// Do not await this, we want SCM to know about the repo asap.
 			this._initialStatusLimiter.queue(() => repository.status()).then(() => {
@@ -876,9 +900,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private open(repository: Repository): void {
 		this.logger.trace(`[Model][open] Repository: ${repository.root}`);
 
+		this.detachedRepositories = this.detachedRepositories.filter(r => r !== repository);
+		const sourceControl = repository.attachSourceControl();
+
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
-		const disappearListener = onDidDisappearRepository(() => dispose());
-		const disposeParentListener = repository.sourceControl.onDidDisposeParent(() => dispose());
+		const disappearListener = onDidDisappearRepository(() => openRepository.dispose());
+		const disposeParentListener = sourceControl.onDidDisposeParent(() => {
+			this.logger.trace(`[Model][open] Parent source control disposed: ${repository.root}`);
+			openRepository.dispose();
+		});
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
@@ -978,21 +1008,52 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const operationListener = operationEvent(() => updateOperationInProgressContext());
 		updateOperationInProgressContext();
 
-		const dispose = () => {
+		let closed = false;
+		const disposeListeners = () => {
+			closed = true;
 			disappearListener.dispose();
 			disposeParentListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
 			statusListener.dispose();
 			operationListener.dispose();
-			repository.dispose();
-
-			this.workspaceFolderRepositories.delete(repository);
-			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
-			this._onDidCloseRepository.fire(repository);
 		};
 
-		const openRepository = { repository, dispose };
+		const openRepository: OpenRepository = {
+			repository,
+			dispose: () => {
+				if (closed) {
+					return;
+				}
+
+				// The children close while this repository is still open
+				disposeListeners();
+				repository.dispose();
+
+				this.workspaceFolderRepositories.delete(repository);
+				this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
+				this._onDidCloseRepository.fire(repository);
+			},
+			detach: () => {
+				if (closed) {
+					return;
+				}
+
+				// Detach the children first, so that disposing this source control does not dispose them
+				[...this.openRepositories]
+					.filter(r => r.repository.parentRoot !== undefined && this.getOpenRepository(r.repository.parentRoot) === openRepository)
+					.forEach(child => child.detach());
+
+				disposeListeners();
+				this.workspaceFolderRepositories.delete(repository);
+				this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
+
+				// Extensions receive the repository while it still has the source control that they know
+				this._onDidCloseRepository.fire(repository);
+				repository.detachSourceControl();
+				this.detachedRepositories.push(repository);
+			}
+		};
 		this.openRepositories.push(openRepository);
 		updateMergeChanges();
 		this._onDidOpenRepository.fire(repository);
@@ -1004,6 +1065,21 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	disposeRepository(repository: Repository): void {
 		this.logger.trace(`[Model][disposeRepository] Repository: ${repository.root}`);
 		this.getOpenRepository(repository)?.dispose();
+	}
+
+	/**
+	 * Disposes the source control of an open repository but keeps the
+	 * repository, so that opening it again skips most of the discovery.
+	 */
+	detachRepository(repository: Repository): void {
+		const openRepository = this.getOpenRepository(repository);
+
+		if (!openRepository) {
+			return;
+		}
+
+		this.logger.info(`[Model][detachRepository] Repository: ${repository.root}`);
+		openRepository.detach();
 	}
 
 	close(repository: Repository): void {
@@ -1130,7 +1206,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
+			if (repository.sourceControlResourceGroups.some(group => group === hint)) {
 				return liveRepository;
 			}
 		}
@@ -1342,6 +1418,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const openRepositories = [...this.openRepositories];
 		openRepositories.forEach(r => r.dispose());
 		this.openRepositories = [];
+
+		this.detachedRepositories.forEach(r => r.dispose());
+		this.detachedRepositories = [];
 
 		this.possibleGitRepositoryPaths.clear();
 		this.disposables = dispose(this.disposables);
