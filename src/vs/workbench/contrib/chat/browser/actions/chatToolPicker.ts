@@ -265,26 +265,25 @@ export async function showToolsPicker(
 		}
 	}
 
-	function computeItems(previousToolsEntries?: ToolAndToolSetEnablementMap) {
+	function computeItems(pendingChecks?: ReadonlyMap<string, boolean>, pendingGroupChecks?: ReadonlyMap<string, boolean>) {
 		// Create default entries if none provided
-		let toolsEntries = getToolsEntries ? new Map([...getToolsEntries()].map(([k, enabled]) => [k.id, enabled])) : undefined;
-		if (!toolsEntries) {
-			const defaultEntries = new Map();
+		const toolsEntries = new Map<string, boolean>();
+		if (getToolsEntries) {
+			for (const [entry, enabled] of getToolsEntries()) {
+				toolsEntries.set(entry.id, enabled);
+			}
+		} else {
 			for (const tool of toolsService.getTools(model)) {
 				if (tool.canBeReferencedInPrompt) {
-					defaultEntries.set(tool, false);
+					toolsEntries.set(tool.id, false);
 				}
 			}
 			for (const toolSet of toolsService.getToolSetsForModel(model)) {
 				if (toolSet.hiddenInToolsPicker) {
 					continue;
 				}
-				defaultEntries.set(toolSet, false);
+				toolsEntries.set(toolSet.id, false);
 			}
-			toolsEntries = defaultEntries;
-		}
-		for (const [entry, enabled] of previousToolsEntries ?? []) {
-			toolsEntries.set(entry.id, enabled);
 		}
 
 		// Build tree structure
@@ -354,13 +353,16 @@ export async function showToolsPicker(
 							treePicker.busy = true;
 							(async () => {
 								const ok = await startServerAndWaitForLiveTools(mcpServer, { promptType: 'all-untrusted' });
+								if (pickerSession.isDisposed) {
+									return;
+								}
 								if (!ok) {
 									mcpServer.showOutput();
 									treePicker.hide();
 									return;
 								}
 								treePicker.busy = false;
-								computeItems(collectResults());
+								refreshItems();
 							})();
 							return false;
 						},
@@ -452,16 +454,16 @@ export async function showToolsPicker(
 			if (toolSet.source.type === 'mcp') {
 				// bucket represents the toolset
 				bucket.toolset = toolSet;
-				if (toolSetChecked) {
-					bucket.checked = toolSetChecked;
+				if (pendingChecks?.has(toolSet.id) || toolSetChecked) {
+					bucket.checked = pendingChecks?.get(toolSet.id) ?? toolSetChecked;
 				}
 				// all mcp tools are part of toolsService.getTools()
 			} else {
-				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService, toolSet => void removeToolSet(toolSet));
+				const treeItem = createToolSetTreeItem(toolSet, pendingChecks?.get(toolSet.id) ?? toolSetChecked, editorService, toolSet => void removeToolSet(toolSet));
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
-					const toolChecked = toolSetChecked || toolsEntries.get(tool.id) === true;
+					const toolChecked = pendingChecks?.get(tool.id) ?? (toolSetChecked || toolsEntries.get(tool.id) === true);
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
 				}
@@ -479,7 +481,9 @@ export async function showToolsPicker(
 			if (!bucket) {
 				continue;
 			}
-			const toolChecked = bucket.checked === true || toolsEntries.get(tool.id) === true;
+			const setEnabled = bucket.toolset && toolsEntries.get(bucket.toolset.id) === true;
+			const pendingGroupChecked = bucket.toolset ? pendingGroupChecks?.get(bucket.toolset.id) : undefined;
+			const toolChecked = pendingChecks?.get(tool.id) ?? pendingGroupChecked ?? (setEnabled || toolsEntries.get(tool.id) === true);
 			const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 			bucket.children.push(toolTreeItem);
 		}
@@ -552,6 +556,8 @@ export async function showToolsPicker(
 	// Create and configure the tree picker
 	const store = new DisposableStore();
 	const treePicker = store.add(quickPickService.createQuickTree<AnyTreeItem>());
+	const pickerSession = store.add(new DisposableStore());
+	store.add(treePicker.onDidHide(() => pickerSession.dispose()));
 
 	treePicker.placeholder = placeHolder;
 	treePicker.description = description;
@@ -657,10 +663,32 @@ export async function showToolsPicker(
 		}));
 	}
 
-	// Capture initial state for telemetry comparison
-	const initialState = collectResults();
-
 	treePicker.show();
+
+	let initialState = collectResults();
+	function refreshItems(): void {
+		const pendingChecks = new Map<string, boolean>();
+		const initialChecks = new Map<string, boolean>();
+		for (const [entry, checked] of collectResults()) {
+			const initial = initialState.get(entry);
+			if (initial !== undefined && checked !== initial) {
+				pendingChecks.set(entry.id, checked);
+				initialChecks.set(entry.id, initial);
+			}
+		}
+
+		const pendingGroupChecks = new Map<string, boolean>();
+		for (const item of treePicker.itemTree) {
+			if (isBucketTreeItem(item) && item.toolset && typeof item.checked === 'boolean' && item.checked !== initialState.get(item.toolset)) {
+				pendingGroupChecks.set(item.toolset.id, item.checked);
+			}
+		}
+		computeItems(pendingChecks, pendingGroupChecks);
+
+		// Compare user edits against their original values, and new items against their current defaults.
+		initialState = ToolAndToolSetEnablementMap.fromEntries(Array.from(collectResults(), ([entry, checked]) => [entry, initialChecks.get(entry.id) ?? checked]));
+	}
+	pickerSession.add(toolsService.onDidChangeTools(refreshItems));
 
 	await Promise.race([Event.toPromise(Event.any(treePicker.onDidHide, didAcceptFinalItem.event), store)]);
 
