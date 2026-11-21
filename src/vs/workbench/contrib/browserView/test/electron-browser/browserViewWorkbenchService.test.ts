@@ -330,6 +330,17 @@ suite('BrowserViewWorkbenchService', () => {
 		await Promise.resolve();
 	});
 
+	test('attaches an unlisted view before starting its initial navigation', async () => {
+		const { service, loadedUrls } = createService();
+		let beforeAttachment: typeof loadedUrls | undefined;
+		const model = store.add(await service.createExternalBrowserView('https://example.test/preview', 'canvas', undefined, () => {
+			beforeAttachment = [...loadedUrls];
+		}));
+		assert.deepStrictEqual({ beforeAttachment, afterAttachment: loadedUrls }, {
+			beforeAttachment: [], afterAttachment: [{ id: model.id, url: 'https://example.test/preview' }],
+		});
+	});
+
 	test('keeps unlisted views out of workbench discovery across hydration and creation events', async () => {
 		const { service, events, creationOptions, loadedUrls } = createService();
 		const restored = info('restored-external', BrowserViewPresentation.Unlisted);

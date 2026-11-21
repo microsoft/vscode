@@ -255,6 +255,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				return sheet;
 			};
 			let openModelSheet: boolean;
+			let section = request.initialSection ?? 'model';
 			do {
 				openModelSheet = false;
 				if (!isCurrent()) {
@@ -274,10 +275,10 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				};
 				const initialFocusItemId = sheet.items.find(item => {
 					const action = idToAction.get(item.id);
-					return request.initialSection === 'permissions' ? action?.kind === 'permission' || action?.kind === 'providerPermissions'
-						: request.initialSection === 'modelConfiguration' ? action?.kind === 'modelConfig'
-							: request.initialSection === 'model' ? action?.kind === 'chooseModel'
-								: request.initialSection === 'agent' ? action?.kind === 'agent'
+					return section === 'permissions' ? action?.kind === 'permission' || action?.kind === 'providerPermissions'
+						: section === 'modelConfiguration' ? action?.kind === 'modelConfig'
+							: section === 'model' ? action?.kind === 'chooseModel'
+								: section === 'agent' ? action?.kind === 'agent'
 									: action?.kind === 'mode' || action?.kind === 'agentHostMode';
 				})?.id;
 				await showMobilePickerSheet(this._layoutService.mainContainer, localize('chatPhoneInput.title', "Configure Session"), sheet.items, {
@@ -310,6 +311,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 					},
 				});
 				if (openModelSheet && isCurrent() && sheet) {
+					section = 'model';
 					const chosen = await this._showModelSheet(sheet.models, sheet.currentModel, cancellation);
 					if (chosen && isCurrent()) {
 						await this._performAction(sheet.selectModelAction(chosen), target, request, isCurrent);

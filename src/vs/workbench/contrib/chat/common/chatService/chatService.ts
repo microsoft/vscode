@@ -417,6 +417,14 @@ export interface IChatTaskResult {
 	kind: 'progressTaskResult';
 }
 
+/** A bell-slash button on a chat warning that stops that kind of warning, like the chat input notifications' mute action. */
+export interface IChatWarningMuteAction {
+	readonly commandId: string;
+	readonly commandArgs?: unknown[];
+	/** Tooltip and accessible label for the button. */
+	readonly tooltip: string;
+}
+
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
@@ -425,6 +433,9 @@ export interface IChatWarningMessage {
 	 * response's collapsed steps.
 	 */
 	keepVisibleWhenCollapsed?: boolean;
+	mute?: IChatWarningMuteAction;
+	/** Shows the message as an error, for something that stopped the request rather than a caution about it. */
+	isError?: boolean;
 }
 
 export interface IChatInfoMessage {
