@@ -105,6 +105,12 @@ suite('toInlineSuggestion', () => {
 		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
 	});
 
+	test('cursor line past end of document', () => {
+		const document = createMockDocument(['a', 'b']);
+
+		assert.isUndefined(toInlineSuggestion(new Position(4, 0), document, new Range(1, 0, 1, 1), 'bb'));
+	});
+
 	test('multi-line replace range', () => {
 		const document = createMockDocument(['This is line 1,', 'This is line,', 'This is line,']);
 		const replaceRange = new Range(1, 0, 2, 13);
