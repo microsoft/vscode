@@ -76,7 +76,9 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		}
 		for (const [variable, mutators] of this.getVariableMap(scope)) {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
-			for (const mutator of mutators) {
+			// Shell integration replays by type, so omit mutations replaced in that stage.
+			const lastShellIntegrationReplace = mutators.findLastIndex(m => m.type === EnvironmentVariableMutatorType.Replace && m.options?.applyAtShellIntegration);
+			for (const [index, mutator] of mutators.entries()) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 
 				if (this.blockPythonActivationVar(mutator.variable, mutator.extensionIdentifier)) {
@@ -98,7 +100,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					}
 				}
 				// Default: false
-				if (mutator.options?.applyAtShellIntegration ?? false) {
+				if ((mutator.options?.applyAtShellIntegration ?? false) && index >= lastShellIntegrationReplace) {
 					const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
 					env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + this._encodeColons(value);
 				}
@@ -162,8 +164,18 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		for (const mutators of this.map.values()) {
 			const filteredMutators = mutators.filter(m => filterScope(m, scope));
 			if (filteredMutators.length > 0) {
-				// All of these mutators are for the same variable because they are in the same scope, hence choose anyone to form a key.
-				result.set(filteredMutators[0].variable, filteredMutators);
+				const first = filteredMutators[0];
+				const entry = result.get(first.variable);
+				if (entry) {
+					// Global mutations must precede workspace mutations, regardless of registration order.
+					if (first.scope?.workspaceFolder) {
+						entry.push(...filteredMutators);
+					} else {
+						entry.unshift(...filteredMutators);
+					}
+				} else {
+					result.set(first.variable, filteredMutators);
+				}
 			}
 		}
 		return result;
@@ -246,13 +258,13 @@ function getMissingMutatorsFromArray(
 	}
 
 	// Create a map to help
-	const otherMutatorExtensions = new Set<string>();
-	other.forEach(m => otherMutatorExtensions.add(m.extensionIdentifier));
+	const otherMutatorKeys = new Set<string>();
+	other.forEach(m => otherMutatorKeys.add(getMutatorKey(m)));
 
 	// Find entries removed from other
 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
 	current.forEach(mutator => {
-		if (!otherMutatorExtensions.has(mutator.extensionIdentifier)) {
+		if (!otherMutatorKeys.has(getMutatorKey(mutator))) {
 			result.push(mutator);
 		}
 	});
@@ -270,13 +282,13 @@ function getChangedMutatorsFromArray(
 	}
 
 	// Create a map to help
-	const otherMutatorExtensions = new Map<string, IExtensionOwnedEnvironmentVariableMutator>();
-	other.forEach(m => otherMutatorExtensions.set(m.extensionIdentifier, m));
+	const otherMutators = new Map<string, IExtensionOwnedEnvironmentVariableMutator>();
+	other.forEach(m => otherMutators.set(getMutatorKey(m), m));
 
 	// Find entries that exist in both but are not equal
 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
 	current.forEach(mutator => {
-		const otherMutator = otherMutatorExtensions.get(mutator.extensionIdentifier);
+		const otherMutator = otherMutators.get(getMutatorKey(mutator));
 		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value || mutator.scope?.workspaceFolder?.index !== otherMutator.scope?.workspaceFolder?.index)) {
 			// Return the new result, not the old one
 			result.push(otherMutator);
@@ -284,4 +296,8 @@ function getChangedMutatorsFromArray(
 	});
 
 	return result.length === 0 ? undefined : result;
+}
+
+function getMutatorKey(mutator: IExtensionOwnedEnvironmentVariableMutator): string {
+	return `${mutator.extensionIdentifier}:${mutator.scope?.workspaceFolder?.index ?? ''}`;
 }
