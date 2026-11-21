@@ -345,7 +345,7 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 //
 // `padding`, `margin` and `gap` use a fixed scale. Adopting the `var()` token is
 // NOT required - a raw px value is fine as long as it lands ON the scale. What
-// breaks visual rhythm is an OFF-scale value (3/5/7/14px etc.), so this only
+// breaks visual rhythm is an OFF-scale value (5/7/14px etc.), so this only
 // flags lengths that are neither `0` nor an exact ramp value, and suggests the
 // nearest ramp px. Values are often shorthands (`padding: 5px 8px`); each length
 // is checked independently. `0`/`0px`, `auto`, `%`, `em`/`rem`, and any
@@ -353,8 +353,8 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 
 const RE_SPACING_PROP = /(?:^|[\s;])(padding|margin|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left))?\s*:\s*([^;{}]+)/i;
 
-/** Spacing scale in px, ascending. */
-const SPACING_SCALE: readonly number[] = [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40];
+/** Spacing scale in px, ascending. Includes 0 so subpixel values can snap to no spacing. */
+const SPACING_SCALE: readonly number[] = [0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40];
 
 /** Snaps an off-scale spacing px to the nearest ramp value (ties round up). */
 function snapSpacing(px: number): number {
