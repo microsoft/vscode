@@ -297,6 +297,7 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			return false;
 		};
 
+		let responseUrl = options.url;
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
 			if (!options.isChromiumNetwork && followRedirect(res.statusCode, res.headers['location'])) {
 				res.resume();
@@ -312,11 +313,19 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
-				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
+				resolve({
+					res,
+					stream: streamToBufferReadableStream(stream),
+					url: responseUrl,
+					requestHasAuthorization: Object.entries(options.headers ?? {}).some(([name, value]) => name.toLowerCase() === 'authorization' && !!value),
+				} satisfies IRequestContext);
 			}
 		});
 
 		req.on('error', reject);
+		if (options.isChromiumNetwork) {
+			req.on('redirect', (_statusCode: number, _method: string, url: string) => responseUrl = url);
+		}
 
 		if (options.isChromiumNetwork && manualRedirects) {
 			req.on('redirect', (statusCode: number, method: string, redirectUrl: string, headers: IHeaders) => {

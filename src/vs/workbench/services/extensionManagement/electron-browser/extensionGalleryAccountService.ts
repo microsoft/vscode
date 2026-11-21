@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getExpirationTime, isExpired } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -201,8 +202,11 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	}
 
 	private protectedResourceCache: IMarketplaceProtectedResourceCache | undefined;
+	private serviceIndexUrl: string | undefined;
+	private resourceTokenAccount: { readonly id: string; readonly serviceIndexUrl: string } | undefined;
 
 	protected override async doGetAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
+		this.serviceIndexUrl = serviceIndexUrl;
 		if (!this.protectedResourceCache || this.protectedResourceCache.serviceIndexUrl !== serviceIndexUrl) {
 			this.protectedResourceCache = { serviceIndexUrl };
 		}
@@ -222,7 +226,23 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		if (!protectedResource || protectedResource.invalidScopes || !this.hasResourceScopes(protectedResource.scopes)) {
 			return {};
 		}
-		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken };
+		const resourceSession = await this.getResourceSession(session, protectedResource);
+		if (!resourceSession) {
+			return {};
+		}
+		if (this.accountStatus === ExtensionGalleryAccountStatus.Eligible
+			&& this.serviceIndexUrl === serviceIndexUrl && this.readPreferredAccountId() === session.account.id) {
+			this.resourceTokenAccount = { id: session.account.id, serviceIndexUrl };
+		}
+		const expiresAfter = resourceSession.expiresAfter;
+		if (expiresAfter === undefined || !Number.isFinite(expiresAfter) || expiresAfter <= 0) {
+			this.logService.trace('[Marketplace] Resource token lifetime unavailable; checking the authentication provider again in five minutes');
+		}
+		return {
+			accessToken: resourceSession.accessToken,
+			accountId: session.account.id,
+			refreshAfter: expiresAfter !== undefined && Number.isFinite(expiresAfter) && expiresAfter > 0 ? expiresAfter * 0.75 : 5 * 60 * 1000,
+		};
 	}
 
 	/** Work/school tenant is eligible, personal is not. Fails closed on an unreadable token. */
@@ -272,17 +292,26 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * treated here as simply having no session.
 	 */
 	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
+		const serviceIndexUrl = this.serviceIndexUrl;
 		if (!this.hasResourceScopes(protectedResource.scopes)) {
 			return undefined;
 		}
 		try {
 			const sessions = await this.authenticationService.getSessions('microsoft', [...protectedResource.scopes], {
 				account: session.account,
-				authorizationServer: URI.parse(protectedResource.authorizationServer)
+				authorizationServer: URI.parse(protectedResource.authorizationServer),
+				silent: true,
 			});
 			return sessions.at(0);
 		} catch (error) {
 			this.logService.error('[Marketplace] Unable to acquire a resource-scoped marketplace token', error);
+			// A failed renewal must not preserve credentials belonging to another account or gallery.
+			if (this.accountStatus === ExtensionGalleryAccountStatus.Eligible
+				&& this.resourceTokenAccount?.id === session.account.id
+				&& this.resourceTokenAccount.serviceIndexUrl === serviceIndexUrl
+				&& this.serviceIndexUrl === serviceIndexUrl && this.readPreferredAccountId() === session.account.id) {
+				this.setAccountStatus(ExtensionGalleryAccountStatus.Unknown);
+			}
 			return undefined;
 		}
 	}
@@ -485,6 +514,11 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	private provider: IExtensionGalleryAccountProvider | undefined;
 	private readonly providerListeners = this._register(new MutableDisposable<DisposableStore>());
 	private accountGeneration = 0;
+	private serviceIndexUrl: string | undefined;
+	private accountRequest: { readonly generation: number; readonly forceRefresh: boolean; readonly promise: Promise<IExtensionGalleryAccount | undefined> } | undefined;
+	private retryRenewal = false;
+	private refreshAt: number | undefined;
+	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => this.handleAccountChange(), 0));
 
 	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
 	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
@@ -496,8 +530,17 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		return this.provider?.accountStatus ?? ExtensionGalleryAccountStatus.Unknown;
 	}
 
+	get canRefreshAccessToken(): boolean {
+		return this.retryRenewal;
+	}
+
+	get isRefreshDue(): boolean {
+		return this.refreshAt !== undefined && Date.now() >= this.refreshAt;
+	}
+
 	setAccountProvider(provider: IExtensionGalleryAccountProvider): void {
 		this.provider = provider;
+		this.retryRenewal = false;
 		const listeners = new DisposableStore();
 		listeners.add(provider.onDidChangeAccount(() => this.handleAccountChange()));
 		listeners.add(provider.onDidChangeAccountStatus(status => this._onDidChangeAccountStatus.fire(status)));
@@ -506,14 +549,62 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		this.handleAccountChange();
 	}
 
-	async getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
+	async getAccount(serviceIndexUrl: string, forceRefresh = false): Promise<IExtensionGalleryAccount | undefined> {
 		const provider = this.provider;
 		if (!provider) {
 			return undefined;
 		}
+		if (this.serviceIndexUrl !== serviceIndexUrl) {
+			this.serviceIndexUrl = serviceIndexUrl;
+			this.accountGeneration++;
+			this.accountRequest = undefined;
+			this.retryRenewal = false;
+			this.refreshAt = undefined;
+			this.refreshScheduler.cancel();
+		}
 		const generation = this.accountGeneration;
+		if (this.accountRequest?.generation === generation) {
+			if (forceRefresh && !this.accountRequest.forceRefresh) {
+				await this.accountRequest.promise;
+				if (this._store.isDisposed || generation !== this.accountGeneration) {
+					return undefined;
+				}
+				return this.getAccount(serviceIndexUrl, true);
+			}
+			return this.accountRequest.promise;
+		}
+		const promise = this.resolveAccount(provider, serviceIndexUrl, generation);
+		this.accountRequest = { generation, forceRefresh, promise };
+		try {
+			return await promise;
+		} finally {
+			if (this.accountRequest?.promise === promise) {
+				this.accountRequest = undefined;
+			}
+		}
+	}
+
+	private async resolveAccount(provider: IExtensionGalleryAccountProvider, serviceIndexUrl: string, generation: number): Promise<IExtensionGalleryAccount | undefined> {
 		const account = await provider.getAccount(serviceIndexUrl);
-		return generation === this.accountGeneration ? account : undefined;
+		if (this._store.isDisposed || generation !== this.accountGeneration) {
+			return undefined;
+		}
+		this.refreshScheduler.cancel();
+		if (provider.accountStatus === ExtensionGalleryAccountStatus.Eligible
+			&& account?.accessToken && account.refreshAfter !== undefined
+			&& Number.isFinite(account.refreshAfter) && account.refreshAfter > 0) {
+			this.retryRenewal = true;
+			const delay = Math.max(1000, Math.min(6 * 60 * 60 * 1000, account.refreshAfter));
+			this.refreshAt = Date.now() + delay;
+			this.refreshScheduler.schedule(delay);
+		} else if (provider.accountStatus === ExtensionGalleryAccountStatus.Unknown && this.retryRenewal) {
+			this.refreshAt = Date.now() + 30 * 1000;
+			this.refreshScheduler.schedule(30 * 1000);
+		} else {
+			this.retryRenewal = false;
+			this.refreshAt = undefined;
+		}
+		return account;
 	}
 
 	async signIn(): Promise<void> {
@@ -521,7 +612,10 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	}
 
 	private handleAccountChange(): void {
+		this.refreshScheduler.cancel();
+		this.refreshAt = undefined;
 		this.accountGeneration++;
+		this.accountRequest = undefined;
 		this._onDidChangeAccount.fire();
 	}
 }
