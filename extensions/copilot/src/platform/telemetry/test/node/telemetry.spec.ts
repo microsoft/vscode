@@ -161,6 +161,17 @@ suite('Microsoft Telemetry Sender', function () {
 		expect(mockExternalReporter.sendRawTelemetryEvent).not.toHaveBeenCalled();
 	});
 
+	test('should keep the cached tid after sign-out unless the event omits it', () => {
+		mockTokenStore.copilotToken = undefined;
+		sender.sendTelemetryEvent('unrelated', { foo: 'bar' });
+		sender.sendTelemetryEvent('signedOut', { foo: 'bar', 'common.tid': '' });
+
+		expect(vi.mocked(mockExternalReporter.sendTelemetryEvent).mock.calls.map(([eventName, properties]) => [eventName, properties?.['common.tid']])).toEqual([
+			['unrelated', 'testTid'],
+			['signedOut', ''],
+		]);
+	});
+
 	test('should dispose reporters', () => {
 		sender.dispose();
 

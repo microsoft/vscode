@@ -20,6 +20,7 @@ import { IVSCodeExtensionContext } from '../../extContext/common/extensionContex
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
+import { sendExperimentExposureTelemetry } from '../common/experimentExposure';
 import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
 import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
 import { createSignedOutAssignmentsFetch, createTasFetch, SIGNED_OUT_ASSIGNMENTS_ENDPOINTS } from './tasFetch';
@@ -312,7 +313,9 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		let assignments = getAssignments();
 		let self: MicrosoftExperimentationService | undefined = undefined;
 		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
-			const wrappedMemento = new ExpMementoWrapper(memento, envService);
+			const state = copilotTokenStore.authenticationState;
+			const identity = state === 'signedOut' ? 'signedOut' : state === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined;
+			const wrappedMemento = new ExpMementoWrapper(memento, identity, envService);
 			const snapshot = assignments;
 			// Route both the legacy (GET) and assignments (POST) requests through the extension's
 			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
@@ -351,6 +354,16 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 
 		self = this; // This is now fully initialized.
 
+		this.enableExposureEvents(() => {
+			const state = copilotTokenStore.authenticationState;
+			const trackingId = state === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined;
+			// Until sign-in settles, a read can't be attributed to the right unit.
+			if (state === 'unknown' || (state === 'signedIn' && !trackingId)) {
+				return undefined;
+			}
+			return { trackingId };
+		}, exposure => sendExperimentExposureTelemetry(telemetryService, exposure));
+
 		const legacyAccountFilterProvider = new GitHubAccountFilterProvider(this._userInfoStore, logService);
 		let legacyAccountFilters = legacyAccountFilterProvider.getFilters();
 		const updateAssignments = () => {
@@ -367,6 +380,10 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		this._register(copilotTokenStore.onDidChangeAuthenticationState(updateAssignments));
 		this._register(copilotTokenStore.onDidChangeGitHubEnterpriseUri(updateAssignments));
 		this._register(runOnChange(configurationService.getConfigObservable(ConfigKey.Shared.AuthProvider), updateAssignments));
+		// Once sign-in settles, expose the reads made before it. Registered after `updateAssignments`,
+		// so a replaced delegate's reads wait for its assignment (its initial fetch exposes them).
+		this._register(copilotTokenStore.onDidChangeTokenData(() => this.exposePendingReads()));
+		this._register(copilotTokenStore.onDidChangeAuthenticationState(() => this.exposePendingReads()));
 
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setExperimentationService(this);
@@ -402,8 +419,13 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 
 class ExpMementoWrapper implements vscode.Memento {
 
+	/**
+	 * @param _identity Who this delegate fetches for: the tracking ID, `signedOut`, or undefined
+	 * before sign-in settles. Assignments cached for someone else aren't loaded.
+	 */
 	constructor(
 		private readonly _actual: vscode.Memento,
+		private readonly _identity: string | undefined,
 		@IEnvService private readonly _envService: IEnvService
 	) {
 	}
@@ -423,6 +445,9 @@ class ExpMementoWrapper implements vscode.Memento {
 			// The extension has been updated since this value was stored, so ignore it.
 			return defaultValue;
 		}
+		if (this._identity && value.identity && value.identity !== this._identity) {
+			return defaultValue;
+		}
 		const age = (new Date()).getTime() - (new Date(value.savedDateTime)).getTime();
 		const maxAge = 1000 * 60 * 60 * 24 * 3; // 3 days
 		if (age > maxAge) {
@@ -438,6 +463,7 @@ class ExpMementoWrapper implements vscode.Memento {
 			$$$isWrappedExpValue: true,
 			savedDateTime: (new Date()).toISOString(),
 			extensionVersion: this._envService.getVersion(),
+			identity: this._identity,
 			value
 		};
 		return this._actual.update(key, wrapped);
@@ -452,6 +478,8 @@ interface IWrappedExpValue {
 	$$$isWrappedExpValue: true;
 	savedDateTime: string;
 	extensionVersion: string;
+	/** Who the value was fetched for (see `ExpMementoWrapper`); unset when unknown. */
+	identity?: string;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	value: any;
 }
