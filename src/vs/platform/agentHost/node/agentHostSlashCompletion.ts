@@ -11,7 +11,7 @@ import { matchesFuzzy2 } from '../../../base/common/filters.js';
 export interface ILeadingSlashToken {
 	/** The token including the leading slash. */
 	readonly token: string;
-	/** The typed token text after the slash. */
+	/** The token text between the slash and the cursor, used to filter completions. */
 	readonly typed: string;
 	/** The start offset of the token range to replace. */
 	readonly rangeStart: number;
@@ -38,8 +38,7 @@ export function extractLeadingSlashToken(text: string, offset: number): ILeading
 	if (offset < 0 || offset > end) {
 		return undefined;
 	}
-	const token = text.slice(0, end);
-	return { token, typed: token.slice(1), rangeStart: 0, rangeEnd: end };
+	return { token: text.slice(0, end), typed: text.slice(1, offset), rangeStart: 0, rangeEnd: end };
 }
 
 /**
@@ -67,8 +66,7 @@ export function extractWhitespaceDelimitedSlashToken(text: string, offset: numbe
 		return undefined;
 	}
 
-	const token = text.slice(start, end);
-	return { token, typed: token.slice(1), rangeStart: start, rangeEnd: end };
+	return { token: text.slice(start, end), typed: text.slice(start + 1, offset), rangeStart: start, rangeEnd: end };
 }
 
 /**
