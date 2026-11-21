@@ -49,7 +49,7 @@ import { IModelPickerOrganizationSupport } from '../../../../../browser/widget/i
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
-import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
+import { IModelPickerComparison, IModelPickerComparisonState, IModelPickerComparisonVariant, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILocalModelFamilyV1, ILocalModelStatusV1 } from '../../../../../../../../platform/agentHost/common/localModel.js';
@@ -347,6 +347,22 @@ suite('TabbedModelPicker', () => {
 
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
+	}
+
+	async function enableSelectionMotion(popup: HTMLElement): Promise<void> {
+		const container = popup.closest<HTMLElement>('.monaco-workbench')!;
+		container.classList.remove('monaco-reduce-motion');
+		container.style.cssText += `
+			--vscode-spacing-sizeNone: 0px;
+			--vscode-spacing-size20: 2px;
+			--vscode-spacing-size240: 24px;
+			--vscode-strokeThickness: 1px;
+			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
+			--vscode-fontWeight-semiBold: 600;
+		`;
+		const targetWindow = dom.getWindow(popup);
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
 	}
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
@@ -1328,6 +1344,76 @@ suite('TabbedModelPicker', () => {
 			badgeAfterRemove: 'High · 32K',
 		});
 	});
+
+	test('consecutive comparison removals during selection motion use the current variant indices', async function () {
+		if (dom.getWindow(document.body).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			this.skip();
+		}
+		const base = model('Compared');
+		const compared: ILanguageModelChatMetadataAndIdentifier = {
+			...base,
+			metadata: {
+				...base.metadata,
+				configurationSchema: {
+					properties: {
+						...base.metadata.configurationSchema!.properties,
+						effort: { type: 'string', group: 'navigation', enum: ['low', 'medium', 'high', 'max'], enumItemLabels: ['Low', 'Medium', 'High', 'Max'], default: 'low' },
+					},
+				},
+			},
+		};
+		let variants: IModelPickerComparisonVariant[] = [
+			{ configuration: { effort: 'medium' }, label: 'Medium' },
+			{ configuration: { effort: 'high' }, label: 'High' },
+			{ configuration: { effort: 'max' }, label: 'Max' },
+		];
+		const removedIndices: number[] = [];
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [compared.identifier],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: true,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: modelId => modelId === compared.identifier ? variants.map(variant => ({ ...variant, configuration: { ...variant.configuration } })) : [],
+			addVariant: () => { },
+			removeVariant: (_modelId, index) => {
+				removedIndices.push(index);
+				variants = variants.filter((_, candidate) => candidate !== index);
+			},
+		};
+		const result = createPicker({ models: [compared], comparison });
+		element(result.popup, '[aria-label="Compare Models"]').click();
+		openDetails(result.popup, compared.metadata.name);
+		await enableSelectionMotion(result.popup);
+		const context = element(result.popup, '.chat-model-card [role="radiogroup"][aria-label="Context"]');
+		element(context, '[role="radio"]:last-child').click();
+		const animations = element(context, '.monaco-radio-selection').getAnimations();
+		animations.forEach(animation => animation.pause());
+		result.picker.refresh();
+		const beforeRemoval = {
+			motionStarted: animations.length > 0,
+			motionPreserved: context.isConnected,
+		};
+		const addedLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-comparison-variant-chip.added'), chip => chip.textContent?.trim());
+		element(result.popup, '[aria-label="Remove the Medium attempt"]').click();
+		const afterFirst = addedLabels();
+		element(result.popup, '[aria-label="Remove the High attempt"]').click();
+		const afterSecond = addedLabels();
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeRemoval, afterFirst, afterSecond, removedIndices, remaining: variants.map(variant => variant.label) }, {
+			beforeRemoval: { motionStarted: true, motionPreserved: true },
+			afterFirst: ['High', 'Max'],
+			afterSecond: ['Max'],
+			removedIndices: [0, 0],
+			remaining: ['Max'],
+		});
+	});
+
 	for (const committed of [false, true]) {
 		for (const dismissal of ['Escape', 'click-away'] as const) {
 			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
@@ -3206,6 +3292,46 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('configuration refreshes preserve selection motion in both directions across settings', async () => {
+		const standard = model('example-2.5');
+		const fast = model('example-2.5-fast');
+		const result = createPicker({ models: [standard, fast], details: standard.identifier });
+		await enableSelectionMotion(result.popup);
+		const targetWindow = dom.getWindow(result.popup);
+		const reducedMotion = targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const selections = [];
+		for (const setting of ['Effort Level', 'Context', 'Speed']) {
+			for (const index of [1, 0]) {
+				await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+				const group = element(result.popup, `[role="radiogroup"][aria-label="${setting}"]`);
+				const indicator = element(group, '.monaco-radio-selection');
+				const before = indicator.getBoundingClientRect().left;
+				const option = group.querySelectorAll<HTMLElement>('[role="radio"]')[index];
+				option.click();
+				const animations = indicator.getAnimations();
+				animations.forEach(animation => animation.pause());
+				if (setting === 'Speed') {
+					result.picker.refresh();
+				}
+				await timeout(0);
+				animations.forEach(animation => { animation.currentTime = 80; });
+				const middle = indicator.getBoundingClientRect().left;
+				const destination = option.getBoundingClientRect().left;
+				selections.push({
+					setting,
+					index,
+					connected: reducedMotion || indicator.isConnected,
+					intermediate: reducedMotion || middle > Math.min(before, destination) && middle < Math.max(before, destination),
+				});
+				animations.forEach(animation => animation.finish());
+				await timeout(0);
+			}
+		}
+		assert.deepStrictEqual(selections, ['Effort Level', 'Context', 'Speed'].flatMap(setting => [1, 0].map(index => ({
+			setting, index, connected: true, intermediate: true,
+		}))));
+	});
+
 	test('leaving details prevents a late save from changing the selected model', async () => {
 		const pending = new DeferredPromise<void>();
 		const writes: string[] = [];
@@ -3359,6 +3485,45 @@ suite('TabbedModelPicker', () => {
 			name: result.popup.querySelector('.chat-model-card-name')?.textContent,
 		}, { before: 1, sameCard: true, speed: 0, name: fast.metadata.name });
 	});
+
+	for (const removed of ['standard', 'fast'] as const) {
+		test(`removing the ${removed} speed variant during selection motion immediately removes its choice`, async function () {
+			if (dom.getWindow(document.body).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				this.skip();
+			}
+			const standard = model('test-model');
+			const fast = model('test-model-fast');
+			const retained = removed === 'fast' ? standard : fast;
+			const result = createPicker({ models: [standard, fast], details: retained.identifier, selectedModelId: retained.identifier });
+			await enableSelectionMotion(result.popup);
+			const card = element(result.popup, '.chat-model-card');
+			const unavailableChoice = card.querySelectorAll<HTMLElement>('[aria-label="Speed"] [role="radio"]')[removed === 'standard' ? 0 : 1];
+			const effort = element(card, '[role="radiogroup"][aria-label="Effort Level"]');
+			const high = element(effort, '[role="radio"]:last-child');
+			high.focus();
+			high.click();
+			const animations = element(effort, '.monaco-radio-selection').getAnimations();
+			animations.forEach(animation => animation.pause());
+			const motionStarted = animations.length > 0;
+
+			result.picker.refresh([retained]);
+			const during = {
+				motionStarted,
+				sameCard: result.popup.querySelector('.chat-model-card') === card,
+				speed: card.querySelectorAll('[aria-label="Speed"]').length,
+				focused: document.activeElement?.textContent,
+			};
+			unavailableChoice.click();
+			animations.forEach(animation => animation.finish());
+			await timeout(0);
+
+			assert.deepStrictEqual({ during, selections: result.selections, values: result.values.get(retained.identifier) }, {
+				during: { motionStarted: true, sameCard: true, speed: 0, focused: 'High' },
+				selections: [],
+				values: { effort: 'high' },
+			});
+		});
+	}
 
 	test('pending writes retain their originating scope when the picker is reopened for another scope', async () => {
 		const pending = new DeferredPromise<void>();
