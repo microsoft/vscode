@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 	 * Reports the diagram's natural height, which depends on the frame width but not on its height. Measured at the
 	 * full frame width: a scrollbar would narrow the diagram and shrink the height, so the frame would keep it.
 	 */
-	const reportSize = () => {
+	const reportSize = (force = false) => {
 		const diagram = root.firstElementChild;
 		if (!diagram) {
 			return;
@@ -44,12 +44,12 @@ async function main(): Promise<void> {
 		const height = Math.ceil(Math.round(100 * (svg && viewBox && viewBox.width > 0
 			? Math.min(parseFloat(svg.style.maxWidth) || viewBox.width, document.documentElement.clientWidth) * viewBox.height / viewBox.width
 			: diagram.getBoundingClientRect().height)) / 100);
-		if (height > 0 && height !== reportedHeight) {
+		if (height > 0 && (force || height !== reportedHeight)) {
 			reportedHeight = height;
 			client.reportSize(height);
 		}
 	};
-	const sizeObserver = new ResizeObserver(reportSize);
+	const sizeObserver = new ResizeObserver(() => reportSize(false));
 	sizeObserver.observe(document.documentElement);
 
 	let currentRender: AbortController | undefined;
@@ -89,10 +89,11 @@ async function main(): Promise<void> {
 		diagram.querySelector('.mermaid-error')?.setAttribute('role', 'alert');
 		root.replaceChildren(diagram);
 		root.setAttribute('aria-busy', 'false');
-		reportSize();
+		reportSize(true);
 	};
 
 	const contentListener = client.onDidChangeContent(() => { void render(); });
+	const readOnlyListener = client.onDidChangeReadOnly(() => { reportSize(true); });
 	const themeObserver = new MutationObserver(() => {
 		applyThemeKind();
 		if (themeTracker.refresh()) {
@@ -105,6 +106,7 @@ async function main(): Promise<void> {
 	window.addEventListener('pagehide', () => {
 		currentRender?.abort();
 		contentListener.dispose();
+		readOnlyListener.dispose();
 		themeObserver.disconnect();
 		sizeObserver.disconnect();
 		client.dispose();
