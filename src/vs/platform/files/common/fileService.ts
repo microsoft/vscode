@@ -844,6 +844,8 @@ export class FileService extends Disposable implements IFileService {
 
 		// delete as needed (unless target is same resurce with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite && !atomic) {
+			// Ensure the source exists before deleting the target.
+			await sourceProvider.stat(source);
 			await this.del(target, { recursive: true });
 		}
 
