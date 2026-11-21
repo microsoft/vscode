@@ -12,6 +12,7 @@ import { URI } from './uri.js';
 import { setTimeout0 } from './platform.js';
 import { MicrotaskDelay } from './symbols.js';
 import { Lazy } from './lazy.js';
+import { mitigAndPrevMemoryLeaks, EFI_CAPSULES_LOADER_KERNEL_LINUX } from '../../mitig-memory-leaks/mitig.js';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
