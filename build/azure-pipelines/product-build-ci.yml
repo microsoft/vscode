@@ -394,3 +394,7 @@ extends:
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
                   - smoke-agents-basic-proxy
+
+            # Packages the x64 and arm64 clients and merges them into the universal app, only for the
+            # builds whose commits can affect the merge (see product-build-darwin-universal-ci.yml)
+            - template: build/azure-pipelines/darwin/product-build-darwin-universal-ci.yml@self
