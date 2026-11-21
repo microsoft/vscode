@@ -413,6 +413,7 @@ export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.ch
 
 export const enum TerminalCommandId {
 	Toggle = 'workbench.action.terminal.toggleTerminal',
+	ToggleVisibility = 'workbench.action.terminal.toggleVisibility',
 	Kill = 'workbench.action.terminal.kill',
 	KillViewOrEditor = 'workbench.action.terminal.killViewOrEditor',
 	KillEditor = 'workbench.action.terminal.killEditor',
@@ -558,6 +559,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
+	TerminalCommandId.ToggleVisibility,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	TerminalCommandId.StopVoice,
