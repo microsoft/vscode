@@ -12533,13 +12533,14 @@ export class CopilotAgentSession extends Disposable {
 			} else {
 				reportError();
 			}
+			if (this._shouldDropUnmappedSubagentEvent(e, 'session.error')) {
+				return;
+			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			if (turn) {
+			if (turn && !parentToolCallId) {
 				this._reportToolCallDetails(turn, 'failed');
-				if (!parentToolCallId) {
-					turn.mcpUsage?.complete('failed');
-					this._attributeLocalModelTurn(turn.id);
-				}
+				turn.mcpUsage?.complete('failed');
+				this._attributeLocalModelTurn(turn.id);
 			}
 			this._emitAction({
 				type: ActionType.ChatError,
