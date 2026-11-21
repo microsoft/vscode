@@ -9,7 +9,7 @@ import { getUserKind } from '../../../../extension/completions-core/vscode-node/
 import { mock } from '../../../../util/common/test/simpleMock';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { platform, PlatformToString } from '../../../../util/vs/base/common/platform';
-import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
+import { CopilotToken, createTestExtendedTokenInfo, ExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { packageJson } from '../../../env/common/packagejson';
@@ -68,6 +68,27 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			vscode_core_copilotchatextensionversion: packageJson.version.split('-')[0],
 		});
 
+	});
+
+	it('emits who pays for Copilot only when the user info has a complete billable owner', () => {
+		const { tokenStore, provider } = createProvider();
+		const billableOwners = [
+			{ universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' },
+			{ universal_key: 'user:dotcom:7', account_type: 'User' },
+			{ universal_key: 'ea:dotcom:42', account_type: '' },
+			{ universal_key: 'ea:dotcom:42' },
+			{ universal_key: '', account_type: 'User' },
+			{ universal_key: 42, account_type: 'User' },
+			'ea:dotcom:42',
+			null,
+			undefined,
+		];
+
+		expect(billableOwners.map(billableOwner => {
+			// Malformed values are what an unvalidated server response can contain.
+			tokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({ billable_owner: billableOwner as ExtendedTokenInfo['billable_owner'] }));
+			return provider.getFilters().get('github_core_copilotbillableentityid');
+		})).toEqual(['ea:dotcom:42', 'user:dotcom:7', undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	it('uses current token values after refresh and clears account values on sign-out', () => {
