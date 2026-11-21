@@ -111,16 +111,78 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
+export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): CSSRule | undefined {
 	if (!style || !cssText) {
-		return;
+		return undefined;
 	}
 
-	style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
+	const sheet = style.sheet;
+	sheet?.insertRule(`${selector} {${cssText}}`, 0);
+	const insertedRule = sheet?.cssRules[0];
 
 	// Apply rule also to all cloned global stylesheets
 	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
 		createCSSRule(selector, cssText, clonedGlobalStylesheet);
+	}
+
+	return insertedRule;
+}
+
+/**
+ * Removes rules previously obtained from {@link createCSSRule} in a single pass over `style`.
+ * Matching on rule identity keeps removing K rules out of N at O(N + K), while
+ * {@link removeCSSRulesContainingSelector} costs O(N) for every single call.
+ */
+export function removeCSSRules(rulesToRemove: ReadonlySet<CSSRule>, style = getSharedStyleSheet()): void {
+	if (!style || rulesToRemove.size === 0) {
+		return;
+	}
+
+	const sheet = style.sheet;
+	if (!sheet) {
+		return;
+	}
+
+	const rules = sheet.cssRules;
+	const toDelete: number[] = [];
+	const removedRules: CSSRule[] = [];
+	for (let i = rules.length - 1; i >= 0; i--) {
+		const rule = rules[i];
+		if (rulesToRemove.has(rule)) {
+			toDelete.push(i);
+			removedRules.push(rule);
+		}
+	}
+
+	if (toDelete.length === 0) {
+		return;
+	}
+
+	// Cloned global stylesheets hold their own `CSSRule` objects, so they have to be matched by
+	// text, which must be read before the rules are detached from `sheet`.
+	const clonedGlobalStylesheets = globalStylesheets.get(style);
+	const removedCssTexts = clonedGlobalStylesheets?.size ? new Set(removedRules.map(rule => rule.cssText)) : undefined;
+
+	// `toDelete` is descending, so the indices still to be deleted stay valid
+	for (const index of toDelete) {
+		sheet.deleteRule(index);
+	}
+
+	if (!removedCssTexts || !clonedGlobalStylesheets) {
+		return;
+	}
+
+	for (const clonedGlobalStylesheet of clonedGlobalStylesheets) {
+		const clonedSheet = clonedGlobalStylesheet.sheet;
+		if (!clonedSheet) {
+			continue;
+		}
+		const clonedRules = clonedSheet.cssRules;
+		for (let i = clonedRules.length - 1; i >= 0; i--) {
+			if (removedCssTexts.has(clonedRules[i].cssText)) {
+				clonedSheet.deleteRule(i);
+			}
+		}
 	}
 }
 

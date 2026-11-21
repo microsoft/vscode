@@ -194,6 +194,33 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 	}
 
+	public removeDecorationTypes(keys: readonly string[]): void {
+		if (keys.length <= 1) {
+			if (keys.length === 1) {
+				this.removeDecorationType(keys[0]);
+			}
+			return;
+		}
+
+		const styleSheets: DecorationStyleSheet[] = Array.from(this._editorStyleSheets.values());
+		if (this._globalStyleSheet) {
+			styleSheets.push(this._globalStyleSheet);
+		}
+
+		for (const styleSheet of styleSheets) {
+			styleSheet.beginRemovalBatch();
+		}
+		try {
+			for (const key of keys) {
+				this.removeDecorationType(key);
+			}
+		} finally {
+			for (const styleSheet of styleSheets) {
+				styleSheet.endRemovalBatch();
+			}
+		}
+	}
+
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
 		const provider = this._decorationOptionProviders.get(decorationTypeKey);
 		if (!provider) {
@@ -320,21 +347,77 @@ export class ModelTransientSettingWatcher extends Disposable {
 	}
 }
 
-class RefCountedStyleSheet {
+export abstract class DecorationStyleSheet {
 
-	private readonly _parent: AbstractCodeEditorService;
-	private readonly _editorId: string;
-	private readonly _styleSheet: HTMLStyleElement;
-	private _refCount: number;
+	protected readonly _styleSheet: HTMLStyleElement;
+
+	private _pendingRemovals: CSSRule[] | null = null;
+	private _removalBatchDepth = 0;
 
 	public get sheet() {
 		return this._styleSheet.sheet as CSSStyleSheet;
 	}
 
+	constructor(styleSheet: HTMLStyleElement) {
+		this._styleSheet = styleSheet;
+	}
+
+	public abstract ref(): void;
+
+	public abstract unref(): void;
+
+	public insertRule(selector: string, rule: string): CSSRule | undefined {
+		return domStylesheets.createCSSRule(selector, rule, this._styleSheet);
+	}
+
+	/**
+	 * Between `beginRemovalBatch` and the matching `endRemovalBatch`, removals are collected so
+	 * that tearing down N decoration types takes a single pass over the stylesheet instead of N.
+	 */
+	public beginRemovalBatch(): void {
+		this._removalBatchDepth++;
+	}
+
+	public endRemovalBatch(): void {
+		this._removalBatchDepth--;
+		if (this._removalBatchDepth === 0 && this._pendingRemovals) {
+			const pendingRemovals = this._pendingRemovals;
+			this._pendingRemovals = null;
+			this._removeRules(pendingRemovals);
+		}
+	}
+
+	public removeRules(rules: readonly CSSRule[]): void {
+		if (rules.length === 0) {
+			return;
+		}
+		if (this._removalBatchDepth > 0) {
+			if (!this._pendingRemovals) {
+				this._pendingRemovals = [];
+			}
+			for (const rule of rules) {
+				this._pendingRemovals.push(rule);
+			}
+			return;
+		}
+		this._removeRules(rules);
+	}
+
+	protected _removeRules(rules: readonly CSSRule[]): void {
+		domStylesheets.removeCSSRules(new Set(rules), this._styleSheet);
+	}
+}
+
+class RefCountedStyleSheet extends DecorationStyleSheet {
+
+	private readonly _parent: AbstractCodeEditorService;
+	private readonly _editorId: string;
+	private _refCount: number;
+
 	constructor(parent: AbstractCodeEditorService, editorId: string, styleSheet: HTMLStyleElement) {
+		super(styleSheet);
 		this._parent = parent;
 		this._editorId = editorId;
-		this._styleSheet = styleSheet;
 		this._refCount = 0;
 	}
 
@@ -349,39 +432,14 @@ class RefCountedStyleSheet {
 			this._parent._removeEditorStyleSheets(this._editorId);
 		}
 	}
-
-	public insertRule(selector: string, rule: string): void {
-		domStylesheets.createCSSRule(selector, rule, this._styleSheet);
-	}
-
-	public removeRulesContainingSelector(ruleName: string): void {
-		domStylesheets.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
-	}
 }
 
-export class GlobalStyleSheet {
-	private readonly _styleSheet: HTMLStyleElement;
-
-	public get sheet() {
-		return this._styleSheet.sheet as CSSStyleSheet;
-	}
-
-	constructor(styleSheet: HTMLStyleElement) {
-		this._styleSheet = styleSheet;
-	}
+export class GlobalStyleSheet extends DecorationStyleSheet {
 
 	public ref(): void {
 	}
 
 	public unref(): void {
-	}
-
-	public insertRule(selector: string, rule: string): void {
-		domStylesheets.createCSSRule(selector, rule, this._styleSheet);
-	}
-
-	public removeRulesContainingSelector(ruleName: string): void {
-		domStylesheets.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 
@@ -632,6 +690,7 @@ class DecorationCSSRules {
 	private _themeListener: IDisposable | null;
 	private readonly _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
+	private readonly _insertedRules: CSSRule[] = [];
 
 	constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
 		this._theme = themeService.getColorTheme();
@@ -727,26 +786,33 @@ class DecorationCSSRules {
 			default:
 				throw new Error('Unknown rule type: ' + this._ruleType);
 		}
-		const sheet = this._providerArgs.styleSheet;
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
-			sheet.insertRule(this._unThemedSelector, unthemedCSS);
+			this._insertRule(this._unThemedSelector, unthemedCSS);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
+			this._insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
+			this._insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
 	}
 
+	private _insertRule(selector: string, cssText: string): void {
+		const insertedRule = this._providerArgs.styleSheet.insertRule(selector, cssText);
+		if (insertedRule) {
+			this._insertedRules.push(insertedRule);
+		}
+	}
+
 	private _removeCSS(): void {
-		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedSelector);
+		this._providerArgs.styleSheet.removeRules(this._insertedRules);
+		this._insertedRules.length = 0;
 	}
 
 	/**
