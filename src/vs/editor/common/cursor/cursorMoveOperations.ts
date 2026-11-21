@@ -325,16 +325,20 @@ export class MoveOperations {
 		const minColumn = model.getLineMinColumn(lineNumber);
 		const firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || minColumn;
 
-		let column: number;
-
 		const relevantColumnNumber = cursor.position.column;
 		if (relevantColumnNumber === firstNonBlankColumn) {
-			column = minColumn;
-		} else {
-			column = firstNonBlankColumn;
+			if (inSelectionMode && firstNonBlankColumn > minColumn && lineNumber > 1) {
+				// The cursor is already positioned right before the line's content, with only
+				// indentation to its left. Selecting further towards the true start of the line
+				// would only span that indentation, so extend the selection to the end of the
+				// previous line instead, allowing the indentation to be removed in one go.
+				const previousLineNumber = lineNumber - 1;
+				return cursor.move(inSelectionMode, previousLineNumber, model.getLineMaxColumn(previousLineNumber), 0);
+			}
+			return cursor.move(inSelectionMode, lineNumber, minColumn, 0);
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		return cursor.move(inSelectionMode, lineNumber, firstNonBlankColumn, 0);
 	}
 
 	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, sticky: boolean): SingleCursorState {
