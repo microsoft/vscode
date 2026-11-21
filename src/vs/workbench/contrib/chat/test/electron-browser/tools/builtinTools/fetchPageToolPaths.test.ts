@@ -62,6 +62,7 @@ suite('FetchWebPageTool effective paths', () => {
 			_serviceBrand: undefined,
 			onDidChange: Event.None,
 			isEnabled: () => false,
+			getDeniedIpAddresses: () => [],
 			isUriAllowed: uri => {
 				policyUris.push(uri.toString(true));
 				return true;

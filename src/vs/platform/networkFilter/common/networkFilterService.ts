@@ -12,12 +12,12 @@ import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
-import { extractDomainFromUri, isDomainAllowed } from './domainMatcher.js';
+import { extractDomainFromUri, isDomainAllowed, normalizeDomainPattern } from './domainMatcher.js';
 import { AgentNetworkDomainSettingId } from './settings.js';
 
 export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterService>('agentNetworkFilterService');
 
-function isFilteredNetworkScheme(uri: URI): boolean {
+export function isFilteredNetworkScheme(uri: URI): boolean {
 	return matchesScheme(uri, Schemas.http)
 		|| matchesScheme(uri, Schemas.https)
 		|| matchesScheme(uri, 'ws')
@@ -41,9 +41,13 @@ export interface IAgentNetworkFilterService {
 	 * Extracts the domain from a URI and checks it against the configured
 	 * allowed/denied domain filter.
 	 * File URIs and unfiltered schemes without an authority always pass.
+	 * Denied IP addresses additionally require enforcement at the connection boundary.
 	 * @returns `true` if the URI's domain is allowed, `false` if blocked.
 	 */
 	isUriAllowed(uri: URI, restrictions?: ISandboxNetworkRestrictions): boolean;
+
+	/** Explicitly denied IP addresses that must also be checked against the connection destination. */
+	getDeniedIpAddresses(restrictions?: ISandboxNetworkRestrictions): readonly string[];
 
 	/**
 	 * Returns whether network filtering is currently enabled.
@@ -140,6 +144,20 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 		return this.networkFilterEnabled || restrictions?.sandboxEnabled === true;
 	}
 
+	getDeniedIpAddresses(restrictions?: ISandboxNetworkRestrictions): readonly string[] {
+		if (!this.isEnabled(restrictions)) {
+			return [];
+		}
+		const addresses: string[] = [];
+		for (const pattern of restrictions?.deniedDomains ?? this.deniedPatterns) {
+			const normalized = normalizeDomainPattern(pattern)?.replace(/^\*\./, '');
+			if (normalized && (normalized.startsWith('[') || /^\d+\.\d+\.\d+\.\d+$/.test(normalized))) {
+				addresses.push(normalized);
+			}
+		}
+		return addresses;
+	}
+
 	formatError(uri: URI): string {
 		const domain = extractDomainFromUri(uri);
 		return localize(
@@ -157,6 +175,7 @@ export function createSandboxNetworkFilter(service: IAgentNetworkFilterService, 
 		_serviceBrand: undefined,
 		onDidChange: service.onDidChange,
 		isUriAllowed: uri => service.isUriAllowed(uri, restrictions),
+		getDeniedIpAddresses: () => service.getDeniedIpAddresses(restrictions),
 		isEnabled: () => service.isEnabled(restrictions),
 		formatError: uri => service.formatError(uri),
 	};
