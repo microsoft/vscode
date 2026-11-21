@@ -10,6 +10,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../../base/browser/clipboard.js';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -25,6 +27,20 @@ export class NativeClipboardService implements IClipboardService {
 	async triggerPaste(targetWindowId: number): Promise<void> {
 		this.logService.trace('NativeClipboardService#triggerPaste called');
 		return this.nativeHostService.triggerPaste({ targetWindowId });
+	}
+
+	get supportsClipboardData(): boolean {
+		return supportsClipboardData();
+	}
+
+	async readData(): Promise<IReadonlyVSDataTransfer | undefined> {
+		this.logService.trace('NativeClipboardService#readData');
+		return readClipboardData();
+	}
+
+	writeData(data: IReadonlyVSDataTransfer): Promise<void> {
+		this.logService.trace('NativeClipboardService#writeData');
+		return writeClipboardData(data);
 	}
 
 	async readImage(): Promise<Uint8Array> {
