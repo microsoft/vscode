@@ -396,7 +396,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.mcpServers', "Controls whether MCP servers run in the sandbox when sandboxing is enabled."),
 		type: 'boolean',
-		default: true,
+		default: false,
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxLspServers]: {
