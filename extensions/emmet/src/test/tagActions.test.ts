@@ -127,6 +127,78 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+
+	test('update tag inside an attribute value in jsx (#203285)', () => {
+		const jsxContents = `
+	<Routes>
+		<Route
+			path="/products"
+			element={<Home/>}>
+		</Route>
+	</Routes>
+	`;
+		const expectedContents = `
+	<Routes>
+		<Route
+			path="/products"
+			element={<Products/>}>
+		</Route>
+	</Routes>
+	`;
+
+		return withRandomFileEditor(jsxContents, 'jsx', (editor, doc) => {
+			editor.selections = [
+				new Selection(4, 15, 4, 15), // cursor inside Home tag
+			];
+
+			return updateTag('Products')!.then(() => {
+				assert.strictEqual(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('update tag outside an attribute value in jsx', () => {
+		const jsxContents = `
+	<Route element={<Home/>}>
+	</Route>
+	`;
+		const expectedContents = `
+	<Page element={<Home/>}>
+	</Page>
+	`;
+
+		return withRandomFileEditor(jsxContents, 'jsx', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 4, 1, 4), // cursor inside Route tag name
+			];
+
+			return updateTag('Page')!.then(() => {
+				assert.strictEqual(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('update tag with markup as text in a quoted attribute value', () => {
+		const htmlContents = `
+	<div title="<b>example</b>"></div>
+	`;
+		const expectedContents = `
+	<section title="<b>example</b>"></section>
+	`;
+
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 15, 1, 15), // cursor on the b in the title value
+			];
+
+			return updateTag('section')!.then(() => {
+				assert.strictEqual(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
 	// #endregion
 
 	// #region remove tag
