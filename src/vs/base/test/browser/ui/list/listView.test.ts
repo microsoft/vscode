@@ -1201,4 +1201,45 @@ suite('ListView', function () {
 		listView.layout(0, 200);
 		assert.doesNotThrow(() => listView.splice(0, 0, elements));
 	});
+
+	test('supports scroll-triggered re-entrant renders while recycling rows', function () {
+		const element = document.createElement('div');
+		let setScrollTopOnRender = false;
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) { return container; },
+			renderElement(value, _index, container) {
+				container.textContent = String(value);
+				// Layout changes while a render transaction runs can report scroll synchronously (see #205597).
+				if (setScrollTopOnRender) {
+					setScrollTopOnRender = false;
+					listView.setScrollTop(0);
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const listView = store.add(new ListView<number>(element, {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		}, [renderer]));
+		listView.layout(200, 200);
+		listView.splice(0, 0, range(50));
+
+		// Scroll far enough to recycle rows while the renderer reports a scroll synchronously inside the render transaction.
+		setScrollTopOnRender = true;
+		assert.doesNotThrow(() => listView.setScrollTop(400));
+
+		// The reported scroll event must render the viewport it belongs to: rendered rows, their content and the
+		// container offset have to match the latest scroll position, not the viewport of the interrupted render.
+		assert.strictEqual(listView.scrollTop, 0);
+		assert.strictEqual(listView.domElement(0)?.textContent, '0');
+		assert.strictEqual(listView.domElement(5)?.textContent, '5');
+		assert.strictEqual(listView.domElement(9)?.textContent, '9');
+		assert.strictEqual(listView.domElement(20), null);
+		assert.strictEqual(listView.domElement(45), null);
+		const rowsContainer = element.querySelector('.monaco-list-rows') as HTMLElement;
+		assert.strictEqual(rowsContainer.style.top, '0px');
+		assert.strictEqual(listView.contentHeight, 50 * 20);
+	});
 });

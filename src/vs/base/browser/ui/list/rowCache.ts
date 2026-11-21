@@ -18,7 +18,7 @@ export class RowCache<T> implements IDisposable {
 	private cache = new Map<string, IRow[]>();
 
 	private readonly transactionNodesPendingRemoval = new Set<HTMLElement>();
-	private inTransaction = false;
+	private transactionDepth = 0;
 
 	constructor(private renderers: Map<string, IListRenderer<T, any>>) { }
 
@@ -57,30 +57,33 @@ export class RowCache<T> implements IDisposable {
 
 	/**
 	 * Begin a set of changes that use the cache. This lets us skip work when a row is removed and then inserted again.
+	 *
+	 * Changes made while the transaction runs can synchronously report scroll, which renders the list again and
+	 * re-enters this method (see https://github.com/microsoft/vscode/issues/205597), so transactions may nest and
+	 * only the outermost one releases the deferred node removals.
 	 */
 	transact(makeChanges: () => void) {
-		if (this.inTransaction) {
-			throw new Error('Already in transaction');
-		}
-
-		this.inTransaction = true;
+		this.transactionDepth++;
 
 		try {
 			makeChanges();
 		} finally {
-			for (const domNode of this.transactionNodesPendingRemoval) {
-				this.doRemoveNode(domNode);
-			}
+			this.transactionDepth--;
 
-			this.transactionNodesPendingRemoval.clear();
-			this.inTransaction = false;
+			if (this.transactionDepth === 0) {
+				for (const domNode of this.transactionNodesPendingRemoval) {
+					this.doRemoveNode(domNode);
+				}
+
+				this.transactionNodesPendingRemoval.clear();
+			}
 		}
 	}
 
 	private releaseRow(row: IRow): void {
 		const { domNode, templateId } = row;
 		if (domNode) {
-			if (this.inTransaction) {
+			if (this.transactionDepth > 0) {
 				this.transactionNodesPendingRemoval.add(domNode);
 			} else {
 				this.doRemoveNode(domNode);
