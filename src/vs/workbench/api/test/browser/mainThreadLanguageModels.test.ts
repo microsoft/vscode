@@ -14,16 +14,115 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { ILanguageModelIgnoredFilesService } from '../../../contrib/chat/common/ignoredFiles.js';
-import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { TestExtensionService, TestProductService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels.js';
-import { ExtHostLanguageModelsShape } from '../../common/extHost.protocol.js';
-import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { ExtHostContext, ExtHostLanguageModelsShape, MainContext } from '../../common/extHost.protocol.js';
+import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
+import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
+import { LanguageModelChatMessage, LanguageModelDataPart } from '../../common/extHostTypes.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadLanguageModels', function () {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('looks up cross-host model metadata in the shared catalog and observes removal', async () => {
+		const metadata: ILanguageModelChatMetadata = {
+			extension: new ExtensionIdentifier('test.provider'),
+			id: 'model', name: 'model', vendor: 'test', version: '1', family: 'test',
+			maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
+		};
+		const catalog = new Map([['test/model', metadata]]);
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = disposables.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return [...catalog.keys()]; }
+			override lookupLanguageModel(identifier: string) { return catalog.get(identifier); }
+		};
+		const mainThread = disposables.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol({}),
+			languageModelsService,
+			new NullLogService(),
+			TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+
+		assert.strictEqual(await mainThread.$getLanguageModelChatMetadata('test/model'), metadata);
+		catalog.delete('test/model');
+		assert.strictEqual(await mainThread.$getLanguageModelChatMetadata('test/model'), undefined);
+	});
+
+	test('preserves binary token-count messages across both RPC legs', async () => {
+		const store = disposables.add(new DisposableStore());
+		const consumerRPC = store.add(new TestRPCProtocol());
+		const providerRPC = store.add(new TestRPCProtocol());
+		let registeredProvider: ILanguageModelChatProvider | undefined;
+		const catalog = new Map<string, ILanguageModelChatMetadata>();
+		let countedData: { mimeType: string; data: Uint8Array }[] = [];
+		const information = { id: 'model', name: 'model', family: 'test', version: '1', maxInputTokens: 1000, maxOutputTokens: 1000, capabilities: { imageInput: true } };
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = store.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return [...catalog.keys()]; }
+			override lookupLanguageModel(identifier: string) { return catalog.get(identifier); }
+			override registerLanguageModelProvider(_vendor: string, value: ILanguageModelChatProvider) {
+				registeredProvider = value;
+				return Disposable.None;
+			}
+			override async selectLanguageModels(): Promise<string[]> {
+				assert.ok(registeredProvider);
+				for (const model of await registeredProvider.provideLanguageModelChatInfo({ silent: true }, CancellationToken.None)) {
+					catalog.set(model.identifier, model.metadata);
+				}
+				return [...catalog.keys()];
+			}
+			override computeTokenLength(identifier: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
+				assert.ok(registeredProvider);
+				return registeredProvider.provideTokenCount(identifier, value, token);
+			}
+		};
+		const mainThread = store.add(new MainThreadLanguageModels(
+			providerRPC,
+			languageModelsService,
+			new NullLogService(),
+			TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+		consumerRPC.set(MainContext.MainThreadLanguageModels, mainThread);
+		providerRPC.set(MainContext.MainThreadLanguageModels, mainThread);
+		const provider = store.add(new ExtHostLanguageModels(providerRPC, new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+		providerRPC.set(ExtHostContext.ExtHostChatProvider, provider);
+		store.add(provider.registerLanguageModelChatProvider(nullExtensionDescription, 'test', {
+			provideLanguageModelChatInformation: async () => [information],
+			provideLanguageModelChatResponse: async () => { throw new Error('Unexpected chat request'); },
+			provideTokenCount: async (model, value) => {
+				assert.strictEqual(model, information);
+				countedData = typeof value === 'string' ? [] : value.content
+					.filter(part => part instanceof LanguageModelDataPart)
+					.map(part => ({ mimeType: part.mimeType, data: part.data }));
+				return 42;
+			},
+		}));
+		await providerRPC.sync();
+		const consumer = store.add(new ExtHostLanguageModels(consumerRPC, new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+		const selected = await consumer.getLanguageModelForRequest(nullExtensionDescription, 'test/model');
+		const expected = [
+			{ mimeType: 'image/png', data: new Uint8Array([0, 127, 128, 255]) },
+			{ mimeType: 'application/octet-stream', data: new Uint8Array([255, 0, 254]) },
+		];
+		const message = LanguageModelChatMessage.User(expected.map(part => new LanguageModelDataPart(part.data, part.mimeType)));
+		const count = await selected.countTokens(message, CancellationToken.None);
+		assert.deepStrictEqual({ count, countedData: countedData.map(part => ({ mimeType: part.mimeType, typed: part.data instanceof Uint8Array, bytes: Array.from(part.data) })) }, {
+			count: 42, countedData: expected.map(part => ({ mimeType: part.mimeType, typed: true, bytes: Array.from(part.data) })),
+		});
+	});
 
 	test('bridges onDidChangeLanguageModels to $onChatModelsChange when the model id set changes', async () => {
 		const store = disposables.add(new DisposableStore());
