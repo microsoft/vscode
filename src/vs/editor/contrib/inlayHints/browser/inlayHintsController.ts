@@ -61,8 +61,8 @@ class InlayHintsCache {
 	}
 }
 
-interface IInlayHintsCache extends InlayHintsCache { }
-const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
+export interface IInlayHintsCache extends InlayHintsCache { }
+export const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
 registerSingleton(IInlayHintsCache, InlayHintsCache, InstantiationType.Delayed);
 
 // --- rendered label
@@ -108,6 +108,10 @@ class CancellationStore implements IDisposable {
 	dispose() {
 		this._store.dispose();
 		this._tokenSource.dispose(true);
+	}
+
+	cancel() {
+		this._tokenSource.cancel();
 	}
 
 	reset() {
@@ -233,12 +237,11 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 
-		let cts: CancellationTokenSource | undefined;
 		const watchedProviders = new Set<languages.InlayHintsProvider>();
 
-		this._sessionDisposables.add(model.onWillDispose(() => cts?.cancel()));
-
 		const cancellationStore = this._sessionDisposables.add(new CancellationStore());
+
+		this._sessionDisposables.add(model.onWillDispose(() => cancellationStore.cancel()));
 
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
@@ -289,7 +292,8 @@ export class InlayHintsController implements IEditorContribution {
 
 		const cursor = this._sessionDisposables.add(new MutableDisposable());
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
-			cts?.cancel();
+			// the pending request was computed against the old content, cancel it
+			cancellationStore.cancel();
 
 			// mark current cursor position and time after which the whole can be updated/redrawn
 			const delay = Math.max(scheduler.delay, 800);
