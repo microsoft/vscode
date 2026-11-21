@@ -7,6 +7,7 @@ import * as l10n from '@vscode/l10n';
 import { BasePromptElementProps, PromptElement, PromptPiece, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import type * as vscode from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { StringTextDocumentWithLanguageId } from '../../../platform/editing/common/abstractText';
 import { NotebookDocumentSnapshot } from '../../../platform/editing/common/notebookDocumentSnapshot';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
@@ -40,6 +41,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatRequestEditorData, ChatResponseTextEditPart, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, Position, Range, WorkspaceEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { getGitHubCopilotRequestTeForToolCall } from '../../prompt/common/toolCallRound';
+import { resolveIndentationDefaults } from '../../prompt/node/indentationGuesser';
 import { ApplyPatchFormatInstructions } from '../../prompts/node/agent/defaultAgentInstructions';
 import { PromptRenderer, renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { Tag } from '../../prompts/node/base/tag';
@@ -91,6 +93,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		@IEditToolLearningService private readonly editToolLearningService: IEditToolLearningService,
 		@ILogService private readonly logService: ILogService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	private getTrailingDocumentEmptyLineCount(document: TextDocumentSnapshot): number {
@@ -632,19 +635,25 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 	}
 
 	private async buildCommit(patch: string, docText: DocText): Promise<{ commit: Commit; docTexts: DocText }> {
+		// The extension host only applies resource and language overrides when the
+		// scope's `uri` is one of its own `Uri` instances, so scope the indentation
+		// settings with the opened `TextDocument` rather than a URI built here.
+		const indentationScopes = new Map<string, vscode.ConfigurationScope>();
 		const commit = await processPatch(patch, async (uri) => {
 			const vscodeUri = resolveToolInputPath(uri, this.promptPathRepresentationService);
 			if (this.notebookService.hasSupportedNotebooks(vscodeUri)) {
 				const notebookUri = findNotebook(vscodeUri, this.workspaceService.notebookDocuments)?.uri || vscodeUri;
 				const altDoc = await this.workspaceService.openNotebookDocumentAndSnapshot(notebookUri, this.alternativeNotebookContent.getFormat(this._promptContext?.request?.model));
 				docText[vscodeUri.toString()] = { text: altDoc.getText(), notebookUri };
+				indentationScopes.set(uri, { uri: altDoc.uri, languageId: altDoc.languageId });
 				return new StringTextDocumentWithLanguageId(altDoc.getText(), altDoc.languageId);
 			} else {
 				const textDocument = await this.workspaceService.openTextDocument(vscodeUri);
 				docText[vscodeUri.toString()] = { text: textDocument.getText() };
+				indentationScopes.set(uri, textDocument);
 				return textDocument;
 			}
-		});
+		}, (uri, doc) => resolveIndentationDefaults(this.configurationService, indentationScopes.get(uri) ?? { languageId: doc.languageId }));
 		return { commit, docTexts: docText };
 	}
 
