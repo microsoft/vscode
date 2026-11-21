@@ -25,5 +25,6 @@ import './hu.win.js';
 import './de-swiss.win.js';
 import './en-belgian.win.js';
 import './cz.win.js';
+import './jp.win.js';
 
 export { KeyboardLayoutContribution } from './_.contribution.js';
