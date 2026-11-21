@@ -61,6 +61,11 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 
 export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
+	/**
+	 * Update plain text after validating the delegate's effective options.
+	 * Return false when the hover must be recreated.
+	 */
+	updateHover?(hover: IHoverWidget, content: string, focus?: boolean): boolean;
 	onDidHideHover?: () => void;
 	delay: number | ((content?: IManagedHoverContentOrFactory) => number);
 	placement?: 'mouse' | 'element';

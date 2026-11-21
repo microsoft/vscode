@@ -45,6 +45,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _lockMouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
+	private _plainTextContent: HTMLElement | undefined;
+	private readonly _options: IHoverOptions;
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
@@ -121,6 +123,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	) {
 		super();
 
+		this._options = options;
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
@@ -192,6 +195,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
 		if (typeof options.content === 'string') {
+			this._plainTextContent = contentsElement;
 			contentsElement.textContent = options.content;
 			contentsElement.style.whiteSpace = 'pre-wrap';
 
@@ -359,6 +363,29 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 		this.layout();
 		this.addFocusTrap();
+	}
+
+	/**
+	 * Keep the native hover and its mouse/focus listeners alive while plain text changes.
+	 */
+	public updateContent(content: string): boolean {
+		if (this._isDisposed || !this._plainTextContent || !content) {
+			return false;
+		}
+		if (this._plainTextContent.textContent !== content) {
+			const scrollTop = this._hover.contentsDomNode.scrollTop;
+			const scrollLeft = this._hover.contentsDomNode.scrollLeft;
+			this._plainTextContent.textContent = content;
+			this._options.content = content;
+			// A data refresh must not cancel a real mouseout that is already dismissing the hover.
+			if (this._mouseTracker?.isMouseIn || this.isLocked || this.domNode.contains(this._targetWindow.document.activeElement)) {
+				this.layout();
+				this._onRequestLayout.fire();
+			}
+			this._hover.contentsDomNode.scrollTop = scrollTop;
+			this._hover.contentsDomNode.scrollLeft = scrollLeft;
+		}
+		return true;
 	}
 
 	public layout() {

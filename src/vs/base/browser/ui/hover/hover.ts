@@ -147,6 +147,11 @@ export interface IHoverWidget extends IDisposable {
 	 * Whether the hover widget has been disposed.
 	 */
 	readonly isDisposed: boolean;
+	/**
+	 * Update compatible plain-text content without replacing the visible hover.
+	 * Return false when the widget needs to be recreated for the new content.
+	 */
+	updateContent?(content: string): boolean;
 }
 
 export const enum HoverStyle {
