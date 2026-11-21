@@ -1155,6 +1155,8 @@ class CopilotTurn extends Disposable {
 	readonly interactionIds = new Set<string>();
 	/** The id `session.send` returned for this turn's prompt; a `policy_blocked` warning for it carries the same id. */
 	sentMessageId: string | undefined;
+	/** Settles once `send` has finished with this turn, including showing a prompt block that arrived early. */
+	readonly sendReturned = new DeferredPromise<void>();
 	activeSdkTurnId: string | undefined;
 	imageGenerationSdkTurnId: string | undefined;
 	toolCallRounds = 0;
@@ -1247,6 +1249,7 @@ class CopilotTurn extends Disposable {
 		this.sdkTurnIds.clear();
 		this.interactionIds.clear();
 		this.activeSdkTurnId = undefined;
+		void this.sendReturned.complete();
 		if (!this._eventId.isSettled) {
 			this._eventId.error(new Error(`Turn ${this.id} was disposed before its SDK event id was recorded`));
 		}
@@ -7167,6 +7170,8 @@ export class CopilotAgentSession extends Disposable {
 			this._hostInstructions = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
+		} finally {
+			void turn?.sendReturned.complete();
 		}
 	}
 
@@ -12355,6 +12360,14 @@ export class CopilotAgentSession extends Disposable {
 			if (turn.hasPendingToolCompletions) {
 				const abortToken = this._abortToken;
 				await turn.drainToolCompletions();
+				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+					return;
+				}
+			}
+			// A block can arrive with its idle before the send it belongs to returns; let the send show it before the turn ends.
+			if (this._earlyPromptBlock && turn.sentMessageId === undefined && !turn.hasUserMessage) {
+				const abortToken = this._abortToken;
+				await turn.sendReturned.p;
 				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
 					return;
 				}

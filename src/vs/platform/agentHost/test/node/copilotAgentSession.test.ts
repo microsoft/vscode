@@ -12730,6 +12730,26 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({ beforeSendReturned, shown: getHookNotices(signals) }, { beforeSendReturned: 0, shown: [blockedNotice('turn-1')] });
 		});
 
+		test('shows a blocked prompt\'s reason before completing the turn when the block and idle arrive before its send returns', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sendGate = new DeferredPromise<void>();
+			mockSession.sendGate = sendGate.p;
+			mockSession.onSend = () => {
+				mockSession.fire('session.warning', blockedPrompt('message-1'));
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			};
+			const send = session.send('BLOCKME please', undefined, 'turn-1');
+			await timeout(0);
+			sendGate.complete();
+			await send;
+			await timeout(0);
+
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete ? ['complete'] : action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification ? [action.part.content] : []), [
+				'A hook blocked this prompt: Prompts containing BLOCKME are not allowed',
+				'complete',
+			]);
+		});
+
 		test('does not show a block on a turn that did not send the blocked message', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			await session.send('hello', undefined, 'turn-1');
