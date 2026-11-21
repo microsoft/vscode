@@ -10,11 +10,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { FileOperation } from '../../../../../platform/files/common/files.js';
-import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { FileOperation, IFileCopyProgressCallback, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { TestFileService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { ICopyOperation } from '../../common/workingCopyFileService.js';
+import { ICopyOperation, WorkingCopyFileService } from '../../common/workingCopyFileService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
@@ -139,6 +140,141 @@ suite('WorkingCopyFileService', () => {
 		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false, true);
 	});
 
+	class CopyCancellationTestFileService extends TestFileService {
+
+		readonly deleted: URI[] = [];
+		readonly copied: { source: URI; target: URI }[] = [];
+		readonly moved: { source: URI; target: URI }[] = [];
+		copyToken: CancellationToken | undefined = undefined;
+
+		constructor(private readonly cancelCopy: boolean) {
+			super();
+		}
+
+		override async copy(source: URI, target: URI, _overwrite?: boolean, _progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<IFileStatWithMetadata> {
+			this.copyToken = token;
+			this.copied.push({ source, target });
+
+			if (this.cancelCopy) {
+				throw new CancellationError();
+			}
+
+			return null!;
+		}
+
+		override async move(source: URI, target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
+			this.moved.push({ source, target });
+
+			return null!;
+		}
+
+		override async del(resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> {
+			this.deleted.push(resource);
+		}
+	}
+
+	function isTemporarySibling(resource: URI, target: URI): boolean {
+		return resource.path.startsWith(`${target.path.substring(0, target.path.lastIndexOf('/'))}/.`) && resource.path.endsWith('.vsctmp');
+	}
+
+	test('copy - cancellation cleans up the temporary location and keeps an existing target', async function () {
+		const fileService = new CopyCancellationTestFileService(true);
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const source = toResource.call(this, '/path/file.txt');
+		const target = toResource.call(this, '/path/file_target.txt');
+
+		const cts = new CancellationTokenSource();
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy([{ file: { source, target } }], cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		// the target existed (default in the test file service), so the copy
+		// went to a temporary sibling and only that sibling was cleaned up
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.strictEqual(fileService.copyToken, cts.token);
+		assert.strictEqual(fileService.copied.length, 1);
+		assert.ok(isTemporarySibling(fileService.copied[0].target, target));
+		assert.strictEqual(fileService.deleted.length, 1);
+		assert.ok(isTemporarySibling(fileService.deleted[0], target));
+
+		cts.dispose();
+	});
+
+	test('copy - cancellation cleans up the target when it did not exist before', async function () {
+		const fileService = new CopyCancellationTestFileService(true);
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const source = toResource.call(this, '/path/file.txt');
+		const target = toResource.call(this, '/path/file_target.txt');
+		fileService.notExistsSet.set(target, true);
+
+		const cts = new CancellationTokenSource();
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy([{ file: { source, target } }], cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.deepStrictEqual(fileService.copied, [{ source, target }]);
+		assert.deepStrictEqual(fileService.deleted, [target]);
+
+		cts.dispose();
+	});
+
+	test('copy - an existing target is replaced via a temporary sibling', async function () {
+		const fileService = new CopyCancellationTestFileService(false);
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const source = toResource.call(this, '/path/file.txt');
+		const target = toResource.call(this, '/path/file_target.txt');
+
+		await service.copy([{ file: { source, target, }, overwrite: true }], CancellationToken.None);
+
+		assert.strictEqual(fileService.copied.length, 1);
+		assert.ok(isTemporarySibling(fileService.copied[0].target, target));
+		assert.strictEqual(fileService.moved.length, 1);
+		assert.strictEqual(fileService.moved[0].source.toString(), fileService.copied[0].target.toString());
+		assert.strictEqual(fileService.moved[0].target.toString(), target.toString());
+		assert.deepStrictEqual(fileService.deleted, []);
+	});
+
+	test('copy - cancelled token prevents the copy from starting', async function () {
+		const fileService = new CopyCancellationTestFileService(true);
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const cts = new CancellationTokenSource();
+		cts.cancel();
+
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy([{ file: { source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') } }], cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.strictEqual(fileService.copyToken, undefined);
+
+		cts.dispose();
+	});
+
 	test('getDirty', async function () {
 		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
@@ -259,19 +395,19 @@ suite('WorkingCopyFileService', () => {
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
-		// Move
+		// Move (a cancelled token also aborts the operation)
 		cts = new CancellationTokenSource();
 		promise = accessor.workingCopyFileService.move([{ file: { source: resource, target: resource } }], cts.token);
 		cts.cancel();
-		await promise;
+		await assert.rejects(promise, error => isCancellationError(error as Error));
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
-		// Copy
+		// Copy (a cancelled token also aborts the operation)
 		cts = new CancellationTokenSource();
 		promise = accessor.workingCopyFileService.copy([{ file: { source: resource, target: resource } }], cts.token);
 		cts.cancel();
-		await promise;
+		await assert.rejects(promise, error => isCancellationError(error as Error));
 		assert.strictEqual(canceled, true);
 		canceled = false;
 

@@ -27,26 +27,151 @@ import { getActiveWindow, isDragEvent, triggerDownload } from '../../../../base/
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { listenStream } from '../../../../base/common/stream.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { canceled } from '../../../../base/common/errors.js';
+import { canceled, isCancellationError } from '../../../../base/common/errors.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
+//#region Transfer Progress
+
+export interface ITransferProgressMessages {
+
+	/**
+	 * Message for when multiple small files are being transferred.
+	 */
+	manySmallFiles(filesTransferred: number, filesTotal: number, rate: string): string;
+
+	/**
+	 * Message for when a large file is being transferred.
+	 */
+	largeFile(name: string, bytesTransferred: string, size: string, rate: string): string;
+}
+
+/**
+ * Helper to report progress for file transfers (upload, download, import) in a
+ * unified way: the number of files transferred, byte progress for large files
+ * and the average transfer rate. When the total number of bytes to transfer is
+ * known, overall progress is additionally reported as percentage increments.
+ *
+ * Reports are throttled to update at most once per second.
+ */
+export class TransferProgressReporter implements IDisposable {
+
+	private static readonly REPORT_INTERVAL = 1000;
+
+	private readonly progressScheduler: RunOnceWorker<IProgressStep>;
+
+	// The clock starts lazily with the first transfer activity so that
+	// time spent in dialogs between creating the reporter and the first
+	// transferred byte does not lower the reported transfer rate
+	private startTime: number | undefined = undefined;
+
+	private filesTotal: number;
+	private filesTransferred = 0;
+
+	private totalBytesTransferred = 0;
+
+	private percent = 0;
+	private lastReportedPercent = 0;
+
+	constructor(
+		filesTotal: number,
+		private readonly totalBytes: number | undefined,
+		private readonly messages: ITransferProgressMessages,
+		progress: IProgress<IProgressStep>,
+		private readonly now: () => number = () => Date.now()
+	) {
+		this.filesTotal = filesTotal;
+
+		this.progressScheduler = new RunOnceWorker<IProgressStep>(steps => {
+			const step = steps[steps.length - 1];
+
+			if (typeof this.totalBytes === 'number' && this.totalBytes > 0) {
+				step.increment = this.percent - this.lastReportedPercent;
+				step.total = 100;
+
+				this.lastReportedPercent = this.percent;
+			}
+
+			progress.report(step);
+		}, TransferProgressReporter.REPORT_INTERVAL);
+	}
+
+	/**
+	 * Adds to the total number of files being transferred. Used when
+	 * the contents of folders are only discovered during the transfer.
+	 */
+	addFiles(count: number): void {
+		this.filesTotal += count;
+	}
+
+	/**
+	 * Signals that the transfer of another file has started.
+	 */
+	startFile(): void {
+		this.startTime ??= this.now();
+		this.filesTransferred++;
+	}
+
+	/**
+	 * Reports byte progress for the file that is currently being transferred.
+	 */
+	report(name: string, fileSize: number, fileBytesTransferred: number, bytesTransferredDelta: number): void {
+		this.startTime ??= this.now();
+		this.totalBytesTransferred += bytesTransferredDelta;
+
+		if (typeof this.totalBytes === 'number' && this.totalBytes > 0) {
+			this.percent = Math.min(100, Math.round(this.totalBytesTransferred * 100 / this.totalBytes));
+		}
+
+		const elapsedMillis = Math.max(1, this.now() - this.startTime);
+		const rate = ByteSize.formatSize(this.totalBytesTransferred / (elapsedMillis / 1000));
+
+		// Small file
+		let message: string;
+		if (fileSize < ByteSize.MB) {
+			if (this.filesTotal === 1) {
+				message = name;
+			} else {
+				message = this.messages.manySmallFiles(this.filesTransferred, this.filesTotal, rate);
+			}
+		}
+
+		// Large file
+		else {
+			message = this.messages.largeFile(name, ByteSize.formatSize(fileBytesTransferred), ByteSize.formatSize(fileSize), rate);
+		}
+
+		// Report progress but limit to update only once per second
+		this.progressScheduler.work({ message });
+	}
+
+	/**
+	 * Reports any pending progress immediately.
+	 */
+	flush(): void {
+		this.progressScheduler.flush();
+	}
+
+	dispose(): void {
+		this.progressScheduler.dispose();
+	}
+}
+
+//#endregion
+
 //#region Browser File Upload (drag and drop, input element)
 
-interface IBrowserUploadOperation {
-	startTime: number;
-	progressScheduler: RunOnceWorker<IProgressStep>;
-
-	filesTotal: number;
-	filesUploaded: number;
-
-	totalBytesUploaded: number;
-}
+const uploadProgressMessages: ITransferProgressMessages = {
+	manySmallFiles: (filesTransferred, filesTotal, rate) => localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", filesTransferred, filesTotal, rate),
+	largeFile: (name, bytesTransferred, size, rate) => localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, bytesTransferred, size, rate)
+};
 
 interface IWebkitDataTransfer {
 	items: IWebkitDataTransferItem[];
@@ -149,51 +274,46 @@ export class BrowserFileUpload {
 		}
 
 		const results: { isFile: boolean; resource: URI }[] = [];
-		const operation: IBrowserUploadOperation = {
-			startTime: Date.now(),
-			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
+		const reporter = new TransferProgressReporter(entries.length, undefined, uploadProgressMessages, progress);
 
-			filesTotal: entries.length,
-			filesUploaded: 0,
+		try {
 
-			totalBytesUploaded: 0
-		};
-
-		// Upload all entries in parallel up to a
-		// certain maximum leveraging the `Limiter`
-		const uploadLimiter = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
-		await Promises.settled(entries.map(entry => {
-			return uploadLimiter.queue(async () => {
-				if (token.isCancellationRequested) {
-					return;
-				}
-
-				// Confirm overwrite as needed
-				if (target && entry.name && target.getChild(entry.name)) {
-					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
-					if (!confirmed) {
-						return;
-					}
-
-					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
-						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
-						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
-					});
-
+			// Upload all entries in parallel up to a
+			// certain maximum leveraging the `Limiter`
+			const uploadLimiter = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
+			await Promises.settled(entries.map(entry => {
+				return uploadLimiter.queue(async () => {
 					if (token.isCancellationRequested) {
 						return;
 					}
-				}
 
-				// Upload entry
-				const result = await this.doUploadEntry(entry, target.resource, target, progress, operation, token);
-				if (result) {
-					results.push(result);
-				}
-			});
-		}));
+					// Confirm overwrite as needed
+					if (target && entry.name && target.getChild(entry.name)) {
+						const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
+						if (!confirmed) {
+							return;
+						}
 
-		operation.progressScheduler.dispose();
+						await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
+							undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
+							progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
+						});
+
+						if (token.isCancellationRequested) {
+							return;
+						}
+					}
+
+					// Upload entry
+					const result = await this.doUploadEntry(entry, target.resource, target, reporter, token);
+					if (result) {
+						results.push(result);
+					}
+				});
+			}));
+		} finally {
+			reporter.dispose();
+		}
 
 		// Open uploaded file in editor only if we upload just one
 		const firstUploadedFile = results[0];
@@ -202,8 +322,9 @@ export class BrowserFileUpload {
 		}
 	}
 
-	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
-		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
+	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, reporter: TransferProgressReporter, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
+		const entryName = entry.name;
+		if (token.isCancellationRequested || !entryName || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
 
@@ -211,33 +332,14 @@ export class BrowserFileUpload {
 		let fileBytesUploaded = 0;
 		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
 			fileBytesUploaded += bytesUploaded;
-			operation.totalBytesUploaded += bytesUploaded;
 
-			const bytesUploadedPerSecond = operation.totalBytesUploaded / ((Date.now() - operation.startTime) / 1000);
-
-			// Small file
-			let message: string;
-			if (fileSize < ByteSize.MB) {
-				if (operation.filesTotal === 1) {
-					message = `${entry.name}`;
-				} else {
-					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, ByteSize.formatSize(bytesUploadedPerSecond));
-				}
-			}
-
-			// Large file
-			else {
-				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, ByteSize.formatSize(fileBytesUploaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesUploadedPerSecond));
-			}
-
-			// Report progress but limit to update only once per second
-			operation.progressScheduler.work({ message });
+			reporter.report(entryName, fileSize, fileBytesUploaded, bytesUploaded);
 		};
-		operation.filesUploaded++;
+		reporter.startFile();
 		reportProgress(0, 0);
 
 		// Handle file upload
-		const resource = joinPath(parentResource, entry.name);
+		const resource = joinPath(parentResource, entryName);
 		if (entry.isFile) {
 			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
 
@@ -283,10 +385,10 @@ export class BrowserFileUpload {
 			} while (!done && !token.isCancellationRequested);
 
 			// Update operation total based on new counts
-			operation.filesTotal += childEntries.length;
+			reporter.addFiles(childEntries.length);
 
 			// Split up files from folders to upload
-			const folderTarget = target?.getChild(entry.name) || undefined;
+			const folderTarget = target?.getChild(entryName) || undefined;
 			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
 			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
 			for (const childEntry of childEntries) {
@@ -300,12 +402,12 @@ export class BrowserFileUpload {
 			// Upload files (up to `MAX_PARALLEL_UPLOADS` in parallel)
 			const fileUploadQueue = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
 			await Promises.settled(fileChildEntries.map(fileChildEntry => {
-				return fileUploadQueue.queue(() => this.doUploadEntry(fileChildEntry, resource, folderTarget, progress, operation, token));
+				return fileUploadQueue.queue(() => this.doUploadEntry(fileChildEntry, resource, folderTarget, reporter, token));
 			}));
 
 			// Upload folders (sequentially give we don't know their sizes)
 			for (const folderChildEntry of folderChildEntries) {
-				await this.doUploadEntry(folderChildEntry, resource, folderTarget, progress, operation, token);
+				await this.doUploadEntry(folderChildEntry, resource, folderTarget, reporter, token);
 			}
 
 			return { isFile: false, resource };
@@ -598,14 +700,14 @@ export class ExternalFileImport {
 
 //#region Download (web, native)
 
+const downloadProgressMessages: ITransferProgressMessages = {
+	manySmallFiles: (filesTransferred, filesTotal, rate) => localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", filesTransferred, filesTotal, rate),
+	largeFile: (name, bytesTransferred, size, rate) => localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, bytesTransferred, size, rate)
+};
+
 interface IDownloadOperation {
-	startTime: number;
-	progressScheduler: RunOnceWorker<IProgressStep>;
+	reporter: TransferProgressReporter;
 
-	filesTotal: number;
-	filesDownloaded: number;
-
-	totalBytesDownloaded: number;
 	fileBytesDownloaded: number;
 }
 
@@ -619,9 +721,10 @@ export class FileDownload {
 
 	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
 
+	private static readonly MAX_PARALLEL_RESOLVES = 20; // aligned with BrowserFileUpload.MAX_PARALLEL_UPLOADS
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ILogService private readonly logService: ILogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -637,7 +740,7 @@ export class FileDownload {
 			{
 				location: ProgressLocation.Window,
 				delay: 800,
-				cancellable: isWeb,
+				cancellable: true,
 				title: localize('downloadingFiles', "Downloading")
 			},
 			async progress => this.doDownload(source, progress, cts),
@@ -651,21 +754,63 @@ export class FileDownload {
 	}
 
 	private async doDownload(sources: readonly IDownloadSource[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+
+		// Web: use DOM APIs to download files with optional support
+		// for folders and large files
+		if (isWeb) {
+			for (const source of sources) {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
+				await this.doDownloadBrowser(source.resource, progress, cts);
+			}
+
+			return;
+		}
+
+		// Native: use the file service to get at the contents. Ask for every
+		// destination first so that the user is not kept waiting on size
+		// resolution between dialogs, then resolve the number of files and
+		// the total number of bytes across the entire selection, so that a
+		// single reporter can report accurate determinate progress over all
+		// sources.
+		const downloads: { source: IDownloadSource; destination: URI }[] = [];
 		for (const source of sources) {
+			const destination = await this.promptForDownloadDestination(source, progress);
+			if (!destination) {
+				cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
+				return;
+			}
+
+			downloads.push({ source, destination });
+		}
+
+		const fileSizes = new ResourceMap<number>();
+		let filesTotal = 0;
+		let totalBytes = 0;
+		for (const { source } of downloads) {
+			const sizes = await this.resolveDownloadSize(source.resource, cts.token);
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
 
-			// Web: use DOM APIs to download files with optional support
-			// for folders and large files
-			if (isWeb) {
-				await this.doDownloadBrowser(source.resource, progress, cts);
-			}
+			filesTotal += sizes.filesTotal;
+			totalBytes += sizes.totalBytes;
+			sizes.fileSizes.forEach((size, resource) => fileSizes.set(resource, size));
+		}
 
-			// Native: use working copy file service to get at the contents
-			else {
-				await this.doDownloadNative(source, progress, cts);
+		const reporter = new TransferProgressReporter(filesTotal, totalBytes, downloadProgressMessages, progress);
+		try {
+			for (const { source, destination } of downloads) {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
+				await this.doDownloadNative(source, destination, reporter, fileSizes, cts);
 			}
+		} finally {
+			reporter.dispose();
 		}
 	}
 
@@ -682,18 +827,14 @@ export class FileDownload {
 		// Folder: use FS APIs to download files and folders if available and preferred
 		const activeWindow = getActiveWindow();
 		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(activeWindow)) {
+			const operation: IDownloadOperation = {
+				reporter: new TransferProgressReporter(stat.isDirectory ? 0 : 1 /* folders increment filesTotal within downloadFolder method */, undefined, downloadProgressMessages, progress),
+
+				fileBytesDownloaded: 0
+			};
+
 			try {
 				const parentFolder: FileSystemDirectoryHandle = await activeWindow.showDirectoryPicker();
-				const operation: IDownloadOperation = {
-					startTime: Date.now(),
-					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
-
-					filesTotal: stat.isDirectory ? 0 : 1, // folders increment filesTotal within downloadFolder method
-					filesDownloaded: 0,
-
-					totalBytesDownloaded: 0,
-					fileBytesDownloaded: 0
-				};
 
 				if (stat.isDirectory) {
 					const targetFolder = await parentFolder.getDirectoryHandle(stat.name, { create: true });
@@ -701,11 +842,11 @@ export class FileDownload {
 				} else {
 					await this.downloadFileBrowser(parentFolder, stat, operation, cts.token);
 				}
-
-				operation.progressScheduler.dispose();
 			} catch (error) {
 				this.logService.warn(error);
 				cts.cancel(); // `showDirectoryPicker` will throw an error when the user cancels
+			} finally {
+				operation.reporter.dispose();
 			}
 		}
 
@@ -772,7 +913,7 @@ export class FileDownload {
 	private async downloadFileBrowser(targetFolder: FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
 
 		// Report progress
-		operation.filesDownloaded++;
+		operation.reporter.startFile();
 		operation.fileBytesDownloaded = 0; // reset for this file
 		this.reportProgress(file.name, 0, 0, operation);
 
@@ -791,7 +932,7 @@ export class FileDownload {
 
 	private async downloadFolderBrowser(folder: IFileStatWithMetadata, targetFolder: FileSystemDirectoryHandle, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
 		if (folder.children) {
-			operation.filesTotal += (folder.children.map(child => child.isFile)).length;
+			operation.reporter.addFiles(folder.children.filter(child => child.isFile).length);
 
 			for (const child of folder.children) {
 				if (token.isCancellationRequested) {
@@ -812,30 +953,11 @@ export class FileDownload {
 
 	private reportProgress(name: string, fileSize: number, bytesDownloaded: number, operation: IDownloadOperation): void {
 		operation.fileBytesDownloaded += bytesDownloaded;
-		operation.totalBytesDownloaded += bytesDownloaded;
 
-		const bytesDownloadedPerSecond = operation.totalBytesDownloaded / ((Date.now() - operation.startTime) / 1000);
-
-		// Small file
-		let message: string;
-		if (fileSize < ByteSize.MB) {
-			if (operation.filesTotal === 1) {
-				message = name;
-			} else {
-				message = localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesDownloaded, operation.filesTotal, ByteSize.formatSize(bytesDownloadedPerSecond));
-			}
-		}
-
-		// Large file
-		else {
-			message = localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, ByteSize.formatSize(operation.fileBytesDownloaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesDownloadedPerSecond));
-		}
-
-		// Report progress but limit to update only once per second
-		operation.progressScheduler.work({ message });
+		operation.reporter.report(name, fileSize, operation.fileBytesDownloaded, bytesDownloaded);
 	}
 
-	private async doDownloadNative(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async promptForDownloadDestination(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>): Promise<URI | undefined> {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
@@ -862,16 +984,103 @@ export class FileDownload {
 
 			// Remember as last used download folder
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-			// Perform download
-			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
-				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
-				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-				progressLocation: ProgressLocation.Window
-			});
-		} else {
-			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 		}
+
+		return destination;
+	}
+
+	private async doDownloadNative(explorerItem: IDownloadSource, destination: URI, reporter: TransferProgressReporter, fileSizes: ResourceMap<number>, cts: CancellationTokenSource): Promise<void> {
+
+		// When the destination already exists, download into a temporary
+		// sibling first and only move it into place when the download has
+		// completed, so that cancelling the download never harms the
+		// existing destination
+		const destinationExists = await this.fileService.exists(destination);
+		const downloadTarget = destinationExists ? joinPath(dirname(destination), `.${basename(destination)}.${generateUuid().substring(0, 8)}.vsctmp`) : destination;
+
+		// Perform download, reporting progress as bytes are being copied.
+		// The file service reports the total number of bytes copied per
+		// file, so we keep track of the last reported value per file to
+		// compute the delta.
+		const lastBytesCopied = new ResourceMap<number>();
+		try {
+			await this.fileService.copy(explorerItem.resource, downloadTarget, !destinationExists, ({ resource, bytesCopied }) => {
+				let last = lastBytesCopied.get(resource);
+				if (last === undefined) {
+					reporter.startFile();
+					last = 0;
+				}
+				lastBytesCopied.set(resource, bytesCopied);
+
+				reporter.report(basename(resource), fileSizes.get(resource) ?? 0, bytesCopied, bytesCopied - last);
+			}, cts.token);
+
+			if (destinationExists) {
+				await this.fileService.move(downloadTarget, destination, true);
+			}
+		} catch (error) {
+
+			// Best effort cleanup of the partially downloaded files and
+			// folders when the user canceled, or of the temporary download
+			// location on any error. A pre-existing destination is never
+			// deleted: it is only replaced by the final move above once
+			// the download has completed.
+			if (isCancellationError(error) || destinationExists) {
+				try {
+					await this.fileService.del(downloadTarget, { recursive: true });
+				} catch (error) {
+					this.logService.warn(error);
+				}
+			}
+
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		} finally {
+			reporter.flush();
+		}
+	}
+
+	private async resolveDownloadSize(resource: URI, token: CancellationToken): Promise<{ filesTotal: number; totalBytes: number; fileSizes: ResourceMap<number> }> {
+		const fileSizes = new ResourceMap<number>();
+
+		let filesTotal = 0;
+		let totalBytes = 0;
+
+		const addFile = (resource: URI, size: number): void => {
+			fileSizes.set(resource, size);
+			filesTotal++;
+			totalBytes += size;
+		};
+
+		// Limit how many folders are resolved at the same time to not
+		// overwhelm the (potentially remote) file system with requests.
+		// Only the `resolve` calls go through the limiter, never the
+		// recursion itself: a task that would await its children's
+		// queued tasks while holding a slot can deadlock the limiter.
+		const resolveLimiter = new Limiter<IFileStatWithMetadata>(FileDownload.MAX_PARALLEL_RESOLVES);
+		const resolveFolder = async (stat: IFileStatWithMetadata): Promise<void> => {
+			if (token.isCancellationRequested || !stat.children) {
+				return;
+			}
+
+			await Promises.settled(stat.children.map(async child => {
+				if (child.isDirectory) {
+					await resolveFolder(await resolveLimiter.queue(() => this.fileService.resolve(child.resource, { resolveMetadata: true })));
+				} else {
+					addFile(child.resource, child.size);
+				}
+			}));
+		};
+
+		const stat = await this.fileService.resolve(resource, { resolveMetadata: true });
+		if (stat.isDirectory) {
+			await resolveFolder(stat);
+		} else {
+			addFile(stat.resource, stat.size);
+		}
+
+		return { filesTotal, totalBytes, fileSizes };
 	}
 }
 
