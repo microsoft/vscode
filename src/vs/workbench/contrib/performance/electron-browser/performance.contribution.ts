@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { StartupProfiler } from './startupProfiler.js';
 import { NativeStartupTimings } from './startupTimings.js';
 import { RendererProfiling } from './rendererAutoProfiler.js';
@@ -15,24 +14,15 @@ import { applicationConfigurationNodeBase } from '../../../common/configuration.
 
 // -- auto profiler
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	RendererProfiling,
-	LifecyclePhase.Eventually
-);
+registerWorkbenchContribution2(RendererProfiling.ID, RendererProfiling, WorkbenchPhase.Eventually);
 
 // -- startup profiler
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	StartupProfiler,
-	LifecyclePhase.Restored
-);
+registerWorkbenchContribution2(StartupProfiler.ID, StartupProfiler, WorkbenchPhase.AfterRestored);
 
 // -- startup timings
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	NativeStartupTimings,
-	LifecyclePhase.Eventually
-);
+registerWorkbenchContribution2(NativeStartupTimings.ID, NativeStartupTimings, WorkbenchPhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
 	...applicationConfigurationNodeBase,

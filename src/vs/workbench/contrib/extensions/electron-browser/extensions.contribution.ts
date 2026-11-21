@@ -14,10 +14,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
 import { DebugExtensionHostInNewWindowAction, DebugExtensionsContribution, DebugRendererInNewWindowAction, DebugExtensionHostAndRendererAction } from './debugExtensionHostAction.js';
 import { ExtensionHostProfileService } from './extensionProfileService.js';
@@ -55,6 +54,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensions.nativeWorkbench';
+
 	constructor(
 		@IExtensionRecommendationNotificationService extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
@@ -68,12 +69,11 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(InstallRemoteExtensionsContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(DebugExtensionsContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ExtensionsContributions.ID, ExtensionsContributions, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ExtensionsAutoProfiler.ID, ExtensionsAutoProfiler, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(RemoteExtensionsInitializerContribution.ID, RemoteExtensionsInitializerContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(InstallRemoteExtensionsContribution.ID, InstallRemoteExtensionsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(DebugExtensionsContribution.ID, DebugExtensionsContribution, WorkbenchPhase.AfterRestored);
 
 // Register Commands
 

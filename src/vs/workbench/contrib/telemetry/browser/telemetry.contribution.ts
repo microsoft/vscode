@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
-import { LifecyclePhase, ILifecycleService, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ILifecycleService, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -59,6 +59,8 @@ type FileTelemetryDataFragment = {
 };
 
 export class TelemetryContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.telemetry.workbench';
 
 	private static ALLOWLIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
 	private static ALLOWLIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
@@ -287,6 +289,8 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 export class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.configurationTelemetry';
+
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	constructor(
@@ -497,6 +501,5 @@ export class ConfigurationTelemetryContribution extends Disposable implements IW
 
 }
 
-const workbenchContributionRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionRegistry.registerWorkbenchContribution(TelemetryContribution, LifecyclePhase.Restored);
-workbenchContributionRegistry.registerWorkbenchContribution(ConfigurationTelemetryContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(TelemetryContribution.ID, TelemetryContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ConfigurationTelemetryContribution.ID, ConfigurationTelemetryContribution, WorkbenchPhase.Eventually);

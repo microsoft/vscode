@@ -269,6 +269,9 @@ const defaultDebugConfig = {
 };
 
 export class DebugExtensionsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.debugExtensions';
+
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

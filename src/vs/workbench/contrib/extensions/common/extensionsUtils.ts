@@ -24,6 +24,8 @@ export interface IExtensionStatus {
 
 export class KeymapExtensions extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.keymapExtensions';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,

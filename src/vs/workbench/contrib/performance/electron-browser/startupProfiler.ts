@@ -22,6 +22,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.startupProfiler';
+
 	constructor(
 		@IDialogService private readonly _dialogService: IDialogService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,

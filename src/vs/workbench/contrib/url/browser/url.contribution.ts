@@ -6,10 +6,9 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, MenuRegistry, Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ExternalUriResolverContribution } from './externalUriResolver.js';
 import { manageTrustedDomainSettingsCommand } from './trustedDomains.js';
 import { TrustedDomainsFileSystemProvider } from './trustedDomainsFileSystemProvider.js';
@@ -66,10 +65,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	}
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	OpenerValidatorContributions,
-	LifecyclePhase.Restored
-);
+registerWorkbenchContribution2(OpenerValidatorContributions.ID, OpenerValidatorContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(
 	TrustedDomainsFileSystemProvider.ID,
 	TrustedDomainsFileSystemProvider,

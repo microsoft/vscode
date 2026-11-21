@@ -14,9 +14,7 @@ import { createDecorator, ServicesAccessor } from '../../../../platform/instanti
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -167,6 +165,8 @@ registerSingleton(IExtensionBisectService, ExtensionBisectService, Instantiation
 
 class ExtensionBisectUi {
 
+	static readonly ID = 'workbench.contrib.extensionBisectUi';
+
 	static ctxIsBisectActive = new RawContextKey<boolean>('isExtensionBisectActive', false);
 
 	constructor(
@@ -209,10 +209,7 @@ class ExtensionBisectUi {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	ExtensionBisectUi,
-	LifecyclePhase.Restored
-);
+registerWorkbenchContribution2(ExtensionBisectUi.ID, ExtensionBisectUi, WorkbenchPhase.AfterRestored);
 
 registerAction2(class extends Action2 {
 	constructor() {

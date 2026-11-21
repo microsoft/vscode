@@ -164,6 +164,8 @@ function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
 
 export class ProductContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.update.releaseNotes';
+
 	private static readonly KEY = 'releaseNotes/lastVersion';
 
 	constructor(
@@ -216,6 +218,8 @@ export class ProductContribution implements IWorkbenchContribution {
 }
 
 export class UpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.update.status';
 
 	private state: UpdateState;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -359,6 +363,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 export class SwitchProductQualityContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.switchProductQuality';
+
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
@@ -476,6 +482,8 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 }
 
 export class DefaultAccountUpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.defaultAccountUpdate';
 
 	private static readonly STORAGE_KEY = 'update/internalOrg';
 	#internalOrg: string | undefined = undefined;

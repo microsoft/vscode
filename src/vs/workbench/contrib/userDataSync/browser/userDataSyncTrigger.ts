@@ -20,6 +20,8 @@ import { SettingsEditor2Input } from '../../../services/preferences/common/prefe
 
 export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.userDataSyncTrigger';
+
 	constructor(
 		@IEditorService editorService: IEditorService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,

@@ -70,6 +70,8 @@ export abstract class StartupTimings {
 
 export class BrowserStartupTimings extends StartupTimings implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.browserStartupTimings';
+
 	constructor(
 		@IEditorService editorService: IEditorService,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
@@ -104,6 +106,8 @@ export class BrowserStartupTimings extends StartupTimings implements IWorkbenchC
 }
 
 export class BrowserResourcePerformanceMarks {
+
+	static readonly ID = 'workbench.contrib.browserResourcePerformanceMarks';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService

@@ -124,6 +124,8 @@ function asWorkspaceEdit(model: ITextModel, range: IRange, snippet: Snippet): Wo
 
 export class SnippetCodeActions implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.snippetCodeActions';
+
 	private readonly _store = new DisposableStore();
 
 	constructor(

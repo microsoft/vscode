@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ViewsWelcomeContribution } from './viewsWelcomeContribution.js';
 import { ViewsWelcomeExtensionPoint, viewsWelcomeExtensionPointDescriptor } from './viewsWelcomeExtensionPoint.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -14,6 +12,9 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<ViewsWelcomeExtensionPoint>(viewsWelcomeExtensionPointDescriptor);
 
 class WorkbenchConfigurationContribution {
+
+	static readonly ID = 'workbench.contrib.viewsWelcome';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -21,5 +22,4 @@ class WorkbenchConfigurationContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WorkbenchConfigurationContribution.ID, WorkbenchConfigurationContribution, WorkbenchPhase.AfterRestored);

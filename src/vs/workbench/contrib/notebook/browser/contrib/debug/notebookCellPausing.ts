@@ -6,16 +6,17 @@
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IDebugService } from '../../../../debug/common/debug.js';
 import { Thread } from '../../../../debug/common/debugModel.js';
 import { CellUri } from '../../../common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../../common/notebookExecutionService.js';
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookCellPausing';
+
 	private readonly _pausedCells = new Set<string>();
 
 	private _scheduler: RunOnceScheduler;
@@ -80,4 +81,4 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookCellPausing, LifecyclePhase.Restored);
+registerWorkbenchContribution2(NotebookCellPausing.ID, NotebookCellPausing, WorkbenchPhase.AfterRestored);

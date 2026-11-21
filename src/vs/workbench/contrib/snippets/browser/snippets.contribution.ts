@@ -11,13 +11,12 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ConfigureSnippetsAction } from './commands/configureSnippets.js';
 import { ApplyFileSnippetAction } from './commands/fileTemplateSnippets.js';
 import { InsertSnippetAction } from './commands/insertSnippet.js';
 import { SurroundWithSnippetEditorAction } from './commands/surroundWithSnippet.js';
 import { SnippetCodeActions } from './snippetCodeActionProvider.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
@@ -30,8 +29,7 @@ registerAction2(ApplyFileSnippetAction);
 registerAction2(ConfigureSnippetsAction);
 
 // workbench contribs
-const workbenchContribRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContribRegistry.registerWorkbenchContribution(SnippetCodeActions, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SnippetCodeActions.ID, SnippetCodeActions, WorkbenchPhase.AfterRestored);
 
 // config
 Registry

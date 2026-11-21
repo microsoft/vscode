@@ -16,9 +16,8 @@ import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/c
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers.js';
 import Messages from './messages.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IMarkersView } from './markers.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
@@ -157,7 +156,6 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 }], VIEW_CONTAINER);
 
 // workbench
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
 // actions
 registerAction2(class extends ViewAction<IMarkersView> {
@@ -571,6 +569,8 @@ registerAction2(class extends Action2 {
 
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.markersStatusBarContributions';
+
 	private markersStatusItem: IStatusbarEntryAccessor;
 	private markersStatusItemOff: IStatusbarEntryAccessor | undefined;
 
@@ -689,11 +689,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+registerWorkbenchContribution2(MarkersStatusBarContributions.ID, MarkersStatusBarContributions, WorkbenchPhase.AfterRestored);
 
 registerWorkbenchContribution2(MarkerChatContextContribution.ID, MarkerChatContextContribution, WorkbenchPhase.AfterRestored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.activityUpdater';
 
 	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
@@ -718,7 +720,7 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ActivityUpdater.ID, ActivityUpdater, WorkbenchPhase.AfterRestored);
 
 // Register Accessible View Help
 AccessibleViewRegistry.register(new ProblemsAccessibilityHelp());
