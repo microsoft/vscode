@@ -6883,6 +6883,86 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('inbox displays the session timestamps used to order rows with no attention notifications', () => {
+			const now = Date.now();
+			const specs = [
+				{ id: 'first', title: 'Read session A', workspace: 'notes', minutesAgo: 1, mainChatMinutesAgo: 7, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'second', title: 'Read session B', workspace: 'notes', minutesAgo: 2, mainChatMinutesAgo: 40, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'third', title: 'Read session C', workspace: 'notes', minutesAgo: 3, mainChatMinutesAgo: 1440, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'fourth', title: 'Unread session A', workspace: 'code', minutesAgo: 4, isRead: false },
+				{ id: 'fifth', title: 'Unread session B', workspace: 'code', minutesAgo: 4, isRead: false },
+				{ id: 'sixth', title: 'Unread session C', workspace: 'code', minutesAgo: 5, isRead: false },
+			];
+			const sessions = specs.map(spec => buildTestSession(spec, now).session);
+			const harness = createListHarness(disposables, sessions);
+			const storage = harness.instantiationService.get(IStorageService);
+			storage.store('sessions.inboxNotifications.attentionStartTime', now - 2 * 24 * 60 * 60_000, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const attention = disposables.add(new SessionAttentionService(
+				harness.managementService, harness.instantiationService.get(IChatService), harness.instantiationService.get(IGitHubService),
+				storage, upcastPartial<IChatEntitlementService>({ sentimentObs: constObservable({}) }),
+				upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: Event.None }),
+				harness.instantiationService.get(IConfigurationService),
+			));
+			harness.instantiationService.stub(ISessionAttentionService, attention);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(1000, 700);
+			const rows = list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === SessionInboxSection.ReadyForYou ? node.children.flatMap(child => child.type === 'session' ? [child.session] : []) : []);
+
+			assert.deepStrictEqual(rows.map(session => {
+				const row = list.getItemRow({ session: session.resource })!;
+				const state = attention.sessionAttention.get().get(session.sessionId);
+				return {
+					id: session.sessionId,
+					time: row.querySelector('.session-time')?.textContent,
+					ariaLabel: row.getAttribute('aria-label'),
+					readDot: !!row.querySelector('.session-icon .codicon-circle-small-filled'),
+					unreadDot: !!row.querySelector('.session-icon .codicon-circle-filled'),
+					priority: state?.priority,
+					notifications: state?.notificationIds,
+				};
+			}), specs.map(spec => ({
+				id: spec.id,
+				time: `${spec.minutesAgo} ${spec.minutesAgo === 1 ? 'min' : 'mins'} ago`,
+				ariaLabel: `${spec.title}, updated ${spec.minutesAgo} ${spec.minutesAgo === 1 ? 'min' : 'mins'} ago, State: Completed${spec.isRead ? '' : ', unread'}, in ${spec.workspace}`,
+				readDot: spec.isRead,
+				unreadDot: !spec.isRead,
+				priority: InboxNotificationPriority.Later,
+				notifications: [],
+			})));
+		});
+
+		for (const grouping of [SessionsGrouping.Inbox, SessionsGrouping.Workspace]) {
+			test(`${grouping} row timestamps react to session updates without changing the main chat time`, () => {
+				const now = Date.now();
+				const built = buildTestSession({ id: 'timestamps', title: 'Task', minutesAgo: 60, mainChatMinutesAgo: 7 }, now);
+				const updatedAt = observableValue('sessionUpdatedAt', built.session.updatedAt.get());
+				const session: ISession = { ...built.session, updatedAt };
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				const snapshot = () => {
+					const row = list.getItemRow({ session: session.resource })!;
+					return { time: row.querySelector('.session-time')?.textContent, ariaLabel: row.getAttribute('aria-label') };
+				};
+				const initial = snapshot();
+				updatedAt.set(new Date(now - 60_000), undefined);
+				const updated = snapshot();
+				const initialTime = grouping === SessionsGrouping.Inbox ? '1 hr ago' : '7 mins ago';
+				const updatedTime = grouping === SessionsGrouping.Inbox ? '1 min ago' : '7 mins ago';
+
+				assert.deepStrictEqual({ initial, updated }, {
+					initial: { time: initialTime, ariaLabel: `Task, updated ${initialTime}, State: Completed` },
+					updated: { time: updatedTime, ariaLabel: `Task, updated ${updatedTime}, State: Completed` },
+				});
+			});
+		}
+
 		for (const workingChat of ['main', 'child'] as const) {
 			test(`inbox keeps sessions in Working while the ${workingChat} chat runs, except when explicitly triaged`, () => {
 				const sections = [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(otherStatus => {

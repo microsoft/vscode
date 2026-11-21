@@ -445,6 +445,17 @@ function getSessionRowIsRead(session: ISession, reader: IReader | undefined, der
 		: session.isRead.read(reader);
 }
 
+function getSessionRowUpdatedAt(session: ISession, mainChat: IChat, reader: IReader, grouping: SessionsGrouping | undefined, showMetadataWhileActive = false): Date | undefined {
+	if (showMetadataWhileActive) {
+		return session.updatedAt.read(reader);
+	}
+	if (mainChat.status.read(reader) === SessionStatus.InProgress) {
+		return undefined;
+	}
+	// Inbox orders whole sessions, including activity outside the main chat.
+	return (grouping === SessionsGrouping.Inbox ? session.updatedAt : mainChat.updatedAt).read(reader);
+}
+
 function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
 	return isActiveSessionStatus(session.status.read(reader));
 }
@@ -2303,7 +2314,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.mainWindowShown, reader)
 				: getSessionDiffStats(element, reader);
 			const mainChat = element.mainChat.read(reader);
-			const timeDate = this.options.showMetadataWhileActive?.(element) ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const timeDate = getSessionRowUpdatedAt(element, mainChat, reader, this.options.grouping(), this.options.showMetadataWhileActive?.(element));
 
 			const parts: HTMLElement[] = [];
 			if (
@@ -3818,7 +3829,7 @@ class SessionsAccessibilityProvider {
 			const title = this.options?.getComparisonAttemptLabel?.(element) ?? element.title.read(reader);
 			const mainChat = element.mainChat.read(reader);
 			const showMetadataWhileActive = this.options?.showMetadataWhileActive?.(element);
-			const updatedAt = showMetadataWhileActive ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const updatedAt = getSessionRowUpdatedAt(element, mainChat, reader, this.options?.grouping?.(), showMetadataWhileActive);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = updatedAt ? localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemQuickChatWithoutTimeAria', "{0}, chat", title);
