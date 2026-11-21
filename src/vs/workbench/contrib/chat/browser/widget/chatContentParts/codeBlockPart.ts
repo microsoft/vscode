@@ -11,7 +11,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
@@ -148,6 +148,12 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 	private lastLayoutWidth: number | undefined;
+	/**
+	 * Request code blocks live in a bubble whose width is decided by CSS, so they are
+	 * laid out to the measured width of their container instead of the list width.
+	 */
+	private requestContainerWidth: number | undefined;
+	private readonly requestContainerWidthObserver = this._register(new MutableDisposable());
 	private _isHovered = false;
 	private _isDropdownVisible = false;
 	private _toolbarElement!: HTMLElement;
@@ -476,14 +482,41 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		const editorBorder = 2;
-		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
+		const contentWidth = this.requestContainerWidth ?? width - editorBorder;
+		width = contentWidth - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
 		// !!!!
 		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
 		// which can be very expensive if there are many code blocks being laid out at once.
 		// This allows multiple editors to coordinate and render together at the next animation frame.
 		// !!!!
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
+		this.editor.layout({ width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
+	}
+
+	private updateRequestContainerWidthObserver(data: ICodeBlockData): void {
+		if (!isRequestVM(data.element)) {
+			this.requestContainerWidthObserver.clear();
+			this.requestContainerWidth = undefined;
+			return;
+		}
+		if (this.requestContainerWidthObserver.value) {
+			return;
+		}
+		const store = new DisposableStore();
+		const scheduledLayout = store.add(new MutableDisposable());
+		const observer = store.add(new dom.DisposableResizeObserver('CodeBlockPart.requestContainerWidth', entries => {
+			const width = entries.at(-1)?.contentRect.width;
+			// A hidden code block (e.g. in sticky scroll) reports 0, keep the last known width
+			if (!width || width === this.requestContainerWidth) {
+				return;
+			}
+			this.requestContainerWidth = width;
+			// Lay out outside of the observer callback: with word wrap, a new width changes the
+			// editor's height, which would notify this observer again in the same frame
+			scheduledLayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.element), () => this.layout());
+		}, dom.getWindow(this.element)));
+		store.add(observer.observe(this.element));
+		this.requestContainerWidthObserver.value = store;
 	}
 
 	private getContentHeight() {
@@ -492,6 +525,7 @@ export class CodeBlockPart extends Disposable {
 
 	render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
+		this.updateRequestContainerWidthObserver(data);
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}

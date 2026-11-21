@@ -4532,6 +4532,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
+	/* Code blocks are laid out to the width of the bubble, so the bubble can't size itself to them */
+	.interactive-item-container.interactive-request .value .rendered-markdown.chat-markdown-has-code-block {
+		width: 100%;
+	}
+
 	.chat-request-disclosure {
 		width: 100%;
 	}
