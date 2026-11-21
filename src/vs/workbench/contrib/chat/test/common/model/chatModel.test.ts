@@ -33,12 +33,12 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IChatResponseModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, reviveSerializableInputState, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatProgressResponseContent, IChatRequestModeInfo, IChatResponseModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, reviveSerializableInputState, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatProgress, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -975,6 +975,54 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('empty thinking markers preserve every markdown delta through session replay', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'test', parts: [] }, { variables: [] }, 0);
+		const operationLog = new ChatSessionOperationLog();
+		const buffers = [operationLog.createInitial(model)];
+		const parts: IChatProgress[] = [
+			{ kind: 'markdownContent', content: new MarkdownString('Verif') },
+			{ kind: 'thinking', id: '', value: '', metadata: { vscodeReasoningDone: true } },
+			{ kind: 'markdownContent', content: new MarkdownString('ying settings') },
+			{ kind: 'thinking', id: '', value: [], metadata: { vscodeReasoningDone: true } },
+			{ kind: 'markdownContent', content: new MarkdownString('.json\n\n```text\n{ "kind": "thinking", "value": "" }\n```') },
+		];
+		const write = () => {
+			const mutation = operationLog.write(model);
+			if (mutation.op === 'replace') {
+				buffers.length = 0;
+			}
+			buffers.push(mutation.data);
+			operationLog.confirmWrite();
+		};
+		for (const part of parts) {
+			model.acceptResponseProgress(request, part);
+			write();
+		}
+		request.response!.complete();
+		const nextRequest = model.addRequest({ text: 'next', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(nextRequest, { kind: 'markdownContent', content: new MarkdownString('Separate turn') });
+		nextRequest.response!.complete();
+		write();
+
+		const json: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		assert.deepStrictEqual([json, operationLog.read(VSBuffer.concat(buffers))].map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			return restored.getRequests().map(request => ({
+				copy: request.response!.response.toString(),
+				finalResponse: request.response!.response.getFinalResponse(),
+				markers: request.response!.response.value.filter(part => part.kind === 'thinking'),
+			}));
+		}), [0, 1].map(() => [
+			{
+				copy: 'Verifying settings.json\n\n```text\n{ "kind": "thinking", "value": "" }\n```',
+				finalResponse: 'Verifying settings.json\n\n```text\n{ "kind": "thinking", "value": "" }\n```',
+				markers: [parts[1], parts[3]].map(part => ({ ...part, hasFollowingMarkdown: true })),
+			},
+			{ copy: 'Separate turn', finalResponse: 'Separate turn', markers: [] },
+		]));
+	});
+
 	test('merges untimed thinking chunks with changing ids without inferring durations', () => {
 		const clock = sinon.useFakeTimers({ now: 1000 });
 		testDisposables.add(toDisposable(() => clock.restore()));
@@ -1406,6 +1454,88 @@ suite('Response', () => {
 		await assertSnapshot(response.value);
 
 		assert.strictEqual(response.toString(), 'markdown1markdown2');
+	});
+
+	for (const value of ['', [], ['', '']]) {
+		test(`empty thinking markers do not split streamed markdown (${JSON.stringify(value)})`, () => {
+			const response = store.add(new Response([]));
+			const marker = { kind: 'thinking' as const, id: '', value, metadata: { vscodeReasoningDone: true } };
+			const prefix = { kind: 'markdownContent' as const, content: new MarkdownString('Verif') };
+			const suffix = { kind: 'markdownContent' as const, content: new MarkdownString('ying the fix') };
+			response.updateContent(prefix);
+			response.updateContent(marker);
+			response.updateContent(suffix);
+			const restored = store.add(new Response([prefix, marker, suffix]));
+
+			assert.deepStrictEqual({
+				parts: response.value.map(part => part.kind === 'markdownContent' ? { kind: part.kind, text: part.content.value } : part),
+				copy: response.toString(),
+				finalResponse: response.getFinalResponse(),
+				restoredCopy: restored.toString(),
+				restoredFinalResponse: restored.getFinalResponse(),
+			}, {
+				parts: [{ kind: 'markdownContent', text: 'Verifying the fix' }, { ...marker, hasFollowingMarkdown: true }],
+				copy: 'Verifying the fix',
+				finalResponse: 'Verifying the fix',
+				restoredCopy: 'Verifying the fix',
+				restoredFinalResponse: 'Verifying the fix',
+			});
+		});
+	}
+
+	test('empty thinking markers preserve content, tool, edit and undo boundaries', () => {
+		const boundaries: IChatProgressResponseContent[] = [
+			{ kind: 'thinking', value: 'A real thought' },
+			{ kind: 'thinking', value: [' ', '\n'] },
+			{ kind: 'thinking' },
+			{ kind: 'progressMessage', content: new MarkdownString('Working') },
+			{ kind: 'undoStop', id: 'edit' },
+			{ kind: 'codeblockUri', uri: URI.file('/workspace/file.ts') },
+			{ kind: 'externalEdit', uri: URI.file('/workspace/file.ts'), editKind: 'edit' },
+			{
+				kind: 'toolInvocationSerialized', toolId: 'read', toolCallId: 'read', invocationMessage: 'Reading',
+				presentation: undefined, originMessage: undefined, pastTenseMessage: undefined, source: undefined, isConfirmed: true, isComplete: true,
+			},
+		];
+		const prefix = { kind: 'markdownContent' as const, content: new MarkdownString('Before') };
+		const suffix = { kind: 'markdownContent' as const, content: new MarkdownString('After') };
+		const marker = { kind: 'thinking' as const, value: '' };
+		assert.deepStrictEqual(boundaries.map(boundary => {
+			const response = store.add(new Response([]));
+			for (const part of [prefix, boundary, marker, suffix]) {
+				response.updateContent(part);
+			}
+			return { parts: response.value, finalResponse: response.getFinalResponse() };
+		}), boundaries.map(boundary => ({ parts: [prefix, boundary, marker, suffix], finalResponse: 'After' })));
+	});
+
+	test('empty thinking markers still separate reasoning runs', () => {
+		const parts = [
+			{ kind: 'thinking' as const, value: 'First thought' },
+			{ kind: 'thinking' as const, value: '', metadata: { vscodeReasoningDone: true } },
+			{ kind: 'thinking' as const, value: 'Second thought' },
+		];
+		const response = store.add(new Response([]));
+		for (const part of parts) {
+			response.updateContent(part);
+		}
+		assert.deepStrictEqual(response.value, parts);
+	});
+
+	test('empty thinking markers do not merge markdown with different permissions', () => {
+		const prefix = { kind: 'markdownContent' as const, content: new MarkdownString('Before') };
+		const marker = { kind: 'thinking' as const, value: '' };
+		const trusted = new MarkdownString('After');
+		trusted.isTrusted = true;
+		const relative = new MarkdownString('After');
+		relative.baseUri = URI.file('/workspace/');
+		assert.deepStrictEqual([trusted, relative].map(content => {
+			const response = store.add(new Response([]));
+			for (const part of [prefix, marker, { kind: 'markdownContent' as const, content }]) {
+				response.updateContent(part);
+			}
+			return response.value;
+		}), [trusted, relative].map(content => [prefix, marker, { kind: 'markdownContent', content }]));
 	});
 
 	test('mergeable markdown across nested subagent progress', () => {

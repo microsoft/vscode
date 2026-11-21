@@ -661,7 +661,7 @@ class AbstractResponse implements IResponse {
 		const end = i;
 		while (i >= 0) {
 			const part = parts[i];
-			if (part.kind === 'markdownContent' || part.kind === 'markdownVuln' || part.kind === 'inlineReference') {
+			if (part.kind === 'markdownContent' || part.kind === 'markdownVuln' || part.kind === 'inlineReference' || isEmptyThinkingPart(part)) {
 				i--;
 			} else {
 				break;
@@ -1049,9 +1049,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			return;
 		} else if (progress.kind === 'markdownContent') {
 
-			// Nested subagent parts render inside their parent card and must not split parent markdown.
+			// Reasoning end markers and nested subagent parts must not split parent markdown.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup' && ((p.kind === 'codeblockUri' && !p.isStandalone) || !isNestedSubagentResponsePart(p)))
+				.filter(p => p.kind !== 'textEditGroup' && !isEmptyThinkingPart(p) && ((p.kind === 'codeblockUri' && !p.isStandalone) || !isNestedSubagentResponsePart(p)))
 				.at(-1);
 
 			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
@@ -1061,6 +1061,12 @@ export class Response extends AbstractResponse implements IDisposable {
 				// Don't modify the current object, since it's being diffed by the renderer
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
+				for (let i = idx + 1; i < this._responseParts.length; i++) {
+					const part = this._responseParts[i];
+					if (part.kind === 'thinking' && isEmptyThinkingPart(part) && !part.hasFollowingMarkdown) {
+						this._responseParts[i] = { ...part, hasFollowingMarkdown: true };
+					}
+				}
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'systemNotification') {
@@ -3987,6 +3993,50 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 
 export function isNestedSubagentResponsePart(part: object): boolean {
 	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
+}
+
+export function isEmptyThinkingPart(part: { readonly kind: string } | undefined): boolean {
+	return part?.kind === 'thinking' && 'value' in part
+		&& (part.value === '' || (Array.isArray(part.value) && part.value.every(value => value === '')));
+}
+
+/** Joins compatible Markdown fragments across empty thinking markers for plaintext extraction, retaining the first source index. */
+export function* getResponsePartsForPlaintext(parts: readonly IChatProgressResponseContent[]): Iterable<{ part: IChatProgressResponseContent; partIndex: number }> {
+	const legacySubagentMarkdown = getLegacySubagentMarkdown(parts);
+	const normalizeMarkdown = (content: IMarkdownString, index: number): IMarkdownString | undefined => {
+		const normalized = legacySubagentMarkdown.get(index);
+		if (normalized === undefined) {
+			return content;
+		}
+		return normalized.trim() ? { ...content, value: normalized } : undefined;
+	};
+	for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+		const firstPartIndex = partIndex;
+		let part = parts[partIndex];
+		if (part.kind === 'markdownContent') {
+			let content = normalizeMarkdown(part.content, partIndex);
+			if (!content) {
+				continue;
+			}
+			let nextIndex = partIndex + 1;
+			while (nextIndex < parts.length) {
+				while (isEmptyThinkingPart(parts[nextIndex])) {
+					nextIndex++;
+				}
+				const next = parts[nextIndex];
+				const nextContent = next?.kind === 'markdownContent' ? normalizeMarkdown(next.content, nextIndex) : undefined;
+				if (!nextContent || !canMergeMarkdownStrings(content, nextContent)) {
+					break;
+				}
+				content = appendMarkdownString(content, nextContent);
+				partIndex = nextIndex++;
+			}
+			if (content !== part.content) {
+				part = { ...part, content };
+			}
+		}
+		yield { part, partIndex: firstPartIndex };
+	}
 }
 
 /** Removes only metadata-only legacy subagent fences, preserving delimiters belonging to real code. */

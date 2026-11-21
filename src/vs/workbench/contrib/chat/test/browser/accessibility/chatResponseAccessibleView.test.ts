@@ -60,6 +60,29 @@ suite('ChatResponseAccessibleView', () => {
 		]);
 	});
 
+	test('empty thinking markers preserve plaintext after legacy subagent scaffolding', () => {
+		const response = store.add(new Response([
+			new MarkdownString('```\n'),
+			{ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' },
+			new MarkdownString('\n```\n\n'),
+			{ kind: 'thinking', value: '' },
+			new MarkdownString('**Verifying settings.json**'),
+		]));
+		const item = upcastPartial<IChatResponseViewModel>({ response });
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{ partIndex: 4, text: 'Verifying settings.json' }]);
+	});
+
+	test('empty thinking markers keep adjacent restored link fragments in one plaintext run', () => {
+		const response = store.add(new Response([
+			new MarkdownString('[Open](https://exam'),
+			{ kind: 'thinking', value: '' },
+			new MarkdownString('ple.'),
+			new MarkdownString('com)'),
+		]));
+		const item = upcastPartial<IChatResponseViewModel>({ response });
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{ partIndex: 0, text: 'Open' }]);
+	});
+
 	for (const toolId of ['image_generation', 'image_gen.imagegen', 'custom_image_tool', 'view']) {
 		test(`keeps preconfirmation image tools out of accessible and response text (${toolId})`, async () => {
 			const invocation = ChatToolInvocation.createStreaming({
@@ -749,6 +772,42 @@ suite('ChatResponseAccessibleView', () => {
 			});
 		});
 
+		for (const includeThinking of [false, true]) {
+			test(`empty thinking markers keep restored markdown continuous in the accessible view (thinking=${includeThinking})`, () => {
+				const response = store.add(new Response([
+					new MarkdownString('Verif'),
+					{ kind: 'thinking', value: '', metadata: { vscodeReasoningDone: true } },
+					new MarkdownString('ying **settings'),
+					{ kind: 'thinking', value: ['', ''] },
+					new MarkdownString('.json** (`vscodeReasoningDone`).'),
+					{ kind: 'thinking', value: 'A real thought' },
+					new MarkdownString('After thinking'),
+				]));
+				const item = upcastPartial<IChatResponseViewModel>({
+					response,
+					model: upcastPartial<IChatResponseViewModel['model']>({ onDidChange: Event.None }),
+					setVote: () => undefined,
+				});
+				const instantiationService = store.add(new TestInstantiationService());
+				const storageService = store.add(new TestStorageService());
+				storageService.store(CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, includeThinking, StorageScope.PROFILE, StorageTarget.USER);
+				instantiationService.stub(IStorageService, storageService);
+				instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+					lastFocusedWidget: upcastPartial<IChatWidget>({ hasInputFocus: () => false, getFocus: () => item }),
+				}));
+				const provider = instantiationService.invokeFunction(accessor => new ChatResponseAccessibleView().getProvider(accessor));
+				assert.ok(provider);
+				store.add(provider);
+				assert.deepStrictEqual({
+					content: provider.provideContent(),
+					sources: getChatResponsePlaintextParts(item, includeThinking).map(part => part.partIndex),
+				}, {
+					content: ['Verifying settings.json (vscodeReasoningDone).', ...(includeThinking ? ['Thinking: A real thought'] : []), 'After thinking'].join('\n'),
+					sources: [0, ...(includeThinking ? [5] : []), 6],
+				});
+			});
+		}
+
 		test('reads the focused artifact action snapshot and restores focus to its request', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const presentation = createTestArtifactRequestPresentation();
@@ -905,6 +964,19 @@ suite('ChatResponseAccessibleView', () => {
 				withoutRenderer: ['parser.ts (/repo/src/parser.ts)', 'parser.ts (/repo/src/parser.ts)'],
 				filtered: ['parser.ts (/repo/src/parser.ts)', 'parser.ts (/repo/src/parser.ts)'],
 			});
+		});
+
+		test('empty thinking markers preserve native visual descriptions and following content', () => {
+			store.add(registerChatNativeComponentsRenderer(chatNativeComponentsRenderer));
+			assert.deepStrictEqual(responseLines([
+				{ kind: 'markdownContent', content: new MarkdownString('```vscode-ui\n<Metric label="Status" value="') },
+				{ kind: 'thinking', value: '' },
+				{ kind: 'markdownContent', content: new MarkdownString('Ready" />\n```') },
+				{ kind: 'systemNotification', content: new MarkdownString('After the visual') },
+			], new TestConfigurationService({ [ChatConfiguration.NativeComponentsEnabled]: true }), true), [
+				'Status: Ready',
+				'After the visual',
+			]);
 		});
 
 		test('omits thinking content when disabled in storage', () => {

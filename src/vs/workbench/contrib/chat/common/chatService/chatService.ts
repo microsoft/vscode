@@ -677,6 +677,8 @@ export interface IChatThinkingPart {
 	kind: 'thinking';
 	value?: string | string[];
 	id?: string;
+	/** Set when later Markdown is merged across this empty reasoning marker. */
+	hasFollowingMarkdown?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;

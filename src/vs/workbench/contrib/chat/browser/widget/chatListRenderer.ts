@@ -61,7 +61,7 @@ import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, ha
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
+import { IChatProgressResponseContent, IChatTextEditGroup, isEmptyThinkingPart } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
@@ -2791,7 +2791,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// A trailing empty thinking marker ends the open thinking section, so the section's own
 		// activity indicators no longer stand in for the response-level progress.
-		const sectionFinished = isEmptyThinkingPart(workingParts.at(-1));
+		const lastWorkingPart = workingParts.at(-1);
+		const sectionFinished = isEmptyThinkingPart(lastWorkingPart);
 		const hasIncompleteTool = workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part));
 
 		// never show working progress when there is an active thinking piece
@@ -2829,7 +2830,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			(lastPart.kind === 'externalEdit' && !hasIncompleteTool) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			endsWithCompletedQuestion ||
-			(sectionFinished && !hasIncompleteTool) ||
+			(sectionFinished && !(lastWorkingPart?.kind === 'thinking' && lastWorkingPart.hasFollowingMarkdown) && !hasIncompleteTool) ||
 			lastPart.kind === 'mcpServersStarting' ||
 			lastPart.kind === 'mcpAuthenticationRequired' ||
 			lastPart.kind === 'mcpServersStartingSlow' ||
@@ -7089,10 +7090,6 @@ function formatPersistentBackgroundActivityLabel(activity: IPersistentBackground
 			: localize('persistentProgress.backgroundCommandsRunning', "{0} background commands running", activity.activeBackgroundTerminalCount);
 	}
 	return undefined;
-}
-
-function isEmptyThinkingPart(part: IChatRendererContent | undefined): boolean {
-	return part?.kind === 'thinking' && (part.value === '' || (Array.isArray(part.value) && part.value.length === 0));
 }
 
 function findLastMeaningfulPart(parts: readonly IChatRendererContent[]): IChatRendererContent | undefined {

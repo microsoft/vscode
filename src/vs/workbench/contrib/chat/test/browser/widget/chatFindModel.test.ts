@@ -308,6 +308,51 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
+	for (const adjacentChunks of [false, true]) {
+		test(`empty thinking markers do not expose split link targets or formatting to Find (adjacent=${adjacentChunks})`, () => {
+			const items = [fakeResponse('resp1', [
+				...(adjacentChunks ? [markdown('[Op'), markdown('en](https://exam')] : [markdown('[Open](https://example.')]),
+				thinking(''),
+				...(adjacentChunks ? [markdown('ple.')] : []),
+				markdown('com)\n\n**Verif'),
+				thinking(''),
+				markdown('ying** settings.json'),
+			])];
+			const model = new ChatFindModel(() => items);
+			const matches = ['example.com', 'Open', 'Verifying settings.json'].map(query => {
+				model.setQuery(query, { isRegex: false, matchCase: true, wholeWord: false });
+				return model.matches.map(match => ({ text: match.text, partIndex: match.partIndex }));
+			});
+			model.dispose();
+			assert.deepStrictEqual(matches, [
+				[],
+				[{ text: 'Open', partIndex: 1 }],
+				[{ text: 'Verifying settings.json', partIndex: 1 }],
+			]);
+		});
+	}
+
+	test('empty thinking markers preserve normalized legacy subagent answer sources', () => {
+		const items = [fakeResponse('resp1', [
+			markdown('```\n'),
+			{ kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, subAgentInvocationId: 'agent' },
+			markdown('\n```\n\n'),
+			thinking(''),
+			markdown('[Open](https://example.com) **Verifying settings.json**'),
+		])];
+		const model = new ChatFindModel(() => items);
+		const matches = ['example.com', 'Open', 'Verifying settings.json'].map(query => {
+			model.setQuery(query, { isRegex: false, matchCase: true, wholeWord: false });
+			return model.matches.map(match => ({ text: match.text, partIndex: match.partIndex }));
+		});
+		model.dispose();
+		assert.deepStrictEqual(matches, [
+			[],
+			[{ text: 'Open', partIndex: 3 }],
+			[{ text: 'Verifying settings.json', partIndex: 3 }],
+		]);
+	});
+
 	test('does not fuse parts the renderer merges into one block', () => {
 		// An inline reference splits the surrounding markdown into three parts that render as one
 		// line. Concatenating their trimmed text would index `Seefoo.tsfor details`, hiding the

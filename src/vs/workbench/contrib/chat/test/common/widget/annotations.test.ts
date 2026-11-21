@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatMarkdownContent, IChatResponseCodeblockUriPart, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractEditCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, annotateSpecialMarkdownContentWithSource, extractCodeblockUrisFromText, extractEditCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
 
 function content(str: string): IChatMarkdownContent {
 	return { kind: 'markdownContent', content: new MarkdownString(str) };
@@ -17,6 +17,43 @@ function content(str: string): IChatMarkdownContent {
 
 suite('Annotations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('empty thinking markers do not split restored markdown', () => {
+		const marker = { kind: 'thinking', id: '', value: '', metadata: { vscodeReasoningDone: true } } as const;
+		assert.deepStrictEqual(annotateSpecialMarkdownContentWithSource([
+			content('Verif'),
+			marker,
+			content('ying settings'),
+			{ ...marker, value: ['', ''] },
+			content('.json\n\n`vscodeReasoningDone` is literal text.'),
+		]).map(entry => ({
+			...entry,
+			content: entry.content.kind === 'markdownContent' ? { kind: entry.content.kind, text: entry.content.content.value } : entry.content,
+		})), [
+			{ content: { kind: 'markdownContent', text: 'Verifying settings.json\n\n`vscodeReasoningDone` is literal text.' }, sourceIndexes: [0, 2, 4] },
+			{ content: { ...marker, hasFollowingMarkdown: true }, sourceIndexes: [1] },
+			{ content: { ...marker, value: ['', ''], hasFollowingMarkdown: true }, sourceIndexes: [3] },
+		]);
+	});
+
+	for (const fragmented of [false, true]) {
+		test(`empty thinking markers are annotated with linear lookups (fragmented=${fragmented})`, () => {
+			const count = 512;
+			let markerReads = 0;
+			const marker = { get kind() { markerReads++; return 'thinking' as const; }, value: '' };
+			const parts = fragmented
+				? Array.from({ length: count }, () => [content('x'), marker]).flat()
+				: [content('x'.repeat(count)), ...Array.from({ length: count }, () => marker)];
+			const result = annotateSpecialMarkdownContentWithSource(parts);
+			const reads = markerReads;
+			assert.deepStrictEqual({
+				text: result[0].content.kind === 'markdownContent' ? result[0].content.content.value : undefined,
+				sources: result[0].sourceIndexes.length,
+				markers: result.filter(entry => entry.content.kind === 'thinking').length,
+				linearLookups: reads < count * 20,
+			}, { text: 'x'.repeat(count), sources: fragmented ? count : 1, markers: count, linearLookups: true }, `${reads} marker reads`);
+		});
+	}
 
 	test('standalone subagent metadata does not interrupt parent code or introduce marker text', () => {
 		const reference: IChatResponseCodeblockUriPart = { kind: 'codeblockUri', uri: URI.file('/workspace/child.ts'), isEdit: true, isStandalone: true, subAgentInvocationId: 'agent/" & %' };

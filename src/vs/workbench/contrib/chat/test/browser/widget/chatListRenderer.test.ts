@@ -12216,6 +12216,79 @@ suite('ChatListRenderer', () => {
 		}
 	}));
 
+	test('empty thinking markers do not bypass the legacy working delay after markdown', () => {
+		const clock = sinon.useFakeTimers({ now: 1000, toFake: ['Date'] });
+		store.add(toDisposable(() => clock.restore()));
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, persistentProgress: ChatProgressAnimation.Off });
+		const progress = () => [...template.value.querySelectorAll(':scope > .progress-container')].map(element => element.textContent);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Verif') });
+		renderer.renderElement(node, 0, template);
+		model.acceptResponseProgress(request, { kind: 'thinking', value: '', metadata: { vscodeReasoningDone: true } });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('ying') });
+		renderer.renderElement(node, 0, template);
+		const immediate = progress();
+		clock.tick(749);
+		renderer.renderElement(node, 0, template);
+		const beforeDelay = progress();
+		clock.tick(1);
+		renderer.renderElement(node, 0, template);
+		const paused = progress();
+		request.response!.complete();
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({ immediate, beforeDelay, paused, complete: progress() }, { immediate: [], beforeDelay: [], paused: ['Working'], complete: [] });
+	});
+
+	for (const progressVerbosity of [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Conversation]) {
+		test(`empty thinking markers keep one markdown paragraph during streaming and replay (${progressVerbosity})`, () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+			const options = { chatMode: ChatModeKind.Agent, progressVerbosity };
+			const live = createPersistentProgressRenderer(options);
+			const marker = { kind: 'thinking' as const, id: '', value: '', metadata: { vscodeReasoningDone: true } };
+			const fragments = ['Verif', 'ying settings', '.json'];
+			const snapshot = async (setup: ReturnType<typeof createPersistentProgressRenderer>) => {
+				setup.renderer.renderElement(setup.node, 0, setup.template);
+				const paragraphs = () => [...setup.template.value.querySelectorAll('.chat-markdown-part > p')].map(element => element.textContent);
+				await retry(async () => assert.strictEqual(paragraphs().join(''), setup.response.response.getMarkdown()), 10, 50);
+				const accessibility = new ChatAccessibilityProvider(undefined, upcastPartial<IAccessibleViewService>({ getOpenAriaHint: () => '' }), setup.instantiationService);
+				return {
+					paragraphs: paragraphs(),
+					copy: setup.response.response.toString(),
+					finalResponse: setup.response.response.getFinalResponse(),
+					accessible: accessibility.getAriaLabel(setup.response).trim(),
+				};
+			};
+			const streaming = [];
+			for (const fragment of fragments) {
+				live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString(fragment) });
+				streaming.push(await snapshot(live));
+				live.model.acceptResponseProgress(live.request, { ...marker });
+				await snapshot(live);
+			}
+			live.request.response!.complete();
+			const serialized = live.model.toJSON();
+			const legacy = {
+				...serialized,
+				requests: serialized.requests.map(request => ({
+					...request,
+					response: fragments.flatMap(fragment => [new MarkdownString(fragment), { ...marker }]),
+				})),
+			};
+			live.disposables.dispose();
+			const restored = [];
+			for (const data of [serialized, legacy]) {
+				const value: unknown = revive(JSON.parse(JSON.stringify(data)));
+				assert.ok(isSerializableSessionData(value));
+				const setup = createPersistentProgressRenderer({ ...options, initialData: { value, serializer: new ChatSessionOperationLog() } });
+				restored.push(await snapshot(setup));
+				setup.disposables.dispose();
+			}
+			const expected = (text: string) => ({ paragraphs: [text], copy: text, finalResponse: text, accessible: text });
+			assert.deepStrictEqual({ streaming, restored }, {
+				streaming: ['Verif', 'Verifying settings', 'Verifying settings.json'].map(expected),
+				restored: [expected('Verifying settings.json'), expected('Verifying settings.json')],
+			});
+		}));
+	}
+
 	test('persistent reasoning uses a separate collapsible preview and breaks tool chains', () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const appendTool = (id: string) => {
