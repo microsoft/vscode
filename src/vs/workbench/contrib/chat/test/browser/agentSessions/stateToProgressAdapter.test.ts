@@ -3154,6 +3154,33 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		for (const newline of ['\n', '\r\n']) {
+			test(`preserves reference links across multiline message-only prompts (${newline === '\n' ? 'LF' : 'CRLF'})`, () => {
+				const message = [
+					'Review [config][cfg] and [docs][documentation]',
+					'',
+					'[cfg]: file:///workspace/config.json',
+					'[documentation]: https://example.com/deploy',
+					'',
+					'Should I deploy to production?',
+				].join(newline);
+				const carousel = createInputRequestCarousel({ id: 'message-only', message }, 'my-host');
+				const question = carousel.questions[0];
+				const rendered = store.add(renderMarkdown(new MarkdownString(question.title), getChatMarkdownRenderOptions()));
+
+				assert.deepStrictEqual({
+					links: [...rendered.element.querySelectorAll('a')].map(link => ({ label: link.textContent, href: link.dataset.href })),
+					retainsQuestion: rendered.element.textContent?.includes('Should I deploy to production?'),
+				}, {
+					links: [
+						{ label: 'config', href: rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host') },
+						{ label: 'docs', href: 'https://example.com/deploy' },
+					],
+					retainsQuestion: true,
+				});
+			});
+		}
+
 		test('rewrites remote file links in retained question text', () => {
 			const message = 'Use [config](file:///workspace/config.json)?';
 			const repeated = createInputRequestCarousel({

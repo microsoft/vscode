@@ -37,6 +37,7 @@ import { AgentsVoiceSettingId } from '../../../../agentsVoice/common/agentsVoice
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { createInputRequestCarousel } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
@@ -5221,6 +5222,25 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
 		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', questions: [] })), undefined);
 	});
+
+	for (const newline of ['\n', '\r\n']) {
+		test(`preserves the full multiline message-only prompt in voice payloads and narration (${newline === '\n' ? 'LF' : 'CRLF'})`, () => {
+			const controller = createController(new TestVoiceClientService());
+			const message = `Deployment review${newline}Should I deploy to production?`;
+			const carousel = createInputRequestCarousel({ id: 'message-only', message }, 'local');
+			const model = pendingPartsModel(carousel);
+			const payload = controller['_buildPendingPayload'](model);
+			const narration = controller['_questionNarratable'](model);
+
+			assert.deepStrictEqual({
+				prompts: payload?.type === 'questions' ? payload.questions?.map(question => question.title) : undefined,
+				narration: narration?.text,
+			}, {
+				prompts: [message],
+				narration: `${message} Or say skip.`,
+			});
+		});
+	}
 
 	test('narrates the carousel-level question as well as the field title and choices', () => {
 		const controller = createController(new TestVoiceClientService());
