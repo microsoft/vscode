@@ -392,6 +392,16 @@ suite('TerminalLinkManager', () => {
 			}
 			deepStrictEqual(events.map(e => e.defaultPrevented), [true, false, false]);
 		});
+		test('should prevent default for a middle click reported to an application with mouse tracking unless shift is held', async () => {
+			// Enable VT200 mouse tracking
+			await new Promise<void>(r => xterm.write('\x1b[?1000hfoo', r));
+			const [link] = (await linkManager.getDetectedLinks(1, 'word'))!;
+			const events = [false, true].map(shiftKey => new MouseEvent('mouseup', { button: 1, shiftKey, cancelable: true }));
+			for (const e of events) {
+				link.activate(e, link.text);
+			}
+			deepStrictEqual(events.map(e => e.defaultPrevented), [true, false]);
+		});
 	});
 });
 function upcastPartial<T>(v: Partial<T>): T {
