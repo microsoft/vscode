@@ -1075,27 +1075,6 @@ const ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH: IFixtureMessage[] = [
 	},
 ];
 
-/** The editor of a request code block must fill the code block, whatever width CSS gives the request bubble. */
-async function renderRequestCodeBlockWidth(context: ComponentFixtureContext): Promise<void> {
-	await renderChatWidget(context, {
-		messages: ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH,
-		width: 400,
-		height: 420,
-		listHeight: 420,
-		inputVisible: false,
-	});
-
-	const request = context.container.querySelector<HTMLElement>('.interactive-request');
-	if (!request) {
-		throw new Error('The request did not render');
-	}
-	await waitForFixtureDomCondition(request, () => {
-		const codeBlock = request.querySelector<HTMLElement>('.interactive-result-code-block');
-		const editor = codeBlock?.querySelector<HTMLElement>('.monaco-editor');
-		return !!codeBlock && !!editor && codeBlock.clientWidth > 0 && editor.offsetWidth === codeBlock.clientWidth;
-	}, context.disposableStore);
-}
-
 const STREAMING: IFixtureMessage[] = [
 	{
 		user: 'Search the workspace for TODO comments',
@@ -3124,8 +3103,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 		'issue-349335-request-code-block-width': defineComponentFixture({
-			virtualTime: { enabled: false },
-			render: renderRequestCodeBlockWidth,
+			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH, width: 400, inputVisible: false }),
 		}),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),

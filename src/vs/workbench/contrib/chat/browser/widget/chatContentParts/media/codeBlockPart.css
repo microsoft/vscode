@@ -64,6 +64,8 @@
 
 .interactive-session .interactive-request .interactive-result-code-block {
 	border: 1px solid var(--vscode-chat-requestCodeBorder);
+	/* The editor width is computed, so let the border wrap the editor rather than the bubble */
+	width: fit-content;
 }
 
 .interactive-session .interactive-response .interactive-result-code-block {
