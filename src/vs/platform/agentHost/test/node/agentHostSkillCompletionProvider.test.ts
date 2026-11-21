@@ -610,6 +610,29 @@ suite('AgentHostSkillCompletionProvider', () => {
 		]);
 	});
 
+	test('filters skills by the text before the cursor when a slash is typed before existing text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('pstack', [skill('poteto-mode'), skill('review')])];
+		const provider = createProvider(agent);
+		const draft = `Let's rebase, get Astra 6 review and address it.`;
+
+		const afterSlash = await run(provider, `/${draft}`, 1);
+		const afterPrefix = await run(provider, `/pot${draft}`, '/pot'.length);
+
+		assert.deepStrictEqual({
+			afterSlash: afterSlash.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+			afterPrefix: afterPrefix.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+		}, {
+			afterSlash: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: `/Let's`.length },
+				{ insertText: '/pstack:review ', rangeStart: 0, rangeEnd: `/Let's`.length },
+			],
+			afterPrefix: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: `/potLet's`.length },
+			],
+		});
+	});
+
 	test('does not complete slash tokens embedded in non-whitespace text', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha')])];
