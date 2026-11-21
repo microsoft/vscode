@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { BrowserWindow, WebContents, WebFrameMain } from 'electron';
+import type { BrowserWindow, DownloadItem, Event as ElectronEvent, WebContents, WebFrameMain } from 'electron';
+import { EventEmitter } from 'events';
 import sinon from 'sinon';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,7 +15,8 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { NullLogService } from '../../../log/common/log.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
-import { WebviewMainService } from '../../electron-main/webviewMainService.js';
+import { WebviewResourceDownload } from '../../common/webviewManagerService.js';
+import { createWebviewResourceDownloadEvent, WebviewMainService } from '../../electron-main/webviewMainService.js';
 
 suite('WebviewMainService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -172,5 +175,65 @@ suite('WebviewMainService', () => {
 		await service.setIgnoreMenuShortcuts({ windowId: 1 }, true);
 		await service.setIgnoreMenuShortcuts({ windowId: 1 }, false);
 		assert.deepStrictEqual(setIgnoreMenuShortcuts.args, [[true], [false]]);
+	});
+
+	suite('resource downloads', () => {
+		const url = 'https://file+.vscode-resource.vscode-cdn.net/media/video.mp4?version=1';
+		const origin = 'vscode-webview://test-origin';
+		const parentUrl = `${origin}/index.html?id=target&vscode-resource-base-authority=vscode-resource.vscode-cdn.net`;
+
+		function createDownloads() {
+			const session = new EventEmitter();
+			const events = Event.fromNodeEventEmitter(session, 'will-download', (event: ElectronEvent, item: DownloadItem, _contents: WebContents, frame: WebFrameMain | null) => ({ event, item, frame }));
+			const downloads: WebviewResourceDownload[] = [];
+			const listener = store.add(createWebviewResourceDownloadEvent(events, 'target')(download => downloads.push(download)));
+			const emit = (downloadUrl = url, initiator = origin, frame: WebFrameMain | null = createFrame({ parent: createFrame({ url: parentUrl }) })) => {
+				const preventDefault = sinon.spy();
+				session.emit('will-download', { preventDefault }, upcastPartial<DownloadItem>({ getURL: () => downloadUrl, getInitiatorOrigin: () => initiator }), undefined, frame);
+				return preventDefault.called;
+			};
+			return { session, downloads, listener, emit };
+		}
+
+		test('routes native media downloads to the owning webview and removes its listener on disposal', () => {
+			const { session, downloads, listener, emit } = createDownloads();
+			const intercepted = emit();
+			listener.dispose();
+
+			assert.deepStrictEqual({ intercepted, downloads, interceptedAfterDisposal: emit(), listeners: session.listenerCount('will-download') }, {
+				intercepted: true,
+				downloads: [{ url, origin }],
+				interceptedAfterDisposal: false,
+				listeners: 0,
+			});
+		});
+
+		test('leaves network, blob and other webviews downloads to Electron', () => {
+			const { downloads, emit } = createDownloads();
+			const intercepted = [
+				emit('https://example.com/video.mp4'),
+				emit(`${origin}/video.mp4`),
+				emit(`blob:${origin}/video`),
+				emit('https://file+.vscode-resource.vscode-cdn.net.example.com/video.mp4'),
+				emit(url, 'https://example.com'),
+				emit(url, origin, createFrame({ parent: createFrame({ name: 'other', url: parentUrl }) })),
+				emit(url, origin, createFrame({ parent: createFrame({ url: parentUrl.replace('id=target', 'id=other') }) })),
+			];
+			assert.deepStrictEqual({ intercepted, downloads }, { intercepted: Array(7).fill(false), downloads: [] });
+		});
+
+		test('ignores downloads without a live owning webview frame', () => {
+			const { downloads, emit } = createDownloads();
+			const intercepted = [
+				emit(url, origin, null),
+				emit(url, origin, createFrame({ isDestroyed: () => true })),
+				emit(url, origin, createFrame({ detached: true })),
+				emit(url, origin, createFrame({ parent: null })),
+				emit(url, origin, createFrame({ parent: createFrame({ isDestroyed: () => true }) })),
+				emit(url, origin, createFrame({ parent: createFrame({ detached: true }) })),
+				emit(url, origin, createFrame({ parent: createFrame({ url: '' }) })),
+			];
+			assert.deepStrictEqual({ intercepted, downloads }, { intercepted: Array(7).fill(false), downloads: [] });
+		});
 	});
 });

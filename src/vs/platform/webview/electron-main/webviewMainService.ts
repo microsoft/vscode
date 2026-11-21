@@ -3,15 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { WebContents, WebFrameMain } from 'electron';
-import { Emitter } from '../../../base/common/event.js';
+import electron, { DownloadItem, Event as ElectronEvent, WebContents, WebFrameMain } from 'electron';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewResourceDownload, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+
+interface WebviewDownloadEvent {
+	readonly event: ElectronEvent;
+	readonly item: DownloadItem;
+	readonly frame: WebFrameMain | null;
+}
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
@@ -20,6 +28,8 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
 	public readonly onFoundInFrame = this._onFoundInFrame.event;
 
+	private readonly _downloads = new Lazy(() => Event.fromNodeEventEmitter(electron.session.defaultSession, 'will-download', (event: ElectronEvent, item: DownloadItem, _contents: WebContents, frame: WebFrameMain | null): WebviewDownloadEvent => ({ event, item, frame })));
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -27,6 +37,10 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	) {
 		super();
 		this._register(instantiationService.createInstance(WebviewProtocolProvider));
+	}
+
+	public onDynamicDidDownloadResource(webviewId: string): Event<WebviewResourceDownload> {
+		return createWebviewResourceDownloadEvent(this._downloads.value, webviewId);
 	}
 
 	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {
@@ -119,4 +133,32 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 		return frame;
 	}
+}
+
+export function createWebviewResourceDownloadEvent(downloads: Event<WebviewDownloadEvent>, webviewId: string): Event<WebviewResourceDownload> {
+	return Event.map(Event.filter(downloads, ({ item, frame }) => {
+		if (!frame || frame.isDestroyed() || frame.detached) {
+			return false;
+		}
+
+		const parent = frame.parent;
+		if (!parent || parent.isDestroyed() || parent.detached || parent.name !== webviewId || !URL.canParse(parent.url)) {
+			return false;
+		}
+
+		const webviewUrl = new URL(parent.url);
+		if (webviewUrl.protocol !== `${Schemas.vscodeWebview}:` || webviewUrl.pathname !== '/index.html' || webviewUrl.searchParams.get('id') !== webviewId
+			|| item.getInitiatorOrigin() !== `${webviewUrl.protocol}//${webviewUrl.host}`) {
+			return false;
+		}
+
+		const resourceAuthority = webviewUrl.searchParams.get('vscode-resource-base-authority');
+		const downloadUrl = new URL(item.getURL());
+		return !!resourceAuthority && downloadUrl.protocol === `${Schemas.https}:` && downloadUrl.hostname.endsWith(`.${resourceAuthority}`);
+	}), ({ event, item }) => {
+		const download = { url: item.getURL(), origin: item.getInitiatorOrigin() };
+		// Native downloads bypass the service worker that serves webview resources.
+		event.preventDefault();
+		return download;
+	});
 }
