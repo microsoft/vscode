@@ -71,6 +71,7 @@ import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/c
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -7119,7 +7120,7 @@ suite('AutomationsCardsWidget', () => {
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const describesBuiltInTemplates = () => {
-			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+			const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
 			assert.ok(provider);
 			disposables.add(provider);
 			return provider.provideContent().includes('Built-in Templates section');
@@ -7155,6 +7156,33 @@ suite('AutomationsCardsWidget', () => {
 		]);
 		assert.ok(provider.provideContent().includes('Activate Got It or the highlighted button to continue to the new session draft, or press Escape to dismiss it and stay in Automations.'));
 		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose View Draft to return to the new session page without changing the draft, or Cancel to stay in Automations.'));
+	});
+
+	test('accessibility help explains Terminal and Output access', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			override readonly viewportClass = constObservable<'desktop'>('desktop');
+		});
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+		assert.ok(provider.provideContent().includes('New local terminals start in your user profile because this view has no active session workspace.'));
+	});
+
+	test('accessibility help omits panel shortcuts on phone layouts', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			override readonly viewportClass = constObservable<'phone'>('phone');
+		});
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+
+		assert.ok(!provider.provideContent().includes('New local terminals start in your user profile because this view has no active session workspace.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {
@@ -7340,13 +7368,15 @@ suite('AutomationsCustomViewContribution — context key', () => {
 		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: configuredEnabled, [AUTOMATIONS_MODAL_SETTING]: modal });
 		instantiationService.stub(IConfigurationService, configurationService);
 		let registrations = 0;
+		const registeredViews: ICustomViewDescriptor[] = [];
 		let unregisters = 0;
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = constObservable(undefined);
-			override registerCustomView(_descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }) {
+			override registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }) {
 				registrations++;
+				registeredViews.push(descriptor);
 				restore = options?.restore;
 				return toDisposable(() => unregisters++);
 			}
@@ -7356,7 +7386,7 @@ suite('AutomationsCustomViewContribution — context key', () => {
 			override register() { return { dispose() { } }; }
 		}());
 		const contribution = disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
-		return { automationService, contextKeyService, contribution, restore, configurationService, get registrations() { return registrations; }, get unregisters() { return unregisters; } };
+		return { automationService, contextKeyService, contribution, restore, configurationService, registeredViews, get registrations() { return registrations; }, get unregisters() { return unregisters; } };
 	}
 
 	test('AutomationsHasItemsContext follows the automations observable (empty → non-empty → empty)', () => {
@@ -7395,8 +7425,19 @@ suite('AutomationsCustomViewContribution — context key', () => {
 			change: { keys: [AUTOMATIONS_MODAL_SETTING], overrides: [] },
 			source: ConfigurationTarget.USER,
 		});
-		assert.deepStrictEqual({ before, unregisters: off.unregisters, refreshes: off.automationService.refreshCalls }, {
+		await off.configurationService.setUserConfiguration(AUTOMATIONS_MODAL_SETTING, false);
+		off.configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === AUTOMATIONS_MODAL_SETTING,
+			affectedKeys: new Set([AUTOMATIONS_MODAL_SETTING]),
+			change: { keys: [AUTOMATIONS_MODAL_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		assert.deepStrictEqual({
+			before, unregisters: off.unregisters, refreshes: off.automationService.refreshCalls,
+			panelCapabilities: [absent, off, on].map(result => result.registeredViews.map(view => view.allowPanel)),
+		}, {
 			before: [1, 1, 0], unregisters: 1, refreshes: 0,
+			panelCapabilities: [[true], [true, true], []],
 		});
 	});
 
