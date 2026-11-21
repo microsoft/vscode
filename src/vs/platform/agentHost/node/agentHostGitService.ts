@@ -96,9 +96,39 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current'], options))?.trim() || undefined;
 	}
 
+	/**
+	 * Reads the target of `refs/remotes/origin/HEAD`. Git only sets it on clone, so it keeps pointing at the old
+	 * default branch after the remote switches between `master` and `main`. When the other one of the two exists
+	 * on `origin` and the target is missing or an ancestor of it, returns the other one instead.
+	 */
+	private async _readOriginHead(workingDirectory: URI): Promise<string | undefined> {
+		const target = (await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']))?.trim() || undefined;
+		const alternative = target === 'refs/remotes/origin/master' ? 'refs/remotes/origin/main'
+			: target === 'refs/remotes/origin/main' ? 'refs/remotes/origin/master'
+				: undefined;
+		if (!target || !alternative) {
+			return target;
+		}
+		const [targetCommit, alternativeCommit] = await Promise.all([
+			this._runGit(workingDirectory, ['rev-parse', '--verify', '--quiet', `${target}^{commit}`]),
+			this._runGit(workingDirectory, ['rev-parse', '--verify', '--quiet', `${alternative}^{commit}`]),
+		]);
+		if (!alternativeCommit?.trim()) {
+			return target;
+		}
+		if (!targetCommit?.trim()) {
+			return alternative;
+		}
+		if (targetCommit.trim() === alternativeCommit.trim()) {
+			return target;
+		}
+		const isAncestor = await this._runGit(workingDirectory, ['merge-base', '--is-ancestor', target, alternative]) !== undefined;
+		return isAncestor ? alternative : target;
+	}
+
 	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
-		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']))?.trim();
+		const remoteRef = await this._readOriginHead(workingDirectory);
 		if (remoteRef) {
 			if (!remoteRef.startsWith('refs/remotes/origin/')) {
 				return { name: remoteRef, startPoint: remoteRef };
@@ -118,7 +148,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined> {
-		const originHead = !remote ? this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']).catch(() => undefined) : undefined;
+		const originHead = !remote ? this._readOriginHead(workingDirectory).catch(() => undefined) : undefined;
 		if (!remote) {
 			const remotes = await this.getFetchRemotes(workingDirectory) ?? [];
 			if (remotes.length === 0) {
@@ -1437,7 +1467,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		] = await Promise.all([
 			this._runGitStatus(repositoryRoot, ['-b', '--porcelain=v2']),
 			this._runGit(repositoryRoot, ['remote', '-v']),
-			this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
+			this._readOriginHead(repositoryRoot),
 		]);
 
 		// `git status` is the only probe that reports the branch, so a state

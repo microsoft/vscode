@@ -828,6 +828,33 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('uses origin/main as the default branch when origin/HEAD still points at an older origin/master', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+		run('update-ref', 'refs/remotes/origin/master', 'HEAD');
+		run('commit', '-q', '--allow-empty', '-m', 'on main');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master');
+		const defaults = async () => ({
+			legacy: (await svc!.getDefaultBranch(URI.file(dir)))?.startPoint,
+			branch: (await svc!.getDefaultBranch2(URI.file(dir)))?.name,
+			base: (await svc!.getSessionGitState(URI.file(dir)))?.baseBranchName,
+		});
+
+		const stale = await defaults();
+		run('update-ref', 'refs/remotes/origin/master', run('commit-tree', 'HEAD~1^{tree}', '-p', 'HEAD~1', '-m', 'on master'));
+		const diverged = await defaults();
+		run('update-ref', '-d', 'refs/remotes/origin/master');
+		const dangling = await defaults();
+
+		assert.deepStrictEqual({ stale, diverged, dangling }, {
+			stale: { legacy: 'origin/main', branch: 'main', base: 'main' },
+			diverged: { legacy: 'origin/master', branch: 'origin/master', base: 'master' },
+			dangling: { legacy: 'origin/main', branch: 'main', base: 'main' },
+		});
+	});
+
 	(hasGit ? test : test.skip)('counts uncommitted changes', async () => {
 		const dir = initRepo({ remote: 'git@gitlab.com:owner/repo.git' });
 		const fs = await import('fs/promises');
