@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
+import { isValidEnvVariableKey } from '../common/envKey.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
 
@@ -293,8 +294,17 @@ export class UtilityProcess extends Disposable {
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);
 
-		// Ensure all values are strings, otherwise the process will not start
+		// Ensure all values are strings, otherwise the process will not start (and valid keys are forwarded)
 		for (const key of Object.keys(env)) {
+			if (!isValidEnvVariableKey(key)) {
+				// An environment variable whose name Node.js considers invalid (e.g. leading digit,
+				// or characters outside [A-Za-z0-9_]) would break the utility process boundary:
+				// Electron's spawn() throws `TypeError: Invalid value for env`. Such keys leak in
+				// from the parent `process.env` via implicit (global) inheritance, so we strip them here.
+				console.warn(`[utilityProcess] Ignoring environment variable with invalid name: '${key}'`);
+				delete env[key];
+				continue;
+			}
 			env[key] = String(env[key]);
 		}
 
