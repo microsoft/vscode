@@ -26,6 +26,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../common/contributions.js';
@@ -282,11 +283,10 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 
 		const nestedProgress = new Progress<{ displayName?: string; extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
-				message: localize(
-					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-					"Running '{0}' Formatter ([configure]({1})).",
+				message: NotificationText.format(
+					localize({ key: 'formatting2', comment: ['{1} is a link with label `configure`.'] }, "Running '{0}' Formatter ({1})."),
 					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
-					createCommandUri('workbench.action.openSettings', 'editor.formatOnSave').toString(),
+					NotificationText.link(localize('configure', "configure"), createCommandUri('workbench.action.openSettings', 'editor.formatOnSave').toString()),
 				)
 			});
 		});
@@ -438,11 +438,10 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 			private _names = new Set<string>();
 			private _report(): void {
 				progress.report({
-					message: localize(
-						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from {0} ([configure]({1})).",
+					message: NotificationText.format(
+						localize({ key: 'codeaction.get2', comment: ['{1} is a link with label `configure`.'] }, "Getting code actions from {0} ({1})."),
 						[...this._names].map(name => `'${name}'`).join(', '),
-						createCommandUri('workbench.action.openSettings', 'editor.codeActionsOnSave').toString()
+						NotificationText.link(localize('configure', "configure"), createCommandUri('workbench.action.openSettings', 'editor.codeActionsOnSave').toString()),
 					)
 				});
 			}

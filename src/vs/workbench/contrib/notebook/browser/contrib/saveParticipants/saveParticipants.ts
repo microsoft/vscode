@@ -26,6 +26,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { NotificationText } from '../../../../../../platform/notification/common/notificationMessage.js';
 import { IProgress, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -507,11 +508,10 @@ export class CodeActionParticipantUtils {
 			private _names = new Set<string>();
 			private _report(): void {
 				progress.report({
-					message: localize(
-						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from '{0}' ([configure]({1})).",
+					message: NotificationText.format(
+						localize({ key: 'codeaction.get2', comment: ['{1} is a link with label `configure`.'] }, "Getting code actions from '{0}' ({1})."),
 						[...this._names].map(name => `'${name}'`).join(', '),
-						'command:workbench.action.openSettings?%5B%22notebook.codeActionsOnSave%22%5D'
+						NotificationText.link(localize('configure', "configure"), 'command:workbench.action.openSettings?%5B%22notebook.codeActionsOnSave%22%5D'),
 					)
 				});
 			}
@@ -581,11 +581,10 @@ export class CodeActionParticipantUtils {
 			private _names = new Set<string>();
 			private _report(): void {
 				progress.report({
-					message: localize(
-						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from '{0}' ([configure]({1})).",
+					message: NotificationText.format(
+						localize({ key: 'codeaction.get2', comment: ['{1} is a link with label `configure`.'] }, "Getting code actions from '{0}' ({1})."),
 						[...this._names].map(name => `'${name}'`).join(', '),
-						'command:workbench.action.openSettings?%5B%22notebook.defaultFormatter%22%5D'
+						NotificationText.link(localize('configure', "configure"), 'command:workbench.action.openSettings?%5B%22notebook.defaultFormatter%22%5D'),
 					)
 				});
 			}
