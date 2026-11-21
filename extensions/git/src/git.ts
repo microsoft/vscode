@@ -1081,7 +1081,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
  */
 export function getWorktreePathFromGitdir(worktreeGitDirPath: string, gitdirContent: string): string {
 	// Remove '/.git' suffix
-	const worktreePath = gitdirContent.replace(/\/.git.*$/, '');
+	const worktreePath = gitdirContent.replace(/\/\.git\/?$/, '');
 	return path.isAbsolute(worktreePath) ? worktreePath : path.resolve(worktreeGitDirPath, worktreePath);
 }
 
