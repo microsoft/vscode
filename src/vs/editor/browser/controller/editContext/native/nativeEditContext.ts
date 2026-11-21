@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getShadowRoot, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -176,18 +176,20 @@ export class NativeEditContext extends AbstractEditContext {
 			if (!pasteEvent.text) {
 				return;
 			}
+			let isBlock = false;
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
 			if (pasteEvent.metadata) {
 				const options = this._context.configuration.options;
 				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				isBlock = !!pasteEvent.metadata.isBlock;
 				pasteOnNewLine = emptySelectionClipboard && !!pasteEvent.metadata.isFromEmptySelection;
 				multicursorText = typeof pasteEvent.metadata.multicursorText !== 'undefined' ? pasteEvent.metadata.multicursorText : null;
 				mode = pasteEvent.metadata.mode;
 			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
-			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode, isBlock);
 		}));
 
 		// Edit context events
@@ -235,11 +237,22 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionEnd();
 		}));
 		let reenableTracking: boolean = false;
+		this._register(addDisposableListener(this._imeTextArea.domNode, 'blur', e => {
+			// Focus moved to another element while IME is disabled (a null relatedTarget means the window lost focus)
+			if (reenableTracking && e.relatedTarget && e.relatedTarget !== this.domNode.domNode) {
+				reenableTracking = false;
+				this._focusTracker.resume();
+			}
+		}));
 		this._register(IME.onDidChange(() => {
 			if (IME.enabled && reenableTracking) {
-				this._focusTracker.resume();
-				this.domNode.focus();
 				reenableTracking = false;
+				this._focusTracker.resume();
+				const shadowRoot = getShadowRoot(this._imeTextArea.domNode);
+				const activeElement = shadowRoot ? shadowRoot.activeElement : this._imeTextArea.domNode.ownerDocument.activeElement;
+				if (activeElement === this._imeTextArea.domNode) {
+					this.domNode.focus();
+				}
 			}
 			if (!IME.enabled && this.isFocused()) {
 				this._focusTracker.pause();

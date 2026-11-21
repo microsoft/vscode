@@ -5,6 +5,7 @@
 
 import { toAction } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ITunnelApplicationConfig } from '../../../../base/common/product.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -80,6 +81,8 @@ export const RemoteTunnelCommandIds = {
 	learnMore: 'workbench.remoteTunnel.actions.learnMore',
 } as const;
 
+export type RemoteTunnelStartResult = 'completed' | 'canceled';
+
 // name shown in nofications
 namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
@@ -88,6 +91,19 @@ namespace RemoteTunnelCommandLabels {
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Tunnel Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
+}
+
+export function validateRemoteTunnelName(input: string): string | undefined {
+	if (input.length === 0) {
+		return undefined;
+	}
+	if (input.length > MAX_TUNNEL_NAME_LENGTH) {
+		return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
+	}
+	if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
+		return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
+	}
+	return undefined;
 }
 
 export async function promptToRenameRemoteTunnel(
@@ -100,18 +116,7 @@ export async function promptToRenameRemoteTunnel(
 		prompt: localize('renameTunnel.prompt', "Enter a name for this tunnel."),
 		value: currentName,
 		placeHolder: localize('renameTunnel.placeholder', "Leave blank to use this machine's host name."),
-		validateInput: async input => {
-			if (input.length === 0) {
-				return undefined;
-			}
-			if (input.length > MAX_TUNNEL_NAME_LENGTH) {
-				return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
-			}
-			if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
-				return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
-			}
-			return undefined;
-		},
+		validateInput: async input => validateRemoteTunnelName(input),
 	});
 
 	if (name !== undefined) {
@@ -317,7 +322,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			await this.progressService.withProgress(
 				{
 					location: ProgressLocation.Window,
-					title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+					title: NotificationText.link(localize('initialize.progress.titleLabel', "Looking for remote tunnel"), `command:${RemoteTunnelCommandIds.showLog}`),
 				},
 				doInitialStateDiscovery
 			);
@@ -330,7 +335,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return session.session.accessToken || session.session.idToken;
 	}
 
-	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | undefined> {
+	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | 'canceled' | undefined> {
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
@@ -342,6 +347,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			tokenProblems = false;
 
 			const authenticationSession = await this.getAuthenticationSession(authenticationProviderId);
+			if (authenticationSession === 'canceled') {
+				this.logger.info('Account selection canceled, not starting tunnel');
+				return 'canceled';
+			}
 			if (authenticationSession === undefined) {
 				this.logger.info('No authentication session available, not starting tunnel');
 				return undefined;
@@ -350,7 +359,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			const result = await this.progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
-					title: localize({ key: 'startTunnel.progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+					title: NotificationText.link(localize('startTunnel.progress.titleLabel', "Starting remote tunnel"), `command:${RemoteTunnelCommandIds.showLog}`),
 				},
 				(progress: IProgress<IProgressStep>) => {
 					return new Promise<ConnectionInfo | undefined>((s, e) => {
@@ -369,13 +378,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 									if (status.serviceInstallFailed) {
 										this.notificationService.notify({
 											severity: Severity.Warning,
-											message: localize(
-												{
-													key: 'remoteTunnel.serviceInstallFailed',
-													comment: ['{Locked="](command:{0})"}']
-												},
-												"Installation as a service failed, and we fell back to running the tunnel for this session. See the [error log](command:{0}) for details.",
-												RemoteTunnelCommandIds.showLog,
+											message: NotificationText.format(
+												localize('remoteTunnel.serviceInstallFailedLinked', "Installation as a service failed, and we fell back to running the tunnel for this session. See the {0} for details."),
+												NotificationText.link(localize('remoteTunnel.errorLogLink', "error log"), `command:${RemoteTunnelCommandIds.showLog}`),
 											),
 										});
 									}
@@ -411,7 +416,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | undefined> {
+	/** Resolves to `'canceled'` when the account picker is dismissed without choosing an account. */
+	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | 'canceled' | undefined> {
 		if (authenticationProviderId) {
 			return this.getAuthenticationSessionForProvider(authenticationProviderId);
 		}
@@ -427,7 +433,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		return new Promise((resolve, reject) => {
 			disposables.add(quickpick.onDidHide((e) => {
-				resolve(undefined);
+				// Accepting an item resolves first, so this only takes effect when the picker was dismissed.
+				resolve('canceled');
 				disposables.dispose();
 			}));
 
@@ -573,7 +580,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions) {
+			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions): Promise<RemoteTunnelStartResult> {
 				const notificationService = accessor.get(INotificationService);
 				const clipboardService = accessor.get(IClipboardService);
 				const commandService = accessor.get(ICommandService);
@@ -589,7 +596,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 						primaryButton: localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, '&&Enable')
 					});
 					if (!confirmed) {
-						return;
+						return 'canceled';
 					}
 
 					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -617,28 +624,37 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					});
 
 				if (asService === undefined) {
-					return; // no-op
+					return 'canceled';
 				}
 
 				const connectionInfo = await that.startTunnel(/* installAsService= */ asService, options?.authenticationProviderId);
+				if (connectionInfo === 'canceled') {
+					return 'canceled';
+				}
 
 				if (connectionInfo) {
 					if (options?.showSuccessNotification !== false) {
 						const remoteExtension = that.serverConfiguration.extension;
+						const configureLabel = localize('progress.turnOn.configureLink', "configure");
+						const turnOffLink = NotificationText.link(localize('progress.turnOn.turnOffLink', "turn off"), `command:${RemoteTunnelCommandIds.turnOff}`);
 						if (connectionInfo.link && connectionInfo.domain) {
 							const linkToOpen = that.getLinkToOpen(connectionInfo.link);
-							const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
 							notificationService.notify({
 								severity: Severity.Info,
-								message:
+								message: NotificationText.format(
 									localize(
 										{
-											key: 'progress.turnOn.final',
-											comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+											key: 'progress.turnOn.finalLinked',
+											comment: ['{0} is a link with the tunnel name, {1} a link to the web UI, {2} a link with an extension name, {3} a configure link, and {4} a turn off link.']
 										},
-										"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
-										connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
+										"You can now access this machine anywhere via the secure tunnel {0}. To connect via a different machine, use the generated {1} link or use the {2} extension in the desktop or web. You can {3} or {4} this access via the VS Code Accounts menu."
 									),
+									NotificationText.link(connectionInfo.tunnelName, `command:${RemoteTunnelCommandIds.configure}`),
+									NotificationText.link(connectionInfo.domain, linkToOpen.toString(false)),
+									NotificationText.link(remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'),
+									NotificationText.link(configureLabel, `command:${RemoteTunnelCommandIds.manage}`),
+									turnOffLink,
+								),
 								actions: {
 									primary: [
 										toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
@@ -653,7 +669,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 						} else {
 							notificationService.notify({
 								severity: Severity.Info,
-								message: localize('progress.turnOn.final.noLink', "Remote Tunnel Access is enabled for {0}. You can [configure](command:{1}) or [turn off](command:{2}) this access via the VS Code Accounts menu.", connectionInfo.tunnelName, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
+								message: NotificationText.format(
+									localize('progress.turnOn.final.noLinkLinked', "Remote Tunnel Access is enabled for {0}. You can {1} or {2} this access via the VS Code Accounts menu."),
+									connectionInfo.tunnelName, NotificationText.link(configureLabel, `command:${RemoteTunnelCommandIds.configure}`), turnOffLink
+								),
 							});
 						}
 					}
@@ -667,6 +686,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					});
 					await commandService.executeCommand(RemoteTunnelCommandIds.showLog);
 				}
+				return 'completed';
 			}
 
 		}));
@@ -754,7 +774,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 				const { confirmed } = await that.dialogService.confirm({ message });
 				if (confirmed) {
-					that.remoteTunnelService.stopTunnel();
+					await that.remoteTunnelService.stopTunnel();
 				}
 			}
 		}));

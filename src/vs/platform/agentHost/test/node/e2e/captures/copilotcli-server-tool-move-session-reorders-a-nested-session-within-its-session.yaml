@@ -1,0 +1,59 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FIRST_READY".
+    response:
+      content: FIRST_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "SECOND_READY".
+    response:
+      content: SECOND_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-reorder?chat=${uuid_0}", into "agent-host-session://copilotcli/e2e-server-tools-move-reorder", and after "agent-host-session://copilotcli/e2e-server-tools-move-reorder", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://copilotcli/e2e-server-tools-move-reorder?chat=${uuid_0}
+            into: agent-host-session://copilotcli/e2e-server-tools-move-reorder
+            after: agent-host-session://copilotcli/e2e-server-tools-move-reorder
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-reorder?chat=${uuid_0}", into "agent-host-session://copilotcli/e2e-server-tools-move-reorder", and after "agent-host-session://copilotcli/e2e-server-tools-move-reorder", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://copilotcli/e2e-server-tools-move-reorder?chat=${uuid_0}
+                into: agent-host-session://copilotcli/e2e-server-tools-move-reorder
+                after: agent-host-session://copilotcli/e2e-server-tools-move-reorder
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Nested session reordered in its session (agent-host-session://copilotcli/e2e-server-tools-move-reorder?chat=${uuid_0}).
+    response:
+      content: moved
+      stopReason: end_turn

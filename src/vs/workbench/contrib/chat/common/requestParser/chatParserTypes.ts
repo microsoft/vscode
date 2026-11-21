@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { revive } from '../../../../../base/common/marshalling.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -12,7 +13,7 @@ import { IChatSlashData } from '../participants/chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IToolData } from '../tools/languageModelToolsService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, chatReferenceVariableEntryFromDynamicValue, isChatReferenceDynamicVariableValue } from '../attachments/chatVariableEntries.js';
+import { ChatSessionReferenceVariableId, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, chatReferenceVariableEntryFromDynamicValue, isChatReferenceDynamicVariableValue } from '../attachments/chatVariableEntries.js';
 import { arrayEquals } from '../../../../../base/common/equals.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -234,6 +235,10 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	toVariableEntry(): IChatRequestVariableEntry {
 		if (this.id === 'vscode.problems') {
 			return IDiagnosticVariableEntryFilterData.toEntry((this.data as IChatRequestProblemsVariable).filter);
+		}
+
+		if (this.id === ChatSessionReferenceVariableId && URI.isUri(this.data)) {
+			return { kind: 'sessionReference', id: this.data.toString(), name: this.fullName ?? this.referenceText, value: this.data, range: this.range, icon: this.icon, _meta: this._meta };
 		}
 
 		if (isChatReferenceDynamicVariableValue(this.data)) {

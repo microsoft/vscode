@@ -4,15 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import sinon from 'sinon';
+import * as dom from '../../../../../base/browser/dom.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../base/browser/touch.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
+import { IMicCaptureService } from '../../browser/voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../browser/voiceClient/ttsPlaybackService.js';
+import { IVoiceSessionController } from '../../browser/voiceClient/voiceSessionController.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
-import { VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
+import { IVoiceInputModeService, VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
+import { VoiceInputModeActionViewItem } from '../../browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { SegmentedVoiceInputModePillActive, SegmentedVoiceInputModePillInactive } from '../../browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
@@ -105,5 +124,165 @@ suite('VoiceInputModeService', () => {
 		values[AGENTS_VOICE_CONNECTED.key] = true;
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
+	});
+
+	test('standalone controls remain the inverse of the pill with unset settings and BYOK voice', () => {
+		const cases: { overrides: Record<string, ContextKeyValue>; pill: boolean }[] = [
+			{ overrides: {}, pill: true },
+			{ overrides: { [ChatContextKeys.enabled.key]: false }, pill: false },
+			{ overrides: { [AGENTS_VOICE_ENTITLED.key]: false }, pill: false },
+			{ overrides: { [AGENTS_VOICE_ENTITLED.key]: false, 'config.agents.voice.useBYOKVoiceModel': 'provider/model' }, pill: true },
+			{ overrides: { [AGENTS_VOICE_ENTITLED.key]: false, 'config.agents.voice.useBYOKVoiceModel': ' \t' }, pill: false },
+			{ overrides: { 'config.agents.voice.enabled': false }, pill: false },
+			{ overrides: { 'config.agents.voice.enabled': undefined }, pill: false },
+			{ overrides: { 'config.agents.voice.showButton': false }, pill: false },
+			{ overrides: { 'config.agents.voice.showButton': undefined }, pill: false },
+			{ overrides: { 'config.dictation.showButton': false }, pill: false },
+			{ overrides: { 'config.dictation.showButton': undefined }, pill: false },
+			{ overrides: { [ChatContextKeys.speechToTextConfigured.key]: false }, pill: false },
+			{ overrides: { [AGENTS_VOICE_CONNECTED.key]: true, [ChatContextKeys.speechToTextConfigured.key]: false }, pill: true },
+			{ overrides: { [AGENTS_VOICE_CONNECTED.key]: true, 'config.dictation.showButton': false }, pill: true },
+			{ overrides: { [AGENTS_VOICE_CONNECTED.key]: true, 'config.agents.voice.showButton': false }, pill: false },
+		];
+
+		assert.deepStrictEqual(cases.map(({ overrides }) => {
+			const values: Record<string, ContextKeyValue> = {
+				[ChatContextKeys.enabled.key]: true,
+				[AGENTS_VOICE_ENTITLED.key]: true,
+				[ChatContextKeys.speechToTextConfigured.key]: true,
+				'config.agents.voice.enabled': true,
+				'config.agents.voice.showButton': true,
+				'config.dictation.showButton': true,
+				'config.agents.voice.useBYOKVoiceModel': '',
+				...overrides,
+			};
+			const context = {
+				getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+			};
+			return {
+				pill: SegmentedVoiceInputModePillActive.evaluate(context),
+				standalone: SegmentedVoiceInputModePillInactive.evaluate(context),
+			};
+		}), cases.map(({ pill }) => ({ pill, standalone: !pill })));
+	});
+});
+
+suite('VoiceInputModeActionViewItem', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('touch activates Voice power and mute exactly once and context menus configure the current action', () => {
+		const ignoredTargets = new Set<HTMLElement>();
+		sinon.stub(Gesture, 'ignoreTarget').callsFake(element => {
+			ignoredTargets.add(element);
+			return { dispose: () => ignoredTargets.delete(element) };
+		});
+		sinon.stub(Gesture, 'addTarget').callsFake(element => dom.addDisposableListener(element, 'touchend', event => {
+			const target = event.target;
+			if (target instanceof Node && [...ignoredTargets].some(ignoredTarget => ignoredTarget.contains(target))) {
+				return;
+			}
+			element.dispatchEvent(new CustomEvent(TouchEventType.Tap));
+			event.preventDefault();
+		}));
+
+		const selectedMode = observableValue<'dictation' | 'voice'>('selectedMode', 'voice');
+		const voiceInputModeService = upcastPartial<IVoiceInputModeService>({
+			selectedMode,
+			voiceAvailable: observableValue('voiceAvailable', true),
+			dictationAvailable: observableValue('dictationAvailable', true),
+			handsFree: observableValue('handsFree', true),
+			simulatedVoiceState: observableValue('simulatedVoiceState', undefined),
+			simulatedHandsFree: observableValue('simulatedHandsFree', undefined),
+			simulatedVersion: observableValue('simulatedVersion', undefined),
+			simulatedHover: observableValue('simulatedHover', false),
+			setSelectedMode: mode => selectedMode.set(mode, undefined),
+		});
+		const isConnected = observableValue('isConnected', true);
+		const isMuted = observableValue('isMuted', false);
+		let voicePowerCount = 0;
+		let muteCount = 0;
+		let contextMenuActionIds: string[] = [];
+		const voiceSessionController = upcastPartial<IVoiceSessionController>({
+			isConnected,
+			isConnecting: observableValue('isConnecting', false),
+			isReconnecting: observableValue('isReconnecting', false),
+			isMuted,
+			voiceState: observableValue('voiceState', 'idle'),
+			disconnect: () => voicePowerCount++,
+			setMuted: () => muteCount++,
+		});
+		const chatSpeechToTextService = upcastPartial<IChatSpeechToTextService>({
+			onDidChangeState: Event.None,
+			onDidChangePreparingModel: Event.None,
+			onDidChangeDownloadingModel: Event.None,
+			state: ChatSpeechToTextState.Idle,
+			currentSurface: undefined,
+			isPreparingModel: false,
+			isDownloadingModel: false,
+		});
+		const action = store.add(new Action('voiceInputMode', 'Voice Input Mode'));
+		const viewItem = store.add(new VoiceInputModeActionViewItem(
+			action,
+			undefined,
+			voiceInputModeService,
+			voiceSessionController,
+			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+			new TestConfigurationService(),
+			new MockKeybindingService() as IKeybindingService,
+			upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => {
+					contextMenuActionIds = delegate.getActions!().map(action => action.id);
+				},
+			}),
+			NullHoverService as IHoverService,
+			upcastPartial<IMicCaptureService>({ analyserNode: undefined }),
+			upcastPartial<ITtsPlaybackService>({ analyserNode: undefined }),
+			chatSpeechToTextService,
+			new TestAccessibilityService() as IAccessibilityService,
+			new TestThemeService() as IThemeService,
+		));
+		const container = dom.append(document.body, dom.$('.action-item'));
+		store.add({ dispose: () => container.remove() });
+		viewItem.render(container);
+		// The fake touch events below must not reach a global `Gesture` instance that other tests may have created
+		store.add(dom.addDisposableListener(container, 'touchend', event => event.stopPropagation()));
+
+		const touch = (selector: string) => {
+			const button = container.querySelector<HTMLButtonElement>(selector)!;
+			const touchEnd = new (dom.getWindow(button).Event)('touchend', { bubbles: true, cancelable: true });
+			button.dispatchEvent(touchEnd);
+			if (!touchEnd.defaultPrevented) {
+				button.click();
+			}
+		};
+		const configureKeybindingAction = (selector: string) => {
+			container.querySelector<HTMLButtonElement>(selector)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			return contextMenuActionIds[0];
+		};
+
+		const connectedVoiceAction = configureKeybindingAction('.chat-voice-input-mode-cell.voice');
+		const listenAction = configureKeybindingAction('.chat-voice-input-mode-cell.listen');
+		const muteAction = configureKeybindingAction('.chat-voice-input-mode-cell.mute');
+		isConnected.set(false, undefined);
+		const disconnectedVoiceAction = configureKeybindingAction('.chat-voice-input-mode-cell.voice');
+		isConnected.set(true, undefined);
+
+		touch('.chat-voice-input-mode-cell.voice');
+		touch('.chat-voice-input-mode-cell.mute');
+
+		assert.deepStrictEqual(
+			{ voicePowerCount, muteCount, connectedVoiceAction, disconnectedVoiceAction, listenAction, muteAction },
+			{
+				voicePowerCount: 1,
+				muteCount: 1,
+				connectedVoiceAction: 'configureKeybinding/agentsVoice.disconnect',
+				disconnectedVoiceAction: 'configureKeybinding/agentsVoice.startVoiceInChat',
+				listenAction: 'configureKeybinding/workbench.action.chat.voiceInputMode.holdToTalk',
+				muteAction: `configureKeybinding/${AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID}`,
+			},
+		);
 	});
 });

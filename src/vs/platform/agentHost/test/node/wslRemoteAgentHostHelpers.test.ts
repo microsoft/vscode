@@ -34,6 +34,8 @@ suite('WSL Remote Agent Host Helpers', () => {
 				row({ name: 'Debian', state: 'Stopped', version: 2 }),
 				row({ name: 'Ubuntu 22.04', state: 'Running', version: 2 }),
 				row({ name: 'Legacy', state: 'Stopped', version: 1 }),
+				row({ name: 'docker-desktop', state: 'Running', version: 2 }),
+				row({ name: 'docker-desktop-data', state: 'Running', version: 2 }),
 				'',
 				'',
 			].join('\r\n');
@@ -114,7 +116,7 @@ suite('WSL Remote Agent Host Helpers', () => {
 				telemetryLevel: TelemetryConfiguration.OFF,
 			});
 
-			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --idle-timeout 300`));
+			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --server-data-dir ~/.vscode-server --idle-timeout 300`));
 		});
 
 		test('exports telemetry disablement for a custom command', () => {

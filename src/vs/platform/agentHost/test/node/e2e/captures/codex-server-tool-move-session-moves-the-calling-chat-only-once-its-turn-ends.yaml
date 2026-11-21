@@ -1,0 +1,50 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MOVE_SELF_TARGET_READY".
+    response:
+      content: MOVE_SELF_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with into "agent-host-session://codex/${uuid_0}", then reply exactly "scheduled".
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll move this session once, then confirm.
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            into: agent-host-session://codex/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with into "agent-host-session://codex/${uuid_0}", then reply exactly "scheduled".
+        - role: assistant
+          content: Got it — I’ll move this session once, then confirm.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: move_session
+              input:
+                into: agent-host-session://codex/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'This chat will be moved into agent-host-session://codex/${uuid_0} when this turn ends. Make this your final tool call: reply with one short sentence, then end the turn. Do not call move_session again for this chat.'
+    response:
+      content: scheduled
+      stopReason: end_turn

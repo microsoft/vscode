@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../platform/contextkey/common/contextkey.
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../platform/registry/common/platform.js';
-import { InEditorZenModeContext, IsAuxiliaryWindowFocusedContext } from '../common/contextkeys.js';
+import { InEditorZenModeContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext } from '../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
 import { ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from './actions/layoutActions.js';
 
@@ -115,7 +115,8 @@ registerAction2(class extends Action2 {
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
-				order: 2
+				order: 2,
+				when: IsSessionsWindowContext.negate()
 			}]
 		});
 	}

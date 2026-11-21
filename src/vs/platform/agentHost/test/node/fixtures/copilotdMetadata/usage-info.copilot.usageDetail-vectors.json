@@ -1,0 +1,195 @@
+{
+  "$comment": "Conformance vectors for the `copilot.usageDetail` key on UsageInfo._meta. See ../usage-info.md for the prose spec and ./README.md for the harness contract. `projectFromSdk` drives the real host helper from an AssistantUsageData (camelCase wire JSON); `set` / `extract` pin the portable insert / read convention; `wireShape` pins the serialized UsageInfo carrier.",
+  "key": "copilot.usageDetail",
+  "carrier": "UsageInfo._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: stamps every diagnostic field present, excluding first-class token/model fields",
+      "op": "projectFromSdk",
+      "input": {
+        "usage": {
+          "model": "gpt-5.4",
+          "inputTokens": 150,
+          "outputTokens": 30,
+          "cacheReadTokens": 10,
+          "cacheWriteTokens": 8,
+          "cacheExpiresAt": "2026-07-22T18:30:00Z",
+          "reasoningTokens": 64,
+          "reasoningEffort": "high",
+          "finishReason": "stop",
+          "initiator": "sub-agent",
+          "apiEndpoint": "/chat/completions",
+          "apiCallId": "chatcmpl-abc123",
+          "providerCallId": "req-abc123",
+          "serviceRequestId": "svc-def456",
+          "contentFilterTriggered": false,
+          "cost": 1.25,
+          "duration": 812,
+          "interTokenLatencyMs": 12.5,
+          "timeToFirstTokenMs": 210.5,
+          "copilotUsage": { "totalNanoAiu": 1000000.0 }
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageDetail": {
+            "cost": 1.25,
+            "cacheWriteTokens": 8,
+            "cacheExpiresAt": "2026-07-22T18:30:00Z",
+            "reasoningTokens": 64,
+            "reasoningEffort": "high",
+            "finishReason": "stop",
+            "initiator": "sub-agent",
+            "apiEndpoint": "/chat/completions",
+            "apiCallId": "chatcmpl-abc123",
+            "providerCallId": "req-abc123",
+            "serviceRequestId": "svc-def456",
+            "contentFilterTriggered": false,
+            "duration": 812,
+            "interTokenLatencyMs": 12.5,
+            "timeToFirstTokenMs": 210.5,
+            "copilotUsage": { "totalNanoAiu": 1000000.0 }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: omits fields whose SDK source is absent",
+      "op": "projectFromSdk",
+      "input": {
+        "usage": {
+          "model": "gpt-5.4",
+          "inputTokens": 100,
+          "outputTokens": 25,
+          "finishReason": "tool_calls",
+          "providerCallId": "req-only"
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageDetail": {
+            "finishReason": "tool_calls",
+            "providerCallId": "req-only"
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: returns no _meta when the event carries only first-class token/model fields",
+      "op": "projectFromSdk",
+      "input": {
+        "usage": {
+          "model": "gpt-5.4",
+          "inputTokens": 100,
+          "outputTokens": 25,
+          "cacheReadTokens": 10
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "set: stamps the key onto an empty _meta",
+      "op": "set",
+      "input": {
+        "detail": { "finishReason": "stop", "duration": 500 },
+        "meta": {}
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageDetail": { "finishReason": "stop", "duration": 500 }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other _meta keys",
+      "op": "set",
+      "input": {
+        "detail": { "finishReason": "stop" },
+        "meta": { "copilot.unrelated": "keep me" }
+      },
+      "expected": {
+        "meta": {
+          "copilot.unrelated": "keep me",
+          "copilot.usageDetail": { "finishReason": "stop" }
+        }
+      }
+    },
+    {
+      "name": "extract: returns the detail object when present and non-empty",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.usageDetail": { "finishReason": "stop", "duration": 500 }
+        }
+      },
+      "expected": {
+        "detail": { "finishReason": "stop", "duration": 500 }
+      }
+    },
+    {
+      "name": "extract: returns null when _meta is absent",
+      "op": "extract",
+      "input": {},
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when _meta lacks the key",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.unrelated": "ignored" }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when the value is an empty object",
+      "$comment": "The host never emits an empty detail object; a non-conformant producer that does is treated as 'no detail'.",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.usageDetail": {} }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when the value is a string (wrong type)",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.usageDetail": "nope" }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "wireShape: a UsageInfo with usageDetail serializes to camelCase first-class fields plus the flat-dotted _meta key",
+      "op": "wireShape",
+      "input": {
+        "usage": {
+          "inputTokens": 150,
+          "outputTokens": 30,
+          "model": "gpt-5.4",
+          "cacheReadTokens": 10
+        },
+        "detail": {
+          "finishReason": "stop",
+          "duration": 812,
+          "copilotUsage": { "totalNanoAiu": 1000000.0 }
+        }
+      },
+      "expected": {
+        "json": {
+          "inputTokens": 150,
+          "outputTokens": 30,
+          "model": "gpt-5.4",
+          "cacheReadTokens": 10,
+          "_meta": {
+            "copilot.usageDetail": {
+              "finishReason": "stop",
+              "duration": 812,
+              "copilotUsage": { "totalNanoAiu": 1000000.0 }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

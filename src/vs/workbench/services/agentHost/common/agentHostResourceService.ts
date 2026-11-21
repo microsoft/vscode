@@ -27,6 +27,7 @@ import {
 	IResourceReadResult,
 	LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 } from '../../../../platform/agentHost/common/agentHostResourceService.js';
+import { getGlobalConfigurationValue } from '../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	ContentEncoding,
@@ -538,8 +539,10 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 	}
 
 	private *_readPersistedGrants(address: string): Iterable<{ uri: URI; lexicalUri: URI; mode: AgentHostAccessMode }> {
-		const forAddress = this._configurationService
-			.getValue<AgentHostPermissionsSetting>(AgentHostLocalFilePermissionsSettingId)?.[address];
+		const forAddress = getGlobalConfigurationValue<AgentHostPermissionsSetting>(
+			this._configurationService,
+			AgentHostLocalFilePermissionsSettingId,
+		)?.[address];
 		if (!forAddress) {
 			return;
 		}

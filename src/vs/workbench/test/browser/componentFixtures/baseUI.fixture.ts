@@ -36,6 +36,13 @@ export default defineThemedFixtureGroup({
 		render: renderToggles,
 	}),
 
+	KeyboardFocusedToggle: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The checked toggle replaces its solid active border with a dashed keyboard-focus border, without an additional outline.'],
+		render: renderKeyboardFocusedToggle,
+	}),
+
 	InputBoxes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderInputBoxes,
@@ -205,6 +212,20 @@ function renderButtonBar({ container, disposableStore }: ComponentFixtureContext
 // ============================================================================
 // Toggles and Checkboxes
 // ============================================================================
+
+function renderKeyboardFocusedToggle(context: ComponentFixtureContext): void {
+	const { container, disposableStore } = context;
+	container.style.padding = '16px';
+
+	const toggle = disposableStore.add(new Toggle({
+		...themedToggleStyles,
+		title: 'Match Case',
+		isChecked: true,
+		icon: Codicon.caseSensitive,
+	}));
+	container.appendChild(toggle.domNode);
+	context.focus(toggle);
+}
 
 function renderToggles({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';

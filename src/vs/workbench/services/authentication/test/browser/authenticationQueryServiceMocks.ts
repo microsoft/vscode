@@ -287,7 +287,7 @@ export class TestExtensionsService extends TestPreferencesService implements IAu
 	selectSession(): Promise<any> { return Promise.resolve(createSession()); }
 	requestSessionAccess(): void { }
 	requestNewSession(): Promise<void> { return Promise.resolve(); }
-	updateNewSessionRequests(): void { }
+	async updateNewSessionRequests(): Promise<void> { }
 }
 
 export class TestMcpService extends TestPreferencesService implements IAuthenticationMcpService {
@@ -357,7 +357,7 @@ export class TestAuthenticationService extends BaseTestService implements IAuthe
 	unregisterDeclaredAuthenticationProvider(): void { }
 	unregisterAuthenticationProvider(): void { }
 	registerAuthenticationProviderHostDelegate(): IDisposable { return { dispose: () => { } }; }
-	createDynamicAuthenticationProvider(): Promise<any> { return Promise.resolve(undefined); }
+	createDynamicAuthenticationProvider(..._args: Parameters<IAuthenticationService['createDynamicAuthenticationProvider']>): Promise<IAuthenticationProvider | undefined> { return Promise.resolve(undefined); }
 	createOrGetXaaProvider(): Promise<string | undefined> { return Promise.resolve(undefined); }
 	async requestNewSession(): Promise<AuthenticationSession> { return createSession(); }
 	async getSession(): Promise<AuthenticationSession | undefined> { return createSession(); }

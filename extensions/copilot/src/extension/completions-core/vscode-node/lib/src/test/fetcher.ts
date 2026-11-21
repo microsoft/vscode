@@ -10,7 +10,7 @@ import { jsonlStreamToCompletions } from '../../../../../../platform/nesFetch/no
 import { HeadersImpl } from '../../../../../../platform/networking/common/fetcherService';
 import { Result } from '../../../../../../util/common/result';
 import { CancellationToken } from '../../../../../../util/vs/base/common/cancellation';
-import { FetchOptions, IAbortController, ICompletionsFetcherService, IHeaders, Response } from '../networking';
+import { FetchOptions, ICompletionsFetcherService, IHeaders, Response } from '../networking';
 
 type HeadersParameter = { [key: string]: string };
 
@@ -166,13 +166,6 @@ class FakeHeaders implements IHeaders {
 	}
 }
 
-export class FakeAbortController implements IAbortController {
-	readonly signal = { aborted: false, addEventListener: () => { }, removeEventListener: () => { } };
-	abort(): void {
-		this.signal.aborted = true;
-	}
-}
-
 /**
  * Adapts a `StaticFetcher` (which returns raw SSE `Response` objects) into an
  * `ICompletionsFetchService` for tests that use `LiveOpenAIFetcher` (v2).
@@ -222,6 +215,7 @@ export class StaticCompletionsFetchService implements ICompletionsFetchService {
 			serverExperiments: '',
 			deploymentId: '',
 			gitHubRequestId: '',
+			copilotServiceRequestId: '',
 			completionId: '',
 			created: 0
 		}, headers);

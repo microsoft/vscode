@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from '../../common/fuzzyScorer.js';
+import { hash } from '../../common/hash.js';
 import { Schemas } from '../../common/network.js';
 import { basename, dirname, posix, sep, win32 } from '../../common/path.js';
 import { isWindows } from '../../common/platform.js';
@@ -75,6 +76,14 @@ class NullAccessorClass implements IItemAccessor<URI> {
 	getItemPath(resource: URI): string {
 		return undefined!;
 	}
+}
+
+function resourceAccessorWithDescription(description: string | undefined): IItemAccessor<URI> {
+	return {
+		getItemLabel: resource => ResourceAccessor.getItemLabel(resource),
+		getItemDescription: () => description,
+		getItemPath: resource => ResourceAccessor.getItemPath(resource)
+	};
 }
 
 function _doScore(target: string, query: string, allowNonContiguousMatches?: boolean): FuzzyScore {
@@ -290,6 +299,92 @@ suite('Fuzzy Scorer', () => {
 		// from the cache's perspective this should be a totally different query
 		const res2 = scoreItem(resource, 'xyz "sm"', true, ResourceAccessor, cache);
 		assert.ok(!res2.score);
+	});
+
+	test('scoreItem - cache key matches the hash of the scoring inputs', () => {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+
+		function expectedCacheKey(queryValue: string, allowNonContiguousMatches: boolean, description: string | undefined): string {
+			const query = prepareQuery(queryValue);
+			const values = query.values ? query.values : [query];
+
+			return String(hash({
+				[query.normalized]: {
+					values: values.map(value => ({ value: value.normalized, expectContiguousMatch: value.expectContiguousMatch })),
+					label: ResourceAccessor.getItemLabel(resource),
+					description,
+					allowNonContiguousMatches
+				}
+			}));
+		}
+
+		for (const queryValue of ['some', 'xyz sm', 'xyz "sm"', '', 'ünïcödé', 'null\u0000char', 'tab\there', '0', '01', '4294967295', '__proto__', 'constructor', '\uD83D\uDE80', '\uD800', '\uDFFF']) {
+			for (const description of [undefined, '', ResourceAccessor.getItemDescription(resource), '\u0000:[]', '\uD83D\uDE80\uD800']) {
+				for (const allowNonContiguousMatches of [true, false]) {
+					const cache: FuzzyScorerCache = Object.create(null);
+					scoreItem(resource, queryValue, allowNonContiguousMatches, resourceAccessorWithDescription(description), cache);
+
+					assert.deepStrictEqual(
+						Object.keys(cache),
+						queryValue ? [expectedCacheKey(queryValue, allowNonContiguousMatches, description)] : [],
+						`unexpected cache key for ${JSON.stringify({ queryValue, description, allowNonContiguousMatches })}`
+					);
+				}
+			}
+		}
+	});
+
+	test('scoreItem - cache keys separate items, queries and match modes', () => {
+		const cache: FuzzyScorerCache = Object.create(null);
+
+		// same label, different description
+		scoreItem(URI.file('/xyz/some/path/someFile123.txt'), 'some', true, ResourceAccessor, cache);
+		scoreItem(URI.file('/xyz/other/path/someFile123.txt'), 'some', true, ResourceAccessor, cache);
+
+		// same item, different queries (incl. multi piece and quoted/contiguous)
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+		scoreItem(resource, 'somefile', true, ResourceAccessor, cache);
+		scoreItem(resource, 'xyz sm', true, ResourceAccessor, cache);
+		scoreItem(resource, 'xyz "sm"', true, ResourceAccessor, cache);
+		scoreItem(resource, 'sm xyz', true, ResourceAccessor, cache);
+
+		// same item and query, different match mode
+		scoreItem(resource, 'somefile', false, ResourceAccessor, cache);
+
+		// an item without description
+		scoreItem(URI.file('/someFile123.txt'), 'some', true, resourceAccessorWithDescription(undefined), cache);
+		scoreItem(URI.file('/someFile123.txt'), 'some', true, resourceAccessorWithDescription(''), cache);
+
+		assert.strictEqual(Object.keys(cache).length, 9, 'each distinct scoring input needs its own cache entry');
+	});
+
+	test('scoreItem - repeated scoring hits the cache and preserves the result', () => {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+
+		for (const queryValue of ['somefile', 'xyz sm', 'xyz "sm"', 'ünïcödé']) {
+			const cache: FuzzyScorerCache = Object.create(null);
+			const cold = scoreItem(resource, queryValue, true, ResourceAccessor, cache);
+			const warm = scoreItem(resource, queryValue, true, ResourceAccessor, cache);
+
+			assert.strictEqual(Object.keys(cache).length, 1);
+			assert.strictEqual(warm, cold, 'warm scoring should return the cached result');
+		}
+	});
+
+	test('scoreItem - mutating a prepared query is reflected in the cache key', () => {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+		const cache: FuzzyScorerCache = Object.create(null);
+
+		const query = prepareQuery('xyz sm');
+		const before = scoreItemFuzzy(resource, query, true, ResourceAccessor, cache);
+		assert.ok(before.score);
+
+		// callers own the prepared query object, so a mutated query must not reuse the previous entry
+		query.values![1] = { ...query.values![1], expectContiguousMatch: true };
+		const after = scoreItemFuzzy(resource, query, true, ResourceAccessor, cache);
+
+		assert.strictEqual(Object.keys(cache).length, 2);
+		assert.deepStrictEqual(after, scoreItemFuzzy(resource, prepareQuery('xyz "sm"'), true, ResourceAccessor, Object.create(null)));
 	});
 
 	test('scoreItem - invalid input', function () {

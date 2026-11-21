@@ -62,6 +62,7 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 		isSkipped,
 		isRunningInBackground,
 		undefined,
+		true,
 	));
 
 	itemContainer.appendChild(wrapper.domNode);

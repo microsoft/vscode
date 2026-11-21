@@ -15,7 +15,7 @@ import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionT
 suite('NewSessionViewV3Tour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reuses V2 criteria and workspace step, then runs the variation step', async () => {
+	test('reuses V2 criteria, requires a workspace selection, then runs the variation step', async () => {
 		const trigger = observableValue<boolean>(disposables, false);
 		let receivedToken: CancellationToken | undefined;
 		const scenario = createNewSessionViewV3Tour(trigger, token => {
@@ -86,13 +86,13 @@ suite('NewSessionViewV3Tour', () => {
 				id: 'workspacePicker',
 				targetId: 'sessions.newSession.workspacePicker',
 				title: 'Choose a workspace',
-				description: 'A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files.',
+				description: 'A workspace is the folder or repository where your agent reads context and makes changes. Choose one for project-specific work, or continue without one.',
 				placement: 'above',
 				when: 'sessionWorkspacePickerVisible && !sessionHasWorkspace',
 				missingTarget: { kind: 'skip' },
 				openTarget: true,
 				allowTargetInteraction: true,
-				advanceWhen: 'sessionHasWorkspace',
+				advanceWhen: undefined,
 			},
 			receivedTokenIsForwarded: true,
 			runResult: { shown: true },

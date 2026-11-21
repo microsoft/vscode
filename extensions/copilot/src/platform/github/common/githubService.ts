@@ -30,15 +30,6 @@ export type IGetRepositoryInfoResponseData = Endpoints['GET /repos/{owner}/{repo
 export const IGithubRepositoryService = createServiceIdentifier<IGithubRepositoryService>('IGithubRepositoryService');
 export const IOctoKitService = createServiceIdentifier<IOctoKitService>('IOctoKitService');
 
-export const VSCodeTeamId = 1682102;
-
-export type GithubRepositoryItem = {
-	name: string;
-	path: string;
-	html_url: string;
-	type: 'file' | 'dir';
-};
-
 export interface IGithubRepositoryService {
 
 	_serviceBrand: undefined;
@@ -50,8 +41,6 @@ export interface IGithubRepositoryService {
 	 */
 	isAvailable(org: string, repo: string): Promise<boolean>;
 	getRepositoryInfo(owner: string, repo: string): Promise<IGetRepositoryInfoResponseData>;
-	getRepositoryItems(org: string, repo: string, path: string): Promise<GithubRepositoryItem[]>;
-	getRepositoryItemContent(org: string, repo: string, path: string): Promise<Uint8Array | undefined>;
 }
 
 export interface IOctoKitUser {
@@ -626,7 +615,7 @@ export class BaseOctoKitService {
 			return this.searchUserRepositoriesWithToken(token, trimmedQuery);
 		}
 
-		// Fetch the most recently updated repos with push access
+		// Fetch the most recently updated repositories the user can access
 		const result = await this._makeGHAPIRequest(
 			'user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member',
 			'GET',
@@ -639,9 +628,7 @@ export class BaseOctoKitService {
 		if (!result || !Array.isArray(result)) {
 			return [];
 		}
-
 		return result
-			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
@@ -670,9 +657,7 @@ export class BaseOctoKitService {
 		if (!result || !Array.isArray(result.items)) {
 			return [];
 		}
-
 		return result.items
-			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name

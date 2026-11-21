@@ -42,6 +42,9 @@ export function deriveCopilotCliOTelEnv(config: OTelConfig, env: Record<string, 
 	// The OTEL_EXPORTER_OTLP_ENDPOINT is used with the HTTP protocol regardless.
 	// Standard vars (OTEL_EXPORTER_OTLP_HEADERS, OTEL_RESOURCE_ATTRIBUTES, OTEL_SERVICE_NAME)
 	// flow via process.env inheritance — no explicit forwarding needed.
+	// Identity is NOT the message-content shorthand. The native runtime resolves
+	// telemetry.capture.identity itself; never forward detected account/OS/host
+	// identity (or exporter headers) through this process-wide environment bridge.
 
 	return result;
 }

@@ -148,4 +148,39 @@ describe('getErrorDetailsFromChatFetchError', () => {
 			expect(result.message).toContain('unknown_error');
 		});
 	});
+
+	describe('BadRequest/Failed with vision attachment inaccessible', () => {
+		test('BadRequest with vision reason and serverRequestId shows guidance with IDs', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				{ type: ChatFetchResponseType.BadRequest, reason: 'vision_attachment_not_accessible', requestId: 'req-1', serverRequestId: 'srv-1' },
+				undefined,
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.message).toContain('no longer accessible');
+			expect(result.message).toContain('req-1');
+			expect(result.message).toContain('srv-1');
+		});
+
+		test('Failed without serverRequestId shows guidance', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				{ type: ChatFetchResponseType.Failed, reason: 'request failed', reasonDetail: 'attachment is not accessible', requestId: 'req-2', serverRequestId: undefined },
+				undefined,
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.message).toContain('no longer accessible');
+			expect(result.message).toContain('req-2');
+		});
+
+		test('generic BadRequest retains generic message', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				{ type: ChatFetchResponseType.BadRequest, reason: 'bad request', requestId: 'req-3', serverRequestId: undefined },
+				undefined,
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.message).toContain('Please try again');
+		});
+	});
 });

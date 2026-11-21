@@ -103,7 +103,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			undefined,
+			{ variant: 'noCardsNonCompact' },
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {

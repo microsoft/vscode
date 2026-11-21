@@ -1,0 +1,91 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { LayoutModeContext, MainEditorAreaVisibleContext, SplitLayoutContext, TerminalsPositionContext, TerminalsVisibleContext } from '../../../../common/contextkeys.js';
+import { bindWindowLayoutContext, bindWindowTerminalsContext } from '../../browser/chatWindowContextKeys.js';
+import { bindChatWindowPartsVisible } from '../../browser/chatWindowParts.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
+
+suite('Chat window context keys', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('each window\'s layout keys follow its own state, without leaking to another window or to the main window, and are unset once unbound', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const createWindow = (layoutMode: ChatWindowLayoutMode, splitLayout: ChatWindowSplitLayout) => {
+			const scoped = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+			const state = { layoutMode: observableValue('layoutMode', layoutMode), splitLayout: observableValue<ChatWindowSplitLayout>('splitLayout', splitLayout) };
+			const binding = bindWindowLayoutContext(scoped, state);
+			return { scoped, state, binding };
+		};
+		const read = (service: { getContextKeyValue<T>(key: string): T | undefined }) => [service.getContextKeyValue(LayoutModeContext.key), service.getContextKeyValue(SplitLayoutContext.key)];
+
+		const first = createWindow(ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.SideBySide);
+		const second = createWindow(ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked);
+		const initial = [read(first.scoped), read(second.scoped), read(contextKeyService)];
+		first.state.layoutMode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+		second.state.splitLayout.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const changed = [read(first.scoped), read(second.scoped), read(contextKeyService)];
+		first.binding.dispose();
+		second.binding.dispose();
+
+		assert.deepStrictEqual({ initial, changed, unbound: read(first.scoped) }, {
+			initial: [['sideBySide', 'sideBySide'], ['chatOnly', 'stacked'], [undefined, undefined]],
+			changed: [['editorOnly', 'sideBySide'], ['chatOnly', 'sideBySide'], [undefined, undefined]],
+			unbound: [undefined, undefined],
+		});
+	});
+
+	test('each window\'s terminals keys follow where its terminals part sits and whether it shows, without leaking to another window or to the main window, and are unset once unbound', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const createWindow = (terminalPosition: ChatWindowTerminalPosition) => {
+			const scoped = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+			const state = { terminalsVisible: observableValue('terminalsVisible', false), terminalPosition: observableValue('terminalPosition', terminalPosition) };
+			const binding = bindWindowTerminalsContext(scoped, state);
+			return { scoped, state, binding };
+		};
+		const read = (service: { getContextKeyValue<T>(key: string): T | undefined }) => [service.getContextKeyValue(TerminalsVisibleContext.key), service.getContextKeyValue(TerminalsPositionContext.key)];
+
+		const first = createWindow(ChatWindowTerminalPosition.FullWidth);
+		const second = createWindow(ChatWindowTerminalPosition.UnderChat);
+		const initial = [read(first.scoped), read(second.scoped), read(contextKeyService)];
+		first.state.terminalsVisible.set(true, undefined);
+		second.state.terminalPosition.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		const changed = [read(first.scoped), read(second.scoped), read(contextKeyService)];
+		first.binding.dispose();
+		second.binding.dispose();
+
+		assert.deepStrictEqual({ initial, changed, unbound: read(first.scoped) }, {
+			initial: [[false, 'fullWidth'], [false, 'underChat'], [undefined, undefined]],
+			changed: [[true, 'fullWidth'], [false, 'underEditor'], [undefined, undefined]],
+			unbound: [undefined, undefined],
+		});
+	});
+
+	test('the parts of a window show as the window shows them, whatever the main window\'s editor area: its main part as its mode says, its other parts, such as the one holding its terminals, always', () => {
+		// The main window's editor area is hidden.
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		MainEditorAreaVisibleContext.bindTo(contextKeyService).set(false);
+		const windowContext = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+		const mainPartContext = disposables.add(windowContext.createScoped(document.createElement('div')));
+		const terminalsPartContext = disposables.add(windowContext.createScoped(document.createElement('div')));
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.ChatOnly);
+		disposables.add(bindChatWindowPartsVisible(windowContext, mainPartContext, layoutMode));
+		const read = () => ({ mainPart: mainPartContext.getContextKeyValue(MainEditorAreaVisibleContext.key), terminalsPart: terminalsPartContext.getContextKeyValue(MainEditorAreaVisibleContext.key), mainWindow: contextKeyService.getContextKeyValue(MainEditorAreaVisibleContext.key) });
+
+		const chatOnly = read();
+		layoutMode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ chatOnly, sideBySide: read() }, {
+			chatOnly: { mainPart: false, terminalsPart: true, mainWindow: false },
+			sideBySide: { mainPart: true, terminalsPart: true, mainWindow: false },
+		});
+	});
+});

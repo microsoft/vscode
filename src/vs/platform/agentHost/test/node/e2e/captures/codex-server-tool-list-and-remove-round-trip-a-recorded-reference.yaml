@@ -6,37 +6,39 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".'
     response:
       content:
         - type: text
-          text: I’ll add that reference now, then confirm.
+          text: I’ll add the requested reference now.
         - type: tool_use
           id: toolcall_0
           name: add_artifact_or_reference
           input:
-            type: website
-            label: Design notes
-            isArtifact: false
-            link: https://example.com/design
+            items:
+              - type: website
+                label: Design notes
+                isArtifact: false
+                link: https://example.com/design
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".'
         - role: assistant
-          content: I’ll add that reference now, then confirm.
+          content: I’ll add the requested reference now.
         - role: assistant
           content:
             - type: tool_use
               name: add_artifact_or_reference
               input:
-                type: website
-                label: Design notes
-                isArtifact: false
-                link: https://example.com/design
+                items:
+                  - type: website
+                    label: Design notes
+                    isArtifact: false
+                    link: https://example.com/design
         - role: user
           content:
             - type: tool_result
@@ -50,18 +52,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".'
         - role: assistant
-          content: I’ll add that reference now, then confirm.
+          content: I’ll add the requested reference now.
         - role: assistant
           content:
             - type: tool_use
               name: add_artifact_or_reference
               input:
-                type: website
-                label: Design notes
-                isArtifact: false
-                link: https://example.com/design
+                items:
+                  - type: website
+                    label: Design notes
+                    isArtifact: false
+                    link: https://example.com/design
         - role: user
           content:
             - type: tool_result
@@ -73,6 +76,8 @@ exchanges:
           content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
     response:
       content:
+        - type: text
+          text: I’ll list the recorded artifacts and references now.
         - type: tool_use
           id: toolcall_1
           name: list_artifacts_and_references
@@ -83,18 +88,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".'
         - role: assistant
-          content: I’ll add that reference now, then confirm.
+          content: I’ll add the requested reference now.
         - role: assistant
           content:
             - type: tool_use
               name: add_artifact_or_reference
               input:
-                type: website
-                label: Design notes
-                isArtifact: false
-                link: https://example.com/design
+                items:
+                  - type: website
+                    label: Design notes
+                    isArtifact: false
+                    link: https://example.com/design
         - role: user
           content:
             - type: tool_result
@@ -104,6 +110,8 @@ exchanges:
           content: added
         - role: user
           content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+        - role: assistant
+          content: I’ll list the recorded artifacts and references now.
         - role: assistant
           content:
             - type: tool_use
@@ -122,18 +130,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".'
         - role: assistant
-          content: I’ll add that reference now, then confirm.
+          content: I’ll add the requested reference now.
         - role: assistant
           content:
             - type: tool_use
               name: add_artifact_or_reference
               input:
-                type: website
-                label: Design notes
-                isArtifact: false
-                link: https://example.com/design
+                items:
+                  - type: website
+                    label: Design notes
+                    isArtifact: false
+                    link: https://example.com/design
         - role: user
           content:
             - type: tool_result
@@ -143,6 +152,8 @@ exchanges:
           content: added
         - role: user
           content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+        - role: assistant
+          content: I’ll list the recorded artifacts and references now.
         - role: assistant
           content:
             - type: tool_use
@@ -159,6 +170,8 @@ exchanges:
           content: Call remove_artifact_or_reference exactly once with id "${uuid_0}", then reply with exactly "removed".
     response:
       content:
+        - type: text
+          text: Removing that reference now.
         - type: tool_use
           id: toolcall_2
           name: remove_artifact_or_reference
@@ -170,18 +183,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".'
         - role: assistant
-          content: I’ll add that reference now, then confirm.
+          content: I’ll add the requested reference now.
         - role: assistant
           content:
             - type: tool_use
               name: add_artifact_or_reference
               input:
-                type: website
-                label: Design notes
-                isArtifact: false
-                link: https://example.com/design
+                items:
+                  - type: website
+                    label: Design notes
+                    isArtifact: false
+                    link: https://example.com/design
         - role: user
           content:
             - type: tool_result
@@ -191,6 +205,8 @@ exchanges:
           content: added
         - role: user
           content: Call list_artifacts_and_references exactly once, then reply with exactly "listed".
+        - role: assistant
+          content: I’ll list the recorded artifacts and references now.
         - role: assistant
           content:
             - type: tool_use
@@ -205,6 +221,8 @@ exchanges:
           content: listed
         - role: user
           content: Call remove_artifact_or_reference exactly once with id "${uuid_0}", then reply with exactly "removed".
+        - role: assistant
+          content: Removing that reference now.
         - role: assistant
           content:
             - type: tool_use

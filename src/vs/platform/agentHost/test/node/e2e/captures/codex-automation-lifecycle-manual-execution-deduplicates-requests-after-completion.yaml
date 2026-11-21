@@ -1,0 +1,12 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "AUTOMATION_FIRST".
+    response:
+      content: AUTOMATION_FIRST
+      stopReason: end_turn

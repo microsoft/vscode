@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IEditorOptions, ITextEditorSelection } from '../../editor/common/editor.js';
+import { IEditorOptions, ITextEditorSelection, ViewColumn } from '../../editor/common/editor.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
@@ -50,6 +50,11 @@ export type OpenExternalOptions = {
 	readonly allowContributedOpeners?: boolean | string;
 	readonly fromWorkspace?: boolean;
 	readonly skipValidation?: boolean;
+	/**
+	 * The window the link was activated in, such as the window of a web page that opens it. Contributed external openers
+	 * open in that window, rather than in the window that appears to have focus.
+	 */
+	readonly sourceWindowId?: number;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
@@ -64,8 +69,17 @@ export interface IOpener {
 	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 }
 
+export interface IExternalUriOpenContext {
+	readonly sourceUri: URI;
+	/** The URL before resolution or port forwarding, preserving its original encoding when opened as a string. */
+	readonly sourceHref: string;
+	readonly viewColumn?: ViewColumn;
+	/** The window the link was activated in; see {@link OpenExternalOptions.sourceWindowId}. */
+	readonly sourceWindowId?: number;
+}
+
 export interface IExternalOpener {
-	openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
+	openExternal(href: string, ctx: IExternalUriOpenContext & { preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
 }
 

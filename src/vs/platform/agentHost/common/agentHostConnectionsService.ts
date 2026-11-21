@@ -8,6 +8,7 @@ import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
+import { isSessionDefaultChatId, StateComponents } from './state/sessionState.js';
 import type { DefaultChangesetKind } from './changesetUri.js';
 
 /**
@@ -19,6 +20,12 @@ import type { DefaultChangesetKind } from './changesetUri.js';
  * friends), which also owns the authority disambiguation.
  */
 export const LOCAL_AGENT_HOST_SCHEME_PREFIX = 'agent-host-';
+
+/**
+ * The id of the sessions provider of the window's local agent host. Its session types are the provider parts of its
+ * chat-session types: `copilotcli` for `agent-host-copilotcli` ({@link LOCAL_AGENT_HOST_SCHEME_PREFIX}).
+ */
+export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
 
 /**
  * Reserved connection authority for the window's ambient/primary agent host.
@@ -62,15 +69,23 @@ export interface IAgentHostConnectionInfo {
  * the owning {@link IAgentConnection}, its authority, and the canonical backend
  * agent-session URI used for protocol operations on that connection.
  */
-export interface IAgentHostSessionResolution {
-	readonly connection: IAgentConnection;
+export interface IAgentHostSessionIdentity {
 	readonly connectionAuthority: string;
+	/** Provider-owned remote address, retained even when the live connection has been removed. */
+	readonly connectionAddress?: string;
 	readonly backendSession: URI;
+	/** The backend resource was advertised, not reconstructed by the bounded legacy fallback. */
+	readonly backendSessionIsAdvertised?: true;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
+}
+
+export interface IAgentHostSessionResolution extends IAgentHostSessionIdentity {
+	readonly connection: IAgentConnection;
 }
 
 /** Provider-owned policy needed to resolve a workbench session resource back to its host. */
 export interface IAgentHostSessionResolutionPolicy {
+	readonly connectionAddress?: string;
 	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
@@ -119,7 +134,7 @@ export interface IAgentHostConnectionsService {
 
 	/**
 	 * Resolves a live connection by sanitized authority, including
-	 * {@link AMBIENT_AGENT_HOST_AUTHORITY} for the ambient host. Returns
+	 * {@link AMBIENT_AGENT_HOST_AUTHORITY} and its resource mapper's authority for the ambient host. Returns
 	 * `undefined` when no connected host matches.
 	 */
 	getConnectionByAuthority(authority: string): IAgentConnection | undefined;
@@ -138,6 +153,33 @@ export interface IAgentHostConnectionsService {
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
 	/**
+	 * Runs `fn`, coalescing every {@link onDidChangeSessionResolution} it would fire into a single
+	 * event emitted after the outermost batch completes. Reads inside the batch see the new state.
+	 */
+	batchSessionResolutionChanges<T>(fn: () => T): T;
+
+	/** Records an exact backend identity and adapts only its frontend provider scheme. */
+	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
+
+	/** Binds a catalog resource to an acquired execution for the owner's lifetime, including while its backend is unpublished. */
+	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable;
+
+	/** Looks up a frontend resource using its advertised backend identity on one connection. */
+	findSessionResource(backendSession: URI, authority?: string): URI | undefined;
+
+	/**
+	 * Maps a backend session through provider policy only when the resource
+	 * resolves back to that exact session. Unsupported identities return undefined.
+	 */
+	getSessionResource(backendSession: URI, authority?: string): URI | undefined;
+
+	/**
+	 * Resolves an agent-host chat-session resource to its connection authority
+	 * and backend session URI without requiring the host to be connected.
+	 */
+	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined;
+
+	/**
 	 * Resolves an agent-host chat-session resource to its owning connection and
 	 * backend session URI. Handles both local schemes
 	 * (`agent-host-<provider>`) — backed by the ambient connection — and remote
@@ -149,4 +191,26 @@ export interface IAgentHostConnectionsService {
 	 * handled here — callers that support them should resolve those first.
 	 */
 	resolveSessionResource(sessionResource: URI): IAgentHostSessionResolution | undefined;
+}
+
+/**
+ * Whether a link's `chatId` addresses the session's advertised default chat
+ * (rule 7 matching). Reads the cached session state and, when the session is
+ * not subscribed, the host's session listing summary. `false` when neither
+ * knows the session.
+ */
+export async function isDefaultChatLinkId(connection: IAgentConnection, backendSession: URI, chatId: string): Promise<boolean> {
+	const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
+	if (state && !(state instanceof Error)) {
+		return isSessionDefaultChatId(state, chatId, state.defaultChat);
+	}
+	let listing;
+	try {
+		listing = await connection.listSessions();
+	} catch {
+		return false;
+	}
+	const chats = listing.find(item => item.session.toString() === backendSession.toString())?.chats;
+	const defaultChat = chats?.find(chat => chat.kind === 'default')?.chat.toString();
+	return !!chats && isSessionDefaultChatId({ chats: chats.map(chat => ({ resource: chat.chat.toString() })) }, chatId, defaultChat);
 }

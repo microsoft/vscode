@@ -3,48 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { CopilotChatSessionsProvider, COPILOT_MULTI_CHAT_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../../nls.js';
+import { registerCopilotChatSessionsProviders } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'sessions',
-	properties: {
-		[COPILOT_MULTI_CHAT_SETTING]: {
-			type: 'boolean',
-			default: true,
-			tags: ['preview'],
-			description: localize('sessions.github.copilot.multiChatSessions', "Whether to enable multiple chats within a single session in the Copilot Chat sessions provider."),
-		},
-	},
-});
-
-/**
- * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
- *
- * Coexists with the local agent host provider when that runtime is available. The two providers list disjoint sets of sessions:
- * - The local agent host filters via the per-session Agent Host SQLite DB
- *   (database-existence ownership gate in `CopilotAgent.listSessions`).
- * - This provider's underlying extension service filters via the per-session
- *   metadata file's `origin` field, which the local agent host never writes.
- */
+/** Registers the Copilot Cloud sessions providers of the Agents window. */
 class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
+
 	static readonly ID = 'sessions.defaultSessionsProvider';
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-	) {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
-
-		const provider = this._register(instantiationService.createInstance(CopilotChatSessionsProvider));
-		this._register(sessionsProvidersService.registerProvider(provider));
+		this._register(instantiationService.invokeFunction(registerCopilotChatSessionsProviders));
 	}
 }
 

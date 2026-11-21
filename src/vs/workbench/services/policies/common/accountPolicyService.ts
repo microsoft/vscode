@@ -12,8 +12,8 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { COPILOT_ALLOWED_HARNESSES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, isManagedSettingGovernanceActive, parseAllowedHarnesses, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -62,11 +62,23 @@ export interface IAccountPolicyGateService {
 	readonly _serviceBrand: undefined;
 	readonly gateInfo: IAccountPolicyGateInfo;
 	readonly onDidChangeGateInfo: Event<IAccountPolicyGateInfo>;
+	/** Completes after the gate and policy values incorporate the initialized account. */
+	whenInitialized(): Promise<void>;
+}
+
+/** Waits for authoritative policy, including settled fail-closed restrictions. */
+export async function whenAccountPolicySettled(gateService: IAccountPolicyGateService): Promise<void> {
+	await gateService.whenInitialized();
+	while (gateService.gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved
+		|| gateService.gateInfo.managedSettingsFreshness?.state === ManagedSettingsFreshnessState.Pending) {
+		await Event.toPromise(gateService.onDidChangeGateInfo);
+	}
 }
 
 interface IResolvedPolicyData {
 	readonly policyData: IPolicyData;
 	readonly managedSettingResolutions: IManagedSettingsPick['resolutions'];
+	readonly activeManagedSettingsSources: readonly ManagedSettingsChannel[];
 }
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService, IAccountPolicyGateService, IManagedSettingsService {
@@ -80,6 +92,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	readonly onDidChangeGateInfo = this._onDidChangeGateInfo.event;
 
 	private _managedSettings: ManagedSettingsData = {};
+	private allowedHarnessesWarning: string | undefined;
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<void>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
@@ -87,10 +100,15 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		return this._managedSettings[key];
 	}
 
+	getManagedSettings(): ManagedSettingsData {
+		return this._managedSettings;
+	}
+
 	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
 	private readonly managedPolicyReader?: IPolicyService;
 	private readonly nativeManagedSettingsService?: INativeManagedSettingsService;
 	private readonly fileManagedSettingsService?: IFileManagedSettingsService;
+	private readonly initialization: Promise<void>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -128,7 +146,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			}));
 		}
 		if (this.fileManagedSettingsService) {
-			this._register(this.fileManagedSettingsService.onDidChangeManagedSettings(() => {
+			this._register(this.fileManagedSettingsService.onDidChangeRawManagedSettings(() => {
 				this._updatePolicyDefinitions(this.policyDefinitions);
 			}));
 		}
@@ -136,9 +154,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// The initial account load sets `currentDefaultAccount` but does NOT fire
 		// `onDidChangeDefaultAccount`. Re-evaluate once the account has resolved
 		// so the gate doesn't stay stuck on `noAccount`.
-		this.defaultAccountService.getDefaultAccount().then(() => {
-			this._updatePolicyDefinitions(this.policyDefinitions);
-		});
+		this.initialization = this.initialize();
+		this.initialization.catch(error => this.logService.error('AccountPolicyService: Failed to initialize account policy', error));
+	}
+
+	whenInitialized(): Promise<void> {
+		return this.initialization;
+	}
+
+	private async initialize(): Promise<void> {
+		await this.defaultAccountService.getDefaultAccount();
+		await this._updatePolicyDefinitions(this.policyDefinitions);
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
@@ -186,7 +212,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			return undefined;
 		}
 
-		const { policyData, managedSettingResolutions } = resolvedPolicyData;
+		const { policyData, managedSettingResolutions, activeManagedSettingsSources } = resolvedPolicyData;
 		const value = valueProvider(policyData);
 		if (value === undefined) {
 			return undefined;
@@ -230,14 +256,10 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// A policy can also react to the mere *presence* of managed settings rather than to a
 		// declared key, so probe for that too and attribute it to the governing channels.
 		if (source === PolicyValueSource.Account && policyData.managedSettingsActive === true
-			&& valueProvider({ ...policyData, managedSettingsActive: false }) !== value) {
-			const channels = new Set<ManagedSettingsChannel>();
-			for (const resolution of managedSettingResolutions.values()) {
-				channels.add(resolution.source);
-			}
-			if (channels.size > 0) {
-				source = channels.size === 1
-					? policyValueSourceForManagedSettingsChannel(Array.from(channels)[0])
+			&& valueProvider({ ...policyData, managedSettings: undefined, managedSettingsActive: false }) !== value) {
+			if (activeManagedSettingsSources.length > 0) {
+				source = activeManagedSettingsSources.length === 1
+					? policyValueSourceForManagedSettingsChannel(activeManagedSettingsSources[0])
 					: PolicyValueSource.MixedManagedSettings;
 			}
 		}
@@ -258,34 +280,62 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const nativeManagedSettings = mdmManagedSettings ?? this.nativeManagedSettingsService?.managedSettings;
 		const fileManagedSettings = this.fileManagedSettingsService?.managedSettings;
 
-		// Per-key precedence: native MDM wins over the server-delivered channel, which in turn wins
-		// over the file-based channel — but resolved key-by-key, so a key left unset by a higher
-		// channel is still filled in by a lower one. A key locked by a higher channel cannot be
-		// overwritten. See `.github/skills/policy-and-managed-settings/github-managed-settings.md` for the rationale.
+		// Share channel resolution, including the force-on sandbox floor, with Policy Diagnostics.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
+		const activeSources = new Set(Array.from(pick.resolutions)
+			.filter(([key]) => isManagedSettingGovernanceActive(key))
+			.map(([, resolution]) => resolution.source));
+		if (accountPolicyData?.managedSettingsActive === true) {
+			activeSources.add('server');
+		}
+		if (hasRawManagedSettings(this.fileManagedSettingsService?.rawManagedSettings)) {
+			activeSources.add('file');
+		}
+		const activeManagedSettingsSources = MANAGED_SETTINGS_CHANNELS.filter(source => activeSources.has(source));
 		if (!equals(this._managedSettings, pick.values)) {
 			this._managedSettings = pick.values;
 			this._onDidChangeManagedSettings.fire();
 		}
-		if (!accountPolicyData && pick.activeSources.length === 0) {
-			return undefined;
-		}
-
+		this.reportAllowedHarnessesProblem(pick.values[COPILOT_ALLOWED_HARNESSES_KEY]);
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
 			pick.values,
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);
+		if (!accountPolicyData && activeManagedSettingsSources.length === 0 && Object.keys(managedSettingsData).length === 0) {
+			return undefined;
+		}
 
 		return {
 			policyData: {
 				...accountPolicyData,
 				managedSettings: managedSettingsData,
-				managedSettingsActive: pick.activeSources.length > 0,
+				managedSettingsActive: activeManagedSettingsSources.length > 0,
 			},
 			managedSettingResolutions: pick.resolutions,
+			activeManagedSettingsSources,
 		};
+	}
+
+	/**
+	 * Warn once each time the effective harness permission list starts to have a problem. The
+	 * messages name the key but never its value, which is enterprise configuration.
+	 */
+	private reportAllowedHarnessesProblem(value: ManagedSettingValue | undefined): void {
+		let warning: string | undefined;
+		if (value !== undefined) {
+			const allowedHarnesses = parseAllowedHarnesses(value);
+			if (!allowedHarnesses) {
+				warning = `[AccountPolicy] Invalid managed setting "${COPILOT_ALLOWED_HARNESSES_KEY}": expected an array of "claude" or "codex". It permits no third-party harness.`;
+			} else if (allowedHarnesses.hasUnrecognizedEntries) {
+				warning = `[AccountPolicy] Ignoring entries of managed setting "${COPILOT_ALLOWED_HARNESSES_KEY}" other than "claude" or "codex".`;
+			}
+		}
+		if (warning && warning !== this.allowedHarnessesWarning) {
+			this.logService.warn(warning);
+		}
+		this.allowedHarnessesWarning = warning;
 	}
 
 	private computeGateInfo(): IAccountPolicyGateInfo {

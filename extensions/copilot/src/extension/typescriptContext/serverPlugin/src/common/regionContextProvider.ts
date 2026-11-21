@@ -11,6 +11,15 @@ import tss from './typescripts';
 
 type StructuralEntity = { kind: string; name?: string; rangeNode: tt.Node | [tt.Node, tt.Node]; includeJsDoc?: boolean; continueWith?: tt.Node };
 
+type AssignedStructuralNode = tt.VariableDeclaration | tt.PropertyDeclaration | tt.PropertyAssignment;
+
+type MemberInfo = {
+	items: readonly tt.Node[];
+	kind: string;
+	memberKind: string;
+	name?: string;
+};
+
 type ScopeInfo = {
 	regions: Region[];
 	path: number[];
@@ -50,7 +59,7 @@ export class RegionContextProvider {
 		}
 		if (containersList.length === 0) {
 			return undefined;
-	}
+		}
 
 		const longestContainers = containersList.reduce((longest, containers) => containers.length > longest.length ? containers : longest);
 		const commonContainers = longestContainers.slice();
@@ -153,14 +162,10 @@ export class RegionContextProvider {
 				return { kind: 'export', name, rangeNode: node };
 			case ts.SyntaxKind.FunctionDeclaration:
 				name = (node as tt.FunctionDeclaration).name?.text;
-				if (name === undefined) {
-					if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
-						name = parent.name.text;
-					} else if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
-						name = parent.name.text;
-					}
-				}
 				return { kind: 'function', name, rangeNode: node };
+			case ts.SyntaxKind.FunctionExpression:
+				name = (node as tt.FunctionExpression).name?.text;
+				return this.getExpressionStructuralEntity(node, 'function', name, true);
 			case ts.SyntaxKind.Constructor:
 				return { kind: 'constructor', name: 'constructor', rangeNode: node };
 			case ts.SyntaxKind.MethodDeclaration:
@@ -169,23 +174,25 @@ export class RegionContextProvider {
 			case ts.SyntaxKind.MethodSignature:
 				name = (node as tt.MethodSignature).name.getText();
 				return { kind: 'method', name, rangeNode: node };
+			case ts.SyntaxKind.CallSignature:
+				return { kind: 'call-signature', rangeNode: node };
+			case ts.SyntaxKind.ConstructSignature:
+				return { kind: 'construct-signature', rangeNode: node };
+			case ts.SyntaxKind.IndexSignature:
+				return { kind: 'index-signature', rangeNode: node };
 			case ts.SyntaxKind.ArrowFunction:
-				if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
-					name = parent.name.text;
-					return { kind: 'function', name, rangeNode: parent };
-				} else if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
-					name = parent.name.text;
-					return { kind: 'arrow-function', name, rangeNode: parent };
-				} else if (ts.isCallExpression(parent)) {
-					return { kind: 'arrow-function', rangeNode: parent };
-				}
-				return { kind: 'arrow-function', rangeNode: node };
+				return this.getExpressionStructuralEntity(node, 'arrow-function', undefined, true);
+			case ts.SyntaxKind.VariableDeclaration:
+				return this.getAssignedStructuralEntity(node as tt.VariableDeclaration);
 			case ts.SyntaxKind.PropertyDeclaration:
 				return this.handleProperty(sourceFile, node as tt.PropertyDeclaration, requested);
 			case ts.SyntaxKind.PropertyAssignment:
 				return this.handleProperty(sourceFile, node as tt.PropertyAssignment, requested);
 			case ts.SyntaxKind.PropertySignature:
 				return this.handleProperty(sourceFile, node as tt.PropertySignature, requested);
+			case ts.SyntaxKind.ShorthandPropertyAssignment:
+			case ts.SyntaxKind.SpreadAssignment:
+				return this.handleMember(sourceFile, node, requested);
 			case ts.SyntaxKind.GetAccessor:
 				name = (node as tt.GetAccessorDeclaration).name.getText();
 				return { kind: 'getter', name, rangeNode: node };
@@ -195,6 +202,11 @@ export class RegionContextProvider {
 			case ts.SyntaxKind.ClassDeclaration:
 				name = (node as tt.ClassDeclaration).name?.text;
 				return { kind: 'class', name, rangeNode: node };
+			case ts.SyntaxKind.ClassExpression:
+				name = (node as tt.ClassExpression).name?.text;
+				return this.getExpressionStructuralEntity(node, 'class', name);
+			case ts.SyntaxKind.ClassStaticBlockDeclaration:
+				return { kind: 'static-block', rangeNode: node };
 			case ts.SyntaxKind.InterfaceDeclaration:
 				name = (node as tt.InterfaceDeclaration).name.text;
 				return { kind: 'interface', name, rangeNode: node };
@@ -204,19 +216,40 @@ export class RegionContextProvider {
 			case ts.SyntaxKind.TypeAliasDeclaration:
 				name = (node as tt.TypeAliasDeclaration).name.text;
 				return { kind: 'type-alias', name, rangeNode: node };
+			case ts.SyntaxKind.EnumMember:
+				name = (node as tt.EnumMember).name.getText();
+				return { kind: 'enum-member', name, rangeNode: node };
+			case ts.SyntaxKind.EnumDeclaration:
+				name = (node as tt.EnumDeclaration).name.text;
+				return { kind: 'enum', name, rangeNode: node };
+			case ts.SyntaxKind.ImportEqualsDeclaration:
+				name = (node as tt.ImportEqualsDeclaration).moduleReference.getText();
+				return { kind: 'import', name, rangeNode: node };
+			case ts.SyntaxKind.ExportAssignment:
+				return { kind: 'export', rangeNode: node };
+			case ts.SyntaxKind.ObjectLiteralExpression:
+				return this.getExpressionStructuralEntity(node, 'object-literal');
+			case ts.SyntaxKind.ArrayLiteralExpression:
+				return this.getExpressionStructuralEntity(node, 'array-literal');
 			default:
+				if (ts.isArrayLiteralExpression(parent) && parent.elements.some(element => element === node)) {
+					return this.handleMember(sourceFile, node, requested);
+				}
 				return undefined;
 		}
 	}
 
 	private handleProperty(sourceFile: tt.SourceFile, node: tt.PropertyDeclaration | tt.PropertyAssignment | tt.PropertySignature, requested?: LineRange | undefined): StructuralEntity | undefined {
-		const name = node.name.getText();
 		if (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) {
-			const initializeKind = node.initializer?.kind;
-			if (initializeKind === ts.SyntaxKind.FunctionType || initializeKind === ts.SyntaxKind.FunctionDeclaration || initializeKind === ts.SyntaxKind.FunctionExpression || initializeKind === ts.SyntaxKind.ArrowFunction) {
-				return { kind: 'function', name, rangeNode: node };
+			const structuralEntity = this.getAssignedStructuralEntity(node);
+			if (structuralEntity !== undefined) {
+				return structuralEntity;
 			}
 		}
+		return this.handleMember(sourceFile, node, requested);
+	}
+
+	private handleMember(sourceFile: tt.SourceFile, node: tt.Node, requested?: LineRange | undefined): StructuralEntity | undefined {
 		const parent = node.parent;
 		if (requested !== undefined) {
 			const info = this.getMemberInfo(parent);
@@ -241,27 +274,31 @@ export class RegionContextProvider {
 					kind,
 					name,
 					rangeNode: parent,
-					continueWith: parent
+					continueWith: this.getAssignedExpressionContainer(parent) ?? parent
 				};
 			}
 		}
 		return undefined;
 	}
 
-	private getMemberInfo(parent: tt.ClassLikeDeclaration | tt.ObjectLiteralExpression| tt.InterfaceDeclaration | tt.TypeLiteralNode): { items: tt.NodeArray<tt.Node>; kind: string; memberKind: string; name?: string | undefined } | undefined {
+	private getMemberInfo(parent: tt.Node): MemberInfo | undefined {
 		if (ts.isClassDeclaration(parent)) {
 			return { items: parent.members, kind: 'class', memberKind: 'class-members', name: parent.name?.text };
+		} else if (ts.isClassExpression(parent)) {
+			return { items: parent.members, kind: 'class', memberKind: 'class-members', name: this.getAssignedExpressionName(parent) ?? parent.name?.text };
 		} else if (ts.isInterfaceDeclaration(parent)) {
 			return { items: parent.members, kind: 'interface', memberKind: 'interface-members', name: parent.name?.text };
 		} else if (ts.isObjectLiteralExpression(parent)) {
-			return { items: parent.properties, kind: 'object-literal', memberKind: 'object-literal-members' };
+			return { items: parent.properties, kind: 'object-literal', memberKind: 'object-literal-members', name: this.getAssignedExpressionName(parent) };
 		} else if (ts.isTypeLiteralNode(parent)) {
 			return { items: parent.members, kind: 'type-literal', memberKind: 'type-literal-members' };
+		} else if (ts.isArrayLiteralExpression(parent)) {
+			return { items: parent.elements, kind: 'array-literal', memberKind: 'array-elements', name: this.getAssignedExpressionName(parent) };
 		}
 		return undefined;
 	}
 
-	private calculateRange(sourceFile: tt.SourceFile, parent: tt.Node, node: tt.Node, items: tt.NodeArray<tt.Node>, requested: LineRange): [number, number] | tt.Node | undefined {
+	private calculateRange(sourceFile: tt.SourceFile, parent: tt.Node, node: tt.Node, items: readonly tt.Node[], requested: LineRange): [number, number] | tt.Node | undefined {
 		const startLine = sourceFile.getLineAndCharacterOfPosition(parent.getStart(sourceFile)).line;
 		const endLine = sourceFile.getLineAndCharacterOfPosition(parent.getEnd()).line;
 		if (requested.start <= startLine && requested.end >= endLine) {
@@ -291,6 +328,82 @@ export class RegionContextProvider {
 			endIndex++;
 		}
 		return [startIndex, endIndex];
+	}
+
+	private getExpressionStructuralEntity(node: tt.Node, kind: string, name?: string, includeCallExpression: boolean = false): StructuralEntity {
+		const assignedContainer = this.getAssignedExpressionContainer(node);
+		if (assignedContainer !== undefined) {
+			return this.getAssignedStructuralEntity(assignedContainer) ?? { kind, name, rangeNode: node };
+		}
+
+		const outerExpression = this.getOutermostExpression(node);
+		if (includeCallExpression && ts.isCallExpression(outerExpression.parent)) {
+			return { kind, name, rangeNode: outerExpression.parent, continueWith: outerExpression.parent };
+		}
+		return { kind, name, rangeNode: node };
+	}
+
+	private getAssignedStructuralEntity(node: AssignedStructuralNode): StructuralEntity | undefined {
+		if (node.initializer === undefined) {
+			return undefined;
+		}
+
+		if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+			return undefined;
+		}
+		const initializer = this.skipOuterExpressions(node.initializer);
+		let kind: string;
+		if (ts.isArrowFunction(initializer)) {
+			kind = ts.isVariableDeclaration(node) ? 'arrow-function' : 'function';
+		} else if (ts.isFunctionExpression(initializer)) {
+			kind = 'function';
+		} else if (ts.isClassExpression(initializer)) {
+			kind = 'class';
+		} else if (ts.isObjectLiteralExpression(initializer)) {
+			kind = 'object-literal';
+		} else if (ts.isArrayLiteralExpression(initializer)) {
+			kind = 'array-literal';
+		} else {
+			return undefined;
+		}
+		return { kind, name: node.name.getText(), rangeNode: node, continueWith: node };
+	}
+
+	private getAssignedExpressionContainer(node: tt.Node): AssignedStructuralNode | undefined {
+		const outerExpression = this.getOutermostExpression(node);
+		const parent = outerExpression.parent;
+		if ((ts.isVariableDeclaration(parent) || ts.isPropertyDeclaration(parent) || ts.isPropertyAssignment(parent)) && parent.initializer === outerExpression) {
+			return parent;
+		}
+		return undefined;
+	}
+
+	private getAssignedExpressionName(node: tt.Node): string | undefined {
+		return this.getAssignedExpressionContainer(node)?.name.getText();
+	}
+
+	private getOutermostExpression(node: tt.Node): tt.Node {
+		let current = node;
+		while (this.isOuterExpression(current.parent) && current.parent.expression === current) {
+			current = current.parent;
+		}
+		return current;
+	}
+
+	private skipOuterExpressions(node: tt.Expression): tt.Expression {
+		let current = node;
+		while (this.isOuterExpression(current)) {
+			current = current.expression;
+		}
+		return current;
+	}
+
+	private isOuterExpression(node: tt.Node): node is tt.ParenthesizedExpression | tt.AsExpression | tt.SatisfiesExpression | tt.TypeAssertion | tt.NonNullExpression {
+		return ts.isParenthesizedExpression(node)
+			|| ts.isAsExpression(node)
+			|| ts.isSatisfiesExpression(node)
+			|| ts.isTypeAssertionExpression(node)
+			|| ts.isNonNullExpression(node);
 	}
 
 	private isInsideRequestedRange(sourceFile: tt.SourceFile, member: tt.Node, requested: LineRange): boolean {

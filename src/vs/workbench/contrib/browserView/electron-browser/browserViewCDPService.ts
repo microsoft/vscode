@@ -11,7 +11,7 @@ import { IBrowserViewGroupService, ipcBrowserViewGroupChannelName } from '../../
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { IBrowserViewCDPService } from '../common/browserView.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
 
 export class BrowserViewCDPService extends Disposable implements IBrowserViewCDPService {
 	declare readonly _serviceBrand: undefined;
@@ -26,7 +26,7 @@ export class BrowserViewCDPService extends Disposable implements IBrowserViewCDP
 		this._groupService = ProxyChannel.toService<IBrowserViewGroupService>(channel);
 	}
 
-	async createSessionGroup(browserId: string): Promise<string> {
+	async createSessionGroup(browserId: string, network: IBrowserViewNetwork | undefined): Promise<string> {
 		return this._groupService.createGroup(
 			{ browserIds: [browserId] },
 			{
@@ -34,7 +34,7 @@ export class BrowserViewCDPService extends Disposable implements IBrowserViewCDP
 					windowId: mainWindow.vscodeWindowId
 				},
 				owner: { type: 'user' },
-				session: { scope: BrowserViewStorageScope.Ephemeral }
+				session: { scope: BrowserViewStorageScope.Ephemeral, network }
 			}
 		);
 	}

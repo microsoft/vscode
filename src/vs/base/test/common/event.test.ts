@@ -84,7 +84,7 @@ suite('Event utils dispose', function () {
 		const store = new DisposableStore();
 		const emitter = ds.add(new Emitter<number>());
 		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
-		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
+		assertDisposablesCount(1); // snapshot only listens when `evens` is being listened to
 
 		let all = 0;
 		const leaked = evens(n => all += n);
@@ -481,6 +481,40 @@ suite('Event', function () {
 				},
 			]);
 		} finally {
+			consoleWarn.restore();
+		}
+	});
+
+	test('Emitter lazily generates stable names for unnamed leak warnings', () => {
+		const consoleWarn = stub(console, 'warn');
+		const errors: Error[] = [];
+		const listeners = ds.add(new DisposableStore());
+		let restoreThreshold: IDisposable | undefined = setGlobalLeakWarningThreshold(3);
+		try {
+			const first = ds.add(new Emitter<void>({ onListenerError: error => errors.push(error) }));
+			const second = ds.add(new Emitter<void>({ onListenerError: error => errors.push(error) }));
+			assert.deepStrictEqual([Reflect.get(first, '_leakWarningName'), Reflect.get(second, '_leakWarningName')], [undefined, undefined]);
+			restoreThreshold.dispose();
+			restoreThreshold = undefined;
+
+			for (let i = 0; i < 5; i++) {
+				first.event(() => { }, undefined, listeners);
+			}
+			for (let i = 0; i < 3; i++) {
+				second.event(() => { }, undefined, listeners);
+			}
+
+			const names = errors.map(error => error instanceof ListenerLeakError ? error.details.match(/^\[(?<id>[0-9a-f]{3,})\]/)?.groups?.id : undefined);
+			assert.deepStrictEqual({
+				warnings: errors.length,
+				allLeakErrors: errors.every(error => error instanceof ListenerLeakError),
+				allNamesGenerated: names.every(name => typeof name === 'string'),
+				firstNameStable: names[0] === names[1],
+				secondNameDistinct: names[0] !== names[2],
+			}, { warnings: 3, allLeakErrors: true, allNamesGenerated: true, firstNameStable: true, secondNameDistinct: true });
+		} finally {
+			listeners.dispose();
+			restoreThreshold?.dispose();
 			consoleWarn.restore();
 		}
 	});
@@ -987,7 +1021,7 @@ suite('PausableEmitter', function () {
 		assert.deepStrictEqual(data, [1, 1]); // paused after first event
 
 		emitter.resume();
-		assert.deepStrictEqual(data, [1, 1, 2, 2]); // remaing event delivered
+		assert.deepStrictEqual(data, [1, 1, 2, 2]); // remaining event delivered
 
 		emitter.fire(3);
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);

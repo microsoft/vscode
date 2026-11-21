@@ -99,6 +99,39 @@ suite('ConfigurationModelParser', () => {
 		assert.strictEqual(testObject.configurationModel.getValue('a.b.c'), undefined);
 	});
 
+	test('parse configuration model with __proto__ key does not cause prototype pollution', () => {
+		const testObject = new ConfigurationModelParser('', new NullLogService());
+
+		testObject.parse('{ "__proto__": { "editor.fontSize": 100 }, "excluded": true }', { exclude: ['excluded'] });
+
+		const raw = testObject.configurationModel.getValue('__proto__') as Record<string, unknown>;
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(raw),
+			fontSize: raw['editor.fontSize'],
+			promotedFontSize: testObject.configurationModel.getValue('editor.fontSize'),
+			objectPrototypeFontSize: (Object.prototype as Record<string, unknown>)['editor.fontSize'],
+		}, {
+			prototype: Object.prototype,
+			fontSize: 100,
+			promotedFontSize: undefined,
+			objectPrototypeFontSize: undefined,
+		});
+	});
+
+	test('parse configuration model ignores inherited configuration schema fields', () => {
+		const testObject = new ConfigurationModelParser('', new NullLogService());
+
+		testObject.parse('{ "constructor": true, "toString": true }', { skipUnregistered: true });
+
+		assert.deepStrictEqual({
+			constructor: testObject.configurationModel.getValue('constructor'),
+			toString: testObject.configurationModel.getValue('toString'),
+		}, {
+			constructor: undefined,
+			toString: undefined,
+		});
+	});
+
 });
 
 suite('ConfigurationModelParser - Excluded Properties', () => {
@@ -366,6 +399,306 @@ suite('ConfigurationModelParser - Excluded Properties', () => {
 	});
 });
 
+suite('ConfigurationModelParser - Nested Restricted Properties', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	let testConfigurationNodes: IConfigurationNode[] = [];
+
+	setup(() => reset());
+	teardown(() => reset());
+
+	function reset() {
+		if (testConfigurationNodes.length > 0) {
+			configurationRegistry.deregisterConfigurations(testConfigurationNodes);
+			testConfigurationNodes = [];
+		}
+	}
+
+	function registerTerminalLikeConfiguration() {
+		const node: IConfigurationNode = {
+			'id': 'NestedRestrictedTest',
+			'type': 'object',
+			'properties': {
+				'terminal.integrated.allowInUntrustedWorkspace': {
+					'type': 'boolean' as const,
+					'default': false,
+					'restricted': true
+				},
+				'terminal.integrated.defaultProfile.windows': {
+					'type': ['string', 'null'],
+					'default': null,
+					'restricted': true
+				},
+				'terminal.integrated.profiles.windows': {
+					'type': 'object' as const,
+					'default': {},
+					'restricted': true
+				},
+				'terminal.integrated.env.osx': {
+					'type': 'object' as const,
+					'default': {}
+				},
+				'terminal.integrated.machineProfiles': {
+					'type': 'object' as const,
+					'default': {},
+					'scope': ConfigurationScope.MACHINE
+				},
+				'terminal.integrated.fontSize': {
+					'type': 'number' as const,
+					'default': 12,
+					'scope': ConfigurationScope.MACHINE
+				},
+				'terminal.integrated.cwd': {
+					'type': 'string' as const,
+					'default': ''
+				}
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		testConfigurationNodes.push(node);
+		return node;
+	}
+
+	test('nested restricted settings are removed with skipRestricted, sibling remains', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'profiles': {
+						'windows': {
+							'auto-poc': {
+								'path': 'powershell.exe',
+								'args': ['-Command', 'Start-Process calc.exe']
+							}
+						}
+					},
+					'defaultProfile': { 'windows': 'auto-poc' },
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.defaultProfile.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.deepStrictEqual(new Set(testObject.restrictedConfigurations), new Set([
+			'terminal.integrated.allowInUntrustedWorkspace',
+			'terminal.integrated.profiles.windows',
+			'terminal.integrated.defaultProfile.windows'
+		]));
+	});
+
+	test('nested restricted settings remain when trusted (no skipRestricted)', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: false, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.allowInUntrustedWorkspace'), true);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.ok(testObject.restrictedConfigurations.includes('terminal.integrated.allowInUntrustedWorkspace'));
+	});
+
+	test('dotted and nested forms produce identical filtered results', () => {
+		registerTerminalLikeConfiguration();
+
+		const dottedObject = new ConfigurationModelParser('dotted', new NullLogService());
+		dottedObject.parse(JSON.stringify({
+			'terminal.integrated.allowInUntrustedWorkspace': true,
+			'terminal.integrated.cwd': '/safe'
+		}), { skipRestricted: true });
+
+		const nestedObject = new ConfigurationModelParser('nested', new NullLogService());
+		nestedObject.parse(JSON.stringify({
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		}), { skipRestricted: true });
+
+		assert.strictEqual(JSON.stringify(dottedObject.configurationModel.contents), JSON.stringify(nestedObject.configurationModel.contents));
+		assert.deepStrictEqual(new Set(dottedObject.restrictedConfigurations), new Set(nestedObject.restrictedConfigurations));
+	});
+
+	test('keys deeper than a registered restricted object setting are removed with skipRestricted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.profiles.windows.Pwn.path': 'cmd.exe',
+			'terminal.integrated.profiles.windows.Pwn2': { 'path': 'cmd.exe' },
+			'terminal': {
+				'integrated.profiles.windows.Pwn3.path': 'cmd.exe',
+				'integrated': { 'profiles': { 'windows.Pwn4': { 'path': 'cmd.exe' } } }
+			},
+			'[typescript]': { 'terminal.integrated.profiles.windows.Pwn5.path': 'cmd.exe' },
+			'terminal.integrated.cwd': '/safe'
+		}), { skipRestricted: true });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+		assert.strictEqual(testObject.configurationModel.overrides.length, 1);
+		assert.strictEqual(testObject.configurationModel.overrides[0].keys.length, 0);
+		assert.deepStrictEqual(new Set(testObject.restrictedConfigurations), new Set(['terminal.integrated.profiles.windows']));
+	});
+
+	test('keys deeper than a registered restricted object setting remain when trusted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.profiles.windows.Mine.path': 'cmd.exe'
+		}), { skipRestricted: false, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.profiles.windows.Mine.path'), 'cmd.exe');
+	});
+
+	test('keys deeper than a registered non-restricted object setting remain with skipRestricted', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.env.osx.MY_VAR': 'value'
+		}), { skipRestricted: true, scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.env.osx.MY_VAR'), 'value');
+		assert.deepStrictEqual(testObject.restrictedConfigurations, []);
+	});
+
+	test('keys deeper than a registered machine-scoped object setting respect scope filtering', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({
+			'terminal.integrated.machineProfiles.a.path': 'x',
+			'terminal.integrated.cwd': '/safe'
+		}), { scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.machineProfiles'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('registered restricted descendant of an unregistered key under a non-restricted object is still removed', () => {
+		const node: IConfigurationNode = {
+			'id': 'RestrictedDescendantTest',
+			'type': 'object',
+			'properties': {
+				'descendant.parent': { 'type': 'object' as const, 'default': {} },
+				'descendant.parent.child.secret': { 'type': 'string' as const, 'default': '', 'restricted': true }
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		testConfigurationNodes.push(node);
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		testObject.parse(JSON.stringify({ 'descendant.parent.child': { 'secret': 'x', 'other': 'y' } }), { skipRestricted: true });
+
+		assert.deepStrictEqual({ secret: testObject.configurationModel.getValue('descendant.parent.child.secret'), other: testObject.configurationModel.getValue('descendant.parent.child.other'), restricted: testObject.restrictedConfigurations }, { secret: undefined, other: 'y', restricted: ['descendant.parent.child.secret'] });
+	});
+
+	test('nested machine-scoped settings respect scope filtering', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'fontSize': 20,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { scopes: [ConfigurationScope.WINDOW] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.fontSize'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('nested restricted settings inside language override blocks are filtered', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'[typescript]': {
+				'terminal': {
+					'integrated': {
+						'allowInUntrustedWorkspace': true,
+						'cwd': '/safe'
+					}
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		const overrideConfig = testObject.configurationModel.override('typescript');
+		assert.strictEqual(overrideConfig.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(overrideConfig.getValue('terminal.integrated.cwd'), '/safe');
+	});
+
+	test('partial nested exclusion reports hasExcludedProperties and preserves unfiltered raw', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'allowInUntrustedWorkspace': true,
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { skipRestricted: true });
+
+		const model = testObject.configurationModel;
+		// The restricted nested setting is filtered out while a sibling remains, so the model must
+		// still flag that raw was filtered and retain the unfiltered raw for trust re-evaluation.
+		assert.notStrictEqual(model.raw, undefined);
+		assert.strictEqual(model.getValue('terminal.integrated.allowInUntrustedWorkspace'), undefined);
+		assert.strictEqual(model.rawConfiguration.getValue('terminal.integrated.allowInUntrustedWorkspace'), true);
+	});
+
+	test('nested object whose parent key is explicitly excluded is dropped entirely', () => {
+		registerTerminalLikeConfiguration();
+
+		const testObject = new ConfigurationModelParser('test', new NullLogService());
+		const testData = {
+			'terminal': {
+				'integrated': {
+					'cwd': '/safe'
+				}
+			}
+		};
+
+		testObject.parse(JSON.stringify(testData), { exclude: ['terminal'] });
+
+		const model = testObject.configurationModel;
+		assert.strictEqual(model.getValue('terminal.integrated.cwd'), undefined);
+		assert.notStrictEqual(model.raw, undefined);
+	});
+});
+
 suite('ConfigurationModel', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -538,6 +871,89 @@ suite('ConfigurationModel', () => {
 		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
 		assert.deepStrictEqual(result.getValue('a'), { 'b': 2 });
 		assert.deepStrictEqual(result.keys, ['a.b']);
+	});
+
+	test('merge does not recurse into inherited __proto__ of configuration contents', () => {
+		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [], undefined, new NullLogService());
+		const add = new ConfigurationModel(JSON.parse('{ "a": { "__proto__": { "pollutedByMerge": true } } }'), ['a.__proto__'], [], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(add);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByMerge'],
+				pollutedObject: ({} as Record<string, unknown>)['pollutedByMerge'],
+				prototype: Object.getPrototypeOf(result.getValue('a')),
+				b: result.getValue('a.b'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedObject: undefined,
+				prototype: Object.prototype,
+				b: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByMerge'];
+		}
+	});
+
+	test('merge does not pollute Object.prototype when overriding contents contain __proto__', () => {
+		const base = new ConfigurationModel({}, [], [{ identifiers: ['c'], contents: { 'a': { 'b': 1 } }, keys: ['a.b'] }], undefined, new NullLogService());
+		const add = new ConfigurationModel({}, [], [{ identifiers: ['c'], contents: JSON.parse('{ "a": { "__proto__": { "pollutedByOverrideMerge": true } } }'), keys: [] }], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(add);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByOverrideMerge'],
+				b: result.override('c').getValue('a.b'),
+			}, {
+				pollutedPrototype: undefined,
+				b: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByOverrideMerge'];
+		}
+	});
+
+	test('chained merges with __proto__ contents do not pollute Object.prototype', () => {
+		const base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [], undefined, new NullLogService());
+		const hostile = new ConfigurationModel(JSON.parse('{ "__proto__": { "pollutedByChain": { "v": true } }, "a": { "__proto__": { "pollutedByChainNested": true } } }'), [], [], undefined, new NullLogService());
+		const other = new ConfigurationModel({ 'c': 1 }, ['c'], [], undefined, new NullLogService());
+
+		try {
+			const result = base.merge(hostile).merge(other).merge(other);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByChain'],
+				pollutedNestedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByChainNested'],
+				b: result.getValue('a.b'),
+				c: result.getValue('c'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedNestedPrototype: undefined,
+				b: 1,
+				c: 1,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByChain'];
+			delete (Object.prototype as Record<string, unknown>)['pollutedByChainNested'];
+		}
+	});
+
+	test('override does not set prototype from __proto__ contents', () => {
+		const testObject = new ConfigurationModel(JSON.parse('{ "__proto__": { "inherited": 1 }, "a": 1 }'), [], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }], undefined, new NullLogService());
+
+		const override = testObject.override('c');
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(override.contents),
+			inherited: (override.contents as Record<string, unknown>)['inherited'],
+			a: override.getValue('a'),
+		}, {
+			prototype: Object.prototype,
+			inherited: undefined,
+			a: 2,
+		});
 	});
 
 	test('simple merge overrides', () => {

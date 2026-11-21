@@ -12,22 +12,34 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSectionNotice, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createEmptyMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
+		return new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			override getInstallState(): CustomizationMarketplaceInstallState { return { kind: 'available' }; }
+		}();
+	}
 
 	suite('basics', () => {
 
@@ -39,11 +51,16 @@ suite('AICustomizationItemsModel', () => {
 		let descriptorA: IHarnessDescriptor;
 		let descriptorB: IHarnessDescriptor;
 		let providerA_didChange: Emitter<void>;
+		let hooksDidChange: Emitter<void>;
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
+		let providerA_hookNotices: ICustomizationSectionNotice[];
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
 		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
 		let disabledPromptFilesResult: ResourceSet;
+		let marketplaceStates: Map<string, RecordedCustomizationMarketplaceInstallState>;
+		let marketplaceInstallations: ISettableObservable<ICustomizationMarketplaceInstallationSnapshot>;
+		let marketplaceInstallStateLookups: number;
 
 		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
@@ -58,10 +75,15 @@ suite('AICustomizationItemsModel', () => {
 		setup(() => {
 			disposables = new DisposableStore();
 			providerA_didChange = disposables.add(new Emitter<void>());
+			hooksDidChange = disposables.add(new Emitter<void>());
 			providerA_callCount = 0;
 			providerA_items = [];
+			providerA_hookNotices = [];
 			listPromptFilesResult = [];
 			disabledPromptFilesResult = new ResourceSet();
+			marketplaceStates = new Map();
+			marketplaceInstallations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			marketplaceInstallStateLookups = 0;
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
@@ -69,6 +91,7 @@ suite('AICustomizationItemsModel', () => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
+				provideSectionNotices: (_sessionResource: URI, type: PromptsType) => Promise.resolve(type === PromptsType.hook ? providerA_hookNotices.slice() : []),
 			};
 			const providerB: ICustomizationItemProvider = {
 				onDidChange: Event.None,
@@ -83,6 +106,14 @@ suite('AICustomizationItemsModel', () => {
 			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = marketplaceInstallations;
+				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+					marketplaceInstallStateLookups++;
+					return marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+				}
+			}());
 
 			function customAgentFromPromptPath(promptFile: IPromptPath): ICustomAgent {
 				return {
@@ -102,7 +133,7 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
 				onDidChangeSkills: Event.None,
-				onDidChangeHooks: Event.None,
+				onDidChangeHooks: hooksDidChange.event,
 				onDidChangeInstructions: Event.None,
 				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async (type: PromptsType) => listPromptFilesResult.filter(f => f.type === type),
@@ -125,8 +156,8 @@ suite('AICustomizationItemsModel', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
@@ -168,6 +199,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -180,6 +212,55 @@ suite('AICustomizationItemsModel', () => {
 			assert.ok(model.getItems(AICustomizationManagementSection.Instructions));
 			assert.ok(model.getItems(AICustomizationManagementSection.Prompts));
 			assert.ok(model.getItems(AICustomizationManagementSection.Hooks));
+		});
+
+		test('links recorded marketplace metadata to its exact installed skill', async () => {
+			const uri = URI.parse('agent-host://t/skills/review/SKILL.md');
+			const resource: ICustomizationMarketplaceResource = {
+				sourceId: 'testSource',
+				identifier: 'review',
+				displayName: 'Review',
+				description: 'Review changes',
+				mediaType: CustomizationMarketplaceMediaType.Skill,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: URI.parse('https://example.com/review.png'),
+			};
+			providerA_items = [{
+				uri,
+				type: PromptsType.skill,
+				name: 'Review',
+				source: AICustomizationSources.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			}];
+			const key = getCustomizationMarketplaceResourceKey(resource);
+			marketplaceStates.set(key, { kind: 'installed', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const installed = items.get()[0]?.marketplace;
+
+			marketplaceStates.set(key, { kind: 'uninstalling', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
+			const uninstalling = items.get()[0]?.marketplace;
+
+			assert.deepStrictEqual({
+				installed: installed && { identifier: installed.resource.identifier, icon: getCustomizationMarketplaceIconUri(installed.resource.icon, ColorScheme.LIGHT)?.toString(), state: installed.state.kind },
+				uninstalling: uninstalling?.state.kind,
+				installStateLookups: marketplaceInstallStateLookups,
+			}, {
+				installed: { identifier: 'review', icon: 'https://example.com/review.png', state: 'installed' },
+				uninstalling: 'uninstalling',
+				installStateLookups: 0,
+			});
 		});
 
 		test('does not fetch on construction (lazy)', async () => {
@@ -203,6 +284,43 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, 2);
 			model.getItems(AICustomizationManagementSection.Agents);
 			assert.strictEqual(providerA_callCount, 2);
+		});
+
+		test('session-scoped models keep discovery and counts separate from the active harness', async () => {
+			providerA_items = [{
+				uri: URI.file('/active/SKILL.md'), type: PromptsType.skill, name: 'Active Skill',
+				source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true,
+			}];
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const resource = URI.parse('B:///other-session');
+			const scope = disposables.add(model.createSessionModel(resource));
+			await scope.model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			assert.deepStrictEqual({
+				activeSession: activeSessionResource.get().toString(),
+				activeCount: model.getCount(AICustomizationManagementSection.Skills).get(),
+				scopedSession: scope.model.getActiveItemSource().sessionResource.toString(),
+				scopedCount: scope.model.getCount(AICustomizationManagementSection.Skills).get(),
+			}, { activeSession: 'A:/session', activeCount: 1, scopedSession: resource.toString(), scopedCount: 0 });
+		});
+
+		test('section notices are fetched with their section and refreshed when the provider changes', async () => {
+			providerA_hookNotices = [{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }];
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			await model.whenSectionLoaded(AICustomizationManagementSection.Hooks);
+			const loaded = model.getSectionNotices(AICustomizationManagementSection.Hooks).get();
+			providerA_hookNotices = [];
+			providerA_didChange.fire();
+			await model.whenSectionLoaded(AICustomizationManagementSection.Hooks);
+			assert.deepStrictEqual({
+				loaded,
+				skills: model.getSectionNotices(AICustomizationManagementSection.Skills).get(),
+				fixed: model.getSectionNotices(AICustomizationManagementSection.Hooks).get(),
+			}, {
+				loaded: [{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }],
+				skills: [],
+				fixed: [],
+			});
 		});
 
 		test('source.onDidChange refetches only previously-observed sections', async () => {
@@ -386,6 +504,38 @@ suite('AICustomizationItemsModel', () => {
 			}]);
 		});
 
+		test('refreshes Local hook inventory without another plugin contribution changing', async () => {
+			availableHarnesses.set([createDescriptor('local', undefined)], undefined);
+			activeSessionResource.set(LocalChatSessionUri.forSession('hooks-only'), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const section = AICustomizationManagementSection.Hooks;
+			const items = model.getItems(section);
+			const count = model.getCount(section);
+			await timeout(0);
+			await model.whenSectionLoaded(section);
+			const snapshots = [items.get().map(item => item.name)];
+
+			const plugin = createLocalPlugin('hooks-only');
+			plugins.set([plugin], undefined);
+			listPromptFilesResult = ['sessionStart', 'userPromptSubmitted'].map(name => ({
+				uri: URI.parse('file:///plugins/hooks-only/hooks.json'),
+				name,
+				type: PromptsType.hook,
+				storage: PromptsStorage.plugin,
+				pluginUri: plugin.uri,
+				source: PromptFileSource.Plugin,
+			}));
+			hooksDidChange.fire();
+			await timeout(0);
+			await model.whenSectionLoaded(section);
+			snapshots.push(items.get().map(item => item.name));
+
+			assert.deepStrictEqual({ snapshots, count: count.get() }, {
+				snapshots: [[], ['sessionStart', 'userPromptSubmitted']],
+				count: 2,
+			});
+		});
+
 		test('plugin count includes provider-supplied plugin items', async () => {
 			providerA_items = [
 				{
@@ -432,6 +582,78 @@ suite('AICustomizationItemsModel', () => {
 			await timeout(0);
 
 			assert.strictEqual(count.get(), 2);
+		});
+
+		test('section count excludes disabled items and contributions from disabled plugins', async () => {
+			const plugin = createLocalPlugin('parent');
+			const pluginEnablement = observableValue('parentPluginEnablement', ContributionEnablementState.DisabledProfile);
+			plugins.set([{ ...plugin, enablement: pluginEnablement }], undefined);
+			providerA_items = [
+				{
+					uri: URI.parse('file:///workspace/skills/enabled/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Enabled',
+					source: AICustomizationSources.local,
+					enabled: true,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('file:///workspace/skills/disabled/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Disabled',
+					source: AICustomizationSources.local,
+					enabled: false,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('plugin-test://parent/skills/plugin-skill/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Plugin Skill',
+					source: AICustomizationSources.plugin,
+					enabled: true,
+					extensionId: undefined,
+					pluginUri: plugin.uri,
+					userInvocable: true,
+				},
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getCount(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const disabledCount = count.get();
+
+			pluginEnablement.set(ContributionEnablementState.EnabledProfile, undefined);
+
+			assert.deepStrictEqual({ disabledCount, enabledCount: count.get() }, { disabledCount: 1, enabledCount: 2 });
+		});
+
+		test('plugin count excludes disabled local and provider plugins', async () => {
+			const plugin = createLocalPlugin('local-disabled');
+			const pluginEnablement = observableValue('localPluginEnablement', ContributionEnablementState.DisabledProfile);
+			plugins.set([{ ...plugin, enablement: pluginEnablement }], undefined);
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/plugins/remote-disabled'),
+				type: 'plugin',
+				name: 'Remote Disabled',
+				source: AICustomizationSources.plugin,
+				enabled: false,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: undefined,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+			const disabledCount = count.get();
+
+			pluginEnablement.set(ContributionEnablementState.EnabledProfile, undefined);
+
+			assert.deepStrictEqual({ disabledCount, enabledCount: count.get() }, { disabledCount: 0, enabledCount: 1 });
 		});
 
 		test('local plugin changes update plugin count without refetching provider customizations', async () => {
@@ -584,6 +806,7 @@ suite('AICustomizationItemsModel', () => {
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, createEmptyMarketplaceInstallService());
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
@@ -608,8 +831,8 @@ suite('AICustomizationItemsModel', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
@@ -653,6 +876,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -758,7 +982,7 @@ suite('AICustomizationItemsModel', () => {
 
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			const count = model.getPluginCount();
-			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Plugins);
 
 			assert.strictEqual(count.get(), 2, 'remote-client harness rows are excluded; both internal "plugin" and API "plugins" types are recognised');
 		});
@@ -828,6 +1052,7 @@ suite('AICustomizationItemsModel', () => {
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, createEmptyMarketplaceInstallService());
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
@@ -852,8 +1077,8 @@ suite('AICustomizationItemsModel', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },

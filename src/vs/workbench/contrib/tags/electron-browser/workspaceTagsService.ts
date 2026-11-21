@@ -551,7 +551,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = await createHash(workspace.folders[0].uri);
+				{
+					workspaceId = await createHash(workspace.uri ?? workspace.folders[0].uri);
+				}
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
@@ -1405,7 +1407,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 					const content = await this.fileService.readFile(aiGeneratedWorkspaces);
 					const workspaces = JSON.parse(content.value.toString()) as string[];
 					if (workspaces.indexOf(workspace.folders[0].uri.toString()) > -1) {
-						tags['aiGenerated'] = true;
+						tags.aiGenerated = true;
 					}
 				} catch (e) {
 					// Ignore errors when resolving file contents
@@ -1556,7 +1558,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					const dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
+					const dependencies = Object.keys(packageJsonContents.dependencies || {}).concat(Object.keys(packageJsonContents.devDependencies || {}));
 
 					for (const dependency of dependencies) {
 						if (dependency.startsWith('react-native')) {

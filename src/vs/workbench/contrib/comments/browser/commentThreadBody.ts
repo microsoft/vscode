@@ -5,7 +5,9 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import * as nls from '../../../../nls.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import * as languages from '../../../../editor/common/languages.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ICommentService } from './commentService.js';
@@ -27,6 +29,11 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	private _focusedComment: number | undefined = undefined;
 	private _onDidResize = this._register(new Emitter<dom.Dimension>());
 	onDidResize = this._onDidResize.event;
+	private readonly _onDidChangeCommentsSize = this._register(new Emitter<void>());
+	/** Fires when scrollable comments change size. */
+	readonly onDidChangeCommentsSize = this._onDidChangeCommentsSize.event;
+	private _commentsScrollable: DomScrollableElement | undefined;
+	private _naturalWidth: number | undefined;
 
 	private _commentDisposable = new DisposableMap<CommentNode<T>, DisposableStore>();
 
@@ -36,6 +43,67 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	get activeComment() {
 		return this._commentElements.filter(node => node.isEditing)[0];
+	}
+
+	/**
+	 * Measures the width at which the comments don't wrap. Comments that are being edited take the width of their editor.
+	 */
+	measureNaturalWidth(): number {
+		if (this._naturalWidth === undefined) {
+			// Measure a hidden copy, because unwrapping the comments themselves would shorten them, which resets the
+			// scroll positions of the comments and of the scrolling parts within them.
+			const copy = this._commentsElement.cloneNode(true);
+			if (!dom.isHTMLElement(copy)) {
+				return 0;
+			}
+			copy.setAttribute('aria-hidden', 'true');
+			copy.style.position = 'absolute';
+			copy.style.visibility = 'hidden';
+			copy.style.width = 'max-content';
+			this.container.appendChild(copy);
+			const naturalWidth = copy.offsetWidth;
+			copy.remove();
+			if (naturalWidth === 0) {
+				// The comments aren't rendered, such as while the editor is hidden.
+				return 0;
+			}
+			this._naturalWidth = naturalWidth;
+		}
+		return this._naturalWidth;
+	}
+
+	/**
+	 * Measures the height of the comments, and the height of the rest of the body, which holds the reply and the
+	 * thread's additional actions. Both are the heights the content needs, even when the body is too short to show it.
+	 */
+	measureHeights(): { comments: number; besideComments: number } {
+		const commentsViewport = this._commentsScrollable?.getDomNode() ?? this._commentsElement;
+		const frame = this.container.offsetHeight - this.container.clientHeight;
+		return {
+			comments: this._commentsElement.offsetHeight,
+			besideComments: this.container.scrollHeight + frame - commentsViewport.offsetHeight
+		};
+	}
+
+	/**
+	 * Sets the height within which scrollable comments scroll.
+	 */
+	layoutCommentsHeight(height: number): void {
+		if (this._commentsScrollable) {
+			this._commentsScrollable.getDomNode().style.height = `${height}px`;
+		}
+	}
+
+	/**
+	 * Scrolls scrollable comments to the given comment.
+	 */
+	revealComment(commentUniqueId: number): void {
+		const coords = this.getCommentCoords(commentUniqueId);
+		if (coords && this._commentsScrollable) {
+			// The comments may have just been shown or resized, before their resize observer updated the scroll range.
+			this._commentsScrollable.scanDomNode();
+			this._commentsScrollable.setScrollPosition({ scrollTop: coords.comment.top - coords.thread.top });
+		}
 	}
 
 	constructor(
@@ -48,6 +116,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
+		private readonly _scrollableComments: boolean,
 		@ICommentService private readonly commentService: ICommentService,
 	) {
 		super();
@@ -80,7 +149,12 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	async display() {
-		this._commentsElement = dom.append(this.container, dom.$('div.comments-container'));
+		this._commentsElement = dom.$('div.comments-container');
+		if (this._scrollableComments) {
+			this._createCommentsScrollable();
+		} else {
+			this.container.appendChild(this._commentsElement);
+		}
 		this._commentsElement.setAttribute('role', 'presentation');
 		this._commentsElement.tabIndex = 0;
 		this._updateAriaLabel();
@@ -121,6 +195,42 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			characterData: true,
 			subtree: true
 		});
+	}
+
+	/**
+	 * Lets the comments scroll within the height set by {@link layoutCommentsHeight}, so that the reply and the
+	 * thread's additional actions below them stay in view.
+	 */
+	private _createCommentsScrollable(): void {
+		const viewport = dom.$('.comments-scroll-viewport');
+		viewport.appendChild(this._commentsElement);
+		const scrollable = this._commentsScrollable = this._register(new DomScrollableElement(viewport, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden
+		}));
+		this.container.appendChild(scrollable.getDomNode());
+		// Focusing a comment that is scrolled out of view scrolls the viewport natively.
+		this._register(dom.addDisposableListener(viewport, dom.EventType.SCROLL, () => scrollable.scanDomNode()));
+
+		let commentsWidth: number | undefined;
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('commentThreadBody', entries => {
+			const commentsEntry = entries.find(entry => entry.target === this._commentsElement);
+			if (commentsEntry) {
+				if (commentsEntry.contentRect.width === commentsWidth) {
+					// The comments changed, rather than wrapped at a new width.
+					this._naturalWidth = undefined;
+				}
+				commentsWidth = commentsEntry.contentRect.width;
+				// Comments only update their own scrollbars when they are laid out.
+				this.layout();
+			}
+			scrollable.scanDomNode();
+			if (commentsEntry) {
+				this._onDidChangeCommentsSize.fire();
+			}
+		}, dom.getWindow(this.container)));
+		this._register(resizeObserver.observe(this._commentsElement));
+		this._register(resizeObserver.observe(scrollable.getDomNode()));
 	}
 
 	private _containerClientArea: dom.Dimension | undefined = undefined;
@@ -231,6 +341,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
+		this._naturalWidth = undefined;
 		// Start editing *after* updating the thread and elements to avoid a sequencing issue https://github.com/microsoft/vscode/issues/239191
 		await Promise.all(startEditing);
 

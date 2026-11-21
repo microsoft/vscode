@@ -15,7 +15,7 @@ function renderLoopContextProbe(context: ComponentFixtureContext): void {
 
 	const status = dom.append(context.container, dom.$('.resize-observer-context-status'));
 	status.textContent = 'Waiting for ResizeObserver loop warning';
-	status.dataset['warningCount'] = '0';
+	status.dataset.warningCount = '0';
 
 	const observation = context.disposableStore.add(new MutableDisposable<IDisposable>());
 	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
@@ -23,8 +23,8 @@ function renderLoopContextProbe(context: ComponentFixtureContext): void {
 			return;
 		}
 
-		status.dataset['warningCount'] = '1';
-		status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? '';
+		status.dataset.warningCount = '1';
+		status.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? '';
 		status.textContent = 'Captured ResizeObserver loop warning';
 		observation.clear();
 	}));

@@ -11,6 +11,8 @@ are treated as build tasks.
 
 To run scripts as tasks, use the **Tasks** menu.
 
+Npm task support is also available in the Agents window. The Npm Script Explorer remains exclusive to the editor window.
+
 For more information about auto detection of Tasks, see the [documentation](https://code.visualstudio.com/Docs/editor/tasks#_task-autodetection).
 
 ### Script Explorer

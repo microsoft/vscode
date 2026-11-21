@@ -164,7 +164,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 		};
 
 		const searchAction = {
-			label: translations['searchMarketplace'],
+			label: translations.searchMarketplace,
 			run: async () => {
 				logUserReaction('search');
 				await this.extensionsWorkbenchService.openSearch(`tag:lp-${locale}`);
@@ -172,7 +172,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 		};
 
 		const installAndRestartAction = {
-			label: translations['installAndRestart'],
+			label: translations.installAndRestart,
 			run: async () => {
 				logUserReaction('installAndRestart');
 				await this.localeService.setLocale({

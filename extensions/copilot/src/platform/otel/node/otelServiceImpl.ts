@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, type Event } from '../../../util/vs/base/common/event';
+import * as os from 'os';
+import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { GenAiAttr, GenAiOperationName } from '../common/genAiAttributes';
 import type { OTelConfig } from '../common/otelConfig';
+import { filterIdentityAttributes, filterIdentitySpan, identityResourceAttributes } from '../common/otelIdentity';
+import { IdentitySpanExporter, IdentityLogExporter, IdentityMetricExporter } from './otelIdentityExporters';
 import { type ICompletedSpanData, type IOTelService, type ISpanEventData, type ISpanEventRecord, type ISpanHandle, SpanKind, type SpanOptions, SpanStatusCode, type TraceContext } from '../common/otelService';
 
 // Type-only imports — erased by esbuild, zero bundle impact
 import type { Attributes, Context, Meter, MetricOptions, Span, SpanContext, Tracer } from '@opentelemetry/api';
 import type { AnyValueMap, Logger } from '@opentelemetry/api-logs';
 import type { ExportResult } from '@opentelemetry/core';
+import type { Resource } from '@opentelemetry/resources';
 import type { BatchLogRecordProcessor, LogRecordExporter } from '@opentelemetry/sdk-logs';
 import type { PeriodicExportingMetricReader, PushMetricExporter } from '@opentelemetry/sdk-metrics';
 import type { BatchSpanProcessor, ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node';
@@ -55,16 +59,20 @@ export class NodeOTelService implements IOTelService {
 	// OTel API reference for context propagation (stored after dynamic import)
 	private _otelApi: typeof import('@opentelemetry/api') | undefined;
 	private _initialized = false;
+	private readonly _initializePromise: Promise<void>;
 	private _initFailed = false;
+	private _identityDenied = false;
 	private static readonly _MAX_BUFFER_SIZE = 1000;
 	private readonly _log: OTelLogFn;
 	private readonly _sqliteStore: OTelSqliteStore | undefined;
 
 	// Event emitters for span lifecycle
 	private readonly _onDidCompleteSpan = new Emitter<ICompletedSpanData>();
-	readonly onDidCompleteSpan: Event<ICompletedSpanData> = this._onDidCompleteSpan.event;
+	readonly onDidCompleteSpan: Event<ICompletedSpanData> = Event.map(this._onDidCompleteSpan.event, span => filterIdentitySpan(span, this._identityAllowed()));
 	private readonly _onDidEmitSpanEvent = new Emitter<ISpanEventData>();
-	readonly onDidEmitSpanEvent: Event<ISpanEventData> = this._onDidEmitSpanEvent.event;
+	readonly onDidEmitSpanEvent: Event<ISpanEventData> = Event.map(this._onDidEmitSpanEvent.event, event => ({
+		...event, attributes: filterIdentityAttributes(event.attributes, this._identityAllowed()),
+	}));
 
 	injectCompletedSpan(span: ICompletedSpanData): void {
 		try { this._onDidCompleteSpan.fire(span); } catch { /* emitter may be disposed */ }
@@ -73,13 +81,25 @@ export class NodeOTelService implements IOTelService {
 	// Buffer events until SDK is ready
 	private readonly _buffer: Array<() => void> = [];
 
-	constructor(config: OTelConfig, logFn?: OTelLogFn, sqliteStore?: OTelSqliteStore) {
+	constructor(
+		config: OTelConfig,
+		logFn?: OTelLogFn,
+		sqliteStore?: OTelSqliteStore,
+		private readonly _currentIdentityAllowed: () => boolean = () => config.captureIdentity,
+		private readonly _exporterFactory?: () => Promise<ExporterSet>,
+		private readonly _getOSUsername: () => string = () => os.userInfo().username,
+	) {
 		this.config = config;
 		this._log = logFn ?? ((_level, _msg) => { /* silent when no logger wired */ });
 		this._sqliteStore = sqliteStore;
 		// Start async initialization immediately
-		void this._initialize();
+		this._initializePromise = this._initialize();
 	}
+
+	private readonly _identityAllowed = (): boolean => {
+		this._identityDenied ||= !this.config.captureIdentity || !this._currentIdentityAllowed();
+		return !this._identityDenied;
+	};
 
 	private async _initialize(): Promise<void> {
 		if (this._initialized || !this.config.enabled) {
@@ -116,21 +136,44 @@ export class NodeOTelService implements IOTelService {
 				'service.name': this.config.serviceName,
 				'service.version': this.config.serviceVersion,
 				'session.id': this.config.sessionId,
-				...this.config.resourceAttributes,
+				...identityResourceAttributes(this.config.resourceAttributes, this._identityAllowed(),
+					() => {
+						let username: string | undefined;
+						try {
+							username = this._getOSUsername();
+						} catch {
+							this._log('warn', '[OTel] Could not detect the OS username; continuing without a detected process.user.name.');
+						}
+						return { username, hostname: os.hostname() };
+					}),
 			});
+			// OTLP batches by resource object identity. Reuse filtered copies without caching consent.
+			const filteredResources = new WeakMap<Resource, Resource>();
+			const filterResource = (value: Resource): Resource => {
+				if (this._identityAllowed()) {
+					return value;
+				}
+				let filtered = filteredResources.get(value);
+				if (!filtered) {
+					filtered = resourcesMod.resourceFromAttributes(
+						filterIdentityAttributes(value.attributes, false), { schemaUrl: value.schemaUrl });
+					filteredResources.set(value, filtered);
+				}
+				return filtered;
+			};
 
 			// Create exporters based on config
-			const { spanExporter, logExporter, metricExporter } = await this._createExporters();
+			const { spanExporter, logExporter, metricExporter } = await (this._exporterFactory?.() ?? this._createExporters());
 
 			// Primary span processor: filters debug-panel-only spans for the user's exporter
-			const diagnosticSpanExporter = new DiagnosticSpanExporter(spanExporter, this.config.exporterType, this._log);
+			const diagnosticSpanExporter = new DiagnosticSpanExporter(new IdentitySpanExporter(spanExporter, this._identityAllowed, filterResource, this.config.captureContent), this.config.exporterType, this._log);
 			this._spanProcessors.push(new BSP(diagnosticSpanExporter));
 
 			// SQLite DB span processor: standard GenAI spans only (same filter as primary).
 			// Registered as a separate processor so it works in parallel with any user exporter.
 			if (this.config.dbSpanExporter && this._sqliteStore) {
 				const { SqliteSpanExporter } = await import('./sqlite/sqliteSpanExporter');
-				const sqliteExporter = new FilteredSpanExporter(new SqliteSpanExporter(this._sqliteStore));
+				const sqliteExporter = new FilteredSpanExporter(new IdentitySpanExporter(new SqliteSpanExporter(this._sqliteStore), this._identityAllowed, filterResource));
 				this._spanProcessors.push(new BSP(sqliteExporter));
 			}
 
@@ -150,7 +193,7 @@ export class NodeOTelService implements IOTelService {
 			this._otelApi = api;
 
 			// Log provider — pass processors in constructor (SDK v2 uses 'processors' key)
-			this._logProcessor = new BLRP(logExporter, {
+			this._logProcessor = new BLRP(new IdentityLogExporter(logExporter, this._identityAllowed, filterResource), {
 				scheduledDelayMillis: 1000,
 				maxExportBatchSize: 512,
 			});
@@ -163,7 +206,7 @@ export class NodeOTelService implements IOTelService {
 
 			// Metric provider
 			this._metricReader = new PEMR({
-				exporter: metricExporter,
+				exporter: new IdentityMetricExporter(metricExporter, this._identityAllowed, filterResource),
 				exportIntervalMillis: 10000,
 			});
 			const meterProvider = new MeterProvider({
@@ -313,6 +356,7 @@ export class NodeOTelService implements IOTelService {
 	}
 
 	async startActiveSpan<T>(name: string, options: SpanOptions, fn: (span: ISpanHandle) => Promise<T>): Promise<T> {
+		options = { ...options, attributes: options.attributes && filterIdentityAttributes(options.attributes, this._identityAllowed()) };
 		if (!this._tracer) {
 			const handle = this.startSpan(name, options);
 			try {
@@ -434,6 +478,7 @@ export class NodeOTelService implements IOTelService {
 	}
 
 	private _createSpan(name: string, options?: SpanOptions): ISpanHandle {
+		options = { ...options, attributes: options?.attributes && filterIdentityAttributes(options.attributes, this._identityAllowed()) };
 		const spanOpts = { kind: toOTelSpanKind(options?.kind), attributes: options?.attributes as Attributes };
 
 		// If an explicit parent trace context is provided, create the span as its child.
@@ -527,6 +572,7 @@ export class NodeOTelService implements IOTelService {
 	// ── Lifecycle ──
 
 	async flush(): Promise<void> {
+		await this._initializePromise;
 		await Promise.all([
 			...this._spanProcessors.map(p => p.forceFlush()),
 			this._logProcessor?.forceFlush(),

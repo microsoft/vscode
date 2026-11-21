@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
+import type { ArtifactOrigin } from '../../artifactIntegrations/common/artifactIntegration.js';
+import { getSessionArtifactValue, isGitHubArtifactLink, isSessionArtifactMode, SESSION_ARTIFACT_MODES, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact, type SessionArtifactMode } from './sessionArtifacts.js';
 
 /** The fields an agent supplies when adding an artifact or reference. */
 export interface ISessionArtifactInput {
@@ -15,13 +16,23 @@ export interface ISessionArtifactInput {
 	readonly link?: string;
 	readonly uri?: string;
 	readonly commitHash?: string;
+	/** How the chat should show the entry; see {@link SessionArtifactMode}. */
+	readonly mode?: SessionArtifactMode;
 }
+
+/**
+ * What adding an entry did: `added` a new entry, `promoted` an existing
+ * reference to an artifact, `modeUpdated` an existing entry's request for how
+ * the chat shows it, or nothing because it was `alreadyRecorded`.
+ */
+export type SessionArtifactAddOutcome = 'added' | 'promoted' | 'modeUpdated' | 'alreadyRecorded';
 
 export interface IAddSessionArtifactResult {
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly artifact: ISessionArtifact;
 	/** `false` when an entry with the same value already existed. */
 	readonly added: boolean;
+	readonly outcome: SessionArtifactAddOutcome;
 }
 
 export interface IRemoveSessionArtifactResult {
@@ -80,37 +91,63 @@ function requireUri(value: unknown, field: string, toolName: string): string {
 	return uri;
 }
 
-/** Validates and normalizes raw `add_artifact_or_reference` arguments. */
-export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
+/** @param acceptsMode Whether `mode` is read; otherwise it is ignored like any unknown field. */
+function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, acceptsMode: boolean, fieldPrefix?: string): ISessionArtifactInput {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
-		throw new Error(`Invalid ${toolName} input: expected an object.`);
+		throw new Error(`Invalid ${toolName} input: ${fieldPrefix ? `${fieldPrefix} must be an object.` : 'expected an object.'}`);
 	}
 	const args = rawArgs as Record<string, unknown>;
+	const field = (name: string) => fieldPrefix ? `${fieldPrefix}.${name}` : name;
 	const type = args['type'];
 	if (typeof type !== 'string' || !(SESSION_ARTIFACT_TYPES as readonly string[]).includes(type)) {
-		throw new Error(`Invalid ${toolName} input: type must be one of ${SESSION_ARTIFACT_TYPES.join(', ')}.`);
+		throw new Error(`Invalid ${toolName} input: ${field('type')} must be one of ${SESSION_ARTIFACT_TYPES.join(', ')}.`);
 	}
 	if (typeof args['isArtifact'] !== 'boolean') {
-		throw new Error(`Invalid ${toolName} input: isArtifact must be a boolean — true for an artifact, false for a reference.`);
+		throw new Error(`Invalid ${toolName} input: ${field('isArtifact')} must be a boolean — true for an artifact, false for a reference.`);
 	}
 
 	const artifactType = type as SessionArtifactType;
-	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string } = {
+	const mode = acceptsMode ? args['mode'] : undefined;
+	if (mode !== undefined && !isSessionArtifactMode(mode)) {
+		throw new Error(`Invalid ${toolName} input: ${field('mode')} must be one of ${SESSION_ARTIFACT_MODES.join(', ')}.`);
+	}
+	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string; mode?: SessionArtifactMode } = {
+		...(mode !== undefined ? { mode } : {}),
 		type: artifactType,
-		label: requireString(args['label'], 'label', toolName),
+		label: requireString(args['label'], field('label'), toolName),
 		isArtifact: args['isArtifact'],
 	};
 
 	if (linkTypes.has(artifactType)) {
-		input.link = requireWebLink(args['link'], 'link', toolName);
+		input.link = requireWebLink(args['link'], field('link'), toolName);
 	}
 	if (uriTypes.has(artifactType)) {
-		input.uri = requireUri(args['uri'], 'uri', toolName);
+		input.uri = requireUri(args['uri'], field('uri'), toolName);
 	}
 	if (artifactType === SessionArtifactType.Commit) {
-		input.commitHash = requireString(args['commitHash'], 'commitHash', toolName);
+		input.commitHash = requireString(args['commitHash'], field('commitHash'), toolName);
 	}
 	return input;
+}
+
+/** Validates and normalizes one `add_artifact_or_reference` entry. */
+export function parseSessionArtifactInput(rawArgs: unknown, toolName: string, acceptsMode = true): ISessionArtifactInput {
+	return parseSessionArtifactInputAt(rawArgs, toolName, acceptsMode);
+}
+
+/** Validates a batch while accepting the legacy single-entry shape. */
+export function parseSessionArtifactInputs(rawArgs: unknown, toolName: string, acceptsMode = true): readonly ISessionArtifactInput[] {
+	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
+		throw new Error(`Invalid ${toolName} input: expected an object.`);
+	}
+	const items = (rawArgs as Record<string, unknown>)['items'];
+	if (items === undefined) {
+		return [parseSessionArtifactInput(rawArgs, toolName, acceptsMode)];
+	}
+	if (!Array.isArray(items) || items.length === 0) {
+		throw new Error(`Invalid ${toolName} input: items must be a non-empty array.`);
+	}
+	return items.map((item, index) => parseSessionArtifactInputAt(item, toolName, acceptsMode, `items[${index}]`));
 }
 
 /**
@@ -130,14 +167,37 @@ export class SessionArtifactCollection {
 	 * Adds an artifact or reference unless one with the same value already
 	 * exists, in which case the existing entry is returned unchanged.
 	 */
-	add(input: ISessionArtifactInput, createId: () => string): IAddSessionArtifactResult {
-		const artifact = this._create(input, createId);
+	add(input: ISessionArtifactInput, createId: () => string, origin?: ArtifactOrigin): IAddSessionArtifactResult {
+		const artifact = this._create(input, createId, origin);
 		const value = getSessionArtifactValue(artifact);
 		const existing = this._artifacts.find(candidate => getSessionArtifactValue(candidate) === value);
-		if (existing) {
-			return { artifacts: this._artifacts, artifact: existing, added: false };
+		if (existing && input.mode !== undefined && existing.mode !== input.mode) {
+			// Recording an entry again with another mode asks again; the revision tells clients that it is a new request.
+			const updated = { ...existing, mode: input.mode, ...(existing.mode !== undefined ? { modeRevision: (existing.modeRevision ?? 0) + 1 } : {}) };
+			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false, outcome: 'modeUpdated' };
 		}
-		return { artifacts: [...this._artifacts, artifact], artifact, added: true };
+		if (existing) {
+			return { artifacts: this._artifacts, artifact: existing, added: false, outcome: 'alreadyRecorded' };
+		}
+		return { artifacts: [...this._artifacts, artifact], artifact, added: true, outcome: 'added' };
+	}
+
+	/** Adds an entry, or promotes an existing reference with the same value when the input is an artifact. */
+	addOrPromoteArtifact(input: ISessionArtifactInput, createId: () => string, origin?: ArtifactOrigin): IAddSessionArtifactResult {
+		const result = this.add(input, createId, origin);
+		if (result.added || result.artifact.isArtifact || !input.isArtifact) {
+			return result;
+		}
+		// The reference's request for how to show it stays unless the input replaces it.
+		const mode = input.mode ?? result.artifact.mode;
+		const created = this._create(mode !== undefined ? { ...input, mode } : input, () => result.artifact.id, result.artifact.origin);
+		const artifact = result.artifact.modeRevision !== undefined ? { ...created, modeRevision: result.artifact.modeRevision } : created;
+		return {
+			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
+			artifact,
+			added: false,
+			outcome: 'promoted',
+		};
 	}
 
 	remove(id: string): IRemoveSessionArtifactResult {
@@ -148,7 +208,7 @@ export class SessionArtifactCollection {
 		};
 	}
 
-	private _create(input: ISessionArtifactInput, createId: () => string): ISessionArtifact {
+	private _create(input: ISessionArtifactInput, createId: () => string, origin?: ArtifactOrigin): ISessionArtifact {
 		const artifact: {
 			id: string;
 			type: SessionArtifactType;
@@ -158,12 +218,16 @@ export class SessionArtifactCollection {
 			uri?: string;
 			commitHash?: string;
 			isGitHub?: boolean;
+			origin?: ArtifactOrigin;
+			mode?: SessionArtifactMode;
 		} = { id: createId(), type: input.type, label: input.label, isArtifact: input.isArtifact };
+		if (input.mode !== undefined) { artifact.mode = input.mode; }
 
 		if (input.link !== undefined) { artifact.link = input.link; }
 		if (input.uri !== undefined) { artifact.uri = input.uri; }
 		if (input.commitHash !== undefined) { artifact.commitHash = input.commitHash; }
 		if (input.link !== undefined && gitHubTypes.has(input.type)) { artifact.isGitHub = isGitHubArtifactLink(input.link); }
+		if (origin) { artifact.origin = origin; }
 		return artifact;
 	}
 }

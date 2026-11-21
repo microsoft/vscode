@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -18,7 +18,6 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabel } from '../../../browser/labels.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
 import { ICompositeControl } from '../../../common/composite.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -31,6 +30,7 @@ import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/mult
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
@@ -38,17 +38,43 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { MultiDiffEditorWithFileListWidget } from './multiDiffEditorWithFileListWidget.js';
+
+type ResourceOrder = (resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[];
+
+function getResourceUri(resource: MultiDiffEditorItem): URI {
+	return (resource.modifiedUri ?? resource.originalUri)!;
+}
+
+/** The order of the file list for each of its view modes. */
+const fileListResourceOrders: Record<MultiDiffEditorFileListViewMode, ResourceOrder> = {
+	list: resources => sortMultiDiffEditorFileListItems(resources, getResourceUri, 'list'),
+	tree: resources => sortMultiDiffEditorFileListItems(resources, getResourceUri, 'tree'),
+};
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
-	static readonly ID = 'multiDiffEditor';
+	static readonly ID = MULTI_DIFF_EDITOR_ID;
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
+	private _multiDiffEditorWithFileListWidget: MultiDiffEditorWithFileListWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
-	private _contentOverlay: MultiDiffEditorContentMenuOverlay | undefined;
+	private readonly _contentOverlay = this._register(new MutableDisposable<MultiDiffEditorContentMenuOverlay>());
 	private readonly _logger: MultiDiffEditorLogger;
+	/** The order of the file list, which the diffs follow while it is used. */
+	private _fileListResourceOrder: IObservable<ResourceOrder> | undefined;
+	private readonly _inputResourceOrder = this._register(new MutableDisposable());
+	/** Whether the input offers the changed files list. */
+	private readonly _fileListAvailable = observableValue(this, true);
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
+	}
+
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._multiDiffEditorWidget?.getContextKeyService();
 	}
 
 	constructor(
@@ -56,12 +82,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IInstantiationService instantiationService: InstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -80,28 +108,67 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
-			MultiDiffEditorWidget,
+		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
+		const fileListVisible = observableMultiDiffEditorFileListVisible(this, this._fileListAvailable, this.storageService, this._store);
+		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
+		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
+		this._fileListResourceOrder = fileListViewMode.map(this, viewMode => fileListResourceOrders[viewMode]);
+		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, reader => this._fileListAvailable.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
+		this._multiDiffEditorWithFileListWidget = this._register(this.instantiationService.createInstance(
+			MultiDiffEditorWithFileListWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			undefined,
+			{ variant: variant.get() },
+			fileListVisible,
+			fileListViewMode,
+			fileListPosition,
 		));
+		this._multiDiffEditorWidget = this._multiDiffEditorWithFileListWidget.multiDiffEditorWidget;
+		let currentVariant = variant.get();
+		this._register(autorun(reader => {
+			const nextVariant = variant.read(reader);
+			if (nextVariant === currentVariant) {
+				return;
+			}
+			currentVariant = nextVariant;
+			this._multiDiffEditorWidget?.setVariant(nextVariant);
+			this._createContentOverlay();
+		}));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
 
-		this._contentOverlay = this._register(new MultiDiffEditorContentMenuOverlay(
-			this._multiDiffEditorWidget.getRootElement(),
-			this._multiDiffEditorWidget.getContextKeyService(),
-			this._multiDiffEditorWidget.getScopedInstantiationService()
-		));
+		this._createContentOverlay();
+	}
+
+	private _createContentOverlay(): void {
+		const widget = this._multiDiffEditorWidget;
+		if (!widget) {
+			return;
+		}
+		this._contentOverlay.value = new MultiDiffEditorContentMenuOverlay(
+			widget.getRootElement(),
+			widget.getContextKeyService(),
+			widget.getScopedInstantiationService()
+		);
+		this._contentOverlay.value.updateResource(this.input instanceof MultiDiffEditorInput ? this.input.resource : undefined);
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this._fileListAvailable.set(input.showFileList, undefined);
+		// Order the diffs like the file list before the view model is created, unless the input has none. The input keeps
+		// the order when the list is no longer shown, so that the diffs do not move when it is shown again.
+		const fileListResourceOrder = this._fileListResourceOrder;
+		this._inputResourceOrder.value = fileListResourceOrder && input.showFileList
+			? autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)))
+			: undefined;
 		this._viewModel = await input.getViewModel();
-		this._contentOverlay?.updateResource(input.resource);
+		this._contentOverlay.value?.updateResource(input.resource);
 
 		// Apply the view model and any restored view state together so the widget's
 		// automatic first-change navigation sees the restored state instead of
@@ -135,17 +202,37 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override async clearInput(): Promise<void> {
 		this._logger.log('editor clear input');
+		this._inputResourceOrder.clear();
 		await super.clearInput();
-		this._contentOverlay?.updateResource(undefined);
+		this._contentOverlay.value?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this._multiDiffEditorWidget!.layout(dimension);
+		this._multiDiffEditorWithFileListWidget!.layout(dimension);
+	}
+
+	/** Moves focus into the changed files list, showing it first when the user has hidden it. Does nothing unless the input offers the list. */
+	public focusFileList(): void {
+		if (!this._multiDiffEditorWithFileListWidget || !this._fileListAvailable.get()) {
+			return;
+		}
+		if (!MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
+		this._multiDiffEditorWithFileListWidget.focusFileList();
 	}
 
 	override getControl(): ICompositeControl | undefined {
 		return this._multiDiffEditorWidget!.getActiveControl();
+	}
+
+	setDiffEditorLayoutOptions(mode: DiffEditorViewMode, wordWrap: 'off' | 'on' | 'inherit'): void {
+		this._multiDiffEditorWidget?.setDiffLayoutOptions(mode, wordWrap);
+	}
+
+	resetDiffEditorWidthBasedLayout(): void {
+		this._multiDiffEditorWidget?.resetWidthBasedLayout();
 	}
 
 	override focus(): void {
@@ -244,15 +331,10 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 }
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
-	readonly headerClickToCollapse: boolean;
-
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-	) {
-		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
-	}
+	) { }
 
 	createResourceLabel(element: HTMLElement, _kind: MultiDiffEditorItemLabelKind): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});

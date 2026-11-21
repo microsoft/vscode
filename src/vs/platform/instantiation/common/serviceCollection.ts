@@ -29,4 +29,13 @@ export class ServiceCollection {
 	get<T>(id: ServiceIdentifier<T>): T | SyncDescriptor<T> {
 		return this._entries.get(id);
 	}
+
+	/**
+	 * A collection of the same services. An instantiation service adds itself
+	 * to the collection it is created with, so that instantiation services
+	 * created from the same services each need a collection of their own.
+	 */
+	clone(): ServiceCollection {
+		return new ServiceCollection(...this._entries);
+	}
 }

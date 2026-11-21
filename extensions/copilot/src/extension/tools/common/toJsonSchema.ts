@@ -5,18 +5,11 @@
 
 import { JsonSchema, JsonSchemaType } from '../../../platform/configuration/common/jsonSchema';
 
-export interface IToJsonSchemaOptions {
-	/**
-	 * Whether to include a description field (empty by default).
-	 */
-	includeDescription?: boolean;
-}
-
 /**
  * Generates a JSON schema from a plain JavaScript object.
  * The input should be a JSON-serializable value.
  */
-export function toJsonSchema(obj: unknown, options: IToJsonSchemaOptions = {}): JsonSchema {
+export function toJsonSchema(obj: unknown): JsonSchema {
 	if (obj === null) {
 		return { type: 'null' as JsonSchemaType };
 	}
@@ -30,16 +23,16 @@ export function toJsonSchema(obj: unknown, options: IToJsonSchemaOptions = {}): 
 			return { type: 'boolean' as JsonSchemaType };
 		case 'object':
 			if (Array.isArray(obj)) {
-				return toArraySchema(obj, options);
+				return toArraySchema(obj);
 			}
-			return toObjectSchema(obj as Record<string, unknown>, options);
+			return toObjectSchema(obj as Record<string, unknown>);
 		default:
 			// For undefined or other non-JSON types, return empty schema
 			return {};
 	}
 }
 
-function toArraySchema(arr: unknown[], options: IToJsonSchemaOptions): JsonSchema {
+function toArraySchema(arr: unknown[]): JsonSchema {
 	if (arr.length === 0) {
 		// Empty array, no item schema can be inferred
 		return { type: 'array' };
@@ -50,7 +43,7 @@ function toArraySchema(arr: unknown[], options: IToJsonSchemaOptions): JsonSchem
 
 	if (allObjects) {
 		// Merge object schemas, only common properties are required
-		const itemSchema = mergeObjectSchemas(arr as Record<string, unknown>[], options);
+		const itemSchema = mergeObjectSchemas(arr as Record<string, unknown>[]);
 		return {
 			type: 'array',
 			items: itemSchema,
@@ -58,7 +51,7 @@ function toArraySchema(arr: unknown[], options: IToJsonSchemaOptions): JsonSchem
 	}
 
 	// Collect unique schemas for different types
-	const schemas = getUniqueSchemas(arr, options);
+	const schemas = getUniqueSchemas(arr);
 
 	if (schemas.length === 1) {
 		return {
@@ -88,7 +81,7 @@ function getSchemaKey(schema: JsonSchema): string {
 	return JSON.stringify(schema);
 }
 
-function getUniqueSchemas(arr: unknown[], options: IToJsonSchemaOptions): JsonSchema[] {
+function getUniqueSchemas(arr: unknown[]): JsonSchema[] {
 	const schemaMap = new Map<string, JsonSchema>();
 	const objectValues: Record<string, unknown>[] = [];
 
@@ -99,7 +92,7 @@ function getUniqueSchemas(arr: unknown[], options: IToJsonSchemaOptions): JsonSc
 			continue;
 		}
 
-		const schema = toJsonSchema(item, options);
+		const schema = toJsonSchema(item);
 		const key = getSchemaKey(schema);
 		if (!schemaMap.has(key)) {
 			schemaMap.set(key, schema);
@@ -108,13 +101,13 @@ function getUniqueSchemas(arr: unknown[], options: IToJsonSchemaOptions): JsonSc
 
 	// Merge all object values into a single schema
 	if (objectValues.length > 0) {
-		schemaMap.set('object', mergeObjectSchemas(objectValues, options));
+		schemaMap.set('object', mergeObjectSchemas(objectValues));
 	}
 
 	return Array.from(schemaMap.values());
 }
 
-function mergeObjectSchemas(objects: Record<string, unknown>[], options: IToJsonSchemaOptions): JsonSchema {
+function mergeObjectSchemas(objects: Record<string, unknown>[]): JsonSchema {
 	// Collect all values for each property
 	const propertyValues = new Map<string, unknown[]>();
 
@@ -131,7 +124,7 @@ function mergeObjectSchemas(objects: Record<string, unknown>[], options: IToJson
 	const required: string[] = [];
 
 	for (const [key, values] of propertyValues) {
-		properties[key] = mergeValues(values, options);
+		properties[key] = mergeValues(values);
 		// Only mark as required if present in all objects
 		if (values.length === objects.length) {
 			required.push(key);
@@ -150,16 +143,16 @@ function mergeObjectSchemas(objects: Record<string, unknown>[], options: IToJson
 	return schema;
 }
 
-function mergeValues(values: unknown[], options: IToJsonSchemaOptions): JsonSchema {
+function mergeValues(values: unknown[]): JsonSchema {
 	// Check if all values are non-null objects (not arrays)
 	const allObjects = values.every(v => v !== null && typeof v === 'object' && !Array.isArray(v));
 
 	if (allObjects) {
-		return mergeObjectSchemas(values as Record<string, unknown>[], options);
+		return mergeObjectSchemas(values as Record<string, unknown>[]);
 	}
 
 	// Get unique schemas for the values
-	const schemas = getUniqueSchemas(values, options);
+	const schemas = getUniqueSchemas(values);
 
 	if (schemas.length === 1) {
 		return schemas[0];
@@ -168,12 +161,12 @@ function mergeValues(values: unknown[], options: IToJsonSchemaOptions): JsonSche
 	return { oneOf: schemas };
 }
 
-function toObjectSchema(obj: Record<string, unknown>, options: IToJsonSchemaOptions): JsonSchema {
+function toObjectSchema(obj: Record<string, unknown>): JsonSchema {
 	const properties: Record<string, JsonSchema> = {};
 	const required: string[] = [];
 
 	for (const [key, value] of Object.entries(obj)) {
-		properties[key] = toJsonSchema(value, options);
+		properties[key] = toJsonSchema(value);
 		// All keys present in the object are considered required
 		required.push(key);
 	}
