@@ -416,4 +416,24 @@ suite('RemoteSessionInspector', () => {
 			link: true, trusted: false, failedRead: true,
 		});
 	});
+
+	test('tool reads the turn a request link names, and reports a turn the chat does not have as unavailable', async () => {
+		const { tool } = setup();
+		const invoke = async (parameters: object) => {
+			const result = await tool.invoke({ callId: 'inspect', toolId: tool.getToolData().id, parameters, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+			const value = result.content[0];
+			const parsed = JSON.parse(value.kind === 'text' ? value.value : '{}');
+			return { openLink: parsed.openLink, turn: parsed.turn, reason: parsed.reason, error: typeof result.toolResultError === 'string' };
+		};
+		const turnLink = buildOpenSessionLinkUri(resource, undefined, 'turn-1');
+		assert.deepStrictEqual([
+			await invoke({ session: turnLink }),
+			await invoke({ session: resource.toString(), turn: 'turn-1' }),
+			await invoke({ session: buildOpenSessionLinkUri(resource, undefined, 'missing') }),
+		], [
+			{ openLink: turnLink, turn: { id: 'turn-1', status: 'completed', response: 'First default', error: null, truncated: false }, reason: undefined, error: false },
+			{ openLink: turnLink, turn: { id: 'turn-1', status: 'completed', response: 'First default', error: null, truncated: false }, reason: undefined, error: false },
+			{ openLink: buildOpenSessionLinkUri(resource, undefined, 'missing'), turn: undefined, reason: 'The requested turn is not in this chat. It may have been removed.', error: true },
+		]);
+	});
 });

@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { revealChatRequest } from '../../../../workbench/contrib/chat/browser/widget/chatRequestReveal.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -42,6 +46,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 
 	static readonly ID = 'sessions.openSessionLinkOpener';
 
+	private readonly _pendingTurnReveal = this._register(new MutableDisposable());
+
 	constructor(
 		@IOpenerService openerService: IOpenerService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -53,10 +59,12 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ILabelService labelService: ILabelService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSource(options)),
+			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSource(options), options.fromUserGesture === true),
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
@@ -102,7 +110,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		return getChatWindowLinkSource(this._chatWindowService.getWindow(options.sourceWindowId ?? getWindowId(getActiveWindow())), this._configurationService);
 	}
 
-	private async _open(resource: URI | string, openToSide: boolean, source: IChatWindowLinkSource | undefined): Promise<boolean> {
+	private async _open(resource: URI | string, openToSide: boolean, source: IChatWindowLinkSource | undefined, fromUserGesture: boolean): Promise<boolean> {
 		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
@@ -111,6 +119,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = await resolveLinkedChat(this._connectionsService, session, chatId);
 		if (source && await openLinkedChatInChatWindow(this._chatWindowService, source, session, chatResource, openToSide)) {
+			this._revealTurn(resource, chatResource, fromUserGesture);
 			return true;
 		}
 		if (openToSide) {
@@ -122,7 +131,26 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		} else {
 			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		}
+		this._revealTurn(resource, chatResource, fromUserGesture);
 		return true;
+	}
+
+	/**
+	 * Reveals the request a link names with `turn=` once the opened chat shows it, which for a remote host can be after
+	 * its history arrives. Opening another link stops waiting.
+	 */
+	private _revealTurn(resource: URI | string, chatResource: URI, focus: boolean): void {
+		const turnId = parseOpenSessionLinkTurnId(resource);
+		const cancellation = new CancellationTokenSource();
+		this._pendingTurnReveal.value = toDisposable(() => cancellation.dispose(true));
+		if (!turnId) {
+			return;
+		}
+		void revealChatRequest(this._chatWidgetService, chatResource, turnId, { focus, token: cancellation.token }).then(revealed => {
+			if (!revealed && !cancellation.token.isCancellationRequested) {
+				this._logService.info(`[OpenSessionLink] Request ${turnId} did not appear in ${chatResource.toString()}`);
+			}
+		});
 	}
 }
 

@@ -46,6 +46,9 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onDidCommitSession = new Emitter<IChatSessionCommitEvent>();
 	readonly onDidCommitSession = this._onDidCommitSession.event;
 
+	private readonly _onDidDeleteChatSessionItem = new Emitter<URI>();
+	readonly onDidDeleteChatSessionItem = this._onDidDeleteChatSessionItem.event;
+
 
 	private sessionItemControllers = new Map<string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
@@ -355,7 +358,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
 		}
 		await controllerData.initialRefresh;
-		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
+		this._onDidDeleteChatSessionItem.fire(sessionResource);
 	}
 
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real -> untitled

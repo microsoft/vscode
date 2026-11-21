@@ -36,10 +36,14 @@ suite('RemoteSessionInspection', () => {
 	}
 
 	test('accepts only a non-empty session reference', () => {
-		assert.deepStrictEqual(parseGetRemoteSessionOptions({ session: ' remote-host-copilotcli:/test#peer ' }), {
-			session: 'remote-host-copilotcli:/test#peer',
-		});
-		for (const input of [undefined, null, [], {}, { session: '' }, { session: '  ' }, { session: 1 }, { session: 'ref', detail: 'full' }]) {
+		assert.deepStrictEqual([
+			parseGetRemoteSessionOptions({ session: ' remote-host-copilotcli:/test#peer ' }),
+			parseGetRemoteSessionOptions({ session: 'remote-host-copilotcli:/test', turn: ' turn-1 ' }),
+		], [
+			{ session: 'remote-host-copilotcli:/test#peer' },
+			{ session: 'remote-host-copilotcli:/test', turn: 'turn-1' },
+		]);
+		for (const input of [undefined, null, [], {}, { session: '' }, { session: '  ' }, { session: 1 }, { session: 'ref', detail: 'full' }, { session: 'ref', turn: '' }, { session: 'ref', turn: 1 }]) {
 			assert.throws(() => parseGetRemoteSessionOptions(input));
 		}
 	});
