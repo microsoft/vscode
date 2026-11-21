@@ -117,6 +117,49 @@ suite('ChatModelStore', () => {
 		ref2.dispose();
 	});
 
+	for (const failedSave of ['none', 'first', 'second']) {
+		test(`overlapping disposals retain the model until the latest save settles (failed save: ${failedSave})`, async () => {
+			const uri = URI.parse('test://session');
+			const ref = store.add(testObject.acquireOrCreate({ sessionResource: uri, location: ChatAgentLocation.Chat, canUseTools: true }));
+			const model = ref.object;
+			ref.dispose();
+			const firstDisposal = testObject.waitForModelDisposals();
+
+			const reacquired = testObject.acquireExisting(uri);
+			assert.ok(reacquired);
+			store.add(reacquired).dispose();
+			if (failedSave === 'first') {
+				willDisposePromises[0].error(new Error('first save failed'));
+			} else {
+				willDisposePromises[0].complete();
+			}
+			await firstDisposal;
+			const afterFirstSave = {
+				modelRetained: testObject.get(uri) === model,
+				pendingDisposal: testObject.isPendingDisposal(uri),
+				disposed: createdModels[0].isDisposed,
+			};
+
+			if (failedSave === 'second') {
+				willDisposePromises[1].error(new Error('second save failed'));
+			} else {
+				willDisposePromises[1].complete();
+			}
+			await testObject.waitForModelDisposals();
+			assert.deepStrictEqual({
+				afterFirstSave,
+				modelRetained: testObject.has(uri),
+				pendingDisposal: testObject.isPendingDisposal(uri),
+				disposed: createdModels[0].isDisposed,
+			}, {
+				afterFirstSave: { modelRetained: true, pendingDisposal: true, disposed: false },
+				modelRetained: false,
+				pendingDisposal: false,
+				disposed: true,
+			});
+		});
+	}
+
 	test('get and has', async () => {
 		const uri = URI.parse('test://session');
 		const props: IStartSessionProps = {
