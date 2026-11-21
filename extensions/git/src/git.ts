@@ -1192,6 +1192,9 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 			// Parse --raw output
 			const [, , , , change] = segment.split(' ');
 			const filePath = segments[index++];
+			if (!filePath) {
+				break;
+			}
 			const originalUri = Uri.file(path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath));
 
 			let uri = originalUri;
@@ -1239,6 +1242,9 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 				index++;
 
 				const renamePath = segments[index++];
+				if (!renamePath) {
+					break;
+				}
 				numstatPath = path.isAbsolute(renamePath) ? renamePath : path.join(repositoryRoot, renamePath);
 			} else {
 				numstatPath = path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath);
