@@ -16,6 +16,7 @@ import { IAgentHostTelemetryReporter, type AgentHostExecutorClientConnectionStat
 import { IAgentHostTurnTracker, type AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
+import type { IOriginatingTrigger, IToolCallSource } from './shared/delegatedMessageAttribution.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
 
@@ -42,6 +43,10 @@ export function deriveToolInvokedResult(result: ToolCallResult): ToolInvokedResu
 
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
 interface IToolCallTiming {
+	readonly originatingTrigger?: IOriginatingTrigger;
+	readonly providerChat: string;
+	readonly toolCallId: string;
+	readonly ambiguousStart: boolean;
 	readonly lifecycleStopWatch: StopWatch;
 	invocationStopWatch?: StopWatch;
 	readonly provider: string;
@@ -101,9 +106,14 @@ export class AgentHostToolCallTracker extends Disposable {
 		super();
 	}
 
-	toolCallStarted(provider: string, session: string, owner: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, mcpSourceKind?: McpServerSource): void {
+	toolCallStarted(provider: string, session: string, owner: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, mcpSourceKind?: McpServerSource, providerChat = session): void {
 		const resolvedModel = this._turnModels.get(this._turnKey(session, turnId));
-		this._toolCalls.set(this._key(session, toolCallId), {
+		const key = this._key(session, toolCallId);
+		this._toolCalls.set(key, {
+			originatingTrigger: this._turnTracker.getOriginatingTrigger(session, turnId),
+			providerChat,
+			toolCallId,
+			ambiguousStart: this._toolCalls.has(key),
 			lifecycleStopWatch: StopWatch.create(true),
 			provider,
 			session,
@@ -120,6 +130,25 @@ export class AgentHostToolCallTracker extends Disposable {
 			telemetryContext: this._turnTracker.getTelemetryContext(session, turnId),
 			subagentKind: this._turnTracker.getSubagentKind(session, turnId),
 		});
+	}
+
+	/** Match the provider callback to a live start, including starts routed to a worker under its provider chat. */
+	getToolCallSource(providerChat: string, toolCallId: string, toolName: string): IToolCallSource | undefined {
+		let source: IToolCallSource | undefined;
+		for (const call of this._toolCalls.values()) {
+			if (call.providerChat === providerChat && call.toolCallId === toolCallId) {
+				if (source || call.ambiguousStart || call.toolId !== toolName) {
+					return undefined;
+				}
+				source = { session: call.owner, chat: call.session, turnId: call.turnId, originatingTrigger: call.originatingTrigger };
+			}
+		}
+		return source;
+	}
+
+	getSpawningTrigger(parentChat: string, toolCallId: string): IOriginatingTrigger | undefined {
+		const call = this._toolCalls.get(this._key(parentChat, toolCallId));
+		return call && !call.ambiguousStart ? call.originatingTrigger : undefined;
 	}
 
 	updateTurnModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void {

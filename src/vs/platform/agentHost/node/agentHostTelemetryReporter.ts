@@ -7,6 +7,7 @@ import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedC
 import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
+import { isUUID } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSession, type AgentCanvasOpenFailure, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext, type IAgentTurnInteraction } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
@@ -18,6 +19,7 @@ import { readAgentErrorTelemetryMeta } from '../common/meta/errorMeta.js';
 import { readLocalModelRowMeta } from '../common/meta/localModelStatus.js';
 import type { IAgentMetadataSource } from '../common/meta/metadata.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import { getDelegatedMessageAttribution, type IOriginatingTrigger } from './shared/delegatedMessageAttribution.js';
 import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import type { SessionArtifactAddOutcome } from '../common/sessionArtifactCollection.js';
 import type { SessionArtifactType } from '../common/sessionArtifacts.js';
@@ -81,6 +83,26 @@ type AgentHostProviderTimingClassification = IAgentHostEventClassification & {
 };
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
+
+function getDelegationTelemetry(message: Message) {
+	const attribution = message.origin.kind === MessageKind.Agent ? getDelegatedMessageAttribution(message) : undefined;
+	if (!attribution) {
+		return undefined;
+	}
+	const { source, version } = attribution;
+	const sessionId = source && AgentSession.id(source.session);
+	return {
+		...(source && sessionId && isUUID(sessionId) && isUUID(source.turnId.replace(/^request_/, '')) ? {
+			sourceAgentSessionId: sessionId,
+			sourceChatSessionId: getTelemetryChatSessionId(source.chat),
+			sourceTurnId: source.turnId,
+		} : {}),
+		...(version && isUUID(version.messageId) && Number.isSafeInteger(version.revision) && version.revision > 0 ? {
+			delegationMessageId: version.messageId,
+			delegationMessageRevision: version.revision,
+		} : {}),
+	};
+}
 
 /**
  * The message origin used for telemetry. Extends the protocol's
@@ -302,7 +324,14 @@ type IAgentHostWorkspaceSnapshotClassification = {
 	comment: 'Reports whether the first turn of a new Copilot Agent Host conversation included its initial workspace file-name snapshot, and why roots were left out.';
 };
 
-export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry {
+type OriginatingTriggerClassification = {
+	originatingTriggerId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Host execution turn of the originating user request or automation occurrence.' };
+	originatingTriggerSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Session identifier of the originating trigger.' };
+	originatingTriggerChatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Telemetry-safe chat identifier of the originating trigger, scoped to its session.' };
+	originatingTriggerKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the originating request was a user input or an automation occurrence.' };
+};
+
+export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry, Partial<IOriginatingTrigger> {
 	provider: string;
 	isOtelEnabled: boolean;
 	hostLaunchKind: AgentHostLaunchKind;
@@ -316,6 +345,11 @@ export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTele
 	chatSessionId: string;
 	turnId: string;
 	source: AgentHostUserMessageSentSource;
+	sourceAgentSessionId?: string;
+	sourceChatSessionId?: string;
+	sourceTurnId?: string;
+	delegationMessageId?: string;
+	delegationMessageRevision?: number;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind;
 	messageActorKind: MessageKind;
 	isSubagentSession: boolean;
@@ -326,7 +360,7 @@ export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTele
 	attachmentCount: number;
 }
 
-export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassification & {
+export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassification & OriginatingTriggerClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	isOtelEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the resolved Agent Host configuration enables OTel.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
@@ -340,6 +374,11 @@ export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassi
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat identifier within the owning agent host session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The admitted turn identifier, used to deduplicate sends and correlate turn outcomes.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the message was sent directly or from the queued-message flow.' };
+	sourceAgentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sending session identifier on an agent-delegated message.' };
+	sourceChatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Telemetry-safe sending chat identifier within the source session.' };
+	sourceTurnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Execution turn captured by the invocation that sent the admitted message.' };
+	delegationMessageId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Host-generated identity of the delegated message that was admitted.' };
+	delegationMessageRevision?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Revision of the delegated message at admission.' };
 	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The message origin: a user, an agent (session orchestration tools such as create_session/send_message), Agent Merge, an inline session (derived from the VS Code ephemeral-session marker), a tool, an automation, or a system notification.' };
 	messageActorKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The protocol message actor: user, agent, tool, automation, or systemNotification, independent of inline-session and Agent Merge classifications.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
@@ -435,7 +474,7 @@ interface IAgentHostTurnAttributedReport {
 	clientContext?: IAgentHostClientTelemetryContext;
 }
 
-export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
+export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry, Partial<IOriginatingTrigger> {
 	sdkSessionId?: string;
 	originalTurnId?: string;
 	steeredFromTurn?: string;
@@ -504,7 +543,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	modelCallCount: number;
 }
 
-export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
+export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & OriginatingTriggerClassification & {
 	sdkSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provider SDK session scope for the observed interactions.' };
 	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent for unresolved or unavailable lineage.' };
 	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
@@ -634,6 +673,7 @@ export interface IAgentHostTurnFailure {
 }
 
 export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
+	originatingTrigger?: IOriginatingTrigger;
 	turnInteraction?: IAgentTurnInteraction;
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	codexModelProvider?: CodexModelProvider;
@@ -1910,13 +1950,17 @@ export class AgentHostTelemetryReporter {
 		this._telemetryService.publicLog2<ICanvasHostOpenEvent, CanvasHostOpenClassification>('agentHost.canvasHostOpen', event);
 	}
 
-	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, owner: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean, isSubagentChat: boolean): void {
+	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, owner: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean, isSubagentChat: boolean, originatingTrigger?: IOriginatingTrigger): void {
 		const telemetryContext = this._copilotTelemetryContext(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = owner;
+		const { delegationMessageRevision, ...sourceLink } = getDelegationTelemetry(message) ?? {};
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			...telemetryContext,
+			...originatingTrigger,
+			...sourceLink,
+			...(delegationMessageRevision !== undefined ? { delegationMessageRevision } : {}),
 			provider,
 			isOtelEnabled: this._otelService.enabled,
 			hostLaunchKind: clientContext.hostLaunchKind,
@@ -1943,13 +1987,15 @@ export class AgentHostTelemetryReporter {
 		});
 		this._restricted?.sendGHTelemetryEvent('agentHost.userMessageSent', {
 			...telemetryContext,
+			...originatingTrigger,
+			...sourceLink,
 			provider,
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
 			chatSessionId: getTelemetryChatSessionId(session),
 			turnId,
 			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
-		});
+		}, delegationMessageRevision !== undefined ? { delegationMessageRevision } : undefined);
 	}
 
 	sessionCreated(provider: string | undefined, clientContext: IAgentHostClientTelemetryContext): void {
@@ -2376,6 +2422,7 @@ export class AgentHostTelemetryReporter {
 			titleGenerationStrategy: report.titleGenerationStrategy,
 		});
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
+			...report.originatingTrigger,
 			...(report.turnInteraction ? {
 				sdkSessionId: report.turnInteraction.sdkSessionId,
 				originalTurnId: report.turnInteraction.originalTurnId,

@@ -109,6 +109,7 @@ import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } fr
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { targetForMcpServer, targetForMcpSkill, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
+import { getAdmittedOriginatingTrigger } from './shared/delegatedMessageAttribution.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { IAgentHostChatOwnershipService, mintSubagentChatUri } from './agentHostChatOwnershipService.js';
 
@@ -923,21 +924,20 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 			const state = this._stateManager.getChatState(sessionKey);
-			const startedWithSteering = action.type === ActionType.ChatTurnStarted
-				&& action.queuedMessageId !== undefined
-				&& state !== undefined
-				&& getPendingSteeringMessages(state).some(message => message.id === action.queuedMessageId);
+			const steeringMessage = action.type === ActionType.ChatTurnStarted && action.queuedMessageId !== undefined && state
+				? getPendingSteeringMessages(state).find(message => message.id === action.queuedMessageId)?.message
+				: undefined;
 			this._stateManager.dispatchServerAction(sessionKey, action);
 			if (action.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === action.turnId) {
 				// Provider-promoted turns are already running and must not enter the admission/send path again.
-				this._trackProviderStartedTurn(agent, sessionKey, action, startedWithSteering);
+				this._trackProviderStartedTurn(agent, sessionKey, action, steeringMessage);
 			} else if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
 	}
 
-	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, startedWithSteering: boolean): void {
+	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, steeringMessage: Message | undefined): void {
 		const session = this._chatOwnership.getChatOwner(channel);
 		if (session === undefined) {
 			return;
@@ -947,11 +947,12 @@ export class AgentSideEffects extends Disposable {
 			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 		};
-		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
+		const freshRequestTrigger = steeringMessage && getAdmittedOriginatingTrigger(steeringMessage, session, channel, action.turnId);
+		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined, freshRequestTrigger);
 		if (autoTier !== undefined) {
 			this._turnTracker.updateFusionTelemetry(channel, action.turnId, { autoTier });
 		}
-		if (startedWithSteering) {
+		if (steeringMessage) {
 			this._turnTracker.markSteering(channel, action.turnId, 'started');
 		}
 		this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
@@ -1014,7 +1015,7 @@ export class AgentSideEffects extends Disposable {
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
 			// Ready may refine the contributor once the complete tool metadata is
 			// available, so the tracker updates the source kind below when needed.
-			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, toolCallOwner, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind);
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, toolCallOwner, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind, signal.resource.toString());
 		} else if (action.type === ActionType.ChatToolCallReady) {
 			const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, action.contributor);
 			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor, mcpSourceKind);
@@ -1360,7 +1361,8 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(parentSessionUri, chatURI.toString());
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._agentConfigService.getChatConfigState({ session: parentSessionUri, chat: subagentChatUri }));
-			this._turnTracker.turnStarted(agent, subagentChatUri, parentSessionUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI), subagentKind);
+			const originatingTrigger = immediateParentChatUri ? this._toolCallTracker.getSpawningTrigger(immediateParentChatUri, toolCallId) : undefined;
+			this._turnTracker.turnStarted(agent, subagentChatUri, parentSessionUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI), subagentKind, originatingTrigger);
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 			this._updateTurnModel(agent, subagentChatUri, turnId, model);
 		}

@@ -60,7 +60,6 @@ import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunCh
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
-import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
 import { toAgentMergeMessageMeta } from '../common/meta/agentMergeMessageMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
@@ -2376,7 +2375,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				await this._restoreSessionChat(session, chat, 'Message delivery', credentials);
 			},
-			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
+			startMessage: (_session, chat, message, credentials) => this._startSessionMessage(chat, message, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
 			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined)
@@ -2907,16 +2906,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
-	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource): Promise<void> {
-		// The calling agent authored this prompt, not the user.
-		const message: Message = {
-			text: prompt,
-			origin: { kind: MessageKind.Agent },
-			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
-		};
-		await this._startSessionMessage(chat, message, credentials);
-	}
-
 	private async _startAutomationMessage(session: URI, message: Message): Promise<void> {
 		await this._startSessionMessage(URI.parse(this._requireDefaultChat(session)), message);
 	}

@@ -89,6 +89,14 @@ The forwarder publishes every standard runtime row as `copilotSdk/<kind>`, but u
 
 ---
 
+### Cross-chat request attribution
+
+On `agentHost.userMessageSent`, join `(sourceAgentSessionId, sourceChatSessionId, sourceTurnId)` to the execution turn that invoked host-mediated `create_session`, `create_chat` or `send_message`. The regular IDs identify the recipient. The host matches the callback's tool-call ID and tool name to a live provider start, including a start routed to a worker chat. Replacing a queued message attributes the admitted version to the replacing invocation, not the original sender. `delegationMessageId` and `delegationMessageRevision` identify a host-tracked `send_message` version independently of whether its source resolved.
+
+The link is in-memory evidence attached to the individual message. Missing, expired or conflicting tool starts, unrecognized tool names, ineligible IDs, client-supplied messages and restored copies do not establish an exact source. Never substitute the active parent turn or the chat in delegation metadata (which also governs replacement ownership). Later human requests start independent chains. Injected steering and runtime-internal worker assignments do not themselves produce admission rows.
+
+Group `agentHost.userMessageSent` and `agentHost.turnCompleted` by `(originatingTriggerSessionId, originatingTriggerChatSessionId, originatingTriggerId)` for known roots. `originatingTriggerKind` distinguishes a user request from an automation occurrence; the ID is its admitted host turn. Live tool invocations capture this root, so a delegated kickoff, queued reply or replacement carries the sender's root through later execution. A freshly spawned child inherits from its observed spawning tool call. A confirmed steering chain uses the known root of its original turn; a fresh idle/queued delivery uses the delivered input. Missing evidence, including a reused worker without an assignment-specific link, leaves the group unknown. Root fields are dimensions on the existing rows; aggregate each direct usage record once.
+
 ### Copilot steering and interaction correlation
 
 `agentHost.modelCallUsageCounted` records `usageCountedInTurnId` when the host accounts for a direct root `assistant.usage` report with an SDK API call ID. This covers ordinary and Fusion calls independently of when their ownership mapping becomes available. Join on `(sdkSessionId, modelCallId)` to `agentHost.modelCallTurnCorrelated` for the owner and to `copilotSdk/response.success` for reported tokens and credits (the response uses `sdk_session_id`). Compare the two turn IDs to locate misplaced usage; use distinct call keys and treat missing or conflicting mappings as unknown. Only the response contributes per-call amounts.
