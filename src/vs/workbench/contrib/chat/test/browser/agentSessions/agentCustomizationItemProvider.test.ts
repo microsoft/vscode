@@ -229,23 +229,48 @@ suite('AgentCustomizationItemProvider', () => {
 		});
 	}
 
-	test('shows discovery errors even when no hook actions could be loaded', async () => {
+	test('reports hook load problems as section notices without marking the hooks that loaded', async () => {
+		const loadProblem = (id: string, name: string, load: Extract<Customization, { type: CustomizationType.Directory }>['load'], enabled = true): Customization => ({
+			type: CustomizationType.Directory, id, uri: `agent-discovery://copilot/${id}`, name, contents: CustomizationType.Hook, enabled, writable: false, children: [], load,
+		});
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
-				return [{
-					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
-					name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
-					load: { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' },
-				}];
+				return [
+					{
+						type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+						name: 'Copilot hooks', contents: CustomizationType.Hook, enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Loaded },
+						children: [{ type: CustomizationType.Hook, id: 'guard', uri: 'file:///workspace/.github/hooks/guard.json', name: 'preToolUse', enabled: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository', hookType: 'preToolUse' }) }],
+					},
+					loadProblem('hooks/diagnostics', 'Some hook files could not be loaded', { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' }),
+					// A failed discovery, as published by another host.
+					loadProblem('other-host-hooks', 'Couldn\'t load hooks', { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' }),
+					loadProblem('hooks/empty', 'Empty', { kind: CustomizationLoadStatus.Loaded }),
+					// A disabled directory without hooks explains why hooks won't run, so it stays a row.
+					loadProblem('hooks/turnedOff', 'Hooks turned off', { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run because hooks are turned off.' }, false),
+				];
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
 			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
-		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
-		assert.deepStrictEqual(items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, readable: hasReadableCustomizationContent(item.uri) })),
-			[{ name: 'Hooks', status: 'error', message: 'SDK hook discovery failed', readable: false }]);
+		const session = URI.parse('other-host:/opaque/session');
+		const items = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, enabled: item.enabled })),
+			hookNotices: await provider.provideSectionNotices(session, PromptsType.hook),
+			skillNotices: await provider.provideSectionNotices(session, PromptsType.skill),
+		}, {
+			items: [
+				{ name: 'Pre-Tool Use', status: 'loaded', message: undefined, enabled: true },
+				{ name: 'Hooks turned off', status: 'degraded', message: 'Won\'t run because hooks are turned off.', enabled: false },
+			],
+			hookNotices: [
+				{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' },
+				{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' },
+			],
+			skillNotices: [],
+		});
 	});
 
 	test('shows host-discovered plugin hooks without reading client files and preserves individual enablement', async () => {
@@ -432,6 +457,13 @@ suite('AgentCustomizationItemProvider', () => {
 			beforeHostInventory: await notRunning({ customizations: [] }),
 			hostDiscoveryFailed: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Error, message: 'failed' }) }),
 			hostDiscoveryLoading: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Loading }) }),
+			// Files that failed to load are reported in their own directory and are missing from the host's inventory.
+			hostLoadErrors: await notRunning({
+				customizations: [...hostHooks({ kind: CustomizationLoadStatus.Loaded }), {
+					type: CustomizationType.Directory, id: 'diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Some hook files could not be loaded',
+					contents: CustomizationType.Hook, enabled: true, writable: false, children: [], load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration' },
+				}],
+			}),
 			worktreeSession: await notRunning({ roots: [URI.file('/worktrees/workspace-1')] }),
 		}, {
 			message: { source: AICustomizationSources.local, enabled: false, status: 'degraded', statusMessage: 'Copilot doesn\'t read hooks from folders added in chat.hookFilesLocations. Move the file to .github/hooks or ~/.copilot/hooks, and check that its scripts work with Copilot.' },
@@ -441,6 +473,7 @@ suite('AgentCustomizationItemProvider', () => {
 			beforeHostInventory: [],
 			hostDiscoveryFailed: [],
 			hostDiscoveryLoading: [],
+			hostLoadErrors: [],
 			// Files of the workspace folder belong to its repository, not the worktree; a shared configured folder applies to both.
 			worktreeSession: ['/shared-hooks/guard.json'],
 		});
