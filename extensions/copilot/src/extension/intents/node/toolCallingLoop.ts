@@ -15,6 +15,7 @@ import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../.
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { rawPartAsThinkingData } from '../../../platform/endpoint/common/thinkingDataContainer';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -1326,6 +1327,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
 					requestModel = endpoint.model;
 					span.setAttribute(GenAiAttr.REQUEST_MODEL, endpoint.model);
+					if (isAutoModel(endpoint) === 1) {
+						span.setAttribute(GitHubCopilotAttr.AUTO_MODE, true);
+					}
 				} catch { /* endpoint not yet available */ }
 
 				// Emit session start event and metric for top-level agent invocations (not subagents)
