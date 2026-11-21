@@ -7,7 +7,9 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
@@ -86,6 +88,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
@@ -103,6 +106,11 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		}));
 		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(() => this.updateManagedSettingsCompatibilityState()));
 		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.refreshNotificationSupportUrl()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.apply(this.lastInfo, /*forceTelemetry*/ false, /*showNotification*/ this.initialised);
+			}
+		}));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -148,6 +156,13 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.notificationHandle.clear();
 			this.dismissedKey = undefined;
 			this.storageService.remove(NOTIFICATION_DISMISSED_KEY, StorageScope.APPLICATION);
+			return;
+		}
+
+		// The restriction is moot when the user has turned off AI features entirely.
+		// Clearing removes the close listener before closing, so this isn't a dismissal.
+		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
+			this.notificationHandle.clear();
 			return;
 		}
 

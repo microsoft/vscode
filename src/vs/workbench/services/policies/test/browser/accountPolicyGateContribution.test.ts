@@ -10,7 +10,10 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -118,6 +121,7 @@ suite('AccountPolicyGateContribution', () => {
 			storageService,
 			NullTelemetryService,
 			new NullManagedSettingsService(),
+			new TestConfigurationService(),
 		));
 
 		const states: { context: boolean | undefined; hidden: boolean | undefined }[] = [];
@@ -196,6 +200,7 @@ suite('AccountPolicyGateContribution', () => {
 			disposables.add(new InMemoryStorageService()),
 			NullTelemetryService,
 			new NullManagedSettingsService(),
+			new TestConfigurationService(),
 		));
 
 		assert.strictEqual(notificationPromptSpy.callCount, 0);
@@ -254,6 +259,7 @@ suite('AccountPolicyGateContribution', () => {
 			disposables.add(new InMemoryStorageService()),
 			NullTelemetryService,
 			new NullManagedSettingsService(),
+			new TestConfigurationService(),
 		));
 
 		const blockedStates = [
@@ -370,6 +376,7 @@ suite('AccountPolicyGateContribution', () => {
 				new class extends NullManagedSettingsService {
 					override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? supportUrl : undefined; }
 				}(),
+				new TestConfigurationService(),
 			));
 			await clock.tickAsync(5000);
 			const actions = notificationPromptSpy.firstCall.args[2];
@@ -421,6 +428,7 @@ suite('AccountPolicyGateContribution', () => {
 				override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 				override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? supportUrl : undefined; }
 			}(),
+			new TestConfigurationService(),
 		));
 		await clock.tickAsync(5000);
 		supportUrl = 'https://example.com/copilot-help';
@@ -458,6 +466,7 @@ suite('AccountPolicyGateContribution', () => {
 			disposables.add(new InMemoryStorageService()),
 			NullTelemetryService,
 			new NullManagedSettingsService(),
+			new TestConfigurationService(),
 		));
 
 		const updateRequiredInfo: IAccountPolicyGateInfo = {
@@ -485,5 +494,63 @@ suite('AccountPolicyGateContribution', () => {
 		await Promise.resolve();
 
 		assert.strictEqual(promptStub.callCount, 0);
+	});
+
+	function createRestrictedNotificationFixture(store: Pick<DisposableStore, 'add'>, storageService: InMemoryStorageService, configurationService: TestConfigurationService, gateService: TestAccountPolicyGateService) {
+		const notificationService = new TestNotificationService();
+		const handles: { closed: boolean }[] = [];
+		sinon.stub(notificationService, 'prompt').callsFake(() => {
+			const onDidClose = store.add(new Emitter<void>());
+			const state = { closed: false };
+			handles.push(state);
+			return new class extends NoOpNotification {
+				override readonly onDidClose = onDidClose.event;
+				override close() { state.closed = true; onDidClose.fire(); }
+			}();
+		});
+		const contribution = store.add(new AccountPolicyGateContribution(
+			gateService,
+			new MockContextKeyService(),
+			new TestChatEntitlementService(),
+			store.add(new TestDefaultAccountService()),
+			new NullLogService(),
+			notificationService,
+			new TestDialogService(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			storageService,
+			NullTelemetryService,
+			new NullManagedSettingsService(),
+			configurationService,
+		));
+		return { contribution, handles };
+	}
+
+	test('does not show the restriction notification while AI features are disabled', async () => {
+		const clock = sinon.useFakeTimers();
+		const orgNotApproved: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
+		const configurationService = new TestConfigurationService({ [ChatAIDisabledSettingId]: true });
+		const setAIDisabled = async (value: boolean) => {
+			await configurationService.setUserConfiguration(ChatAIDisabledSettingId, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === ChatAIDisabledSettingId } as unknown as IConfigurationChangeEvent);
+		};
+		const { handles } = createRestrictedNotificationFixture(disposables, disposables.add(new InMemoryStorageService()), configurationService, disposables.add(new TestAccountPolicyGateService(orgNotApproved)));
+
+		await clock.tickAsync(5000);
+		const whileDisabled = handles.length;
+		await setAIDisabled(false);
+		const afterEnabling = handles.length;
+		await setAIDisabled(true);
+		const closedAfterDisabling = handles[0]?.closed;
+		await setAIDisabled(false);
+
+		assert.deepStrictEqual({ whileDisabled, afterEnabling, closedAfterDisabling, afterReenabling: handles.length }, {
+			whileDisabled: 0,
+			afterEnabling: 1,
+			closedAfterDisabling: true,
+			// Hiding because AI was disabled is not a dismissal, so it shows again.
+			afterReenabling: 2,
+		});
 	});
 });
