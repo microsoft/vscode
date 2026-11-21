@@ -697,6 +697,46 @@ suite('PromptFilesLocator', () => {
 						);
 					}
 				});
+
+				testT('glob-like characters in the workspace folder path', async () => {
+					setLocations({
+						'.github/prompts': true,
+						'deps/**/*.prompt.md': true,
+					});
+					setWorkspaceFolders(['/Users/legomushroom/repos/Game [URP] {v2}']);
+					await mockFiles(fileService, [
+						{
+							path: '/Users/legomushroom/repos/Game [URP] {v2}/.github/prompts/default.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+						{
+							path: '/Users/legomushroom/repos/Game [URP] {v2}/deps/text/my.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+					]);
+					const searchedFolders: string[] = [];
+					const searchService = instantiationService.get(ISearchService);
+					const fileSearch = searchService.fileSearch.bind(searchService);
+					instantiationService.stub(ISearchService, 'fileSearch', (query: IFileQuery) => {
+						searchedFolders.push(...query.folderQueries.map(folderQuery => folderQuery.folder.path));
+						return fileSearch(query);
+					});
+					const locator = instantiationService.createInstance(PromptFilesLocator);
+
+					assert.deepStrictEqual(
+						{
+							files: (await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None)).map(file => file.path),
+							searchedFolders,
+						},
+						{
+							files: [
+								'/Users/legomushroom/repos/Game [URP] {v2}/.github/prompts/default.prompt.md',
+								'/Users/legomushroom/repos/Game [URP] {v2}/deps/text/my.prompt.md',
+							],
+							searchedFolders: ['/Users/legomushroom/repos/Game [URP] {v2}/deps'],
+						},
+					);
+				});
 			});
 
 			suite('absolute', () => {
@@ -2627,6 +2667,26 @@ suite('PromptFilesLocator', () => {
 					'/Users/legomushroom/repos/vscode/my-prompts',
 					'/Users/legomushroom/repos/vscode/your-prompts',
 					'/Users/legomushroom/repos/prompts/shared-prompts',
+				],
+				'Must find correct prompts.',
+			);
+		});
+
+		testT('keeps workspace folders with glob-like characters in their path', async () => {
+			setLocations({
+				'.github/prompts': true,
+				'gen/text/**': true,
+				'general/*': true,
+			});
+			setWorkspaceFolders(['/Users/legomushroom/repos/Game [URP] {v2}']);
+			await mockFiles(fileService, []);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			assertOutcome(
+				await locator.getConfigBasedSourceFolders(PromptsType.prompt),
+				[
+					'/Users/legomushroom/repos/Game [URP] {v2}/.github/prompts',
+					'/Users/legomushroom/repos/Game [URP] {v2}/general',
 				],
 				'Must find correct prompts.',
 			);
