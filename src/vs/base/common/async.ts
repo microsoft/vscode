@@ -750,15 +750,15 @@ export function firstParallel<T>(promiseList: Promise<T>[], shouldStop: (t: T) =
 	return new Promise<T | null>((resolve, reject) => {
 		for (const promise of promiseList) {
 			promise.then(result => {
-				if (--todo >= 0 && shouldStop(result)) {
+				if (todo >= 0 && shouldStop(result)) {
 					finish();
 					resolve(result);
-				} else if (todo === 0) {
+				} else if (--todo === 0) {
 					resolve(defaultValue);
 				}
 			})
 				.catch(err => {
-					if (--todo >= 0) {
+					if (todo >= 0) {
 						finish();
 						reject(err);
 					}
