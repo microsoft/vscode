@@ -143,6 +143,11 @@ interface IEditorSelectionStatus {
 	charactersSelected?: number;
 }
 
+interface IEditorSelectionStatusLabel {
+	text: string;
+	ariaLabel: string;
+}
+
 class StateChange {
 	indentation: boolean = false;
 	selectionStatus: boolean = false;
@@ -183,7 +188,7 @@ class StateChange {
 }
 
 type StateDelta = (
-	{ type: 'selectionStatus'; selectionStatus: string | undefined }
+	{ type: 'selectionStatus'; selectionStatus: IEditorSelectionStatusLabel | undefined }
 	| { type: 'languageId'; languageId: string | undefined }
 	| { type: 'encoding'; encoding: string | undefined }
 	| { type: 'EOL'; EOL: string | undefined }
@@ -196,8 +201,8 @@ type StateDelta = (
 
 class State {
 
-	private _selectionStatus: string | undefined;
-	get selectionStatus(): string | undefined { return this._selectionStatus; }
+	private _selectionStatus: IEditorSelectionStatusLabel | undefined;
+	get selectionStatus(): IEditorSelectionStatusLabel | undefined { return this._selectionStatus; }
 
 	private _languageId: string | undefined;
 	get languageId(): string | undefined { return this._languageId; }
@@ -228,7 +233,7 @@ class State {
 
 		switch (update.type) {
 			case 'selectionStatus':
-				if (this._selectionStatus !== update.selectionStatus) {
+				if (this._selectionStatus?.text !== update.selectionStatus?.text || this._selectionStatus?.ariaLabel !== update.selectionStatus?.ariaLabel) {
 					this._selectionStatus = update.selectionStatus;
 					change.selectionStatus = true;
 				}
@@ -335,14 +340,55 @@ class StatusInputMode extends Disposable {
 	}
 }
 
-const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
-const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+const nlsSingleSelectionCompact = localize('singleSelectionCompact', "{0}:{1}");
+const nlsSingleSelectionAriaLabel = localize('singleSelectionAriaLabel', "Line {0}, Column {1}");
+const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelectionRangeCompact = localize('singleSelectionRangeCompact', "{0}:{1} ({2} selected)");
+const nlsSingleSelectionRangeAriaLabel = localize('singleSelectionRangeAriaLabel', "Line {0}, Column {1} ({2} selected)");
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
+const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
+export function getEditorSelectionStatusLabel(info: IEditorSelectionStatus, compactPositionFormat: boolean): IEditorSelectionStatusLabel | undefined {
+	if (!info.selections) {
+		return undefined;
+	}
+
+	if (info.selections.length === 1) {
+		const selection = info.selections[0];
+		if (info.charactersSelected) {
+			const formatTemplate = compactPositionFormat ? nlsSingleSelectionRangeCompact : nlsSingleSelectionRange;
+			return {
+				text: format(formatTemplate, selection.positionLineNumber, selection.positionColumn, info.charactersSelected),
+				ariaLabel: format(nlsSingleSelectionRangeAriaLabel, selection.positionLineNumber, selection.positionColumn, info.charactersSelected),
+			};
+		}
+
+		const formatTemplate = compactPositionFormat ? nlsSingleSelectionCompact : nlsSingleSelection;
+		return {
+			text: format(formatTemplate, selection.positionLineNumber, selection.positionColumn),
+			ariaLabel: format(nlsSingleSelectionAriaLabel, selection.positionLineNumber, selection.positionColumn),
+		};
+	}
+
+	if (info.charactersSelected) {
+		const label = format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+		return { text: label, ariaLabel: label };
+	}
+
+	if (info.selections.length > 0) {
+		const label = format(nlsMultiSelection, info.selections.length);
+		return { text: label, ariaLabel: label };
+	}
+
+	return undefined;
+}
+
 class EditorStatus extends Disposable {
+
+	private static readonly COMPACT_POSITION_FORMAT_SETTING = 'workbench.statusBar.compactPositionFormat';
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly inputModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -388,6 +434,9 @@ class EditorStatus extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(EditorStatus.COMPACT_POSITION_FORMAT_SETTING))(() => {
+			this.onSelectionChange(getCodeEditor(this.editorService.activeTextEditorControl) ?? undefined);
+		}));
 		this._register(Event.runAndSubscribe(this.tabFocusMode.onDidChange, (tabFocusMode) => {
 			if (tabFocusMode !== undefined) {
 				this.onTabFocusModeChange(tabFocusMode);
@@ -494,8 +543,8 @@ class EditorStatus extends Disposable {
 		}
 	}
 
-	private updateSelectionElement(text: string | undefined): void {
-		if (!text) {
+	private updateSelectionElement(label: IEditorSelectionStatusLabel | undefined): void {
+		if (!label) {
 			this.selectionElement.clear();
 			return;
 		}
@@ -508,8 +557,8 @@ class EditorStatus extends Disposable {
 
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.selection', "Editor Selection"),
-			text,
-			ariaLabel: text,
+			text: label.text,
+			ariaLabel: label.ariaLabel,
 			tooltip: localize('gotoLine', "Go to Line/Column"),
 			command: 'workbench.action.gotoLine'
 		};
@@ -650,28 +699,9 @@ class EditorStatus extends Disposable {
 		this.updateMetadataElement(this.state.metadata);
 	}
 
-	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info?.selections) {
-			return undefined;
-		}
-
-		if (info.selections.length === 1) {
-			if (info.charactersSelected) {
-				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
-			}
-
-			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
-		}
-
-		if (info.charactersSelected) {
-			return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
-		}
-
-		if (info.selections.length > 0) {
-			return format(nlsMultiSelection, info.selections.length);
-		}
-
-		return undefined;
+	private getSelectionLabel(info: IEditorSelectionStatus): IEditorSelectionStatusLabel | undefined {
+		const compactPositionFormat = this.configurationService.getValue<boolean>(EditorStatus.COMPACT_POSITION_FORMAT_SETTING);
+		return getEditorSelectionStatusLabel(info, compactPositionFormat);
 	}
 
 	private updateStatusBar(): void {
