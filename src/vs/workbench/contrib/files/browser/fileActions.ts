@@ -1279,9 +1279,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 		notificationService.error(toErrorMessage(e, false));
 	} finally {
 		if (pasteShouldMove) {
-			// Cut is done. Make sure to clear cut state.
-			await explorerService.setToCopy([], false);
+			// Cut is done. Make sure to clear cut state, even if clearing its decorations fails.
 			pasteShouldMove = false;
+			await explorerService.setToCopy([], false);
 		}
 	}
 

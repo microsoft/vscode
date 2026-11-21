@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -46,6 +47,45 @@ suite('Files - Paste', () => {
 		await instantiationService.invokeFunction(pasteFileHandler);
 
 		assert.deepStrictEqual(notification.args, [[error.message]]);
+	});
+
+	test('a paste ends the cut even if clearing the cut decorations fails', async () => {
+		const configurationService = new TestConfigurationService({ explorer: { incrementalNaming: 'simple' } });
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const fileService = instantiationService.get(IFileService);
+		const clipboardService = new TestClipboardService();
+		instantiationService.stub(IClipboardService, clipboardService);
+
+		const source = new ExplorerItem(URI.file('/workspace/some-file'), fileService, configurationService, NullFilesConfigurationService, undefined, false);
+		const destination = new ExplorerItem(URI.file('/workspace/some-folder'), fileService, configurationService, NullFilesConfigurationService, undefined, true);
+		const repaintError = new Error('Data tree node not found');
+		const edits: ResourceFileEdit[] = [];
+		let context = [source];
+		instantiationService.stub(IExplorerService, {
+			getContext: () => context,
+			getEditable: () => undefined,
+			findClosest: () => null,
+			select: async () => { },
+			setToCopy: async (items, cut) => {
+				await clipboardService.writeResources(items.map(item => item.resource));
+				if (!cut && !items.length) {
+					throw repaintError;
+				}
+			},
+			applyBulkEdit: async resourceFileEdits => { edits.push(...resourceFileEdits); }
+		});
+
+		await instantiationService.invokeFunction(cutFileHandler);
+		context = [destination];
+		// the browser assert shim's rejects() takes no expected error, so compare the rejection itself
+		const rejection = await instantiationService.invokeFunction(pasteFileHandler).then(() => undefined, error => error);
+		assert.strictEqual(rejection, repaintError);
+
+		// A file copied afterwards is pasted as a copy, not moved
+		await clipboardService.writeResources([source.resource]);
+		await instantiationService.invokeFunction(pasteFileHandler);
+
+		assert.deepStrictEqual(edits.map(edit => !!edit.options.copy), [false, true]);
 	});
 });
 
