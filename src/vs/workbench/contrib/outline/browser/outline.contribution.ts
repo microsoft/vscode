@@ -234,6 +234,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled, Outline shows `typeParameter`-symbols.")
+		},
+		'outline.hideLocalSymbols': {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			markdownDescription: localize('outline.hideLocal', "When enabled, Outline shows only exported symbols.")
 		}
 	}
 });
