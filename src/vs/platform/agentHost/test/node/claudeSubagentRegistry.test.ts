@@ -133,6 +133,34 @@ suite('SubagentRegistry', () => {
 		});
 	});
 
+	test('removeSpawn remembers completed ids in a bounded window; drained foreground spawns are not remembered', () => {
+		const registry = r();
+		registry.recordSpawn('toolu_done');
+		registry.recordSpawn('toolu_orphan');
+		registry.removeSpawn('toolu_done');
+		registry.drainForegroundSpawns();
+		const afterDrain = {
+			done: registry.wasRecentlyCompleted('toolu_done'),
+			orphan: registry.wasRecentlyCompleted('toolu_orphan'),
+			never: registry.wasRecentlyCompleted('toolu_never'),
+		};
+
+		for (let i = 0; i < 300; i++) {
+			registry.recordSpawn(`toolu_${i}`);
+			registry.removeSpawn(`toolu_${i}`);
+		}
+
+		assert.deepStrictEqual({
+			afterDrain,
+			oldestEvicted: registry.wasRecentlyCompleted('toolu_done'),
+			newestKept: registry.wasRecentlyCompleted('toolu_299'),
+		}, {
+			afterDrain: { done: true, orphan: false, never: false },
+			oldestEvicted: false,
+			newestKept: true,
+		});
+	});
+
 	test('drainForegroundSpawns: returns and removes only foreground spawns; background spawns survive; inner-edge entries pointing at drained spawns are evicted', () => {
 		const registry = r();
 		registry.recordSpawn('toolu_fg_1');

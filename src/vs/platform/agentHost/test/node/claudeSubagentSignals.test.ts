@@ -446,5 +446,31 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 		});
 	});
 
+	test('mapSubagentSystemMessage logs a terminal task_notification that closes no subagent chat', () => {
+		const registry = r();
+		const messages: string[] = [];
+		const log = new class extends NullLogService {
+			override info(message: string): void { messages.push(`info ${message}`); }
+			override debug(message: string): void { messages.push(`debug ${message}`); }
+		}();
+		registry.recordSpawn('toolu_known');
+
+		mapSubagentSystemMessage({ type: 'system', subtype: 'task_notification', task_id: 't', tool_use_id: 'toolu_known', status: 'in_progress' } as unknown as SDKMessage & { type: 'system' }, SESSION, registry, log);
+		mapSubagentSystemMessage({ type: 'system', subtype: 'task_notification', task_id: 't', status: 'completed' } as unknown as SDKMessage & { type: 'system' }, SESSION, registry, log);
+		mapSubagentSystemMessage({ type: 'system', subtype: 'task_notification', task_id: 't', tool_use_id: 'toolu_unknown', status: 'failed' } as unknown as SDKMessage & { type: 'system' }, SESSION, registry, log);
+		const completed = mapSubagentSystemMessage({ type: 'system', subtype: 'task_notification', task_id: 't', tool_use_id: 'toolu_known', status: 'completed' } as unknown as SDKMessage & { type: 'system' }, SESSION, registry, log);
+		const duplicate = mapSubagentSystemMessage({ type: 'system', subtype: 'task_notification', task_id: 't', tool_use_id: 'toolu_known', status: 'completed' } as unknown as SDKMessage & { type: 'system' }, SESSION, registry, log);
+
+		assert.deepStrictEqual({ completedKinds: completed.map(s => s.kind), duplicateKinds: duplicate.map(s => s.kind), messages }, {
+			completedKinds: ['subagent_completed'],
+			duplicateKinds: [],
+			messages: [
+				'debug [claudeSubagentSignals] task_notification status=completed task_id=t has no tool_use_id; no subagent chat closed',
+				'debug [claudeSubagentSignals] task_notification status=failed for tool_use_id=toolu_unknown matches no open subagent spawn (background shell / MCP task, or a spawn lost on rebuild); no subagent chat closed',
+				'debug [claudeSubagentSignals] task_notification status=completed for tool_use_id=toolu_known ignored; spawn already completed',
+			],
+		});
+	});
+
 	// #endregion
 });

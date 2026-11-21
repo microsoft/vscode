@@ -292,7 +292,7 @@ export function mapSDKMessageToAgentSignals(
 		default:
 			// Phase 12 step 7 — system subtypes for subagent task discrimination.
 			if (message.type === 'system') {
-				return mapSubagentSystemMessage(message, chat, registry);
+				return mapSubagentSystemMessage(message, chat, registry, logService);
 			}
 			return [];
 	}
