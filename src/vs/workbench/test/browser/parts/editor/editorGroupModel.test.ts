@@ -287,6 +287,7 @@ suite('EditorGroupModel', () => {
 
 		static disableSerialize = false;
 		static disableDeserialize = false;
+		static disableDeserializeForIds: string[] = [];
 
 		canSerialize(editorInput: EditorInput): boolean {
 			return true;
@@ -312,6 +313,10 @@ suite('EditorGroupModel', () => {
 
 			const testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
 
+			if (TestEditorInputSerializer.disableDeserializeForIds.includes(testInput.id)) {
+				return undefined;
+			}
+
 			return disposables.add(new TestEditorInput(testInput.id));
 		}
 	}
@@ -321,6 +326,7 @@ suite('EditorGroupModel', () => {
 	setup(() => {
 		TestEditorInputSerializer.disableSerialize = false;
 		TestEditorInputSerializer.disableDeserialize = false;
+		TestEditorInputSerializer.disableDeserializeForIds = [];
 
 		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testEditorInputForGroups', TestEditorInputSerializer));
 	});
@@ -774,6 +780,69 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(deserialized.stickyCount, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).length, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
+	});
+
+	test('group serialization with editor that fails to deserialize', function () {
+		inst().invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const group = createEditorGroupModel();
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input4, { pinned: true, active: true });
+		group.openEditor(input1, { active: true }); // mru: input1, input4, input3, input2
+		group.openEditor(input4, { active: true }); // mru: input4, input1, input3, input2
+
+		// Regression: all editors deserialize, state is identical
+		let deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(deserialized.count, 4);
+		assert.deepStrictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.id), [input1.id, input2.id, input3.id, input4.id]);
+		assert.deepStrictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => editor.id), [input4.id, input1.id, input3.id, input2.id]);
+		assert.strictEqual(deserialized.activeEditor?.id, input4.id);
+
+		// input2 fails to deserialize: mru order and active editor are preserved among survivors
+		TestEditorInputSerializer.disableDeserializeForIds.push(input2.id);
+
+		deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(deserialized.count, 3);
+		assert.deepStrictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.id), [input1.id, input3.id, input4.id]);
+		assert.deepStrictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => editor.id), [input4.id, input1.id, input3.id]);
+		assert.strictEqual(deserialized.activeEditor?.id, input4.id);
+	});
+
+	test('group serialization with preview editor that survives another editor failing to deserialize', function () {
+		inst().invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const group = createEditorGroupModel();
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { index: 1, active: true }); // opens unpinned between input1 and input2
+
+		assert.strictEqual(group.previewEditor?.id, input3.id);
+
+		// Regression: all editors deserialize, state is identical
+		let deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(deserialized.count, 3);
+		assert.deepStrictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.id), [input1.id, input3.id, input2.id]);
+		assert.strictEqual(deserialized.previewEditor?.id, input3.id);
+
+		// input1 fails to deserialize: the preview editor is still input3
+		TestEditorInputSerializer.disableDeserializeForIds.push(input1.id);
+
+		deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(deserialized.count, 2);
+		assert.deepStrictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.id), [input3.id, input2.id]);
+		assert.strictEqual(deserialized.previewEditor?.id, input3.id);
+		assert.strictEqual(deserialized.activeEditor?.id, input3.id);
 	});
 
 	test('group serialization (locked group)', function () {
