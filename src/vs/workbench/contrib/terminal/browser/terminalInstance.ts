@@ -1418,7 +1418,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async sendText(text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean): Promise<void> {
 		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
 		// the text from triggering keybindings and ensure new lines are handled properly
-		if (forceBracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
+		if (forceBracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode && !this.xterm.raw.options.ignoreBracketedPasteMode) {
 			text = `\x1b[200~${text}\x1b[201~`;
 		}
 
@@ -1445,7 +1445,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
-		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
+		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute, !shouldExecute);
 	}
 
 	async preparePathForShell(originalPath: string | URI): Promise<string> {
