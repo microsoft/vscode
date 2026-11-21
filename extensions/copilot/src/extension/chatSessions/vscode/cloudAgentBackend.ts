@@ -53,7 +53,9 @@ export interface CloudSessionData {
 }
 
 export interface TaskContent {
-	readonly task: AgentTaskGetResponse;
+	readonly task: AgentTaskGetResponse & {
+		readonly automation_id?: string;
+	};
 	readonly turns: readonly AgentTaskSessionEvent[];
 	readonly pullArtifact?: PullArtifactRef;
 }
@@ -70,9 +72,11 @@ export interface CloudAgentBackend {
 
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 
-	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
+	fetchTaskEvents(taskId: string, options?: { readonly requireComplete: boolean }): Promise<readonly AgentTaskSessionEvent[]>;
 
 	sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean>;
+
+	sendPermissionResponse(taskId: string, requestId: string, approved: boolean): Promise<void>;
 
 	createPullRequestForTask(task: AgentTaskGetResponse): Promise<AgentTaskCreatePullRequestResponse>;
 }
