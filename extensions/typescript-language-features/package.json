@@ -2850,6 +2850,11 @@
         "category": "TypeScript"
       },
       {
+        "command": "typescript.selectNodePath",
+        "title": "%typescript.selectNodePath.title%",
+        "category": "TypeScript"
+      },
+      {
         "command": "typescript.goToProjectConfig",
         "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
@@ -2952,6 +2957,10 @@
         },
         {
           "command": "typescript.selectTypeScriptVersion",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.selectNodePath",
           "when": "typescript.isManagedFile"
         },
         {
