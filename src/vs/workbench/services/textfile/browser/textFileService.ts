@@ -44,6 +44,14 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { listErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 
+interface ITextFileSaveAsResult {
+	readonly success: boolean;
+	readonly source?: {
+		readonly model: ITextModel;
+		readonly versionId: number;
+	};
+}
+
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
 	declare readonly _serviceBrand: undefined;
@@ -435,6 +443,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 		let success = false;
+		let sourceSnapshot: ITextFileSaveAsResult['source'];
 
 		let resolvedTextModel: IResolvedTextFileEditorModel | IResolvedUntitledTextEditorModel | undefined;
 		if (source.scheme !== Schemas.untitled) {
@@ -452,7 +461,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// If the source is an existing resolved file or untitled text model, we can
 		// directly use that model to copy the contents to the target destination
 		if (resolvedTextModel) {
-			success = await this.doSaveAsTextFile(resolvedTextModel, source, target, options);
+			const result = await this.doSaveAsTextFile(resolvedTextModel, source, target, options);
+			success = result.success;
+			sourceSnapshot = result.source;
 		}
 
 		// Otherwise if the source can be handled by the file service
@@ -468,11 +479,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		else {
 			const textModel = this.modelService.getModel(source);
 			if (textModel) {
-				success = await this.doSaveAsTextFile(textModel, source, target, options);
+				const result = await this.doSaveAsTextFile(textModel, source, target, options);
+				success = result.success;
+				sourceSnapshot = result.source;
 			}
 		}
 
-		if (!success) {
+		const sourceChanged = sourceSnapshot ? (
+			sourceSnapshot.model.isDisposed() ||
+			this.modelService.getModel(sourceSnapshot.model.uri) !== sourceSnapshot.model ||
+			sourceSnapshot.model.getVersionId() !== sourceSnapshot.versionId
+		) : this.isDirty(source);
+		if (!success || sourceChanged) {
 			return undefined;
 		}
 
@@ -497,7 +515,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return target;
 	}
 
-	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | IResolvedUntitledTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | IResolvedUntitledTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<ITextFileSaveAsResult> {
 
 		// Find source encoding if any
 		let sourceModelEncoding: string | undefined = undefined;
@@ -556,7 +574,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		if (!write) {
-			return false;
+			return { success: false };
 		}
 
 		let sourceTextModel: ITextModel | undefined = undefined;
@@ -574,12 +592,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// take over model value, encoding and language (only if more specific) from source model
-		if (sourceTextModel && targetTextModel) {
+		let sourceSnapshot: ITextFileSaveAsResult['source'];
+		if (sourceTextModel && !sourceTextModel.isDisposed() && targetTextModel) {
 
 			// encoding
 			targetModel.updatePreferredEncoding(sourceModelEncoding);
 
 			// content
+			sourceSnapshot = { model: sourceTextModel, versionId: sourceTextModel.getVersionId() };
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
 			// language
@@ -608,6 +628,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 					this.codeEditorService.setTransientModelProperty(targetTextModel, key, value);
 				}
 			}
+		} else {
+			return { success: false };
 		}
 
 		// set source options depending on target exists or not
@@ -619,10 +641,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// save model
-		return targetModel.save({
+		const success = await targetModel.save({
 			...options,
 			from: source
 		});
+
+		return { success, source: sourceSnapshot };
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
