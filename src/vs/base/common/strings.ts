@@ -776,6 +776,36 @@ export function isEmojiImprecise(x: number): boolean {
 	);
 }
 
+const WORD_CHAR_RE = /[\p{L}\p{N}_]/u;
+const INHERIT_WORD_RE = /[\p{M}\u200C\u200D]/u;
+const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+
+function* wordBoundaries(text: string): IterableIterator<number> {
+	for (const seg of wordSegmenter.segment(text)) {
+		if (!seg.isWordLike) {
+			continue;
+		}
+		const segText = seg.segment;
+		let prevIsWord = false;
+		for (let offset = 0; offset < segText.length;) {
+			const cp = segText.codePointAt(offset) ?? 0;
+			const charLen = cp > 0xFFFF ? 2 : 1;
+			const ch = segText.slice(offset, offset + charLen);
+			if (!INHERIT_WORD_RE.test(ch)) {
+				const isWord = WORD_CHAR_RE.test(ch);
+				if (isWord !== prevIsWord) {
+					yield seg.index + offset;
+					prevIsWord = isWord;
+				}
+			}
+			offset += charLen;
+		}
+		if (prevIsWord) {
+			yield seg.index + segText.length;
+		}
+	}
+}
+
 /**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
@@ -788,15 +818,13 @@ export function lcut(text: string, n: number, prefix = ''): string {
 		return trimmed;
 	}
 
-	const re = /\b/g;
 	let i = 0;
-	while (re.test(trimmed)) {
-		if (trimmed.length - re.lastIndex < n) {
+	for (const pos of wordBoundaries(trimmed)) {
+		if (trimmed.length - pos < n) {
 			break;
 		}
 
-		i = re.lastIndex;
-		re.lastIndex += 1;
+		i = pos;
 	}
 
 	if (i === 0) {
@@ -818,16 +846,14 @@ export function rcut(text: string, n: number, suffix = ''): string {
 		return trimmed;
 	}
 
-	const re = /\b/g;
 	let lastGoodBreak = 0;
 	let foundBoundaryAfterN = false;
-	while (re.test(trimmed)) {
-		if (re.lastIndex > n) {
+	for (const pos of wordBoundaries(trimmed)) {
+		if (pos > n) {
 			foundBoundaryAfterN = true;
 			break;
 		}
-		lastGoodBreak = re.lastIndex;
-		re.lastIndex += 1;
+		lastGoodBreak = pos;
 	}
 
 	// If no boundary was found after n, return the full trimmed string
