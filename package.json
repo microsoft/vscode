@@ -11,7 +11,7 @@
     "buildFromSource": true
   },
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Justin Corporation"
   },
   "license": "MIT",
   "main": "./out/main.js",
