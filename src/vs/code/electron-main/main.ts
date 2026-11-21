@@ -49,6 +49,7 @@ import { BufferLogger } from '../../platform/log/common/bufferLog.js';
 import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../platform/log/common/log.js';
 import product from '../../platform/product/common/product.js';
 import { IProductService } from '../../platform/product/common/productService.js';
+import { isEditorViewInstalled } from '../../platform/product/node/editorView.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
 import { ProtocolMainService } from '../../platform/protocol/electron-main/protocolMainService.js';
 import { ITunnelService } from '../../platform/tunnel/common/tunnel.js';
@@ -90,6 +91,8 @@ import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
  * are running at the same time.
  */
 class CodeMain {
+
+	private editorViewDetection: Promise<void> = Promise.resolve();
 
 	main(): void {
 		try {
@@ -191,6 +194,12 @@ class CodeMain {
 			disposables.add(registerDevConsoleLogForwarder(logService));
 		}
 		services.set(ILogService, logService);
+
+		// Awaited by `initServices`, before any window registers editor settings.
+		this.editorViewDetection = isEditorViewInstalled(environmentMainService.isBuilt, logService).then(installed => {
+			productService.hasEditorView = installed;
+			Object.assign(product, { hasEditorView: installed });
+		});
 
 		// Files
 		const fileService = new FileService(logService);
@@ -331,7 +340,10 @@ class CodeMain {
 			stateService.init(),
 
 			// Configuration service
-			configurationService.initialize()
+			configurationService.initialize(),
+
+			// Optional editor-view renderer
+			this.editorViewDetection
 		]);
 
 		// Initialize user data profiles after initializing the state

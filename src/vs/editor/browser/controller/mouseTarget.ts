@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPointerHandlerHelper } from './mouseHandler.js';
+import { IPointerHandlerHelper, type IViewLineHitTestProvider } from './mouseHandler.js';
 import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
 import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from '../editorDom.js';
 import { PartFingerprint, PartFingerprints } from '../view/viewPart.js';
@@ -22,7 +22,6 @@ import { PositionAffinity, TextDirection } from '../../common/model.js';
 import { InjectedText } from '../../common/modelLineProjectionData.js';
 import { Mutable } from '../../../base/common/types.js';
 import { Lazy } from '../../../base/common/lazy.js';
-import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 
 const enum HitTestResultType {
 	Unknown,
@@ -239,7 +238,7 @@ export class HitTestContext {
 	public readonly viewModel: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
-	public readonly viewLinesGpu: ViewLinesGpu | undefined;
+	public readonly viewLineHitTestProvider: IViewLineHitTestProvider | undefined;
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -253,7 +252,7 @@ export class HitTestContext {
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
-		this.viewLinesGpu = viewHelper.viewLinesGpu;
+		this.viewLineHitTestProvider = viewHelper.viewLineHitTestProvider;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
@@ -770,7 +769,7 @@ export class MouseTargetFactory {
 				return request.fulfillContentEmpty(pos, detail);
 			}
 		} else {
-			if (ctx.viewLinesGpu) {
+			if (ctx.viewLineHitTestProvider) {
 				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
 				if (ctx.viewModel.getLineLength(lineNumber) === 0) {
 					const lineWidth = ctx.getLineWidth(lineNumber);
@@ -792,7 +791,7 @@ export class MouseTargetFactory {
 					return request.fulfillContentEmpty(pos, detail);
 				}
 
-				const position = ctx.viewLinesGpu.getPositionAtCoordinate(lineNumber, request.mouseContentHorizontalOffset);
+				const position = ctx.viewLineHitTestProvider.getPositionAtCoordinate(lineNumber, request.mouseContentHorizontalOffset);
 				if (position) {
 					const detail: IMouseTargetContentTextData = {
 						injectedText: null,
