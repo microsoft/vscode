@@ -18,6 +18,7 @@ import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/to
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
 import { resolveRemoteSessionReference } from '../../browser/remoteSessionSource.js';
 import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 suite('RemoteSessionTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -90,18 +91,19 @@ suite('RemoteSessionTools', () => {
 		return { calls, create: new CreateRemoteSessionTool(service), list: new ListAgentHostsTool(service) };
 	}
 
-	test('registers non-workspace tools gated by AI, remote host and remote tool enablement', () => {
+	test('registers non-workspace tools gated by AI, remote host and remote tool or Dev Container handoff enablement', () => {
 		const { list, create } = setup();
+		const keys = [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`, `config.${DevContainerHandoffEnabledSettingId}`].sort();
 		assert.deepStrictEqual([list, create].map(tool => {
 			const data = tool.getToolData();
 			return {
 				name: data.toolReferenceName,
 				runsInWorkspace: data.runsInWorkspace,
-				keys: data.when?.keys().sort(),
+				keys: [...new Set(data.when?.keys())].sort(),
 			};
 		}), [
-			{ name: 'list_agent_hosts', runsInWorkspace: false, keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort() },
-			{ name: 'create_remote_session', runsInWorkspace: false, keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort() },
+			{ name: 'list_agent_hosts', runsInWorkspace: false, keys },
+			{ name: 'create_remote_session', runsInWorkspace: false, keys },
 		]);
 	});
 

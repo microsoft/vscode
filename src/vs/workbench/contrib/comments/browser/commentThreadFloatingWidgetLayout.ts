@@ -267,7 +267,10 @@ export function getRevealScrollTop(code: { top: number; bottom: number }, widget
 	return Math.max(0, clamp(code.top - EDGE_MARGIN, widget.bottom + EDGE_MARGIN - viewportHeight, widget.top - EDGE_MARGIN));
 }
 
-function rectsIntersect(a: IRect, b: IRect): boolean {
+/**
+ * Whether two areas overlap.
+ */
+export function rectsIntersect(a: IRect, b: IRect): boolean {
 	return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
 

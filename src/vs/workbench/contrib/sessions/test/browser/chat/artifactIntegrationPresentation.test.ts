@@ -56,7 +56,7 @@ import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView, Artifa
 import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactIntegrationPresentation.js';
 import { ArtifactIntegrationGroup } from '../../../browser/chat/artifactIntegrationGroup.js';
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
-import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
+import { ArtifactDetailsPanel, fitArtifactListHeights } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
 
@@ -627,7 +627,7 @@ suite('Artifact Integration Presentation', () => {
 				const panel = await open(f, a);
 				button(panel, 'Autopilot').click();
 				await expand(f, panel);
-				const outer = panel.querySelector<HTMLElement>('.artifact-details-lower-content')!;
+				const outer = panel.querySelector<HTMLElement>('.artifact-details-body')!;
 				const inner = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-scrollable-element')!;
 				const contents = inner.querySelector<HTMLElement>('.monaco-list-rows')!;
 				const innerScrollTop = () => Math.round(inner.getBoundingClientRect().top - contents.getBoundingClientRect().top);
@@ -654,6 +654,88 @@ suite('Artifact Integration Presentation', () => {
 					JSON.stringify({ first, bottom, backUp, final: { inner: innerScrollTop(), outer: outer.scrollTop }, rowsTop: contents.style.top, outerHeight: outer.clientHeight, outerScrollHeight: outer.scrollHeight }));
 			});
 		}
+
+		test('everything below the header scrolls together, and only by a distance worth scrolling', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('[role="tab"]')!.click();
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const overflows = new Set<string>();
+			for (let height = 300; height <= 800; height += 10) {
+				f.host.style.height = `${height}px`;
+				await settle(f);
+				const overflow = body.scrollHeight - body.clientHeight;
+				overflows.add(overflow <= 0 ? 'fits' : overflow < 56 ? `scrolls only ${overflow}px at ${height}px` : 'scrolls');
+			}
+			assert.deepStrictEqual({
+				scrolled: ['.artifact-tabbed-state-widget', '.artifact-autopilot', '.artifact-activities'].map(selector => body.contains(panel.querySelector(selector))),
+				header: body.contains(panel.querySelector('.artifact-details-header')),
+				overflows: [...overflows].sort(),
+			}, { scrolled: [true, true, true], header: false, overflows: ['fits', 'scrolls'] });
+		});
+
+		test('keyboard navigation reveals the focused row when the panel is shorter than the list', async () => {
+			const f = fixture();
+			f.host.style.height = '300px';
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const list = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-list')!;
+			assert.ok(body.clientHeight < list.offsetHeight, `The panel (${body.clientHeight}px) must be shorter than the list (${list.offsetHeight}px)`);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const visible: boolean[] = [];
+			for (const id of ['list.focusFirst', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusLast', 'list.focusFirst']) {
+				f.instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+				await settle(f);
+				const row = list.querySelector('.monaco-list-row.focused')!.getBoundingClientRect();
+				const viewport = body.getBoundingClientRect();
+				visible.push(row.top >= viewport.top - 0.5 && row.bottom <= viewport.bottom + 0.5);
+			}
+			assert.deepStrictEqual(visible, Array(7).fill(true));
+		});
+
+		test('layout and model updates keep the scroll position', async () => {
+			const f = fixture();
+			f.host.style.height = '560px';
+			const a = f.artifact();
+			const entries = (count: number) => Array.from({ length: count }, (_, index) => activity(a, `entry-${index}`, { createdAt: index }));
+			setActivities(a, entries(20));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			assert.ok(body.scrollHeight - body.clientHeight > 40, 'The panel must have content to scroll');
+			body.scrollTop = 40;
+			body.dispatchEvent(new mainWindow.Event('scroll'));
+			await settle(f);
+			const afterLayout = body.scrollTop;
+			setActivities(a, entries(21));
+			await settle(f);
+			assert.deepStrictEqual({ afterLayout, afterUpdate: body.scrollTop }, { afterLayout: 40, afterUpdate: 40 });
+		});
+
+		test('lists shrink to fit and grow back when scrolling would reveal too little', () => {
+			const lists = [{ preferred: 196, minimum: 112, step: 28 }, { preferred: 168, minimum: 84, step: 28 }];
+			const fit = (overflow: number, slack = 8) => {
+				const result = fitArtifactListHeights(lists, overflow, slack);
+				return [...result.heights, result.overflow];
+			};
+			assert.deepStrictEqual([0, 30, 168, 174, 180, 300].map(overflow => fit(overflow)), [
+				[196, 168, 0],
+				[140, 168, -26],
+				[112, 84, 0],
+				[112, 84, 6],
+				[140, 112, 68],
+				[112, 84, 132],
+			]);
+		});
 
 		test('shows an accessible right-aligned loaded activity count while collapsed and expanded', async () => {
 			const f = fixture();

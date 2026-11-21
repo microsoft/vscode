@@ -27,7 +27,7 @@ import { IChatModel, IChatResponseModel } from '../../../../chat/common/model/ch
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../browser/automationModelConfiguration.js';
-import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, IGitHubIssueRef, ISessionArtifact, SessionArtifactKind, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary, ISessionCreationReference, ISessionPreparationProgress } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, IGitHubIssueRef, ISessionArtifact, SessionArtifactKind, ISessionType, ISessionWorkspaceBrowseAction, ISessionWorkspaceBrowseOptions, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary, ISessionCreationReference, ISessionPreparationProgress } from '../../../../../services/sessions/common/session.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../chat/common/constants.js';
@@ -1315,7 +1315,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			providerId: this.id,
 			attachesContext: false,
 			supportsContextAttachment: !isSandbox,
-			run: () => this._browseForRepository(),
+			run: (_workspace, options) => this._browseForRepository(options),
 		};
 
 		if (isSandbox) {
@@ -2606,11 +2606,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Private --
 
-	private async _pickRepository(allowRepositoryUrl = false): Promise<string | undefined> {
+	private async _pickRepository(allowRepositoryUrl = false, options?: ISessionWorkspaceBrowseOptions): Promise<string | undefined> {
 		if (isWeb) {
+			if (options?.token.isCancellationRequested) {
+				return undefined;
+			}
 			const store = new DisposableStore();
 			this._repositoryPicker.value = store;
 			const token = cancelOnDispose(store);
+			if (options) {
+				store.add(options.token.onCancellationRequested(() => store.dispose()));
+			}
 			const checkHost = () => {
 				if (this.gitHubService.enterpriseHost !== undefined) {
 					throw new Error(localize('repositoryPicker.unsupportedHost', "This picker supports github.com repositories only. Switch to a github.com account, then try again."));
@@ -2623,8 +2629,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return undefined;
 				}
 				checkHost();
+				const recentRepositories = options?.recentFolders.map(githubRemoteRepoLabel).filter(id => id !== undefined);
 				const getRepositories = async (query: string, requestToken: CancellationToken) => {
 					checkHost();
+					if (!query.trim() && recentRepositories?.length) {
+						return recentRepositories;
+					}
 					const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 					checkHost();
 					return repositories.map(repository => repository.fullName);
@@ -2654,9 +2664,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		);
 	}
 
-	private async _browseForRepository(): Promise<ISessionWorkspace | undefined> {
+	private async _browseForRepository(options?: ISessionWorkspaceBrowseOptions): Promise<ISessionWorkspace | undefined> {
 		const allowRepositoryUrl = this._supportsLocalRepositoryActions();
-		const repository = await this._pickRepository(allowRepositoryUrl);
+		const repository = await this._pickRepository(allowRepositoryUrl, options);
 		if (!repository) {
 			return undefined;
 		}

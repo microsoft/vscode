@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ConnectionDiagnosticBuffer, formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
@@ -16,11 +17,15 @@ import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostAutoConnectSet
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IAgentHostFilterService } from '../../../common/agentHostFilter.js';
 import { ConnectionHostManagementAction, IConnectionDiagnosticsSection, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState } from './connectionDiagnostics.js';
 import { collectConnectionLogs } from './connectionDiagnosticsLogs.js';
+
+/** The file the shared process logs to on desktop, next to the window logs. */
+const sharedProcessLogFileName = 'sharedprocess.log';
 
 interface IDiscoveryAttempt {
 	readonly id: number;
@@ -63,6 +68,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteGitHubEnvironmentSharingService private readonly _remoteSharing: IRemoteGitHubEnvironmentSharingService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
 		super();
 		this._captureConnections();
@@ -396,7 +402,10 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 						event.error ? formatConnectionDiagnosticError(event.error) : undefined,
 					].filter(value => value !== undefined).join('; '),
 				})),
-		}, await collectConnectionLogs(this._fileService, this._environmentService.logFile), clientSection);
+		}, await collectConnectionLogs(this._fileService, this.isWebPlatform
+			? { window: this._environmentService.logFile }
+			: { window: this._environmentService.logFile, shared: joinPath(this._environmentService.logsHome, sharedProcessLogFileName) },
+			this.isWebPlatform ? undefined : this._pathService.userHome({ preferLocal: true }).fsPath), clientSection);
 		const text = [
 			localize('diagnostics.title', "Connection diagnostics"),
 			...sections.flatMap(section => ['', section.title, ...(section.description ? [section.description] : []), ...section.entries.map(entry => `${entry.label}: ${entry.value}`)]),

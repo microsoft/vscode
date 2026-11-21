@@ -18,11 +18,12 @@ import { getAgentHostChatId } from '../../../../../platform/agentHost/common/age
 import { ICloudSandboxApiService, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, rewriteAgentHostLinkTarget, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
 import { resolveAgentHostToolResultImage } from '../agentSessions/agentHost/agentHostToolResultImages.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../common/chatSessionsService.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../common/constants.js';
 
 const LOG_PREFIX = '[CloudSandboxReadOnly]';
 
@@ -77,6 +78,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		private readonly _config: ICloudSandboxReadOnlyConfig,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(toDisposable(() => this._chatContexts.clear()));
@@ -146,8 +148,9 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		const directory = (chat?.workingDirectories ?? session.state.workingDirectories)?.[0];
 		const context = { chat, directory: directory ? URI.parse(directory) : undefined };
 		this._chatContexts.set(sessionResource, context);
+		const showHookFailures = this._configurationService.getValue<boolean>(ChatConfiguration.HooksShowWarnings) === true;
 		const history: IChatSessionHistoryItem[] = chat
-			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority)
+			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority, undefined, undefined, undefined, undefined, undefined, undefined, undefined, showHookFailures)
 			: [];
 
 		// Recorded active turns remain settled until a live snapshot can resume them.
@@ -168,6 +171,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 					active,
 					this._config.connectionAuthority,
 					sessionResource.authority,
+					undefined, undefined, undefined, undefined, undefined,
+					showHookFailures,
 				),
 				participant: this._config.agentId,
 			});

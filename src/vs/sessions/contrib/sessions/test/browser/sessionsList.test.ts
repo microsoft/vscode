@@ -102,10 +102,10 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
@@ -114,6 +114,7 @@ import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/too
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { MobileSessionsListPresentation } from '../../../mobile/browser/mobileSessionsListPresentation.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { renderSessionsHeader, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
@@ -139,6 +140,7 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/co
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../browser/views/sessionsViewActions.js';
+import '../../../../browser/mobile/media/mobileDrawer.css';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -5932,6 +5934,173 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
+		for (const scenario of ['sidebar', 'transcript', 'postApproval', 'lateRequest', 'newSession', 'off', 'screenReader', 'empty', 'denied', 'automatic', 'background', 'navigated', 'removed', 'undone', 'undoneBeforeTracking', 'partialUndo'] as const) {
+			test(`Inbox approvals use accessibility-aware auto-advance (${scenario})`, async () => {
+				const source = createTestSession('source', { status: SessionStatus.NeedsInput, updatedAt: new Date(2) });
+				const next = createTestSession('next', { updatedAt: new Date(1) });
+				const harness = createListHarness(disposables, scenario === 'empty' ? [source.session] : [source.session, next.session]);
+				const commands = sinon.stub(harness.commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => commands.restore()));
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+				if (scenario === 'off' || scenario === 'newSession') {
+					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, scenario);
+				}
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized(): boolean { return scenario === 'screenReader' || scenario === 'newSession'; }
+				});
+				const initial = scenario === 'background' ? next.session : source.session;
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: initial, chat: initial.mainChat.get() });
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const chatService = new MockChatService();
+				harness.instantiationService.stub(IChatService, chatService);
+				harness.instantiationService.stub(IChatAgentService, disposables.add(harness.instantiationService.createInstance(ChatAgentService)));
+				const chatModel = disposables.add(harness.instantiationService.createInstance(ChatModel, undefined, {
+					initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: source.session.mainChat.get().resource,
+				}));
+				chatService.addSession(chatModel);
+				const request = chatModel.addRequest({ text: 'Run tests', parts: [] }, { variables: [] }, 0);
+				const tool = new ChatToolInvocation({
+					invocationMessage: 'Run tests',
+					confirmationMessages: { title: 'Run tests?', confirmResults: scenario === 'postApproval' },
+				}, { id: 'tests', displayName: 'Tests', modelDescription: 'Run tests', source: ToolDataSource.Internal }, 'tests', undefined, {});
+				if (scenario === 'postApproval') {
+					IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.Setting, id: 'tests' });
+					await tool.didExecuteTool(undefined);
+				}
+				if (scenario !== 'lateRequest') {
+					request.response!.updateContent(tool);
+				}
+				if (scenario === 'undoneBeforeTracking') {
+					request.shouldBeRemovedOnSend = { requestId: request.id };
+					request.response!.shouldBeRemovedOnSend = request.shouldBeRemovedOnSend;
+				}
+				if (scenario === 'partialUndo') {
+					request.response!.addUndoStop({ kind: 'undoStop', id: 'edit' });
+				}
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opened: string[] = [];
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					onSessionOpen: resource => {
+						const session = harness.managementService.getSession(resource)!;
+						opened.push(session.sessionId);
+						shown.set({ session, chat: session.mainChat.get() }, undefined);
+					},
+				}));
+				list.layout(600, 400);
+				if (scenario === 'lateRequest') {
+					chatModel.addRequest({ text: 'Run more tests', parts: [] }, { variables: [] }, 0).response!.updateContent(tool);
+				}
+				if (scenario === 'removed') {
+					chatModel.removeRequest(request.id);
+				}
+				if (scenario === 'undone' || scenario === 'partialUndo') {
+					request.shouldBeRemovedOnSend = { requestId: request.id, afterUndoStop: scenario === 'partialUndo' ? 'edit' : undefined };
+					request.response!.shouldBeRemovedOnSend = request.shouldBeRemovedOnSend;
+				}
+				if (scenario === 'sidebar') {
+					list.getItemRow({ session: source.session.resource })!.querySelector<HTMLElement>('.session-approval-button .monaco-button')!.click();
+				} else {
+					IChatToolInvocation.confirmWith(tool, scenario === 'denied' ? { type: ToolConfirmKind.Denied, source: 'user' }
+						: scenario === 'automatic' ? { type: ToolConfirmKind.Setting, id: 'tests' } : { type: ToolConfirmKind.UserAction });
+				}
+				source.status.set(scenario === 'denied' ? SessionStatus.Completed : SessionStatus.InProgress, undefined);
+				if (scenario === 'navigated') {
+					shown.set({ session: next.session, chat: next.session.mainChat.get() }, undefined);
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				const advances = scenario === 'sidebar' || scenario === 'transcript' || scenario === 'postApproval' || scenario === 'lateRequest' || scenario === 'partialUndo';
+				assert.deepStrictEqual({
+					commands: commands.args,
+					opened,
+					shown: shown.get()?.session.sessionId,
+					selected: list.element.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+					emptyInboxFocused: !!list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused'),
+					acknowledged: model.getInboxState(source.session)?.kind,
+				}, {
+					commands: scenario === 'newSession' ? [[NEW_SESSION_ACTION_ID]] : [],
+					opened: advances ? ['next'] : [],
+					shown: advances || scenario === 'background' || scenario === 'navigated' ? 'next' : 'source',
+					selected: scenario === 'empty' ? undefined : scenario === 'denied' ? 'source' : 'next',
+					emptyInboxFocused: scenario === 'empty',
+					acknowledged: undefined,
+				});
+			});
+		}
+
+		for (const { count, screenReader, scenario } of [
+			{ count: 3, screenReader: false, scenario: 'reply' },
+			{ count: 1, screenReader: false, scenario: 'reply' },
+			{ count: 3, screenReader: true, scenario: 'reply' },
+			...(['hidden', 'workspace', 'new', 'background', 'navigated', 'settingChanged'] as const).map(scenario => ({ count: 3, screenReader: false, scenario })),
+		]) {
+			test(`Inbox replies with newSession do not show onboarding (items: ${count}, screen reader: ${screenReader}, scenario: ${scenario})`, async () => {
+				const built = Array.from({ length: count }, (_, i) => buildTestSession({ id: `reply-${i}`, title: `Reply ${i}`, minutesAgo: i }));
+				const source = built[0];
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, built.map(item => item.session));
+				const commands = sinon.stub(harness.commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => commands.restore()));
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'newSession');
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized(): boolean { return screenReader; }
+				});
+				let notifications = 0;
+				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+					override prompt() { notifications++; return new NoOpNotification(); }
+				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opened: URI[] = [];
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => scenario === 'workspace' ? SessionsGrouping.Workspace : SessionsGrouping.Inbox,
+					sorting: () => SessionsSorting.Updated,
+					onSessionOpen: resource => { opened.push(resource); },
+				}));
+				list.layout(600, 400);
+				if (scenario === 'hidden') {
+					list.setVisible(false);
+				}
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({
+					chatSessionResource: (scenario === 'background' ? built[1] : source).session.mainChat.get().resource,
+					isNewSession: scenario === 'new',
+				});
+				const commandsBeforeFrame = commands.args.slice();
+				if (scenario === 'navigated') {
+					shown.set({ session: built[1].session, chat: built[1].session.mainChat.get() }, undefined);
+				}
+				if (scenario === 'settingChanged') {
+					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'off');
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+				assert.deepStrictEqual({ commandsBeforeFrame, commands: commands.args, opened, tours, notifications }, {
+					commandsBeforeFrame: [],
+					commands: scenario === 'reply' ? [[NEW_SESSION_ACTION_ID]] : [],
+					opened: [],
+					tours: 0,
+					notifications: 0,
+				});
+			});
+		}
+
 		for (const { count, index, expected, mode, screenReader } of [
 			{ count: 3, index: 0, expected: 'reply-1', mode: undefined, screenReader: false },
 			{ count: 3, index: 1, expected: 'reply-2', mode: undefined, screenReader: false },
@@ -6645,6 +6814,38 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
+		test('opening an acknowledged session keeps it in Acknowledged when its last-turn timestamp hydrates', async () => {
+			const built = buildTestSession({ id: 'acknowledged', title: 'Acknowledged', isRead: false });
+			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', undefined);
+			const session = { ...built.session, lastTurnEnd };
+			const harness = createListHarness(disposables, [session]);
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const opened: string[] = [];
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => {
+					opened.push(session.sessionId);
+					built.isRead.set(true, undefined);
+					lastTurnEnd.set(session.updatedAt.get(), undefined);
+				},
+			}));
+			list.layout(600, 400);
+			model.setInboxState([session], 'done');
+			await retry(async () => assert.ok(list.getItemRow({ section: SessionInboxSection.Acknowledged })), 10, 100);
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
+			clickRow(list.getItemRow({ session: session.resource })!);
+			await retry(async () => assert.deepStrictEqual(opened, ['acknowledged']), 10, 100);
+			list.update();
+			assert.deepStrictEqual({
+				state: model.getInboxState(session)?.kind,
+				sections: list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type),
+			}, {
+				state: 'done',
+				sections: [SessionInboxSection.ReadyForYou, SessionInboxSection.Acknowledged],
+			});
+		});
+
 		test('inbox prioritizes attention and recent completion, preserves pins, and never auto-completes idle sessions', () => {
 			const pinned = createTestSession('pinned', { status: SessionStatus.InProgress }).session;
 			const waiting = createTestSession('waiting', { status: SessionStatus.NeedsInput, updatedAt: new Date(1) }).session;
@@ -6681,6 +6882,86 @@ suite('Sessions - SessionsList', () => {
 				['urgent', 'newer', 'older'], ['urgent', 'older', 'newer'],
 			]);
 		});
+
+		test('inbox displays the session timestamps used to order rows with no attention notifications', () => {
+			const now = Date.now();
+			const specs = [
+				{ id: 'first', title: 'Read session A', workspace: 'notes', minutesAgo: 1, mainChatMinutesAgo: 7, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'second', title: 'Read session B', workspace: 'notes', minutesAgo: 2, mainChatMinutesAgo: 40, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'third', title: 'Read session C', workspace: 'notes', minutesAgo: 3, mainChatMinutesAgo: 1440, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'fourth', title: 'Unread session A', workspace: 'code', minutesAgo: 4, isRead: false },
+				{ id: 'fifth', title: 'Unread session B', workspace: 'code', minutesAgo: 4, isRead: false },
+				{ id: 'sixth', title: 'Unread session C', workspace: 'code', minutesAgo: 5, isRead: false },
+			];
+			const sessions = specs.map(spec => buildTestSession(spec, now).session);
+			const harness = createListHarness(disposables, sessions);
+			const storage = harness.instantiationService.get(IStorageService);
+			storage.store('sessions.inboxNotifications.attentionStartTime', now - 2 * 24 * 60 * 60_000, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const attention = disposables.add(new SessionAttentionService(
+				harness.managementService, harness.instantiationService.get(IChatService), harness.instantiationService.get(IGitHubService),
+				storage, upcastPartial<IChatEntitlementService>({ sentimentObs: constObservable({}) }),
+				upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: Event.None }),
+				harness.instantiationService.get(IConfigurationService),
+			));
+			harness.instantiationService.stub(ISessionAttentionService, attention);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(1000, 700);
+			const rows = list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === SessionInboxSection.ReadyForYou ? node.children.flatMap(child => child.type === 'session' ? [child.session] : []) : []);
+
+			assert.deepStrictEqual(rows.map(session => {
+				const row = list.getItemRow({ session: session.resource })!;
+				const state = attention.sessionAttention.get().get(session.sessionId);
+				return {
+					id: session.sessionId,
+					time: row.querySelector('.session-time')?.textContent,
+					ariaLabel: row.getAttribute('aria-label'),
+					readDot: !!row.querySelector('.session-icon .codicon-circle-small-filled'),
+					unreadDot: !!row.querySelector('.session-icon .codicon-circle-filled'),
+					priority: state?.priority,
+					notifications: state?.notificationIds,
+				};
+			}), specs.map(spec => ({
+				id: spec.id,
+				time: `${spec.minutesAgo} ${spec.minutesAgo === 1 ? 'min' : 'mins'} ago`,
+				ariaLabel: `${spec.title}, updated ${spec.minutesAgo} ${spec.minutesAgo === 1 ? 'min' : 'mins'} ago, State: Completed${spec.isRead ? '' : ', unread'}, in ${spec.workspace}`,
+				readDot: spec.isRead,
+				unreadDot: !spec.isRead,
+				priority: InboxNotificationPriority.Later,
+				notifications: [],
+			})));
+		});
+
+		for (const grouping of [SessionsGrouping.Inbox, SessionsGrouping.Workspace]) {
+			test(`${grouping} row timestamps react to session updates without changing the main chat time`, () => {
+				const now = Date.now();
+				const built = buildTestSession({ id: 'timestamps', title: 'Task', minutesAgo: 60, mainChatMinutesAgo: 7 }, now);
+				const updatedAt = observableValue('sessionUpdatedAt', built.session.updatedAt.get());
+				const session: ISession = { ...built.session, updatedAt };
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				const snapshot = () => {
+					const row = list.getItemRow({ session: session.resource })!;
+					return { time: row.querySelector('.session-time')?.textContent, ariaLabel: row.getAttribute('aria-label') };
+				};
+				const initial = snapshot();
+				updatedAt.set(new Date(now - 60_000), undefined);
+				const updated = snapshot();
+				const initialTime = grouping === SessionsGrouping.Inbox ? '1 hr ago' : '7 mins ago';
+				const updatedTime = grouping === SessionsGrouping.Inbox ? '1 min ago' : '7 mins ago';
+
+				assert.deepStrictEqual({ initial, updated }, {
+					initial: { time: initialTime, ariaLabel: `Task, updated ${initialTime}, State: Completed` },
+					updated: { time: updatedTime, ariaLabel: `Task, updated ${updatedTime}, State: Completed` },
+				});
+			});
+		}
 
 		for (const workingChat of ['main', 'child'] as const) {
 			test(`inbox keeps sessions in Working while the ${workingChat} chat runs, except when explicitly triaged`, () => {
@@ -7272,6 +7553,53 @@ suite('Sessions - SessionsList', () => {
 			}
 			assert.deepStrictEqual(states, [false, true, false, true, true, true, true, true]);
 		});
+
+		for (const scenario of ['approval', 'other-completes', 'empty'] as const) {
+			test(`Inbox restores a visible selection without navigating or expanding collapsed categories (${scenario})`, async () => {
+				const active = createTestSession('active', { status: scenario === 'other-completes' ? SessionStatus.InProgress : SessionStatus.NeedsInput });
+				const other = createTestSession('other', { status: scenario === 'other-completes' ? SessionStatus.InProgress : SessionStatus.Completed });
+				const worker = createTestSession('worker', { status: SessionStatus.InProgress });
+				const harness = createListHarness(disposables, scenario === 'empty' ? [active.session, worker.session] : [active.session, other.session, worker.session]);
+				stubSessionHosts(harness.instantiationService, disposables, {
+					session: constObservable({ session: active.session, chat: active.session.mainChat.get() }),
+				});
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				let opened = 0;
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { opened++; },
+				}));
+				list.layout(400, 320);
+				if (scenario !== 'other-completes') {
+					list.setItemCollapsed({ section: SessionInboxSection.Working }, false);
+					list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
+				}
+				list.reveal(active.session.resource);
+				const outside = append(harness.createContainer(), $('button'));
+				outside.focus();
+				if (scenario === 'other-completes') {
+					other.status.set(SessionStatus.Completed, undefined);
+				} else {
+					active.status.set(SessionStatus.InProgress, undefined);
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				const selected = list.element.querySelector<HTMLElement>('.monaco-list-row.selected');
+				assert.deepStrictEqual({
+					selected: selected?.querySelector('.session-title')?.textContent,
+					focusedHeader: list.element.querySelector('.monaco-list-row.focused .session-section-label')?.textContent,
+					focusedIsSelected: selected?.classList.contains('focused'),
+					workingCollapsed: list.getTreeSnapshot().some(node => node.type === 'section' && node.id === SessionInboxSection.Working && node.collapsed),
+					domFocusPreserved: mainWindow.document.activeElement === outside,
+					opened,
+				}, {
+					selected: scenario === 'empty' ? undefined : 'other',
+					focusedHeader: scenario === 'empty' ? 'Inbox' : undefined,
+					focusedIsSelected: scenario === 'empty' ? undefined : true,
+					workingCollapsed: true,
+					domFocusPreserved: true,
+					opened: 0,
+				});
+			});
+		}
 
 		test('empty inbox categories disappear and reappear as sessions arrive', () => {
 			const harness = createListHarness(disposables, []);
@@ -8302,7 +8630,7 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}) {
 			let currentGrouping = grouping;
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -8350,6 +8678,9 @@ suite('Sessions - SessionsList', () => {
 				}
 			});
 			const container = harness.createContainer(400, 800);
+			for (const [key, value] of Object.entries(settings)) {
+				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(key, value);
+			}
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => currentGrouping,
 				sorting: () => SessionsSorting.Created,
@@ -8573,6 +8904,57 @@ suite('Sessions - SessionsList', () => {
 					],
 				});
 			}
+		});
+
+		test('draws indent guides only beside the rows that step in below a header', () => {
+			const outline = (indentItems: boolean) => {
+				const { container } = render(SessionsGrouping.Workspace, new Map(), false, {
+					'workbench.tree.renderIndentGuides': 'onHover',
+					[SESSIONS_LIST_INDENT_ITEMS_SETTING]: indentItems,
+				});
+				for (const size of [2, 6, 10, 16]) {
+					container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+				}
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => {
+						const indent = row.querySelector<HTMLElement>('.monaco-tl-indent')!.getBoundingClientRect();
+						const shownGuides = [...row.querySelectorAll('.monaco-tl-indent > .indent-guide')]
+							.filter(guide => guide.getBoundingClientRect().left < indent.right).length;
+						return `${'  '.repeat(shownGuides)}${labelOf(row)}`;
+					});
+			};
+
+			assert.deepStrictEqual({ indentItemsOff: outline(false), indentItemsOn: outline(true) }, {
+				indentItemsOff: [
+					'Release work',
+					'  Hotfixes',
+					'    Urgent',
+					'    Patch CVE',
+					'  Fix login',
+					'  Docs',
+					'  No session',
+					'Ship notes',
+					'Triage',
+					'Flaky test',
+					'vscode',
+					'Ungrouped',
+				],
+				indentItemsOn: [
+					'Release work',
+					'  Hotfixes',
+					'    Urgent',
+					'      Patch CVE',
+					'    Fix login',
+					'  Docs',
+					'    No session',
+					'  Ship notes',
+					'Triage',
+					'  Flaky test',
+					'vscode',
+					'  Ungrouped',
+				],
+			});
 		});
 
 		test('drops a group inside another group, next to a nested group, or back at the top level, but never inside itself', () => {
@@ -9202,8 +9584,51 @@ suite('Sessions - SessionsList', () => {
 				list.closeFind();
 				await timeout(350);
 			};
-			return { harness, list, rows, search, closeSearch };
+			return { harness, container, findWidgetContainer, list, rows, search, closeSearch };
 		}
+
+		test('phone search keeps the empty result after blur until the results or query change', async () => {
+			const { harness, container, findWidgetContainer, list, search, closeSearch } = renderSearch([createSession('First')], instantiationService => {
+				const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				IsPhoneLayoutContext.bindTo(context).set(true);
+				instantiationService.stub(IContextKeyService, context);
+			});
+			container.prepend(findWidgetContainer);
+			const status = container.querySelector('.sessions-list-primary [role="status"]');
+			assert.ok(status);
+			try {
+				search('second');
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				assert.strictEqual(mainWindow.document.activeElement, input);
+				const focused = status.textContent;
+				const warning = !!findWidgetContainer.querySelector('.monaco-inputbox.warning');
+				input.blur();
+				assert.notStrictEqual(mainWindow.document.activeElement, input);
+				const blurred = status.textContent;
+				const announcement = status.firstChild;
+				list.refresh();
+				assert.strictEqual(status.firstChild, announcement, 'refreshing unchanged results should not repeat the announcement');
+
+				harness.managementService.sessions.push(createSession('Second'));
+				list.refresh();
+				const arrived = status.textContent;
+				harness.managementService.sessions.pop();
+				list.refresh();
+				const removed = status.textContent;
+				search('first');
+				const matched = status.textContent;
+				search('absent');
+				search('');
+				const cleared = status.textContent;
+				search('absent');
+				list.closeFind();
+				assert.deepStrictEqual({ focused, warning, blurred, arrived, removed, matched, cleared, closed: status.textContent }, {
+					focused: 'No sessions found', warning: false, blurred: 'No sessions found', arrived: '', removed: 'No sessions found', matched: '', cleared: '', closed: '',
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
 
 		test('matches every word in any order, not scattered letters', async () => {
 			const { search, closeSearch } = renderSearch([
@@ -11413,6 +11838,7 @@ suite('Sessions - SessionsList', () => {
 						harness.instantiationService.get(IStorageService),
 						upcastPartial<IChatEntitlementService>({ sentimentObs: constObservable({}) }),
 						upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: Event.None }),
+						harness.instantiationService.get(IConfigurationService),
 					));
 					harness.instantiationService.stub(ISessionAttentionService, service);
 					disposables.add(service.acquireSessionAttention());
@@ -16280,6 +16706,59 @@ suite('Sessions - SessionsList', () => {
 
 			const heights = { taskA: rowHeight('Task A'), taskB: rowHeight('Task B') };
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
+		});
+
+		test('centers title-only quick chats in shorter phone drawer rows and keeps approvals and metadata full height', () => {
+			const quick = createTestSession('Quick', { isQuickChat: true, isRead: false }).session;
+			const waiting = createTestSession('Waiting', { isQuickChat: true, status: SessionStatus.NeedsInput }).session;
+			const repo = createTestSession('Project', { repository: 'example/project' }).session;
+			const hydrating: ISession = { ...createTestSession('Loading').session, workspace: constObservable(undefined) };
+			const main = waiting.mainChat.get();
+			const pending = observableValue<IAgentSessionApprovalInfo | undefined>('pending', terminalApproval(main, 'echo test'));
+			const harness = createListHarness(disposables, [quick, waiting, repo, hydrating], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			const container = harness.createContainer(390, 600);
+			container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'phone-layout', 'mobile-workbench');
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Repository,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				titleOnlyQuickChatRowHeight: harness.instantiationService.createInstance(MobileSessionsListPresentation).titleOnlyQuickChatRowHeight,
+				approvalModel: new class extends mock<AgentSessionApprovalModel>() {
+					override getApproval(resource: URI) { return isEqual(resource, main.resource) ? pending : constObservable(undefined); }
+				}(),
+			}));
+			list.layout(600, 390);
+			list.setHeaderCollapsed(QUICK_CHATS_SECTION_ID, false);
+
+			for (const [session, height] of [[quick, 52], [waiting, 110], [repo, 78]] as const) {
+				const row = list.getItemRow({ session: session.resource })!;
+				const bounds = row.getBoundingClientRect();
+				const title = row.querySelector('.session-title')!.getBoundingClientRect();
+				const details = row.querySelector('.session-details-row')!.getBoundingClientRect();
+				const approval = row.querySelector('.session-approval-row.visible')?.getBoundingClientRect();
+				const above = title.top - bounds.top;
+				const below = bounds.bottom - (approval ?? (details.height ? details : title)).bottom;
+				assert.strictEqual(bounds.height, height);
+				assert.ok(title.height > 0);
+				assert.deepStrictEqual({ details: details.height > 0, approval: !!approval }, { details: session === repo, approval: session === waiting });
+				if (session !== repo) {
+					assert.strictEqual(row.querySelector('.session-icon > .codicon')!.getBoundingClientRect().top, title.top);
+				}
+				assert.ok(Math.abs(above - below) <= 1, `expected centered content; got ${above}px above and ${below}px below`);
+			}
+			assert.strictEqual(list.getItemRow({ session: hydrating.resource })!.offsetHeight, 78);
+			const waitingHeight = () => list.getItemRow({ session: waiting.resource })!.offsetHeight;
+			pending.set(undefined, undefined);
+			assert.strictEqual(waitingHeight(), 52);
+			list.layout(1, 390);
+			assert.strictEqual(list.getItemRow({ session: waiting.resource }), undefined, 'approval must arrive while its row is offscreen');
+			pending.set(terminalApproval(main, 'echo test'), undefined);
+			list.layout(600, 390);
+			assert.strictEqual(waitingHeight(), 110);
 		});
 
 		test('reserves approval rounding slack in phone chat rows', () => {

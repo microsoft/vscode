@@ -538,7 +538,7 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(changes, [a, b, a, undefined]);
 	});
 
-	test('the Chat view shows only its sessions while a contribution asks for it, a host replaces it, and it does not host the chat shown last', () => {
+	test('the Chat view shows only its sessions while a contribution asks for it and a host replaces it, unless it hosts the chat shown last', () => {
 		const { service, shownSession, showView } = createService();
 		showView();
 		const localChat = URI.parse('vscode-chat-session://local/session');
@@ -562,6 +562,41 @@ suite('ChatViewHostService', () => {
 		again.dispose();
 
 		assert.deepStrictEqual(steps, [false, false, true, false, true, false]);
+	});
+
+	test('the Chat view shows the composer of a new chat that it started while the chats open elsewhere, until a chat shows', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		Object.assign(view, { newChat: async () => true });
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		const steps = [service.sessionsOnly.get()];
+		await service.newChat(undefined, { ownChat: true });
+		steps.push(service.sessionsOnly.get());
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/session'), reason: 'open' }, undefined);
+		await service.openSession(URI.parse('agent-host-copilot:/session-1'));
+		steps.push(service.sessionsOnly.get());
+		elsewhere.dispose();
+
+		assert.deepStrictEqual(steps, [true, false, true]);
+	});
+
+	test('the Chat view shows only its sessions while the chats open elsewhere, even with no host, unless it hosts the chat shown last of a host that replaces it', () => {
+		const { service, shownSession, showView } = createService();
+		showView();
+		const localChat = URI.parse('vscode-chat-session://local/session');
+		const steps = [service.sessionsOnly.get()];
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		steps.push(service.sessionsOnly.get());
+		const host = service.register({ host: { ...upcastPartial<IChatViewHost>({}), canShow: resource => resource.scheme !== localChat.scheme } });
+		steps.push(service.sessionsOnly.get());
+		shownSession.set({ resource: localChat, reason: 'open' }, undefined);
+		steps.push(service.sessionsOnly.get());
+		shownSession.set(undefined, undefined);
+		host.dispose();
+		elsewhere.dispose();
+		steps.push(service.sessionsOnly.get());
+
+		assert.deepStrictEqual(steps, [false, true, true, false, false]);
 	});
 
 	test('what shows the chats steps: a request takes the host and supersedes a New Chat under way, a host shows a chat on its own, and a host that went changes nothing', () => {

@@ -118,9 +118,11 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		// Folder session that has outgoing changes
+		// Folder session whose outgoing commits can be synced to the upstream
+		// branch. A branch without an upstream keeps the pull request operations,
+		// since creating the pull request publishes the branch.
 		const isFolderSession = state?.config?.values[SessionConfigKey.Isolation] === 'folder';
-		if (isFolderSession && gitState?.outgoingChanges && gitState.outgoingChanges > 0) {
+		if (isFolderSession && gitState?.upstreamBranchName && gitState.outgoingChanges && gitState.outgoingChanges > 0) {
 			return undefined;
 		}
 

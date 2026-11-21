@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -368,6 +368,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
+
+	private static readonly ITEM_CHANGE_DEBOUNCE_MS = 50;
 
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
@@ -1219,12 +1221,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token, 'initial') });
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
+		// Controllers may report changes in bursts (e.g. one per session summary update): merge them and notify listeners and
+		// re-count in-progress sessions once per interval instead of once per event.
+		const pendingUpdated = new ResourceMap<IChatSessionItem>();
+		const pendingRemoved = new ResourceSet();
+		const flushScheduler = disposables.add(new RunOnceScheduler(() => {
+			const delta: IChatSessionItemsDelta = {
+				addedOrUpdated: pendingUpdated.size ? Array.from(pendingUpdated.values()) : undefined,
+				removed: pendingRemoved.size ? Array.from(pendingRemoved) : undefined,
+			};
+			pendingUpdated.clear();
+			pendingRemoved.clear();
+			this._onDidChangeSessionItems.fire(delta);
+			this.updateInProgressStatus(chatSessionType);
+		}, ChatSessionsService.ITEM_CHANGE_DEBOUNCE_MS));
+
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
 			for (const sessionResource of e.removed ?? []) {
 				this._disposeSession(sessionResource);
+				pendingUpdated.delete(sessionResource);
+				pendingRemoved.add(sessionResource);
 			}
-			this._onDidChangeSessionItems.fire(e);
-			this.updateInProgressStatus(chatSessionType);
+			for (const item of e.addedOrUpdated ?? []) {
+				pendingRemoved.delete(item.resource);
+				pendingUpdated.set(item.resource, item);
+			}
+			if (!flushScheduler.isScheduled()) {
+				flushScheduler.schedule();
+			}
 		}));
 
 		return {

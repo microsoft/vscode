@@ -26,7 +26,7 @@ import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
-import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -45,6 +45,8 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerSource.js';
+import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { CreateDevContainerTool } from '../browser/createDevContainerTool.js';
 
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;
@@ -719,10 +721,13 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 	) {
 		super();
 		const connector = this._register(instantiationService.createInstance(DevContainerAgentHostConnector));
 		this._register(service.registerConnector(connector));
+		const createDevContainer = instantiationService.createInstance(CreateDevContainerTool);
+		this._register(toolsService.registerTool(createDevContainer.getToolData(), createDevContainer));
 		void reportDevContainerEnvironment(
 			recentWorkspacesService,
 			workspaceUris => connector.getEnvironment(workspaceUris),
@@ -768,6 +773,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[DevContainerEnvironmentsEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('chat.agentHost.devContainer.environments.enabled', "Enable creating Dev Container environments on this computer and on SSH, Tunnel, and WSL hosts that have Docker, from Remote Environments in the Agents window. An environment is a container from a base Linux image that keeps its files in a Docker volume and can be chosen in the Environment picker. One on a remote host connects and disconnects with that host. One on this computer starts when you first use it. Requires Dev Container Agent Host sessions to be enabled."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[DevContainerHandoffEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: localize('chat.agentHost.devContainer.handoff.enabled', "Let agents in the Agents window create Dev Container environments and continue a task in a new session inside one, guided by the built-in `dev-container-handoff` skill. Also enables the remote session tools, as {0} does. Requires {1}.", '`#chat.remoteSessions.tools.enabled#`', '`#chat.agentHost.devContainer.environments.enabled#`'),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],

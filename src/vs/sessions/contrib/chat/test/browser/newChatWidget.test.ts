@@ -1307,7 +1307,7 @@ suite('NewChatWidget', () => {
 			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true });
 			assert.deepStrictEqual({ localSelection, containerSelection: picked.get() }, {
 				localSelection: first,
-				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container', icon: Codicon.remote },
+				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container for Folder', icon: Codicon.remote },
 			});
 		});
 
@@ -6503,6 +6503,7 @@ suite('NewChatWidget', () => {
 					_workspaceOptOutTarget: constObservable(undefined),
 					_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
 					_pendingRequestedAgent: disposables.add(new MutableDisposable()),
+					_pendingRequestedModel: disposables.add(new MutableDisposable()),
 					_applyingRequestedSelection: undefined,
 					// Its requested targets work in their folders: New Worktree is tested on its own
 					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),

@@ -77,7 +77,9 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../../../nls.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { getAgentHostApprovalDefault, getChatDefaultConfiguration, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -429,8 +431,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
+
+		// Local host only: quitting waits for it, so start tearing down drafts early (not awaited) to overlap the rest of shutdown.
+		if (!_environmentService.remoteAuthority) {
+			this._register(lifecycleService.onWillShutdown(e => e.join(async () => this._disposeOwnedBackendsOnShutdown(), {
+				id: 'join.agentHostProvisionalSessions',
+				label: localize('join.agentHostProvisionalSessions', "Discarding unsent agent session drafts"),
+				order: WillShutdownJoinerOrder.Last,
+			})));
+		}
 
 		// Drop provisional sessions when the chat infra disposes their
 		// chat-input session resource (e.g. the user closes the widget
@@ -1270,6 +1282,23 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				entry.generation = undefined;
 			}
 		});
+	}
+
+	/**
+	 * Disposes the backends of the owned drafts once, as {@link dispose} would: the host does not coalesce disposals
+	 * of a session, so the entries are left without a generation for {@link dispose} to dispose again.
+	 */
+	private _disposeOwnedBackendsOnShutdown(): void {
+		for (const entry of this._entries.values()) {
+			const generation = entry.generation;
+			if (!generation || !entry.ownsBackend) {
+				continue;
+			}
+			entry.disposed = true;
+			entry.lifetime.dispose();
+			entry.generation = undefined;
+			this._agentHostService.disposeSession(generation.backendSession).catch(() => { /* swallow on shutdown */ });
+		}
 	}
 
 	override dispose(): void {
