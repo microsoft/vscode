@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -22,7 +22,7 @@ import { GroupModelChangeKind, IEditorIdentifier, ITextDiffEditorPane } from '..
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, IEditorsChangeEvent } from '../../../../services/editor/common/editorService.js';
-import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, ICanvasWorkingSetOwner, isCanvasOwner } from '../../common/canvas.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { CanvasService } from '../../electron-browser/canvasService.js';
@@ -31,7 +31,7 @@ import { canvasOwnerKey, ICanvas, ICanvasOwner } from '../../../../common/canvas
 suite('CanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { readonly workingSets?: boolean; readonly presentedElsewhere?: boolean; readonly background?: boolean }) {
+	function createHarness(options?: { readonly workingSets?: boolean; readonly presentedElsewhere?: boolean; readonly background?: boolean; readonly browserService?: IBrowserViewWorkbenchService }) {
 		const owner: ICanvasOwner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
 		const canvas: ICanvas = {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
@@ -150,7 +150,7 @@ suite('CanvasService', () => {
 			get sentiment() { return { hidden }; },
 			onDidChangeSentiment: sentiment.event,
 		});
-		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
+		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, options?.browserService ?? upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
 			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
 		return {
 			workingSetState, setActiveInput: (input: EditorInput | undefined) => { activeInput = input; },
@@ -176,6 +176,36 @@ suite('CanvasService', () => {
 			},
 		};
 	}
+
+	test('publishes the model to hosts while its first load is still in progress', async () => {
+		const creation = new DeferredPromise<void>();
+		const loaded = new DeferredPromise<IBrowserViewModel>();
+		const model = upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => { } });
+		const observed: IBrowserViewModel[] = [];
+		let created = 0;
+		const harness = createHarness({
+			browserService: upcastPartial<IBrowserViewWorkbenchService>({
+				createExternalBrowserView: async (_url, _source, _owner, onCreated) => {
+					created++;
+					await creation.p;
+					onCreated?.(model);
+					return loaded.p;
+				},
+			}),
+		});
+		harness.canvases.set([harness.canvas], undefined);
+		const reference = { ...harness.owner, canvas: harness.canvas.resource };
+		const first = harness.service.resolveCanvasModel(reference, harness.canvas.source!, false, model => observed.push(model));
+		const second = harness.service.resolveCanvasModel(reference, harness.canvas.source!, false, model => observed.push(model));
+		await creation.complete();
+		await timeout(0);
+		const hostsAttachedWhileLoading = observed.length;
+		await loaded.complete(model);
+		const resolutions = await Promise.all([first, second]);
+		assert.deepStrictEqual({ created, hostsAttachedWhileLoading, sameModel: resolutions.every(result => result.model === model) }, {
+			created: 1, hostsAttachedWhileLoading: 2, sameModel: true,
+		});
+	});
 
 	test('deduplicates presentation, preserves dismissal, and reveals a new canvas lifetime', async () => {
 		const harness = createHarness();

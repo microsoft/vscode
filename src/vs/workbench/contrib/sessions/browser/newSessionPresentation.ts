@@ -30,6 +30,7 @@ export interface INewSessionPresentationController extends IDisposable {
 }
 
 export interface INewSessionPresentation {
+	readonly searchWorkspaceTargetDirectly?: boolean;
 	/** Keep provider controls with repository and status controls instead of in the primary input toolbar. */
 	readonly separateSessionControls?: boolean;
 	getAccessibilityHelp(screenReaderOptimized: boolean, agentPickerInAttachContextMenu: boolean): readonly string[];

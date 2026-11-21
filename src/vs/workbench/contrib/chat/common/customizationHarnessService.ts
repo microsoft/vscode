@@ -450,6 +450,12 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Provide messages about the customizations of the given type as a whole, such as
+	 * files that failed to load, shown above the section's list rather than as items.
+	 */
+	provideSectionNotices?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSectionNotice[] | undefined>;
+
+	/**
 	 * Returns the readiness of the most recent source-folder discovery for this session.
 	 * Providers that do not expose this treat a completed empty result as authoritative.
 	 */
@@ -462,6 +468,17 @@ export interface ICustomizationItemProvider {
 }
 
 export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
+
+/**
+ * A message about a section's customizations as a whole, such as files that failed to load.
+ */
+export interface ICustomizationSectionNotice {
+	readonly severity: 'warning' | 'error';
+	/** Short summary, such as "Some hook files could not be loaded". */
+	readonly title: string;
+	/** Details, one per line. */
+	readonly message: string;
+}
 
 /**
  * A directory where new customization files of a given type can be created.

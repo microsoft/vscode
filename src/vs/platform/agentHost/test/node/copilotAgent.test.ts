@@ -33,6 +33,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -77,7 +78,7 @@ import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubMcpServerEnabledSettingId, buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -9857,6 +9858,38 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('relaunches a runtime before its next turn when chat.useHooks changes, but not while background subagents run', async () => {
+			const { agent, launches, configurationService } = setup(undefined, [], [], { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } });
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'hooks-setting');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const context = exactChatContext(session, chat, session);
+			await provisionSession(agent, { session, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+			const current = () => chatEntriesBySdkId(agent).get(launches.at(-1)!.sessionId)!.chatSession;
+			const send = async (turn: string) => {
+				await agent.chats.sendMessage(chat, turn, [directory], undefined, turn, undefined, context);
+				current().discardActiveTurn();
+			};
+			await send('first');
+			configurationService.updateRootConfig({ [AgentHostHooksEnabledConfigKey]: false });
+			// Background subagents of the first turn would stop with the runtime.
+			const subagents = stub(current(), 'hasActiveSubagents').get(() => true);
+			await send('second');
+			subagents.restore();
+			await send('third');
+			await send('fourth');
+			configurationService.updateRootConfig({ [AgentHostHooksEnabledConfigKey]: true });
+			await send('fifth');
+
+			assert.deepStrictEqual(launches.map(launch => ({ kind: launch.kind, repositoryHooks: launch.config.hooks?.enableRepositoryHooks, sends: launch.runtime.sendCalls })), [
+				{ kind: 'create', repositoryHooks: true, sends: 2 },
+				{ kind: 'resume', repositoryHooks: false, sends: 2 },
+				{ kind: 'resume', repositoryHooks: true, sends: 1 },
+			]);
+		});
+
 		test('restores released scoped canvases on observation once a client contributes, across repeated releases', async () => {
 			const directory = URI.file(process.cwd());
 			const initialCanvas = {
@@ -12578,7 +12611,7 @@ suite('CopilotAgent', () => {
 				skillDiscoveryProjectPaths: client.skillDiscoveryRequests.at(-1)?.projectPaths,
 			}, {
 				resumedConfigs: [{
-					workingDirectory: next.fsPath,
+					workingDirectory: await Promises.realpath(next.fsPath),
 					skillDirectories: [],
 					instructionDirectories: [],
 					mcpServerNames: ['workspace-server'],
@@ -32633,7 +32666,7 @@ suite('CopilotAgent', () => {
 					skillDiscoveryProjectPaths: client.skillDiscoveryRequests.at(-1)?.projectPaths,
 				},
 				{
-					workingDirectory: worktree.fsPath,
+					workingDirectory: await Promises.realpath(worktree.fsPath),
 					skillDirectories: [],
 					instructionDirectories: [],
 					agentDiscoveryProjectPaths: [worktree.fsPath],
