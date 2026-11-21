@@ -84,7 +84,7 @@ export class SnippetString {
 			defaultValue = nested.value;
 
 		} else if (typeof defaultValue === 'string') {
-			defaultValue = defaultValue.replace(/\$|}/g, '\\$&'); // CodeQL [SM02383] I do not want to escape backslashes here
+			defaultValue = SnippetString._escape(defaultValue);
 		}
 
 		this.value += '${';
