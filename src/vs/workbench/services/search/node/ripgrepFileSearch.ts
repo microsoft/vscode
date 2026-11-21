@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as path from '../../../../base/common/path.js';
 import * as glob from '../../../../base/common/glob.js';
 import { normalizeNFD } from '../../../../base/common/normalization.js';
@@ -15,10 +16,13 @@ import { anchorGlob } from './ripgrepSearchUtils.js';
 import { getExcludeExceptionGlobs } from './ripgrepTextSearchEngine.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
-export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, excludeExceptions?: readonly string[]) {
+export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, excludeExceptions?: readonly string[], token?: CancellationToken) {
 	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads, excludeExceptions);
 	const cwd = folderQuery.folder.fsPath;
 	const resolvedRgDiskPath = await rgDiskPath();
+	if (token?.isCancellationRequested) {
+		return undefined;
+	}
 	return {
 		cmd: cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd }),
 		rgDiskPath: resolvedRgDiskPath,
