@@ -510,9 +510,20 @@ export class ChatSessionStore extends Disposable {
 	public async setSessionTitle(sessionId: string, title: string): Promise<void> {
 		await this.storeQueue.queue(async () => {
 			const index = this.internalGetIndex();
-			if (index.entries[sessionId]) {
-				index.entries[sessionId].title = title;
+			if (!index.entries[sessionId]) {
+				return;
 			}
+
+			// Keep the stored custom title and index in sync without restoring a model or
+			// starting its editing session. Deletion is serialized by the same queue.
+			const existingEntry = { ...index.entries[sessionId] };
+			const location = this.getStorageLocation(sessionId);
+			const session = await this.readSessionFromLocation(location.flat, location.log, sessionId);
+			if (session) {
+				await this.writeSession({ ...session.value as ISerializableChatData, customTitle: title });
+			}
+			index.entries[sessionId] = { ...existingEntry, title };
+			await this.flushIndex();
 		});
 	}
 
