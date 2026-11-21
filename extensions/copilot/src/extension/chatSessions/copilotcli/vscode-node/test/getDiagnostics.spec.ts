@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fileURLToPath } from 'node:url';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { MockMcpServer, parseToolResult, createMockUri, createMockDiagnostic } from './testHelpers';
 
 const { mockGetDiagnostics } = vi.hoisted(() => ({
 	mockGetDiagnostics: vi.fn(),
 }));
+
+// Fixtures are POSIX-style URIs, but a fixture can also be a drive-letter
+// path — detect which from the URL itself, not fileURLToPath()'s host-OS default.
+function uriToFsPath(str: string): string {
+	const isWindowsPath = /^file:\/\/\/[A-Za-z]:\//.test(str);
+	return fileURLToPath(str, { windows: isWindowsPath });
+}
 
 vi.mock('vscode', () => {
 	const DiagnosticSeverity = {
@@ -27,7 +35,7 @@ vi.mock('vscode', () => {
 		Uri: {
 			parse: (str: string) => ({
 				toString: () => str,
-				fsPath: str.replace('file://', ''),
+				fsPath: uriToFsPath(str),
 				scheme: 'file',
 			}),
 		},
@@ -79,6 +87,16 @@ describe('getDiagnostics tool', () => {
 		expect(result).toHaveLength(1);
 		expect(result[0].uri).toBe('file:///test/file.ts');
 		expect(result[0].diagnostics).toHaveLength(1);
+	});
+
+	it('should resolve filePath correctly for a Windows drive-letter URI', async () => {
+		const mockDiag = createMockDiagnostic('Test error', 0, 0, 0, 0, 10, 'test-source', 'TEST001');
+		mockGetDiagnostics.mockReturnValue([mockDiag]);
+
+		const handler = server.getToolHandler('get_diagnostics')!;
+		const result = parseToolResult<DiagnosticsFileResult[]>(await handler({ uri: 'file:///C:/Users/test/file.ts' }));
+
+		expect(result[0].filePath).toBe('C:\\Users\\test\\file.ts');
 	});
 
 	it('should return empty array when no diagnostics exist for URI', async () => {
