@@ -5057,6 +5057,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		const primaryContainer = DOM.append(this.listContainer, $('.sessions-list-primary'));
+		const searchMessage = DOM.append(primaryContainer, $('.sessions-list-search-empty', { role: 'status' }));
 		const treeDisposables = this._register(new DisposableStore());
 		const listContextKeyService = this._register(contextKeyService.createScoped(this.listContainer));
 		const treeInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, listContextKeyService])));
@@ -5316,9 +5317,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// observe the workbench's value rather than shadowing it with a fresh
 		// scoped default of `false`. The reactive height refresh below listens
 		// on the same scoped service for changes.
+		const isPhone = () => !!IsPhoneLayoutContext.getValue(contextKeyService);
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
-			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
+			isPhone,
 			() => this.isCompact(),
 			session => getSessionRowStatus(session, undefined, true, this.collapsedSessionIds.get().has(session.sessionId)),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
@@ -5532,6 +5534,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// Showing no chats of a session that has some makes its row stand for the whole session.
 			didFilter: () => this.syncCollapsedSessionIds(),
 			getResults: () => this.getSearchResults(),
+			renderInlineMessage: message => {
+				const inline = isPhone();
+				const text = inline ? message : '';
+				// Don't announce the same empty state again when the tree refreshes.
+				if (searchMessage.textContent !== text) {
+					searchMessage.textContent = text;
+				}
+				return inline;
+			},
 		}, {
 			findWidgetContainer: this.options.findWidgetContainer,
 			styles: defaultFindWidgetStyles,
