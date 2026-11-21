@@ -33,6 +33,8 @@ interface EntityInfo {
 	readonly members?: readonly ts.Node[];
 	/** The statements to list children from, which form the body of a namespace or of a suite. */
 	readonly statements?: readonly ts.Statement[];
+	/** Items to list as children that are neither members nor statements, such as a test that a suite's expression body registers. */
+	readonly nested?: readonly EntityInfo[];
 	/** Whether the item is a suite, whose statements only contribute their tests and suites. */
 	readonly isSuite?: boolean;
 	readonly isTest?: boolean;
@@ -223,6 +225,9 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		}
 		for (const statement of info.statements ?? []) {
 			visitStatement(statement, entity, info.isSuite === true);
+		}
+		for (const nested of info.nested ?? []) {
+			addEntity(entity, nested);
 		}
 	};
 	const visitStatement = (node: ts.Statement, parent: Entity, isSuite: boolean): void => {
@@ -467,7 +472,7 @@ function getTypeMembers(type: ts.TypeNode | undefined): readonly ts.Node[] | und
  * such as the name of a class that it registers.
  */
 function getCallInfo(node: ts.ExpressionStatement, file: ts.SourceFile): EntityInfo | undefined {
-	const expression = getStatementExpression(node);
+	const expression = unwrapExpression(node.expression);
 	if (!ts.isCallExpression(expression)) {
 		return undefined;
 	}
@@ -919,11 +924,11 @@ type TestKind = 'suite' | 'test';
 const hookNames: ReadonlySet<string> = new Set(['beforeEach', 'afterEach', 'beforeAll', 'afterAll']);
 
 /**
- * Returns the expression of a statement without the parentheses, type assertions and `await` or `void` operators around
- * it, such as the call in `await load();`.
+ * Returns an expression without the parentheses, type assertions and `await` or `void` operators around it, such as
+ * the call in `await load()`.
  */
-function getStatementExpression(node: ts.ExpressionStatement): ts.Expression {
-	let expression = tss.Nodes.skipOuterExpressions(node.expression);
+function unwrapExpression(node: ts.Expression): ts.Expression {
+	let expression = tss.Nodes.skipOuterExpressions(node);
 	while (ts.isAwaitExpression(expression) || ts.isVoidExpression(expression)) {
 		expression = tss.Nodes.skipOuterExpressions(expression.expression);
 	}
@@ -932,23 +937,27 @@ function getStatementExpression(node: ts.ExpressionStatement): ts.Expression {
 
 /**
  * Returns the item of a statement that registers a suite or a test, such as `test('title', () => {})`, which is named
- * by its title. A suite lists its tests and suites as children.
+ * by its title, or of such a registration that is the expression body of a suite, as in
+ * `suite('title', () => test('title', () => {}))`. A suite lists its tests and suites as children.
  */
-function getTestInfo(node: ts.ExpressionStatement, file: ts.SourceFile): EntityInfo | undefined {
-	const test = getTestCall(getStatementExpression(node));
+function getTestInfo(node: ts.ExpressionStatement | ts.Expression, file: ts.SourceFile): EntityInfo | undefined {
+	const test = getTestCall(unwrapExpression(ts.isExpressionStatement(node) ? node.expression : node));
 	if (test === undefined) {
 		return undefined;
 	}
 	const title = test.call.arguments[0];
 	const isSuite = test.kind === 'suite';
+	const body = test.callback.body;
+	const nested = isSuite && !ts.isBlock(body) ? getTestInfo(body, file) : undefined;
 	return {
 		name: getTitle(title, file),
 		nameNode: title,
 		rangeNode: node,
 		kind: isSuite ? vscode.SymbolKind.Class : vscode.SymbolKind.Method,
 		languageKind: test.kind,
-		body: [test.callback.body, ...test.trailingArguments],
-		statements: isSuite && ts.isBlock(test.callback.body) ? test.callback.body.statements : undefined,
+		body: [body, ...test.trailingArguments],
+		statements: isSuite && ts.isBlock(body) ? body.statements : undefined,
+		nested: nested === undefined ? undefined : [nested],
 		isSuite,
 		isTest: true,
 		isAnonymous: true,

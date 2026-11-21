@@ -652,6 +652,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			'\t(isWindows ? suite.skip : suite)("on Windows", function () {',
 			'\t\ttest("uses backslashes", () => { assert(1); }).timeout(1);',
 			'\t});',
+			'\tsuite("concise", () => suite("nested", () => test("inner", () => assert(1))));',
 			'});',
 		].join('\n');
 		const modified = original.replaceAll('1', '2');
@@ -662,6 +663,9 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			[['Calculator', 'handles ${input}'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
 			[['Calculator', 'on Windows'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
 			[['Calculator', 'on Windows', 'uses backslashes'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'concise'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'concise', 'nested'], vscode.SymbolKind.Class, [vscode.StructuralDiffTag.Test]],
+			[['Calculator', 'concise', 'nested', 'inner'], vscode.SymbolKind.Method, [vscode.StructuralDiffTag.Test]],
 		]);
 	});
 
