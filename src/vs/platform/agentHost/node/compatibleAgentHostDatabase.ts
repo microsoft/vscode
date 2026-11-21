@@ -62,6 +62,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		this.identity.addPersistedChats(records);
 	}
 
+	hasDefaultChatStorageIdentity(session: string): boolean {
+		const storageSession = this.identity.getSessionStorage(session);
+		return storageSession !== undefined && this.identity.hasChatStorage(storedChatUri(storageSession, '', { kind: 'default', generation: undefined }));
+	}
+
 	recordChatStorageIdentity(session: string, chat: string, role: ChatStorageRole): void {
 		const storageSession = this.identity.getSessionStorage(session);
 		if (storageSession === undefined || isShapedChatUri(chat) || this.identity.hasChat(chat)) {
