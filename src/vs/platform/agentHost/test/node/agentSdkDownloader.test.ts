@@ -431,11 +431,11 @@ suite('AgentSdkDownloader', () => {
 
 	test('download consent persists in host storage without an SDK cache', async () => {
 		const storageResource = URI.file(path.join(userDataPath, 'agent-host-storage.json'));
-		const firstStorage = disposables.add(new AgentHostStorageService(storageResource, new NullLogService()));
+		const firstStorage = disposables.add(await AgentHostStorageService.create(storageResource, new NullLogService()));
 		const first = makeDownloader(undefined, NullTelemetryService, firstStorage);
 		await first.recordDownloadConsent(ClaudeSdkPackage);
 
-		const restartedStorage = disposables.add(new AgentHostStorageService(storageResource, new NullLogService()));
+		const restartedStorage = disposables.add(await AgentHostStorageService.create(storageResource, new NullLogService()));
 		const restarted = makeDownloader(undefined, NullTelemetryService, restartedStorage);
 		const otherPackage: IAgentSdkPackage = { ...ClaudeSdkPackage, id: 'codex' };
 

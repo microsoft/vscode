@@ -93,7 +93,7 @@ suite('AgentHostStorageService', () => {
 		const path = getRandomTestPath(tmpdir()) + '.json';
 		await writeFile(path, 'not json', 'utf8');
 		try {
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			assert.throws(() => service.set('automations', { catalog: { entries: [] } }), /persisted data could not be loaded/);
 			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
@@ -106,6 +106,103 @@ suite('AgentHostStorageService', () => {
 			});
 		} finally {
 			await unlink(path);
+		}
+	});
+
+	test('a missing storage file starts empty and is writable', async () => {
+		const directory = getRandomTestPath(tmpdir());
+		await mkdir(directory);
+		const path = join(directory, 'storage.json');
+		try {
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
+			service.set('first', { value: 1 });
+			await service.whenIdle();
+
+			assert.deepStrictEqual({
+				loaded: service.get<{ value: number }>('first'),
+				loadError: service.loadError,
+				persisted: JSON.parse(await readFile(path, 'utf8')),
+			}, {
+				loaded: { value: 1 },
+				loadError: undefined,
+				persisted: { first: { value: 1 } },
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('loads persisted values from the storage file', async () => {
+		const directory = getRandomTestPath(tmpdir());
+		await mkdir(directory);
+		const path = join(directory, 'storage.json');
+		await writeFile(path, '{"first":{"value":1},"second":true}', 'utf8');
+		try {
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
+
+			assert.deepStrictEqual({
+				first: service.get<{ value: number }>('first'),
+				second: service.get<boolean>('second'),
+				missing: service.get('missing'),
+				loadError: service.loadError,
+			}, {
+				first: { value: 1 },
+				second: true,
+				missing: undefined,
+				loadError: undefined,
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('a storage file that is not a JSON object is rejected and never overwritten', async () => {
+		const directory = getRandomTestPath(tmpdir());
+		await mkdir(directory);
+		const path = join(directory, 'storage.json');
+		await writeFile(path, '[1, 2, 3]', 'utf8');
+		try {
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
+
+			assert.throws(() => service.set('next', true), /persisted data could not be loaded/);
+			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
+			assert.deepStrictEqual({
+				value: service.get('next'),
+				hasLoadError: service.loadError instanceof Error,
+				loadMessage: service.loadError?.message,
+				persisted: await readFile(path, 'utf8'),
+			}, {
+				value: undefined,
+				hasLoadError: true,
+				loadMessage: `Agent Host storage does not contain a JSON object: ${URI.file(path).toString()}`,
+				persisted: '[1, 2, 3]',
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('a storage file that cannot be read surfaces a load error and is never overwritten', async () => {
+		const directory = getRandomTestPath(tmpdir());
+		await mkdir(directory);
+		const path = join(directory, 'storage.json');
+		await mkdir(path);
+		try {
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
+
+			assert.throws(() => service.set('next', true), /persisted data could not be loaded/);
+			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
+			assert.deepStrictEqual({
+				value: service.get('next'),
+				hasLoadError: service.loadError instanceof Error,
+				files: await readdir(directory),
+			}, {
+				value: undefined,
+				hasLoadError: true,
+				files: ['storage.json'],
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
 		}
 	});
 
@@ -131,12 +228,12 @@ suite('AgentHostStorageService', () => {
 				rename,
 				rm: path => rm(path, { force: true }),
 			};
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService(), writer));
 			try {
 				service.set('next', true);
 				await writeStarted.p;
 				const before = await readFile(path, 'utf8');
-				const reopened = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+				const reopened = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 				releaseWrite.complete();
 				if (fail) {
 					await assert.rejects(service.whenIdle(), /interrupted write/);
@@ -181,14 +278,14 @@ suite('AgentHostStorageService', () => {
 			},
 			rm: target => rm(target, { force: true }),
 		};
-		const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+		const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService(), writer));
 		try {
 			service.set('next', true);
 			await assert.rejects(service.whenIdle(), /storage file is locked/);
 			await assert.rejects(service.whenIdle(), /storage file is locked/);
 			const afterFailure = await readFile(path, 'utf8');
 			const filesAfterFailure = await readdir(directory);
-			const reopened = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const reopened = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			fail = false;
 			service.set('retry', true);
@@ -235,7 +332,7 @@ suite('AgentHostStorageService', () => {
 			},
 			rm: target => rm(target, { force: true }),
 		};
-		const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+		const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService(), writer));
 		try {
 			await assert.rejects(service.setAndFlush('value', 'rejected'), /storage file is locked/);
 			await service.whenIdle();

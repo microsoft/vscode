@@ -101,7 +101,7 @@ import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatab
 import { AgentHostDatabase, type AgentHostDatabaseChatV2WriteResult, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IImportedOlderBuildChatEdit, type IOlderBuildEditsImport, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
-import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { AgentHostStorageService, type IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { AgentSessionResidency } from '../../node/agentSessionResidency.js';
@@ -14395,7 +14395,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		function createExternalSessionService(sessionDataService = createPerSessionDataService().service, orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService, storageResource?: URI): AgentService {
+		function createExternalSessionService(sessionDataService = createPerSessionDataService().service, orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService, storage?: AgentHostStorageService): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -14409,7 +14409,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				[],
 				undefined,
-				storageResource,
+				storage,
 				orchestratorDatabase,
 				undefined,
 				undefined,
@@ -18203,7 +18203,7 @@ suite('AgentService (node dispatcher)', () => {
 			const directory = mkdtempSync(join(tmpdir(), 'agent-host-recent-sessions-'));
 			const storageResource = URI.file(join(directory, 'storage.json'));
 			try {
-				const first = createExternalSessionService(createSessionDataService(), undefined, undefined, storageResource) as unknown as {
+				const first = createExternalSessionService(createSessionDataService(), undefined, undefined, disposables.add(await AgentHostStorageService.create(storageResource, new NullLogService()))) as unknown as {
 					_recordRecentLocalSessionUpdate(session: URI, modifiedTime: number): void;
 					_storageService: { whenIdle(): Promise<void> };
 					dispose(): void;
@@ -18213,7 +18213,7 @@ suite('AgentService (node dispatcher)', () => {
 				await first._storageService.whenIdle();
 				first.dispose();
 
-				const restored = createExternalSessionService(createSessionDataService(), undefined, undefined, storageResource);
+				const restored = createExternalSessionService(createSessionDataService(), undefined, undefined, disposables.add(await AgentHostStorageService.create(storageResource, new NullLogService())));
 				const agent = disposables.add(new TimedExternalAgent('copilot'));
 				const morning = agent.addSession('external-morning', at(10));
 				const afternoon = agent.addSession('external-afternoon', at(16));
