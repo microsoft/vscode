@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -38,6 +39,21 @@ export function deriveToolInvokedResult(result: ToolCallResult): ToolInvokedResu
 		return 'userCancelled';
 	}
 	return 'error';
+}
+
+/**
+ * Whether a failed tool call named a tool the session does not offer. The Copilot
+ * runtime reports these with the generic `failure` code and the error message
+ * `Tool '<name>' does not exist.`, which is also how the runtime itself tells them
+ * apart from tools that ran and failed.
+ */
+function isUnknownToolResult(result: ToolCallResult, toolName: string): boolean {
+	return !result.success && !!result.error?.message.startsWith(`Tool '${toolName}' does not exist.`);
+}
+
+/** Telemetry identity of a tool name the model invented, which is arbitrary model output. */
+function hashUnknownToolName(toolName: string): string {
+	return `sha256:${createHash('sha256').update(toolName).digest('hex')}`;
 }
 
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
@@ -173,6 +189,8 @@ export class AgentHostToolCallTracker extends Disposable {
 		const resultBucket = deriveToolInvokedResult(result);
 		const totalTimeMs = timing.lifecycleStopWatch.elapsed();
 		const resultSizeInCharacters = JSON.stringify(result).length;
+		// A call to a tool the session does not offer is not a built-in tool that failed.
+		const unknownTool = timing.toolSourceKind === 'agentHost' && isUnknownToolResult(result, timing.toolId);
 
 		const report: IAgentHostToolInvokedReport = {
 			clientContext: timing.clientContext,
@@ -182,8 +200,8 @@ export class AgentHostToolCallTracker extends Disposable {
 			owner: timing.owner,
 			subagentKind: timing.subagentKind,
 			turnId: timing.turnId,
-			toolId: timing.toolId,
-			toolSourceKind: timing.toolSourceKind,
+			toolId: unknownTool ? hashUnknownToolName(timing.toolId) : timing.toolId,
+			toolSourceKind: unknownTool ? 'unknown' : timing.toolSourceKind,
 			mcpSourceKind: timing.mcpSourceKind,
 			toolCallId,
 			result: resultBucket,
@@ -191,7 +209,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			resultSizeInCharacters,
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
-			errorCode: result.error?.code,
+			errorCode: unknownTool ? 'toolNotFound' : result.error?.code,
 		};
 		if (timing.modelResolvedFromUsage) {
 			this._reporter.toolInvoked(report);
