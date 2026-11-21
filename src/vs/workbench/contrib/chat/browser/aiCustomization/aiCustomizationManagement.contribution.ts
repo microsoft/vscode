@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { applyEdits, removeProperty } from '../../../../../base/common/jsonEdit.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -26,6 +28,8 @@ import { FileSystemProviderCapabilities, IFileService } from '../../../../../pla
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
@@ -43,6 +47,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { createConnectorUpgradeSource, findConnectorUpgradeTarget, getCurrentConnectorUpgradeServer, getMatchingInstalledMcpServers, upgradeMcpSourcesToConnector } from '../../common/connectorUpgrade.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -53,6 +58,8 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import { getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy } from '../agentPluginActions.js';
+import { IMcpWorkbenchService } from '../../../mcp/common/mcpTypes.js';
+import { ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
 	AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY,
@@ -913,6 +920,105 @@ export class AICustomizationManagementActionsContribution extends Disposable imp
 					StorageScope.WORKSPACE,
 					StorageTarget.USER
 				);
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.UpgradeToConnector,
+					title: localize2('upgradeToConnector', "Upgrade to Connector"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, target?: { readonly connectorId: string; readonly connectorDisplayName: string; readonly mcpServerNames: readonly string[] }): Promise<void> {
+				if (!target || accessor.get(IChatEntitlementService).sentiment.hidden) {
+					return;
+				}
+
+				const connectorsService = accessor.get(ICopilotConnectorsService);
+				const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
+				const commandService = accessor.get(ICommandService);
+				const dialogService = accessor.get(IDialogService);
+				const installService = accessor.get(ICustomizationMarketplaceInstallService);
+				const notificationService = accessor.get(INotificationService);
+				await mcpWorkbenchService.whenInitialLocalMcpServersLoaded;
+				const matchingServers = getMatchingInstalledMcpServers(mcpWorkbenchService.local, target.mcpServerNames);
+				if (!matchingServers.length) {
+					await commandService.executeCommand(AICustomizationManagementCommands.OpenMarketplace, {
+						connectorName: target.connectorId,
+						connectorDisplayName: target.connectorDisplayName,
+					});
+					return;
+				}
+				const sources = matchingServers.map(createConnectorUpgradeSource);
+
+				const confirmation = await dialogService.confirm({
+					type: 'info',
+					message: localize('confirmConnectorUpgrade', "Upgrade to the {0} Connector?", target.connectorDisplayName),
+					detail: localize('confirmConnectorUpgradeDetail', "The connector provides managed authentication across surfaces. VS Code will connect it first, then remove {0} matching MCP configuration(s).", matchingServers.length),
+					primaryButton: localize('upgradeToConnectorButton', "Upgrade"),
+				});
+				if (!confirmation.confirmed) {
+					return;
+				}
+
+				try {
+					const connector = findConnectorUpgradeTarget(
+						await connectorsService.getConnectors(CancellationToken.None),
+						target.connectorId,
+						target.connectorDisplayName,
+					);
+					if (!connector) {
+						throw new Error(localize('connectorUpgradeUnavailable', "The connector is not available"));
+					}
+					const connectorResource = {
+						...toCopilotConnectorMarketplaceEntry(connector),
+						sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+					};
+					const result = await upgradeMcpSourcesToConnector(
+						async () => {
+							const state = installService.getInstallState(connectorResource);
+							if (state.kind === 'available') {
+								await installService.install(connectorResource);
+							} else if (state.kind === 'missing') {
+								await installService.repair(connectorResource);
+							} else if (state.kind !== 'installed') {
+								throw new Error(localize('connectorUpgradeNotReady', "The connector is not ready to install"));
+							}
+							if (installService.getInstallState(connectorResource).kind !== 'installed') {
+								throw new Error(localize('connectorUpgradeNotInstalled', "The connector could not be verified as installed"));
+							}
+						},
+						sources,
+						async source => {
+							const current = getCurrentConnectorUpgradeServer(source, mcpWorkbenchService.local);
+							if (!current) {
+								return false;
+							}
+							await mcpWorkbenchService.uninstall(current);
+							return true;
+						},
+					);
+					const manualCleanupCount = result.removalErrors.length + result.preservedSources.length;
+					if (manualCleanupCount) {
+						notificationService.warn(localize(
+							'connectorUpgradePartialFailure',
+							"The {0} Connector is connected, but {1} matching MCP configuration(s) were changed or could not be removed. Review them manually to avoid duplicate tools.",
+							target.connectorDisplayName,
+							manualCleanupCount
+						));
+					}
+				} catch (error) {
+					await dialogService.error(localize(
+						'connectorUpgradeFailed',
+						"Could not upgrade to the {0} Connector: {1}. Your existing MCP configurations were not removed.",
+						target.connectorDisplayName,
+						getErrorMessage(error)
+					));
+				}
 			}
 		}));
 

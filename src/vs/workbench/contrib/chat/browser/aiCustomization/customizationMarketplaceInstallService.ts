@@ -891,7 +891,26 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					await this.addRecord(record);
 					return;
 				}
-				await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
+				const initiatingAccount = this.copilotConnectorsService.account;
+				try {
+					await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
+				} catch (error) {
+					let isConnected = false;
+					if (initiatingAccount && sameConnectorAccount(initiatingAccount, this.copilotConnectorsService.account) && !this.copilotConnectorsService.authorizationRequired) {
+						try {
+							const connectors = await this.copilotConnectorsService.refresh(token);
+							isConnected = sameConnectorAccount(initiatingAccount, this.copilotConnectorsService.account)
+								&& !this.copilotConnectorsService.authorizationRequired
+								&& connectors.some(candidate => candidate.name === connector.name && candidate.connectionStatus === 'connected');
+						} catch {
+							// Preserve the original connection error when reconciliation is unavailable.
+						}
+					}
+					if (!isConnected) {
+						throw error;
+					}
+					this.logService.warn(`[CustomizationMarketplace] Copilot connector '${connector.name}' connected after its connection operation reported an error`, error);
+				}
 				const account = this.copilotConnectorsService.account;
 				if (!account) {
 					throw new Error(localize('customizationMarketplace.connectorAccountUnavailable', "The GitHub account used to connect this resource is no longer available."));
@@ -1364,6 +1383,12 @@ function isConnectorAccountEqual(
 	return target.providerId === account.providerId
 		&& target.accountName === account.accountName
 		&& target.enterprise === account.enterprise;
+}
+
+function sameConnectorAccount(first: ICopilotConnectorAccount, second: ICopilotConnectorAccount): boolean {
+	return first.providerId === second.providerId
+		&& first.accountName === second.accountName
+		&& first.enterprise === second.enterprise;
 }
 
 function getConnectorOperationKey(resource: ICustomizationMarketplaceResource): string {
