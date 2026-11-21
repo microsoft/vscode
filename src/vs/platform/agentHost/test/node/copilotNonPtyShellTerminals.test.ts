@@ -11,6 +11,7 @@ import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { fixedChatOwnerRef } from '../../common/agent.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../common/terminalConstants.js';
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -573,6 +574,103 @@ suite('NonPtyShellTerminalStreams', () => {
 				reading: { first: false, second: true },
 				terminal: second,
 				content: '',
+			});
+		});
+
+		test('stops keeping a background shell\'s output outside its terminal once its tool call returns', () => {
+			streams.track('call-39', 'shell');
+			streams.appendChunk('call-39', { text: 'before\n', sequence: 0 });
+			streams.completeToolCall('call-39', asyncStarted('21'), undefined);
+			streams.track('call-40', 'shell');
+			streams.completeToolCall('call-40', detachedStarted('22'), undefined);
+			const line = `${'x'.repeat(999)}\n`;
+			const lines = Math.ceil(AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH / line.length) + 1;
+			for (let sequence = 1; sequence <= lines; sequence++) {
+				streams.appendChunk('call-39', { text: line, sequence });
+				streams.appendDetachedShellOutput('call-40', line);
+			}
+
+			deepStrictEqual({
+				lastSnapshots: ['call-39', 'call-40'].map(toolCallId => (streams as unknown as { _streams: Map<string, { lastSnapshot: string }> })._streams.get(toolCallId)?.lastSnapshot),
+				streamed: channelContent().length,
+			}, {
+				lastSnapshots: ['before\n', ''],
+				streamed: 'before\n'.length + 2 * lines * line.length,
+			});
+		});
+
+		suite('exit code reported while a detached shell\'s log is still being read', () => {
+			function startDetached(toolCallId: string, shellId: string): string | undefined {
+				streams.track(toolCallId, 'shell');
+				return streams.completeToolCall(toolCallId, detachedStarted(shellId), undefined)?.uri;
+			}
+
+			test('settles with it when the read fails', () => {
+				const uri = startDetached('call-41', '23');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 23 completed with exit code 2>');
+				streams.stopReadingDetachedShell('call-41');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
+			});
+
+			test('keeps the first report when the task list reported the exit without a code', () => {
+				const uri = startDetached('call-42', '24');
+				streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+				streams.completeBackgroundShellFromHelperResult('<shellId: 24 completed with exit code 2>');
+				streams.stopReadingDetachedShell('call-42');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
+			});
+
+			test('keeps the first report when a stop result came before the exit code', () => {
+				const uri = startDetached('call-48', '29');
+				streams.completeBackgroundShellFromHelperResult('<command with id: 29 stopped>');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 29 completed with exit code 2>');
+				streams.stopReadingDetachedShell('call-48');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
+			});
+
+			test('keeps it when a stop result without a code follows', () => {
+				const uri = startDetached('call-43', '25');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 25 completed with exit code 2>');
+				streams.completeBackgroundShellFromHelperResult('<command with id: 25 stopped>');
+				streams.stopReadingDetachedShell('call-43');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
+			});
+
+			test('settles with it when the read reaches the exit without a code', () => {
+				const uri = startDetached('call-44', '26');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 26 completed with exit code 2>');
+				streams.completeDetachedShell('call-44', undefined);
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
+			});
+
+			test('settles with the read\'s own exit code over it', () => {
+				const uri = startDetached('call-45', '27');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 27 completed with exit code 2>');
+				streams.completeDetachedShell('call-45', 3);
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 3 }]);
+			});
+
+			test('settles with it when a new command reuses the shell ID', () => {
+				const uri = startDetached('call-46', '28');
+				streams.completeBackgroundShellFromHelperResult('<shellId: 28 completed with exit code 2>');
+				startDetached('call-47', '28');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: 2 }]);
+			});
+
+			test('does not take the exit code of a new command that reuses the shell ID', () => {
+				const uri = startDetached('call-49', '30');
+				streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+				streams.completeBackgroundShell('30', 5);
+				startDetached('call-50', '30');
+
+				deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
 			});
 		});
 
