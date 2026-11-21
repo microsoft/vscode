@@ -11,6 +11,7 @@ import { TestConfigurationService } from '../../../../platform/configuration/tes
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { mock } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadWindowLayouts } from '../../browser/mainThreadWindowLayouts.js';
+import { WindowLayoutDto } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadWindowLayouts', () => {
@@ -23,10 +24,13 @@ suite('MainThreadWindowLayouts', () => {
 
 	function setup() {
 		const switches: string[] = [];
+		const acceptedLabels: string[] = [];
 		const onDidChangeActiveLayout = store.add(new Emitter<INamedLayout>());
+		const onDidChangeLayouts = store.add(new Emitter<void>());
 		const sequencer = new Sequencer();
 		const namedLayoutsService = new class extends mock<INamedLayoutsService>() {
 			override readonly onDidChangeActiveLayout = onDidChangeActiveLayout.event;
+			override readonly onDidChangeLayouts = onDidChangeLayouts.event;
 			override readonly layouts = [defaultLayout, debugLayout, focusLayout];
 			override activeLayout = defaultLayout;
 			override switchLayout(layout: INamedLayout): Promise<INamedLayout>;
@@ -46,10 +50,22 @@ suite('MainThreadWindowLayouts', () => {
 				});
 			}
 		};
-		const extHostContext = SingleProxyRPCProtocol({ $acceptActiveLayout: () => { } });
+		const extHostContext = SingleProxyRPCProtocol({ $acceptActiveLayout: (layout: WindowLayoutDto) => { acceptedLabels.push(layout.label); } });
 		const testObject = store.add(new MainThreadWindowLayouts(extHostContext, namedLayoutsService, new TestConfigurationService({ [NAMED_LAYOUTS_ENABLED_SETTING]: true })));
-		return { testObject, namedLayoutsService, switches };
+		return { testObject, namedLayoutsService, switches, acceptedLabels, onDidChangeLayouts };
 	}
+
+	test('the extension host gets the label of the active layout when it changes without a switch', async () => {
+		const { namedLayoutsService, acceptedLabels, onDidChangeLayouts } = setup();
+		await namedLayoutsService.switchLayout(focusLayout);
+
+		// The extension renames its layout, other layouts change
+		namedLayoutsService.activeLayout = { ...focusLayout, name: 'Focus Mode' };
+		onDidChangeLayouts.fire();
+		onDidChangeLayouts.fire();
+
+		assert.deepStrictEqual(acceptedLabels, ['Default', 'Focus', 'Focus Mode']);
+	});
 
 	test('a switch to the layout that is already active cannot be restored', async () => {
 		const { testObject, namedLayoutsService, switches } = setup();

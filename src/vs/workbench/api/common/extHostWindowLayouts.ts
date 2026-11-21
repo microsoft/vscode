@@ -40,7 +40,8 @@ export class ExtHostWindowLayouts implements ExtHostWindowLayoutsShape {
 	}
 
 	$acceptActiveLayout(layout: WindowLayoutDto): void {
-		// The label of the same layout can change, for example the workbench localizes the label of the default layout
+		// The label of the same layout can change, for example the workbench localizes the label of the
+		// default layout and extensions rename their layouts. Only a change of the layout is an event
 		const changed = layout.id !== this.activeLayoutId;
 		this.activeLayoutId = layout.id;
 		this._activeLayout = toWindowLayout(layout);

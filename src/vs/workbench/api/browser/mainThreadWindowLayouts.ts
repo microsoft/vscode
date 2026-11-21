@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -40,6 +41,11 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 	 */
 	private activeLayoutChanges = 0;
 
+	/**
+	 * The active layout as the extension host knows it.
+	 */
+	private acceptedActiveLayout: WindowLayoutDto | undefined;
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService,
@@ -53,9 +59,20 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 			// Restoring must not undo a later switch
 			this.activeLayoutChanges++;
 			this.restorableSwitches.clear();
-			this.proxy.$acceptActiveLayout(toWindowLayoutDto(layout));
+			this.acceptActiveLayout(layout);
 		}));
-		this.proxy.$acceptActiveLayout(toWindowLayoutDto(this.namedLayoutsService.activeLayout));
+		// The label of the active layout can change without a switch, for example when its extension
+		// renames it or when the layouts of extensions become known after the window was restored
+		this._register(this.namedLayoutsService.onDidChangeLayouts(() => this.acceptActiveLayout(this.namedLayoutsService.activeLayout)));
+		this.acceptActiveLayout(this.namedLayoutsService.activeLayout);
+	}
+
+	private acceptActiveLayout(layout: INamedLayout): void {
+		const activeLayout = toWindowLayoutDto(layout);
+		if (!equals(activeLayout, this.acceptedActiveLayout)) {
+			this.acceptedActiveLayout = activeLayout;
+			this.proxy.$acceptActiveLayout(activeLayout);
+		}
 	}
 
 	async $switchLayout(extensionId: string, id: string): Promise<{ readonly token: number; readonly previousLayout: WindowLayoutDto }> {
