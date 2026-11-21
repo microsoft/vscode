@@ -467,7 +467,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		if (!this._cachedResolver) {
 			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
 			const overrides = this._toNormalizedKeybindingItems(this._dynamicKeybindings, false);
-			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
+			this._cachedResolver = new KeybindingResolver(defaults, overrides, str => this._log(str), () => this._logging);
 		}
 		return this._cachedResolver;
 	}

@@ -53,7 +53,8 @@ export class KeybindingResolver {
 		defaultKeybindings: ResolvedKeybindingItem[],
 		/** user's keybindings */
 		overrides: ResolvedKeybindingItem[],
-		log: (str: string) => void
+		log: (str: string) => void,
+		private readonly _isLoggingEnabled: () => boolean = () => false
 	) {
 		this._log = log;
 		this._defaultKeybindings = defaultKeybindings;
@@ -396,6 +397,12 @@ export class KeybindingResolver {
 
 		// check there's a keybinding with a matching when clause
 		const result = this._findCommand(context, lookupMap);
+		if (this._isLoggingEnabled()) {
+			for (let i = lookupMap.length - 1; i >= 0; i--) {
+				const candidate = lookupMap[i];
+				this._log(`| Candidate ${candidate.command}, source: ${printSourceExplanation(candidate)}, when: ${printWhenResult(candidate.when, context)}`);
+			}
+		}
 		if (!result) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
 			return NoMatchingKb;
@@ -432,6 +439,26 @@ export class KeybindingResolver {
 			return true;
 		}
 		return rules.evaluate(context);
+	}
+}
+
+function printWhenResult(when: ContextKeyExpression | undefined, context: IContext): string {
+	if (!when) {
+		return '[true: no when condition]';
+	}
+	if (when.type === ContextKeyExprType.And || when.type === ContextKeyExprType.Or) {
+		return when.expr.map(expr => {
+			const result = printWhenResult(expr, context);
+			return when.type === ContextKeyExprType.And && expr.type === ContextKeyExprType.Or ? `(${result})` : result;
+		}).join(when.type === ContextKeyExprType.And ? ' && ' : ' || ');
+	}
+	// Keep each condition on one line and delimit it unambiguously for log highlighting.
+	const condition = when.serialize().replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+	try {
+		return `[${when.evaluate(context)}: ${condition}]`;
+	} catch {
+		// Diagnostics also inspect conditions that command resolution skipped.
+		return `[error: ${condition}]`;
 	}
 }
 

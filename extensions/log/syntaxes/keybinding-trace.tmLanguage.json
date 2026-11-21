@@ -1,0 +1,20 @@
+{
+	"scopeName": "keybinding-trace.log",
+	"injectionSelector": "L:text.log",
+	"patterns": [
+		{
+			"begin": "\\[KeybindingService\\]: \\| Candidate .*?, source: .*?, when: ",
+			"end": "$",
+			"patterns": [
+				{
+					"match": "\\[true: (?:[^\\\\\\]\\r\\n]|\\\\.)*\\]",
+					"name": "markup.inserted.keybinding.when"
+				},
+				{
+					"match": "\\[(?:false|error): (?:[^\\\\\\]\\r\\n]|\\\\.)*\\]",
+					"name": "markup.deleted.keybinding.when"
+				}
+			]
+		}
+	]
+}

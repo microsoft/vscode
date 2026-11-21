@@ -9,6 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
+    "test": "node --test test/*.test.cjs",
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin emilast/vscode-logfile-highlighter syntaxes/log.tmLanguage ./syntaxes/log.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
@@ -30,6 +31,11 @@
         "language": "log",
         "scopeName": "text.log",
         "path": "./syntaxes/log.tmLanguage.json"
+      },
+      {
+        "scopeName": "keybinding-trace.log",
+        "path": "./syntaxes/keybinding-trace.tmLanguage.json",
+        "injectTo": ["text.log"]
       }
     ]
   },
