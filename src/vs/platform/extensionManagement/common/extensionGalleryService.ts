@@ -30,6 +30,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
+import { ExtensionGalleryAuthenticationError, requestWithExtensionGalleryAuthorization } from './extensionGalleryManifestService.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
@@ -1497,7 +1498,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		});
 
 		const headers = {
-			...await this.getRequestHeaders(extensionsQueryApi),
+			...await this.getRequestHeaders(),
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
@@ -1508,13 +1509,13 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		let context: IRequestContext | undefined, errorCode: ExtensionGalleryErrorCode | undefined, total: number = 0;
 
 		try {
-			context = await this.requestService.request({
+			context = await requestWithExtensionGalleryAuthorization(this.requestService, this.extensionGalleryManifestService, {
 				type: 'POST',
 				url: extensionsQueryApi,
 				data,
 				headers,
 				callSite: 'extensionGalleryService.queryRawGalleryExtensions'
-			}, token);
+			}, token, true);
 
 			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
 				return { galleryExtensions: [], total };
@@ -1635,19 +1636,19 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		try {
 			const headers = {
-				...await this.getRequestHeaders(uri.toString(true)),
+				...await this.getRequestHeaders(),
 				'Content-Type': 'application/json',
 				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
 			};
 
-			context = await this.requestService.request({
+			context = await requestWithExtensionGalleryAuthorization(this.requestService, this.extensionGalleryManifestService, {
 				type: 'GET',
 				url: uri.toString(true),
 				headers,
 				timeout: this.getRequestTimeout(),
 				callSite: 'extensionGalleryService.getLatestRawGalleryExtension'
-			}, token);
+			}, token, true);
 
 			if (context.res.statusCode === 404) {
 				errorCode = 'NotFound';
@@ -1738,15 +1739,17 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const url = format2(resource, { publisher, name, version, statTypeName: type });
 
 		const Accept = '*/*;api-version=4.0-preview.1';
-		const headers = { ...await this.getRequestHeaders(url), Accept };
+		const headers = { ...await this.getRequestHeaders(), Accept };
 		try {
-			await this.requestService.request({
+			await requestWithExtensionGalleryAuthorization(this.requestService, this.extensionGalleryManifestService, {
 				type: 'POST',
 				url,
 				headers,
 				callSite: 'extensionGalleryService.reportStatistic'
-			}, CancellationToken.None);
-		} catch (error) { /* Ignore */ }
+			}, CancellationToken.None, false);
+		} catch (error) {
+			this.logService.debug('[Marketplace] Unable to report extension statistics', error);
+		}
 	}
 
 	async download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void> {
@@ -1928,28 +1931,27 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return result;
 	}
 
-	private async getRequestHeaders(url: string, headers?: IHeaders): Promise<IHeaders> {
+	private async getRequestHeaders(headers?: IHeaders): Promise<IHeaders> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const accessToken = await this.extensionGalleryManifestService.getAccessToken(url);
-		return { ...commonHeaders, ...headers, ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) };
+		return { ...commonHeaders, ...headers };
 	}
 
 	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
 		options = { ...options, type: 'GET' };
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, headers: await this.getRequestHeaders(url, options.headers), url, timeout: this.getRequestTimeout(), callSite };
+		const firstOptions = { ...options, headers: await this.getRequestHeaders(options.headers), url, timeout: this.getRequestTimeout(), callSite };
 
 		let context;
 		try {
-			context = await this.requestService.request(firstOptions, token);
+			context = await requestWithExtensionGalleryAuthorization(this.requestService, this.extensionGalleryManifestService, firstOptions, token, true);
 			if (context.res.statusCode === 200) {
 				return context;
 			}
 			const message = await asTextOrError(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
 		} catch (err) {
-			if (isCancellationError(err)) {
+			if (isCancellationError(err) || err instanceof ExtensionGalleryAuthenticationError) {
 				throw err;
 			}
 
@@ -1984,8 +1986,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, headers: await this.getRequestHeaders(fallbackUrl, options.headers), url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
-			return this.requestService.request(fallbackOptions, token);
+			const fallbackOptions = { ...options, headers: await this.getRequestHeaders(options.headers), url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
+			return requestWithExtensionGalleryAuthorization(this.requestService, this.extensionGalleryManifestService, fallbackOptions, token, true);
 		}
 	}
 
@@ -2000,14 +2002,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
-		const accessToken = await this.extensionGalleryManifestService.getAccessToken(this.extensionsControlUrl);
-		const context = await this.requestService.request({
+		const context = await requestWithExtensionGalleryAuthorization(this.requestService, this.extensionGalleryManifestService, {
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
 			timeout: this.getRequestTimeout(),
 			callSite: 'extensionGalleryService.getExtensionsControlManifest'
-		}, CancellationToken.None);
+		}, CancellationToken.None, true);
 
 		if (context.res.statusCode !== 200) {
 			throw new Error('Could not get extensions report.');

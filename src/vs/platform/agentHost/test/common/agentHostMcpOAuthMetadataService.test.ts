@@ -62,6 +62,13 @@ suite('AgentHostMcpOAuthMetadataService', () => {
 		});
 	});
 
+	test('accepts a normalized root issuer', async () => {
+		const metadata = { ...authorizationMetadata, issuer: `${origin}/` };
+		const discoveryUrl = `${origin}/.well-known/oauth-authorization-server`;
+		const { service } = createService({ [discoveryUrl]: { status: 200, body: metadata } });
+		assert.deepStrictEqual(await service.fetch(origin), { metadata, discoveryUrl });
+	});
+
 	test('honors modern protected resource metadata and its advertised issuer', async () => {
 		const protectedResource = { resource, authorization_servers: ['https://identity.example/tenant'], scopes_supported: ['read'] };
 		const { service, requests } = createService({
@@ -132,9 +139,8 @@ suite('AgentHostMcpOAuthMetadataService', () => {
 			const { service } = createService({
 				[discoveryUrl]: { status: 200, body: { ...entraMetadata, issuer } },
 			});
-			await assert.rejects(() => service.fetch(authority), {
-				message: 'MCP authorization server metadata issuer does not match the requested authorization server',
-			});
+			await assert.rejects(() => service.fetch(authority), (error: Error) =>
+				error instanceof AggregateError && error.errors.some((cause: Error) => /issuer does not match the requested authorization server/.test(cause.message)));
 		});
 	}
 
