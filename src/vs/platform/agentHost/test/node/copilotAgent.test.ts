@@ -16850,9 +16850,9 @@ suite('CopilotAgent', () => {
 			};
 		}
 
-		test('offers the Computer Use plugin only to the local agent host when the setting is on', async () => {
+		test('offers the Computer Use plugin to local and remote agent hosts only when the setting is on', async () => {
 			const results = [];
-			for (const [enabled, isLocalAgentHost] of [[false, true], [true, true], [true, false]]) {
+			for (const [enabled, isLocalAgentHost] of [[false, true], [false, false], [true, true], [true, false]]) {
 				const { agent, resolvePlugin } = createComputerUseAgent(enabled, isLocalAgentHost, new TestCopilotClient([]));
 				try {
 					await agent.listChatsToMigrate();
@@ -16867,8 +16867,9 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(results, [
 				{ builtinPluginDirectories: undefined, resolved: 0 },
-				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1 },
 				{ builtinPluginDirectories: undefined, resolved: 0 },
+				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1 },
+				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1 },
 			]);
 		});
 
@@ -16892,7 +16893,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(results, [undefined, ['browser-use'], undefined]);
 		});
 
-		test('restarts only the local agent host client when the Computer Use setting is turned on', async () => {
+		test('restarts local and remote agent host clients when the Computer Use setting is turned on', async () => {
 			const results = [];
 			for (const isLocalAgentHost of [true, false]) {
 				const client = new StopCountingClient([]);
@@ -16913,7 +16914,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(results, [
 				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
-				{ stopCount: 0, builtinPluginDirectories: undefined },
+				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
 			]);
 		});
 

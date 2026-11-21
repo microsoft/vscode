@@ -191,8 +191,8 @@ export function readComputerUseActivationCard(request: ChatInputRequest): ICompu
  */
 export function getComputerUseActivationMessage(reason: string | undefined): string {
 	return reason
-		? localize('computerUseActivation.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
-		: localize('computerUseActivation.message', "Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.");
+		? localize('computerUseActivation.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
+		: localize('computerUseActivation.message', "Computer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.");
 }
 
 /** Returns a copy of `request` marked as a request to turn on Computer Use, preserving other metadata. */
