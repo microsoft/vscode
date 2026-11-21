@@ -22,6 +22,11 @@ class TestLayoutService extends mock<IWorkbenchLayoutService>() {
 	panelAlignment: PanelAlignment = 'center';
 
 	override readonly mainContainerDimension = { width: 1000, height: 800 };
+	override readonly onDidChangePartVisibility = Event.None;
+	override readonly onDidChangePanelPosition = Event.None;
+	override readonly onDidChangeAuxiliaryBarMaximized = Event.None;
+	override readonly onDidChangeMainEditorCenteredLayout = Event.None;
+	override readonly onDidLayoutMainContainer = Event.None;
 
 	override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
 	override setPartHidden(hidden: boolean, part: Parts): void {
@@ -54,16 +59,17 @@ class TestLayoutService extends mock<IWorkbenchLayoutService>() {
 
 suite('NamedLayoutParticipants', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function aWorkbenchPartsLayoutParticipant(layoutService: TestLayoutService): WorkbenchPartsLayoutParticipant {
 		const paneCompositePartService = new class extends mock<IPaneCompositePartService>() {
+			override readonly onDidPaneCompositeOpen = Event.None;
 			override getActivePaneComposite() { return undefined; }
 			override getLastActivePaneCompositeId(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? 'explorer' : 'terminal'; }
 			override getPaneComposite() { return undefined; }
 		};
 		const commandService = new class extends mock<ICommandService>() { override readonly onDidExecuteCommand = Event.None; };
-		return new WorkbenchPartsLayoutParticipant(layoutService, paneCompositePartService, commandService);
+		return disposables.add(new WorkbenchPartsLayoutParticipant(layoutService, paneCompositePartService, commandService));
 	}
 
 	test('the side bar and the panel that a maximized secondary side bar hides are visible again when it is restored', async () => {
@@ -89,6 +95,21 @@ suite('NamedLayoutParticipants', () => {
 			},
 			maximized: true,
 			restoredParts: [Parts.AUXILIARYBAR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART].sort()
+		});
+	});
+
+	test('parts that are maximized or hidden by a maximized part keep the size they had before', () => {
+		const layoutService = new TestLayoutService();
+		const testObject = aWorkbenchPartsLayoutParticipant(layoutService);
+		testObject.capture();
+
+		layoutService.setAuxiliaryBarMaximized(true);
+
+		assert.deepStrictEqual(testObject.capture(), {
+			sideBar: { visible: true, size: 300, activeViewContainer: 'explorer' },
+			panel: { visible: true, size: 200, activeViewContainer: 'terminal', position: 'bottom', maximized: false },
+			auxiliaryBar: { visible: true, size: 300, activeViewContainer: undefined, maximized: true },
+			editorCentered: false
 		});
 	});
 

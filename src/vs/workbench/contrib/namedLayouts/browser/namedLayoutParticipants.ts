@@ -5,7 +5,9 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { equals as arrayEquals } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { isObject, isString } from '../../../../base/common/types.js';
@@ -97,17 +99,25 @@ function onDidResizeWithoutEvent(commandService: ICommandService): Event<unknown
  * The panel alignment is part of the state that {@link SharedLayoutStateParticipant}
  * captures, so that a named layout does not change the alignment of other windows.
  */
-export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant {
+export class WorkbenchPartsLayoutParticipant extends Disposable implements INamedLayoutParticipant {
 
 	readonly id = 'workbench.parts';
 
 	readonly onDidChange: Event<unknown>;
+
+	/**
+	 * The size each part had when it was last shown and not maximized. A part that
+	 * is maximized or hidden by a maximized part keeps the size it had before.
+	 */
+	private readonly lastSizes = new Map<SINGLE_WINDOW_PARTS, { readonly size: number; readonly sizeIsHeight: boolean }>();
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@ICommandService commandService: ICommandService
 	) {
+		super();
+
 		this.onDidChange = Event.any<unknown>(
 			layoutService.onDidChangePartVisibility,
 			layoutService.onDidChangePanelPosition,
@@ -117,6 +127,10 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 			paneCompositePartService.onDidPaneCompositeOpen,
 			onDidResizeWithoutEvent(commandService)
 		);
+
+		// Maximizing and restoring a part fires events before the parts have their final size
+		const measureScheduler = this._register(new RunOnceScheduler(() => this.measureParts(), 0));
+		this._register(this.onDidChange(() => measureScheduler.schedule()));
 	}
 
 	capture(): IWorkbenchPartsLayoutState {
@@ -256,14 +270,36 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 
 		// A maximized secondary side bar hides the side bar and the panel until it is restored
 		const visible = part === Parts.SIDEBAR_PART || part === Parts.PANEL_PART ? this.layoutService.isVisibleWhenAuxiliaryBarNotMaximized(part) : shown;
-		const size = shown && !maximized ? this.layoutService.getSize(part) : undefined;
 
 		return {
 			visible,
-			size: size ? (sizeIsHeight ? size.height : size.width) : undefined,
+			size: visible ? this.measurePart(part, sizeIsHeight, maximized) : undefined,
 			activeViewContainer: this.paneCompositePartService.getActivePaneComposite(location)?.getId()
 				?? (visible && !shown ? this.paneCompositePartService.getLastActivePaneCompositeId(location) : undefined)
 		};
+	}
+
+	private measureParts(): void {
+		this.measurePart(Parts.SIDEBAR_PART, false, false);
+		this.measurePart(Parts.PANEL_PART, isHorizontal(this.layoutService.getPanelPosition()), this.layoutService.isPanelMaximized());
+		this.measurePart(Parts.AUXILIARYBAR_PART, false, this.layoutService.isAuxiliaryBarMaximized());
+	}
+
+	/**
+	 * Returns the size of the given part. The size of a part that is maximized or hidden
+	 * by a maximized part is the one it had when it was last measured.
+	 */
+	private measurePart(part: SINGLE_WINDOW_PARTS, sizeIsHeight: boolean, maximized: boolean): number | undefined {
+		if (this.layoutService.isVisible(part) && !maximized) {
+			const dimension = this.layoutService.getSize(part);
+			const size = sizeIsHeight ? dimension.height : dimension.width;
+			this.lastSizes.set(part, { size, sizeIsHeight });
+			return size;
+		}
+
+		// A size measured for the other orientation of the panel does not apply
+		const lastSize = this.lastSizes.get(part);
+		return lastSize?.sizeIsHeight === sizeIsHeight ? lastSize.size : undefined;
 	}
 
 	private async applyPartVisibility(part: SINGLE_WINDOW_PARTS, location: ViewContainerLocation, state: IPaneCompositePartLayoutState): Promise<void> {
@@ -290,6 +326,9 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 
 		const currentSize = this.layoutService.getSize(part);
 		this.layoutService.setSize(part, sizeIsHeight ? { width: currentSize.width, height: state.size } : { width: state.size, height: currentSize.height });
+
+		// The part may be maximized next
+		this.lastSizes.set(part, { size: state.size, sizeIsHeight });
 	}
 }
 

@@ -94,12 +94,12 @@ class TestLayoutConfigurationService extends TestConfigurationService {
 
 class TestParticipant implements INamedLayoutParticipant {
 
-	readonly id = 'test';
-
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
 	state = 'initial';
+
+	constructor(readonly id = 'test') { }
 
 	capture(): string {
 		return this.state;
@@ -452,6 +452,32 @@ suite('NamedLayoutsService', () => {
 
 		assert.deepStrictEqual({ active: second.activeLayout.name, setting: configurationService.getValue(LAYOUT_SETTING) }, { active: 'Debug', setting: 'debugValue' });
 	});
+
+	test('a window only saves the state it changed, so that it does not overwrite the changes another window saved', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const openWindow = () => {
+			const editor = new TestParticipant('editor');
+			const panel = new TestParticipant('panel');
+			const service = createService(editor);
+			disposables.add(service.registerParticipant(panel));
+			return { service, editor, panel };
+		};
+		const first = openWindow();
+		const defaultLayout = first.service.activeLayout;
+		const layout = await first.service.createLayout('Debug');
+
+		// Another window of the same workspace uses the layout
+		const second = openWindow();
+		await timeout(1000);
+
+		// Each window changes another part of the layout, then both save twice and the first window switches away
+		first.editor.change('first editor');
+		second.panel.change('second panel');
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		await first.service.switchLayout(defaultLayout);
+
+		assert.deepStrictEqual(JSON.parse(storageService.get(`workbench.namedLayouts.state.${layout.id}`, StorageScope.PROFILE)!), { editor: 'first editor', panel: 'second panel' });
+	}));
 
 	test('restores the default layout when another window deletes the active layout', async () => {
 		const participant = new TestParticipant();

@@ -63,7 +63,7 @@ class NamedLayoutParticipantsContribution extends Disposable implements IWorkben
 		// containers it opens are in their locations
 		this._register(namedLayoutsService.registerParticipant(instantiationService.createInstance(EditorGroupsLayoutParticipant)));
 		this._register(namedLayoutsService.registerParticipant(instantiationService.createInstance(SharedLayoutStateParticipant)));
-		this._register(namedLayoutsService.registerParticipant(instantiationService.createInstance(WorkbenchPartsLayoutParticipant)));
+		this._register(namedLayoutsService.registerParticipant(this._register(instantiationService.createInstance(WorkbenchPartsLayoutParticipant))));
 	}
 }
 

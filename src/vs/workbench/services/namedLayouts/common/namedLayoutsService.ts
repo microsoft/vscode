@@ -146,8 +146,10 @@ interface ILayoutSnapshot {
  * editors show. So changes made in any window apply to all windows that use the
  * layout. Changes to the state of the participants made while a named layout
  * is active are saved into that layout whenever the storage is saved and before
- * another layout is applied. If two windows use the same named layout, the
- * window that saves last wins.
+ * another layout is applied. A window only saves the state of the participants
+ * that changed in it, so that it does not overwrite the changes that another
+ * window using the same layout saved meanwhile. The window that changed the
+ * state of a participant last wins.
  *
  * A layout contributed by an extension follows its definition until it is
  * changed: whenever it becomes active, its definition is applied. Once it is
@@ -255,14 +257,19 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private restoredContributedLayout: IStoredNamedLayout | undefined;
 
 	/**
-	 * The snapshot that changes to the active layout are detected against while it is locked,
-	 * or while it is the layout of an extension that was not changed. It is taken once the
-	 * window settled after the layout was applied, locked or reverted, and is `pending` until
-	 * then. `undefined` while changes are not detected.
+	 * The snapshot that changes to the active named layout are detected against. It is taken when the
+	 * layout is applied, locked or saved, and taken again as `settled` once the window did not change for
+	 * a while after the layout was applied and the workbench restored. Changes to a locked layout and to
+	 * the layout of an extension are only detected once it settled. `undefined` while the default layout is active.
 	 */
-	private changeBaseline: ILayoutSnapshot | 'pending' | undefined;
+	private changeBaseline: { readonly snapshot: ILayoutSnapshot; readonly settled: boolean } | undefined;
 	private activeLayoutModified = false;
 	private readonly changeDetector = this._register(new RunOnceScheduler(() => this.detectChanges(), NamedLayoutsService.CHANGE_DETECTION_DELAY));
+
+	/**
+	 * Whether the workbench restored its arrangement. Until then changes are not detected.
+	 */
+	private isRestored = false;
 
 	/**
 	 * The settings files that editors show read-only because their layouts are locked, with the names of the layouts.
@@ -342,6 +349,19 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				}
 			})).catch(error => this.logService.error('[named layouts] Failed to restore the layout of an extension.', error));
 		}
+
+		// Changes made in this window are detected against the arrangement the workbench restored,
+		// a baseline taken before is taken again once the window settled
+		lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.isRestored = true;
+			return this.sequencer.queue(async () => {
+				if (this.changeBaseline) {
+					this.changeDetector.schedule();
+				} else {
+					this.resetChangeTracking();
+				}
+			});
+		}).catch(error => this.logService.error('[named layouts] Failed to detect the changes of the active layout.', error));
 
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => this.onDidChangeProfileStorage(e.key)));
@@ -523,9 +543,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 
 			if (locked) {
-				// A locked layout keeps the arrangement it had when it was locked
+				// A locked layout keeps the arrangement it has in this window
 				if (this.activeLayoutId === layout.id) {
-					this.saveActiveLayout();
+					this.saveActiveLayout(true);
 				}
 				this.storeLocked(layout.id, true);
 			} else {
@@ -866,7 +886,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 	}
 
-	private saveActiveLayout(): void {
+	/**
+	 * Saves the state of the participants that changed in this window since the baseline was taken.
+	 *
+	 * @param includeUnchanged Whether to save the state of all participants of a saved layout.
+	 */
+	private saveActiveLayout(includeUnchanged = false): void {
 		if (this.isApplying) {
 			return; // do not save a partially applied layout
 		}
@@ -881,27 +906,40 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return;
 		}
 
-		// The layout of an extension is saved once it was changed, until then it follows its definition
-		if (!activeLayout && !this.hasChangedSinceBaseline()) {
+		const baseline = this.changeBaseline;
+		const changedParticipants = baseline ? this.getChangedParticipants(baseline.snapshot) : [];
+		if (!activeLayout) {
+			// The layout of an extension is saved once it was changed after the window settled, until then it follows its definition
+			if (!baseline?.settled || !changedParticipants.length) {
+				return;
+			}
+		} else if (!includeUnchanged && !changedParticipants.length) {
 			return;
 		}
 
+		// A new layout of an extension gets the state of all participants
+		const state = this.captureState(participant => !activeLayout || includeUnchanged || changedParticipants.includes(participant));
 		const contribution = activeLayout?.contribution ?? (contributedLayout ? this.toStoredContribution(contributedLayout) : undefined);
 		const updatedLayout: IStoredNamedLayout = {
 			id: this.activeLayoutId,
 			name: contributedLayout?.label ?? activeLayout?.name ?? this.activeLayoutId,
 			settings: this.getSettingsContent(this.activeLayoutId) ?? NamedLayoutsService.EMPTY_SETTINGS,
-			state: { ...activeLayout?.state, ...this.captureState() },
+			state: { ...activeLayout?.state, ...state },
 			...(contribution ? { contribution } : {})
 		};
 		if (!activeLayout) {
 			this.storeLayout(updatedLayout);
 			this._onDidChangeLayouts.fire();
-			this.resetChangeTracking(); // its changes are saved from now on
 		} else if (!equals(updatedLayout, activeLayout)) {
 			// Only the keys of the values that changed are written
 			this.storeLayout(updatedLayout);
 		}
+
+		// Changes made from now on are saved next
+		this.changeBaseline = {
+			snapshot: { settings: this.configurationService.getLayoutConfiguration(), state: { ...baseline?.snapshot.state, ...state } },
+			settled: !!baseline?.settled
+		};
 	}
 
 	private getLayoutSettings(layoutId: string): ILayoutSettings {
@@ -1061,18 +1099,21 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	/**
-	 * Starts to detect the changes made to the active layout from its current state if it
-	 * is locked, otherwise stops detecting changes.
+	 * Starts to detect the changes made to the active named layout from its current state.
 	 */
 	private resetChangeTracking(): void {
 		this.setActiveLayoutModified(false);
-		if (this.isLocked(this.activeLayoutId) || this.isUnchangedContributedLayout(this.activeLayoutId)) {
-			this.changeBaseline = 'pending';
+		if (this.activeLayoutId !== DEFAULT_NAMED_LAYOUT_ID) {
+			this.changeBaseline = { snapshot: this.takeSnapshot(), settled: false };
 			this.changeDetector.schedule();
 		} else {
 			this.changeBaseline = undefined;
 			this.changeDetector.cancel();
 		}
+	}
+
+	private takeSnapshot(): ILayoutSnapshot {
+		return { settings: this.configurationService.getLayoutConfiguration(), state: this.captureState() };
 	}
 
 	/**
@@ -1083,28 +1124,32 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	private detectChanges(): void {
-		if (!this.changeBaseline || this.isApplying) {
+		const baseline = this.changeBaseline;
+		if (!baseline || this.isApplying) {
 			return; // change tracking starts again once the layout is applied
 		}
 
-		if (this.changeBaseline === 'pending') {
-			this.changeBaseline = { settings: this.configurationService.getLayoutConfiguration(), state: this.captureState() };
+		// The window settles after the layout was applied and the workbench restored
+		if (!baseline.settled) {
+			if (this.isRestored) {
+				this.changeBaseline = { snapshot: this.takeSnapshot(), settled: true };
+			}
 			return;
 		}
 
 		if (this.isLocked(this.activeLayoutId)) {
 			this.setActiveLayoutModified(this.hasChangedSinceBaseline());
-		} else if (this.hasChangedSinceBaseline()) {
+		} else if (this.isUnchangedContributedLayout(this.activeLayoutId) && this.hasChangedSinceBaseline()) {
 			this.saveActiveLayout(); // the layout of an extension is saved once it was changed
 		}
 	}
 
 	/**
-	 * Whether the active layout changed since the baseline was taken, `false` while it is pending.
+	 * Whether the active layout changed since the baseline was taken.
 	 */
 	private hasChangedSinceBaseline(): boolean {
-		const baseline = this.changeBaseline;
-		if (!baseline || baseline === 'pending') {
+		const baseline = this.changeBaseline?.snapshot;
+		if (!baseline) {
 			return false;
 		}
 
@@ -1114,7 +1159,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return true;
 		}
 
-		return this.participants.some(participant => {
+		return this.getChangedParticipants(baseline).length > 0;
+	}
+
+	private getChangedParticipants(baseline: ILayoutSnapshot): INamedLayoutParticipant[] {
+		return this.participants.filter(participant => {
 			const state = baseline.state[participant.id];
 			if (state === undefined) {
 				return false; // registered after the baseline was taken
@@ -1159,7 +1208,6 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return;
 		}
 
-		const wasUnchangedContributedLayout = this.isUnchangedContributedLayout(id);
 		const storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== id);
 		this.storedLayouts = storedLayout ? [...storedLayouts, storedLayout] : storedLayouts;
 		this.settingsFileSystemProvider.refresh();
@@ -1172,13 +1220,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		// Another window saved the changes of the active layout of an extension, or reset them. This window keeps
 		// its arrangement, and follows the definition of the layout until the layout is changed again.
 		this.storeActiveContributedLayout();
-		if (this.contributedLayouts.has(id)) {
-			if (this.isUnchangedContributedLayout(id) !== wasUnchangedContributedLayout) {
-				this.resetChangeTracking();
-			}
-			return;
-		}
-		if (storedLayout) {
+		if (this.contributedLayouts.has(id) || storedLayout) {
 			return;
 		}
 
@@ -1316,12 +1358,15 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return;
 		}
 
-		// Changes made to the active layout while another window locked it are not saved
+		// Changes made to the active layout while another window locked it are not saved. Changes made
+		// while it was locked are saved once another window unlocked it.
 		const activeLayoutWasLocked = this.isLocked(this.activeLayoutId);
 		this.lockedLayoutIds = lockedLayoutIds;
 		this._onDidChangeLayouts.fire();
-		if (this.isLocked(this.activeLayoutId) !== activeLayoutWasLocked) {
+		if (this.isLocked(this.activeLayoutId) && !activeLayoutWasLocked) {
 			this.resetChangeTracking();
+		} else if (!this.isLocked(this.activeLayoutId)) {
+			this.setActiveLayoutModified(false);
 		}
 	}
 
