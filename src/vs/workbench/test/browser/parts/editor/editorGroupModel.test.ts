@@ -316,6 +316,26 @@ suite('EditorGroupModel', () => {
 		}
 	}
 
+	class TestEditorInputSerializerNoDeserialize implements IEditorSerializer {
+
+		canSerialize(editorInput: EditorInput): boolean {
+			return true;
+		}
+
+		serialize(editorInput: EditorInput): string | undefined {
+			const testEditorInput = <NonSerializableTestEditorInput>editorInput;
+			const testInput: ISerializedTestInput = {
+				id: testEditorInput.id
+			};
+
+			return JSON.stringify(testInput);
+		}
+
+		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
+			return undefined;
+		}
+	}
+
 	const disposables = new DisposableStore();
 
 	setup(() => {
@@ -774,6 +794,63 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(deserialized.stickyCount, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).length, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
+	});
+
+	test('group serialization (sticky index survives multiple dead sticky editors)', function () {
+		inst().invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testEditorInputForGroups-nonSerializable', TestEditorInputSerializerNoDeserialize));
+
+		const group = createEditorGroupModel();
+
+		const input1 = input('1', true);
+		const input2 = input('2');
+		const input3 = input('3', true);
+		const input4 = input('4');
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input4, { pinned: false, active: true });
+
+		group.stick(input1);
+		group.stick(input2);
+		group.stick(input3);
+
+		assert.strictEqual(group.stickyCount, 3);
+
+		const deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(deserialized.count, 2);
+		assert.strictEqual(deserialized.stickyCount, 1);
+
+		const sequential = deserialized.getEditors(EditorsOrder.SEQUENTIAL);
+		assert.strictEqual(sequential.length, 2);
+		assert.strictEqual(deserialized.isSticky(sequential[0]), true);
+		assert.strictEqual(deserialized.isSticky(sequential[1]), false);
+		assert.strictEqual((sequential[0] as TestEditorInput).id, '2');
+	});
+
+	test('group serialization (all sticky editors dead leaves no phantom stickiness)', function () {
+		inst().invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testEditorInputForGroups-nonSerializable', TestEditorInputSerializerNoDeserialize));
+
+		const group = createEditorGroupModel();
+
+		const input1 = input('1', true);
+		const input2 = input('2', true);
+		const input3 = input('3');
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: false, active: true });
+
+		group.stick(input1);
+		group.stick(input2);
+
+		assert.strictEqual(group.stickyCount, 2);
+
+		const deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(deserialized.count, 1);
+		assert.strictEqual(deserialized.stickyCount, 0);
 	});
 
 	test('group serialization (locked group)', function () {
