@@ -17,7 +17,8 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { localize } from '../../../../../../nls.js';
 
 /**
  * A single structured debug detail entry from the instructions context computer.
@@ -231,11 +232,17 @@ export type IAgentSource = ({
 };
 
 export namespace IAgentSource {
+	/**
+	 * The label tells same-named agents from extensions and plugins apart in
+	 * the agent picker. It matches the captions of the agent host harness.
+	 */
 	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
 		if (promptPath.storage === PromptsStorage.extension) {
-			return { storage: PromptsStorage.extension, extensionId: promptPath.extension.identifier };
+			const extensionName = promptPath.extension.displayName || promptPath.extension.name;
+			return { storage: PromptsStorage.extension, extensionId: promptPath.extension.identifier, label: localize('agentSource.extension', "Extension: {0}", extensionName) };
 		} else if (promptPath.storage === PromptsStorage.plugin) {
-			return { storage: PromptsStorage.plugin, pluginUri: promptPath.pluginUri! };
+			const pluginName = promptPath.pluginLabel || basename(promptPath.pluginUri!);
+			return { storage: PromptsStorage.plugin, pluginUri: promptPath.pluginUri!, label: localize('agentSource.plugin', "Plugin: {0}", pluginName) };
 		} else {
 			return { storage: promptPath.storage };
 		}
