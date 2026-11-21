@@ -6219,6 +6219,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				completed.delete(s.sessionId);
 				failed++;
 				if (err instanceof IncompleteCopilotSessionMarkerError) {
+					const modifiedTime = new Date(s.modifiedTime).getTime();
+					if (!Number.isFinite(modifiedTime) || modifiedTime < earliestExternalModifiedTime) {
+						failed--;
+						outsideImportWindow++;
+						completed.add(s.sessionId);
+						this._logService.debug(`[CopilotDiscovery] Scan ${scan.id}: incomplete marker for ${session.toString()} outside import window; retiring stale candidate`);
+						return undefined;
+					}
 					scan.waitForChange(s.sessionId);
 					this._logService.debug(`[CopilotDiscovery] Scan ${scan.id}: incomplete marker for ${session.toString()}; waiting for metadata changes`);
 				} else {

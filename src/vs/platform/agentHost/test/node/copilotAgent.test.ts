@@ -20930,6 +20930,51 @@ suite('CopilotAgent', () => {
 			registerAgentCleanup(agent, userHome, workingDirectory);
 			assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
 		});
+
+		test('retires old incomplete markers as stale rather than parking them indefinitely', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/stale-marker-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/stale-marker-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const staleId = '00000000-0000-0000-0000-000000000001';
+			const recentId = '00000000-0000-0000-0000-000000000002';
+			const staleDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+			const recentDate = new Date();
+
+			const client = new TestCopilotClient([
+				sdkSession(staleId, workingDirectory, { clientName: 'github/cli', modifiedTime: staleDate }),
+				sdkSession(recentId, workingDirectory, { clientName: 'github/cli', modifiedTime: recentDate }),
+			]);
+			await writeExtensionHostMarker(userHome, staleId, {});
+			await writeExtensionHostMarker(userHome, recentId, {});
+
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
+
+			const waitedForChange: string[] = [];
+			const internal = agent as unknown as { _emitCopilotChats(scan: ICopilotChatDiscoveryScan): Promise<ReadonlySet<string> | undefined> };
+			const completed = await internal._emitCopilotChats({
+				id: 1,
+				isCurrent: () => true,
+				prepare: async () => true,
+				validate: async () => true,
+				waitForChange: id => waitedForChange.push(id),
+				describe: () => 'test',
+			});
+
+			assert.deepStrictEqual({
+				completedStale: completed?.has(staleId),
+				completedRecent: completed?.has(recentId),
+				waitedForChange,
+			}, {
+				completedStale: true,
+				completedRecent: false,
+				waitedForChange: [recentId],
+			});
+		});
 		/** Discovered chats with the working directory each one resolved to. */
 		async function collectDiscoveredWorkingDirectories(agent: CopilotAgent): Promise<Array<{ id: string; workingDirectory: string | undefined }>> {
 			const discovered: IAgentDiscoveredChat[] = [];
