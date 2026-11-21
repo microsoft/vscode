@@ -7,10 +7,10 @@ import { $, addDisposableListener } from '../../../../../../base/browser/dom.js'
 import { ArrayQueue } from '../../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { assertReturnsDefined } from '../../../../../../base/common/types.js';
+import { MouseTargetType } from '../../../../editorBrowser.js';
 import { applyFontInfo } from '../../../../config/domFontInfo.js';
 import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
 import { diffDeleteDecoration, diffRemoveIcon } from '../../registrations.contribution.js';
@@ -134,7 +134,25 @@ export class DiffEditorViewZones extends Disposable {
 		}
 
 		const alignmentViewZonesDisposables = this._register(new DisposableStore());
+		const inlineDeletedCodeMargins = new Map<string, InlineDiffDeletedCodeMargin>();
+		let activeInlineDeletedCodeMargin: InlineDiffDeletedCodeMargin | undefined;
+		const clearInlineDeletedCodeMargins = () => {
+			inlineDeletedCodeMargins.clear();
+			activeInlineDeletedCodeMargin = undefined;
+		};
+		this._register(toDisposable(clearInlineDeletedCodeMargins));
+		this._register(this._editors.modified.onMouseMove(e => {
+			const margin = e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE
+				? inlineDeletedCodeMargins.get(e.target.detail.viewZoneId)
+				: undefined;
+			if (activeInlineDeletedCodeMargin && activeInlineDeletedCodeMargin !== margin) {
+				activeInlineDeletedCodeMargin.visibility = false;
+			}
+			activeInlineDeletedCodeMargin = margin;
+			margin?.onMouseMove(e.event.browserEvent.y);
+		}));
 		this.viewZones = derived<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>(this, (reader) => {
+			clearInlineDeletedCodeMargins();
 			alignmentViewZonesDisposables.clear();
 
 			const alignmentsVal = alignments.read(reader) || [];
@@ -245,9 +263,8 @@ export class DiffEditorViewZones extends Disposable {
 						}
 
 						let zoneId: string | undefined = undefined;
-						alignmentViewZonesDisposables.add(
+						const margin = alignmentViewZonesDisposables.add(
 							new InlineDiffDeletedCodeMargin(
-								() => assertReturnsDefined(zoneId),
 								marginDomNode,
 								deletedCodeDomNode,
 								this._editors.modified,
@@ -280,7 +297,13 @@ export class DiffEditorViewZones extends Disposable {
 							heightInPx: result.heightInLines * modLineHeight,
 							minWidthInPx: result.minWidthInPx,
 							marginDomNode,
-							setZoneId(id) { zoneId = id; },
+							setZoneId: id => {
+								if (zoneId !== undefined) {
+									inlineDeletedCodeMargins.delete(zoneId);
+								}
+								zoneId = id;
+								inlineDeletedCodeMargins.set(id, margin);
+							},
 							showInHiddenAreas: true,
 							suppressMouseDown: false,
 						});
