@@ -209,7 +209,8 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 		// Draw -\
 		const d: string[] = [];
-		const path = createPath(outputSwimlanes[parentOutputIndex].color);
+		const parentColor = outputSwimlanes[parentOutputIndex].color;
+		const path = createPath(parentColor);
 
 		// Draw \
 		d.push(`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`);
