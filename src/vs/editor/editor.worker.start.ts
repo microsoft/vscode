@@ -14,7 +14,7 @@ import { EditorWorkerHost } from './common/services/editorWorkerHost.js';
  */
 export function start<THost extends object, TClient extends object>(createClient: (ctx: IWorkerContext<THost>) => TClient): TClient {
 	let client: TClient | undefined;
-	const webWorkerServer = initialize((workerServer) => {
+	initialize((workerServer) => {
 		const editorWorkerHost = EditorWorkerHost.getChannel(workerServer);
 
 		const host = new Proxy({}, {
@@ -32,16 +32,19 @@ export function start<THost extends object, TClient extends object>(createClient
 			}
 		});
 
+		const editorWorker = new EditorWorker();
+
 		const ctx: IWorkerContext<THost> = {
 			host: host as THost,
 			getMirrorModels: () => {
-				return webWorkerServer.requestHandler.getModels();
+				return editorWorker.getModels();
 			}
 		};
 
 		client = createClient(ctx);
+		editorWorker.setForeignModule(client);
 
-		return new EditorWorker(client);
+		return editorWorker;
 	});
 
 	return client!;
