@@ -144,9 +144,9 @@ export class FormatOnType implements IEditorContribution {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-			if (isNonEmptyArray(edits)) {
+			if (isNonEmptyArray(edits.edits)) {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture: false });
-				FormattingEdit.execute(this._editor, edits, true);
+				FormattingEdit.execute(this._editor, edits.edits, true, edits.reason);
 			}
 		}).finally(() => {
 			this._sessionDisposables.delete(disposables);
