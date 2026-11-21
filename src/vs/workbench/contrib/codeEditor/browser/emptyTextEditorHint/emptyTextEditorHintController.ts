@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, EventType, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
@@ -36,6 +37,9 @@ import { canOpenInMarkdownEditor, EmptyEditorHintReopener, markdownEditorId } fr
 import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { EmptyEditorHintVisible, forwardTypingToEditor, getFocusEmptyEditorHintAriaLabel } from './emptyEditorHintFocus.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
@@ -236,6 +240,14 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		}
 	}
 
+	/**
+	 * Returns `false` if no hint is shown.
+	 */
+	focusHint(): boolean {
+		this.textHintContentWidget?.focus();
+		return !!this.textHintContentWidget;
+	}
+
 	override dispose(): void {
 		super.dispose();
 
@@ -251,7 +263,7 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
-	private isVisible = false;
+	private links: HTMLAnchorElement[] = [];
 	private ariaLabel: string = '';
 	private readonly reopener: EmptyEditorHintReopener;
 
@@ -267,12 +279,18 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IUntitledDocumentTelemetryService private readonly untitledDocumentTelemetryService: IUntitledDocumentTelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.variant = offerMarkdownEditor ? 'classicMarkdownEditor' : 'classic';
 		this.reopener = instantiationService.createInstance(EmptyEditorHintReopener, this.editor);
+
+		const visible = EmptyEditorHintVisible.bindTo(contextKeyService);
+		visible.set(true);
+		this._register(toDisposable(() => visible.reset()));
+
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
 				this.editor.applyFontInfo(this.domNode);
@@ -280,7 +298,7 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
+			if (this.editor.hasTextFocus() && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
 				status(this.ariaLabel);
 			}
 		}));
@@ -384,11 +402,36 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 		hintElement.style.fontStyle = 'italic';
 
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
-		for (const anchor of hintElement.querySelectorAll('a')) {
-			anchor.style.cursor = 'pointer';
+		this.links = [...hintElement.querySelectorAll('a')];
+		for (const link of this.links) {
+			link.style.cursor = 'pointer';
+			link.tabIndex = 0;
+			link.setAttribute('role', 'button');
+			this._register(addStandardDisposableListener(link, EventType.KEY_DOWN, e => this.onLinkKeyDown(link, e)));
 		}
 
 		return { hintElement, ariaLabel };
+	}
+
+	private onLinkKeyDown(link: HTMLAnchorElement, e: IKeyboardEvent): void {
+		const index = this.links.indexOf(link);
+		if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+			link.click();
+		} else if (e.equals(KeyCode.Escape) || (index === 0 && e.equals(KeyMod.Shift | KeyCode.Tab))) {
+			this.editor.focus();
+		} else if (e.equals(KeyCode.RightArrow) || e.equals(KeyCode.DownArrow)) {
+			this.links[(index + 1) % this.links.length].focus();
+		} else if (e.equals(KeyCode.LeftArrow) || e.equals(KeyCode.UpArrow)) {
+			this.links[(index - 1 + this.links.length) % this.links.length].focus();
+		} else {
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
+	focus(): void {
+		this.links.at(0)?.focus();
 	}
 
 	getDomNode(): HTMLElement {
@@ -399,11 +442,14 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 
 			const { hintElement, ariaLabel } = this.getHint();
 			this.domNode.append(hintElement);
-			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
+			this.ariaLabel = ariaLabel
+				.concat(getFocusEmptyEditorHintAriaLabel(this.keybindingService))
+				.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
 
 			this._register(addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();
 			}));
+			this._register(forwardTypingToEditor(this.domNode, this.editor));
 
 			this.editor.applyFontInfo(this.domNode);
 			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
@@ -445,6 +491,6 @@ function getHintTexts(hasInlineChatProvider: boolean, offerMarkdownEditor: boole
 		ariaLabel: localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', inlineChatKeybinding, languageKeybinding),
 	} : {
 		message: localize({ key: 'emptyTextEditorHintWithoutInlineChat', comment: ['Preserve double-square brackets and their order', 'language refers to a programming language'] }, '[[Select a language]] ({0}) to get started. Start typing to dismiss or [[don\'t show]] this again.', languageKeybinding ?? '').replaceAll(' ()', ''),
-		ariaLabel: localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', inlineChatKeybinding, languageKeybinding),
+		ariaLabel: localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', languageKeybinding),
 	};
 }

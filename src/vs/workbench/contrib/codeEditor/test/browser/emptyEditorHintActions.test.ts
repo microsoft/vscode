@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getActiveElement } from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -31,6 +35,7 @@ import { EmptyEditorHintActionsWidget } from '../../browser/emptyTextEditorHint/
 import { emptyEditorHintOpenInMarkdownEditorSetting, EmptyTextEditorHintContentWidget, EmptyTextEditorHintContribution } from '../../browser/emptyTextEditorHint/emptyTextEditorHintController.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { startsTextInput } from '../../browser/emptyTextEditorHint/emptyEditorHintFocus.js';
 
 suite('EmptyEditorHintActionsWidget', () => {
 
@@ -113,6 +118,23 @@ suite('EmptyEditorHintActionsWidget', () => {
 				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'openEditor', variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
 				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'closeEscape', variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
 			],
+		});
+	});
+
+	test('Tab from the editor focuses the first row, Shift+Tab and typing return to the editor', () => {
+		const { instantiationService, contextKeyService, editor, editorFocusCalls } = createHintTestSetup(store);
+		const widget = store.add(instantiationService.createInstance(EmptyEditorHintActionsWidget, editor, { close: () => { }, dontShowAgain: () => { }, doesNotFit: () => { } }));
+		const domNode = attachToDocument(store, widget.getDomNode());
+
+		widget.focus();
+		const focusedRow = getActiveElement()?.textContent;
+		pressKey(getActiveElement(), { key: 'Tab', keyCode: 9, shiftKey: true });
+		pressKey(domNode.querySelector('.watermark-entry'), { key: 'a', keyCode: 65 });
+
+		assert.deepStrictEqual({ hintVisible: contextKeyService.getContextKeyValue('emptyEditorHintVisible'), focusedRow, editorFocusCalls }, {
+			hintVisible: true,
+			focusedRow: 'Select a Language',
+			editorFocusCalls: ['Tab', 'a'],
 		});
 	});
 });
@@ -202,3 +224,107 @@ suite('EmptyTextEditorHint', () => {
 		});
 	});
 });
+
+suite('EmptyTextEditorHintContentWidget', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the links can be focused and run from the keyboard', () => {
+		const { instantiationService, contextKeyService, editor, editorFocusCalls, commands } = createHintTestSetup(store);
+		const widget = store.add(instantiationService.createInstance(EmptyTextEditorHintContentWidget, editor, true));
+		const domNode = attachToDocument(store, widget.getDomNode());
+		const links = [...domNode.querySelectorAll('a')];
+
+		widget.focus();
+		const focused = [getActiveElement()?.textContent];
+		pressKey(getActiveElement(), { key: 'ArrowRight', keyCode: 39 });
+		focused.push(getActiveElement()?.textContent);
+		pressKey(getActiveElement(), { key: 'ArrowRight', keyCode: 39 });
+		focused.push(getActiveElement()?.textContent);
+		pressKey(links[0], { key: 'Tab', keyCode: 9, shiftKey: true });
+		pressKey(links[1], { key: 'Escape', keyCode: 27 });
+		pressKey(links[0], { key: 'x', keyCode: 88 });
+		pressKey(links[0], { key: 'Enter', keyCode: 13 });
+
+		assert.deepStrictEqual({
+			hintVisible: contextKeyService.getContextKeyValue('emptyEditorHintVisible'),
+			links: links.map(link => ({ text: link.textContent, tabIndex: link.tabIndex, role: link.getAttribute('role') })),
+			focused,
+			editorFocusCalls,
+			commands,
+		}, {
+			hintVisible: true,
+			links: [{ text: 'Select a language', tabIndex: 0, role: 'button' }, { text: 'open in Markdown Editor', tabIndex: 0, role: 'button' }, { text: 'don\'t show', tabIndex: 0, role: 'button' }],
+			focused: ['Select a language', 'open in Markdown Editor', 'don\'t show'],
+			editorFocusCalls: ['Tab', 'Escape', 'x', 'Enter'],
+			commands: [['workbench.action.editor.changeLanguageMode']],
+		});
+	});
+});
+
+suite('startsTextInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('characters, dead keys and IME composition start text input, keys that operate the hint do not', () => {
+		const keys: Record<string, KeyboardEventInit> = {
+			'a': { key: 'a', keyCode: 65 },
+			'AltGr+q (@)': { key: '@', keyCode: 81, ctrlKey: true, altKey: true, modifierAltGraph: true } as KeyboardEventInit,
+			'dead key': { key: 'Dead', keyCode: 192 },
+			'IME': { key: 'Process', keyCode: 229 },
+			'Space': { key: ' ', keyCode: 32 },
+			'Enter': { key: 'Enter', keyCode: 13 },
+			'Tab': { key: 'Tab', keyCode: 9 },
+			'ArrowDown': { key: 'ArrowDown', keyCode: 40 },
+			'Ctrl+c': { key: 'c', keyCode: 67, ctrlKey: true },
+		};
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(keys).map(([name, init]) => [name, startsTextInput(new StandardKeyboardEvent(new KeyboardEvent('keydown', init)))])), {
+			'a': true,
+			'AltGr+q (@)': true,
+			'dead key': true,
+			'IME': true,
+			'Space': false,
+			'Enter': false,
+			'Tab': false,
+			'ArrowDown': false,
+			'Ctrl+c': false,
+		});
+	});
+});
+
+function createHintTestSetup(store: Pick<DisposableStore, 'add'>) {
+	const commands: unknown[][] = [];
+	const editorFocusCalls: string[] = [];
+
+	const instantiationService = workbenchInstantiationService(undefined, store);
+	instantiationService.stub(IUntitledDocumentTelemetryService, upcastPartial<IUntitledDocumentTelemetryService>({ getUntitledDocumentId: () => 'doc-1' }));
+	instantiationService.stub(IChatAgentService, upcastPartial<IChatAgentService>({ getActivatedAgents: () => [], onDidChangeAgents: Event.None }));
+	instantiationService.stub(IEditorResolverService, upcastPartial<IEditorResolverService>({ getEditors: () => [], onDidChangeEditorRegistrations: Event.None }));
+	instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+		executeCommand: async (...args: unknown[]) => { commands.push(args); return undefined; },
+		onWillExecuteCommand: Event.None,
+		onDidExecuteCommand: Event.None,
+	}));
+	const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+	instantiationService.stub(IContextKeyService, contextKeyService);
+
+	const model = store.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'untitled', path: 'Untitled-1' })));
+	const editor = store.add(createTestCodeEditor(model));
+	// The test editor has no view to focus, so record the key that returned focus to it
+	editor.focus = () => editorFocusCalls.push(lastPressedKey);
+
+	return { instantiationService, contextKeyService, editor, editorFocusCalls, commands };
+}
+
+let lastPressedKey = '';
+
+function pressKey(target: Element | null | undefined, init: KeyboardEventInit & { keyCode: number }): void {
+	lastPressedKey = init.key ?? '';
+	target?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+}
+
+function attachToDocument(store: Pick<DisposableStore, 'add'>, node: HTMLElement): HTMLElement {
+	mainWindow.document.body.appendChild(node);
+	store.add(toDisposable(() => node.remove()));
+	return node;
+}
