@@ -7,7 +7,6 @@ import { CharCode } from './charCode.js';
 import { isAbsolute, join, normalize, posix, sep } from './path.js';
 import { isWindows } from './platform.js';
 import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from './strings.js';
-import { isNumber } from './types.js';
 
 export function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
@@ -366,6 +365,12 @@ export interface IPathWithLineAndColumn {
 	column?: number;
 }
 
+// Strictly decimal digits only: `Number(segment)` is too loose here and would also
+// accept hex/octal/binary/exponential notation or padded values (e.g. "0x10", "1e3",
+// " 33"), which can legitimately be part of a file path and should not be mistaken
+// for a line or column.
+const lineOrColumnSegmentRegex = /^[0-9]+$/;
+
 export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
 	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
@@ -374,13 +379,12 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 	let column: number | undefined;
 
 	for (const segment of segments) {
-		const segmentAsNumber = Number(segment);
-		if (!isNumber(segmentAsNumber)) {
+		if (!lineOrColumnSegmentRegex.test(segment)) {
 			path = path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
 		} else if (line === undefined) {
-			line = segmentAsNumber;
+			line = Number(segment);
 		} else if (column === undefined) {
-			column = segmentAsNumber;
+			column = Number(segment);
 		}
 	}
 
