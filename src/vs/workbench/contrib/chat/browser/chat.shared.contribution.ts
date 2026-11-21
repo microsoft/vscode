@@ -714,7 +714,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.InlineAttachmentsEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.inlineAttachments.enabled', "Controls whether context attached to the chat input, such as files, folders, images, symbols, tools, and pull requests, is shown as pills inline with the prompt text at the position where it was added, instead of above the input. Each inline attachment behaves like a single character: move the cursor across it, select it, or delete it like text. Sent requests show the same pills inline, and still show attached images as thumbnails above their text. The prompt sent to the model mentions each pill by its attachment's name and location, and attaches each attachment once, however often it is mentioned."),
-			default: product.quality === 'insider',
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditorAssociations]: {
@@ -2003,12 +2003,12 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.HtmlPreviewEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.htmlPreview.enabled.description', "Render explicit html-preview code blocks as inline HTML previews in the Agents window. When disabled, these blocks are shown as source code."),
-			default: false,
+			default: true,
 		},
 		[ChatConfiguration.NativeComponentsEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.nativeComponents.enabled.description', "Render explicit vscode-ui code blocks as native visuals, such as metrics, tables, and bar charts, in Agents window responses. When disabled, these blocks are shown as source code."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
