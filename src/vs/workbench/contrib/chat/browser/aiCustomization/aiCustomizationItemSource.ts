@@ -24,7 +24,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOrganizationControl, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOrganizationControl, ICustomizationSectionNotice, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -136,6 +136,7 @@ export interface IAICustomizationItemSource extends IDisposable {
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
 	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
 	fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]>;
+	fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]>;
 }
 
 // #endregion
@@ -466,6 +467,10 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 
+	async fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return (await this.itemProvider.provideSectionNotices?.(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
 	/**
 	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
 	 * into the provider's items. The provider may re-discover the bundled
@@ -568,6 +573,10 @@ export class EmptyItemProviderItemSource extends Disposable implements IAICustom
 	fetchSourceFolders(_promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
 		return Promise.resolve([]);
 	}
+
+	fetchSectionNotices(_promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return Promise.resolve([]);
+	}
 }
 
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
@@ -626,7 +635,9 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 
-
+	async fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return (await this.itemProvider.provideSectionNotices?.(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
 }
 
 

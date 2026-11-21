@@ -29,7 +29,7 @@ import { AICustomizationItemNormalizer, IAICustomizationListItem, ICustomization
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationSectionNotice, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -967,7 +967,8 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
 
@@ -1023,6 +1024,39 @@ suite('aiCustomizationListWidget', () => {
 			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
 		});
 
+		test('shows the section notices above the list and updates them', async () => {
+			const notices = observableValue<readonly ICustomizationSectionNotice[]>('test', [
+				{ severity: 'warning', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' },
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => observableValue('test', [] as readonly never[]),
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => notices,
+				whenSectionLoaded: async () => { },
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const rendered = () => [...widget.element.querySelectorAll<HTMLElement>('.section-title-header .customization-section-notice')].map(notice => ({
+				className: notice.className,
+				role: notice.getAttribute('role'),
+				title: notice.querySelector('.customization-section-notice-title')?.textContent,
+				message: notice.querySelector('.customization-section-notice-message')?.textContent,
+			}));
+
+			await widget.setSection(AICustomizationManagementSection.Hooks);
+			const hooks = rendered();
+			notices.set([], undefined);
+			const fixed = rendered();
+			notices.set([{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' }], undefined);
+			await widget.setSection(AICustomizationManagementSection.McpServers);
+
+			assert.deepStrictEqual({ hooks, fixed, otherSection: rendered() }, {
+				hooks: [{ className: 'customization-section-notice warning', role: 'note', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' }],
+				fixed: [],
+				otherSection: [],
+			});
+		});
+
 		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
 				id: 'instruction',
@@ -1040,8 +1074,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1084,8 +1119,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1144,8 +1180,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1261,8 +1298,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 2),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1321,8 +1359,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1384,8 +1423,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 2),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1450,8 +1490,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: section => section === AICustomizationManagementSection.Agents ? agents : skills,
 				getCount: section => observableValue('test', section === AICustomizationManagementSection.Agents ? agents.get().length : skills.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1485,8 +1526,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => agents,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1526,8 +1568,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => agents,
 				getCount: () => observableValue('test', agents.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1573,8 +1616,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => agents,
 				getCount: () => observableValue('test', agents.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1623,8 +1667,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => agents,
 				getCount: () => observableValue('test', agents.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1675,8 +1720,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', items.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1715,8 +1761,9 @@ suite('aiCustomizationListWidget', () => {
 					getItems: () => items,
 					getCount: () => observableValue('test', 1),
 					getPluginCount: () => observableValue('test', 0),
+					getSectionNotices: () => observableValue('test', [] as readonly never[]),
 					whenSectionLoaded: async () => { },
-					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
+					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
 				});
 				const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 				document.body.appendChild(widget.element);
@@ -1757,8 +1804,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: () => loading,
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1828,8 +1876,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: () => Promise.resolve(),
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);

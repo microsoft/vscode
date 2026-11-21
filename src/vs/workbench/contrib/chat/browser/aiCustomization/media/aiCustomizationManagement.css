@@ -850,7 +850,8 @@ per-word capitalization does not survive translation. */
 }
 
 /* Notice explaining an organization restriction on a whole section */
-.organization-policy-notice {
+.organization-policy-notice,
+.customization-section-notice {
 	display: flex;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size80);
@@ -873,6 +874,35 @@ per-word capitalization does not survive translation. */
 
 .organization-policy-notice .organization-policy-notice-message {
 	min-width: 0;
+}
+
+/* Problems with a section's customizations as a whole, such as hook files that failed to load */
+.customization-section-notice .customization-section-notice-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 1.45;
+}
+
+.customization-section-notice.warning .customization-section-notice-icon {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.customization-section-notice.error .customization-section-notice-icon {
+	color: var(--vscode-errorForeground);
+}
+
+.customization-section-notice .customization-section-notice-content {
+	min-width: 0;
+}
+
+.customization-section-notice .customization-section-notice-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.customization-section-notice .customization-section-notice-message {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Status icon for remote customization items (loading/loaded/degraded/error) */

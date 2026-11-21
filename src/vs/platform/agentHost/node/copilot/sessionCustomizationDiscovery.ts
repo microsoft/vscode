@@ -956,7 +956,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			return {
 				discovered: {
 					type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
-					name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
+					name: localize('copilot.hookDiscoveryFailed', "Couldn't load hooks"), contents: CustomizationType.Hook,
 					enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
 				},
 			};
