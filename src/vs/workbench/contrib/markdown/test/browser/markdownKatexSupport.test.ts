@@ -110,5 +110,52 @@ suite('Markdown Katex Support Test', () => {
 			text: '$\\undefinedcommand <span class="monaco-button" style="position: relative; top: -40px">x</span>$',
 		});
 	});
+
+	test('Should support LaTeX inline syntax \\( ... \\)', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello \\( \\frac{1}{2} \\) World!');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		const container = rendered.element.querySelector('.vscode-katex-container');
+		assert.strictEqual(container?.getAttribute('data-latex'), '\\frac{1}{2}');
+		assert.ok(!rendered.element.querySelector('.katex-display'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should support LaTeX inline syntax wrapped in parans', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello (\\( \\frac{1}{2} \\)) World!');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		const container = rendered.element.querySelector('.vscode-katex-container');
+		assert.strictEqual(container?.getAttribute('data-latex'), '\\frac{1}{2}');
+		assert.ok(!rendered.element.querySelector('.katex-display'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should support LaTeX display syntax \\[ ... \\] block', async () => {
+		const rendered = await renderMarkdownWithKatex([
+			'Block example:',
+			'\\[',
+			'\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}',
+			'\\]',
+		].join('\n'));
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		const container = rendered.element.querySelector('.vscode-katex-container');
+		assert.strictEqual(container?.getAttribute('data-latex'), '\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}');
+		assert.ok(rendered.element.querySelector('.katex-display'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should support LaTeX display syntax inline in paragraph', async () => {
+		const rendered = await renderMarkdownWithKatex('The formula is \\[ E = mc^2 \\] and so on.');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		const container = rendered.element.querySelector('.vscode-katex-container');
+		assert.strictEqual(container?.getAttribute('data-latex'), 'E = mc^2');
+		assert.ok(rendered.element.querySelector('.katex-display'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when LaTeX delimiters are escaped', async () => {
+		const rendered = await renderMarkdownWithKatex('This is not \\\\( math \\\\) and this is not \\\\[ math \\\\]');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
 });
 
