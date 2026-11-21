@@ -17,7 +17,7 @@ import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
 
 suite('ExtHostFileSystemEventService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const protocol: IMainContext = {
 		getProxy: () => { return undefined!; },
@@ -149,5 +149,70 @@ suite('ExtHostFileSystemEventService', () => {
 		sub.dispose();
 		watcher.dispose();
 	});
+
+	test('FileSystemWatcher string patterns only report events in workspace folders', () => {
+		const fileSystemInfo = new ExtHostFileSystemInfo();
+		const folder = { uri: URI.parse('watcher-test://one/workspace'), name: 'test', index: 0 };
+		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
+			getWorkspaceFolder: uri => fileSystemInfo.extUri.isEqualOrParent(uri, folder.uri) ? folder : undefined
+		};
+		const service = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!);
+		const watcher = store.add(service.createFileSystemWatcher(workspace as IExtHostWorkspace, undefined!, fileSystemInfo, nullExtensionDescription, '**/*.txt', {}));
+		const created: string[] = [];
+		store.add(watcher.onDidCreate(uri => created.push(uri.toString())));
+
+		const matching = URI.joinPath(folder.uri, 'file.txt');
+		service.$onFileEvent({
+			created: [
+				matching,
+				matching.with({ scheme: 'other-watcher-test' }),
+				matching.with({ authority: 'two' }),
+				matching.with({ path: '/outside/file.txt' }),
+				matching.with({ path: '/workspace/file.md' })
+			],
+			changed: [],
+			deleted: []
+		});
+
+		assert.deepStrictEqual(created, [matching.toString()]);
+	});
+
+	for (const caseSensitive of [false, true]) {
+		test(`FileSystemWatcher relative pattern filters by scheme and authority (caseSensitive: ${caseSensitive})`, () => {
+			const baseUri = URI.parse('watcher-test://one/workspace');
+			const fileSystemInfo = new ExtHostFileSystemInfo();
+			fileSystemInfo.$acceptProviderInfos(baseUri, FileSystemProviderCapabilities.FileReadWrite | (caseSensitive ? FileSystemProviderCapabilities.PathCaseSensitive : 0));
+
+			const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
+				getWorkspaceFolder: () => undefined
+			};
+			const service = new ExtHostFileSystemEventService(protocolWithProxy, new NullLogService(), undefined!);
+			const watcher = store.add(service.createFileSystemWatcher(workspace as IExtHostWorkspace, undefined!, fileSystemInfo, nullExtensionDescription, new RelativePattern(baseUri, '*.TXT'), {}));
+			const created: string[] = [];
+			const changed: string[] = [];
+			const deleted: string[] = [];
+			store.add(watcher.onDidCreate(uri => created.push(uri.toString())));
+			store.add(watcher.onDidChange(uri => changed.push(uri.toString())));
+			store.add(watcher.onDidDelete(uri => deleted.push(uri.toString())));
+
+			const matching = URI.joinPath(baseUri, 'file.TXT');
+			const matchingAuthority = matching.with({ authority: 'ONE', path: '/workspace/other.TXT' });
+			const matchingLowerCase = matching.with({ path: '/WORKSPACE/lower.txt' });
+			const events = [
+				matching,
+				matchingAuthority,
+				matchingLowerCase,
+				matching.with({ scheme: 'other-watcher-test' }),
+				matching.with({ authority: 'two' }),
+				matching.with({ path: '/workspace-other/file.TXT' }),
+				matching.with({ path: '/workspace/nested/file.TXT' }),
+				matching.with({ path: '/workspace/file.md' })
+			];
+			service.$onFileEvent({ created: events, changed: events, deleted: events });
+
+			const expected = [matching, matchingAuthority, ...caseSensitive ? [] : [matchingLowerCase]].map(uri => uri.toString());
+			assert.deepStrictEqual({ created, changed, deleted }, { created: expected, changed: expected, deleted: expected });
+		});
+	}
 
 });
