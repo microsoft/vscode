@@ -275,7 +275,7 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 			switch (os) {
 				case OperatingSystem.Macintosh:
 					return [
-						'~/.gem',
+						'~/.gem/ruby',
 						'~/.rbenv/versions',
 						'~/.rbenv/shims',
 						'~/.rvm/rubies',
@@ -283,7 +283,7 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 				case OperatingSystem.Linux:
 				default:
 					return [
-						'~/.gem',
+						'~/.gem/ruby',
 						'~/.rbenv/versions',
 						'~/.rbenv/shims',
 						'~/.rvm/rubies',
