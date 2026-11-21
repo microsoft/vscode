@@ -116,7 +116,11 @@ export class ModelLineProjectionData {
 					break;
 				}
 
-				if (affinity !== PositionAffinity.Right && inputOffset === this.injectionOffsets[i]) {
+				if (inputOffset === this.injectionOffsets[i] && affinity !== PositionAffinity.Right && affinity !== PositionAffinity.RightOfInjectedText) {
+					if (affinity === PositionAffinity.LeftOfInjectedTextBlockCursor) {
+						inputOffsetInInputWithInjection = this.findCursorStopToRight(i, inputOffsetInInputWithInjection) ?? inputOffsetInInputWithInjection;
+					}
+
 					break;
 				}
 
@@ -205,30 +209,35 @@ export class ModelLineProjectionData {
 			return offsetInInputWithInjections;
 		}
 
-		if (affinity === PositionAffinity.None) {
+		if (affinity === PositionAffinity.None || affinity === PositionAffinity.LeftOfInjectedTextBlockCursor) {
+			const cursorStops = this.injectionOptions![injectedText.injectedTextIndex].cursorStops;
 			if (offsetInInputWithInjections === injectedText.offsetInInputWithInjections + injectedText.length
-				&& hasRightCursorStop(this.injectionOptions![injectedText.injectedTextIndex].cursorStops)) {
+				&& hasRightCursorStop(cursorStops)) {
 				return injectedText.offsetInInputWithInjections + injectedText.length;
-			} else {
-				let result = injectedText.offsetInInputWithInjections;
-				if (hasLeftCursorStop(this.injectionOptions![injectedText.injectedTextIndex].cursorStops)) {
-					return result;
-				}
-
-				let index = injectedText.injectedTextIndex - 1;
-				while (index >= 0 && this.injectionOffsets![index] === this.injectionOffsets![injectedText.injectedTextIndex]) {
-					if (hasRightCursorStop(this.injectionOptions![index].cursorStops)) {
-						break;
-					}
-					result -= this.injectionOptions![index].content.length;
-					if (hasLeftCursorStop(this.injectionOptions![index].cursorStops)) {
-						break;
-					}
-					index--;
-				}
-
-				return result;
 			}
+
+			let leftOffset = injectedText.offsetInInputWithInjections;
+			if (hasLeftCursorStop(cursorStops)) {
+				return leftOffset;
+			}
+
+			let index = injectedText.injectedTextIndex - 1;
+			while (index >= 0 && this.injectionOffsets![index] === this.injectionOffsets![injectedText.injectedTextIndex]) {
+				const injectionOptions = this.injectionOptions![index];
+				if (hasRightCursorStop(injectionOptions.cursorStops)) {
+					return leftOffset;
+				}
+				leftOffset -= injectionOptions.content.length;
+				if (hasLeftCursorStop(injectionOptions.cursorStops)) {
+					return leftOffset;
+				}
+				index--;
+			}
+
+			if (affinity === PositionAffinity.LeftOfInjectedTextBlockCursor) {
+				return this.findCursorStopToRight(injectedText.injectedTextIndex, injectedText.offsetInInputWithInjections) ?? leftOffset;
+			}
+			return leftOffset;
 		} else if (affinity === PositionAffinity.Right || affinity === PositionAffinity.RightOfInjectedText) {
 			let result = injectedText.offsetInInputWithInjections + injectedText.length;
 			let index = injectedText.injectedTextIndex;
@@ -251,6 +260,21 @@ export class ModelLineProjectionData {
 		}
 
 		assertNever(affinity);
+	}
+
+	private findCursorStopToRight(injectedTextIndex: number, offsetInInputWithInjections: number): number | undefined {
+		const inputOffset = this.injectionOffsets![injectedTextIndex];
+		for (let index = injectedTextIndex; index < this.injectionOffsets!.length && this.injectionOffsets![index] === inputOffset; index++) {
+			const injectionOptions = this.injectionOptions![index];
+			if (hasLeftCursorStop(injectionOptions.cursorStops)) {
+				return offsetInInputWithInjections;
+			}
+			offsetInInputWithInjections += injectionOptions.content.length;
+			if (hasRightCursorStop(injectionOptions.cursorStops)) {
+				return offsetInInputWithInjections;
+			}
+		}
+		return undefined;
 	}
 
 	public getInjectedText(outputLineIndex: number, outputOffset: number): InjectedText | null {

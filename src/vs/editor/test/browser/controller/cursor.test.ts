@@ -21,7 +21,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { IndentAction, IndentationRule } from '../../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from '../../../common/model.js';
+import { EndOfLinePreference, EndOfLineSequence, InjectedTextCursorStops, ITextModel } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
@@ -125,6 +125,81 @@ function assertCursor(viewModel: ViewModel, what: Position | Selection | Selecti
 }
 
 suite('Editor Controller - Cursor', () => {
+	suite('Injected text cursor styles', () => {
+		for (const cursorStyle of ['line', 'line-thin', 'block', 'block-outline', 'underline', 'underline-thin'] as const) {
+			test(`${cursorStyle} selects the appropriate injected text stop`, () => {
+				withTestCodeEditor('ab=cd', { cursorStyle }, (editor, viewModel) => {
+					viewModel.model.deltaDecorations([], [{
+						range: new Range(1, 3, 1, 3),
+						options: { description: 'hint', showIfCollapsed: true, before: { content: ': hint', cursorStops: InjectedTextCursorStops.Right } }
+					}]);
+					const expectedColumn = cursorStyle === 'line' || cursorStyle === 'line-thin' ? 3 : 9;
+					editor.setPosition(new Position(1, 3));
+					const fromModel = viewModel.getPrimaryCursorState().viewState.position;
+					CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, {
+						position: new Position(1, 3),
+						viewPosition: new Position(1, 5)
+					});
+					const fromMovement = viewModel.getPrimaryCursorState().viewState.position;
+					assert.deepStrictEqual({
+						fromModel,
+						fromMovement,
+						model: editor.getPosition(),
+						defaultMapping: viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(1, 3)),
+					}, {
+						fromModel: new Position(1, expectedColumn),
+						fromMovement: new Position(1, expectedColumn),
+						model: new Position(1, 3),
+						defaultMapping: new Position(1, 3),
+					});
+				});
+			});
+		}
+
+		test('block cursor moves across injected text and deletes the highlighted model character', () => {
+			withTestCodeEditor('ab=cd', { cursorStyle: 'block' }, (editor, viewModel) => {
+				viewModel.model.deltaDecorations([], [{
+					range: new Range(1, 3, 1, 3),
+					options: { description: 'hint', showIfCollapsed: true, before: { content: ': hint', cursorStops: InjectedTextCursorStops.Right } }
+				}]);
+				editor.setPosition(new Position(1, 2));
+				const positions = [];
+				for (const move of [moveRight, moveRight, moveLeft, moveLeft, moveRight]) {
+					move(editor, viewModel);
+					const state = viewModel.getPrimaryCursorState();
+					positions.push([state.modelState.position.column, state.viewState.position.column]);
+				}
+				editor.runCommand(CoreEditingCommands.DeleteRight, null);
+				assert.deepStrictEqual({ positions, text: viewModel.model.getValue() }, {
+					positions: [[3, 9], [4, 10], [3, 9], [2, 2], [3, 9]],
+					text: 'abcd',
+				});
+			});
+		});
+
+		test('changing cursor style refreshes all cursors without moving their model selections', () => {
+			withTestCodeEditor('ab=cd\nab=cd', { cursorStyle: 'line' }, (editor, viewModel) => {
+				viewModel.model.deltaDecorations([], [1, 2].map(line => ({
+					range: new Range(line, 3, line, 3),
+					options: { description: 'hint', showIfCollapsed: true, before: { content: ': hint', cursorStops: InjectedTextCursorStops.Right } }
+				})));
+				const selections = [new Selection(1, 3, 1, 4), new Selection(2, 3, 2, 3)];
+				editor.setSelections(selections);
+				const states = [];
+				for (const cursorStyle of ['block', 'line', 'underline', 'line-thin'] as const) {
+					editor.updateOptions({ cursorStyle });
+					states.push({
+						model: editor.getSelections(),
+						view: viewModel.getCursorStates().map(state => state.viewState.selection),
+					});
+				}
+				const line = { model: selections, view: [new Selection(1, 3, 1, 10), new Selection(2, 3, 2, 3)] };
+				const block = { model: selections, view: [new Selection(1, 9, 1, 10), new Selection(2, 9, 2, 9)] };
+				assert.deepStrictEqual(states, [block, line, block, line]);
+			});
+		});
+	});
+
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
 	const LINE3 = '    Third Line🐶';
