@@ -4491,7 +4491,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :first-child {
 		/* Clamp request text to 2 lines — only in sticky scroll */
 		display: -webkit-box;
 		line-clamp: 2;
@@ -4500,15 +4500,34 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		overflow: hidden;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child ~ * {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :first-child ~ * {
 		display: none;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
+	/* A code block or a table has no lines of text to clamp, so it is cut off at the height of 2 lines instead. */
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :first-child:not(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+		max-height: 2lh;
+	}
+
+	/* Inside a list or a quote, the clamp skips a code block or a table and would show it in full. */
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(ul, ol, blockquote):first-child :is([data-code], .rendered-markdown-table-scroll-wrapper) {
+		display: none;
+	}
+
+	/* The clamped block ends with its last line, without the space below it or below the last blocks inside it. */
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :first-child,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(ul, ol, blockquote):first-child :is(p, li, ul, ol, blockquote):last-child {
 		margin-block-end: 0;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > p:first-child::after {
+	/* A list starts with the margin of its first item, so it ends with the same space, which the clamp cuts off. */
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(ul, ol):first-child {
+		padding-block-end: var(--vscode-spacing-size40);
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > :is(p, h1, h2, h3, h4, h5, h6):first-child::after,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > :is(ul, ol):first-child > li:last-child::after,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > blockquote:first-child > :last-child::after {
 		content: '\2026';
 	}
 

@@ -3006,6 +3006,41 @@ suite('ChatListWidget', () => {
 				newStickyRequest: container.querySelector('.monaco-tree-sticky-row')?.textContent?.includes(text),
 			}, { retained: true, anchored: true, requests: 2, updated: true, newStickyRequest: true });
 		});
+
+		test('clamps a pinned request that starts with a Markdown block like plain text', async () => {
+			const text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3).trim();
+			const code = Array.from({ length: 8 }, (_, index) => `const value${index} = ${index};`);
+			const pin = async (request: string) => {
+				const { container, bubble } = await createTranscript(request);
+				container.style.setProperty('--vscode-spacing-size40', '4px');
+				return bubble;
+			};
+			const plainHeight = (await pin(text)).getBoundingClientRect().height;
+			// How much taller the pinned request is than one with plain text, which is clamped to two lines.
+			const extraHeight = async (request: string) => Math.round((await pin(request)).getBoundingClientRect().height - plainHeight) || 0;
+			const blockHeight = async (request: string) => (await pin(request)).firstElementChild!.getBoundingClientRect().height;
+			const continuedList = await pin('- first\n- second\n\nand more');
+
+			assert.deepStrictEqual({
+				list: await extraHeight(`- ${text}\n- ${text}`),
+				quote: await extraHeight(`> ${text}`),
+				codeBlock: await extraHeight(['```', ...code, '```', text].join('\n')),
+				table: await extraHeight(['| first | second |', '| --- | --- |', '| 1 | 2 |', '| 3 | 4 |', '| 5 | 6 |'].join('\n')),
+				listWithCodeBlock: await extraHeight(['- first', '  ```', ...code.map(line => `  ${line}`), '  ```', '- second'].join('\n')),
+				headingLines: Math.round(await blockHeight(`# ${text}`) / await blockHeight('# short')),
+				continuation: mainWindow.getComputedStyle(continuedList.querySelector('li:last-child')!, '::after').content,
+			}, {
+				// A list keeps the margins of its items: 4px above and below its two lines.
+				list: 8,
+				quote: 0,
+				codeBlock: 0,
+				table: 0,
+				// The code block is hidden, which leaves two items with another 4px between them.
+				listWithCodeBlock: 12,
+				headingLines: 2,
+				continuation: '"…"',
+			});
+		});
 	});
 
 	test('does not create an empty sticky row for an attachment-only request', async () => {
