@@ -36,7 +36,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
+import { ChatViewSessionsListTitleContext, IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
@@ -71,9 +71,18 @@ async function archiveSessionsWithUndo(
 		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
 		.map(comparison => [comparison.groupId, comparison.id]));
 	try {
-		for (const entry of candidates) {
-			await sessionsManagementService.archiveSession(entry.session);
-			archived.push(entry);
+		const results = await sessionsManagementService.archiveSessions(candidates.map(entry => entry.session));
+		for (const [index, result] of results.entries()) {
+			if (result.status === 'fulfilled') {
+				archived.push(candidates[index]);
+			}
+		}
+		const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+		if (errors.length === 1) {
+			throw errors[0];
+		}
+		if (errors.length > 1) {
+			throw new AggregateError(errors, toErrorMessage(errors));
 		}
 	} finally {
 		// A partially completed batch must remain undoable even when a later archive fails.
@@ -940,6 +949,14 @@ function createSessionsListActions(): DisposableStore {
 		group: 'navigation',
 		order: 10,
 	}));
+	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: Menus.SessionsViewFilter,
+		title: localize2('filterSessions', "Filter Sessions"),
+		icon: Codicon.filter,
+		group: 'navigation',
+		order: 10,
+		when: ChatViewSessionsListTitleContext,
+	}));
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 		command: {
@@ -949,6 +966,16 @@ function createSessionsListActions(): DisposableStore {
 		},
 		group: 'navigation',
 		order: 20,
+	}));
+	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		command: {
+			id: 'sessionsViewPane.find',
+			title: localize2('find', "Find Session"),
+			icon: Codicon.search,
+		},
+		group: 'navigation',
+		order: 20,
+		when: ChatViewSessionsListTitleContext,
 	}));
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
@@ -1070,9 +1097,12 @@ function createSessionsListActions(): DisposableStore {
 				f1: true,
 				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, EditorWindowSessionsContext), available),
 				toggled: InboxModeContext,
-				menu: [Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions].map(id => ({
-					id, group: 'navigation', order: 5, when: available,
-				})),
+				menu: [
+					...[Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions].map(id => ({
+						id, group: 'navigation', order: 5, when: available,
+					})),
+					{ id: MenuId.ViewTitle, group: 'navigation', order: 5, when: ContextKeyExpr.and(available, ChatViewSessionsListTitleContext) },
+				],
 			});
 		}
 		run(accessor: ServicesAccessor): void {
@@ -1188,6 +1218,11 @@ function createSessionsListActions(): DisposableStore {
 					group: '1_view',
 					order: 0,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+				}, {
+					id: MenuId.ViewTitle,
+					group: '1_view',
+					order: 0,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), ChatViewSessionsListTitleContext),
 				}]
 			});
 		}
@@ -1247,7 +1282,10 @@ function createSessionsListActions(): DisposableStore {
 				id: 'sessionsViewPane.collapseAllGroups',
 				title: localize2('collapseAllGroups', "Collapse All Groups"),
 				category: SessionsCategories.Sessions,
-				menu: [{ id: Menus.SidebarSessionsHeader, group: '1_view', order: 1, when: ChatContextKeys.enabled }]
+				menu: [
+					{ id: Menus.SidebarSessionsHeader, group: '1_view', order: 1, when: ChatContextKeys.enabled },
+					{ id: MenuId.ViewTitle, group: '1_view', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatViewSessionsListTitleContext) },
+				]
 			});
 		}
 		override run(accessor: ServicesAccessor) {
@@ -1469,6 +1507,8 @@ function createSessionsListActions(): DisposableStore {
 			const now = new Date();
 			const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 9).getTime();
 			const picked = await quickInput.pick([
+				{ label: localize('snoozeTenMinutes', "In 10 Minutes"), value: now.getTime() + 10 * 60 * 1000 },
+				{ label: localize('snoozeThirtyMinutes', "In 30 Minutes"), value: now.getTime() + 30 * 60 * 1000 },
 				{ label: localize('snoozeHour', "In One Hour"), value: now.getTime() + 60 * 60 * 1000 },
 				{ label: localize('snoozeTomorrow', "Tomorrow Morning"), value: morning(1) },
 				{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },

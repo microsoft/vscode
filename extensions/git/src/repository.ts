@@ -477,7 +477,14 @@ class DotGitWatcher implements IFileWatcher {
 		// Ignore changes to the "index.lock" file (including worktree index.lock files), and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
 		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock|\/worktrees\/[^/]+\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
-		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
+
+		// Watch the "worktrees" folder so that worktrees that are added or removed outside
+		// of this repository (ex: another window, the command line) trigger a `git status`
+		const worktreesWatcher = watch(path.join(repository.dotGit.commonPath ?? repository.dotGit.path, 'worktrees'));
+		this.disposables.push(worktreesWatcher);
+
+		const filteredWorktreesWatcher = filterEvent(worktreesWatcher.event, uri => uri.scheme === 'file');
+		this.event = anyEvent(filteredRootWatcher, filteredWorktreesWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
 		this.updateTransientWatchers();
@@ -2299,7 +2306,11 @@ export class Repository implements Disposable {
 
 			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
 				await this.repository.deleteWorktree(path, options);
-				worktree?.dispose();
+				if (worktree) {
+					// Only a disposed state makes the model close a repository, which also disposes it.
+					// Without it, the deleted worktree stays open until one of its git commands fails.
+					worktree.state = RepositoryState.Disposed;
+				}
 			};
 
 			try {
@@ -3365,7 +3376,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private onFileChange(_uri: Uri): void {
+	private onFileChange(uri: Uri): void {
 		const config = workspace.getConfiguration('git');
 		const autorefresh = config.get<boolean>('autorefresh');
 
@@ -3374,7 +3385,9 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		if (this.isRepositoryHuge) {
+		// A change to the repository root or to its git folder (e.g. the worktree being
+		// removed) must still run git status, so that a deleted repository gets disposed
+		if (this.isRepositoryHuge && !pathEquals(uri.fsPath, this.root) && !pathEquals(uri.fsPath, this.dotGit.path)) {
 			this.logger.trace('[Repository][onFileChange] Skip running git status because repository is huge.');
 			return;
 		}

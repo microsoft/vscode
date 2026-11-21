@@ -70,7 +70,7 @@
  * to the centered band and center it too (overriding only the banner's own
  * horizontal margins, so its negative top offset is preserved). With more than
  * one group it spans the full leaf like the tab strip. */
-.session-view .chat-groups-view.single-group .session-readonly-banner {
+.session-view .chat-groups-view.single-group .chat-group-view-bar > .chat-readonly-banner {
 	max-width: var(--session-view-centered-content-max-width);
 	width: 100%;
 	margin-left: auto;

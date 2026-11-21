@@ -38,7 +38,7 @@ import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '.
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
-import { IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, removeDevContainerEnvironment } from './devContainerEnvironments.js';
+import { IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
@@ -555,6 +555,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
 				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
 				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
+			testConfiguration: readDevContainerEnvironmentTestConfiguration(process.env),
 		}, sandboxEnabled, persistUserState);
 	}
 

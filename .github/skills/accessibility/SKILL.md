@@ -26,13 +26,28 @@ Examples of existing features that have all three: the **terminal**, **chat pane
 
 Sections 4–7 below (signals, ARIA announcements, keyboard navigation, ARIA labels) apply more broadly to **any UI change**, including modifications to existing features.
 
-When **updating an existing feature** — for example, adding new commands, keyboard shortcuts, or interactive capabilities — you must also update the feature's existing accessibility help dialog (`provideContent()`) to document the new functionality. Screen reader users rely on the help dialog as the primary way to discover available actions.
+When **updating an existing feature**, review whether the change affects how screen reader users discover, navigate, or read it. Update its accessibility help only when users need new instructions to perform those tasks; an ordinary behavior change, bug fix, announcement, or focus-restoration fix does not automatically need help text.
 
 ---
 
 ## 1. Accessibility Help Dialog
 
-An accessibility help dialog tells the user what the feature does, which keyboard shortcuts are available, and how to interact with it via a screen reader.
+An accessibility help dialog is a concise orientation and navigation guide for screen reader users, not a feature manual or change log.
+
+### Content relevance gate
+
+Before adding or changing a sentence, identify the screen-reader task it helps the user perform. Keep only:
+
+- Brief orientation to the focused surface and its main regions.
+- Keyboard navigation, non-obvious actions, and how to reach information otherwise exposed visually or on hover.
+- How to read rich content in Accessible View.
+- Accessibility settings that let users control spoken feedback or unexpected navigation.
+
+Do not document implementation details, visual styling or animation, rollout or deprecation plans, exhaustive feature settings, persistence rules, or routine success/failure and focus-management guarantees. Controls should announce their own labels, state, unavailable reasons, and outcomes; do not repeat all of that in help. Keep only the context needed to use a control without seeing it.
+
+Prefer "Use Chat: Focus Chat Confirmation to reach Authenticate; press Enter or Space to activate it" over "Authentication progress and its outcome are announced; cancelled attempts are not reported as success." A fix that moves focus away from a temporarily unavailable control belongs in a regression test, not in instructions users must memorize.
+
+Keep help scoped to the surface that owns the interaction. In particular, `src/vs/sessions/contrib/chat/browser/sessionsChatAccessibilityHelp.ts` is not the destination for every chat behavior change: use an existing focused provider when appropriate, and leave the window-wide help unchanged when no new screen-reader instruction is needed. Replace or shorten existing guidance rather than appending overlapping paragraphs.
 
 ### Steps
 
@@ -41,7 +56,7 @@ An accessibility help dialog tells the user what the feature does, which keyboar
    - Set `when` to a `ContextKeyExpression` that matches when the feature is focused.
    - `getProvider(accessor)` returns an `AccessibleContentProvider`.
 
-2. **Create a content-provider class** implementing `IAccessibleViewContentProvider`.
+2. **Return an `AccessibleContentProvider` directly**, as in the example below. Use a custom class implementing `IAccessibleViewContentProvider` only when it needs state or injected services.
    - `id` — add a new entry in the `AccessibleViewProviderId` enum in `src/vs/platform/accessibility/browser/accessibleView.ts`.
    - `verbositySettingKey` — reference the new `AccessibilityVerbositySettingId` entry (see §3).
    - `options` — `{ type: AccessibleViewType.Help }`.
@@ -266,7 +281,7 @@ For deterministic component fixtures, focus the actual element through the fixtu
 
 Follow the [discoverable unavailable-feature pattern](../design-philosophy/SKILL.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.
 
-Explanatory links must remain independently mouse- and keyboard-operable without activating the disabled option. Verify actual Tab/Shift+Tab and Enter behavior, not just `tabIndex` or a programmatic `focus()`; list navigation may skip disabled rows. Preserve focus/selection on policy refresh, guard stale actions, and update the feature's accessibility help with the available explanation and next step. Reuse the settings, model, harness, and permission-picker examples linked in the design guidance.
+Explanatory links must remain independently mouse- and keyboard-operable without activating the disabled option. Verify actual Tab/Shift+Tab and Enter behavior, not just `tabIndex` or a programmatic `focus()`; list navigation may skip disabled rows. Preserve focus/selection on policy refresh and guard stale actions. Add help only if reaching the explanation or next step requires non-obvious navigation, following the content relevance gate in §1. Reuse the settings, model, harness, and permission-picker examples linked in the design guidance.
 
 ---
 
@@ -298,6 +313,7 @@ All interactive UI elements must have appropriate ARIA attributes so screen read
 - [ ] `IAccessibleViewImplementation` with `type = Help` created and registered
 - [ ] Content provider references the correct `verbositySettingKey`
 - [ ] Help text is fully localized using `nls.localize()`
+- [ ] Every help sentence passes the content relevance gate; ordinary behavior changes do not add help text
 - [ ] Keybindings in help text use `<keybinding:commandId>` syntax for dynamic resolution
 - [ ] `when` context key is set so the dialog only appears when the feature is focused
 - [ ] If the feature has rich/visual content: `IAccessibleViewImplementation` with `type = View` created and registered

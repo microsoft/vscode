@@ -296,8 +296,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return context.customizations ? Promise.resolve(context.customizations) : this._sessionInfo.getSessionCustomizations(sessionId);
 	}
 
-	private async _getKnownSkills(sessionId: string, context: IAgentHostCompletionContext): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
+	private async _getKnownSkills(sessionId: string, context: IAgentHostCompletionContext): Promise<{ readonly known: ReadonlySet<string>; readonly ineligible: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
 		const known = new Set<string>();
+		const ineligible = new Set<string>();
 		const syncedContainerNames = new Set<string>();
 		const customizations = await this._getSessionCustomizations(sessionId, context);
 		for (const c of customizations) {
@@ -306,11 +307,18 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 		}
 		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			const name = this._toSlashCommandCandidate(container, skill).toLowerCase();
 			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
-				known.add(this._toSlashCommandCandidate(container, skill).toLowerCase());
+				known.add(name);
+			} else {
+				ineligible.add(name);
+				if (container.type === CustomizationType.Plugin) {
+					// The runtime may qualify synced skills or disambiguated plugin-root skills.
+					ineligible.add(`${container.name}:${skill.name}`.toLowerCase());
+				}
 			}
 		}
-		return { known, syncedContainerNames };
+		return { known, ineligible, syncedContainerNames };
 	}
 
 	/**
@@ -358,7 +366,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	}
 
 	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, context: IAgentHostCompletionContext, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
-		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
+		const [runtimeCommands, { known: knownSkills, ineligible: ineligibleSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId, context)
 		]);
@@ -377,8 +385,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (returnJustSkills && command.kind !== 'skill') {
 				continue;
 			}
-			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
-				// Already surfaced by the generic skill-completion provider.
+			if (command.kind === 'skill' && (ineligibleSkills.has(command.name.toLowerCase()) || this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands))) {
 				continue;
 			}
 			if (command !== copilotSandboxPolicyCommand && (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias)))) {

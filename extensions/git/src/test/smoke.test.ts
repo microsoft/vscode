@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -234,6 +234,32 @@ suite('git smoke test', function () {
 			} catch {
 				// Ignore cleanup errors if the config was never set or already unset.
 			}
+		}
+	});
+
+	test('stages the resource of the active custom editor', async function () {
+		const imageFileName = 'image.png';
+		const image = uri(imageFileName);
+
+		// 1x1 transparent PNG
+		fs.writeFileSync(image.fsPath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+
+		try {
+			await repository.status();
+			assert(repository.state.workingTreeChanges.some(change => change.uri.path === image.path && change.status === Status.UNTRACKED));
+
+			await commands.executeCommand('vscode.open', image);
+			assert(window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputCustom);
+
+			// git.stage without an argument resolves the resource from the active custom editor
+			await commands.executeCommand('git.stage');
+			assert(repository.state.indexChanges.some(change => change.uri.path === image.path && change.status === Status.INDEX_ADDED));
+		} finally {
+			// Remove the image so the following tests start from a clean tree
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+			cp.execSync(`git rm --cached --ignore-unmatch -q ${imageFileName}`, { cwd });
+			fs.unlinkSync(image.fsPath);
+			await repository.status();
 		}
 	});
 

@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { extUri } from '../../../../../base/common/resources.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -51,6 +52,7 @@ import { createLocalModelPickerPresentation } from '../../../../contrib/chat/bro
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
+import { IAgentModelPreferences } from '../../../../contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
 import { TestEditorService } from '../../workbenchTestServices.js';
@@ -483,6 +485,8 @@ interface IPickerFixtureOptions {
 	readonly pendingStops?: readonly string[];
 	/** Opens the "On This Device" tab at this family's detail page, as the show-details command does. */
 	readonly openLocalModelDetails?: string;
+	/** The models a custom agent prefers or requires, which narrow the list and explain it in the footer. */
+	readonly agentModelPreferences?: IAgentModelPreferences;
 }
 
 export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
@@ -566,6 +570,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 	}
 	let pickerContext: ITabbedModelPickerContext = {
 		comparison: options.comparison,
+		agentModelPreferences: options.agentModelPreferences,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		pinnedModelIds: options.pinnedModelIds ?? ['copilot/claude-sonnet-5'],
@@ -830,6 +835,17 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 				...CONTROL_MODELS,
 				...Object.fromEntries(DEMOTED_MODELS.map(model => [model.metadata.id, { label: model.metadata.name, exists: true, demoted: true }])),
 			},
+		}),
+	}),
+	PickerAnchoredAgentRequiredModels: defineComponentFixture({
+		render: context => renderPicker(context, {
+			anchored: true,
+			anchorRight: true,
+			models: COPILOT_MODELS.filter(model => model.metadata.id === 'claude-sonnet-5' || model.metadata.id === 'gpt-5-3-codex'),
+			selectedModelId: 'copilot/claude-sonnet-5',
+			pinnedModelIds: [],
+			controlModels: { ...CONTROL_MODELS, 'gpt-5-3-codex': { label: 'GPT-5.3-Codex', exists: true, demoted: true } },
+			agentModelPreferences: { models: ['Claude Sonnet 5', 'GPT-5.3-Codex'], required: true, source: { name: 'Reviewer', uri: URI.file('/workspace/.github/agents/reviewer.agent.md') } },
 		}),
 	}),
 	PickerAnchoredAutoSelected: defineComponentFixture({

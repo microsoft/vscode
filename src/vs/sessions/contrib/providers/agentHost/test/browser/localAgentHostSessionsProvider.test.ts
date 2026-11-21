@@ -24,7 +24,7 @@ import { DisposableMap, DisposableStore, ImmortalReference, MutableDisposable, t
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -3846,6 +3846,136 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 	}
 
+	test('bulk archive bounds confirmed dispatches, merges changes and releases subscriptions after rejection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
+		const backends = Array.from({ length: 90 }, (_, index) => URI.parse(`opaque-session://tenant/bulk-${index}`));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		for (const [index, resource] of backends.entries()) {
+			fireSessionAdded(agentHost, `bulk-${index}`, { resource });
+		}
+		await timeout(100);
+		const sessions = provider.getSessions();
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push(event)));
+		let active = 0;
+		let maximumActive = 0;
+		let rejectArchive = true;
+		const channels: string[] = [];
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			channels.push(channel);
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			await timeout(10);
+			active--;
+			return { channel, action, serverSeq: 1, origin: undefined, ...(rejectArchive && channel === backends[1].toString() ? { rejectionReason: 'Archive denied' } : {}) };
+		};
+
+		const started = Date.now();
+		const results = await provider.archiveSessions(sessions.map(session => session.sessionId));
+		const afterBatch = {
+			active, maximumActive, elapsedMs: Date.now() - started,
+			outcomes: results.map(result => result.status),
+			archived: sessions.map(session => session.isArchived.get()),
+			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			channels: [...channels],
+			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
+		};
+		rejectArchive = false;
+		await provider.archiveSession(sessions[1].sessionId);
+
+		assert.deepStrictEqual({ afterBatch, changesAfterRetry: changes.length }, {
+			afterBatch: {
+				active: 0,
+				maximumActive: 4,
+				elapsedMs: 230,
+				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
+				archived: sessions.map((_, index) => index !== 1),
+				changes: Array.from({ length: 23 }, (_, batch) => sessions.slice(batch * 4, (batch + 1) * 4)
+					.filter(session => session !== sessions[1]).map(session => session.sessionId)),
+				channels: backends.map(resource => resource.toString()),
+				released: backends.map(() => 1),
+			},
+			changesAfterRetry: 24,
+		});
+	}));
+
+	test('overlapping archive batches share the provider limit and publish changes while another batch is pending', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const backends = Array.from({ length: 8 }, (_, index) => URI.parse(`opaque-session://tenant/overlapping-${index}`));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		for (const [index, resource] of backends.entries()) {
+			fireSessionAdded(agentHost, `overlapping-${index}`, { resource });
+		}
+		await timeout(100);
+		const sessions = provider.getSessions();
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push(event)));
+		let active = 0;
+		let maximumActive = 0;
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			await timeout(10);
+			active--;
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+
+		const first = provider.archiveSessions(sessions.slice(0, 4).map(session => session.sessionId));
+		const second = provider.archiveSessions(sessions.slice(4).map(session => session.sessionId));
+		await timeout(15);
+		const betweenBatches = { active, changes: changes.length };
+		const results = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			betweenBatches,
+			active, maximumActive,
+			outcomes: results.map(batch => batch.map(result => result.status)),
+			archived: sessions.map(session => session.isArchived.get()),
+			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
+		}, {
+			betweenBatches: { active: 4, changes: 1 },
+			active: 0, maximumActive: 4,
+			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
+			archived: sessions.map(() => true),
+			changes: [sessions.slice(0, 4), sessions.slice(4)].map(batch => batch.map(session => session.sessionId)),
+			released: backends.map(() => 1),
+		});
+	}));
+
+	test('a pending bulk archive does not block listing additions or renames', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('pending-archive', { summary: 'Pending Archive' }));
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const acknowledgement = new DeferredPromise<void>();
+		const dispatched = new DeferredPromise<void>();
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			await dispatched.complete();
+			await acknowledgement.p;
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+		const changes: { added: string[]; changed: string[] }[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push({
+			added: event.added.map(session => session.title.get()),
+			changed: event.changed.map(session => session.title.get()),
+		})));
+
+		const archive = provider.archiveSessions([session.sessionId]);
+		await dispatched.p;
+		agentHost.addSession(createSession('unrelated-listing', { summary: 'Unrelated Listing' }));
+		await provider.refreshForTest();
+		await provider.renameSession(session.sessionId, 'Renamed While Pending');
+		const whilePending = [...changes];
+		await acknowledgement.complete();
+		await archive;
+
+		assert.deepStrictEqual(whilePending, [
+			{ added: ['Unrelated Listing'], changed: [] },
+			{ added: [], changed: ['Renamed While Pending'] },
+		]);
+	}));
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);
@@ -4826,16 +4956,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('rebases the selected agent to its worktree twin from the agent list before the working directory flips', () => {
-		const provider = createProvider(disposables, agentHost);
+	test('rebases the selected agent and its matching draft before the working directory flips', () => {
+		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
+		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
+		const draft = observableValue<IChatModelInputState>({ debugName: 'draft' }, {
+			inputText: 'keep this', attachments: [], selections: [], selectedModel: undefined, contrib: {},
+			mode: { id: folderAgent, kind: ChatModeKind.Agent },
+		});
+		const model = upcastPartial<IChatModel>({
+			inputModel: upcastPartial<IInputModel>({ state: draft, setState: update => draft.set({ ...draft.get(), ...update }, undefined) }),
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { getChatModel: () => model });
 		fireSessionAdded(agentHost, 'rebase-worktree', { title: 'Rebase Worktree', workingDirectory: 'file:///Users/me/vscode' });
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Rebase Worktree');
 		assert.ok(session);
 
 		// A folder agent is picked while the session still runs in the repo.
-		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
-		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
 		provider.setAgent?.(session!.sessionId, { uri: folderAgent, name: 'sessions' });
 
 		// The host reports the worktree-pathed agents (the folder twin is gone)
@@ -4843,7 +4980,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// must derive the worktree root from the agent list, not the (still
 		// folder) working directory, so the selection is re-pointed in time.
 		provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
-		agentHost.setSessionState('rebase-worktree', 'copilotcli', {
+		const publishAgent = (uri?: string) => agentHost.setSessionState('rebase-worktree', 'copilotcli', {
 			provider: 'copilotcli',
 			title: 'Rebase Worktree',
 			status: ProtocolSessionStatus.Idle,
@@ -4856,11 +4993,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 				uri: 'plugin://worktree',
 				name: 'worktree plugin',
 				load: { kind: CustomizationLoadStatus.Loaded },
-				children: [{ type: CustomizationType.Agent, id: worktreeAgent, uri: worktreeAgent, name: 'sessions' }],
+				children: uri ? [{ type: CustomizationType.Agent, id: uri, uri, name: 'sessions' }] : [],
 			}],
 		});
-
-		assert.deepStrictEqual(session!.mode.get(), { id: worktreeAgent, kind: 'agent' });
+		publishAgent();
+		const whileMissing = draft.get().mode.id;
+		publishAgent(worktreeAgent);
+		const afterRebase = draft.get();
+		const independentMode = { id: 'file:///other.agent.md', kind: ChatModeKind.Agent };
+		model.inputModel.setState({ mode: independentMode });
+		publishAgent(folderAgent);
+		assert.deepStrictEqual([whileMissing, afterRebase.mode.id, afterRebase.inputText, session!.mode.get()?.id, draft.get().mode], [
+			folderAgent, worktreeAgent, 'keep this', folderAgent, independentMode,
+		]);
 	});
 
 	test('leaves the selected agent untouched when the agent list has no relocated twin', () => {
@@ -7567,6 +7712,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 			logMatchesContainerWorkspace: true,
 		});
 	});
+
+	for (const pendingAvailability of [false, true]) {
+		test(`a Dev Container draft shows its request and Dev Container workspace while the container starts (availability pending: ${pendingAvailability})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const connecting = new DeferredPromise<void>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+					override getWorkspaceLabel(workspace: URI): string { return `${basename(workspace)} [Dev Container]`; }
+					override async connect(_workspace: URI, token: CancellationToken): Promise<never> {
+						connecting.complete();
+						return raceCancellationError(new DeferredPromise<never>().p, token);
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			if (!pendingAvailability) {
+				await availability.complete(true);
+				await timeout(0);
+			}
+			provider.preferDevContainer(session.sessionId);
+			const show = () => ({ title: session.title.get(), workspace: session.workspace.get()?.label });
+			const before = show();
+			const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello\nworld');
+			const rejected = assert.rejects(preparation, /Canceled/);
+			if (pendingAvailability) {
+				await availability.complete(true);
+			}
+			await connecting.p;
+			const during = show();
+			session.preparationProgress?.get()?.cancel();
+			await rejected;
+			assert.deepStrictEqual({ before, during, after: show() }, {
+				before: { title: '', workspace: 'project' },
+				during: { title: 'hello', workspace: 'project [Dev Container]' },
+				after: { title: '', workspace: 'project' },
+			});
+		});
+	}
 
 	for (const pendingEagerCreate of [false, true]) {
 		test(`canceling Dev Container worktree preparation does not create a worktree (pending eager create: ${pendingEagerCreate})`, async () => {

@@ -68,6 +68,13 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+/** Where a session opens when selected in the sessions of the Chat view: {@link ChatConfiguration.ChatViewSessionsOpenChatIn}. */
+export enum ChatViewSessionsOpenChatIn {
+	ChatPanel = 'chatPanel',
+	ChatArea = 'chatArea',
+	EditorArea = 'editorArea',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -75,6 +82,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	HooksShowWarnings = 'chat.hooks.showWarnings',
 	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
@@ -134,7 +142,7 @@ export enum ChatConfiguration {
 	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
-	ChatViewSessionsOpenInChatPart = 'chat.viewSessions.openInChatPart',
+	ChatViewSessionsOpenChatIn = 'chat.viewSessions.openChatIn',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',

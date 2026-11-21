@@ -65,7 +65,7 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 - `runEsbuildTranspile()` → transpile command
 - `runEsbuildBundle()` → bundle command
 
-PR CI runs `core-ci-pr` instead, which shares the steps of `core-ci` up to and including the transpile to `out-build` but builds no minified bundles; nothing in PR CI reads them. Only the product builds run `core-ci`, so changes that break only minified bundling surface there.
+PR CI runs `core-ci-pr` instead, which shares the steps of `core-ci` up to and including the transpile to `out-build` but skips the full set of minified product bundles. The build-script tests separately check the desktop startup entry in memory. Only the product builds run `core-ci`.
 Desktop, server, server-web, and standalone web packaging use the same `runEsbuildBundle()` helper. Minified bundles enable `--minify --mangle-privates --nls`. Local server and web builds generate API proposal names and the shared build date explicitly instead of compiling an intermediate production tree.
 
 The canonical production entry points and product/built-in-extension injection live in [build/next/index.ts](../../build/next/index.ts); curated resource lists and copied-script minification live in [resources.ts](../../build/next/resources.ts). Build targets and bootstrap entry points are shared with packaging through [build/lib/esbuild.ts](../../build/lib/esbuild.ts), so package metadata is injected into the same files the bundler emits. Gulp still orchestrates compilation, extension builds, packaging, and translations; there is no separate legacy production bundle/minify chain.
@@ -91,6 +91,12 @@ Focused coverage uses the production options for helper-free entries, service de
 ```bash
 node --test build/next/test/bundle.test.ts build/next/test/nls-sourcemap.test.ts
 ```
+
+### Desktop startup script encoding
+
+The minified `vs/workbench/workbench.desktop.main.js` must not contain a decoded character above U+00FF. A single such character, even in a retained comment or an unused feature's regex literal, makes Blink widen and rehash the startup script. Use `\uXXXX` escapes in source regexes when needed. Latin-1 characters are fine; translated strings, stylesheets and source maps are not subject to a source-wide ASCII ban.
+
+`build/next/test/bundle.test.ts` checks the real desktop JavaScript entry with production esbuild options in PR CI, without packaging CSS or writing a product build. Minified desktop builds also check the final JavaScript after NLS, private-field and source-map URL rewriting. Errors include the code point, generated location and original source location when mapped.
 
 ### Production SVG Optimization
 

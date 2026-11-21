@@ -2797,6 +2797,11 @@ export class AgentHostStateManager extends Disposable {
 		return { channel, action, serverSeq: ++this._serverSeq, origin: undefined };
 	}
 
+	/** Distinguishes two subscription baselines even if no shared state changed between them. */
+	allocateSnapshotSequence(): number {
+		return ++this._serverSeq;
+	}
+
 	/**
 	 * Dispatch a server-originated action (from the agent backend).
 	 * The action is applied to state via the reducer and emitted as an

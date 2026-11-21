@@ -57,6 +57,7 @@
     "gulp-sort": "^2.0.0",
     "jsonc-parser": "^2.3.0",
     "jws": "^4.0.1",
+    "merge-stream": "^2.0.0",
     "mime": "^1.4.1",
     "minimatch": "^3.1.5",
     "source-map": "0.6.1",

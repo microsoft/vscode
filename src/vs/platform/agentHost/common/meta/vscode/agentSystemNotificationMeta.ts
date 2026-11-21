@@ -33,6 +33,29 @@ export const enum AgentSystemNotificationKind {
 	ManagedPluginPreparationFailure = 'managedPluginPreparationFailure',
 	/** A note from the model router about what it did for this turn. */
 	ModelRouterSuggestion = 'modelRouterSuggestion',
+	/** Something a user-configured hook did, or that happened to it; see {@link IAgentSystemNotificationHookMeta}. */
+	Hook = 'hook',
+}
+
+/** What happened to a hook a {@link AgentSystemNotificationKind.Hook} notification reports. */
+export const enum AgentHookOutcome {
+	/** The hook could not start or exited with an error. */
+	Failed = 'failed',
+}
+
+const knownHookOutcomes: ReadonlySet<string> = new Set<string>([
+	AgentHookOutcome.Failed,
+]);
+
+/** Identifies the hook a {@link AgentSystemNotificationKind.Hook} notification reports. */
+export interface IAgentSystemNotificationHookMeta {
+	/** The hook event as named by the provider, for example `sessionStart` or `preToolUse`. */
+	readonly type: string;
+	readonly outcome: AgentHookOutcome;
+	/** Where the hook was loaded from, such as its hook file, when the provider reports it. */
+	readonly source?: string;
+	/** The hook's message or error, shown as the notification's details. */
+	readonly message?: string;
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -64,6 +87,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.ByokToolLimitExceeded,
 	AgentSystemNotificationKind.ManagedPluginPreparationFailure,
 	AgentSystemNotificationKind.ModelRouterSuggestion,
+	AgentSystemNotificationKind.Hook,
 ]);
 
 interface IHasSystemNotificationMeta {
@@ -78,6 +102,8 @@ export interface IAgentSystemNotificationMeta {
 	readonly fusionStatus?: AgentFusionProgressStatus;
 	/** The HydraFusion model that ran the workflow, e.g. HydraFusion Max, for turns that don't name it themselves. */
 	readonly fusionModel?: string;
+	/** The hook a {@link AgentSystemNotificationKind.Hook} notification reports. */
+	readonly hook?: IAgentSystemNotificationHookMeta;
 }
 
 export interface IAgentWorkspaceTransitionRecord {
@@ -96,6 +122,7 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	const workspaceKind = meta.workspaceKind;
 	const fusionStatus = meta.fusionStatus;
 	const fusionModel = meta[VSCODE_FUSION_MODEL_META_KEY];
+	const hook = readHookMeta(meta.hook);
 	return {
 		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
 		severity: meta.severity === AgentSystemNotificationSeverity.Warning ? meta.severity : undefined,
@@ -103,6 +130,23 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 		workspaceName: typeof meta.workspaceName === 'string' ? meta.workspaceName : undefined,
 		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
 		...(typeof fusionModel === 'string' && fusionModel ? { fusionModel } : {}),
+		...(hook ? { hook } : {}),
+	};
+}
+
+function readHookMeta(value: unknown): IAgentSystemNotificationHookMeta | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const { type, outcome, source, message } = value as Record<string, unknown>;
+	if (typeof type !== 'string' || !type || typeof outcome !== 'string' || !knownHookOutcomes.has(outcome)) {
+		return undefined;
+	}
+	return {
+		type,
+		outcome: outcome as AgentHookOutcome,
+		...(typeof source === 'string' && source ? { source } : {}),
+		...(typeof message === 'string' && message ? { message } : {}),
 	};
 }
 

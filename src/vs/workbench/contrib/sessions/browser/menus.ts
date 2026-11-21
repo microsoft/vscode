@@ -114,7 +114,6 @@ export const Menus = {
 	/** The positions of the Session Activity Bar, docked to the window edge or floating beside the chat, a submenu of {@link SessionActivityBarContext}. */
 	SessionActivityBarPosition: new MenuId('SessionActivityBarPosition'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
-	ChangesFilesViewAndPosition: new MenuId('SessionsChangesFilesViewAndPosition'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of

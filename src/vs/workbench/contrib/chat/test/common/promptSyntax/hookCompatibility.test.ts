@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getCanonicalAgentHookName, HOOKS_BY_TARGET, HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewHookFile } from '../../../common/promptSyntax/hookCompatibility.js';
+import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat, buildNewHookFile, getLocalFormatHookEvents } from '../../../common/promptSyntax/hookCompatibility.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
@@ -274,6 +274,30 @@ suite('HookCompatibility', () => {
 
 			assert.strictEqual(result.disabledAllHooks, true);
 			assert.strictEqual(result.hooks.size, 0);
+		});
+	});
+
+	suite('getLocalFormatHookEvents', () => {
+		test('marks capitalised event names, with or without a version, outside .claude folders', () => {
+			const hookFile = URI.file('/workspace/.github/hooks/guard.json');
+			const hooks = (json: object) => ({ hooks: json });
+			assert.deepStrictEqual({
+				local: getLocalFormatHookEvents(hookFile, hooks({ PreToolUse: [], Stop: [] })),
+				halfMigrated: getLocalFormatHookEvents(hookFile, { version: 1, ...hooks({ PreToolUse: [], postToolUse: [] }) }),
+				nativeWithoutVersion: getLocalFormatHookEvents(hookFile, hooks({ preToolUse: [] })),
+				claudeSettings: getLocalFormatHookEvents(URI.file('/workspace/.claude/settings.json'), hooks({ PreToolUse: [] })),
+				claudeFolder: getLocalFormatHookEvents(URI.file('/workspace/.claude/hooks/guard.json'), hooks({ PreToolUse: [] })),
+				unknownCapitalised: getLocalFormatHookEvents(hookFile, hooks({ BeforeAnything: [] })),
+				invalid: getLocalFormatHookEvents(hookFile, { hooks: [] }),
+			}, {
+				local: ['PreToolUse', 'Stop'],
+				halfMigrated: ['PreToolUse'],
+				nativeWithoutVersion: [],
+				claudeSettings: [],
+				claudeFolder: [],
+				unknownCapitalised: [],
+				invalid: [],
+			});
 		});
 	});
 });

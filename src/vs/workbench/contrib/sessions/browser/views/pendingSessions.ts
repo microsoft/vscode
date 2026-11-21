@@ -21,6 +21,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { getScheduledRequestTimeLabel, renderScheduledRequestTime } from '../../../chat/browser/widget/chatScheduledRequestTime.js';
 import { SessionsListFilters } from './sessionsListFilters.js';
+import { SessionRowIndent, setSessionRowIndentGuides } from './sessionsListIndentGuides.js';
 import type { SessionListItem } from './sessionsList.js';
 
 /** Unsent work owned by the caller, never a provider-created session. */
@@ -156,6 +157,8 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		disposables.add(Gesture.ignoreTarget(toolbarContainer));
 		const description = DOM.append(main, DOM.$('.session-details-row'));
+		// Pending rows only render in the top-level Drafts section.
+		setSessionRowIndentGuides(container, 0, SessionRowIndent.Item);
 		return { icon, scheduledIndicator, title, description, compactDescription, toolbar, toolbarContainer, disposables, elementDisposables };
 	}
 
