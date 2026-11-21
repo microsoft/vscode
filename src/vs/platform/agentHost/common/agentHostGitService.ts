@@ -48,6 +48,26 @@ export function resolveDefaultBaseBranchName(defaultBranch: Branch | undefined, 
 }
 
 /**
+ * Selects the base of a branch the user checked out themselves: its upstream when that
+ * tracks a differently named branch on `origin` (e.g. `feat/x` created from and tracking
+ * `origin/dev`). Returns `undefined` otherwise, so callers fall back to the default base:
+ * - Upstreams on other remotes are skipped, because diff bases and Merge Changes targets
+ *   resolve a base branch on `origin` (see {@link resolveDiffBaseBranchName}).
+ * - A branch tracking its own pushed branch has no base there. This is detected from the
+ *   name suffix rather than the parsed remote, which is wrong for remote names with slashes.
+ */
+export function resolveUpstreamBaseBranchName(head: IBranch | IDetachedHead | undefined): string | undefined {
+	if (head?.kind !== GitRefType.Head) {
+		return undefined;
+	}
+	const upstream = head.upstream?.name;
+	if (!upstream?.startsWith('origin/') || upstream.endsWith(`/${head.name}`)) {
+		return undefined;
+	}
+	return upstream;
+}
+
+/**
  * The well-known SHA-1 of git's empty tree, used as a fallback when a
  * repository has no commits (no `HEAD` to read into the temp index).
  */

@@ -9103,6 +9103,27 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		test('folder send bases a checked-out branch on the branch it tracks', async () => {
+			const db = new TestSessionDatabase();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			git.getHEAD = async () => ({ kind: GitRefType.Head, name: 'feat/test', ref: 'refs/heads/feat/test', upstream: { name: 'origin/dev', ref: 'refs/remotes/origin/dev', remote: 'origin' } });
+			git.getDefaultBranch2 = async () => ({ kind: GitRefType.RemoteHead, name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' });
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [URI.file('/workspace/test-worktree')],
+				config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'feat/test' },
+			});
+			svc.dispatchAction(buildDefaultChatUri(session), chatTurnStarted('turn-1', 'start now'), 'client', 1);
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
+
+			assert.strictEqual(await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined), 'origin/dev');
+		});
+
 		test('an ephemeral folder session sends without persisting a diff base', async () => {
 			const db = new TestSessionDatabase();
 			const directory = URI.file('/workspace/repo');
