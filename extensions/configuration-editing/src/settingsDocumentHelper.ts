@@ -284,16 +284,14 @@ export class SettingsDocument {
 			const endPosition = startPosition.translate(undefined, location.previousNode.value.length);
 			const donotSuggestLanguages: string[] = [];
 			const languageOverridesRanges: vscode.Range[] = [];
-			let matches = OVERRIDE_IDENTIFIER_REGEX.exec(location.previousNode.value);
 			let lastLanguageOverrideRange: vscode.Range | undefined;
-			while (matches?.length) {
-				lastLanguageOverrideRange = new vscode.Range(this.document.positionAt(location.previousNode.offset + 1 + matches.index), this.document.positionAt(location.previousNode.offset + 1 + matches.index + matches[0].length));
+			for (const match of location.previousNode.value.matchAll(OVERRIDE_IDENTIFIER_REGEX)) {
+				lastLanguageOverrideRange = new vscode.Range(this.document.positionAt(location.previousNode.offset + 1 + match.index), this.document.positionAt(location.previousNode.offset + 1 + match.index + match[0].length));
 				languageOverridesRanges.push(lastLanguageOverrideRange);
 				/* Suggest the configured language if the position is in the match range */
 				if (!lastLanguageOverrideRange.contains(position)) {
-					donotSuggestLanguages.push(matches[1].trim());
+					donotSuggestLanguages.push(match[1].trim());
 				}
-				matches = OVERRIDE_IDENTIFIER_REGEX.exec(location.previousNode.value);
 			}
 			const lastLanguageOverrideEndPosition = lastLanguageOverrideRange ? lastLanguageOverrideRange.end : startPosition;
 			if (lastLanguageOverrideEndPosition.isBefore(endPosition)) {
