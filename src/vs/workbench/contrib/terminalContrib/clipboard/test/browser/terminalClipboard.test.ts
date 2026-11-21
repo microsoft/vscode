@@ -194,6 +194,12 @@ suite('TerminalClipboard', function () {
 			deepStrictEqual(await contribution.handleMouseEvent(new MouseEvent('mousedown', { button: 1 })), { handled: true });
 			deepStrictEqual([0, 1, 1].map(isMouseUpDefaultPrevented), [false, true, false]);
 		});
+		test('Middle click in paste mode stops waiting for its mouseup when the next middle press starts, as the release was missed', async () => {
+			config.middleClickBehavior = 'paste';
+			await contribution.handleMouseEvent(new MouseEvent('mousedown', { button: 1 }));
+			mainWindow.dispatchEvent(new MouseEvent('mousedown', { button: 1 }));
+			strictEqual(isMouseUpDefaultPrevented(1), false);
+		});
 		test('Middle click in default mode leaves the middle mouseup alone', async () => {
 			config.middleClickBehavior = 'default';
 			strictEqual(await contribution.handleMouseEvent(new MouseEvent('mousedown', { button: 1 })), undefined);
