@@ -35,7 +35,13 @@ export class SimpleBrowserManager {
 		const url = state?.url ?? '';
 		const view = SimpleBrowserView.restore(this.extensionUri, url, panel);
 		this.registerWebviewListeners(view);
-		this._activeView ??= view;
+		if (this._activeView) {
+			// show() already created a view while restore was pending (race on startup).
+			// Dispose this panel to avoid a duplicate simple browser.
+			view.dispose();
+		} else {
+			this._activeView = view;
+		}
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserView) {
