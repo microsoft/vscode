@@ -38,6 +38,10 @@ export class SimpleBrowserManager {
 		this._activeView ??= view;
 	}
 
+	public focusContent(): void {
+		this._activeView?.focusContent();
+	}
+
 	private registerWebviewListeners(view: SimpleBrowserView) {
 		view.onDispose(() => {
 			if (this._activeView === view) {
