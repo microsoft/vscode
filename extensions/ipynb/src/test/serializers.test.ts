@@ -6,6 +6,7 @@
 import * as sinon from 'sinon';
 import type * as nbformat from '@jupyterlab/nbformat';
 import * as assert from 'assert';
+import { tmpdir } from 'os';
 import * as vscode from 'vscode';
 import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';
 import { createMarkdownCellFromNotebookCell, getCellMetadata } from '../serializers';
@@ -181,6 +182,68 @@ suite(`ipynb serializer`, () => {
 			id: '123'
 		});
 	});
+
+	for (const metadataKind of ['fractional', 'colliding string']) {
+		test(`Preserves ${metadataKind} output metadata after reverting and saving a notebook`, async () => {
+			const folder = vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(tmpdir());
+			const uri = vscode.Uri.joinPath(folder, `output-metadata-${Date.now()}.ipynb`);
+			const outputs: nbformat.IDisplayData[] = [0, 1].map(index => ({
+				output_type: 'display_data',
+				data: { 'image/png': base64EncodedImage, 'text/plain': [`image ${index}`] },
+				metadata: metadataKind === 'fractional'
+					? { 'image/png': { width: 10.25 + index, height: 10 + index } }
+					: { label: 'Aa' }
+			}));
+			const content = {
+				cells: [{ cell_type: 'code', id: 'output-metadata', execution_count: 1, metadata: {}, source: ['1'], outputs }],
+				metadata: { language_info: { name: 'python' } },
+				nbformat: 4,
+				nbformat_minor: 5
+			};
+			try {
+				await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(content)));
+				const document = await vscode.workspace.openNotebookDocument(uri);
+				await vscode.window.showNotebookDocument(document);
+
+				// Revert File only reloads dirty notebooks. Keep the cell source unchanged.
+				const dirtyEdit = new vscode.WorkspaceEdit();
+				dirtyEdit.set(uri, [vscode.NotebookEdit.updateNotebookMetadata({
+					...document.metadata,
+					metadata: { ...document.metadata.metadata, unsavedChange: true }
+				})]);
+				await vscode.workspace.applyEdit(dirtyEdit);
+				assert.strictEqual(document.isDirty, true);
+
+				content.cells[0].outputs = outputs.map((output, index) => ({
+					...output,
+					metadata: metadataKind === 'fractional'
+						? { 'image/png': { width: 10.75 + index, height: 10 + index } }
+						: { label: 'BB' }
+				}));
+				await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(JSON.stringify(content)));
+				await vscode.commands.executeCommand('workbench.action.files.revert');
+
+				const edit = new vscode.WorkspaceEdit();
+				edit.insert(document.cellAt(0).document.uri, new vscode.Position(0, 0), '# edited\n');
+				await vscode.workspace.applyEdit(edit);
+				await document.save();
+
+				const saved = JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(uri))) as nbformat.INotebookContent;
+				assert.deepStrictEqual({
+					unsavedChange: saved.metadata.unsavedChange,
+					source: saved.cells[0].source,
+					outputs: saved.cells[0].outputs
+				}, {
+					unsavedChange: undefined,
+					source: ['# edited\n', '1'],
+					outputs: content.cells[0].outputs
+				});
+			} finally {
+				await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+				await vscode.workspace.fs.delete(uri);
+			}
+		});
+	}
 
 	suite('Outputs', () => {
 		function validateCellOutputTranslation(

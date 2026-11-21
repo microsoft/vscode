@@ -1130,6 +1130,70 @@ suite('NotebookTextModel', () => {
 		});
 	});
 
+	test('reset preserves fractional output metadata', async function () {
+		const outputs = [0, 1].map(index => ({
+			outputId: `output-${index}`,
+			outputs: [{ mime: Mimes.text, data: valueBytesFromString(`output ${index}`) }],
+			metadata: { score: 0.25 }
+		}));
+		await withTestNotebook([
+			['print(1)', 'python', CellKind.Code, outputs, {}]
+		], editor => {
+			const model = editor.textModel;
+			const updatedOutputs = outputs.map(output => ({ ...output, metadata: { score: 0.75 } }));
+
+			model.reset([{
+				source: 'print(1)', language: 'python', cellKind: CellKind.Code, mime: undefined, outputs: updatedOutputs
+			}], {}, model.transientOptions);
+
+			assert.deepStrictEqual(model.cells[0].outputs.map(output => output.asDto()), updatedOutputs);
+		});
+	});
+
+	test('reset preserves output metadata with colliding hashes', async function () {
+		const outputs = [0, 1].map(index => ({
+			outputId: `output-${index}`,
+			outputs: [{ mime: Mimes.text, data: valueBytesFromString(`output ${index}`) }],
+			metadata: { label: 'Aa' }
+		}));
+		await withTestNotebook([
+			['print(1)', 'python', CellKind.Code, outputs, {}]
+		], editor => {
+			const model = editor.textModel;
+			const updatedOutputs = outputs.map(output => ({ ...output, metadata: { label: 'BB' } }));
+
+			model.reset([{
+				source: 'print(1)', language: 'python', cellKind: CellKind.Code, mime: undefined, outputs: updatedOutputs
+			}], {}, model.transientOptions);
+
+			assert.deepStrictEqual(model.cells[0].outputs.map(output => output.asDto()), updatedOutputs);
+		});
+	});
+
+	test('Output edits ignore metadata key order and regenerated output IDs', async function () {
+		const outputs = [0, 1].map(index => ({
+			outputId: `output-${index}`,
+			outputs: [{ mime: Mimes.text, data: valueBytesFromString(`output ${index}`) }],
+			metadata: { score: 0.25, dimensions: { width: 10, height: 20 } }
+		}));
+		await withTestNotebook([
+			['print(1)', 'python', CellKind.Code, outputs, {}]
+		], editor => {
+			const model = editor.textModel;
+
+			model.applyEdits([{
+				editType: CellEditType.Output, index: 0, append: false,
+				outputs: outputs.map((output, index) => ({
+					...output,
+					outputId: `regenerated-${index}`,
+					metadata: { dimensions: { height: 20, width: 10 }, score: 0.25 }
+				}))
+			}], true, undefined, () => undefined, undefined, false);
+
+			assert.deepStrictEqual(model.cells[0].outputs.map(output => output.asDto()), outputs);
+		});
+	});
+
 	test('computeEdits no insert', async function () {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}]

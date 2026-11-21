@@ -8,7 +8,7 @@ import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/eve
 import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { filter } from '../../../../../base/common/objects.js';
+import { equals, filter, stableStringify } from '../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -565,7 +565,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private static _computeOutputEdit(index: number, a: ICellOutput[], b: IOutputDto[]): ICellEditOperation[] {
-		if (a.length !== b.length) {
+		if (a.length !== b.length || a.some((output, i) => !equals(output.metadata, b[i].metadata))) {
 			return [
 				{
 					editType: CellEditType.Output,
@@ -1385,12 +1385,13 @@ class OutputSequence implements ISequence {
 	constructor(readonly outputs: IOutputDto[]) {
 	}
 
-	getElements(): Int32Array | number[] | string[] {
+	getElements(): string[] {
 		return this.outputs.map(output => {
-			return hash(output.outputs.map(output => ({
+			// Keep metadata as a string so LcsDiff can compare it when hashes collide.
+			return `${stableStringify(output.metadata)}:${hash(output.outputs.map(output => ({
 				mime: output.mime,
 				data: output.data
-			})));
+			})))}`;
 		});
 	}
 
