@@ -39,6 +39,7 @@ export const enum SearchCommandIds {
 	CollapseSearchResultsActionId = 'search.action.collapseSearchResults',
 	ExpandSearchResultsActionId = 'search.action.expandSearchResults',
 	ExpandRecursivelyCommandId = 'search.action.expandRecursively',
+	CollapseOtherSearchResultsActionId = 'search.action.collapseOtherResults',
 	ClearSearchResultsActionId = 'search.action.clearSearchResults',
 	GetSearchResultsActionId = 'search.action.getSearchResults',
 	ViewAsTreeActionId = 'search.action.viewAsTree',
