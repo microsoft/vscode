@@ -41,6 +41,10 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
 		});
+		test('should not collapse differently cased Posix paths', () => {
+			strictEqual(collapseTildePath('/home/alice', '/home/Alice', '/'), '/home/alice');
+			strictEqual(collapseTildePath('/home/alice/project', '/home/Alice', '/'), '/home/alice/project');
+		});
 		test('should collapse exact user home to ~', () => {
 			strictEqual(collapseTildePath('/foo', '/foo', '/'), '~');
 			strictEqual(collapseTildePath('/foo/', '/foo', '/'), '~');
