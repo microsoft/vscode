@@ -588,7 +588,10 @@ export interface IStackFrame extends ITreeElement {
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	forgetScopes(): void;
 	restart(): Promise<void>;
-	toString(): string;
+	/**
+	 * @param uriLabelFormatter formats the uri of the source, defaults to its `fsPath`
+	 */
+	toString(uriLabelFormatter?: (uri: URI) => string): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined>;
 	equals(other: IStackFrame): boolean;
 }
