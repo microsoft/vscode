@@ -5,7 +5,7 @@
 
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
@@ -14,6 +14,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import type { FetchOptions } from '../../../../platform/networking/common/fetcherService';
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
@@ -24,7 +25,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
-import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS, CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS, CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, mergeModelsById, resolveCustomEndpointModelCapabilities, resolveCustomEndpointModelsUrl, resolveCustomEndpointUrl } from '../customEndpointProvider';
 
 const customResponsesModelId = 'custom-responses-model';
 const customResponsesMarker = 'resp_custom_previous';
@@ -1100,5 +1101,344 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			expect(messages[0].reasoning).toBe('I should read the README before answering.');
 			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
 		});
+	});
+});
+
+describe('resolveCustomEndpointModelCapabilities', () => {
+	it('applies defaults (tools ON, vision OFF) for a minimal OpenAI entry', () => {
+		expect(resolveCustomEndpointModelCapabilities({ id: 'gpt-4o' })).toEqual({
+			name: 'gpt-4o',
+			toolCalling: true,
+			vision: false,
+			maxInputTokens: CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS,
+			maxOutputTokens: CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS,
+			supportsReasoningEffort: undefined,
+		});
+	});
+
+	it('parses OpenRouter-style rich fields (tools, vision, reasoning, context window)', () => {
+		const caps = resolveCustomEndpointModelCapabilities({
+			id: 'anthropic/claude-sonnet-4',
+			name: 'Claude Sonnet 4',
+			supported_parameters: ['tools', 'reasoning'],
+			architecture: { input_modalities: ['text', 'image'] },
+			top_provider: { context_length: 200000 },
+		});
+		expect(caps).toEqual({
+			name: 'Claude Sonnet 4',
+			toolCalling: true,
+			vision: true,
+			maxInputTokens: 184000,
+			maxOutputTokens: 16000,
+			supportsReasoningEffort: ['low', 'medium', 'high'],
+		});
+	});
+
+	it('trusts advertised supported_parameters: absence of `tools` means tool calling OFF', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', supported_parameters: ['temperature'] });
+		expect(caps?.toolCalling).toBe(false);
+	});
+
+	it('derives a token split from a vLLM max_model_len', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', max_model_len: 32768 });
+		expect(caps?.maxOutputTokens).toBe(16000);
+		expect(caps?.maxInputTokens).toBe(16768);
+	});
+
+	it('honors an explicit max_completion_tokens cap', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', top_provider: { context_length: 100000, max_completion_tokens: 4096 } });
+		expect(caps?.maxOutputTokens).toBe(4096);
+		expect(caps?.maxInputTokens).toBe(95904);
+	});
+
+	it('prefers the model-level context_length over top_provider.context_length', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', context_length: 200000, top_provider: { context_length: 32000 } });
+		expect(caps?.maxOutputTokens).toBe(16000);
+		expect(caps?.maxInputTokens).toBe(184000);
+	});
+
+	it('keeps input tokens positive for a tiny context window', () => {
+		const caps = resolveCustomEndpointModelCapabilities({ id: 'm', context_length: 1000 });
+		expect(caps?.maxOutputTokens).toBe(500);
+		expect(caps?.maxInputTokens).toBe(500);
+	});
+
+	it('falls back to id for the name, and reads display_name when present', () => {
+		expect(resolveCustomEndpointModelCapabilities({ id: 'm' })?.name).toBe('m');
+		expect(resolveCustomEndpointModelCapabilities({ id: 'm', display_name: 'My Model' })?.name).toBe('My Model');
+		expect(resolveCustomEndpointModelCapabilities({ id: 'm', name: ' ', display_name: '' })?.name).toBe('m');
+	});
+
+	it('returns undefined for entries without a usable id', () => {
+		expect(resolveCustomEndpointModelCapabilities({})).toBeUndefined();
+		expect(resolveCustomEndpointModelCapabilities({ id: 123 })).toBeUndefined();
+		expect(resolveCustomEndpointModelCapabilities(null)).toBeUndefined();
+		expect(resolveCustomEndpointModelCapabilities(undefined)).toBeUndefined();
+	});
+});
+
+describe('resolveCustomEndpointModelsUrl', () => {
+	it('appends /v1 to an origin, matching how request URLs are resolved', () => {
+		expect(resolveCustomEndpointModelsUrl('https://api.openai.com')).toBe('https://api.openai.com/v1/models');
+		expect(resolveCustomEndpointUrl('m', 'https://api.openai.com')).toBe('https://api.openai.com/v1/chat/completions');
+	});
+
+	it('keeps an existing version segment and drops a trailing slash', () => {
+		expect(resolveCustomEndpointModelsUrl('https://openrouter.ai/api/v1')).toBe('https://openrouter.ai/api/v1/models');
+		expect(resolveCustomEndpointModelsUrl('https://api.example.com/v1/')).toBe('https://api.example.com/v1/models');
+	});
+
+	it('lists models next to an explicit API path without inserting a version segment', () => {
+		expect(resolveCustomEndpointModelsUrl('https://api.example.com/v1/chat/completions')).toBe('https://api.example.com/v1/models');
+		expect(resolveCustomEndpointModelsUrl('https://api.example.com/v1/responses')).toBe('https://api.example.com/v1/models');
+		expect(resolveCustomEndpointModelsUrl('https://api.example.com/v1/messages')).toBe('https://api.example.com/v1/models');
+		expect(resolveCustomEndpointModelsUrl('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')).toBe('https://generativelanguage.googleapis.com/v1beta/openai/models');
+		expect(resolveCustomEndpointModelsUrl('https://api.deepseek.com/chat/completions')).toBe('https://api.deepseek.com/models');
+	});
+});
+
+describe('mergeModelsById', () => {
+	it('lets manual entries override discovered ones by id and appends manual-only entries', () => {
+		const discovered = [{ id: 'a', src: 'd' }, { id: 'b', src: 'd' }];
+		const manual = [{ id: 'b', src: 'm' }, { id: 'c', src: 'm' }];
+		expect(mergeModelsById(discovered, manual)).toEqual([
+			{ id: 'a', src: 'd' },
+			{ id: 'b', src: 'm' },
+			{ id: 'c', src: 'm' },
+		]);
+	});
+
+	it('returns the discovered list unchanged when there are no manual entries', () => {
+		expect(mergeModelsById([{ id: 'a' }], [])).toEqual([{ id: 'a' }]);
+	});
+});
+
+describe('CustomEndpointBYOKModelProvider model discovery', () => {
+	const token = new vscode.CancellationTokenSource().token;
+
+	class TestableCustomEndpointProvider extends CustomEndpointBYOKModelProvider {
+		public readonly warnings: string[] = [];
+		protected override showDiscoveryWarning(message: string): void {
+			this.warnings.push(message);
+		}
+	}
+
+	function createLogServiceMock() {
+		const logService: any = {
+			_serviceBrand: undefined,
+			trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), show: vi.fn(),
+			createSubLogger: vi.fn(), withExtraTarget: vi.fn(),
+		};
+		logService.createSubLogger.mockReturnValue(logService);
+		logService.withExtraTarget.mockReturnValue(logService);
+		return logService;
+	}
+
+	function createProvider(fetch: (url: string, options: FetchOptions) => Promise<unknown>, createInstance = vi.fn().mockReturnValue({})): TestableCustomEndpointProvider {
+		const storage = {
+			getAPIKey: vi.fn().mockResolvedValue(undefined),
+			storeAPIKey: vi.fn().mockResolvedValue(undefined),
+			deleteAPIKey: vi.fn().mockResolvedValue(undefined),
+		};
+		return new TestableCustomEndpointProvider(
+			storage as any,
+			createLogServiceMock(),
+			{ fetch } as any,
+			{ createInstance } as any,
+			{ isConfigured: vi.fn().mockReturnValue(false), getConfig: vi.fn(), setConfig: vi.fn() } as any,
+			{} as any,
+		);
+	}
+
+	function jsonResponse(body: unknown) {
+		return { json: async () => body };
+	}
+
+	it('discovers models from the configured /models endpoint with default capabilities', async () => {
+		const fetch = vi.fn(async (_url: string, _options: unknown) => jsonResponse({ data: [{ id: 'model-a' }, { id: 'model-b' }] }));
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{ silent: true, configuration: { url: 'https://api.example.com', apiKey: 'k' } },
+			token,
+		);
+
+		expect(fetch).toHaveBeenCalledWith('https://api.example.com/v1/models', expect.objectContaining({ headers: { 'Content-Type': 'application/json', Authorization: 'Bearer k' } }));
+		expect(models.map(m => m.id)).toEqual(['model-a', 'model-b']);
+		expect(models[0].capabilities).toMatchObject({ toolCalling: true, imageInput: false });
+		expect(models[0].maxInputTokens).toBe(CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS);
+		expect(models[0].maxOutputTokens).toBe(CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS);
+	});
+
+	it('discovers on a silent refresh without an API key and omits the Authorization header', async () => {
+		const fetch = vi.fn(async (_url: string, _options: unknown) => jsonResponse({ data: [{ id: 'local-model' }] }));
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{ silent: true, configuration: { url: 'http://localhost:8000/v1' } },
+			token,
+		);
+
+		expect(models.map(m => m.id)).toEqual(['local-model']);
+		expect(fetch).toHaveBeenCalledWith('http://localhost:8000/v1/models', expect.objectContaining({ headers: { 'Content-Type': 'application/json' } }));
+	});
+
+	it('resolves capabilities per endpoint and per refresh instead of reusing them by model id', async () => {
+		let lenA = 32768;
+		const fetch = vi.fn(async (url: string) => jsonResponse({
+			data: [{ id: 'shared', max_model_len: url.startsWith('https://a.example.com') ? lenA : 8192 }]
+		}));
+		const provider = createProvider(fetch);
+		const discover = async (url: string) => (await provider.provideLanguageModelChatInformation({ silent: true, configuration: { url, apiKey: 'k' } }, token))[0];
+
+		expect((await discover('https://a.example.com')).maxInputTokens).toBe(16768);
+		expect((await discover('https://b.example.com')).maxInputTokens).toBe(4096);
+
+		lenA = 65536;
+		expect((await discover('https://a.example.com')).maxInputTokens).toBe(49536);
+	});
+
+	it('carries discovered reasoning effort levels into the endpoint metadata', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ data: [{ id: 'thinker', supported_parameters: ['tools', 'reasoning_effort'] }] }));
+		const createInstance = vi.fn().mockReturnValue({});
+		const provider = createProvider(fetch, createInstance);
+
+		const [model] = await provider.provideLanguageModelChatInformation(
+			{ silent: true, configuration: { url: 'https://api.example.com/v1', apiKey: 'k' } },
+			token,
+		);
+
+		expect(model.configurationSchema?.properties?.reasoningEffort).toBeDefined();
+		const modelInfo: IChatModelInformation = createInstance.mock.calls.find(([ctor]) => ctor === CustomEndpointOAIEndpoint)![1];
+		expect(modelInfo.capabilities.supports.reasoning_effort).toEqual(['low', 'medium', 'high']);
+	});
+
+	it('lets a manual entry override a discovered model and appends manual-only models', async () => {
+		const fetch = vi.fn(async () => jsonResponse({ data: [{ id: 'model-a' }, { id: 'model-b' }] }));
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{
+				silent: true,
+				configuration: {
+					url: 'https://api.example.com',
+					apiKey: 'k',
+					models: [
+						{ id: 'model-a', name: 'Overridden A', url: 'https://api.example.com/v1', toolCalling: true, vision: true, maxInputTokens: 1000, maxOutputTokens: 100 },
+						{ id: 'model-c', name: 'Manual C', url: 'https://api.example.com/v1', toolCalling: false, vision: false, maxInputTokens: 2000, maxOutputTokens: 200 },
+					],
+				},
+			},
+			token,
+		);
+
+		const byId = new Map(models.map(m => [m.id, m]));
+		expect([...byId.keys()].sort()).toEqual(['model-a', 'model-b', 'model-c']);
+		// manual override wins for model-a
+		expect(byId.get('model-a')!.name).toBe('Overridden A');
+		expect(byId.get('model-a')!.capabilities).toMatchObject({ imageInput: true });
+		expect(byId.get('model-a')!.maxInputTokens).toBe(1000);
+		// discovered default remains for model-b
+		expect(byId.get('model-b')!.capabilities).toMatchObject({ imageInput: false });
+		// manual-only model-c is appended
+		expect(byId.get('model-c')!.name).toBe('Manual C');
+	});
+
+	it('falls back to manual models and warns once when discovery fails, even on silent refreshes', async () => {
+		const fetch = vi.fn(async () => { throw new Error('boom'); });
+		const provider = createProvider(fetch);
+		const configuration = {
+			url: 'https://api.example.com',
+			apiKey: 'k',
+			models: [
+				{ id: 'fallback', name: 'Fallback', url: 'https://api.example.com/v1', toolCalling: true, vision: false, maxInputTokens: 1000, maxOutputTokens: 100 },
+			],
+		};
+
+		const first = await provider.provideLanguageModelChatInformation({ silent: true, configuration }, token);
+		const second = await provider.provideLanguageModelChatInformation({ silent: true, configuration }, token);
+
+		expect(first.map(m => m.id)).toEqual(['fallback']);
+		expect(second.map(m => m.id)).toEqual(['fallback']);
+		// warned once despite two refreshes (dedup by URL), and the message names the endpoint
+		expect(provider.warnings).toHaveLength(1);
+		expect(provider.warnings[0]).toContain('https://api.example.com');
+	});
+
+	it('warns again when discovery fails after having recovered', async () => {
+		let fail = true;
+		const fetch = vi.fn(async () => {
+			if (fail) {
+				throw new Error('boom');
+			}
+			return jsonResponse({ data: [{ id: 'model-a' }] });
+		});
+		const provider = createProvider(fetch);
+		const configuration = {
+			url: 'https://api.example.com',
+			apiKey: 'k',
+			models: [
+				{ id: 'fallback', name: 'Fallback', url: 'https://api.example.com/v1', toolCalling: true, vision: false, maxInputTokens: 1000, maxOutputTokens: 100 },
+			],
+		};
+		const refresh = () => provider.provideLanguageModelChatInformation({ silent: true, configuration }, token);
+
+		await refresh();
+		fail = false;
+		await refresh();
+		fail = true;
+		await refresh();
+
+		expect(provider.warnings).toHaveLength(2);
+	});
+
+	it('throws instead of warning when discovery fails without manual models, so the group shows the error', async () => {
+		const fetch = vi.fn(async () => { throw new Error('boom'); });
+		const provider = createProvider(fetch);
+
+		await expect(provider.provideLanguageModelChatInformation(
+			{ silent: true, configuration: { url: 'https://api.example.com', apiKey: 'k', models: [] } },
+			token,
+		)).rejects.toThrow('Custom endpoint model discovery from https://api.example.com failed: boom');
+		expect(provider.warnings).toEqual([]);
+	});
+
+	it('gives up on a /models endpoint that never responds', async () => {
+		vi.useFakeTimers();
+		try {
+			const fetch = vi.fn((_url: string, options: FetchOptions) => new Promise((_resolve, reject) => {
+				options.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+			}));
+			const provider = createProvider(fetch);
+
+			const result = expect(provider.provideLanguageModelChatInformation(
+				{ silent: true, configuration: { url: 'https://api.example.com', apiKey: 'k' } },
+				token,
+			)).rejects.toThrow('Timed out after 10 seconds');
+			await vi.advanceTimersByTimeAsync(10_000);
+			await result;
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('returns only manual models when no discovery url is set', async () => {
+		const fetch = vi.fn(async () => { throw new Error('should not be called'); });
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation(
+			{
+				silent: true,
+				configuration: {
+					models: [
+						{ id: 'manual', name: 'Manual', url: 'https://api.example.com/v1', toolCalling: true, vision: false, maxInputTokens: 1000, maxOutputTokens: 100 },
+					],
+				},
+			},
+			token,
+		);
+
+		expect(models.map(m => m.id)).toEqual(['manual']);
+		expect(fetch).not.toHaveBeenCalled();
 	});
 });

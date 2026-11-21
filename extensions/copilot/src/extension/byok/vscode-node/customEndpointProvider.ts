@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { l10n, type LanguageModelChatInformation, window } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
@@ -14,10 +15,10 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
+import { BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
-import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
+import { byokKnownModelsToAPIInfoWithEffort, byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
 
 export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages';
@@ -28,21 +29,37 @@ export function resolveCustomEndpointUrl(modelId: string, url: string, apiType?:
 		return url;
 	}
 
+	return `${toVersionedBaseUrl(url)}${apiTypeToPath(apiType)}`;
+}
+
+/**
+ * Resolves the `/models` discovery URL for a group-level `url`, normalized the same
+ * way as {@link resolveCustomEndpointUrl} so discovery and requests hit the same API base.
+ */
+export function resolveCustomEndpointModelsUrl(url: string): string {
+	// A request URL can double as the discovery URL: requests use it as written, so
+	// list models next to its API path without inserting a version segment.
+	const apiPath = /\/(?:chat\/completions|responses|messages)(?:[/?#]|$)/.exec(url);
+	if (apiPath) {
+		return `${url.slice(0, apiPath.index)}/models`;
+	}
+	return `${toVersionedBaseUrl(url)}/models`;
+}
+
+function toVersionedBaseUrl(url: string): string {
 	// Remove the trailing slash
 	if (url.endsWith('/')) {
 		url = url.slice(0, -1);
 	}
 
-	const defaultApiPath = apiTypeToPath(apiType);
-
 	// Check if URL already contains any version pattern like /v1, /v2, etc
 	const versionPattern = /\/v\d+$/;
 	if (versionPattern.test(url)) {
-		return `${url}${defaultApiPath}`;
+		return url;
 	}
 
-	// For standard OpenAI-compatible endpoints, just append the standard path
-	return `${url}/v1${defaultApiPath}`;
+	// For standard OpenAI-compatible endpoints, just append the standard version
+	return `${url}/v1`;
 }
 
 function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
@@ -79,6 +96,100 @@ function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSuppo
 		default:
 			return undefined;
 	}
+}
+
+/** Defaults used for discovered models whose endpoint does not advertise token limits. */
+export const CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS = 128000;
+export const CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS = 16000;
+
+/**
+ * Shape of a single entry in an OpenAI-compatible `/models` (or `/v1/models`)
+ * response. Plain OpenAI only returns `id` (plus a little metadata); richer
+ * providers such as OpenRouter or vLLM add a context window and capability
+ * hints. Everything beyond `id` is optional and must be read defensively.
+ */
+interface OpenAICompatibleModelEntry {
+	id?: string;
+	name?: string;
+	display_name?: string;
+	context_length?: number;          // OpenRouter and many OpenAI-compatible servers
+	max_model_len?: number;           // vLLM
+	top_provider?: { context_length?: number; max_completion_tokens?: number };
+	architecture?: { input_modalities?: string[] };
+	supported_parameters?: string[];
+}
+
+function asPositiveNumber(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Maps one OpenAI-compatible `/models` entry to {@link BYOKModelCapabilities}.
+ *
+ * Capabilities are rarely advertised (plain OpenAI `/v1/models` returns only the
+ * id), so we apply sensible defaults — tool calling ON (agent mode needs it),
+ * vision OFF — and override them only when the payload advertises the relevant
+ * fields (`supported_parameters`, `architecture.input_modalities`, a context
+ * window). Returns `undefined` for entries without a usable id so the caller
+ * skips them. Never throws on missing/oddly-typed fields.
+ */
+export function resolveCustomEndpointModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
+	const model = modelData as OpenAICompatibleModelEntry | null | undefined;
+	if (!model || typeof model.id !== 'string' || model.id.length === 0) {
+		return undefined;
+	}
+	const id = model.id;
+
+	const params = Array.isArray(model.supported_parameters) ? model.supported_parameters : undefined;
+	const architecture = model.architecture;
+	const inputModalities = architecture && Array.isArray(architecture.input_modalities) ? architecture.input_modalities : undefined;
+
+	// Prefer the model-level window; `top_provider` only describes OpenRouter's currently preferred backend.
+	const contextLength = asPositiveNumber(model.context_length) ?? asPositiveNumber(model.top_provider?.context_length) ?? asPositiveNumber(model.max_model_len);
+	const explicitOutput = asPositiveNumber(model.top_provider?.max_completion_tokens);
+
+	let maxInputTokens = CUSTOM_ENDPOINT_DEFAULT_MAX_INPUT_TOKENS;
+	let maxOutputTokens = explicitOutput ?? CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS;
+	if (contextLength) {
+		// Reserve an output budget of at most half the context window, matching the OpenRouter provider.
+		maxOutputTokens = Math.min(explicitOutput ?? CUSTOM_ENDPOINT_DEFAULT_MAX_OUTPUT_TOKENS, Math.max(Math.floor(contextLength / 2), 1));
+		maxInputTokens = Math.max(contextLength - maxOutputTokens, 1);
+	}
+
+	const name = [model.name, model.display_name].find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? id;
+	// When the endpoint advertises its supported parameters we trust them; otherwise tool calling defaults ON.
+	const toolCalling = params ? params.includes('tools') : true;
+	const vision = inputModalities ? inputModalities.includes('image') : false;
+	const supportsReasoningEffort = params && (params.includes('reasoning') || params.includes('reasoning_effort'))
+		? ['low', 'medium', 'high']
+		: undefined;
+
+	return { name, toolCalling, vision, maxInputTokens, maxOutputTokens, supportsReasoningEffort };
+}
+
+/**
+ * Merges discovered models with manually-configured ones. Manual entries win on
+ * `id` collisions (so users can correct the capabilities of a discovered model),
+ * and manual-only entries are appended.
+ */
+export function mergeModelsById<T extends { id: string }>(discovered: readonly T[], manual: readonly T[]): T[] {
+	const byId = new Map<string, T>();
+	for (const model of discovered) {
+		byId.set(model.id, model);
+	}
+	for (const model of manual) {
+		byId.set(model.id, model);
+	}
+	return Array.from(byId.values());
+}
+
+/**
+ * Reads the effort levels back from the Thinking Effort picker that
+ * {@link byokKnownModelToAPIInfoWithEffort} attached to a discovered model.
+ */
+function getAdvertisedReasoningEffort(model: LanguageModelChatInformation): string[] | undefined {
+	const levels: unknown = model.configurationSchema?.properties?.reasoningEffort?.enum;
+	return Array.isArray(levels) && levels.every((level): level is string => typeof level === 'string') ? levels : undefined;
 }
 
 export interface CustomEndpointModelProviderConfig extends LanguageModelChatConfiguration {
@@ -137,10 +248,56 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		return;
 	}
 
-	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: CustomEndpointModelProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[]> {
-		if (configuration?.url) {
-			return super.getAllModels(silent, apiKey, configuration);
+	private readonly _warnedDiscoveryUrls = new Set<string>();
+
+	protected override getDiscoveredModelCapabilities(modelData: { id: string }): BYOKModelCapabilities | undefined {
+		// Model ids are only unique per endpoint and capabilities can change between
+		// refreshes, so resolve every entry instead of using the shared id-keyed cache.
+		return resolveCustomEndpointModelCapabilities(modelData);
+	}
+
+	protected override getModelsDiscoveryUrl(modelsBaseUrl: string): string {
+		return resolveCustomEndpointModelsUrl(modelsBaseUrl);
+	}
+
+	protected override async getAllModels(_silent: boolean, apiKey: string | undefined, configuration: CustomEndpointModelProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[]> {
+		const manualModels = this.getManualModels(configuration);
+
+		// Model discovery is opt-in: a group-level `url` points at an
+		// OpenAI-compatible `/models` endpoint. Without it we only have the
+		// manually-configured list.
+		if (!configuration?.url) {
+			return manualModels;
 		}
+
+		const discoveryUrl = configuration.url;
+		let discoveredModels: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[];
+		try {
+			// Unlike the base class, also discover on silent refreshes without an API key: local servers often need none.
+			const discoveredCapabilities = await this.getModelsFromEndpoint(discoveryUrl, apiKey);
+			discoveredModels = byokKnownModelsToAPIInfoWithEffort(this._name, discoveredCapabilities).map(model => ({
+				...model,
+				url: discoveryUrl
+			}));
+		} catch (error) {
+			// The base class has already logged the failure. Core resolves this vendor's
+			// groups silently, so `silent` must not suppress the user-facing feedback.
+			const reason = error instanceof Error ? error.message : String(error);
+			if (!manualModels.length) {
+				// Nothing to fall back to: throw so the group shows the error in the Language Models view.
+				throw new Error(l10n.t('Custom endpoint model discovery from {0} failed: {1}', discoveryUrl, reason));
+			}
+			this.notifyDiscoveryFailed(discoveryUrl, reason);
+			return manualModels;
+		}
+		// Re-arm the warning so a later failure after recovery is surfaced again.
+		this._warnedDiscoveryUrls.delete(discoveryUrl);
+
+		// Manual entries override or extend the discovered list (matched by id).
+		return mergeModelsById(discoveredModels, manualModels);
+	}
+
+	private getManualModels(configuration: CustomEndpointModelProviderConfig | undefined): OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] {
 		const models: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] = [];
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
@@ -151,6 +308,23 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			}
 		}
 		return models;
+	}
+
+	/**
+	 * Shows a single non-blocking warning per discovery URL so repeated
+	 * model-picker refreshes don't spam the user.
+	 */
+	private notifyDiscoveryFailed(url: string, reason: string): void {
+		if (this._warnedDiscoveryUrls.has(url)) {
+			return;
+		}
+		this._warnedDiscoveryUrls.add(url);
+		this.showDiscoveryWarning(l10n.t('Custom endpoint model discovery from {0} failed: {1}. Falling back to manually configured models.', url, reason));
+	}
+
+	/** Surfaces the (already deduped) discovery-failure warning. Separated so tests can observe it without the vscode UI. */
+	protected showDiscoveryWarning(message: string): void {
+		void window.showWarningMessage(message);
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
@@ -175,7 +349,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			statefulResponses: modelConfiguration?.statefulResponses,
-			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
+			// A manual entry replaces the discovered model entirely; otherwise use the levels discovery advertised.
+			supportsReasoningEffort: modelConfiguration ? modelConfiguration.supportsReasoningEffort : getAdvertisedReasoningEffort(model),
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
