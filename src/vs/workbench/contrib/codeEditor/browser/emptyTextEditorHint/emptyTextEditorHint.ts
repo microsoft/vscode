@@ -9,8 +9,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { EmptyEditorHintActionsVisible } from './emptyEditorHintActions.js';
-import { EmptyTextEditorHintContribution } from './emptyTextEditorHintController.js';
+import { EmptyEditorHintVisible, EmptyTextEditorHintContribution } from './emptyTextEditorHintController.js';
 
 registerEditorContribution(EmptyTextEditorHintContribution.ID, EmptyTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
 
@@ -19,8 +18,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	// Below other editor contributions, so Escape still closes their widgets first
 	weight: KeybindingWeight.EditorContrib - 50,
 	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(EmptyEditorHintActionsVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
+	when: ContextKeyExpr.and(EmptyEditorHintVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
 	handler: accessor => {
-		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeActionsHint();
+		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeHint();
 	}
 });

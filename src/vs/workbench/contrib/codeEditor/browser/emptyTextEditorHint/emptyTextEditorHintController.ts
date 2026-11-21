@@ -36,17 +36,23 @@ import { canOpenInMarkdownEditor, EmptyEditorHintReopener, markdownEditorId } fr
 import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 
 export const emptyEditorHintOpenInMarkdownEditorSetting = 'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor';
 
+/** Lets Escape hide either variant of the hint. */
+export const EmptyEditorHintVisible = new RawContextKey<boolean>('emptyEditorHintVisible', false, localize('emptyEditorHintVisible', "Whether the empty editor hint is shown"));
+
 export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
 
 	static readonly ID = EmptyTextEditorHintContributionId;
 
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | EmptyEditorHintActionsWidget | undefined;
+
+	private readonly hintVisible: IContextKey<boolean>;
 
 	/** The text models for which the user closed the hint. Untitled URIs are reused, models are not; held weakly so disposed models are dropped. */
 	private readonly closedForModels = new WeakSet<ITextModel>();
@@ -63,6 +69,8 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super();
+
+		this.hintVisible = EmptyEditorHintVisible.bindTo(this.editor.contextKeyService);
 
 		this._register(this.editor.onDidChangeModel(() => this.update()));
 		this._register(this.editor.onDidChangeModelLanguage(() => this.update()));
@@ -188,7 +196,8 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		if (variant && !this.textHintContentWidget) {
 			this.textHintContentWidget = variant === 'actions' ? this.createActionsWidget() : undefined;
 			// The list of actions falls back to the classic hint if it does not fit
-			this.textHintContentWidget ??= this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor, this.shouldOfferMarkdownEditor());
+			this.textHintContentWidget ??= this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor, this.shouldOfferMarkdownEditor(), { close: () => this.hideForModel() });
+			this.hintVisible.set(true);
 		}
 	}
 
@@ -197,13 +206,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	 */
 	private createActionsWidget(): EmptyEditorHintActionsWidget | undefined {
 		const widget: EmptyEditorHintActionsWidget = this.instantiationService.createInstance(EmptyEditorHintActionsWidget, this.editor, {
-			close: () => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.closedForModels.add(model);
-				}
-				this.disposeHint();
-			},
+			close: () => this.hideForModel(),
 			dontShowAgain: () => {
 				this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
 				this.disposeHint();
@@ -225,15 +228,20 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	disposeHint(): void {
 		this.textHintContentWidget?.dispose();
 		this.textHintContentWidget = undefined;
+		this.hintVisible.reset();
 	}
 
-	/**
-	 * Hides the list of actions for this editor (Escape in the editor).
-	 */
-	closeActionsHint(): void {
-		if (this.textHintContentWidget instanceof EmptyEditorHintActionsWidget) {
-			this.textHintContentWidget.close('closeEscape');
+	closeHint(): void {
+		this.textHintContentWidget?.close('closeEscape');
+	}
+
+	/** Until the text model is disposed; not persisted. */
+	private hideForModel(): void {
+		const model = this.editor.getModel();
+		if (model) {
+			this.closedForModels.add(model);
 		}
+		this.disposeHint();
 	}
 
 	override dispose(): void {
@@ -241,6 +249,10 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 
 		this.disposeHint();
 	}
+}
+
+interface IEmptyTextEditorHintContentWidgetOptions {
+	readonly close: () => void;
 }
 
 /**
@@ -260,6 +272,7 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly offerMarkdownEditor: boolean,
+		private readonly options: IEmptyTextEditorHintContentWidgetOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -294,6 +307,11 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 
 	getId(): string {
 		return EmptyTextEditorHintContentWidget.ID;
+	}
+
+	close(action: 'closeEscape'): void {
+		this.logHintEvent('action', action);
+		this.options.close();
 	}
 
 	private disableHint(e?: MouseEvent) {

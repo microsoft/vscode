@@ -14,14 +14,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -41,9 +41,6 @@ import { EmptyEditorHintReopener, markdownEditorId } from './emptyEditorHintReop
 import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 
 export const emptyEditorHintActionsSetting = 'workbench.editor.experimental.emptyEditorHintActions';
-
-/** Set in the editor while the list of actions is shown, so that Escape hides it. */
-export const EmptyEditorHintActionsVisible = new RawContextKey<boolean>('emptyEditorHintActionsVisible', false, localize('emptyEditorHintActionsVisible', "Whether the empty editor hint shows its list of actions"));
 
 const inlineChatStartCommandId = 'inlineChat.start';
 
@@ -117,10 +114,6 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		super();
 
 		this._reopener = this._instantiationService.createInstance(EmptyEditorHintReopener, this._editor);
-
-		const visible = EmptyEditorHintActionsVisible.bindTo(this._contextKeyService);
-		visible.set(true);
-		this._register(toDisposable(() => visible.reset()));
 
 		this._renderCloseButton();
 		this._renderFooter();
