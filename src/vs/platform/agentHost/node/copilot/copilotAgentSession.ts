@@ -113,7 +113,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { CopilotGrepSearchNudge } from './copilotGrepSearchNudge.js';
-import { createHookFailureNotification } from './copilotHookNotices.js';
+import { createHookFailureNotification, createPromptBlockedNotification } from './copilotHookNotices.js';
 import { CopilotHookToolDenials } from './copilotHookToolDenials.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
@@ -729,6 +729,8 @@ const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 /** Type of the `session.info` event sent when plugins required by the organization are ready. */
 const MANAGED_PLUGINS_COMPLETE_EVENT_TYPE = 'managed_plugins_complete';
+/** Type of the `session.warning` event sent when a hook blocks a prompt; its message is the hook's reason. */
+const PROMPT_BLOCKED_WARNING_TYPE = 'policy_blocked';
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -1151,6 +1153,10 @@ class CopilotTurn extends Disposable {
 	/** Root SDK correlations are valid only while their owning protocol turn is active. */
 	readonly sdkTurnIds = new Set<string>();
 	readonly interactionIds = new Set<string>();
+	/** The id `session.send` returned for this turn's prompt; a `policy_blocked` warning for it carries the same id. */
+	sentMessageId: string | undefined;
+	/** Settles once `send` has finished with this turn, including showing a prompt block that arrived early. */
+	readonly sendReturned = new DeferredPromise<void>();
 	activeSdkTurnId: string | undefined;
 	imageGenerationSdkTurnId: string | undefined;
 	toolCallRounds = 0;
@@ -1216,6 +1222,9 @@ class CopilotTurn extends Disposable {
 		}
 	}
 
+	/** Whether the runtime echoed this turn's prompt as a root `user.message`; a prompt a hook blocked never is. */
+	get hasUserMessage(): boolean { return this._eventId.isResolved; }
+
 	markCompleted(): void { this._state = 'completed'; }
 	markAborted(): void { this._state = 'aborted'; }
 
@@ -1240,6 +1249,7 @@ class CopilotTurn extends Disposable {
 		this.sdkTurnIds.clear();
 		this.interactionIds.clear();
 		this.activeSdkTurnId = undefined;
+		void this.sendReturned.complete();
 		if (!this._eventId.isSettled) {
 			this._eventId.error(new Error(`Turn ${this.id} was disposed before its SDK event id was recorded`));
 		}
@@ -2450,6 +2460,8 @@ export class CopilotAgentSession extends Disposable {
 	private _unshownManagedPluginFailure: string | undefined;
 	/** Root hook failures reported while no turn could show them; shown in the next sent turn. */
 	private _unshownHookFailures: SystemNotificationResponsePart[] = [];
+	/** A prompt block that arrived before its `session.send` returned. */
+	private _earlyPromptBlock: { readonly messageId: string; readonly reason: string } | undefined;
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
 	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
@@ -7158,6 +7170,8 @@ export class CopilotAgentSession extends Disposable {
 			this._hostInstructions = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
+		} finally {
+			void turn?.sendReturned.complete();
 		}
 	}
 
@@ -7531,8 +7545,9 @@ export class CopilotAgentSession extends Disposable {
 						messages: [{ prompt }],
 						requestHeaders: { Authorization: '******' },
 					});
+					return undefined;
 				} else {
-					await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
+					return await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
 				}
 			});
 		}), sendingTurn, abortToken, sendingTurn);
@@ -7540,6 +7555,13 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+		if (sendingTurn && typeof execution.value === 'string') {
+			sendingTurn.sentMessageId = execution.value;
+			if (this._earlyPromptBlock?.messageId === execution.value) {
+				this._showPromptBlock(sendingTurn, this._earlyPromptBlock.reason);
+				this._earlyPromptBlock = undefined;
+			}
+		}
 	}
 
 	private _rewriteMcpSkillReferences(prompt: string): string {
@@ -12342,6 +12364,14 @@ export class CopilotAgentSession extends Disposable {
 					return;
 				}
 			}
+			// A block can arrive with its idle before the send it belongs to returns; let the send show it before the turn ends.
+			if (this._earlyPromptBlock && turn.sentMessageId === undefined && !turn.hasUserMessage) {
+				const abortToken = this._abortToken;
+				await turn.sendReturned.p;
+				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+					return;
+				}
+			}
 			this._completeActiveRepoInfoTelemetry();
 			const steeredFromTurnContext = this.turnInteractionCorrelation.getSteeringContext(turn.id);
 			this._completeActiveTurn();
@@ -14074,6 +14104,21 @@ export class CopilotAgentSession extends Disposable {
 		this._unshownHookFailures.push(part);
 	}
 
+	/**
+	 * Shows the reason a hook blocked a turn's prompt in that turn, while it is
+	 * still the active turn. The block names the runtime request it belongs to,
+	 * which for a steering message is the running turn's request, so it is
+	 * shown only on a turn whose own prompt never reached the runtime as a
+	 * `user.message`: a blocked prompt is never echoed.
+	 */
+	private _showPromptBlock(turn: CopilotTurn, reason: string): void {
+		if (turn !== this._currentTurn.value || turn.hasUserMessage) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Not showing a hook's prompt block on turn ${turn.id}: it is not this turn's own prompt, or the turn has ended`);
+			return;
+		}
+		this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: createPromptBlockedNotification(reason) }, undefined, true);
+	}
+
 	/** Shows root hook failures that were reported while no turn could show them. */
 	private _showUnshownHookFailures(): void {
 		const turn = this._currentTurn.value;
@@ -14640,6 +14685,15 @@ export class CopilotAgentSession extends Disposable {
 				// The runtime reports no completion when a plugin fails: the others are installed and the failed ones are now listed as not installed.
 				this._slashCommandProvider.clearCache();
 				this._onDidChangeRuntimePlugins.fire();
+			}
+			if (e.data.warningType === PROMPT_BLOCKED_WARNING_TYPE && !e.agentId && e.data.originatingMessageId) {
+				const turn = this._currentTurn.value;
+				if (turn?.sentMessageId === e.data.originatingMessageId) {
+					this._showPromptBlock(turn, e.data.message);
+				} else {
+					// Its send may not have returned yet; a block for another request, such as a steering message, is never matched.
+					this._earlyPromptBlock = { messageId: e.data.originatingMessageId, reason: e.data.message };
+				}
 			}
 		}));
 

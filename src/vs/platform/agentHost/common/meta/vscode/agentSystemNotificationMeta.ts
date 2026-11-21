@@ -41,16 +41,19 @@ export const enum AgentSystemNotificationKind {
 export const enum AgentHookOutcome {
 	/** The hook could not start or exited with an error. */
 	Failed = 'failed',
+	/** A hook blocked the prompt of the turn the notification is in; its message is the hook's reason. */
+	Blocked = 'blocked',
 }
 
 const knownHookOutcomes: ReadonlySet<string> = new Set<string>([
 	AgentHookOutcome.Failed,
+	AgentHookOutcome.Blocked,
 ]);
 
 /** Identifies the hook a {@link AgentSystemNotificationKind.Hook} notification reports. */
 export interface IAgentSystemNotificationHookMeta {
-	/** The hook event as named by the provider, for example `sessionStart` or `preToolUse`. */
-	readonly type: string;
+	/** The hook event as named by the provider, for example `sessionStart` or `preToolUse`, when the provider reports it. */
+	readonly type?: string;
 	readonly outcome: AgentHookOutcome;
 	/** Where the hook was loaded from, such as its hook file, when the provider reports it. */
 	readonly source?: string;
@@ -65,6 +68,8 @@ export const enum AgentSystemNotificationWorkspaceKind {
 
 export const enum AgentSystemNotificationSeverity {
 	Warning = 'warning',
+	/** Something stopped the user's request, such as a hook blocking the prompt. */
+	Error = 'error',
 }
 
 export type AgentFusionProgressStatus = 'selected' | 'completed' | 'failed' | 'cancelled' | 'degraded';
@@ -125,7 +130,7 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	const hook = readHookMeta(meta.hook);
 	return {
 		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
-		severity: meta.severity === AgentSystemNotificationSeverity.Warning ? meta.severity : undefined,
+		severity: meta.severity === AgentSystemNotificationSeverity.Warning || meta.severity === AgentSystemNotificationSeverity.Error ? meta.severity : undefined,
 		workspaceKind: workspaceKind === AgentSystemNotificationWorkspaceKind.Folder || workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? workspaceKind : undefined,
 		workspaceName: typeof meta.workspaceName === 'string' ? meta.workspaceName : undefined,
 		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
@@ -139,11 +144,11 @@ function readHookMeta(value: unknown): IAgentSystemNotificationHookMeta | undefi
 		return undefined;
 	}
 	const { type, outcome, source, message } = value as Record<string, unknown>;
-	if (typeof type !== 'string' || !type || typeof outcome !== 'string' || !knownHookOutcomes.has(outcome)) {
+	if (typeof outcome !== 'string' || !knownHookOutcomes.has(outcome)) {
 		return undefined;
 	}
 	return {
-		type,
+		...(typeof type === 'string' && type ? { type } : {}),
 		outcome: outcome as AgentHookOutcome,
 		...(typeof source === 'string' && source ? { source } : {}),
 		...(typeof message === 'string' && message ? { message } : {}),

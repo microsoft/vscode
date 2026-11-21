@@ -788,6 +788,10 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		case AgentSystemNotificationKind.ModelRouterSuggestion:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.lightbulb, alwaysVisible: true };
 		case AgentSystemNotificationKind.Hook:
+			if (meta.hook?.outcome === AgentHookOutcome.Blocked) {
+				// An error, since the prompt never reached the model, and shown even with hook warnings off: it is the only answer to the user's prompt.
+				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true, isError: true };
+			}
 			if (meta.hook?.outcome !== AgentHookOutcome.Failed) {
 				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
 			}
@@ -822,7 +826,7 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 
 /** Names the hook with its Local harness label, since Copilot names hook events as in its hook files (`sessionStart`). */
 function formatHookFailure(hook: IAgentSystemNotificationHookMeta, hostText: string): string {
-	const label = getCopilotHookLabel(hook.type);
+	const label = hook.type && getCopilotHookLabel(hook.type);
 	return label && hook.source && hook.message
 		? localize('agentHost.hookFailed', "The {0} hook from {1} failed: {2}", label, hook.source, hook.message)
 		: hostText;
