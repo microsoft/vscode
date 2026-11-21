@@ -260,7 +260,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			false,
-			'ine2'
+			['ine2', '']
 		);
 	});
 
@@ -272,7 +272,38 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			['ine2', 'line3\n']
+			['ine2', '']
+		);
+	});
+
+	test('issue #349021: Multi-cursor copy with mixed empty and non-empty selections copies only selected text', () => {
+		const text = [
+			'> Here\'s some text...',
+			'> ',
+			'> Some more text...',
+			'> Even more text...',
+			'> ',
+			'> The end of the text.'
+		];
+		assertGetPlainTextToCopy(
+			text,
+			[
+				new Range(1, 3, 1, 23),
+				new Range(2, 3, 2, 3),
+				new Range(3, 3, 3, 21),
+				new Range(4, 3, 4, 21),
+				new Range(5, 3, 5, 3),
+				new Range(6, 3, 6, 25),
+			],
+			true,
+			[
+				'Here\'s some text...',
+				'',
+				'Some more text...',
+				'Even more text...',
+				'',
+				'The end of the text.'
+			]
 		);
 	});
 
