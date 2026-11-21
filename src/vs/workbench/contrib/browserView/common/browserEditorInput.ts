@@ -19,7 +19,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
+import { IntegratedBrowserOpenSource, logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -382,10 +382,10 @@ export class BrowserEditorInput extends EditorInput {
 
 	/**
 	 * Creates a copy of this browser editor input with a new unique ID, creating an independent browser view with no linked state.
-	 * This is used during Copy into New Window.
+	 * Used by Duplicate Tab and Copy into New Window.
 	 */
-	override copy(): EditorInput {
-		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
+	override copy(source: IntegratedBrowserOpenSource = 'copyToNewWindow'): EditorInput {
+		logBrowserOpen(this.telemetryService, source);
 
 		return this.browserViewWorkbenchService.getOrCreateLazy({
 			id: generateUuid(),
