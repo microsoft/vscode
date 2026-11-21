@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createHash } from 'crypto';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -401,7 +402,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: 'waitingOnUser',
 			isExpected: true,
 			blockedOn: SessionInputRequestKind.ToolConfirmation,
-			toolId: 'write',
+			toolId: createHash('sha256').update('write').digest('hex'),
 			toolSourceKind: 'agentHost',
 			inFlightToolCallCount: 1,
 		}]);
@@ -788,7 +789,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: 'runningTool',
 			isExpected: true,
 			blockedOn: undefined,
-			toolId: 'run_tests',
+			toolId: createHash('sha256').update('run_tests').digest('hex'),
 			toolSourceKind: 'client',
 			inFlightToolCallCount: 1,
 		}]);
@@ -827,7 +828,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			toolId: e.data.toolId,
 			toolSourceKind: e.data.toolSourceKind,
-		})), [{ toolId: 'lookup', toolSourceKind: 'mcp' }]);
+		})), [{ toolId: createHash('sha256').update('lookup').digest('hex'), toolSourceKind: 'mcp' }]);
 	}));
 
 	test('names the tool the blocker gates, not another tool that happens to be running', () => runWithFakedTimers({}, async () => {
@@ -849,7 +850,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [{
 			hangReason: 'waitingOnUser',
-			toolId: 'write',
+			toolId: createHash('sha256').update('write').digest('hex'),
 			inFlightToolCallCount: 2,
 		}]);
 	}));
