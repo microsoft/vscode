@@ -230,8 +230,8 @@ suite('AgentCustomizationItemProvider', () => {
 	}
 
 	test('reports hook load problems as section notices without marking the hooks that loaded', async () => {
-		const loadProblem = (id: string, name: string, load: Extract<Customization, { type: CustomizationType.Directory }>['load']): Customization => ({
-			type: CustomizationType.Directory, id, uri: `agent-discovery://copilot/${id}`, name, contents: CustomizationType.Hook, enabled: true, writable: false, children: [], load,
+		const loadProblem = (id: string, name: string, load: Extract<Customization, { type: CustomizationType.Directory }>['load'], enabled = true): Customization => ({
+			type: CustomizationType.Directory, id, uri: `agent-discovery://copilot/${id}`, name, contents: CustomizationType.Hook, enabled, writable: false, children: [], load,
 		});
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
@@ -245,6 +245,8 @@ suite('AgentCustomizationItemProvider', () => {
 					// A failed discovery, as published by another host.
 					loadProblem('other-host-hooks', 'Couldn\'t load hooks', { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' }),
 					loadProblem('hooks/empty', 'Empty', { kind: CustomizationLoadStatus.Loaded }),
+					// A disabled directory without hooks explains why hooks won't run, so it stays a row.
+					loadProblem('hooks/turnedOff', 'Hooks turned off', { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run because hooks are turned off.' }, false),
 				];
 			}
 		}
@@ -259,7 +261,10 @@ suite('AgentCustomizationItemProvider', () => {
 			hookNotices: await provider.provideSectionNotices(session, PromptsType.hook),
 			skillNotices: await provider.provideSectionNotices(session, PromptsType.skill),
 		}, {
-			items: [{ name: 'Pre-Tool Use', status: 'loaded', message: undefined, enabled: true }],
+			items: [
+				{ name: 'Pre-Tool Use', status: 'loaded', message: undefined, enabled: true },
+				{ name: 'Hooks turned off', status: 'degraded', message: 'Won\'t run because hooks are turned off.', enabled: false },
+			],
 			hookNotices: [
 				{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' },
 				{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' },
