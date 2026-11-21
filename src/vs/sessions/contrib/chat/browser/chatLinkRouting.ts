@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { parseOpenSessionLinkTurnId } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { revealChatRequest } from '../../../../workbench/contrib/chat/browser/widget/chatRequestReveal.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
@@ -53,4 +59,22 @@ export async function openLinkedChatInChatWindow(chatWindowService: IChatWindowS
 		return false;
 	}
 	return !!await chatWindowService.open(chatResource, { window: source.window, exactChat: true, ...(openToSide ? { beside: source.chat } : { tabOf: source.chat }) });
+}
+
+/**
+ * Scrolls the opened chat of a link to the request its `turn` names, until the returned disposable cancels it. A turn
+ * the chat no longer shows, for example after its history was cleared, leaves the chat where it opened.
+ */
+export function revealLinkedTurn(chatWidgetService: IChatWidgetService, logService: ILogService, link: URI | string, chatResource: URI): IDisposable {
+	const turnId = parseOpenSessionLinkTurnId(link);
+	if (!turnId) {
+		return Disposable.None;
+	}
+	const cancellation = new CancellationTokenSource();
+	void revealChatRequest(chatWidgetService, () => chatWidgetService.getWidgetBySessionResource(chatResource), turnId, cancellation.token).then(revealed => {
+		if (!revealed && !cancellation.token.isCancellationRequested) {
+			logService.trace(`[ChatLinkRouting] The linked request ${turnId} did not appear in ${chatResource.toString()}`);
+		}
+	});
+	return toDisposable(() => cancellation.dispose(true));
 }
