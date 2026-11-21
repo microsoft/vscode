@@ -70,14 +70,14 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 
 	const segments: string[] = [];
 
-	let inBraces = false;
+	let inBraces = 0;
 	let inBrackets = false;
 
 	let curVal = '';
 	for (const char of pattern) {
 		switch (char) {
 			case splitChar:
-				if (!inBraces && !inBrackets) {
+				if (inBraces === 0 && !inBrackets) {
 					segments.push(curVal);
 					curVal = '';
 
@@ -85,10 +85,14 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 				}
 				break;
 			case '{':
-				inBraces = true;
+				if (!inBrackets) {
+					inBraces++;
+				}
 				break;
 			case '}':
-				inBraces = false;
+				if (!inBrackets && inBraces > 0) {
+					inBraces--;
+				}
 				break;
 			case '[':
 				inBrackets = true;
@@ -144,8 +148,10 @@ function parseRegExp(pattern: string): string {
 			else {
 
 				// States
-				let inBraces = false;
+				let braceDepth = 0;
 				let braceVal = '';
+				let inBracketsInBraces = false;
+				let bracketValInBraces = '';
 
 				let inBrackets = false;
 				let bracketVal = '';
@@ -153,9 +159,47 @@ function parseRegExp(pattern: string): string {
 				for (const char of segment) {
 
 					// Support brace expansion
-					if (char !== '}' && inBraces) {
-						braceVal += char;
-						continue;
+					if (braceDepth > 0) {
+						if (inBracketsInBraces && (char !== ']' || !bracketValInBraces)) {
+							bracketValInBraces += char;
+							braceVal += char;
+							continue;
+						}
+
+						if (char === '[') {
+							inBracketsInBraces = true;
+							bracketValInBraces = '';
+							braceVal += '[';
+							continue;
+						} else if (char === ']') {
+							inBracketsInBraces = false;
+							bracketValInBraces = '';
+							braceVal += ']';
+							continue;
+						} else if (char === '{') {
+							braceDepth++;
+							braceVal += '{';
+							continue;
+						} else if (char === '}') {
+							braceDepth--;
+							if (braceDepth === 0) {
+								const choices = splitGlobAware(braceVal, ',');
+
+								// Converts {foo,bar} => [foo|bar]
+								const braceRegExp = `(?:${choices.map(choice => parseRegExp(choice)).join('|')})`;
+
+								regEx += braceRegExp;
+								braceVal = '';
+								inBracketsInBraces = false;
+								bracketValInBraces = '';
+							} else {
+								braceVal += '}';
+							}
+							continue;
+						} else {
+							braceVal += char;
+							continue;
+						}
 					}
 
 					// Support brackets
@@ -189,26 +233,12 @@ function parseRegExp(pattern: string): string {
 
 					switch (char) {
 						case '{':
-							inBraces = true;
+							braceDepth = 1;
 							continue;
 
 						case '[':
 							inBrackets = true;
 							continue;
-
-						case '}': {
-							const choices = splitGlobAware(braceVal, ',');
-
-							// Converts {foo,bar} => [foo|bar]
-							const braceRegExp = `(?:${choices.map(choice => parseRegExp(choice)).join('|')})`;
-
-							regEx += braceRegExp;
-
-							inBraces = false;
-							braceVal = '';
-
-							break;
-						}
 
 						case ']': {
 							regEx += ('[' + bracketVal + ']');
