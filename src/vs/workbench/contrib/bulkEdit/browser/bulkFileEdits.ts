@@ -78,7 +78,7 @@ class RenameOperation implements IFileOperation {
 		}
 
 		await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
-		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
+		return new RenameOperation(undoes.reverse(), { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
 	toString(): string {
@@ -316,6 +316,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 	}
 
 	private async _reverse() {
+		this.operations.reverse();
 		for (let i = 0; i < this.operations.length; i++) {
 			const op = this.operations[i];
 			const undo = await op.perform(CancellationToken.None);
