@@ -9,6 +9,7 @@ import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as Workbenc
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { UnfocusedViewDimmingContribution } from './unfocusedViewDimmingContribution.js';
+import { FocusFollowsMouseContribution } from './focusFollowsMouseContribution.js';
 import { AccessibilityStatus } from './accessibilityStatus.js';
 import { EditorAccessibilityHelpContribution } from './editorAccessibilityHelp.js';
 import { SaveAccessibilitySignalContribution } from '../../accessibilitySignals/browser/saveAccessibilitySignal.js';
@@ -37,3 +38,4 @@ registerWorkbenchContribution2(SaveAccessibilitySignalContribution.ID, SaveAcces
 registerWorkbenchContribution2(SpeechAccessibilitySignalContribution.ID, SpeechAccessibilitySignalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(DiffEditorActiveAnnouncementContribution.ID, DiffEditorActiveAnnouncementContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(DynamicSpeechAccessibilityConfiguration.ID, DynamicSpeechAccessibilityConfiguration, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(FocusFollowsMouseContribution.ID, FocusFollowsMouseContribution, WorkbenchPhase.AfterRestored);
