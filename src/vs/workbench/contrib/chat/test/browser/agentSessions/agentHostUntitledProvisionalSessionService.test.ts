@@ -33,6 +33,8 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, StateComponents, TurnState, type AgentInfo, type ComponentToState, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -268,6 +270,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let warnings: string[];
 	let importStore: AgentHostImportConversationStore;
 	let provisional: AgentHostUntitledProvisionalSessionService;
+	let lifecycleService: TestLifecycleService;
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
@@ -371,6 +374,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trustCheck ? await trustCheck.p : !untrustedFolders.has(uri.toString()) }; }
 		});
 		insta.stub(IUriIdentityService, { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService);
+		lifecycleService = ds.add(new TestLifecycleService());
+		insta.stub(ILifecycleService, lifecycleService);
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		importStore = new AgentHostImportConversationStore();
@@ -564,6 +569,23 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			created: [backend?.toString()],
 			disposed: [backend?.toString()],
 			mapping: undefined,
+		});
+	});
+
+	test('a draft\'s backend is disposed once, as the window shuts down rather than as the service disposes', async () => {
+		const backend = await provisional.getOrCreate(untitledChatUri('shutdown'), 'copilot', undefined);
+
+		lifecycleService.fireShutdown();
+		await Promise.all(lifecycleService.shutdownJoiners);
+		const disposedOnShutdown = agentHost.disposeAttempts.map(uri => uri.toString());
+		provisional.dispose();
+
+		assert.deepStrictEqual({
+			disposedOnShutdown,
+			disposeAttempts: agentHost.disposeAttempts.map(uri => uri.toString()),
+		}, {
+			disposedOnShutdown: [backend?.toString()],
+			disposeAttempts: [backend?.toString()],
 		});
 	});
 
