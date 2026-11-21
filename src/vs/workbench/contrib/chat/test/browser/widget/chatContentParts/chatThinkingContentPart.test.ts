@@ -1769,6 +1769,18 @@ suite('ChatThinkingContentPart', () => {
 			});
 		}
 
+		test('restores completed reasoning expanded only in Verbose progress and only with text to show', async () => {
+			const isRestoredExpanded = async (verbosity: ChatProgressVerbosity, text: string) => {
+				await mockConfigurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, verbosity);
+				return createPersistentReasoning(createThinkingPart(text), true).expanded.get();
+			};
+			assert.deepStrictEqual({
+				compact: await isRestoredExpanded(ChatProgressVerbosity.Compact, 'Check the renderer.'),
+				verbose: await isRestoredExpanded(ChatProgressVerbosity.Verbose, 'Check the renderer.'),
+				verboseWithoutText: await isRestoredExpanded(ChatProgressVerbosity.Verbose, ''),
+			}, { compact: false, verbose: true, verboseWithoutText: false });
+		});
+
 		test('a heading without a body remains available through the completed disclosure', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Reviewed the implementation**'));
 			part.finalizeTitleIfDefault();
