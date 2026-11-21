@@ -502,7 +502,7 @@ export const enum ExtensionGalleryErrorCode {
 }
 
 export class ExtensionGalleryError extends Error {
-	constructor(message: string, readonly code: ExtensionGalleryErrorCode) {
+	constructor(message: string, readonly code: ExtensionGalleryErrorCode, readonly statusCode?: number) {
 		super(message);
 		this.name = code;
 	}
