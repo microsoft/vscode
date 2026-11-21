@@ -248,6 +248,19 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 }
 
+/**
+ * Sets the label of a pill. The number of a GitHub issue or pull request is the suffix of the
+ * label, which the pill keeps when it shortens the rest of the label to fit.
+ */
+function setAttachmentLabel(label: IResourceLabel, attachment: IChatRequestVariableEntry, name: string, description?: string): void {
+	const reference = attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX) ? /^(?<name>.*\S)(?<number>\s*#\d+)$/.exec(name)?.groups : undefined;
+	if (reference) {
+		label.setLabel(reference.name, description, { suffix: reference.number, extraClasses: ['github-reference'] });
+	} else {
+		label.setLabel(name, description);
+	}
+}
+
 function modelSupportsVision(currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined) {
 	return isAutoLanguageModel(currentLanguageModel) || (currentLanguageModel?.metadata.capabilities?.vision ?? false);
 }
@@ -982,7 +995,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 				icon.style.color = asCssVariable(attachment.icon.color.id);
 			}
 			this.element.insertBefore(icon, this.label.element);
-			this.label.setLabel(attachment.name);
+			setAttachmentLabel(this.label, attachment, attachment.name);
 		} else {
 			this.label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 		}
@@ -1166,7 +1179,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this.label.setLabel(attachmentLabel, description, { iconPath: resolvedIcon });
 		} else {
 			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-			this.label.setLabel(withIcon, description);
+			setAttachmentLabel(this.label, attachment, withIcon, description);
 		}
 	}
 
