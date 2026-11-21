@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarker, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { Range } from '../../../../common/core/range.js';
 import { IMarkerDecorationsService } from '../../../../common/services/markerDecorations.js';
@@ -19,8 +21,32 @@ import { MarkerHover, MarkerHoverParticipant } from '../../browser/markerHoverPa
 suite('Marker Hover Participant', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('includes severity and plain text in accessible Markdown diagnostics', () => {
+		withTestCodeEditor('some text', { readOnly: true }, (editor, _viewModel, instantiationService) => {
+			instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+			instantiationService.stub(IMarkerDecorationsService, {});
+			instantiationService.stub(IMenuService, { getMenuActions: () => [] });
+			const participant = instantiationService.createInstance(MarkerHoverParticipant, editor);
+			const message = new MarkdownString('**Markdown diagnostic**', { plainTextValue: 'Plain text diagnostic' });
+			const marker: IMarker = {
+				owner: 'test',
+				resource: editor.getModel().uri,
+				severity: MarkerSeverity.Warning,
+				message,
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 1,
+				endColumn: 5
+			};
+			const hoverPart = new MarkerHover(participant, Range.lift(marker), [message], marker);
+
+			assert.strictEqual(participant.getAccessibleContent(hoverPart), 'Warning: Plain text diagnostic');
+		});
+	});
+
 	test('renders diagnostics by severity without changing equal-severity order or input', () => {
 		withTestCodeEditor('void foo(List<(baz)> l) {}', { readOnly: true }, (editor, _viewModel, instantiationService) => {
+			instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 			instantiationService.stub(IMarkerDecorationsService, {});
 			instantiationService.stub(IMenuService, { getMenuActions: () => [] });
 			const participant = instantiationService.createInstance(MarkerHoverParticipant, editor);
@@ -35,7 +61,7 @@ suite('Marker Hover Participant', () => {
 					endLineNumber: 1,
 					endColumn: 15
 				};
-				return new MarkerHover(participant, Range.lift(marker), marker);
+				return new MarkerHover(participant, Range.lift(marker), [], marker);
 			};
 			const hoverParts = [
 				createHover(MarkerSeverity.Hint, 'Hint diagnostic', 10),
@@ -81,6 +107,7 @@ suite('Marker Hover Participant', () => {
 
 	test('preserves a single diagnostic with multiline text, code and related information', () => {
 		withTestCodeEditor('some text', { readOnly: true }, (editor, _viewModel, instantiationService) => {
+			instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 			instantiationService.stub(IMarkerDecorationsService, {});
 			instantiationService.stub(IMenuService, { getMenuActions: () => [] });
 			const participant = instantiationService.createInstance(MarkerHoverParticipant, editor);
@@ -104,7 +131,7 @@ suite('Marker Hover Participant', () => {
 					endColumn: 6
 				}]
 			};
-			const hoverPart = new MarkerHover(participant, Range.lift(marker), marker);
+			const hoverPart = new MarkerHover(participant, Range.lift(marker), [], marker);
 			const context: IEditorHoverRenderContext = {
 				fragment: mainWindow.document.createDocumentFragment(),
 				statusBar: store.add(instantiationService.createInstance(EditorHoverStatusBar)),

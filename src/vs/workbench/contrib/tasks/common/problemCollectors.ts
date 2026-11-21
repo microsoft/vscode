@@ -11,7 +11,7 @@ import { IDisposable, DisposableStore, Disposable } from '../../../../base/commo
 import { IModelService } from '../../../../editor/common/services/model.js';
 
 import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from './problemMatcher.js';
-import { IMarkerService, IMarkerData, MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarkerService, IMarkerData, MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -294,7 +294,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		let existingMarker;
 		if (!markersPerResource.has(key)) {
 			markersPerResource.set(key, marker);
-		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && (existingMarker.message.length < marker.message.length) && isWindows) {
+		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && (getMarkerMessageText(existingMarker.message).length < getMarkerMessageText(marker.message).length) && isWindows) {
 			// Most likely https://github.com/microsoft/vscode/issues/77475
 			// Heuristic dictates that when the key is the same and message is smaller, we have hit this limitation.
 			markersPerResource.set(key, marker);
