@@ -11,7 +11,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
@@ -37,7 +36,6 @@ class NewSessionViewV3TourContribution extends Disposable implements IWorkbenchC
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
-		@IGitService gitService: IGitService,
 		@IFileService fileService: IFileService,
 		@IGitHubService gitHubService: IGitHubService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -61,7 +59,6 @@ class NewSessionViewV3TourContribution extends Disposable implements IWorkbenchC
 			configurationService,
 			mainWindowSession,
 			this._newSessionComposerService,
-			gitService,
 			fileService,
 			gitHubService,
 			telemetryService,
