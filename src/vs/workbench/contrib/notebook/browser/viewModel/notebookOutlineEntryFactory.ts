@@ -28,21 +28,6 @@ type entryDesc = {
 	kind: SymbolKind;
 };
 
-function getMarkdownHeadersInCellFallbackToHtmlTags(fullContent: string) {
-	const headers = Array.from(getMarkdownHeadersInCell(fullContent));
-	if (headers.length) {
-		return headers;
-	}
-	// no markdown syntax headers, try to find html tags
-	const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
-	if (match) {
-		const level = parseInt(match[1]);
-		const text = match[2].trim();
-		headers.push({ depth: level, text });
-	}
-	return headers;
-}
-
 export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
 
 export interface INotebookOutlineEntryFactory {
@@ -78,7 +63,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 		if (isMarkdown) {
 			const fullContent = cell.getText().substring(0, 10000);
 			const cache = this.cachedMarkdownOutlineEntries.get(cell);
-			const headers = cache?.alternativeId === cell.getAlternativeId() ? cache.headers : Array.from(getMarkdownHeadersInCellFallbackToHtmlTags(fullContent));
+			const headers = cache?.alternativeId === cell.getAlternativeId() ? cache.headers : Array.from(getMarkdownHeadersInCell(fullContent));
 			this.cachedMarkdownOutlineEntries.set(cell, { alternativeId: cell.getAlternativeId(), headers });
 
 			for (const { depth, text } of headers) {
