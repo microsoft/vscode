@@ -36,8 +36,8 @@ const mockWorkspaceContextService = upcastDeepPartial<IWorkspaceContextService>(
 	}
 });
 
-export function createTestSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, options, {
+export function createTestSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions, debugService?: IDebugService): DebugSession {
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, options, debugService ?? {
 		getViewModel(): any {
 			return {
 				updateViews(): void {
