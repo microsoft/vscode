@@ -217,7 +217,7 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 				cellDiffInfo[i] = { ...diff };
 			}
 		}
-		if (itemsToRemove.size) {
+		if (itemsToRemove.size && !numberOfCellsInserted) {
 			Array.from(itemsToRemove)
 				.filter(diff => typeof diff.originalCellIndex === 'number')
 				.forEach(diff => {
