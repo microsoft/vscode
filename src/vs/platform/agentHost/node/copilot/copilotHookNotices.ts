@@ -38,3 +38,22 @@ export function createHookFailureNotification(data: SessionEventPayload<'hook.en
 		}),
 	};
 }
+
+/** Builds the chat notice for a prompt a hook blocked, carrying the hook's reason. */
+export function createPromptBlockedNotification(reason: string): SystemNotificationResponsePart {
+	return {
+		kind: ResponsePartKind.SystemNotification,
+		content: reason
+			? localize('copilot.hook.blockedPrompt', "A hook blocked this prompt: {0}", reason)
+			: localize('copilot.hook.blockedPromptNoReason', "A hook blocked this prompt."),
+		_meta: toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.Hook,
+			// The prompt never reached the model.
+			severity: AgentSystemNotificationSeverity.Error,
+			hook: {
+				outcome: AgentHookOutcome.Blocked,
+				...(reason ? { message: reason } : {}),
+			},
+		}),
+	};
+}

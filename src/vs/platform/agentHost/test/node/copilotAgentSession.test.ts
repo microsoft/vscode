@@ -12695,6 +12695,54 @@ suite('CopilotAgentSession', () => {
 				{ inStartedTurn: true, type: 'sessionStart' },
 			]);
 		});
+
+		const blockedPrompt = (originatingMessageId: string): SessionEventPayload<'session.warning'>['data'] => ({
+			warningType: 'policy_blocked', message: 'Prompts containing BLOCKME are not allowed', originatingMessageId,
+		});
+		const blockedNotice = (turnId: string) => ({
+			turnId, parentToolCallId: undefined,
+			content: 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed',
+			meta: {
+				kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined,
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed' },
+			},
+		});
+
+		test('shows a blocked prompt\'s reason in the turn whose send returned the blocked message id', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('BLOCKME please', undefined, 'turn-1');
+			mockSession.fire('session.warning', blockedPrompt('message-1'));
+
+			assert.deepStrictEqual(getHookNotices(signals), [blockedNotice('turn-1')]);
+		});
+
+		test('shows a blocked prompt\'s reason that arrives before its send returns', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sendGate = new DeferredPromise<void>();
+			mockSession.sendGate = sendGate.p;
+			mockSession.onSend = () => mockSession.fire('session.warning', blockedPrompt('message-1'));
+			const send = session.send('BLOCKME please', undefined, 'turn-1');
+			await timeout(0);
+			const beforeSendReturned = getHookNotices(signals).length;
+			sendGate.complete();
+			await send;
+
+			assert.deepStrictEqual({ beforeSendReturned, shown: getHookNotices(signals) }, { beforeSendReturned: 0, shown: [blockedNotice('turn-1')] });
+		});
+
+		test('does not show a block on a turn that did not send the blocked message', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('hello', undefined, 'turn-1');
+			// A message this turn did not send, and a block without an id.
+			mockSession.fire('session.warning', blockedPrompt('other-message'));
+			mockSession.fire('session.warning', { warningType: 'policy_blocked', message: 'No id' });
+			mockSession.fire('session.warning', blockedPrompt('message-1'), { agentId: 'agent-1' });
+			// A steering message is blocked under the running turn's request id, after that turn's own prompt was echoed.
+			mockSession.fire('user.message', { content: 'hello' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.warning', blockedPrompt('message-1'));
+
+			assert.deepStrictEqual(getHookNotices(signals), []);
+		});
 	});
 
 	for (const restored of [false, true]) {

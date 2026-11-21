@@ -4835,6 +4835,24 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('shows a prompt a Copilot hook blocked as an error with the host\'s text, even with hook warnings off', () => {
+			const hostText = 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed [x](command:evil)';
+			const blocked = (showHookFailures?: boolean) => systemNotificationToChatPart(hostText, 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error }),
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed [x](command:evil)' },
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return { text: rendered.element.textContent, links: rendered.element.querySelectorAll('a').length, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute, isError: part.isError };
+			};
+			const shown = { text: hostText, links: 0, keepVisibleWhenCollapsed: true, mute: undefined, isError: true };
+
+			assert.deepStrictEqual([summarize(blocked(true)), summarize(blocked(false))], [shown, shown]);
+		});
+
 		test('styles workspace transitions as accessible transcript boundaries', () => {
 			const notice = (workspaceKind: AgentSystemNotificationWorkspaceKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
