@@ -20,6 +20,25 @@ interface IBorderSide {
 }
 
 /**
+ * Text paint an inline decoration (`inlineClassName`) applies to the characters
+ * it covers, as far as the GPU renderer can draw it without changing layout.
+ * Absent fields leave the token's own value.
+ */
+export interface IInlineTextStyle {
+	/** Distinct per resolved class combination; stable until {@link EditorViewDecorationResolver.clear}. */
+	readonly id: number;
+	/** Packed `0xRRGGBBAA`. */
+	readonly foreground?: number;
+	/** Multiplies the foreground alpha (`opacity`, `visibility: hidden`). */
+	readonly opacity?: number;
+	readonly bold?: true;
+	readonly italic?: true;
+}
+
+/** Sentinel parent color: a decoration that sets `color` computes to something else. */
+const INLINE_SENTINEL_COLOR = 'rgb(1, 2, 3)';
+
+/**
  * Resolves the browser's final CSS cascade for content decorations into the
  * narrow typed paint vocabulary supported by `@vscode/editor-view`.
  */
@@ -30,6 +49,13 @@ export class EditorViewDecorationResolver {
 	private readonly _baseline: HTMLElement;
 	private readonly _probe: HTMLElement;
 	private _nextStyleId = 1;
+
+	private readonly _inlineCache = new Map<string, IInlineTextStyle | null>();
+	private readonly _inlineContainer: HTMLElement;
+	private readonly _inlineBaseline: HTMLElement;
+	private readonly _inlineProbe: HTMLElement;
+	private readonly _inlineTokenProbe: HTMLElement;
+	private _nextInlineStyleId = 1;
 
 	constructor(private readonly _editorRoot: HTMLElement) {
 		// Auxiliary documents disallow element creation to preserve the main DOM realm.
@@ -50,11 +76,130 @@ export class EditorViewDecorationResolver {
 		this._probe = document.createElement('div');
 		line.append(this._baseline, this._probe);
 		this._container.append(line);
+
+		// Mirrors a rendered token span, `.view-lines > .view-line > span > span.mtkN`,
+		// so view-line-scoped decoration selectors match. Hidden with opacity, not
+		// visibility, because probes read their own `visibility`.
+		this._inlineContainer = document.createElement('div');
+		this._inlineContainer.className = 'view-lines';
+		this._inlineContainer.style.position = 'absolute';
+		this._inlineContainer.style.opacity = '0';
+		this._inlineContainer.style.pointerEvents = 'none';
+		const inlineLine = document.createElement('div');
+		inlineLine.className = 'view-line';
+		const inlineParent = document.createElement('span');
+		inlineParent.style.color = INLINE_SENTINEL_COLOR;
+		this._inlineBaseline = document.createElement('span');
+		this._inlineProbe = document.createElement('span');
+		this._inlineTokenProbe = document.createElement('span');
+		inlineParent.append(this._inlineBaseline, this._inlineProbe, this._inlineTokenProbe);
+		inlineLine.append(inlineParent);
+		this._inlineContainer.append(inlineLine);
 	}
 
 	public clear(): void {
 		this._cache.clear();
 		this._nextStyleId = 1;
+		this._inlineCache.clear();
+		this._nextInlineStyleId = 1;
+	}
+
+	/**
+	 * Resolve the text paint of a span carrying `className` (one or more inline
+	 * decoration classes) on top of its token classes. Returns `undefined` when
+	 * the classes paint something the renderer can't draw in place yet (boxes,
+	 * text decorations, pseudo-element content) or change the text's width.
+	 */
+	public resolveInlineStyle(className: string): IInlineTextStyle | undefined {
+		const cached = this._inlineCache.get(className);
+		if (cached !== undefined) {
+			return cached ?? undefined;
+		}
+		const resolved = this._readInlineStyle(className);
+		this._inlineCache.set(className, resolved ?? null);
+		return resolved;
+	}
+
+	private _readInlineStyle(className: string): IInlineTextStyle | undefined {
+		const window = this._editorRoot.ownerDocument.defaultView;
+		if (!window) {
+			return undefined;
+		}
+		this._inlineBaseline.className = 'mtk1';
+		this._inlineProbe.className = className;
+		this._inlineTokenProbe.className = `mtk1 ${className}`;
+		this._editorRoot.append(this._inlineContainer);
+		try {
+			const baseline = window.getComputedStyle(this._inlineBaseline);
+			const style = window.getComputedStyle(this._inlineProbe);
+			const tokenStyle = window.getComputedStyle(this._inlineTokenProbe);
+			if (this._hasUnsupportedInlinePaint(style, baseline)
+				|| this._pseudoElementPaints(window.getComputedStyle(this._inlineProbe, '::before'))
+				|| this._pseudoElementPaints(window.getComputedStyle(this._inlineProbe, '::after'))) {
+				return undefined;
+			}
+
+			let foreground: number | undefined;
+			const sentinel = Color.Format.CSS.parse(INLINE_SENTINEL_COLOR);
+			const color = Color.Format.CSS.parse(style.color);
+			// The decoration sets `color`, and its rule wins over token colors
+			// (the DOM span carries both, e.g. `mtk1 bracket-highlighting-0`).
+			if (color && sentinel && !color.equals(sentinel) && style.color === tokenStyle.color) {
+				foreground = this._packColor(color);
+			}
+			let opacity = Number.parseFloat(style.opacity);
+			if (style.visibility !== 'visible') {
+				opacity = 0;
+			}
+			const italic = style.fontStyle !== 'normal' && baseline.fontStyle === 'normal';
+			const bold = Number.parseInt(style.fontWeight, 10) >= 600 && Number.parseInt(baseline.fontWeight, 10) < 600;
+			if (foreground === undefined && !(opacity < 1) && !italic && !bold) {
+				return undefined;
+			}
+			return {
+				id: this._nextInlineStyleId++,
+				...(foreground !== undefined ? { foreground } : {}),
+				...(opacity < 1 ? { opacity: Math.max(0, opacity) } : {}),
+				...(bold ? { bold: true } : {}),
+				...(italic ? { italic: true } : {}),
+			};
+		} finally {
+			this._inlineContainer.remove();
+		}
+	}
+
+	/** Paint or geometry the renderer cannot draw in place of DOM text yet. */
+	private _hasUnsupportedInlinePaint(style: CSSStyleDeclaration, baseline: CSSStyleDeclaration): boolean {
+		if (this._visibleColor(style.backgroundColor)
+			|| style.backgroundImage !== 'none'
+			|| this._hasVisibleBorder(style)
+			|| this._hasVisibleOutline(style)) {
+			return true;
+		}
+		const fontWeight = Number.parseInt(style.fontWeight, 10);
+		if (fontWeight !== 400 && fontWeight !== 700) {
+			return true;
+		}
+		const sides = ['top', 'right', 'bottom', 'left'];
+		return [
+			'display',
+			'font-size',
+			'font-family',
+			'font-variant',
+			'font-stretch',
+			'letter-spacing',
+			'word-spacing',
+			'text-transform',
+			'text-decoration-line',
+			'text-shadow',
+			'box-shadow',
+			'filter',
+			'mix-blend-mode',
+			'vertical-align',
+			'transform',
+			...sides.map(side => `padding-${side}`),
+			...sides.map(side => `margin-${side}`),
+		].some(property => style.getPropertyValue(property) !== baseline.getPropertyValue(property));
 	}
 
 	public ownsContentDecoration(decoration: ViewModelDecoration): boolean {

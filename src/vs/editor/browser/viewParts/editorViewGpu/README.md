@@ -137,13 +137,34 @@ fallback decorations) draw above the GPU text here.
 
 Some of a line's payload depends on more than its own content: gutter labels
 (inserts and deletes renumber the lines below, relative and interval modes
-follow the primary cursor, and `lineNumbers` can change), and, in high-contrast
-themes, selected text. High-contrast themes color selected text with
-`editor.selectionForeground`, as `ViewLine` does with `inline-selected-text`
-spans. The adapter does the same by splitting tokens at selection edges, so no
-renderer API is needed. It records what it sent for each line, and before
-each frame it re-sends visible lines whose label or selected-text ranges
-changed.
+follow the primary cursor, and `lineNumbers` can change), and text paint from
+inline decorations and, in high-contrast themes, the selection. The adapter
+records what it sent for each line, and before each frame it re-sends visible
+lines whose label or text paint changed.
+
+### Inline decorations
+
+Inline decorations (`inlineClassName`) color text: bracket-pair colorization,
+ghost text, inlay-hint labels and extension decorations. For lines in the
+renderer's range, the adapter reads them as `ViewLine` does, including injected
+text, and combines overlapping ones with `LineDecorationsNormalizer`. A hidden
+probe span inside the editor root (`.view-line > span > span.mtk1 …`) asks the
+browser for each class combination's computed style. Color applies only when
+its rule wins over token colors, as in the DOM. Opacity (and
+`visibility: hidden`), italic and bold become token overrides, applied by
+splitting tokens at decoration edges. No renderer API is needed.
+
+Decorations whose CSS the GPU cannot draw in place of DOM text are left out, so
+their text keeps its token paint: backgrounds, borders, outlines, text
+decorations, padding or margins, font size or family, letter spacing, other
+font weights, `display` changes, shadows and filters, and `::before`/`::after`
+content (including `beforeContentClassName`/`afterContentClassName`).
+Width-only injected text is left out too. These need a DOM fallback for the
+affected spans (planned).
+
+High-contrast themes color selected text with `editor.selectionForeground`, as
+`ViewLine` does with `inline-selected-text` spans. It is applied last, over
+inline decorations.
 
 ## Decoration probes in auxiliary windows
 

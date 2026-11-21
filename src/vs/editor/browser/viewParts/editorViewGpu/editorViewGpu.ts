@@ -25,7 +25,10 @@ import { HorizontalPosition, HorizontalRange, LineVisibleRanges, type IViewLines
 import { ViewPart } from '../../view/viewPart.js';
 import { Range } from '../../../common/core/range.js';
 import type { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
-import { EditorViewDecorationResolver } from './editorViewDecorations.js';
+import { EditorViewDecorationResolver, type IInlineTextStyle } from './editorViewDecorations.js';
+import { applyTextStyleRuns, type ITextStyleRun } from './editorViewTextStyles.js';
+import { LineDecoration, LineDecorationsNormalizer } from '../../../common/viewLayout/lineDecorations.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { EditorViewModelSync } from './editorViewModelSync.js';
 import type { IContentDecorationLineRange, IContentDecorationRangeRequest } from '../decorations/decorations.js';
 import type { IEditorViewLineWidthProvider } from '../viewLines/viewLines.js';
@@ -93,6 +96,18 @@ export interface EditorViewGpuCapabilities {
  * `view.ts` can consult it while constructing the view even though the renderer
  * itself initializes asynchronously.
  */
+interface IInlineStyleRun extends ITextStyleRun {
+	readonly style: IInlineTextStyle;
+}
+
+/** Paint applied over a line's tokens; `key` identifies it for change detection. */
+interface ILineTextStyle {
+	/** High-contrast selected ranges, `[start, end, ...]`. */
+	readonly selected: readonly number[];
+	readonly inline: readonly IInlineStyleRun[];
+	readonly key: string;
+}
+
 export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
 	text: true,
 	selection: true,
@@ -146,10 +161,12 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _sentGutterLabels: (string | undefined)[] = [];
 	/** 1-based view lines in the renderer's range with a `lineNumberClassName` decoration. */
 	private _decoratedGutterLines = new Set<number>();
-	/** Selected-text recoloring of each view line as last sent ({@link _selectedTextKey}). */
-	private _sentSelectedText: string[] = [];
-	/** Selected-text key of lines built by `_buildLine`, recorded when they are sent. */
-	private readonly _builtSelectedText = new WeakMap<LineInput, string>();
+	/** Text-style key ({@link ILineTextStyle.key}) of each view line as last sent. */
+	private _sentTextStyle: string[] = [];
+	/** Text-style key of lines built by `_buildLine`, recorded when they are sent. */
+	private readonly _builtTextStyle = new WeakMap<LineInput, string>();
+	/** 1-based view lines whose inline decorations are applied (the renderer's range this frame). */
+	private _styleRange: Range | undefined;
 	/** Current selections in renderer coordinates (0-based line, 0-based UTF-16 column). */
 	private _selections: SelectionInput[] = [];
 	/** 0-based view lines carrying a cursor (deduped), on which the current-line highlight is painted. */
@@ -550,16 +567,69 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Build one view line's `{ text, tokens }` payload from the view model. */
 	private _buildLine(viewLineNumber: number, colorMap: number[], defaultForeground: number): LineInput {
 		const lineData = this._context.viewModel.getViewLineData(viewLineNumber);
-		const selectedText = this._selectedTextRanges(viewLineNumber);
+		const textStyle = this._lineTextStyle(viewLineNumber);
 		const line: LineInput = {
 			text: lineData.content,
-			tokens: this._buildTokens(lineData.tokens, colorMap, defaultForeground, selectedText),
+			tokens: this._buildTokens(lineData.tokens, colorMap, defaultForeground, textStyle),
 			gutterLabel: this._getGutterLabel(viewLineNumber),
 			continuesWithWrappedLine: lineData.continuesWithWrappedLine,
 			fauxIndentLength: lineData.minColumn - 1,
 		};
-		this._builtSelectedText.set(line, selectedText.join());
+		this._builtTextStyle.set(line, textStyle.key);
 		return line;
+	}
+
+	/**
+	 * Paint that inline decorations and the high-contrast selection apply over a
+	 * 1-based view line's tokens. Only lines in the renderer's current range get
+	 * inline styles; others pick them up once they scroll in, through
+	 * {@link _syncLineDerivedState}.
+	 */
+	private _lineTextStyle(viewLineNumber: number): ILineTextStyle {
+		const selected = this._selectedTextRanges(viewLineNumber);
+		const inline = this._inlineStyleRuns(viewLineNumber);
+		return {
+			selected,
+			inline,
+			key: selected.length || inline.length
+				? `${selected.join()}|${inline.map(run => `${run.start}-${run.end}-${run.style.id}`).join()}`
+				: '',
+		};
+	}
+
+	/**
+	 * Inline decorations (`inlineClassName`, including injected text such as ghost
+	 * text and inlay hints) the renderer can paint, as sorted, non-overlapping
+	 * runs. Overlapping decorations combine their classes like the DOM's
+	 * `LineDecorationsNormalizer`, and the browser's cascade resolves each
+	 * combination. Decorations whose CSS needs DOM rendering (boxes, text
+	 * decorations, width changes, pseudo-element content) are left out, so the
+	 * text keeps its token paint.
+	 */
+	private _inlineStyleRuns(viewLineNumber: number): IInlineStyleRun[] {
+		const range = this._styleRange;
+		if (!range || viewLineNumber < range.startLineNumber || viewLineNumber > range.endLineNumber) {
+			return [];
+		}
+		const data = this._context.viewModel.getViewportViewLineRenderingData(range, viewLineNumber);
+		if (data.inlineDecorations.length === 0) {
+			return [];
+		}
+		const decorations = LineDecoration.filter(data.inlineDecorations, viewLineNumber, data.minColumn, data.maxColumn)
+			.filter(decoration => (decoration.type === InlineDecorationType.Regular || decoration.type === InlineDecorationType.RegularAffectingLetterSpacing)
+				&& this._decorationResolver.resolveInlineStyle(decoration.className) !== undefined);
+		if (decorations.length === 0) {
+			return [];
+		}
+		decorations.sort(LineDecoration.compare);
+		const runs: IInlineStyleRun[] = [];
+		for (const segment of LineDecorationsNormalizer.normalize(data.content, decorations)) {
+			const style = this._decorationResolver.resolveInlineStyle(segment.className);
+			if (style) {
+				runs.push({ start: segment.startOffset, end: segment.endOffset + 1, style });
+			}
+		}
+		return runs;
 	}
 
 	/**
@@ -689,16 +759,14 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * Offsets are UTF-16 code-unit offsets into the line content, matching the
 	 * string handed to the renderer.
 	 */
-	private _buildTokens(tokens: IViewLineTokens, colorMap: number[], defaultForeground: number, selectedText: readonly number[] = []): TokenInput[] {
+	private _buildTokens(tokens: IViewLineTokens, colorMap: number[], defaultForeground: number, textStyle?: ILineTextStyle): TokenInput[] {
 		const count = tokens.getCount();
-		const result: TokenInput[] = [];
-		const selectionForeground = selectedText.length ? this._selectionForeground : undefined;
+		let result: TokenInput[] = new Array(count);
 		let start = 0;
-		let range = 0;
 		for (let i = 0; i < count; i++) {
 			const end = tokens.getEndOffset(i);
 			const p = tokens.getPresentation(i);
-			const token: TokenInput = {
+			result[i] = {
 				startColumn: start,
 				endColumn: end,
 				foreground: colorMap[p.foreground] ?? defaultForeground,
@@ -707,24 +775,21 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				underline: p.underline,
 				strikethrough: p.strikethrough,
 			};
-			if (selectionForeground === undefined) {
-				result.push(token);
-			} else {
-				// Split at selection edges, as the DOM splits spans for the
-				// `inline-selected-text` decoration.
-				let column = start;
-				while (column < end) {
-					while (range < selectedText.length && selectedText[range + 1] <= column) {
-						range += 2;
-					}
-					const selectedStart = range < selectedText.length ? selectedText[range] : Infinity;
-					const selected = column >= selectedStart;
-					const pieceEnd = Math.min(end, selected ? selectedText[range + 1] : selectedStart);
-					result.push({ ...token, startColumn: column, endColumn: pieceEnd, foreground: selected ? selectionForeground : token.foreground });
-					column = pieceEnd;
-				}
-			}
 			start = end;
+		}
+		if (textStyle?.inline.length) {
+			result = applyTextStyleRuns(result, textStyle.inline);
+		}
+		if (textStyle?.selected.length) {
+			// Applied last: `inline-selected-text` is the DOM's last decoration class.
+			const foreground = this._selectionForeground;
+			if (foreground !== undefined) {
+				const runs: ITextStyleRun[] = [];
+				for (let i = 0; i < textStyle.selected.length; i += 2) {
+					runs.push({ start: textStyle.selected[i], end: textStyle.selected[i + 1], style: { foreground } });
+				}
+				result = applyTextStyleRuns(result, runs);
+			}
 		}
 		return result;
 	}
@@ -766,7 +831,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			this._editorView!.applyDelta(delta);
 			if (delta.type === 'replaceLines') {
 				this._sentGutterLabels.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => line.gutterLabel));
-				this._sentSelectedText.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => this._builtSelectedText.get(line) ?? ''));
+				this._sentTextStyle.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => this._builtTextStyle.get(line) ?? ''));
 			}
 		} catch (err) {
 			onUnexpectedError(err);
@@ -777,7 +842,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _setLines(lines: LineInput[]): void {
 		this._editorView!.setLines(lines);
 		this._sentGutterLabels = lines.map(line => line.gutterLabel);
-		this._sentSelectedText = lines.map(line => this._builtSelectedText.get(line) ?? '');
+		this._sentTextStyle = lines.map(line => this._builtTextStyle.get(line) ?? '');
 	}
 
 	/**
@@ -806,7 +871,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		};
 		for (let line = start; line < end; line++) {
 			if (this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]
-				|| this._selectedTextRanges(line + 1).join() !== this._sentSelectedText[line]) {
+				|| this._lineTextStyle(line + 1).key !== this._sentTextStyle[line]) {
 				if (runStart < 0) {
 					runStart = line;
 				}
@@ -894,10 +959,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		for (const line of plan.tokenLines) {
 			if (line >= 1 && line <= lineCount) {
-				const selectedText = this._selectedTextRanges(line);
-				const tokens = this._buildTokens(this._context.viewModel.getViewLineData(line).tokens, ctx.colorMap, ctx.defaultForeground, selectedText);
+				const textStyle = this._lineTextStyle(line);
+				const tokens = this._buildTokens(this._context.viewModel.getViewLineData(line).tokens, ctx.colorMap, ctx.defaultForeground, textStyle);
 				this._applyDelta({ type: 'setTokens', line: line - 1, tokens });
-				this._sentSelectedText[line - 1] = selectedText.join();
+				this._sentTextStyle[line - 1] = textStyle.key;
 			}
 		}
 	}
@@ -1093,6 +1158,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		this._editorView.setConfig(this._buildConfig());
+		const styleLines = this._rendererLineRange(scrollTop);
+		this._styleRange = styleLines.start < styleLines.end
+			? new Range(styleLines.start + 1, 1, styleLines.end, this._context.viewModel.getLineMaxColumn(styleLines.end))
+			: undefined;
 		this._updateDecoratedGutterLines(scrollTop);
 		this._syncModel();
 		this._syncLineDerivedState(scrollTop);

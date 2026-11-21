@@ -219,4 +219,66 @@ suite('EditorViewDecorationResolver', () => {
 		assert.strictEqual(cssResolver.resolve(decoration('pseudo-border'), 3), undefined, 'bordered pseudo-element');
 		assert.strictEqual(cssResolver.resolve(decoration('missing-rule'), 3), undefined, 'unknown CSS');
 	});
+
+	test('resolves the text paint inline decorations apply to token spans', () => {
+		const inlineResolver = resolver(`
+			.monaco-editor .mtk1 { color: rgb(200, 200, 200); }
+			.monaco-editor .bracket { color: rgb(255, 215, 0); }
+			.monaco-editor .view-line .ghost { color: rgba(255, 255, 255, 0.5); font-style: italic; }
+			.monaco-editor .strong { font-weight: bold; }
+			.monaco-editor .faded { opacity: 0.25; }
+			.monaco-editor .hidden { visibility: hidden; }
+		`);
+		const style = (className: string) => {
+			const resolved = inlineResolver.resolveInlineStyle(className);
+			return resolved && { ...resolved, id: undefined };
+		};
+
+		assert.deepStrictEqual({
+			bracket: style('bracket'),
+			ghost: style('ghost'),
+			strong: style('strong'),
+			faded: style('faded'),
+			hidden: style('hidden'),
+			combined: style('bracket strong'),
+			unknown: style('missing-rule'),
+		}, {
+			bracket: { id: undefined, foreground: 0xffd700ff },
+			ghost: { id: undefined, foreground: 0xffffff80, italic: true },
+			strong: { id: undefined, bold: true },
+			faded: { id: undefined, opacity: 0.25 },
+			hidden: { id: undefined, opacity: 0 },
+			combined: { id: undefined, foreground: 0xffd700ff, bold: true },
+			unknown: undefined,
+		});
+		assert.strictEqual(inlineResolver.resolveInlineStyle('bracket'), inlineResolver.resolveInlineStyle('bracket'), 'cached');
+		assert.notStrictEqual(inlineResolver.resolveInlineStyle('bracket')!.id, inlineResolver.resolveInlineStyle('strong')!.id);
+	});
+
+	test('keeps the token color when a token rule wins the cascade, as in the DOM', () => {
+		const inlineResolver = resolver(`
+			.monaco-editor .view-lines .view-line .mtk1 { color: rgb(1, 1, 1); }
+			.monaco-editor .loses-to-token { color: rgb(0, 0, 255); }
+			.monaco-editor .view-lines .view-line .wins { color: rgb(0, 255, 0); }
+		`);
+		assert.strictEqual(inlineResolver.resolveInlineStyle('loses-to-token'), undefined);
+		assert.strictEqual(inlineResolver.resolveInlineStyle('wins')?.foreground, 0x00ff00ff);
+	});
+
+	test('leaves inline decorations that need DOM rendering unresolved', () => {
+		const inlineResolver = resolver(`
+			.monaco-editor .chip { color: red; background-color: rgb(40, 40, 40); }
+			.monaco-editor .boxed { color: red; border: 1px solid red; }
+			.monaco-editor .padded { color: red; padding: 0 4px; }
+			.monaco-editor .small { color: red; font-size: 9px; }
+			.monaco-editor .spaced { color: red; letter-spacing: 2px; }
+			.monaco-editor .underlined { color: red; text-decoration: underline; }
+			.monaco-editor .semibold { font-weight: 600; }
+			.monaco-editor .block { color: red; display: inline-block; }
+			.monaco-editor .before::before { content: 'x'; }
+		`);
+		for (const className of ['chip', 'boxed', 'padded', 'small', 'spaced', 'underlined', 'semibold', 'block', 'before']) {
+			assert.strictEqual(inlineResolver.resolveInlineStyle(className), undefined, className);
+		}
+	});
 });
