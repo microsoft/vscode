@@ -212,6 +212,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
 			includeEncryptedThinking: true,
+			configuration: modelCapabilities?.reasoningEffort !== undefined ? { reasoningEffort: modelCapabilities.reasoningEffort } : undefined,
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
 				name: tool.function.name,
 				description: tool.function.description,
