@@ -1069,7 +1069,8 @@ export class NewChatWidget extends Disposable {
 
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._trackScheduledDraftLabel(chatWidgetContent);
-		this._newChatInput.render(chatWidgetContent, parent);
+		const belowInputSurfaces = dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`);
+		this._newChatInput.render(chatWidgetContent, parent, belowInputSurfaces);
 		this._register(autorun(reader => {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
@@ -1079,7 +1080,6 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
-		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
 		const updateBelowInputSurfacesHeight = () => {
 			if (chatWidgetContainer.closest('.phone-layout')) {
 				belowInputSurfaces.style.removeProperty('max-height');
@@ -1101,7 +1101,7 @@ export class NewChatWidget extends Disposable {
 			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
 		}, undefined));
 
-		// The tip, migration notice and worktree suggestion below the input show one at a time, by priority,
+		// The tip, migration notice and worktree suggestion show one at a time, by priority,
 		// and only once the user started enough sessions.
 		const banners = this._register(this.instantiationService.createInstance(NewSessionBanners));
 		const chatTipContainer = dom.$(`.new-session-getting-started-tip.new-session-getting-started-tip-below.chat-getting-started-tip-container.${chatInputStackSlotClass}`);

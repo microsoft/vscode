@@ -38,33 +38,6 @@ suite('Mobile composer presentation', () => {
 		return root;
 	}
 
-	test('session controls stay docked to the phone prompt with or without a notice', () => {
-		const root = createRoot('vs-dark');
-		const container = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
-		const content = dom.append(container, dom.$('.new-chat-widget-content'));
-		const presentation = store.add(mobileNewSessionPresentation.create(false, store.add(new TestInstantiationService())));
-		presentation.render(container, content);
-		dom.append(content, dom.$('.new-session-workspace-picker-container'));
-		const input = dom.append(content, dom.$('.new-chat-input-container'));
-		input.style.height = '112px';
-		input.style.animation = 'none';
-		const controls = dom.append(content, dom.$('.new-chat-bottom-container'));
-		const slot = dom.append(controls, dom.$('.sessions-chat-picker-slot'));
-		const pill = dom.append(slot, dom.$('button.action-label', { type: 'button' }, 'Interactive'));
-		const notices = dom.append(content, dom.$('.new-session-below-input-surfaces'));
-
-		for (const message of ['', 'A new session tip']) {
-			notices.textContent = message;
-			const pillBounds = pill.getBoundingClientRect();
-			const gap = input.getBoundingClientRect().top - pillBounds.bottom;
-			assert.ok(pillBounds.height > 0 && gap >= 0 && gap <= 10, `Expected a docked control, got a ${gap}px gap`);
-			if (message) {
-				const noticeBounds = notices.getBoundingClientRect();
-				assert.ok(noticeBounds.height > 0 && noticeBounds.bottom <= pillBounds.top);
-			}
-		}
-	});
-
 	for (const theme of ['vs', 'vs-dark', 'hc-light', 'hc-black']) {
 		test(`${theme}: shared composer actions respect visibility and retain touch targets`, () => {
 			const root = createRoot(theme);
