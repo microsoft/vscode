@@ -1,0 +1,39 @@
+{
+  "name": "outline-refactor",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.120.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "main": "./out/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "outline.moveSymbol",
+        "title": "%command.moveSymbol%"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node ../../node_modules/typescript/bin/tsc -p ./",
+    "watch": "node ../../node_modules/typescript/bin/tsc -watch -p ./",
+    "test": "npm run compile && node ../../node_modules/mocha/bin/mocha \"out/test/**/*.test.js\""
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
