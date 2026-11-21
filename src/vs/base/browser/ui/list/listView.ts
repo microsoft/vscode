@@ -1057,6 +1057,8 @@ export class ListView<T> implements IListView<T> {
 			const update = (value: CheckBoxAccessibleState) => item.row!.domNode.setAttribute('aria-checked', toAriaState(value));
 			update(checked.value);
 			item.checkedDisposable = checked.onDidChange(() => update(checked.value));
+		} else {
+			item.row.domNode.removeAttribute('aria-checked');
 		}
 
 		if (item.stale || !item.row.domNode.parentElement) {

@@ -5,14 +5,105 @@
 
 import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
-import { ListView } from '../../../../browser/ui/list/listView.js';
+import { CheckBoxAccessibleState, ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { Emitter } from '../../../../common/event.js';
 import { DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('clears aria-checked when a row is recycled for a non-checkable item', () => {
+		const element = document.createElement('div');
+		const listView = store.add(new ListView<CheckBoxAccessibleState | undefined>(element, {
+			getHeight: () => 20,
+			getTemplateId: () => 'template'
+		}, [{
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		}], {
+			accessibilityProvider: {
+				getRole: checked => checked === undefined ? 'option' : 'checkbox',
+				isChecked: checked => checked
+			}
+		}));
+		listView.layout(20);
+		listView.splice(0, 0, [undefined]);
+		const row = listView.domElement(0)!;
+		const checkedStates: (CheckBoxAccessibleState | undefined)[] = [undefined, true, undefined, false, undefined, 'mixed', undefined];
+		const states = checkedStates.map(checked => {
+			listView.splice(0, 1, [checked]);
+			return {
+				reused: listView.domElement(0) === row,
+				checked: row.getAttribute('aria-checked')
+			};
+		});
+
+		assert.deepStrictEqual(states, [
+			{ reused: true, checked: null },
+			{ reused: true, checked: 'true' },
+			{ reused: true, checked: null },
+			{ reused: true, checked: 'false' },
+			{ reused: true, checked: null },
+			{ reused: true, checked: 'mixed' },
+			{ reused: true, checked: null }
+		]);
+	});
+
+	test('clears aria-checked and its listener when scrolling recycles a row', () => {
+		const element = document.createElement('div');
+		const onDidChange = store.add(new Emitter<void>());
+		let checked: CheckBoxAccessibleState = false;
+		const listView = store.add(new ListView<number>(element, {
+			getHeight: () => 20,
+			getTemplateId: () => 'template'
+		}, [{
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		}], {
+			accessibilityProvider: {
+				getRole: item => item === 0 ? 'checkbox' : 'option',
+				isChecked: item => item === 0 ? {
+					get value() { return checked; },
+					onDidChange: onDidChange.event
+				} : undefined
+			}
+		}));
+		listView.layout(20);
+		listView.splice(0, 0, [0, 1]);
+		const row = listView.domElement(0)!;
+		const states = [row.getAttribute('aria-checked')];
+		checked = true;
+		onDidChange.fire();
+		states.push(row.getAttribute('aria-checked'));
+
+		listView.scrollTop = 20;
+		const reused = listView.domElement(1) === row;
+		const listeningWhileRecycled = onDidChange.hasListeners();
+		checked = 'mixed';
+		onDidChange.fire();
+		states.push(row.getAttribute('aria-checked'));
+
+		listView.scrollTop = 0;
+		states.push(row.getAttribute('aria-checked'));
+		checked = false;
+		onDidChange.fire();
+		states.push(row.getAttribute('aria-checked'));
+		listView.dispose();
+
+		assert.deepStrictEqual({ states, reused, listeningWhileRecycled, listeningAfterDisposal: onDidChange.hasListeners() }, {
+			states: ['false', 'true', null, 'mixed', 'false'],
+			reused: true,
+			listeningWhileRecycled: false,
+			listeningAfterDisposal: false
+		});
+	});
 
 	for (const horizontalScrolling of [false, true]) {
 		for (const supportDynamicHeights of [false, true]) {
