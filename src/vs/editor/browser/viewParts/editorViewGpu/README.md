@@ -111,6 +111,18 @@ around zones. The renderer leaves zone rows transparent: zone DOM in the content
 area and the margin stays beneath the opaque canvas everywhere else, but shows
 through at the zone itself.
 
+## Line-dependent state
+
+Some of a line's payload depends on more than its own content: gutter labels
+(inserts and deletes renumber the lines below, relative and interval modes
+follow the primary cursor, and `lineNumbers` can change), and, in high-contrast
+themes, selected text. High-contrast themes color selected text with
+`editor.selectionForeground`, as `ViewLine` does with `inline-selected-text`
+spans. The adapter does the same by splitting tokens at selection edges, so no
+renderer API is needed. It records what it sent for each line, and before
+each frame it re-sends visible lines whose label or selected-text ranges
+changed.
+
 ## Decoration probes in auxiliary windows
 
 Decoration probe elements are created in the main-window DOM realm even when

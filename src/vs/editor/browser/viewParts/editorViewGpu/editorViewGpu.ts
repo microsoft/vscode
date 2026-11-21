@@ -10,7 +10,7 @@ import { Color } from '../../../../base/common/color.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { editorBackground, editorForeground, editorSelectionBackground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorForeground, editorSelectionBackground, editorSelectionForeground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { editorActiveLineNumber, editorGutter, editorGutterFoldingControlForeground, editorLineNumbers, editorLineHighlight, editorLineHighlightBorder, editorInactiveLineHighlight, editorCursorForeground, editorCursorBackground, editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground, editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground, editorWhitespaces, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from '../../../common/core/editorColorRegistry.js';
 import { EditorFontLigatures, EditorOption, editorGpuAcceleration, RenderLineNumbersType, TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from '../../../common/config/editorOptions.js';
@@ -143,6 +143,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _foldingControlsHovered = false;
 	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
 	private _sentGutterLabels: (string | undefined)[] = [];
+	/** Selected-text recoloring of each view line as last sent ({@link _selectedTextKey}). */
+	private _sentSelectedText: string[] = [];
+	/** Selected-text key of lines built by `_buildLine`, recorded when they are sent. */
+	private readonly _builtSelectedText = new WeakMap<LineInput, string>();
 	/** Current selections in renderer coordinates (0-based line, 0-based UTF-16 column). */
 	private _selections: SelectionInput[] = [];
 	/** 0-based view lines carrying a cursor (deduped), on which the current-line highlight is painted. */
@@ -540,13 +544,59 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Build one view line's `{ text, tokens }` payload from the view model. */
 	private _buildLine(viewLineNumber: number, colorMap: number[], defaultForeground: number): LineInput {
 		const lineData = this._context.viewModel.getViewLineData(viewLineNumber);
-		return {
+		const selectedText = this._selectedTextRanges(viewLineNumber);
+		const line: LineInput = {
 			text: lineData.content,
-			tokens: this._buildTokens(lineData.tokens, colorMap, defaultForeground),
+			tokens: this._buildTokens(lineData.tokens, colorMap, defaultForeground, selectedText),
 			gutterLabel: this._getGutterLabel(viewLineNumber),
 			continuesWithWrappedLine: lineData.continuesWithWrappedLine,
 			fauxIndentLength: lineData.minColumn - 1,
 		};
+		this._builtSelectedText.set(line, selectedText.join());
+		return line;
+	}
+
+	/**
+	 * High-contrast themes color selected text with `editor.selectionForeground`
+	 * (`inline-selected-text` in `ViewLine`). Returns the selected 0-based
+	 * `[start, end, ...]` column ranges of a 1-based view line, sorted and
+	 * merged, or none when the theme doesn't recolor selected text.
+	 */
+	private _selectedTextRanges(viewLineNumber: number): number[] {
+		if (!this._selectionForeground || this._selections.length === 0) {
+			return [];
+		}
+		const line = viewLineNumber - 1;
+		const minColumn = this._context.viewModel.getLineMinColumn(viewLineNumber) - 1;
+		const maxColumn = this._context.viewModel.getLineMaxColumn(viewLineNumber) - 1;
+		const ranges: [number, number][] = [];
+		for (const selection of this._selections) {
+			if (selection.endLine < line || selection.startLine > line) {
+				continue;
+			}
+			const start = selection.startLine === line ? selection.startColumn : minColumn;
+			const end = selection.endLine === line ? selection.endColumn : maxColumn;
+			if (start < end) {
+				ranges.push([start, end]);
+			}
+		}
+		ranges.sort((a, b) => a[0] - b[0]);
+		const merged: number[] = [];
+		for (const [start, end] of ranges) {
+			if (merged.length && start <= merged[merged.length - 1]) {
+				merged[merged.length - 1] = Math.max(merged[merged.length - 1], end);
+			} else {
+				merged.push(start, end);
+			}
+		}
+		return merged;
+	}
+
+	/** Packed `editor.selectionForeground` while a high-contrast theme recolors selected text. */
+	private get _selectionForeground(): number | undefined {
+		const theme = this._context.theme;
+		const color = isHighContrast(theme.type) ? theme.getColor(editorSelectionForeground) : undefined;
+		return color && !color.isTransparent() ? this._packColor(color, 0) : undefined;
 	}
 
 	/**
@@ -629,14 +679,16 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * Offsets are UTF-16 code-unit offsets into the line content, matching the
 	 * string handed to the renderer.
 	 */
-	private _buildTokens(tokens: IViewLineTokens, colorMap: number[], defaultForeground: number): TokenInput[] {
+	private _buildTokens(tokens: IViewLineTokens, colorMap: number[], defaultForeground: number, selectedText: readonly number[] = []): TokenInput[] {
 		const count = tokens.getCount();
-		const result: TokenInput[] = new Array(count);
+		const result: TokenInput[] = [];
+		const selectionForeground = selectedText.length ? this._selectionForeground : undefined;
 		let start = 0;
+		let range = 0;
 		for (let i = 0; i < count; i++) {
 			const end = tokens.getEndOffset(i);
 			const p = tokens.getPresentation(i);
-			result[i] = {
+			const token: TokenInput = {
 				startColumn: start,
 				endColumn: end,
 				foreground: colorMap[p.foreground] ?? defaultForeground,
@@ -645,6 +697,23 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				underline: p.underline,
 				strikethrough: p.strikethrough,
 			};
+			if (selectionForeground === undefined) {
+				result.push(token);
+			} else {
+				// Split at selection edges, as the DOM splits spans for the
+				// `inline-selected-text` decoration.
+				let column = start;
+				while (column < end) {
+					while (range < selectedText.length && selectedText[range + 1] <= column) {
+						range += 2;
+					}
+					const selectedStart = range < selectedText.length ? selectedText[range] : Infinity;
+					const selected = column >= selectedStart;
+					const pieceEnd = Math.min(end, selected ? selectedText[range + 1] : selectedStart);
+					result.push({ ...token, startColumn: column, endColumn: pieceEnd, foreground: selected ? selectionForeground : token.foreground });
+					column = pieceEnd;
+				}
+			}
 			start = end;
 		}
 		return result;
@@ -687,6 +756,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			this._editorView!.applyDelta(delta);
 			if (delta.type === 'replaceLines') {
 				this._sentGutterLabels.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => line.gutterLabel));
+				this._sentSelectedText.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => this._builtSelectedText.get(line) ?? ''));
 			}
 		} catch (err) {
 			onUnexpectedError(err);
@@ -697,16 +767,18 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _setLines(lines: LineInput[]): void {
 		this._editorView!.setLines(lines);
 		this._sentGutterLabels = lines.map(line => line.gutterLabel);
+		this._sentSelectedText = lines.map(line => this._builtSelectedText.get(line) ?? '');
 	}
 
 	/**
 	 * Gutter labels depend on other lines (inserts/deletes renumber everything
 	 * below), the primary cursor (relative/interval) and the `lineNumbers`
-	 * option, so a line's stored label can go stale without its content
-	 * changing. Re-send the renderer's visible lines whose label differs, as one
+	 * option, and high-contrast selected-text colors on the selections, so a
+	 * line's stored payload can go stale without its content changing. Re-send
+	 * the renderer's visible lines whose label or selected text differs, as one
 	 * `replaceLines` per contiguous run.
 	 */
-	private _syncGutterLabels(scrollTop: number): void {
+	private _syncLineDerivedState(scrollTop: number): void {
 		const { start, end } = this._rendererLineRange(scrollTop);
 		let ctx: { colorMap: number[]; defaultForeground: number } | undefined;
 		let runStart = -1;
@@ -723,7 +795,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			runStart = -1;
 		};
 		for (let line = start; line < end; line++) {
-			if (this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]) {
+			if (this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]
+				|| this._selectedTextRanges(line + 1).join() !== this._sentSelectedText[line]) {
 				if (runStart < 0) {
 					runStart = line;
 				}
@@ -789,8 +862,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		for (const line of plan.tokenLines) {
 			if (line >= 1 && line <= lineCount) {
-				const tokens = this._buildTokens(this._context.viewModel.getViewLineData(line).tokens, ctx.colorMap, ctx.defaultForeground);
+				const selectedText = this._selectedTextRanges(line);
+				const tokens = this._buildTokens(this._context.viewModel.getViewLineData(line).tokens, ctx.colorMap, ctx.defaultForeground, selectedText);
 				this._applyDelta({ type: 'setTokens', line: line - 1, tokens });
+				this._sentSelectedText[line - 1] = selectedText.join();
 			}
 		}
 	}
@@ -987,7 +1062,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		this._editorView.setConfig(this._buildConfig());
 		this._syncModel();
-		this._syncGutterLabels(scrollTop);
+		this._syncLineDerivedState(scrollTop);
 		this._syncDecorations();
 		this._syncGuides(scrollTop);
 		this._editorView.setViewport({
