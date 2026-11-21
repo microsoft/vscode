@@ -270,6 +270,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private _parentRepositoriesManager: ParentRepositoriesManager;
+	private _parentRepositoryNotificationShown = false;
 	get parentRepositories(): string[] {
 		return this._parentRepositoriesManager.repositories;
 	}
@@ -1288,6 +1289,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private async showParentRepositoryNotification(): Promise<void> {
+		if (this._parentRepositoryNotificationShown) {
+			return;
+		}
+
+		this._parentRepositoryNotificationShown = true;
+
 		const message = this.parentRepositories.length === 1 ?
 			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
 			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
