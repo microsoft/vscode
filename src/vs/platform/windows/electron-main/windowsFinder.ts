@@ -12,6 +12,10 @@ export async function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, loc
 
 	// First check for windows with workspaces that have a parent folder of the provided path opened
 	for (const window of windows) {
+		if (window.config?.isSessionsWindow) {
+			continue; // agents windows are not candidates for opening files externally
+		}
+
 		const workspace = window.openedWorkspace;
 		if (isWorkspaceIdentifier(workspace)) {
 			const resolvedWorkspace = await localWorkspaceResolver(workspace);
@@ -33,7 +37,7 @@ export async function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, loc
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedWorkspace.uri));
+	const singleFolderWindowsOnFilePath = windows.filter(window => !window.config?.isSessionsWindow && isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedWorkspace.uri));
 	if (singleFolderWindowsOnFilePath.length) {
 		return singleFolderWindowsOnFilePath.sort((windowA, windowB) => -((windowA.openedWorkspace as ISingleFolderWorkspaceIdentifier).uri.path.length - (windowB.openedWorkspace as ISingleFolderWorkspaceIdentifier).uri.path.length))[0];
 	}
