@@ -311,7 +311,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}]);
 	});
 
-	test('lists hooks declared in custom agent files for the Copilot runtime, and as not running when a folder is untrusted', async () => {
+	test('lists hooks declared in custom agent files for the Copilot runtime, and as not running when a folder is untrusted or hooks are turned off', async () => {
 		const agentUri = URI.file('/workspace/.github/agents/guard.agent.md');
 		// The client reads host files through the agent host's own file system.
 		const hostAgentUri = toAgentHostUri(agentUri, 'remote');
@@ -342,6 +342,12 @@ suite('AgentCustomizationItemProvider', () => {
 			contents: CustomizationType.Hook, enabled: false, writable: false, load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run until you trust this folder.' },
 			children: [{ type: CustomizationType.Hook, id: 'other', uri: 'file:///other/.github/hooks/a.json', name: 'a.json', enabled: false }],
 		};
+		// With hooks turned off, the host publishes the reason even when it lists no hook files.
+		const turnedOff: Customization = {
+			type: CustomizationType.Directory, id: 'turnedOff', uri: 'agent-discovery://copilot/hooks/turnedOff', name: 'Hooks turned off',
+			contents: CustomizationType.Hook, enabled: false, writable: false, load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run because hooks are turned off in the chat.useHooks setting.' },
+			children: [],
+		};
 		const hookRows = async (customizations: readonly Customization[], listsCustomAgentHooks: boolean) => {
 			class TestCustomizationService extends NullAgentHostCustomizationService {
 				override getWorkingDirectories(): readonly string[] { return ['file:///workspace']; }
@@ -360,10 +366,12 @@ suite('AgentCustomizationItemProvider', () => {
 			copilot: await hookRows([agents], true),
 			otherRuntime: await hookRows([agents], false),
 			untrustedFolder: await hookRows([agents, untrusted], true),
+			hooksTurnedOff: await hookRows([agents, turnedOff], true),
 		}, {
 			copilot: [{ name: 'Session Start', ...running }, { name: 'Session Start', ...running }, { name: 'Pre-Tool Use', ...running }],
 			otherRuntime: [],
 			untrustedFolder: ['Session Start', 'Session Start', 'Pre-Tool Use'].map(name => ({ name, ...running, badge: 'Won\'t run' })),
+			hooksTurnedOff: ['Session Start', 'Session Start', 'Pre-Tool Use'].map(name => ({ name, ...running, badge: 'Won\'t run' })),
 		});
 	});
 

@@ -29,7 +29,7 @@ import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostHooksEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 
@@ -494,6 +494,46 @@ suite('SessionCustomizationDiscovery', () => {
 		}, {
 			allTrusted: [],
 			secondUntrusted: ['/home/.copilot/agents/helper.agent.md', '/second/.github/agents/guard.agent.md'],
+		});
+	});
+
+	test('with chat.useHooks off, lists repository hooks and custom agent files that declare hooks as turned off, and keeps user and policy hooks', async () => {
+		const guard = await seed('/workspace/.github/agents/guard.agent.md', '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const helper = await seed('/home/.copilot/agents/helper.agent.md', '---\nname: helper\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		let changes = 0;
+		disposables.add(discovery.onDidChange(() => changes++));
+		configurationService.updateRootConfig({ [AgentHostHooksEnabledConfigKey]: false });
+		const client = hookDiscoveryClient(async () => ({
+			hooks: [
+				{ id: 'repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, definitionFileUri: URI.file('/workspace/.github/hooks/a.json').toString(), enabled: true },
+				{ id: 'user', hookType: 'sessionStart', origin: 'user', enabled: true },
+				{ id: 'policy', hookType: 'sessionStart', origin: 'policy', enabled: true },
+			], warnings: [], errors: [],
+		}));
+		client.rpc.agents.discover = async () => ({ agents: [guard, helper].map(uri => ({ id: uri.path, name: basename(uri), description: '', path: uri.fsPath, source: 'project' })) }) as unknown as Awaited<ReturnType<CopilotClient['rpc']['agents']['discover']>>;
+		const result = await discovery.discover(client, CancellationToken.None);
+		// Sessions also leave out the hooks of custom agents the host doesn't list, so the reason is published without hooks too.
+		const withoutHooks = await discovery.discover(hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] })), CancellationToken.None);
+		assert.deepStrictEqual({
+			changes,
+			withoutHooks: withoutHooks.find(item => item.uri === 'agent-discovery://copilot/hooks/turnedOff')?.children,
+			directories: result.filter(item => item.contents === CustomizationType.Hook && item.children?.length).map(item => ({
+				enabled: item.type === CustomizationType.Directory ? item.enabled : undefined,
+				load: item.type === CustomizationType.Directory ? item.load : undefined,
+				children: item.children?.map(child => ({ name: child.name, enabled: child.type === CustomizationType.Hook ? child.enabled : undefined, source: readCustomizationDiscoveryMeta(child)?.source })),
+			})),
+		}, {
+			changes: 1,
+			withoutHooks: [],
+			directories: [
+				{ enabled: true, load: { kind: CustomizationLoadStatus.Loaded }, children: [{ name: 'sessionStart', enabled: true, source: 'user' }, { name: 'sessionStart', enabled: true, source: 'policy' }] },
+				{
+					enabled: false,
+					load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run because hooks are turned off in the chat.useHooks setting.' },
+					children: [{ name: 'sessionStart', enabled: false, source: 'repository' }, { name: 'guard.agent.md', enabled: false, source: 'repository' }, { name: 'helper.agent.md', enabled: false, source: 'user' }],
+				},
+			],
 		});
 	});
 
