@@ -212,7 +212,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	}
 
 	public async $computeStringDiff(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<{ edit: ISerializedStringEdit; isCoarse: boolean }> {
-		const result = await computeStringDiffWithMetadata(original, modified, options, algorithm);
+		const result = await computeStringDiffWithMetadata(original, modified, options, algorithm, a => this._resolveLinesDiffComputer(a));
 		return { edit: result.edit.toJson(), isCoarse: result.isCoarse };
 	}
 
@@ -565,7 +565,7 @@ if (typeof importScripts === 'function') {
 function resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
 	switch (algorithm) {
 		case 'legacy': return linesDiffComputers.getLegacy();
-		case 'advanced': return linesDiffComputers.getDefault();
+		case 'advanced': return linesDiffComputers.getAdvanced();
 		case 'advanced-external': return linesDiffComputers.getAdvancedExternal();
 		case 'advanced-wasm': return linesDiffComputers.getAdvancedWasm();
 	}
@@ -579,7 +579,7 @@ export async function computeStringDiff(original: string, modified: string, opti
 }
 
 /** @internal */
-export async function computeStringDiffWithMetadata(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
+export async function computeStringDiffWithMetadata(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName, resolve: (algorithm: DiffAlgorithmName) => ILinesDiffComputer | Promise<ILinesDiffComputer> = resolveLinesDiffComputer): Promise<IStringEditFromDiff> {
 	ensureDependenciesAreSet();
 
 	const originalText = new StringText(original);
@@ -590,15 +590,15 @@ export async function computeStringDiffWithMetadata(original: string, modified: 
 	const diffOptions: ILinesDiffComputerOptions = { ignoreTrimWhitespace: false, maxComputationTimeMs: options.maxComputationTimeMs, computeMoves: false, extendToSubwords: false };
 	if (options.computeRawChanges) {
 		if (algorithm !== 'advanced') {
-			throw new BugIndicatingError('Raw character changes require the built-in advanced diff algorithm.');
+			throw new BugIndicatingError('Raw character changes are only available for the advanced diff algorithm.');
 		}
 		const result = linesDiffComputers.getDefault().computeDiffWithRawChanges(originalLines, modifiedLines, diffOptions);
 		const edit = originalText.getTransformer().getStringEdit(new CoreTextEdit(result.rawChanges.map(change => change.toTextEdit(modifiedText))));
 		return { edit, isCoarse: result.diff.hitTimeout };
 	}
 
-	const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
-	const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, diffOptions);
+	const computeDiff = await resolveLinesDiffComputerWithFallback(algorithm, resolve);
+	const { result } = computeDiff(originalLines, modifiedLines, diffOptions, false);
 
 	const textEdit = DetailedLineRangeMapping.toTextEdit(result.changes, modifiedText);
 	const strEdit = originalText.getTransformer().getStringEdit(textEdit);

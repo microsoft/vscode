@@ -29,6 +29,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { BrowserTextFileService } from '../../browser/browserTextFileService.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { TestEditorWorkerService } from '../../../../../editor/test/common/services/testEditorWorkerService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EndOfLineSequence } from '../../../../../editor/common/model.js';
@@ -904,6 +905,11 @@ suite('Files - TextFileEditorModel', () => {
 });
 
 suite('Files - TextFileEditorModel external changes', () => {
+	// @vscode/diff (behind the 'advanced' diff algorithm) is loaded with a dynamic import() of a node_modules URL,
+	// which is real I/O, not a microtask. Load it before the tests run on fake timers, which would otherwise
+	// advance virtual time while it loads. Remove once npm packages can be imported statically:
+	// https://github.com/microsoft/vscode/issues/349469
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.file('/reconciliation.txt');
 	const baseline = 'first\nmiddle\nlast\n';
