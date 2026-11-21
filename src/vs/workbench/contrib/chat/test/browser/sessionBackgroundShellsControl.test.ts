@@ -354,7 +354,7 @@ suite('SessionBackgroundShellsControl', () => {
 		});
 	}));
 
-	test('shows each shell as its command and status, with Stop beside the command when it can be stopped and a terminal only for live output', () => {
+	test('shows each shell as its command and status, with Stop beside its description, or its command without one, and a terminal only for live output', () => {
 		let terminals = 0;
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override createDetachedTerminal(): Promise<IDetachedTerminalInstance> {
@@ -369,6 +369,7 @@ suite('SessionBackgroundShellsControl', () => {
 			{ id: 'detached', description: 'Watch', command: 'npm run watch', startedAt, attachmentMode: 'detached', stop },
 			{ id: 'streaming', description: 'Serve', command: 'npm start', startedAt, output, stop },
 			{ id: 'unstoppable', description: 'Build', command: 'npm run build', startedAt },
+			{ id: 'undescribed', description: '', command: 'npm run serve', startedAt, attachmentMode: 'detached', stop },
 		]);
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 
@@ -378,18 +379,46 @@ suite('SessionBackgroundShellsControl', () => {
 				return {
 					shown: Array.from(details.children).filter(child => !(isHTMLElement(child) && child.hidden)).map(child => child.className),
 					status: details.querySelector('.chat-terminal-command-decoration')?.getAttribute('aria-label'),
-					stop: Array.from(details.querySelectorAll('.chat-terminal-content-title .action-label'), label => label.getAttribute('aria-label')),
+					titleStop: Array.from(details.querySelectorAll('.chat-background-shell-title .action-label'), label => label.getAttribute('aria-label')),
+					commandStop: Array.from(details.querySelectorAll('.chat-terminal-content-title .action-label'), label => label.getAttribute('aria-label')),
 					output: details.querySelector('.chat-terminal-output-container') !== null,
 				};
 			}),
 			terminals,
 		}, {
 			shells: [
-				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-command'], status: 'Running', stop: ['Stop Shell'], output: false },
-				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-output'], status: 'Running', stop: ['Stop Shell'], output: true },
-				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-command'], status: 'Running', stop: [], output: false },
+				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-command'], status: 'Running', titleStop: ['Stop Shell'], commandStop: [], output: false },
+				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-output'], status: 'Running', titleStop: ['Stop Shell'], commandStop: [], output: true },
+				{ shown: ['chat-background-shell-title', 'chat-terminal-content-part chat-background-shell-command'], status: 'Running', titleStop: [], commandStop: [], output: false },
+				{ shown: ['chat-terminal-content-part chat-background-shell-command'], status: 'Running', titleStop: [], commandStop: ['Stop Shell'], output: false },
 			],
 			terminals: 1,
+		});
+	});
+
+	test('moves Stop between the description and the command as the description comes and goes', () => {
+		const startedAt = new Date(0).toISOString();
+		const stop = async () => true;
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{ id: 'shell', description: 'Serve', command: 'npm start', startedAt, stop }]);
+		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+		const stops = () => {
+			const details = showDetails(control.sections.get()[0].entries[0]);
+			return {
+				title: details.querySelectorAll('.chat-background-shell-title .action-label').length,
+				command: details.querySelectorAll('.chat-terminal-content-title .action-label').length,
+			};
+		};
+		const described = stops();
+		shells.set([{ id: 'shell', description: '', command: 'npm start', startedAt, stop }], undefined);
+		const undescribed = stops();
+		shells.set([{ id: 'shell', description: 'Serve', command: 'npm start', startedAt, stop }], undefined);
+		const describedAgain = stops();
+		shells.set([], undefined);
+
+		assert.deepStrictEqual({ described, undescribed, describedAgain }, {
+			described: { title: 1, command: 0 },
+			undescribed: { title: 0, command: 1 },
+			describedAgain: { title: 1, command: 0 },
 		});
 	});
 
@@ -409,7 +438,7 @@ suite('SessionBackgroundShellsControl', () => {
 		}]);
 		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 		const details = showDetails(control.sections.get()[0].entries[0]);
-		const stop = details.querySelector<HTMLElement>('.chat-terminal-content-title .action-label');
+		const stop = details.querySelector<HTMLElement>('.chat-background-shell-title .action-label');
 		assert.ok(stop);
 
 		stop.click();
