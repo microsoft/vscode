@@ -18,6 +18,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
+	Focused: new RawContextKey<boolean>('parameterHintsFocused', false),
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
