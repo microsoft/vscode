@@ -478,6 +478,21 @@ export class FindModelBoundToEditorModel {
 		return ReplacePattern.fromStaticValue(this._state.replaceString);
 	}
 
+	/**
+	 * Searching forward from the selection start cannot see the text before it, so a lookbehind
+	 * assertion (e.g. `(?<=\n)b`) might not match the selected text although it is a find match.
+	 * Look for the match on the selection within the same range that match discovery uses.
+	 */
+	private _getMatchOnSelection(selection: Selection): FindMatch | null {
+		if (selection.isEmpty() || !this._state.isRegex || this._state.searchString.indexOf('(?<') < 0) {
+			return null;
+		}
+		const model = this._editor.getModel();
+		const searchRange = FindModelBoundToEditorModel._getSearchRange(model, this._decorations.getFindScope());
+		const matches = model.findMatches(this._state.searchString, searchRange, true, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, true, Constants.MAX_SAFE_SMALL_INTEGER);
+		return matches.find(match => selection.equalsRange(match.range)) ?? null;
+	}
+
 	public replace(): void {
 		if (!this._hasMatches()) {
 			return;
@@ -485,7 +500,10 @@ export class FindModelBoundToEditorModel {
 
 		const replacePattern = this._getReplacePattern();
 		const selection = this._editor.getSelection();
-		const nextMatch = this._getNextMatch(selection.getStartPosition(), true, false);
+		let nextMatch = this._getNextMatch(selection.getStartPosition(), true, false);
+		if (!(nextMatch && selection.equalsRange(nextMatch.range))) {
+			nextMatch = this._getMatchOnSelection(selection) ?? nextMatch;
+		}
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
