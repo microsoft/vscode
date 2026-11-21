@@ -38,6 +38,7 @@ import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../pla
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from './editorTypePicker.js';
+import { swallowMiddleClickPaste } from './swallowMiddleClickPaste.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -160,6 +161,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
 
 	private readonly containerToolBarMenuDisposable = this._register(new MutableDisposable());
+	private readonly middleClickPasteGuard = this._register(new MutableDisposable());
 
 	private readonly whenRestoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.whenRestoredPromise.p;
@@ -445,12 +447,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}));
 
-		// Close empty editor group via middle mouse click
+		// Open a new terminal when middle-clicking empty editor group space
 		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
 
-				this.groupsView.removeGroup(this);
+				// Activate this group so the terminal opens here, not in whatever
+				// group was active before the middle-click.
+				this.groupsView.activateGroup(this.id);
+
+				// Swallow the Linux middle-click paste that the browser would
+				// otherwise deliver into the newly focused terminal input.
+				this.middleClickPasteGuard.value = swallowMiddleClickPaste(getWindow(this.element));
+				this.commandService.executeCommand('workbench.action.createTerminalEditor');
 			}
 		}));
 	}
