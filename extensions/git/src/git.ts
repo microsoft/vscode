@@ -367,8 +367,58 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.WorktreeAlreadyExists;
 	} else if (/is already used by worktree at/.test(stderr)) {
 		return GitErrorCodes.WorktreeBranchAlreadyUsed;
+	} else if (getCantRemoveFilePath(stderr) !== undefined) {
+		return GitErrorCodes.CantRemoveFile;
 	}
 	return undefined;
+}
+
+// https://github.com/microsoft/vscode/issues/114374
+// Git cannot remove or replace a file, usually because another application
+// has it open (on Windows, for example). `git clean` reports this as
+// "warning: failed to remove <path>: <reason>" and `git checkout` reports it
+// as "error: unable to unlink old '<path>': <reason>".
+export function getCantRemoveFilePath(stderr: string): string | undefined {
+	const match = /^(?:warning: failed to remove (.+)|error: unable to unlink old '(.+)'): [^:\r\n]+\r?$/m.exec(stderr);
+
+	if (!match) {
+		return undefined;
+	}
+
+	// `git clean` C-quotes paths with special or non-ASCII characters
+	// (core.quotePath), for example "caf\303\251.txt"
+	return match[1] !== undefined ? unquoteGitPath(match[1]) : match[2];
+}
+
+const gitPathEscapes: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+
+function unquoteGitPath(path: string): string {
+	if (path.length < 2 || !path.startsWith('"') || !path.endsWith('"')) {
+		return path;
+	}
+
+	// Work on the UTF-8 bytes since octal escapes are single bytes of a UTF-8 sequence
+	const input = Buffer.from(path.slice(1, -1), 'utf8');
+	const output: number[] = [];
+
+	for (let i = 0; i < input.length; i++) {
+		if (input[i] !== 0x5c /* \ */ || i + 1 >= input.length) {
+			output.push(input[i]);
+			continue;
+		}
+
+		const octal = /^[0-7]{3}/.exec(input.toString('latin1', i + 1, i + 4));
+
+		if (octal) {
+			output.push(parseInt(octal[0], 8));
+			i += 3;
+		} else {
+			const next = String.fromCharCode(input[++i]);
+			output.push(gitPathEscapes[next] ?? input[i]);
+		}
+	}
+
+	return Buffer.from(output).toString('utf8');
 }
 
 // https://github.com/microsoft/vscode/issues/89373
