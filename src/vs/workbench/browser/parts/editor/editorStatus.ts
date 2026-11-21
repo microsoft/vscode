@@ -408,15 +408,26 @@ class EditorStatus extends Disposable {
 			return this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (this.editorService.activeEditor?.isReadonly()) {
-			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
-		}
+		const isReadonly = Boolean(this.editorService.activeEditor?.isReadonly() || activeTextEditorControl.getOption(EditorOption.readOnly));
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+		const changeViewPicks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+		].map((a: IEditorAction) => {
+			return {
+				id: a.id,
+				label: a.label,
+				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
+				run: () => {
+					activeTextEditorControl.focus();
+					a.run();
+				}
+			};
+		});
+
+		const convertPicks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
@@ -432,8 +443,17 @@ class EditorStatus extends Disposable {
 			};
 		});
 
-		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
-		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+			{ type: 'separator', label: localize('indentView', "change view") },
+			...changeViewPicks
+		];
+
+		if (!isReadonly) {
+			picks.push(
+				{ type: 'separator', label: localize('indentConvert', "convert file") },
+				...convertPicks
+			);
+		}
 
 		const action = await this.quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
 		return action?.run();
