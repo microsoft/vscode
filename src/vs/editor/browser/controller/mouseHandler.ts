@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
-import { StandardWheelEvent, IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
+import { StandardWheelEvent, IMouseWheelEvent, WindowMouseWheelEventFilter } from '../../../base/browser/mouseEvent.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from './mouseTarget.js';
@@ -140,6 +140,7 @@ export class MouseHandler extends ViewEventHandler {
 	private _setupMouseWheelZoomListener(): void {
 
 		const classifier = MouseWheelClassifier.INSTANCE;
+		const mouseWheelEventFilter = this._register(new WindowMouseWheelEventFilter(dom.getWindow(this.viewHelper.viewDomNode)));
 
 		let prevMouseWheelTime = 0;
 		let gestureStartZoomLevel = EditorZoom.getZoomLevel();
@@ -147,6 +148,12 @@ export class MouseHandler extends ViewEventHandler {
 		let gestureAccumulatedDelta = 0;
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			if (mouseWheelEventFilter.shouldIgnore(browserEvent)) {
+				browserEvent.preventDefault();
+				browserEvent.stopPropagation();
+				return;
+			}
+
 			this.viewController.emitMouseWheel(browserEvent);
 
 			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
