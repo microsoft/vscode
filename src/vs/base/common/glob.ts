@@ -74,7 +74,8 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 	let inBrackets = false;
 
 	let curVal = '';
-	for (const char of pattern) {
+	for (let i = 0; i < pattern.length; i++) {
+		const char = pattern[i];
 		switch (char) {
 			case splitChar:
 				if (!inBraces && !inBrackets) {
@@ -91,7 +92,7 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 				inBraces = false;
 				break;
 			case '[':
-				inBrackets = true;
+				inBrackets = pattern.includes(']', i + 1); // a [ that no ] follows does not start a bracket expression
 				break;
 			case ']':
 				inBrackets = false;
@@ -149,8 +150,23 @@ function parseRegExp(pattern: string): string {
 
 				let inBrackets = false;
 				let bracketVal = '';
+				let bracketStart = 0;
 
-				for (const char of segment) {
+				for (let i = 0; i < segment.length || inBrackets; i++) {
+
+					// A [ that is not closed matches itself: parse
+					// the characters after it again outside of brackets
+					if (i === segment.length) {
+						regEx += '\\[';
+
+						inBrackets = false;
+						bracketVal = '';
+
+						i = bracketStart;
+						continue;
+					}
+
+					const char = segment[i];
 
 					// Support brace expansion
 					if (char !== '}' && inBraces) {
@@ -194,6 +210,7 @@ function parseRegExp(pattern: string): string {
 
 						case '[':
 							inBrackets = true;
+							bracketStart = i;
 							continue;
 
 						case '}': {
