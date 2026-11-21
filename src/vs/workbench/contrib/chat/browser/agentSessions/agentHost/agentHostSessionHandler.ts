@@ -8085,8 +8085,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
-				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
-				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
+				// e.g. an "Auto" pick reads "Auto (raptor-mini)". Auto names a model this client does not list.
+				const autoResolved = readUsageInfoMeta(usage).autoModeResolved;
+				const billedModelId = resolved && !resolved.resolvedFromRaw
+					? (billedId && billedId === autoResolved?.chosenModel ? autoResolved.chosenModelName ?? billedId : billedId)
+					: undefined;
 				const isFusionTier = isCopilotFusionTier(responseModelId);
 				const fusion = isFusionTier ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
 				const fusionTier = fusion && responseModelId ? getFusionTierLabel(fusion.model, responseModelId) : undefined;
@@ -8111,12 +8114,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return localModelId ? { modelId: localModelId, modelName: known ? displayName(known) : localBilled.name, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 				}
 				// Auto names the model it picked, which is the one worth showing.
-				const chosenModel = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
+				const autoResolved = readUsageInfoMeta(usage).autoModeResolved;
+				const chosenModel = autoResolved?.chosenModel;
 				const { billedId, resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
 				const knownModel = resolved && (resolved.resolvedFromRaw || !billedId) ? resolved : undefined;
 				const modelId = knownModel?.identifier ?? this._toLanguageModelId(sessionResource, billedId ?? fallbackRawModelId);
 				const rawBilledId = billedId ?? fallbackRawModelId;
-				const modelName = knownModel ? displayName(knownModel) : rawBilledId && isCopilotFusionTier(rawBilledId) ? fusionModelName(rawBilledId) : rawBilledId;
+				const modelName = knownModel ? displayName(knownModel)
+					: rawBilledId && isCopilotFusionTier(rawBilledId) ? fusionModelName(rawBilledId)
+						: rawBilledId && rawBilledId === chosenModel ? autoResolved?.chosenModelName ?? rawBilledId
+							: rawBilledId;
 				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
 			toAutoModeResolution: (usage, settlesPendingRow, previousRouted) => {

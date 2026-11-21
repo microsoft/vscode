@@ -332,6 +332,9 @@ function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undef
 		return undefined;
 	}
 	const result: Mutable<IAutoModeResolvedInfo> = { chosenModel: raw.chosenModel };
+	if (typeof raw.chosenModelName === 'string' && raw.chosenModelName.trim()) {
+		result.chosenModelName = raw.chosenModelName;
+	}
 	const reasoningBucket = raw.reasoningBucket;
 	if (reasoningBucket === 'low' || reasoningBucket === 'medium' || reasoningBucket === 'high') {
 		result.reasoningBucket = reasoningBucket;

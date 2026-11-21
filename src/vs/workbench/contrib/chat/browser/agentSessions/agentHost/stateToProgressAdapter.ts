@@ -1086,7 +1086,7 @@ export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, reso
 		kind: 'autoModeResolution',
 		resolved: {
 			id: resolution.chosenModel,
-			name: resolvedModelName ?? resolution.chosenModel,
+			name: resolvedModelName ?? resolution.chosenModelName ?? resolution.chosenModel,
 			...(resolution.selectionReason ? { reason: resolution.selectionReason } : {}),
 		},
 	};
