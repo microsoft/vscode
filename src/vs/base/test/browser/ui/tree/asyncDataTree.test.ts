@@ -1103,4 +1103,39 @@ suite('AsyncDataTree', function () {
 		await tree.updateChildren(root);
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['g1', 'shared', 'g2', 'shared']);
 	});
+
+	test('issue #349459 - nonrecursive refresh returning duplicate siblings sharing element objects preserves descendant lookups', async () => {
+		const container = document.createElement('div');
+		let withDuplicate = false;
+		const leaf: Element = { id: 'leaf' };
+		const b: Element = { id: 'b', children: [leaf] };
+		const root: Element = { id: 'root' };
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return element === root || element === b || (!!element.children && element.children.length > 0);
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				if (element === root) {
+					return withDuplicate ? [b, b] : [b];
+				}
+				return element.children ?? [];
+			}
+		};
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, {
+			identityProvider: new IdentityProvider(),
+			collapseByDefault: () => false
+		}));
+		tree.layout(200);
+
+		withDuplicate = true;
+		await tree.setInput(root);
+		await tree.collapseAll();
+
+		withDuplicate = false;
+		await tree.updateChildren(root, false);
+
+		await tree.expand(b);
+		assert.doesNotThrow(() => tree.getNode(leaf));
+	});
 });

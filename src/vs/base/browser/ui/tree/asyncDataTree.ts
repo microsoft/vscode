@@ -1318,7 +1318,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		for (const child of children) {
-			this.nodes.set(child.element as T, child);
+			dfs(child, child => this.nodes.set(child.element as T, child));
 		}
 
 		splice(node.children, 0, node.children.length, children);
