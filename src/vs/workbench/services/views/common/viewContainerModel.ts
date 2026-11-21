@@ -20,8 +20,20 @@ import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js'
 import { CounterSet } from '../../../../base/common/map.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { windowLogGroup } from '../../log/common/logConstants.js';
+import { ISharedLayoutStateService } from '../../layout/common/sharedLayoutState.js';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
+
+function compareViewOrders(a: number | undefined, b: number | undefined): number {
+	return (typeof a === 'number' ? a : Number.MAX_VALUE) - (typeof b === 'number' ? b : Number.MAX_VALUE);
+}
+
+function compareViewGroups(a: IViewDescriptor, b: IViewDescriptor): number {
+	if (!a.group || !b.group || a.group === b.group) {
+		return 0;
+	}
+	return a.group < b.group ? -1 : 1;
+}
 
 interface IStoredWorkspaceViewState {
 	collapsed: boolean;
@@ -51,8 +63,15 @@ class ViewDescriptorsState extends Disposable {
 	private readonly globalViewsStateStorageId: string;
 	private readonly state: Map<string, IViewDescriptorState>;
 
-	private _onDidChangeStoredState = this._register(new Emitter<{ id: string; visible: boolean }[]>());
+	/**
+	 * Fires with the views whose stored visibility changed. A visibility of `undefined` means
+	 * that the stored state no longer contains the view, so that it has its default visibility.
+	 */
+	private _onDidChangeStoredState = this._register(new Emitter<{ id: string; visible: boolean | undefined }[]>());
 	readonly onDidChangeStoredState = this._onDidChangeStoredState.event;
+
+	private _onDidChangeStoredOrder = this._register(new Emitter<{ id: string; order: number | undefined }[]>());
+	readonly onDidChangeStoredOrder = this._onDidChangeStoredOrder.event;
 
 	private readonly logger: Lazy<ILogger>;
 
@@ -60,6 +79,7 @@ class ViewDescriptorsState extends Disposable {
 		viewContainerStorageId: string,
 		private readonly viewContainerName: string,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
@@ -68,7 +88,7 @@ class ViewDescriptorsState extends Disposable {
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
+		this._register(this.sharedLayoutStateService.getValueChangeEvent(this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
 
 		this.state = this.initialize();
 
@@ -80,6 +100,15 @@ class ViewDescriptorsState extends Disposable {
 
 	get(id: string): IViewDescriptorState | undefined {
 		return this.state.get(id);
+	}
+
+	/**
+	 * Returns the order of the given view that is stored for all workspaces, `undefined` if it has
+	 * none. It can differ from the order in memory while the view is not registered, because
+	 * another window or a layout switch changed the stored state meanwhile.
+	 */
+	getStoredGlobalOrder(id: string): number | undefined {
+		return this.getStoredGlobalState().get(id)?.order;
 	}
 
 	updateState(viewDescriptors: ReadonlyArray<IViewDescriptor>): void {
@@ -109,6 +138,13 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private updateGlobalState(viewDescriptors: ReadonlyArray<IViewDescriptor>): void {
+		// The stored state changed and this window has not applied the change yet, for example while
+		// switching layouts moves views before their view containers are notified. Do not store the
+		// outdated state over it: the change is applied when it is notified and stored if necessary
+		if (this._globalViewsStatesValue !== undefined && this._globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue()) {
+			return;
+		}
+
 		const storedGlobalState = this.getStoredGlobalState();
 		for (const viewDescriptor of viewDescriptors) {
 			const state = this.get(viewDescriptor.id);
@@ -126,7 +162,8 @@ class ViewDescriptorsState extends Disposable {
 			this._globalViewsStatesValue = undefined;
 			const storedViewsVisibilityStates = this.getStoredGlobalState();
 			const storedWorkspaceViewsStates = this.getStoredWorkspaceState();
-			const changedStates: { id: string; visible: boolean }[] = [];
+			const changedStates: { id: string; visible: boolean | undefined }[] = [];
+			const changedOrders: { id: string; order: number | undefined }[] = [];
 			for (const [id, storedState] of storedViewsVisibilityStates) {
 				const state = this.get(id);
 				if (state) {
@@ -135,6 +172,9 @@ class ViewDescriptorsState extends Disposable {
 							this.logger.value.trace(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
 						}
 						changedStates.push({ id, visible: !storedState.isHidden });
+					}
+					if (state.order !== storedState.order) {
+						changedOrders.push({ id, order: storedState.order });
 					}
 				} else {
 					const workspaceViewState: IStoredWorkspaceViewState | undefined = storedWorkspaceViewsStates[id];
@@ -148,13 +188,32 @@ class ViewDescriptorsState extends Disposable {
 					});
 				}
 			}
+
+			// Views that the stored state does not contain have their default visibility and order,
+			// for example after switching to a layout that never stored the state of this view container
+			for (const [id, state] of this.state) {
+				if (!storedViewsVisibilityStates.has(id)) {
+					if (!isUndefined(state.visibleGlobal)) {
+						changedStates.push({ id, visible: undefined });
+					}
+					if (!isUndefined(state.order)) {
+						changedOrders.push({ id, order: undefined });
+					}
+				}
+			}
+
+			// Apply the orders first, so that state stored while the visibility changes has the new orders
+			if (changedOrders.length) {
+				this._onDidChangeStoredOrder.fire(changedOrders);
+			}
 			if (changedStates.length) {
 				this._onDidChangeStoredState.fire(changedStates);
 				// Update the in memory state after firing the event
-				// so that the views can update their state accordingly
+				// so that the views can update their state accordingly.
+				// The view container model resolves the default visibility
 				for (const changedState of changedStates) {
 					const state = this.get(changedState.id);
-					if (state) {
+					if (state && !isUndefined(changedState.visible)) {
 						state.visibleGlobal = changedState.visible;
 					}
 				}
@@ -269,11 +328,11 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private getStoredGlobalViewsStatesValue(): string {
-		return this.storageService.get(this.globalViewsStateStorageId, StorageScope.PROFILE, '[]');
+		return this.sharedLayoutStateService.get(this.globalViewsStateStorageId, '[]');
 	}
 
 	private setStoredGlobalViewsStatesValue(value: string): void {
-		this.storageService.store(this.globalViewsStateStorageId, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.sharedLayoutStateService.store(this.globalViewsStateStorageId, value);
 	}
 
 }
@@ -288,6 +347,12 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private readonly contextKeys = new CounterSet<string>();
 	private viewDescriptorItems: IViewDescriptorItem[] = [];
 	private viewDescriptorsState: ViewDescriptorsState;
+
+	/**
+	 * The sequence in which the views were first added. Views without a distinguishing
+	 * order and group are shown in this sequence while their order was not changed.
+	 */
+	private readonly addedSequence = new Map<string, number>();
 
 	// Container Info
 	private _title!: string;
@@ -304,6 +369,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 
 	// All View Descriptors
 	get allViewDescriptors(): ReadonlyArray<IViewDescriptor> { return this.viewDescriptorItems.map(item => item.viewDescriptor); }
+	get allViewDescriptorsInDefaultOrder(): ReadonlyArray<IViewDescriptor> {
+		return this.viewDescriptorItems.map(item => item.viewDescriptor).sort((a, b) => compareViewOrders(a.order, b.order) || compareViewGroups(a, b) || this.compareAddedSequence(a, b));
+	}
 	private _onDidChangeAllViewDescriptors = this._register(new Emitter<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>());
 	readonly onDidChangeAllViewDescriptors = this._onDidChangeAllViewDescriptors.event;
 
@@ -339,6 +407,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.original));
 		this._register(this.viewDescriptorsState.onDidChangeStoredState(items => this.updateVisibility(items)));
+		this._register(this.viewDescriptorsState.onDidChangeStoredOrder(items => this.updateOrder(items)));
 
 		this.updateContainerInfo();
 	}
@@ -393,7 +462,27 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this.updateVisibility([{ id, visible }]);
 	}
 
-	private updateVisibility(viewDescriptors: { id: string; visible: boolean }[]): void {
+	private updateVisibility(visibilities: { id: string; visible: boolean | undefined }[]): void {
+		const viewDescriptors: { id: string; visible: boolean }[] = [];
+		for (const { id, visible } of visibilities) {
+			if (!isUndefined(visible)) {
+				viewDescriptors.push({ id, visible });
+				continue;
+			}
+
+			// The stored state no longer contains the view: use its default visibility. The visibility
+			// of workspace views is stored per workspace, a view that is not registered uses its default when it is
+			const viewDescriptorItem = this.findAndIgnoreIfNotFound(id)?.viewDescriptorItem;
+			if (!viewDescriptorItem) {
+				const state = this.viewDescriptorsState.get(id);
+				if (state) {
+					state.visibleGlobal = undefined;
+				}
+			} else if (!viewDescriptorItem.viewDescriptor.workspace) {
+				viewDescriptors.push({ id, visible: !viewDescriptorItem.viewDescriptor.hideByDefault });
+			}
+		}
+
 		// First: Update and remove the view descriptors which are asked to be hidden
 		const viewDescriptorItemsToHide = coalesce(viewDescriptors.filter(({ visible }) => !visible)
 			.map(({ id }) => this.findAndIgnoreIfNotFound(id)));
@@ -453,6 +542,40 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		return !!this.find(id).viewDescriptorItem.state.collapsed;
 	}
 
+	/**
+	 * Applies an order of the views that was stored by another window or that
+	 * belongs to a layout. The order of workspace views is stored per workspace.
+	 */
+	private updateOrder(viewDescriptors: { id: string; order: number | undefined }[]): void {
+		let changed = false;
+		for (const { id, order } of viewDescriptors) {
+			const viewDescriptorItem = this.findAndIgnoreIfNotFound(id)?.viewDescriptorItem;
+			if (viewDescriptorItem && !viewDescriptorItem.viewDescriptor.workspace && viewDescriptorItem.state.order !== order) {
+				viewDescriptorItem.state.order = order;
+				changed = true;
+			}
+		}
+		if (!changed) {
+			return;
+		}
+
+		const visibleViewDescriptors = [...this.visibleViewDescriptors];
+		this.viewDescriptorItems.sort(this.compareViewDescriptors.bind(this));
+
+		// Report the new order of the visible views as a sequence of moves
+		const sortedVisibleViewDescriptors = this.visibleViewDescriptors;
+		for (let index = 0; index < sortedVisibleViewDescriptors.length; index++) {
+			const viewDescriptor = sortedVisibleViewDescriptors[index];
+			const fromIndex = visibleViewDescriptors.indexOf(viewDescriptor);
+			if (fromIndex !== index) {
+				const to = visibleViewDescriptors[index];
+				move(visibleViewDescriptors, fromIndex, index);
+				this._onDidMoveVisibleViewDescriptors.fire({ from: { index: fromIndex, viewDescriptor }, to: { index, viewDescriptor: to } });
+			}
+		}
+		this.updateContainerInfo();
+	}
+
 	setCollapsed(id: string, collapsed: boolean): void {
 		const { viewDescriptorItem } = this.find(id);
 		if (viewDescriptorItem.state.collapsed !== collapsed) {
@@ -495,6 +618,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		const addedItems: IViewDescriptorItem[] = [];
 		for (const addedViewDescriptorState of addedViewDescriptorStates) {
 			const viewDescriptor = addedViewDescriptorState.viewDescriptor;
+			if (!this.addedSequence.has(viewDescriptor.id)) {
+				this.addedSequence.set(viewDescriptor.id, this.addedSequence.size);
+			}
 
 			if (viewDescriptor.when) {
 				for (const key of viewDescriptor.when.keys()) {
@@ -515,6 +641,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					}
 				}
 				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;
+				if (!viewDescriptor.workspace) {
+					// The order in memory is not updated while the view is not registered. The order of workspace views is stored per workspace
+					state.order = this.viewDescriptorsState.getStoredGlobalOrder(viewDescriptor.id);
+				}
 			} else {
 				state = {
 					active: false,
@@ -699,23 +829,14 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			return 0;
 		}
 
-		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a.viewDescriptor, b.viewDescriptor);
+		return compareViewOrders(this.getViewOrder(a), this.getViewOrder(b)) || compareViewGroups(a.viewDescriptor, b.viewDescriptor) || this.compareAddedSequence(a.viewDescriptor, b.viewDescriptor);
 	}
 
-	private getViewOrder(viewDescriptorItem: IViewDescriptorItem): number {
-		const viewOrder = typeof viewDescriptorItem.state.order === 'number' ? viewDescriptorItem.state.order : viewDescriptorItem.viewDescriptor.order;
-		return typeof viewOrder === 'number' ? viewOrder : Number.MAX_VALUE;
+	private compareAddedSequence(a: IViewDescriptor, b: IViewDescriptor): number {
+		return (this.addedSequence.get(a.id) ?? Number.MAX_VALUE) - (this.addedSequence.get(b.id) ?? Number.MAX_VALUE);
 	}
 
-	private getGroupOrderResult(a: IViewDescriptor, b: IViewDescriptor) {
-		if (!a.group || !b.group) {
-			return 0;
-		}
-
-		if (a.group === b.group) {
-			return 0;
-		}
-
-		return a.group < b.group ? -1 : 1;
+	private getViewOrder(viewDescriptorItem: IViewDescriptorItem): number | undefined {
+		return typeof viewDescriptorItem.state.order === 'number' ? viewDescriptorItem.state.order : viewDescriptorItem.viewDescriptor.order;
 	}
 }

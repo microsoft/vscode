@@ -7,6 +7,7 @@ import { localize } from '../../../nls.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../services/layout/common/sharedLayoutState.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
@@ -30,6 +31,7 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../base/commo
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
+import { IPaneCompositeArrangement } from '../../services/panecomposite/browser/panecomposite.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
@@ -114,6 +116,7 @@ export class PaneCompositeBar extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super();
 
@@ -242,6 +245,7 @@ export class PaneCompositeBar extends Disposable {
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
+		this._register(this.viewDescriptorService.onDidChangeViewContainerBadgeEnablement(ids => this.compositeBar.refreshBadges(ids)));
 
 		// View Container Visibility Changes
 		this._register(this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true)));
@@ -257,7 +261,7 @@ export class PaneCompositeBar extends Disposable {
 				this.updateCompositeBarItemsFromStorage(true);
 				this.saveCachedViewContainers();
 			}));
-			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
+			this._register(this.sharedLayoutStateService.getValueChangeEvent(this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 
@@ -524,6 +528,22 @@ export class PaneCompositeBar extends Disposable {
 			.map(v => v.id);
 	}
 
+	arrangePaneComposites({ pinned, order }: IPaneCompositeArrangement): void {
+		const items = this.compositeBar.getCompositeBarItems();
+		const orderedItems = (order ?? [])
+			.map(id => items.find(item => item.id === id))
+			.filter((item, index, array): item is ICompositeBarItem => !!item && array.indexOf(item) === index);
+		const arrangedItems = [...orderedItems, ...items.filter(item => !orderedItems.includes(item))]
+			.map(item => ({ id: item.id, name: item.name, order: item.order, visible: item.visible, pinned: pinned?.get(item.id) ?? item.pinned }));
+
+		if (arrangedItems.every((item, index) => item.id === items[index].id && item.pinned === items[index].pinned)) {
+			return;
+		}
+
+		this.compositeBar.setCompositeBarItems(arrangedItems);
+		this.saveCachedViewContainers();
+	}
+
 	getContextMenuActions(): IAction[] {
 		return this.compositeBar.getContextMenuActions();
 	}
@@ -721,11 +741,11 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private getStoredPinnedViewContainersValue(): string {
-		return this.storageService.get(this.options.pinnedViewContainersKey, StorageScope.PROFILE, '[]');
+		return this.sharedLayoutStateService.get(this.options.pinnedViewContainersKey, '[]');
 	}
 
 	private setStoredPinnedViewContainersValue(value: string): void {
-		this.storageService.store(this.options.pinnedViewContainersKey, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.sharedLayoutStateService.store(this.options.pinnedViewContainersKey, value);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {

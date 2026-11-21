@@ -670,6 +670,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isAuxiliaryBarMaximized(): boolean;
 
 	/**
+	 * Returns whether the given part is visible when the auxiliary sidebar is not maximized.
+	 * While the auxiliary sidebar is maximized, this is the visibility that restoring it brings back.
+	 */
+	isVisibleWhenAuxiliaryBarNotMaximized(part: Parts.SIDEBAR_PART | Parts.PANEL_PART): boolean;
+
+	/**
 	 * Claims that the auxiliary bar does not offer to maximize, for as long as the returned claim is not disposed.
 	 * Claims stack: the action stays hidden while any claim is held.
 	 */

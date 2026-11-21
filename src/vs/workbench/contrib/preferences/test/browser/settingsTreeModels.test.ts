@@ -8,6 +8,7 @@ import { stub } from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ManagedSettingValue } from '../../../../../base/common/policy.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -186,6 +187,75 @@ suite('SettingsTree Agents Window density', () => {
 		}, {
 			editorWorkspace: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: false },
 			agentsUser: { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: true },
+		});
+	});
+});
+
+suite('SettingsTree layout settings', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const layoutSetting = 'settingsTreeLayoutTest.layoutSetting';
+	const otherSetting = 'settingsTreeLayoutTest.otherSetting';
+	const configurationNode: IConfigurationNode = {
+		id: 'settingsTreeLayoutTest',
+		properties: {
+			[layoutSetting]: { type: 'string', default: 'defaultValue', layoutOverridable: true },
+			[otherSetting]: { type: 'string', default: 'defaultValue' }
+		}
+	};
+	suiteSetup(() => registry.registerConfiguration(configurationNode));
+	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
+
+	function read(settingsTarget: SettingsTarget, locked: boolean) {
+		// The user settings and the active layout define the layout setting
+		const configuration = new class extends TestConfigurationService {
+			readonly layoutSettings = { name: 'Debug', resource: URI.file('/layouts/debug/settings.json'), locked };
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				const layoutValue = key === layoutSetting ? 'layoutValue' as T : undefined;
+				const inspected = super.inspect<T>(key, overrides);
+				return { ...inspected, defaultValue: 'defaultValue' as T, layoutValue, value: layoutValue ?? inspected.value };
+			}
+		}({ [layoutSetting]: 'userValue' });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		const model = store.add(instantiationService.createInstance(SearchResultModel, { settingsTarget }, null, true));
+		model.setResult(SearchResultIdx.Local, {
+			filterMatches: [layoutSetting, otherSetting].map(key => ({
+				setting: new class extends mock<ISetting>() {
+					override key = key;
+					override type = 'string';
+					override description = [];
+					override scope = ConfigurationScope.WINDOW;
+				}(),
+				matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0,
+			})),
+			exactMatch: false,
+		});
+
+		const elements = model.root.children.filter((child): child is SettingsTreeSettingElement => child instanceof SettingsTreeSettingElement);
+		const element = elements.find(candidate => candidate.setting.key === layoutSetting)!;
+		element.inspectSelf();
+		return { shown: elements.map(candidate => candidate.setting.key), value: element.value, configured: element.isConfigured, readOnly: element.isReadOnly, alsoModifiedIn: element.overriddenScopeList };
+	}
+
+	test('the Layout tab shows the settings a layout can define, read-only while the layout is locked, the other tabs show that the layout also defines a value', () => {
+		assert.deepStrictEqual({
+			layout: read(ConfigurationTarget.LAYOUT, false),
+			lockedLayout: read(ConfigurationTarget.LAYOUT, true).readOnly,
+			user: read(ConfigurationTarget.USER_LOCAL, true),
+		}, {
+			layout: { shown: [layoutSetting], value: 'layoutValue', configured: true, readOnly: false, alsoModifiedIn: ['user:'] },
+			lockedLayout: true,
+			user: { shown: [layoutSetting, otherSetting], value: 'userValue', configured: true, readOnly: false, alsoModifiedIn: ['layout:'] },
 		});
 	});
 });

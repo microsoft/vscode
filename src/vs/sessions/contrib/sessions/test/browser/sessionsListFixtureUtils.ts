@@ -1222,6 +1222,7 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 	const viewDescriptor: IViewDescriptor = { id: SessionsViewId, name: localize2('fixtureSessionsView', 'Sessions'), ctorDescriptor: new SyncDescriptor(SessionsView), containerIcon: Codicon.agent };
 	instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 		override readonly onDidChangeContainerLocation = Event.None;
+		override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 		override readonly onDidChangeContainer = Event.None;
 		override readonly onDidChangeLocation = Event.None;
 		override getViewContainerByViewId() { return viewContainer; }

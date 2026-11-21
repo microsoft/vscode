@@ -168,6 +168,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: true,
 			agentsWindow: { default: true },
+			layoutOverridable: true
 		},
 		'breadcrumbs.filePath': {
 			description: localize('filepath', "Controls whether and how file paths are shown in the breadcrumbs view."),

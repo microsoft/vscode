@@ -15,6 +15,7 @@ import { JSONPath, ParseError, parse } from '../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
 import { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
 import { deepClone, equals } from '../../../../base/common/objects.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
@@ -31,7 +32,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../platform/workspace/common/workspace.js';
 import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
-import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, ILayoutSettings, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
 import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../workbench/services/configuration/common/configurationEditing.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -226,6 +227,10 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options: IConfigurationUpdateOptions | undefined): Promise<void> {
+		if (target === ConfigurationTarget.LAYOUT) {
+			throw new Error(`Unable to write ${key} to Layout Settings because the Agents window has no named layouts.`);
+		}
+
 		if (!this.instantiationService) {
 			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
 		}
@@ -348,6 +353,24 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		}
 		const allProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
+	}
+
+	// The Agents window has no named layouts
+	readonly layoutSettings: ILayoutSettings | undefined = undefined;
+	readonly onDidChangeLayoutSettings: Event<void> = Event.None;
+
+	setLayoutSettings(layout: ILayoutSettings | undefined): void {
+		if (layout) {
+			throw new Error('The Agents window has no named layouts.');
+		}
+	}
+
+	getLayoutConfiguration(): IStringDictionary<unknown> {
+		return {};
+	}
+
+	isActiveLayoutSetting(_key: string): boolean {
+		return false;
 	}
 
 	// #endregion

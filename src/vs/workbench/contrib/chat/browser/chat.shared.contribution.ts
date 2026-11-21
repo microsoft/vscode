@@ -1054,6 +1054,7 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
+			layoutOverridable: true
 		},
 		[ChatConfiguration.ChatViewProgressBadgeEnabled]: {
 			type: 'boolean',

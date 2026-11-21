@@ -58,6 +58,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('chat.viewSessions.openChatIn', "Controls where the chat of a session opens when it is selected in the sessions of the Chat view."),
+			layoutOverridable: true
 		},
 	},
 });

@@ -17,6 +17,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { ViewContainerLocation, IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { NamedLayoutsEnabledContext } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -337,7 +338,8 @@ MenuRegistry.appendMenuItems([
 					ContextKeyExpr.or(
 						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
-					)
+					),
+					NamedLayoutsEnabledContext.negate()
 				),
 			order: 1
 		}

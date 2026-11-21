@@ -838,7 +838,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.layoutToolbarMenuDisposables.clear();
 
 			if (this.layoutControlEnabled) {
-				this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService);
+				// The layout control can show submenus, their items depend on context keys too
+				this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService, { emitEventsForSubmenuChanges: true });
 
 				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu);
 				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu.onDidChange(() => updateToolBarActions()));

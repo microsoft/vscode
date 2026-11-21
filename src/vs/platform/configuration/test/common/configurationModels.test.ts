@@ -1408,6 +1408,71 @@ suite('Configuration', () => {
 
 	});
 
+	test('Test layout configuration takes precedence over user and workspace configuration and survives parsing', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1, 'b': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), toConfigurationModel({ 'a': 2, 'b': 2 }));
+		testObject.updateWorkspaceConfiguration(toConfigurationModel({ 'a': 3 }));
+
+		const change = testObject.compareAndUpdateLayoutConfiguration(toConfigurationModel({ 'a': 4 }));
+		const parsed = Configuration.parse(testObject.toData(), new NullLogService());
+
+		assert.deepStrictEqual({
+			change,
+			a: testObject.getValue('a', {}, undefined),
+			layoutValue: testObject.inspect('a', {}, undefined).layoutValue,
+			b: testObject.getValue('b', {}, undefined),
+			parsedA: parsed.getValue('a', {}, undefined),
+		}, {
+			change: { keys: ['a'], overrides: [] },
+			a: 4,
+			layoutValue: 4,
+			b: 2,
+			parsedA: 4,
+		});
+	});
+
+	test('Test layout configuration takes precedence over folder configuration', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const folder = URI.file('folder1');
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: folder })]);
+		// In a single folder workspace, the folder settings are also the workspace settings
+		testObject.updateWorkspaceConfiguration(toConfigurationModel({ 'a': 2 }));
+		testObject.updateFolderConfiguration(folder, toConfigurationModel({ 'a': 2 }));
+		testObject.updateLayoutConfiguration(toConfigurationModel({ 'a': 3 }));
+
+		const resource = URI.joinPath(folder, 'file.txt');
+		assert.deepStrictEqual({
+			value: testObject.getValue('a', {}, workspace),
+			resourceValue: testObject.getValue('a', { resource }, workspace),
+			inspectedResourceValue: testObject.inspect('a', { resource }, workspace).value,
+		}, {
+			value: 3,
+			resourceValue: 3,
+			inspectedResourceValue: 3,
+		});
+	});
+
+	test('Test memory configuration takes precedence over layout configuration for resources in folders', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1, 'b': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const folder = URI.file('folder1');
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: folder })]);
+		testObject.updateFolderConfiguration(folder, toConfigurationModel({ 'b': 2 }));
+		testObject.updateLayoutConfiguration(toConfigurationModel({ 'a': 3 }));
+		testObject.updateValue('a', 4);
+		testObject.updateValue('b', 5);
+
+		const resource = URI.joinPath(folder, 'file.txt');
+		assert.deepStrictEqual({
+			value: testObject.getValue('a', {}, workspace),
+			resourceValue: testObject.getValue('a', { resource }, workspace),
+			// Folder settings keep winning over the memory configuration for keys that the layout does not define
+			resourceValueNotInLayout: testObject.getValue('b', { resource }, workspace),
+		}, {
+			value: 4,
+			resourceValue: 4,
+			resourceValueNotInLayout: 2,
+		});
+	});
+
 	function parseConfigurationModel(content: Record<string, unknown>): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(content));

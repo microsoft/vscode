@@ -19,7 +19,7 @@ import { IManagedSettingsPresentationService } from '../../../services/configura
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
-import { APPLICATION_SCOPES, FOLDER_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_SCOPES, REMOTE_MACHINE_SCOPES, WORKSPACE_SCOPES } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, FOLDER_SCOPES, isLayoutOverridableSetting, IWorkbenchConfigurationService, LOCAL_MACHINE_SCOPES, REMOTE_MACHINE_SCOPES, WORKSPACE_SCOPES } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
@@ -164,6 +164,18 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * Whether the setting is read-only in the Agents window.
 	 */
 	isAgentsWindowReadOnly = false;
+
+	/**
+	 * Whether the setting is shown for the active named layout while it is locked, so that it cannot be changed.
+	 */
+	isLayoutLocked = false;
+
+	/**
+	 * Whether the value of the setting cannot be changed in this settings target.
+	 */
+	get isReadOnly(): boolean {
+		return this.hasPolicyValue || this.isAgentsWindowReadOnly || this.isLayoutLocked;
+	}
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
@@ -332,6 +344,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if ((languageSelector || targetSelector !== 'userLocalValue') && typeof inspected.userLocalValue !== 'undefined') {
 			overriddenScopeList.push('user:');
 		}
+		// A named layout has no language specific values
+		if (!languageSelector && targetSelector !== 'layoutValue' && typeof inspected.layoutValue !== 'undefined') {
+			overriddenScopeList.push('layout:');
+		}
 
 		if (inspected.overrideIdentifiers) {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
@@ -357,6 +373,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 		this.overriddenScopeList = overriddenScopeList;
 		this.overriddenDefaultsLanguageList = overriddenDefaultsLanguageList;
+		this.isLayoutLocked = targetSelector === 'layoutValue' && !!this.configurationService.layoutSettings?.locked;
 
 		// The user might have added, removed, or modified a language filter,
 		// so we reset the default value source to the non-language-specific default value source for now.
@@ -466,6 +483,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {
 		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
+
+		// A named layout can only define the settings that are layout overridable
+		if (configTarget === ConfigurationTarget.LAYOUT) {
+			return isLayoutOverridableSetting(this.setting.key);
+		}
 
 		if (!this.setting.scope) {
 			return true;
@@ -751,7 +773,7 @@ export class SettingsTreeModel implements IDisposable {
 interface IInspectResult {
 	isConfigured: boolean;
 	inspected: IConfigurationValue<unknown>;
-	targetSelector: 'applicationValue' | 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
+	targetSelector: 'applicationValue' | 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue' | 'layoutValue';
 	inspectedLanguageOverrides: Map<string, IConfigurationValue<unknown>>;
 	languageSelector: string | undefined;
 }
@@ -763,12 +785,14 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 		target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
 			target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
 				target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
-					'workspaceFolderValue';
+					target === ConfigurationTarget.LAYOUT ? 'layoutValue' :
+						'workspaceFolderValue';
 	const targetOverrideSelector = target === ConfigurationTarget.APPLICATION ? 'application' :
 		target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
 			target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
 				target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-					'workspaceFolder';
+					target === ConfigurationTarget.LAYOUT ? 'layout' :
+						'workspaceFolder';
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
 
 	const overrideIdentifiers = inspected.overrideIdentifiers;

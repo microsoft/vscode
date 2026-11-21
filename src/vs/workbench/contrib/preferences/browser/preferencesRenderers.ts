@@ -32,6 +32,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from '../../../../platform/markers/common/markers.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -69,8 +70,9 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	constructor(protected editor: ICodeEditor, readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor));
@@ -90,7 +92,13 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	updatePreference(key: string, value: unknown, source: IIndexedSetting): void {
 		const overrideIdentifiers = source.overrideOf ? overrideIdentifiersFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
-		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, this.preferencesModel.configurationTarget)
+		const configurationTarget = this.preferencesModel.configurationTarget;
+		// Only the settings of the active layout can be written, the settings file of another layout is not redirected to it
+		if (configurationTarget === ConfigurationTarget.LAYOUT && !isEqual(resource, this.configurationService.layoutSettings?.resource)) {
+			this.notificationService.info(nls.localize('layoutNotActive', "The layout of this settings file is not active. Switch to the layout to change its settings here."));
+			return;
+		}
+		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, configurationTarget, configurationTarget === ConfigurationTarget.LAYOUT ? { layoutSettingsResource: resource } : undefined)
 			.then(() => this.onSettingUpdated(source));
 	}
 
@@ -154,10 +162,11 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
+		super(editor, preferencesModel, preferencesService, configurationService, instantiationService, notificationService);
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
@@ -546,7 +555,14 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			for (const section of settingsGroup.sections) {
 				for (const setting of section.settings) {
 					if (OVERRIDE_PROPERTY_REGEX.test(setting.key)) {
-						if (setting.overrides) {
+						if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.LAYOUT) {
+							markerData.push({
+								severity: MarkerSeverity.Hint,
+								tags: [MarkerTag.Unnecessary],
+								...setting.range,
+								message: nls.localize('unsupportedLayoutLanguageOverrideSetting', "This setting cannot be applied because a layout cannot define language specific values.")
+							});
+						} else if (setting.overrides) {
 							this.handleOverrides(setting.overrides, configurationRegistry, markerData);
 						}
 						continue;
@@ -572,6 +588,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								break;
 							case ConfigurationTarget.WORKSPACE_FOLDER:
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
+								break;
+							case ConfigurationTarget.LAYOUT:
+								this.handleLayoutConfiguration(setting, configuration, markerData);
 								break;
 						}
 					} else {
@@ -659,6 +678,17 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	private handleRemoteUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.scope === ConfigurationScope.APPLICATION) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+		}
+	}
+
+	private handleLayoutConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (!configuration.layoutOverridable) {
+			markerData.push({
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				...setting.range,
+				message: nls.localize('unsupportedLayoutSetting', "This setting cannot be applied because a layout cannot define it.")
+			});
 		}
 	}
 

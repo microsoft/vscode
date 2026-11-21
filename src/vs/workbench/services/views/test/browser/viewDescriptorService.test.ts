@@ -18,6 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ISharedLayoutStateService } from '../../../layout/common/sharedLayoutState.js';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
@@ -722,6 +723,86 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)), ['view1', 'view2']);
 		assert.deepStrictEqual(viewContainer1Views.visibleViewDescriptors.map(v => v.id), ['view2']);
 		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), []);
+	});
+
+	test('a local copy of the layout state moves view containers only in this window', async function () {
+		const testObject = aViewDescriptorService();
+		const storageService = instantiationService.get(IStorageService);
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		// eslint-disable-next-line local/code-no-any-casts
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const sharedCustomizations = storageService.get('views.customizations', StorageScope.PROFILE);
+
+		sharedLayoutStateService.setLocalState(sharedLayoutStateService.getState());
+		testObject.moveViewContainerToLocation(viewContainer, ViewContainerLocation.Panel);
+		const local = { location: testObject.getViewContainerLocation(viewContainer), sharedChanged: storageService.get('views.customizations', StorageScope.PROFILE) !== sharedCustomizations };
+
+		sharedLayoutStateService.setLocalState(undefined);
+		const shared = testObject.getViewContainerLocation(viewContainer);
+
+		assert.deepStrictEqual({ local, shared }, {
+			local: { location: ViewContainerLocation.Panel, sharedChanged: false },
+			shared: ViewContainerLocation.Sidebar
+		});
+	});
+
+	test('switching between the shared layout state and a local copy that moves views keeps the visibility of the views in both', function () {
+		const testObject = aViewDescriptorService();
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		// eslint-disable-next-line local/code-no-any-casts
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		// eslint-disable-next-line local/code-no-any-casts
+		const viewContainer2 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
+		const aView = (id: string): IViewDescriptor => ({ id, ctorDescriptor: null!, name: { value: id, original: id }, canMoveView: true, canToggleVisibility: true });
+		const view1 = aView('view1');
+		ViewsRegistry.registerViews([view1], viewContainer1);
+		ViewsRegistry.registerViews([aView('view2'), aView('view3')], viewContainer2);
+		testObject.whenExtensionsRegistered();
+		const viewContainer2Model = testObject.getViewContainerModel(viewContainer2);
+		const sharedState = sharedLayoutStateService.getSharedState();
+
+		// A local copy in which a view moved and another view of its new view container is hidden
+		sharedLayoutStateService.setLocalState(sharedLayoutStateService.getState());
+		testObject.moveViewsToContainer([view1], viewContainer2);
+		viewContainer2Model.setVisible('view3', false);
+		const localState = sharedLayoutStateService.getState();
+
+		sharedLayoutStateService.setLocalState(undefined);
+		sharedLayoutStateService.setLocalState(localState);
+
+		assert.deepStrictEqual({
+			views: viewContainer2Model.allViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)),
+			visibleViews: viewContainer2Model.visibleViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)),
+			localState: sharedLayoutStateService.getState(),
+			sharedState: sharedLayoutStateService.getSharedState()
+		}, {
+			views: ['view1', 'view2', 'view3'],
+			visibleViews: ['view1', 'view2'],
+			localState,
+			sharedState
+		});
+	});
+
+	test('switching to a layout state with other badge enablement notifies about the view containers whose badges changed', function () {
+		const testObject = aViewDescriptorService();
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		testObject.setViewContainerBadgeEnablementState('enabledInLocalState', false);
+		testObject.setViewContainerBadgeEnablementState('disabledEverywhere', false);
+		const changes: (readonly string[])[] = [];
+		disposables.add(testObject.onDidChangeViewContainerBadgeEnablement(ids => changes.push(ids)));
+
+		sharedLayoutStateService.setLocalState(sharedLayoutStateService.getState());
+		testObject.setViewContainerBadgeEnablementState('enabledInLocalState', true);
+		testObject.setViewContainerBadgeEnablementState('disabledInLocalState', false);
+		const localState = sharedLayoutStateService.getState();
+		sharedLayoutStateService.setLocalState(undefined);
+		const afterShared = { enabledInLocalState: testObject.getViewContainerBadgeEnablementState('enabledInLocalState'), disabledInLocalState: testObject.getViewContainerBadgeEnablementState('disabledInLocalState') };
+		sharedLayoutStateService.setLocalState(localState);
+
+		assert.deepStrictEqual({ afterShared, changes: changes.map(ids => [...ids].sort((a, b) => compare(a, b))) }, {
+			afterShared: { enabledInLocalState: false, disabledInLocalState: true },
+			changes: [['disabledInLocalState', 'enabledInLocalState'], ['disabledInLocalState', 'enabledInLocalState']]
+		});
 	});
 
 });

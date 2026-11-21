@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { IProgressIndicator } from '../../platform/progress/common/progress.js';
 import { IPaneComposite } from '../../workbench/common/panecomposite.js';
 import { ViewContainerLocation } from '../../workbench/common/views.js';
-import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
+import { IPaneCompositeArrangement, IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { PaneCompositeDescriptor } from '../../workbench/browser/panecomposite.js';
 import { IPaneCompositePart } from '../../workbench/browser/parts/paneCompositePart.js';
@@ -108,6 +108,10 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 
 	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
 		return this.getPartByLocation(viewContainerLocation).getPaneCompositeIds();
+	}
+
+	arrangePaneComposites(viewContainerLocation: ViewContainerLocation, arrangement: IPaneCompositeArrangement): void {
+		this.getPartByLocation(viewContainerLocation).arrangePaneComposites(arrangement);
 	}
 
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {

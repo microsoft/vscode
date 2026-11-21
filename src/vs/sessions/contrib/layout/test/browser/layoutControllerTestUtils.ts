@@ -719,6 +719,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 		override readonly onDidChangeViewContainers = Event.None;
 		override readonly onDidChangeContainerLocation = Event.None;
+		override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 		override getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[] {
 			if (location !== ViewContainerLocation.AuxiliaryBar) {
 				return [];
