@@ -462,6 +462,7 @@ export class NewChatWidget extends Disposable {
 		}
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
+			searchWorkspaceTargetDirectly: this.options.newSessionPresentation.searchWorkspaceTargetDirectly,
 			environment: this._environment,
 			environmentPickerEnabled,
 			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()
@@ -631,6 +632,7 @@ export class NewChatWidget extends Disposable {
 				this._newChatInput.focus();
 			},
 			inputEditorOptions: this.options.inputEditorOptions,
+			separateSessionControls: this.options.newSessionPresentation.separateSessionControls,
 			submitOverride: anchor => this._submitScheduledDraft(anchor),
 			shouldPersistInput: () => !this._isDraftPreview.get(),
 			session: this._session,

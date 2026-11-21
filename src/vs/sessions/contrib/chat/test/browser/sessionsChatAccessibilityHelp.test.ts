@@ -342,8 +342,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 		assert.deepStrictEqual(help.map(content => ({
 			collapse: content.includes('Collapse to Icon'),
-			configurationSheet: content.includes('configuration control beside it'),
-		})), [{ collapse: true, configurationSheet: false }, { collapse: false, configurationSheet: true }]);
+			modelButton: content.includes('model button beside Add Context opens Configure Session'),
+			secondaryControls: content.includes('controls row above the prompt'),
+		})), [{ collapse: true, modelButton: false, secondaryControls: false }, { collapse: false, modelButton: true, secondaryControls: true }]);
 	});
 
 	test('describes welcome name editing only when welcome phrases are enabled', () => {

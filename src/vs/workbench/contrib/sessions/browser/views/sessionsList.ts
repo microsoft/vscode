@@ -445,6 +445,17 @@ function getSessionRowIsRead(session: ISession, reader: IReader | undefined, der
 		: session.isRead.read(reader);
 }
 
+function getSessionRowUpdatedAt(session: ISession, mainChat: IChat, reader: IReader, grouping: SessionsGrouping | undefined, showMetadataWhileActive = false): Date | undefined {
+	if (showMetadataWhileActive) {
+		return session.updatedAt.read(reader);
+	}
+	if (mainChat.status.read(reader) === SessionStatus.InProgress) {
+		return undefined;
+	}
+	// Inbox orders whole sessions, including activity outside the main chat.
+	return (grouping === SessionsGrouping.Inbox ? session.updatedAt : mainChat.updatedAt).read(reader);
+}
+
 function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
 	return isActiveSessionStatus(session.status.read(reader));
 }
@@ -820,13 +831,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _isComparisonAttempt: (session: ISession) => boolean = () => false,
 		private readonly _sectionRowHeight?: number,
 		private readonly _isInbox: () => boolean = () => false,
+		private readonly _titleOnlyQuickChatRowHeight?: number,
 	) { }
 
 	private withInsetRowSpacing(height: number): number {
 		return height + (this._useInsetRowSpacing ? INSET_ROW_GAP : 0);
 	}
 
-	getHeight(element: SessionListItem): number {
+	getHeight(element: SessionListItem, reader?: IReader): number {
 		if (isPendingSessionItem(element)) {
 			return this.withInsetRowSpacing(this._isPhone() ? SessionsTreeDelegate.ITEM_HEIGHT_PHONE
 				: this._isCompact() ? SessionsTreeDelegate.ITEM_HEIGHT_COMPACT
@@ -856,36 +868,42 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return SessionsTreeDelegate.PLACEHOLDER_HEIGHT;
 		}
 
+		const session = element;
+		let extraHeight = 0;
+		let approval: IAgentSessionApprovalInfo | undefined;
+		if (this._approvalModel) {
+			// In the main tree only the main chat's approval renders on the session
+			// row (nested/side chats surface theirs on their own rows); flat lists
+			// with no chat rows aggregate an approval from any of the session's chats.
+			approval = getSessionRowApproval(this._approvalModel, session, reader, this._aggregateChatApprovals);
+			if (approval) {
+				extraHeight += SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines);
+			}
+		}
+		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
+			extraHeight += SessionsTreeDelegate.INPUT_NEEDED_ROW_HEIGHT;
+		}
+		if (this._ciFixModel?.getCIFix(session).read(reader)) {
+			extraHeight += SessionItemRenderer.CI_ROW_HEIGHT;
+		}
+
 		let height: number;
 		if (this._isPhone()) {
+			if (this._titleOnlyQuickChatRowHeight !== undefined && extraHeight === 0
+				&& this._useCompactQuickChatRows && isQuickChatSession(session) && !this._isComparisonAttempt(session)) {
+				return this._titleOnlyQuickChatRowHeight;
+			}
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
-		} else if (this._isComparisonAttempt(element as ISession)) {
+		} else if (this._isComparisonAttempt(session)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPARISON_ATTEMPT;
-		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
+		} else if (this._useCompactQuickChatRows && isQuickChatSession(session)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 		} else if (this._isCompact()) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPACT;
 		} else {
 			height = this._isInbox() ? 44 : SessionsTreeDelegate.ITEM_HEIGHT;
 		}
-		const session = element as ISession;
-		let approval: IAgentSessionApprovalInfo | undefined;
-		if (this._approvalModel) {
-			// In the main tree only the main chat's approval renders on the session
-			// row (nested/side chats surface theirs on their own rows); flat lists
-			// with no chat rows aggregate an approval from any of the session's chats.
-			approval = getSessionRowApproval(this._approvalModel, session, undefined, this._aggregateChatApprovals);
-			if (approval) {
-				height += SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines);
-			}
-		}
-		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
-			height += SessionsTreeDelegate.INPUT_NEEDED_ROW_HEIGHT;
-		}
-		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
-			height += SessionItemRenderer.CI_ROW_HEIGHT;
-		}
-		return this.withInsetRowSpacing(height);
+		return this.withInsetRowSpacing(height + extraHeight);
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
@@ -2296,7 +2314,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.mainWindowShown, reader)
 				: getSessionDiffStats(element, reader);
 			const mainChat = element.mainChat.read(reader);
-			const timeDate = this.options.showMetadataWhileActive?.(element) ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const timeDate = getSessionRowUpdatedAt(element, mainChat, reader, this.options.grouping(), this.options.showMetadataWhileActive?.(element));
 
 			const parts: HTMLElement[] = [];
 			if (
@@ -3811,7 +3829,7 @@ class SessionsAccessibilityProvider {
 			const title = this.options?.getComparisonAttemptLabel?.(element) ?? element.title.read(reader);
 			const mainChat = element.mainChat.read(reader);
 			const showMetadataWhileActive = this.options?.showMetadataWhileActive?.(element);
-			const updatedAt = showMetadataWhileActive ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const updatedAt = getSessionRowUpdatedAt(element, mainChat, reader, this.options?.grouping?.(), showMetadataWhileActive);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = updatedAt ? localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemQuickChatWithoutTimeAria', "{0}, chat", title);
@@ -4579,6 +4597,7 @@ interface ISessionsListControlOptions {
 	readonly scheduledSessionResources?: IObservable<ReadonlySet<string>>;
 	readonly scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
 	readonly sectionRowHeight?: number;
+	readonly titleOnlyQuickChatRowHeight?: number;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
@@ -5038,6 +5057,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		const primaryContainer = DOM.append(this.listContainer, $('.sessions-list-primary'));
+		const searchMessage = DOM.append(primaryContainer, $('.sessions-list-search-empty', { role: 'status' }));
 		const treeDisposables = this._register(new DisposableStore());
 		const listContextKeyService = this._register(contextKeyService.createScoped(this.listContainer));
 		const treeInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, listContextKeyService])));
@@ -5297,9 +5317,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// observe the workbench's value rather than shadowing it with a fresh
 		// scoped default of `false`. The reactive height refresh below listens
 		// on the same scoped service for changes.
+		const isPhone = () => !!IsPhoneLayoutContext.getValue(contextKeyService);
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
-			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
+			isPhone,
 			() => this.isCompact(),
 			session => getSessionRowStatus(session, undefined, true, this.collapsedSessionIds.get().has(session.sessionId)),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
@@ -5310,6 +5331,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			session => this.getComparisonAttemptLabel(session) !== undefined,
 			this.options.sectionRowHeight,
 			() => this.isInboxLayout(),
+			this.options.titleOnlyQuickChatRowHeight,
 		);
 		this._delegate = delegate;
 
@@ -5512,6 +5534,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// Showing no chats of a session that has some makes its row stand for the whole session.
 			didFilter: () => this.syncCollapsedSessionIds(),
 			getResults: () => this.getSearchResults(),
+			renderInlineMessage: message => {
+				const inline = isPhone();
+				const text = inline ? message : '';
+				// Don't announce the same empty state again when the tree refreshes.
+				if (searchMessage.textContent !== text) {
+					searchMessage.textContent = text;
+				}
+				return inline;
+			},
 		}, {
 			findWidgetContainer: this.options.findWidgetContainer,
 			styles: defaultFindWidgetStyles,
@@ -7052,9 +7083,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private reconcileChatRowHeights(): void {
 		const chatItems: ISessionChatItem[] = [];
+		const quickChats: ISession[] = [];
+		const trackQuickChatHeights = this.options.titleOnlyQuickChatRowHeight !== undefined && IsPhoneLayoutContext.getValue(this.contextKeyService);
 		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionChatItem(node.element)) {
 				chatItems.push(node.element);
+			} else if (trackQuickChatHeights && node.element && isSessionItem(node.element) && isQuickChatSession(node.element)) {
+				quickChats.push(node.element);
 			}
 			for (const child of node.children) {
 				collect(child);
@@ -7062,12 +7097,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 		collect(this.tree.getNode());
 
-		if (chatItems.length === 0) {
+		if (chatItems.length === 0 && quickChats.length === 0) {
 			this.chatRowHeightReconcile.clear();
 			return;
 		}
 
 		this.chatRowHeightReconcile.value = autorun(reader => {
+			for (const session of quickChats) {
+				if (this.tree.hasElement(session)) {
+					this.tree.updateElementHeight(session, this._delegate.getHeight(session, reader));
+				}
+			}
 			for (const chatItem of chatItems) {
 				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
 				if (this.tree.hasElement(chatItem) && this.tree.getRelativeTop(chatItem) !== null) {

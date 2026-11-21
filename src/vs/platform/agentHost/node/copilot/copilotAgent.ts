@@ -152,7 +152,7 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './cop
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { COPILOT_VIRTUAL_SESSION_STATE_PATH, createCopilotSessionPathMapper, toCopilotWorkspace, type CopilotWorkspace } from './copilotWorkspace.js';
 import { CopilotVirtualSessionFs, createCopilotVirtualSessionFsConfig } from './copilotVirtualSessionFs.js';
-import { CopilotSessionLauncher, type CopilotChatSurface, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotCanvasRuntimeEnabled, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, type CopilotChatSurface, areCopilotHooksEnabled, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotCanvasRuntimeEnabled, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog, originsOnlyForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -1672,6 +1672,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
+		if (this._copilotApiService.onDidRefreshCopilotUser) {
+			this._register(this._copilotApiService.onDidRefreshCopilotUser(({ githubToken, context }) => {
+				if (this._githubCredentials.token === githubToken) {
+					this._applyRestrictedTelemetry({
+						...context,
+						telemetryEndpoint: toRestrictedTelemetryEndpoint(context.telemetryEndpoint),
+					});
+				}
+			}));
+		}
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
 			this._register(this._telemetryService.onDidChangeTelemetryLevel(() => {
@@ -4764,6 +4774,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const client = await this._ensureClient();
 			const session = accountContext.kind === 'ready' ? await this._accountService.getSession(accountContext, Promise.resolve(client)) : undefined;
+			if (tokenAtRefreshStart && !session) {
+				void this._resolveRestrictedTelemetry(tokenAtRefreshStart);
+			}
 			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart, this._capiModels, session);
 			if (!isCurrent() || this._shutdownPromise) {
 				return;
@@ -8930,6 +8943,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresExtensionConsentRetry ? 'extensionConsentRetry' : undefined)
 			// Canvas enablement is decided at launch, which can precede the client's configuration, such as a setting its experiment enables later.
 			?? (this._requiresCanvasRuntimeRefresh(entry) ? 'canvasesEnabledChanged' : undefined)
+			// `chat.useHooks` decides at launch which hooks the runtime loads and which callbacks VS Code registers. Background
+			// subagents of an earlier turn would stop with the runtime, so the change waits until they finish.
+			?? (!entry.hasActiveSubagents && (entry.hooksEnabled !== false) !== areCopilotHooksEnabled(this._configurationService) ? 'hooksEnabledChanged' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
