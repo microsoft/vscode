@@ -7,6 +7,7 @@ import { addDisposableListener, EventType, findParentWithClass, getWindow } from
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -121,6 +122,11 @@ export class WebviewViewPane extends ViewPane {
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+
+		// The parent-flow id must exist before the webview is laid out for focus detection.
+		if (!container.id) {
+			container.id = `webview-view-container-${generateUuid()}`;
+		}
 
 		this._container = container;
 		this._rootContainer = undefined;
