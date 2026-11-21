@@ -366,6 +366,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		await this.dynamicAuthProviderStorageService.storeClientRegistration(details.id, URI.revive(details.authorizationServer).toString(true), details.clientId, details.clientSecret, details.label);
 	}
 
+	async $removeDynamicAuthenticationProvider(id: string): Promise<void> {
+		this.authenticationService.unregisterAuthenticationProvider(id);
+		await this.dynamicAuthProviderStorageService.removeDynamicProvider(id);
+	}
+
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}
@@ -456,11 +461,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const { clearSessionPreference, createIfNone, forceNewSession, silent, providerOptions } = prepareSessionRequest(options);
+		// The default request is passive too; only the interactive options permit provider UI.
+		const passive = !createIfNone && !forceNewSession;
 		const sessions = await this.authenticationService.getSessions(providerId, scopeListOrRequest, {
 			...providerOptions,
-			// The default request is passive too; only the interactive options permit provider UI.
-			silent: !createIfNone && !forceNewSession
+			silent: passive
 		}, true);
+		// A silent refresh removes a dynamic provider whose client was rejected, so there is no session to return.
+		if (passive && !this.authenticationService.isAuthenticationProviderRegistered(providerId)) {
+			return undefined;
+		}
 		const provider = this.authenticationService.getProvider(providerId);
 
 		if (clearSessionPreference) {

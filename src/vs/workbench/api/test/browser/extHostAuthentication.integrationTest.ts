@@ -969,6 +969,7 @@ suite('ExtHostAuthentication', () => {
 				}();
 				const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
 					override $setSessionsForDynamicAuthProvider = async (): Promise<void> => { };
+					override $removeDynamicAuthenticationProvider = async (): Promise<void> => { };
 					override $promptForClientRegistration = async (): Promise<{ clientId: string }> => {
 						registrationPrompts++;
 						return { clientId: 'replacement-client' };

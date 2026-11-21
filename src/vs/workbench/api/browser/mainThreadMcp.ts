@@ -426,7 +426,20 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	): Promise<string | undefined> {
 		const { authorizationServer, clientId, resource, audience } = authContext;
 		const providerOptions = { authorizationServer, clientId, clientSecret, resource, audience };
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { ...providerOptions, silent: errorOnUserInteraction }, true);
+		let sessions: readonly AuthenticationSession[];
+		try {
+			sessions = await this._authenticationService.getSessions(providerId, scopes, { ...providerOptions, silent: errorOnUserInteraction }, true);
+		} catch (e) {
+			// Another server sharing the provider may already have removed it after a rejected silent refresh.
+			if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
+				throw new UserInteractionRequiredError('authentication');
+			}
+			throw e;
+		}
+		// A silent refresh removes a dynamic provider whose client was rejected; the next interactive attempt recreates it.
+		if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
+			throw new UserInteractionRequiredError('authentication');
+		}
 		// Only HTTP servers authenticate, so the server URL is always known here. A token is only released
 		// to a server whose current URL matches the one the user consented to, so changing the URL while
 		// keeping the same id requires re-consent.
