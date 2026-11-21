@@ -144,6 +144,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
+		key: 'chat/input/status',
+		id: MenuId.ChatInputStatus,
+		description: localize('menus.chatInputStatus', "The status indicator area at the rightmost end of the toolbar shown beneath the chat input"),
+		supportsSubmenus: false
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -499,6 +505,13 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chatSessions/item/context',
+		id: MenuId.SessionItemContextMenu,
+		description: localize('menus.chatSessionsItemContext', "The context menu for items in the Sessions window's session list."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		key: 'chatSessions/newSession',
 		id: MenuId.AgentSessionsCreateSubMenu,
 		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
@@ -562,6 +575,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.AgentsChangeInlineToolbar,
 		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
 		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'titleBar',
+		id: MenuId.TitleBar,
+		description: localize('menus.titleBar', "The title bar of the editor window."),
+		proposed: 'contribTitleBar'
+	},
+	{
+		key: 'agents/titleBar',
+		id: MenuId.AgentsTitleBar,
+		description: localize('menus.agentsTitleBar', "The title bar of the agents window."),
+		proposed: 'contribTitleBar'
 	},
 ];
 
@@ -1192,18 +1217,18 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		// Add to commandPalette array any commands not explicitly contributed to it
 		const implicitlyOnCommandPalette = index(commands, c => c.id);
-		if (menus['commandPalette']) {
-			for (const command of menus['commandPalette']) {
+		if (menus.commandPalette) {
+			for (const command of menus.commandPalette) {
 				delete implicitlyOnCommandPalette[command.command];
 			}
 		}
 
 		if (Object.keys(implicitlyOnCommandPalette).length) {
-			if (!menus['commandPalette']) {
-				menus['commandPalette'] = [];
+			if (!menus.commandPalette) {
+				menus.commandPalette = [];
 			}
 			for (const command in implicitlyOnCommandPalette) {
-				menus['commandPalette'].push({ command });
+				menus.commandPalette.push({ command });
 			}
 		}
 

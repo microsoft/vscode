@@ -25,7 +25,7 @@ export function setup(logger: Logger) {
 			// https://github.com/microsoft/vscode/issues/110276
 			await app.workbench.extensions.closeExtension('vscode-smoketest-check');
 
-			await app.workbench.quickaccess.runCommand('Smoke Test Check');
+			await app.workbench.quickaccess.runCommand('Smoke Test Check', { match: 'exactLabel' });
 		});
 	});
 }

@@ -23,7 +23,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { McpServerStatusAction } from './mcpServerActions.js';
 import { reset } from '../../../../base/browser/dom.js';
 import { mcpLicenseIcon, mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon, mcpStarredIcon } from './mcpServerIcons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ExtensionHoverOptions, ExtensionIconBadge } from '../../extensions/browser/extensionsWidgets.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -336,9 +336,9 @@ export class McpServerHoverWidget extends McpServerWidget {
 		if (!this.mcpServer) {
 			return undefined;
 		}
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		const markdown = new MarkdownString('', { isTrusted: false, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.mcpServer.label}**`);
+		markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(this.mcpServer.label)}**`);
 		markdown.appendText(`\n`);
 
 		let addSeparator = false;
@@ -370,7 +370,7 @@ export class McpServerHoverWidget extends McpServerWidget {
 		}
 
 		if (this.mcpServer.description) {
-			markdown.appendMarkdown(`${this.mcpServer.description}`);
+			markdown.appendMarkdown(escapeMarkdownSyntaxTokens(this.mcpServer.description));
 		}
 
 		const extensionStatus = this.mcpServerStatusAction.status;

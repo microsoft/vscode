@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
@@ -71,6 +71,8 @@ export interface ISetting {
 	overrideOf?: ISetting;
 	deprecationMessage?: string;
 	deprecationMessageIsMarkdown?: boolean;
+	deprecationMessageSeverity?: 'warning' | 'info';
+	deprecationMessageShowInSettings?: boolean;
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
@@ -111,7 +113,6 @@ export interface IExtensionSetting extends ISetting {
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
 	exactMatch: boolean;
-	metadata?: IFilterMetadata;
 }
 
 export interface ISearchResultGroup {
@@ -126,7 +127,6 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	metadata?: IStringDictionary<IFilterMetadata>;
 	exactMatch?: boolean;
 }
 
@@ -159,35 +159,6 @@ export interface ISettingMatch {
 	keyMatchScore: number;
 	score: number;
 	providerName?: string;
-}
-
-export interface IScoredResults {
-	[key: string]: IRemoteSetting;
-}
-
-export interface IRemoteSetting {
-	score: number;
-	key: string;
-	id: string;
-	defaultValue: string;
-	description: string;
-	packageId: string;
-	extensionName?: string;
-	extensionPublisher?: string;
-}
-
-export interface IFilterMetadata {
-	requestUrl: string;
-	requestBody: string;
-	timestamp: number;
-	duration: number;
-	scoredResults: IScoredResults;
-
-	/** The number of requests made, since requests are split by number of filters */
-	requestCount?: number;
-
-	/** The name of the server that actually served the request */
-	context: string;
 }
 
 export interface IPreferencesEditorModel<T> {
@@ -235,6 +206,20 @@ export function validateSettingsEditorOptions(options: ISettingsEditorOptions): 
 		override: DEFAULT_EDITOR_ASSOCIATION.id,
 		pinned: true
 	};
+}
+
+/**
+ * Returns the resource of the default settings that are shown next to the
+ * settings file of the given configuration target in the split settings editor.
+ */
+export function getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
+	switch (configurationTarget) {
+		case ConfigurationTarget.WORKSPACE:
+			return URI.from({ scheme: Schemas.vscode, authority: 'defaultsettings', path: `/workspaceSettings.json` });
+		case ConfigurationTarget.WORKSPACE_FOLDER:
+			return URI.from({ scheme: Schemas.vscode, authority: 'defaultsettings', path: `/resourceSettings.json` });
+	}
+	return URI.from({ scheme: Schemas.vscode, authority: 'defaultsettings', path: `/settings.json` });
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {

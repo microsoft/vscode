@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { isWindows } from '../../../../../../../base/common/platform.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -696,6 +697,75 @@ suite('PromptFilesLocator', () => {
 							'Must find correct prompts.',
 						);
 					}
+				});
+
+				testT('glob-like characters in the workspace folder path', async () => {
+					setLocations({
+						'.github/prompts': true,
+						'deps/**/*.prompt.md': true,
+					});
+					setWorkspaceFolders(['/Users/legomushroom/repos/Game [URP] {v2}']);
+					await mockFiles(fileService, [
+						{
+							path: '/Users/legomushroom/repos/Game [URP] {v2}/.github/prompts/default.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+						{
+							path: '/Users/legomushroom/repos/Game [URP] {v2}/deps/text/my.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+					]);
+					const searchedFolders: string[] = [];
+					const searchService = instantiationService.get(ISearchService);
+					const fileSearch = searchService.fileSearch.bind(searchService);
+					instantiationService.stub(ISearchService, 'fileSearch', (query: IFileQuery) => {
+						searchedFolders.push(...query.folderQueries.map(folderQuery => folderQuery.folder.path));
+						return fileSearch(query);
+					});
+					const locator = instantiationService.createInstance(PromptFilesLocator);
+
+					assert.deepStrictEqual(
+						{
+							files: (await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None)).map(file => file.path),
+							searchedFolders,
+						},
+						{
+							files: [
+								'/Users/legomushroom/repos/Game [URP] {v2}/.github/prompts/default.prompt.md',
+								'/Users/legomushroom/repos/Game [URP] {v2}/deps/text/my.prompt.md',
+							],
+							searchedFolders: ['/Users/legomushroom/repos/Game [URP] {v2}/deps'],
+						},
+					);
+				});
+
+				testT('normalizes the configured path before detecting glob patterns', async () => {
+					setLocations({
+						'unused*/../shared/prompts': true,
+						// backslashes are path separators only on Windows
+						...(isWindows ? { 'deps\\*.prompt.md': true } : {}),
+					});
+					setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+					await mockFiles(fileService, [
+						{
+							path: '/Users/legomushroom/repos/vscode/shared/prompts/default.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+						{
+							path: '/Users/legomushroom/repos/vscode/deps/my.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+					]);
+					const locator = instantiationService.createInstance(PromptFilesLocator);
+
+					assertOutcome(
+						await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
+						[
+							'/Users/legomushroom/repos/vscode/shared/prompts/default.prompt.md',
+							...(isWindows ? ['/Users/legomushroom/repos/vscode/deps/my.prompt.md'] : []),
+						],
+						'Must find correct prompts.',
+					);
 				});
 			});
 
@@ -1911,6 +1981,35 @@ suite('PromptFilesLocator', () => {
 				'Must find instructions files recursively in subdirectories of .github/instructions.',
 			);
 		});
+
+		testT('finds instructions files in subdirectories when the workspace folder path contains glob-like characters', async () => {
+			setLocations({
+				'.github/instructions': true,
+				'.claude/rules': false,
+				'~/.copilot/instructions': false,
+			});
+			setWorkspaceFolders(['/Users/legomushroom/repos/Game * [URP]']);
+			await mockFiles(fileService, [
+				{
+					path: '/Users/legomushroom/repos/Game * [URP]/.github/instructions/root.instructions.md',
+					contents: ['root instructions'],
+				},
+				{
+					path: '/Users/legomushroom/repos/Game * [URP]/.github/instructions/frontend/react.instructions.md',
+					contents: ['react instructions'],
+				},
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			assertOutcome(
+				await locator.listFiles(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+				[
+					'/Users/legomushroom/repos/Game * [URP]/.github/instructions/root.instructions.md',
+					'/Users/legomushroom/repos/Game * [URP]/.github/instructions/frontend/react.instructions.md',
+				],
+				'Must find instructions files recursively in subdirectories.',
+			);
+		});
 	});
 
 	suite('skills', () => {
@@ -2631,6 +2730,26 @@ suite('PromptFilesLocator', () => {
 				'Must find correct prompts.',
 			);
 		});
+
+		testT('keeps workspace folders with glob-like characters in their path', async () => {
+			setLocations({
+				'.github/prompts': true,
+				'gen/text/**': true,
+				'general/*': true,
+			});
+			setWorkspaceFolders(['/Users/legomushroom/repos/Game [URP] {v2}']);
+			await mockFiles(fileService, []);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			assertOutcome(
+				await locator.getConfigBasedSourceFolders(PromptsType.prompt),
+				[
+					'/Users/legomushroom/repos/Game [URP] {v2}/.github/prompts',
+					'/Users/legomushroom/repos/Game [URP] {v2}/general',
+				],
+				'Must find correct prompts.',
+			);
+		});
 	});
 
 	suite('findAgentMDsInWorkspace', () => {
@@ -2762,6 +2881,40 @@ suite('PromptFilesLocator', () => {
 					'/repos/monorepo/packages/my-app',
 				].sort(),
 				'Should include workspace folder and all parents up to the one with .git',
+			);
+		});
+
+		testT('stops at a submodule .git file', async () => {
+			setWorkspaceFoldersForRoots(['/repos/superproject/submodule']);
+			await mockFiles(fileService, [
+				{ path: '/repos/superproject/.git/HEAD', contents: ['ref: refs/heads/main'] },
+				{ path: '/repos/superproject/submodule/.git', contents: ['gitdir: ../.git/modules/submodule'] },
+				{ path: '/repos/superproject/submodule/src/index.ts', contents: ['export {};'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/superproject/submodule')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(roots.map(r => r.path), ['/repos/superproject/submodule']);
+		});
+
+		testT('stops at a git worktree .git file', async () => {
+			setWorkspaceFoldersForRoots(['/repos/repo.worktrees/feature/src']);
+			await mockFiles(fileService, [
+				{ path: '/repos/repo.worktrees/feature/.git', contents: ['gitdir: ../../repo/.git/worktrees/feature'] },
+				{ path: '/repos/repo.worktrees/feature/src/index.ts', contents: ['export {};'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/repo.worktrees/feature')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path).sort(),
+				[
+					'/repos/repo.worktrees/feature',
+					'/repos/repo.worktrees/feature/src',
+				].sort(),
+				'Should include the workspace folder and its worktree root',
 			);
 		});
 

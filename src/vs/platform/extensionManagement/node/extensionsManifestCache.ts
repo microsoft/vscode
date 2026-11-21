@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { DidUninstallExtensionEvent, IExtensionManagementService, InstallExtensionResult } from '../common/extensionManagement.js';
-import { USER_MANIFEST_CACHE_FILE } from '../../extensions/common/extensions.js';
+import { ExtensionType, isManifestCacheFileName } from '../../extensions/common/extensions.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
@@ -44,17 +44,22 @@ export class ExtensionsManifestCache extends Disposable {
 		if (extensionsManifestLocation) {
 			for (const profile of this.userDataProfilesService.profiles) {
 				if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, extensionsManifestLocation)) {
-					await this.deleteUserCacheFile(profile);
+					await this.deleteUserCacheFiles(profile);
 				}
 			}
 		} else {
-			await this.deleteUserCacheFile(this.userDataProfilesService.defaultProfile);
+			await this.deleteUserCacheFiles(this.userDataProfilesService.defaultProfile);
 		}
 	}
 
-	private async deleteUserCacheFile(profile: IUserDataProfile): Promise<void> {
+	private async deleteUserCacheFiles(profile: IUserDataProfile): Promise<void> {
 		try {
-			await this.fileService.del(this.uriIdentityService.extUri.joinPath(profile.cacheHome, USER_MANIFEST_CACHE_FILE));
+			// Every consumer scans with a language, so there is one cache file per language
+			const cacheHome = await this.fileService.resolve(profile.cacheHome);
+			const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(profile.cacheHome);
+			await Promise.all((cacheHome.children ?? [])
+				.filter(child => !child.isDirectory && isManifestCacheFileName(child.name, ExtensionType.User, ignorePathCasing))
+				.map(child => this.fileService.del(child.resource)));
 		} catch (error) {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error(error);

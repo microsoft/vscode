@@ -113,15 +113,6 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 			.filter(item => !editorPreviewFeaturesDisabled || item.preview === false || item.preview === undefined);
 	}
 
-	static filterModelsWithEditorPreviewFeatures(
-		data: ICompletionModelInformation[],
-		editorPreviewFeaturesDisabled: boolean
-	): ICompletionModelInformation[] {
-		return data.filter(
-			item => !editorPreviewFeaturesDisabled || item.preview === false || item.preview === undefined
-		);
-	}
-
 	static mapCompletionModels(data: ICompletionModelInformation[]): ModelItem[] {
 		return data.map(item => ({
 			modelId: item.id,

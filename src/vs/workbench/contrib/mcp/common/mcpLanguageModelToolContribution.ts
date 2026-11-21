@@ -86,7 +86,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 						referenceName,
 						{
 							icon: Codicon.mcp,
-							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
+							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label),
+							deprecated: true,
 						}
 					));
 
@@ -252,6 +253,7 @@ class McpToolImplementation implements IToolImpl {
 				kind: 'input',
 				rawInput: context.parameters,
 				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
+					kind: 'local',
 					resourceUri: tool.uiResourceUri,
 					serverDefinitionId: server.definition.id,
 					collectionId: server.collection.id,

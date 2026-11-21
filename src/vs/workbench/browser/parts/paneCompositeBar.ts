@@ -6,12 +6,13 @@
 import { localize } from '../../../nls.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
-import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
 import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { createCSSRule } from '../../../base/browser/domStylesheets.js';
 import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
@@ -31,6 +32,7 @@ import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -82,6 +84,7 @@ export interface IPaneCompositeBarOptions {
 	readonly preventLoopNavigation?: boolean;
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
+	readonly transformContextMenuActionsForComposite?: (actions: IAction[], compositeId: string) => IAction[];
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
 }
 
@@ -91,9 +94,11 @@ export class PaneCompositeBar extends Disposable {
 
 	private readonly compositeBar: CompositeBar;
 	readonly dndHandler: ICompositeDragAndDrop;
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction }>();
+	private readonly compositeActions = this._register(new DisposableMap<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction; dispose: () => void }>());
 
 	private hasExtensionsRegistered: boolean = false;
+	private dimension: Dimension | undefined;
+	private needsSizeRecompute = false;
 
 	constructor(
 		private readonly location: ViewContainerLocation,
@@ -108,6 +113,7 @@ export class PaneCompositeBar extends Disposable {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -128,6 +134,19 @@ export class PaneCompositeBar extends Disposable {
 		this.compositeBar = this.createCompositeBar(cachedItems);
 		this.onDidRegisterViewContainers(this.getViewContainers());
 		this.registerListeners();
+
+		if (this.options.recomputeSizes) {
+			// Measure after the Modern UI contribution has applied the new tab geometry.
+			const recomputeSizes = this._register(new RunOnceScheduler(() => {
+				this.needsSizeRecompute = true;
+				this.recomputeSizesIfVisible();
+			}, 0));
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
+					recomputeSizes.schedule();
+				}
+			}));
+		}
 	}
 
 	private createCompositeBar(cachedItems: ICompositeBarItem[]) {
@@ -145,7 +164,10 @@ export class PaneCompositeBar extends Disposable {
 			getCompositeBadgeAction: compositeId => this.getCompositeActions(compositeId).badgeAction,
 			getOnCompositeClickAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			fillExtraContextMenuActions: (actions, e) => this.options.fillExtraContextMenuActions(actions, e),
-			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
+			getContextMenuActionsForComposite: compositeId => {
+				const actions = this.getContextMenuActionsForComposite(compositeId);
+				return this.options.transformContextMenuActionsForComposite?.(actions, compositeId) ?? actions;
+			},
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)?.id,
 			dndHandler: this.dndHandler,
 			compositeSize: this.options.compositeSize,
@@ -310,22 +332,25 @@ export class PaneCompositeBar extends Disposable {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
+			let activityAction: ViewContainerActivityAction;
+			let pinnedAction: ToggleCompositePinnedAction;
+			let badgeAction: ToggleCompositeBadgeAction;
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				compositeActions = {
-					activityAction: this._register(this.instantiationService.createInstance(ViewContainerActivityAction, this.toCompositeBarActionItemFrom(viewContainerModel), this.part, this.paneCompositePart)),
-					pinnedAction: this._register(new ToggleCompositePinnedAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar)),
-					badgeAction: this._register(new ToggleCompositeBadgeAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar))
-				};
+				const actionItem = this.toCompositeBarActionItemFrom(viewContainerModel);
+				activityAction = this.instantiationService.createInstance(ViewContainerActivityAction, actionItem, this.part, this.paneCompositePart);
+				pinnedAction = new ToggleCompositePinnedAction(actionItem, this.compositeBar);
+				badgeAction = new ToggleCompositeBadgeAction(actionItem, this.compositeBar);
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
-				compositeActions = {
-					activityAction: this._register(this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined), this.part, this.paneCompositePart)),
-					pinnedAction: this._register(new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)),
-					badgeAction: this._register(new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar))
-				};
+				const actionItem = this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined);
+				activityAction = this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, actionItem, this.part, this.paneCompositePart);
+				pinnedAction = new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar);
+				badgeAction = new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar);
 			}
 
+			const disposable = combinedDisposable(activityAction, pinnedAction, badgeAction);
+			compositeActions = { activityAction, pinnedAction, badgeAction, dispose: () => disposable.dispose() };
 			this.compositeActions.set(compositeId, compositeActions);
 		}
 
@@ -467,9 +492,7 @@ export class PaneCompositeBar extends Disposable {
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
-			compositeActions.activityAction.dispose();
-			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.deleteAndDispose(compositeId);
 		}
 	}
 
@@ -478,9 +501,7 @@ export class PaneCompositeBar extends Disposable {
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
-			compositeActions.activityAction.dispose();
-			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.deleteAndDispose(compositeId);
 		}
 	}
 
@@ -512,7 +533,16 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	layout(width: number, height: number): void {
-		this.compositeBar.layout(new Dimension(width, height));
+		this.dimension = new Dimension(width, height);
+		this.compositeBar.layout(this.dimension);
+		this.recomputeSizesIfVisible();
+	}
+
+	private recomputeSizesIfVisible(): void {
+		if (this.needsSizeRecompute && this.dimension && this.dimension.width > 0 && this.dimension.height > 0 && this.layoutService.isVisible(this.part, mainWindow)) {
+			this.needsSizeRecompute = false;
+			this.compositeBar.recomputeSizes();
+		}
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {

@@ -23,9 +23,6 @@ export const REQUESTS_TAG = 'requests-tag';
 export const INLINE_INITIAL_DOC_TAG = 'inline-initial-doc-tag';
 export const INLINE_CHANGED_DOC_TAG = 'inline-changed-doc-tag';
 export const INLINE_STATE_TAG = 'inline-state-tag';
-export const INLINE_NOTEBOOK_EXECUTION_TAG = 'inline-notebook-execution-tag';
-
-export const SIDEBAR_RAW_RESPONSE_TAG = 'sidebar-raw-response-tag';
 
 export const NES_USER_EDITS_HISTORY_TAG = 'nes-user-edits-history-tag';
 export const NES_LOG_CONTEXT_TAG = 'nes-log-context-tag';
@@ -35,7 +32,6 @@ export const SIMULATION_FOLDER_NAME = '.simulation';
 export const STDOUT_FILENAME = 'stdout.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
 export const OLD_BASELINE_FILENAME = 'baseline.old.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
 export const PRODUCED_BASELINE_FILENAME = 'baseline.produced.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
-export const AML_OUTPUT_PATH = 'test/aml/out';
 export const REPORT_FILENAME = 'report.json';
 export const SCORECARD_FILENAME = 'scorecard.csv';
 export const RUN_METADATA = 'metadata.json';
@@ -49,33 +45,6 @@ export interface ISerialisedChatMessage {
 }
 
 export type ISerializedChatCompletionContentPart = Raw.ChatCompletionContentPart;
-
-export interface ISerializedChatCompletionContentPartImage {
-	type: 'text';
-	text: string;
-}
-
-export interface ISerializedChatCompletionContentPartText {
-	type: 'image_url';
-	image_url: ISerializedChatCompletionContentPartImage.ISerializedImageURL;
-}
-
-export namespace ISerializedChatCompletionContentPartImage {
-	export interface ISerializedImageURL {
-		/**
-		 * Either a URL of the image or the base64 encoded image data.
-		 */
-		url: string;
-
-
-		/**
-		 * Specifies the detail level of the image. Learn more in the
-		 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
-		 */
-		detail?: 'low' | 'high';
-	}
-}
-
 
 export interface ICopilotFunctionCall {
 	name: string;
@@ -273,6 +242,43 @@ export type Output = IDetectedTestOutput
 	| ITerminated
 	| IDeviceCodeCallbackOutput
 	;
+
+/**
+ * Describes a single adhoc chat request sent from the simulation workbench
+ * "Adhoc request sender" mode. Serialized to a temp file and passed to the
+ * simulation CLI via `--adhoc-request-file`.
+ */
+export interface IAdhocRequest {
+	readonly system: string;
+	readonly user: string;
+	readonly model: string;
+}
+
+export enum AdhocResponseType {
+	/** A streamed chunk of the response text. */
+	delta = 'adhocResponseDelta',
+	/** The final, full response text. */
+	done = 'adhocResponseDone',
+	/** The request failed. */
+	error = 'adhocResponseError',
+}
+
+export interface IAdhocResponseDelta {
+	readonly type: AdhocResponseType.delta;
+	readonly value: string;
+}
+
+export interface IAdhocResponseDone {
+	readonly type: AdhocResponseType.done;
+	readonly value: string;
+}
+
+export interface IAdhocResponseError {
+	readonly type: AdhocResponseType.error;
+	readonly value: string;
+}
+
+export type AdhocResponseOutput = IAdhocResponseDelta | IAdhocResponseDone | IAdhocResponseError;
 
 export interface IRange {
 	readonly start: IPosition;

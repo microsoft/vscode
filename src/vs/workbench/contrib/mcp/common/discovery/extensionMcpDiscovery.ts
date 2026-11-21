@@ -15,7 +15,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { mcpActivationEvent, mcpContributionPoint } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { extensionPrefixedIdentifier, McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
 const cacheKey = 'mcp.extCachedServers';
@@ -117,6 +117,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 		const serverDefs = this.cachedServers.hasOwnProperty(id) ? this.cachedServers[id].servers : undefined;
 		const dispo = this._mcpRegistry.registerCollection({
 			id,
+			provenance: McpCollectionProvenance.Extension,
 			label: coll.label,
 			remoteAuthority: null,
 			trustBehavior: McpServerTrust.Kind.Trusted,

@@ -8,15 +8,16 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { posix } from '../../../../base/common/path.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IResourceEditorInput, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from '../../../common/editor.js';
 import { IEditorGroup } from './editorGroupsService.js';
 import { PreferredGroup } from './editorService.js';
 import { AtLeastOne } from '../../../../base/common/types.js';
@@ -36,20 +37,60 @@ export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
 
 /**
- * Default value for `workbench.editorAssociations` in the Agents window.
+ * Controls the default Markdown editor in the Agents window, using the text editor
+ * in screen-reader mode when set to `auto`.
+ */
+export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
+
+export type MarkdownDefaultEditorMode = 'auto' | 'on' | 'off';
+
+function markdownEditorAgentsWindowDefault(markdownDefaultEditor: MarkdownDefaultEditorMode = 'auto', screenReaderOptimized = false): string {
+	if (markdownDefaultEditor === 'off') {
+		return 'vscode.markdown.preview.editor';
+	}
+	return markdownDefaultEditor === 'auto' && screenReaderOptimized ? DEFAULT_EDITOR_ASSOCIATION.id : 'vscode.markdown.editor';
+}
+
+/**
+ * Builds the default value for `workbench.editorAssociations` in the Agents window.
  * Shared so that dynamic re-registrations of the setting preserve the override.
  */
-export const editorsAssociationsAgentsWindowDefault: Readonly<Record<string, string>> = Object.freeze({
-	'*.md': 'vscode.markdown.preview.editor'
-});
+export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: MarkdownDefaultEditorMode; screenReaderOptimized?: boolean; integratedBrowserAvailable?: boolean }): Record<string, string> {
+	const associations: Record<string, string> = {};
+	if (options?.integratedBrowserAvailable ?? !isWeb) {
+		associations['*.html'] = 'workbench.editor.browser';
+	}
+	associations['*.md'] = markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor, options?.screenReaderOptimized);
+	return associations;
+}
+
+export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: MarkdownDefaultEditorMode; screenReaderOptimized?: boolean }): Record<string, string> {
+	return {
+		'*.md': markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor, options?.screenReaderOptimized)
+	};
+}
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
+		[markdownDefaultEditorAgentsWindowSettingId]: {
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			enumDescriptions: [
+				localize('editor.markdownDefaultEditorInAgentsWindow.auto', "Use the Markdown editor unless screen-reader mode is enabled, in which case use the text editor."),
+				localize('editor.markdownDefaultEditorInAgentsWindow.on', "Always use the Markdown editor."),
+				localize('editor.markdownDefaultEditorInAgentsWindow.off', "Use Markdown Preview."),
+			],
+			default: 'auto',
+			tags: ['experimental', 'accessibility'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls the default editor for Markdown files and diffs in the Agents window. Explicit `#workbench.editorAssociations#` and `#workbench.diffEditorAssociations#` take precedence."),
+		},
 		[editorsAssociationsSettingId]: {
 			type: 'object',
 			markdownDescription: localize('editor.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
@@ -57,7 +98,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 				type: 'string'
 			},
 			agentsWindow: {
-				default: editorsAssociationsAgentsWindowDefault
+				default: editorsAssociationsAgentsWindowDefault()
 			}
 		},
 		[diffEditorsAssociationsSettingId]: {
@@ -65,10 +106,30 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
+			},
+			agentsWindow: {
+				default: diffEditorsAssociationsAgentsWindowDefault()
+			}
+		},
+		[hiddenEditorTypesSettingId]: {
+			type: 'array',
+			default: [],
+			items: {
+				type: 'string'
+			},
+			markdownDescription: localize('editor.hiddenEditorTypes', "Configure editor types that are hidden from the editor type picker. The active editor type remains visible."),
+			agentsWindow: {
+				default: ['vscode.markdown.preview.editor']
 			}
 		}
 	}
 };
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: markdownDefaultEditorAgentsWindowSettingId,
+	includeApplication: true,
+	migrateFn: (value: unknown) => typeof value === 'boolean' ? { value: value ? 'on' : 'off' } : []
+}]);
 
 export interface IEditorType {
 	readonly id: string;
@@ -84,7 +145,12 @@ export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
-	default = 'default'
+	default = 'default',
+	/**
+	 * The editor is not automatically used for this kind of input or opted into by an association
+	 * from another input kind. It requires an association for this input kind or an explicit open.
+	 */
+	explicit = 'explicit'
 }
 
 /**
@@ -112,14 +178,167 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
+export interface IEditorResolverServiceGetEditorsOptions {
+	/**
+	 * Excludes optional editors registered for `*`, unless they are configured or currently active.
+	 */
+	readonly excludeUnconfiguredUniversalOptionalEditors?: boolean;
+	readonly currentEditorId?: string;
+	readonly isDiffEditor?: boolean;
+}
+
+export interface IEditorResolverServiceGetEditorMatchesOptions {
+	readonly isDiffEditor?: boolean;
+}
+
+/** The UI that changed a default editor through {@link IEditorResolverService.setDefaultEditor}. */
+export type DefaultEditorChangeSource = 'editorTypePicker' | 'reopenWithPicker' | 'markdownEditorNudge';
+
+export interface ISetDefaultEditorOptions {
+	/** What made the change, for telemetry about default editor changes. */
+	readonly source?: DefaultEditorChangeSource;
+	/** The glob pattern to associate, instead of the pattern of the resource's current default rule. */
+	readonly associationPattern?: string;
+}
+
+export interface IWillSetDefaultEditorEvent {
+	readonly resource: URI;
+	readonly editorId: string;
+	readonly forDiffEditor: boolean;
+	readonly source: DefaultEditorChangeSource | undefined;
+}
+
+export interface IEditorResolverServiceGetAllEditorsOptions {
+	/**
+	 * Excludes registrations whose editor priority is exclusive.
+	 */
+	readonly excludeExclusiveEditors?: boolean;
+
+	/**
+	 * Excludes registrations that cannot create a diff editor.
+	 */
+	readonly isDiffEditor?: boolean;
+}
+
+export const enum EditorMatchRuleSource {
+	UserAssociation,
+	EditorRegistration,
+	Fallback
+}
+
+/**
+ * The effective rule that makes one editor choice available for a resource.
+ */
+export type EditorMatchRule = {
+	readonly editor: RegisteredEditorInfo;
+	readonly priority: RegisteredEditorPriority;
+	readonly associationPattern: string;
+} & (
+		| { readonly source: EditorMatchRuleSource.UserAssociation; readonly association: EditorAssociation }
+		| { readonly source: EditorMatchRuleSource.EditorRegistration; readonly globPattern: string | glob.IRelativePattern }
+		| { readonly source: EditorMatchRuleSource.Fallback }
+	);
+
+export function isUnconfiguredUniversalOptionalEditorMatch(rule: EditorMatchRule): boolean {
+	return rule.source === EditorMatchRuleSource.EditorRegistration
+		&& rule.globPattern === '*'
+		&& rule.priority === RegisteredEditorPriority.option;
+}
+
+function freezeEditorMatchRule(rule: EditorMatchRule): EditorMatchRule {
+	const editor = Object.freeze({
+		...rule.editor,
+		priority: Object.freeze({ ...rule.editor.priority })
+	});
+	switch (rule.source) {
+		case EditorMatchRuleSource.UserAssociation:
+			return Object.freeze({ ...rule, editor, association: Object.freeze({ ...rule.association }) });
+		case EditorMatchRuleSource.EditorRegistration:
+			return Object.freeze({
+				...rule,
+				editor,
+				globPattern: typeof rule.globPattern === 'string' ? rule.globPattern : Object.freeze({ ...rule.globPattern })
+			});
+		case EditorMatchRuleSource.Fallback:
+			return Object.freeze({ ...rule, editor });
+	}
+}
+
+/**
+ * An immutable snapshot containing one effective rule per matching editor and the rule selecting its default.
+ */
+export class EditorMatches {
+	readonly matches: readonly EditorMatchRule[];
+	readonly defaultRuleIndex: number;
+	readonly defaultRule: EditorMatchRule;
+	readonly naturalDefaultRuleIndex: number;
+	readonly naturalDefaultRule: EditorMatchRule;
+	readonly conflictingDefault: boolean;
+	readonly hasExclusiveMatch: boolean;
+
+	constructor(matches: readonly EditorMatchRule[], defaultRuleIndex: number, naturalDefaultRuleIndex: number, conflictingDefault: boolean) {
+		if (defaultRuleIndex < 0 || defaultRuleIndex >= matches.length) {
+			throw new RangeError('The default editor rule must be an item in the matches array.');
+		}
+		if (naturalDefaultRuleIndex < 0 || naturalDefaultRuleIndex >= matches.length) {
+			throw new RangeError('The natural default editor rule must be an item in the matches array.');
+		}
+		if (new Set(matches.map(match => match.editor.id)).size !== matches.length) {
+			throw new RangeError('Each editor must have exactly one effective match rule.');
+		}
+		if (conflictingDefault && matches[defaultRuleIndex].source !== EditorMatchRuleSource.EditorRegistration) {
+			throw new RangeError('Only a registered editor default can conflict with another default.');
+		}
+		if (matches.some((match, index) => match.source === EditorMatchRuleSource.Fallback && index !== defaultRuleIndex && index !== naturalDefaultRuleIndex)) {
+			throw new RangeError('A fallback rule must select the effective or natural default editor.');
+		}
+
+		this.matches = Object.freeze(matches.map(freezeEditorMatchRule));
+		this.defaultRuleIndex = defaultRuleIndex;
+		this.defaultRule = this.matches[defaultRuleIndex];
+		this.naturalDefaultRuleIndex = naturalDefaultRuleIndex;
+		this.naturalDefaultRule = this.matches[naturalDefaultRuleIndex];
+		this.conflictingDefault = conflictingDefault;
+		this.hasExclusiveMatch = this.matches.some(match => match.priority === RegisteredEditorPriority.exclusive);
+		Object.freeze(this);
+	}
+}
+
+export type RegisteredEditorPriorityInfo = {
+	readonly editor: RegisteredEditorPriority;
+	readonly diff: RegisteredEditorPriority;
+	readonly merge: RegisteredEditorPriority;
+};
+
+export type RegisteredEditorPriorityConfiguration = Omit<RegisteredEditorPriorityInfo, 'merge'> & {
+	readonly merge?: RegisteredEditorPriority;
+};
+
 export type RegisteredEditorInfo = {
 	readonly id: string;
 	readonly label: string;
 	readonly detail?: string;
-	readonly priority: RegisteredEditorPriority;
-	readonly diffEditorPriority?: RegisteredEditorPriority;
-	readonly mergeEditorPriority?: RegisteredEditorPriority;
+	readonly priority: RegisteredEditorPriorityInfo;
 };
+
+export type RegisteredEditorRegistrationInfo = Omit<RegisteredEditorInfo, 'priority'> & {
+	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityConfiguration;
+};
+
+export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityConfiguration): RegisteredEditorPriorityInfo {
+	if (typeof priority !== 'string') {
+		return {
+			editor: priority.editor,
+			diff: priority.diff,
+			merge: priority.merge ?? priority.editor,
+		};
+	}
+	return {
+		editor: priority,
+		diff: priority,
+		merge: priority,
+	};
+}
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
@@ -153,11 +372,31 @@ export interface IEditorResolverService {
 	getAssociationsForResource(resource: URI): EditorAssociations;
 
 	/**
-	 * Updates the user's association to include a specific editor ID as a default for the given glob pattern
-	 * @param globPattern The glob pattern (must be a string as settings don't support relative glob)
-	 * @param editorID The ID of the editor to make a user default
+	 * Returns an immutable snapshot of the editors matching a resource and the rule selecting its default.
 	 */
-	updateUserAssociations(globPattern: string, editorID: string): void;
+	getEditorMatches(resource: URI, options?: IEditorResolverServiceGetEditorMatchesOptions): EditorMatches;
+
+	/**
+	 * Sets an editor as the default for a resource, removing a redundant association when restoring
+	 * the natural default supplied by editor registrations or the Text Editor fallback.
+	 * @param resource The resource whose editor default is changing.
+	 * @param editorID The ID of the editor to make the default.
+	 * @param forDiffEditor When `true`, the diff editor association (`workbench.diffEditorAssociations`)
+	 * is updated instead of the general editor association (`workbench.editorAssociations`).
+	 * @param options What made the change, and optionally a specific pattern to associate.
+	 */
+	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean, options?: ISetDefaultEditorOptions): void;
+
+	/** Fires when {@link setDefaultEditor} is about to change the associations. Not fired when nothing changes. */
+	readonly onWillSetDefaultEditor: Event<IWillSetDefaultEditorEvent>;
+
+	/**
+	 * Removes the user's diff editor association (`workbench.diffEditorAssociations`) for the given
+	 * glob pattern if it applies to the resource, so that the general editor association also applies to diffs.
+	 * @param resource The resource whose diff editor default is being removed.
+	 * @param filenamePattern The glob pattern of the diff editor association to remove.
+	 */
+	removeDiffEditorAssociation(resource: URI, filenamePattern: string): void;
 
 	/**
 	 * Emitted when an editor is registered or unregistered.
@@ -179,7 +418,7 @@ export interface IEditorResolverService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
+		editorInfo: RegisteredEditorRegistrationInfo,
 		options: RegisteredEditorOptions,
 		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;
@@ -197,12 +436,22 @@ export interface IEditorResolverService {
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditors(resource: URI): RegisteredEditorInfo[];
+	getEditors(resource: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[];
 
 	/**
 	 * A set of all the editors that are registered to the editor resolver.
 	 */
-	getEditors(): RegisteredEditorInfo[];
+	getEditors(options?: IEditorResolverServiceGetAllEditorsOptions): RegisteredEditorInfo[];
+
+	/**
+	 * Returns the id of the best editor that can render a *diff* for the resource, excluding the
+	 * built-in default text editor. This intentionally includes editors that opted out of diffs via a
+	 * `explicit` priority: such editors opt out for text files, but when the default text diff editor
+	 * cannot render the content (e.g. it is binary) a custom diff editor is preferable to the generic
+	 * "cannot display" fallback. Returns `undefined` when no such (diff-capable) editor exists.
+	 * @param resource The resource being diffed
+	 */
+	getBinaryDiffFallbackEditor(resource: URI): string | undefined;
 
 	/**
 	 * Get a complete list of editor associations.
@@ -223,6 +472,9 @@ export function priorityToRank(priority: RegisteredEditorPriority): number {
 			return 3;
 		// Text editor is priority 2
 		case RegisteredEditorPriority.option:
+			return 1;
+		case RegisteredEditorPriority.explicit:
+			return 0;
 		default:
 			return 1;
 	}

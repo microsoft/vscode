@@ -1,0 +1,57 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose.'
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll ask that exact single-choice question now.
+        - type: tool_use
+          id: toolcall_0
+          name: request_user_input
+          input:
+            questions:
+              - header: Fruit
+                id: which_fruit
+                question: Which fruit?
+                options:
+                  - label: Apple (Recommended)
+                    description: Select Apple.
+                  - label: Banana
+                    description: Select Banana.
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose.'
+        - role: assistant
+          content: Got it — I’ll ask that exact single-choice question now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Fruit
+                    id: which_fruit
+                    question: Which fruit?
+                    options:
+                      - label: Apple (Recommended)
+                        description: Select Apple.
+                      - label: Banana
+                        description: Select Banana.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"answers":{"which_fruit":{"answers":["Apple (Recommended)"]}}}'
+    response:
+      content: Apple
+      stopReason: end_turn

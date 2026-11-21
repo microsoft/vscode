@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { combinedDisposable, DisposableStore, DisposableMap } from '../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 import { IEditor } from '../../../editor/common/editorCommon.js';
@@ -38,11 +38,13 @@ import { IQuickDiffModelService } from '../../contrib/scm/browser/quickDiffModel
 class TextEditorSnapshot {
 
 	readonly id: string;
+	readonly model: ITextModel;
 
 	constructor(
 		readonly editor: IActiveCodeEditor,
 	) {
-		this.id = `${editor.getId()},${editor.getModel().id}`;
+		this.model = editor.getModel();
+		this.id = `${editor.getId()},${this.model.id}`;
 	}
 }
 
@@ -126,7 +128,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
+		this._modelService.onModelRemoved(this._updateStateOnModelRemove, this, this._toDispose);
 		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
@@ -183,6 +185,37 @@ class MainThreadDocumentAndEditorStateComputer {
 
 		this._onDidChangeState(new DocumentAndEditorStateDelta(
 			[], [model],
+			[], [],
+			undefined, undefined
+		));
+	}
+
+	private _updateStateOnModelRemove(model: ITextModel): void {
+		if (!this._currentState) {
+			// too early
+			this._updateState();
+			return;
+		}
+
+		if (!this._currentState.documents.has(model)) {
+			// not synchronized (too large, simple widget), nothing to remove
+			return;
+		}
+
+		for (const snapshot of this._currentState.textEditors.values()) {
+			if (snapshot.model === model) {
+				// an editor shows this model, compute the full state
+				this._updateState();
+				return;
+			}
+		}
+
+		// small (fast) delta, avoids recomputing the full state for each
+		// removed model which is quadratic when many models are disposed at once
+		this._currentState.documents.delete(model);
+
+		this._onDidChangeState(new DocumentAndEditorStateDelta(
+			[model], [],
 			[], [],
 			undefined, undefined
 		));
@@ -274,13 +307,12 @@ class MainThreadDocumentAndEditorStateComputer {
 }
 
 @extHostCustomer
-export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
+export class MainThreadDocumentsAndEditors extends Disposable implements IMainThreadEditorLocator {
 
-	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
 	private readonly _mainThreadDocuments: MainThreadDocuments;
 	private readonly _mainThreadEditors: MainThreadTextEditors;
-	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
+	private readonly _textEditors = this._register(new DisposableMap<string, MainThreadTextEditor>());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -300,20 +332,17 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IQuickDiffModelService quickDiffModelService: IQuickDiffModelService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
+		this._mainThreadDocuments = this._register(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
-		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, this._editorService, this._editorGroupService, configurationService, quickDiffModelService, uriIdentityService));
+		this._mainThreadEditors = this._register(new MainThreadTextEditors(this, extHostContext, codeEditorService, this._editorService, this._editorGroupService, configurationService, quickDiffModelService, uriIdentityService));
 		extHostContext.set(MainContext.MainThreadTextEditors, this._mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
-	}
-
-	dispose(): void {
-		this._toDispose.dispose();
+		this._register(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
@@ -337,8 +366,7 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 		for (const { id } of delta.removedEditors) {
 			const mainThreadEditor = this._textEditors.get(id);
 			if (mainThreadEditor) {
-				mainThreadEditor.dispose();
-				this._textEditors.delete(id);
+				this._textEditors.deleteAndDispose(id);
 				removedEditors.push(id);
 			}
 		}

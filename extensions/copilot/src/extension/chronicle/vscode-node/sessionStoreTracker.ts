@@ -158,8 +158,20 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
-			const sessionId = this._getSessionId(span);
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
+
+			// Sub-agent spans have no row of their own (schema has no sub-agent concept).
+			// Attribute their tool calls to the parent so we don't lose file/ref signal;
+			// drop their invoke_agent span — the parent's covers that turn.
+			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
+			if (parentChatSessionId) {
+				if (operationName === GenAiOperationName.EXECUTE_TOOL && this._initializedSessions.has(parentChatSessionId)) {
+					this._handleToolSpan(parentChatSessionId, span);
+				}
+				return;
+			}
+
+			const sessionId = this._getSessionId(span);
 			if (!sessionId) {
 				return;
 			}
@@ -453,11 +465,34 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			}
 		} catch (err) {
 
+			// The flush failed (e.g. a transient lock or I/O error on a network
+			// filesystem). Re-queue the swapped-out operations so the next flush
+			// retries them instead of silently dropping the writes. Writes that
+			// arrived during this flush take precedence on a per-session basis.
+			this._requeueFailedFlush(sessionsToFlush, filesToFlush, refsToFlush, turnsToFlush);
+
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.localStore', {
 				operation: 'flush',
 				success: 'false',
 				error: err instanceof Error ? err.message.substring(0, 100) : 'unknown',
 			}, { opsCount: totalOps });
 		}
+	}
+
+	/**
+	 * Restore operations from a failed flush back into the buffer so they are
+	 * retried on the next flush. Sessions are only restored when no newer upsert
+	 * for the same session has been buffered since the flush started.
+	 */
+	private _requeueFailedFlush(sessions: SessionRow[], files: FileRow[], refs: RefRow[], turns: TurnRow[]): void {
+		for (const session of sessions) {
+			if (!this._buffer.sessions.has(session.id)) {
+				this._buffer.sessions.set(session.id, session);
+			}
+		}
+
+		this._buffer.files = files.concat(this._buffer.files);
+		this._buffer.refs = refs.concat(this._buffer.refs);
+		this._buffer.turns = turns.concat(this._buffer.turns);
 	}
 }

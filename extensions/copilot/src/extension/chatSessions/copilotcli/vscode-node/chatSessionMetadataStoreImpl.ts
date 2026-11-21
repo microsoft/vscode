@@ -15,12 +15,10 @@ import { dirname } from '../../../../util/vs/base/common/resources';
 import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../../common/utils';
-import { IWorkspaceInfo } from '../../common/workspaceInfo';
+import { sessionMetadataFileWriteSequencer } from '../../common/sessionMetadataFileWriteSequencer';
 import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
 import { ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
 
-// const WORKSPACE_FOLDER_MEMENTO_KEY = 'github.copilot.cli.sessionWorkspaceFolders';
-// const WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
 const LEGACY_BULK_METADATA_FILENAME = 'copilotcli.session.metadata.json';
 const LEGACY_BULK_MIGRATED_KEY = 'github.copilot.cli.legacyBulkMigrated';
 const REQUEST_MAPPING_FILENAME = 'vscode.requests.metadata.json';
@@ -65,7 +63,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	private readonly _updateStorageDebouncer = this._register(new ThrottledDelayer<void>(1_000));
 	private readonly _requestMappingWriteSequencer = new SequencerByKey<string>();
 	private readonly _requestMappingReadSequencer = new SequencerByKey<string>();
-	private readonly _metadataWriteSequencer = new SequencerByKey<string>();
 	private readonly _metadataReadSequencer = new SequencerByKey<string>();
 	private readonly _requestDetailsCache = new Map<string, RequestDetails[]>();
 	/** Per-session eviction timers for {@link _requestDetailsCache}. Keyed by sessionId so a new timer replaces (and disposes) the previous one and entries are dropped on fire. */
@@ -270,28 +267,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		return metadata.workspaceFolder;
 	}
 
-	async getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]> {
-		const metadata = await this.getSessionMetadata(sessionId);
-		if (!metadata?.additionalWorkspaces?.length) {
-			return [];
-		}
-		return metadata.additionalWorkspaces.map(ws => ({
-			folder: !ws.worktreeProperties && ws.workspaceFolder?.folderPath ? Uri.file(ws.workspaceFolder.folderPath) : undefined,
-			repository: ws.worktreeProperties?.repositoryPath ? Uri.file(ws.worktreeProperties.repositoryPath) : undefined,
-			repositoryProperties: undefined,
-			worktree: ws.worktreeProperties?.worktreePath ? Uri.file(ws.worktreeProperties.worktreePath) : undefined,
-			worktreeProperties: ws.worktreeProperties,
-		}));
-	}
-
-	async setAdditionalWorkspaces(sessionId: string, workspaces: IWorkspaceInfo[]): Promise<void> {
-		const additionalWorkspaces = workspaces.map(ws => ({
-			worktreeProperties: ws.worktreeProperties,
-			workspaceFolder: !ws.worktreeProperties && ws.folder ? { folderPath: ws.folder.fsPath, timestamp: Date.now() } : undefined,
-		}));
-		await this.updateMetadataFields(sessionId, { additionalWorkspaces });
-	}
-
 	async getSessionFirstUserMessage(sessionId: string): Promise<string | undefined> {
 		const metadata = await this.getSessionMetadata(sessionId);
 		return metadata?.firstUserMessage;
@@ -393,6 +368,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			parentSessionId: sourceSessionId,
 			origin: 'vscode',
 			kind: 'forked',
+			archived: false,
 		};
 		await this.updateMetadataFields(targetSessionId, forkedMetadata);
 	}
@@ -423,9 +399,22 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this.updateMetadataFields(sessionId, { parentSessionId, kind: 'sub-session' });
 	}
 
-	public async getSessionParentId(sessionId: string): Promise<string | undefined> {
+	public async getSessionParentId(sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined> {
 		const metadata = await this.getSessionMetadata(sessionId, false);
-		return metadata?.parentSessionId;
+		if (!metadata?.parentSessionId || !metadata.kind) {
+			return undefined;
+		}
+		return { parentSessionId: metadata.parentSessionId, kind: metadata.kind };
+	}
+
+	public async setSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		await this._ready;
+		await this.updateMetadataFields(sessionId, { archived });
+	}
+
+	public async getSessionArchived(sessionId: string): Promise<boolean> {
+		const metadata = await this.getSessionMetadata(sessionId, false);
+		return metadata?.archived === true;
 	}
 
 	private async getSessionMetadata(sessionId: string, createMetadataFileIfNotFound = true): Promise<ChatSessionMetadataFile | undefined> {
@@ -484,7 +473,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			return;
 		}
 
-		await this._metadataWriteSequencer.queue(sessionId, async () => {
+		await sessionMetadataFileWriteSequencer.queue(sessionId, async () => {
 			const fileUri = this.getMetadataFileUri(sessionId);
 			const dirUri = dirname(fileUri);
 
@@ -657,7 +646,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			return;
 		}
 
-		const legacyCacheFile = Uri.joinPath(this.extensionContext.globalStorageUri, 'copilotcli', LEGACY_BULK_METADATA_FILENAME);
+		const legacyCacheFile = this.getLegacyBulkFileUri();
 		let legacyData: Record<string, ChatSessionMetadataFile>;
 		try {
 			const raw = await this.fileSystemService.readFile(legacyCacheFile);
@@ -708,5 +697,9 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		} catch (err) {
 			this.logService.error('[ChatSessionMetadataStore] Failed to migrate legacy bulk file: ', err);
 		}
+	}
+
+	private getLegacyBulkFileUri(): vscode.Uri {
+		return Uri.joinPath(this.extensionContext.globalStorageUri, 'copilotcli', LEGACY_BULK_METADATA_FILENAME);
 	}
 }

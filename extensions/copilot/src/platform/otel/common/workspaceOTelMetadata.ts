@@ -6,7 +6,7 @@
 import { URI } from '../../../util/vs/base/common/uri';
 import { isEqualOrParent, relativePath } from '../../../util/vs/base/common/resources';
 import { getOrderedRepoInfosFromContext, type IGitService, normalizeFetchUrl, type RepoContext } from '../../git/common/gitService';
-import { CopilotChatAttr } from './genAiAttributes';
+import { CopilotChatAttr, GitHubCopilotAttr } from './genAiAttributes';
 
 export interface WorkspaceOTelMetadata {
 	readonly headBranchName?: string;
@@ -52,6 +52,8 @@ function buildWorkspaceMetadata(repoContext: RepoContext, fileUri?: URI): Worksp
 
 /**
  * Convert workspace metadata to OTel attributes, omitting undefined values.
+ * Emits both the legacy `copilot_chat.repo.*` namespace and the canonical
+ * `github.copilot.git.*` namespace.
  */
 export function workspaceMetadataToOTelAttributes(
 	metadata?: WorkspaceOTelMetadata,
@@ -62,15 +64,33 @@ export function workspaceMetadataToOTelAttributes(
 	const attrs: Record<string, string> = {};
 	if (metadata.headBranchName) {
 		attrs[CopilotChatAttr.REPO_HEAD_BRANCH_NAME] = metadata.headBranchName;
+		attrs[GitHubCopilotAttr.GIT_BRANCH] = metadata.headBranchName;
 	}
 	if (metadata.headCommitHash) {
 		attrs[CopilotChatAttr.REPO_HEAD_COMMIT_HASH] = metadata.headCommitHash;
+		attrs[GitHubCopilotAttr.GIT_COMMIT_SHA] = metadata.headCommitHash;
 	}
 	if (metadata.remoteUrl) {
 		attrs[CopilotChatAttr.REPO_REMOTE_URL] = metadata.remoteUrl;
+		attrs[GitHubCopilotAttr.GIT_REPOSITORY] = metadata.remoteUrl;
+		const org = extractGitHubOrg(metadata.remoteUrl);
+		if (org) {
+			attrs[GitHubCopilotAttr.GITHUB_ORG] = org;
+		}
 	}
 	if (metadata.fileRelativePath) {
 		attrs[CopilotChatAttr.FILE_RELATIVE_PATH] = metadata.fileRelativePath;
 	}
 	return attrs;
+}
+
+/**
+ * Extract the `owner` segment from a normalized GitHub remote URL.
+ * Returns undefined for non-GitHub hosts or malformed inputs.
+ */
+function extractGitHubOrg(remoteUrl: string): string | undefined {
+	// Match `(https://|git@)<host>[:/]<owner>/<repo>` — normalizeFetchUrl already
+	// strips credentials and `.git` suffixes.
+	const m = remoteUrl.match(/github\.com[/:]([^/]+)\/[^/]+\/?$/i);
+	return m?.[1];
 }

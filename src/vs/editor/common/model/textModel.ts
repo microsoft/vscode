@@ -2463,6 +2463,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 	public readonly tokens: TokenArray | null;
 	readonly inlineClassName: string | null;
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
+	readonly widthInEm: number | undefined;
 	readonly attachedData: unknown | null;
 	readonly cursorStops: model.InjectedTextCursorStops | null;
 
@@ -2471,6 +2472,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 		this.tokens = options.tokens ?? null;
 		this.inlineClassName = options.inlineClassName || null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
+		this.widthInEm = options.widthInEm !== undefined && Number.isFinite(options.widthInEm) && options.widthInEm >= 0 ? options.widthInEm : undefined;
 		this.attachedData = options.attachedData || null;
 		this.cursorStops = options.cursorStops || null;
 	}
@@ -2497,6 +2499,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly className: string | null;
 	readonly shouldFillLineOnLineBreak: boolean | null;
 	readonly hoverMessage: IMarkdownString | IMarkdownString[] | null;
+	readonly hoverMessageCopyContent?: string | null;
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
 	readonly lineHeight: number | null;
@@ -2535,6 +2538,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.className = options.className ? cleanClassName(options.className) : null;
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
 		this.hoverMessage = options.hoverMessage || null;
+		this.hoverMessageCopyContent = options.hoverMessageCopyContent;
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;

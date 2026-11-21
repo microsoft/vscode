@@ -17,6 +17,7 @@ declare const document: { location?: { hash?: string } } | undefined;
 const isPseudo = getNLSLanguage() === 'pseudo' || (typeof document !== 'undefined' && document.location && typeof document.location.hash === 'string' && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
+	/** Use a new key when changing the number or meaning of placeholders to avoid reusing incompatible translations. */
 	key: string;
 	comment: string[];
 }
@@ -33,7 +34,7 @@ function _format(message: string, args: (string | number | boolean | undefined |
 		result = message;
 	} else {
 		result = message.replace(/\{(\d+)\}/g, (match, rest) => {
-			const index = rest[0];
+			const index = parseInt(rest, 10);
 			const arg = args[index];
 			let result = match;
 			if (typeof arg === 'string') {
@@ -70,7 +71,7 @@ export function localize(info: ILocalizeInfo, message: string, ...args: (string 
 /**
  * Marks a string to be localized. Returns the localized string.
  *
- * @param key The key to use for localizing the string
+ * @param key The key to use for localizing the string. Change it when changing the number or meaning of placeholders.
  * @param message The string to localize
  * @param args The arguments to the string
  *
@@ -126,7 +127,7 @@ export function localize2(info: ILocalizeInfo, message: string, ...args: (string
  * Marks a string to be localized. Returns an {@linkcode ILocalizedString}
  * which contains the localized string and the original string.
  *
- * @param key The key to use for localizing the string
+ * @param key The key to use for localizing the string. Change it when changing the number or meaning of placeholders.
  * @param message The string to localize
  * @param args The arguments to the string
  *
@@ -189,6 +190,11 @@ export interface INLSConfiguration {
 	 * Locale as defined by the OS (e.g. `app.getPreferredSystemLanguages()`).
 	 */
 	readonly osLocale: string;
+
+	/**
+	 * Regional formatting locale from `app.getSystemLocale()`, independent of the UI language.
+	 */
+	readonly regionalLocale?: string;
 
 	/**
 	 * The actual language of the UI that ends up being used considering `userLocale`

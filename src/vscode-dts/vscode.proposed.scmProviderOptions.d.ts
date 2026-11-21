@@ -8,6 +8,11 @@ declare module 'vscode' {
 
 	export interface SourceControl {
 		/**
+		 * The source control name used by the active repository title variable.
+		 */
+		activeRepositoryName: string | undefined;
+
+		/**
 		 * Context value of the source control. This can be used to contribute source control specific actions.
 		 * For example, if a source control is given a context value of `repository`, when contributing actions to `scm/sourceControl/context`
 		 * using `menus` extension point, you can specify context value for key `scmProviderContext` in `when` expressions, like `scmProviderContext == repository`.
@@ -26,6 +31,14 @@ declare module 'vscode' {
 		 * This will show action `extension.gitAction` only for source controls with `contextValue` equal to `repository`.
 		 */
 		contextValue?: string;
+
+		/**
+		 * Whether the source control is hidden from the Source Control views and does not own the
+		 * resources under its root, see {@link scm.createSourceControl}. It can be changed while the
+		 * source control exists. Changes made in the same tick are applied together, so showing one
+		 * source control and hiding another one is a single change of the views.
+		 */
+		isHidden: boolean;
 
 		/**
 		 * Fired when the parent source control is disposed.

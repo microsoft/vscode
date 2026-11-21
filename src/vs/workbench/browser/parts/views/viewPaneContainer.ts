@@ -38,7 +38,7 @@ import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerMo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_MARGIN, FLOATING_PANEL_MARGIN, isHorizontal, IWorkbenchLayoutService, LayoutSettings, Position } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ViewContainerMenuActions } from './viewMenuActions.js';
@@ -292,9 +292,13 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
+	private focusPreparation: (() => void) | undefined;
 	private lastMergedCollapsedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
+	private sizeToContent = false;
+	private readonly _onDidChangeOptimalHeight = this._register(new Emitter<void>());
+	readonly onDidChangeOptimalHeight = this._onDidChangeOptimalHeight.event;
 
 	private visible: boolean = false;
 
@@ -592,6 +596,16 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		return createActionViewItem(this.instantiationService, action, options);
 	}
 
+	/** Lets an embedding host reveal its content before container or individual-view focus. */
+	setFocusPreparation(prepare: () => void): IDisposable {
+		this.focusPreparation = prepare;
+		return toDisposable(() => {
+			if (this.focusPreparation === prepare) {
+				this.focusPreparation = undefined;
+			}
+		});
+	}
+
 	focus(): void {
 		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
@@ -605,6 +619,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			}
 		}
 		if (paneToFocus) {
+			this.focusPreparation?.();
 			paneToFocus.focus();
 		}
 	}
@@ -628,7 +643,17 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 				this.paneview.flipOrientation(dimension.height, dimension.width);
 			}
 
-			this.paneview.layout(dimension.height, dimension.width);
+			// In Modern UI (floating panels) reserve a small bottom gap so the last
+			// pane does not sit flush against the part edge, matching the 4px
+			// horizontal margins on the pane headers. Add 1px for the part's bottom
+			// border so the visible gap lines up with the horizontal margins.
+			// Exception: when the panel is at the TOP, its bottom faces the editor
+			// card, so the tighter inner card gap is sufficient.
+			const bottomGap = !this.layoutService.isFloatingPanelsEnabled() ? 0
+				: (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
+					&& this.layoutService.getPanelPosition() === Position.TOP) ? 1
+					: (this.layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN) + 1;
+			this.paneview.layout(Math.max(0, dimension.height - bottomGap), dimension.width);
 		}
 
 		this.dimension = dimension;
@@ -651,6 +676,32 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		return optimalWidth + additionalMargin;
 	}
 
+	setSizeToContent(enabled: boolean): void {
+		if (this.sizeToContent === enabled) {
+			return;
+		}
+		this.sizeToContent = enabled;
+		for (const pane of this.panes) {
+			pane.setSizeToContent(enabled);
+		}
+		this._onDidChangeOptimalHeight.fire();
+	}
+
+	getOptimalHeight(): number | undefined {
+		if (this.panes.length === 0) {
+			return undefined;
+		}
+		let height = 0;
+		for (const pane of this.panes) {
+			const paneHeight = pane.getOptimalHeight();
+			if (paneHeight === undefined) {
+				return undefined;
+			}
+			height += paneHeight;
+		}
+		return height;
+	}
+
 	addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		const wasMerged = this.isViewMergedWithContainer();
 
@@ -664,6 +715,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		}
 
 		this._onDidAddViews.fire(panes.map(({ pane }) => pane));
+		this._onDidChangeOptimalHeight.fire();
 	}
 
 	setVisible(visible: boolean): void {
@@ -704,11 +756,15 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		// Restore sizes only when the layout has happened
 		if (this.didLayout) {
 			let initialSizes;
-			for (let i = 0; i < this.viewContainerModel.visibleViewDescriptors.length; i++) {
-				const pane = this.panes[i];
-				const viewDescriptor = this.viewContainerModel.visibleViewDescriptors[i];
-				const size = this.viewContainerModel.getSize(viewDescriptor.id);
+			for (const viewDescriptor of this.viewContainerModel.visibleViewDescriptors) {
+				// Look up the pane by id rather than by index since a view descriptor
+				// may be visible without a corresponding pane (e.g. when its pane failed to render)
+				const pane = this.getView(viewDescriptor.id);
+				if (!pane) {
+					continue;
+				}
 
+				const size = this.viewContainerModel.getSize(viewDescriptor.id);
 				if (typeof size === 'number') {
 					this.resizePane(pane, size);
 				} else {
@@ -760,6 +816,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		if (view) {
 			view.setExpanded(true);
 			if (focus) {
+				this.focusPreparation?.();
 				view.focus();
 			}
 		}
@@ -839,6 +896,9 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 	}
 
 	private addPane(pane: ViewPane, size: number, disposable: IDisposable, index = this.paneItems.length - 1): void {
+		if (this.sizeToContent) {
+			pane.setSizeToContent(true);
+		}
 		const onDidFocus = pane.onDidFocus(() => {
 			this._onDidFocusView.fire(pane);
 			this.lastFocusedPane = pane;
@@ -855,6 +915,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			if (pane === this.lastFocusedPane && !pane.isExpanded()) {
 				this.lastFocusedPane = undefined;
 			}
+			this._onDidChangeOptimalHeight.fire();
 		});
 
 		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
@@ -867,6 +928,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		});
 
 		const store = new DisposableStore();
+		store.add(pane.onDidChangeOptimalHeight(() => this._onDidChangeOptimalHeight.fire()));
 		store.add(disposable);
 		store.add(combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, onDidChange, onDidChangeVisibility));
 		const paneItem: IViewPaneItem = { pane, disposable: store };
@@ -1016,6 +1078,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		}
 
 		this._onDidRemoveViews.fire(panes);
+		this._onDidChangeOptimalHeight.fire();
 	}
 
 	private removePane(pane: ViewPane): void {

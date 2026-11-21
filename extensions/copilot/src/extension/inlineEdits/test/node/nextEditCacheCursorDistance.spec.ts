@@ -9,6 +9,7 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
+import type { IStatelessNextEditModelTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { LogServiceImpl } from '../../../../platform/log/common/logService';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -19,6 +20,11 @@ import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offse
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { NextEditCache } from '../../node/nextEditCache';
 import { NextEditFetchRequest } from '../../node/nextEditProvider';
+
+const testModelTelemetry: IStatelessNextEditModelTelemetry = {
+	modelName: undefined,
+	modelConfig: undefined,
+};
 
 describe('NextEditCache cursor distance check', () => {
 
@@ -79,7 +85,7 @@ describe('NextEditCache cursor distance check', () => {
 			undefined, // nextEdits
 			undefined, // userEditSince
 			makeSource(),
-			{ isFromCursorJump: false, cursorOffset: lineStartOffset(cursorLine) },
+			{ isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: lineStartOffset(cursorLine) },
 		);
 	}
 
@@ -149,7 +155,7 @@ describe('NextEditCache cursor distance check', () => {
 				undefined,
 				undefined,
 				makeSource(),
-				{ isFromCursorJump: false, cursorOffset: lineStartOffset(5) },
+				{ isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: lineStartOffset(5) },
 			);
 
 			// Move cursor to line 1 (farther) — should still serve because it's subsequent
@@ -168,7 +174,7 @@ describe('NextEditCache cursor distance check', () => {
 				undefined,
 				undefined,
 				makeSource(),
-				{ isFromCursorJump: false }, // no cursorOffset
+				{ isFromCursorJump: false, modelTelemetry: testModelTelemetry }, // no cursorOffset
 			);
 
 			// Move cursor to line 1 (farther) — should still serve because no cursor offset recorded
@@ -183,6 +189,38 @@ describe('NextEditCache cursor distance check', () => {
 			// Move cursor to line 6 (0 lines away — on the edit itself)
 			const result = cache.lookupNextEdit(docId, docText, cursorAtLine(6));
 			assert(result?.edit, 'should serve cached edit when cursor is on the edit line');
+		});
+	});
+
+	describe('rejectedNextEdit', () => {
+		function cacheTwoEditsFromOneRequest() {
+			const source = makeSource();
+			// Later edits of a request are cached against the document as it would look after the earlier ones.
+			const afterFirst = new StringText(docContent.slice(0, editStartOffset) + 'REPLACED' + docContent.slice(editEndOffset));
+			const secondEditStart = afterFirst.value.indexOf('line8');
+			const secondEdit = new StringReplacement(new OffsetRange(secondEditStart, secondEditStart + 'line8'.length), 'OTHER');
+			const opts = { isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: lineStartOffset(5) };
+			const first = cache.setKthNextEdit(docId, docText, undefined, edit, 0, undefined, undefined, source, opts);
+			const second = cache.setKthNextEdit(docId, afterFirst, undefined, secondEdit, 1, undefined, undefined, source, opts);
+			return { source, first, second };
+		}
+
+		it('marks every cached edit of the request by default', () => {
+			const { source, first, second } = cacheTwoEditsFromOneRequest();
+
+			cache.rejectedNextEdit(source.headerRequestId);
+
+			assert(first?.rejected && second?.rejected);
+		});
+
+		it('marks only the given entry when one is passed', () => {
+			const { source, first, second } = cacheTwoEditsFromOneRequest();
+
+			assert(first, 'first edit should be cached');
+			cache.rejectedNextEdit(source.headerRequestId, first);
+
+			assert(first?.rejected);
+			assert(!second?.rejected);
 		});
 	});
 });

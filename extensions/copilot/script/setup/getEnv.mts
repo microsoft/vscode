@@ -51,14 +51,13 @@ async function fetchSecret(secretClient: SecretClient, secretName: string): Prom
 }
 
 async function fetchSecrets(): Promise<{ [key: string]: string | undefined }> {
-	const keyVaultClient = await setupSecretClient('https://copilot-automation.vault.azure.net/');
+	const keyVaultClient = await setupSecretClient('https://kv-eval-assume-breached.vault.azure.net/');
 
 	const secrets: { [key: string]: string | undefined } = {};
 	secrets['HMAC_SECRET'] = await fetchSecret(keyVaultClient, 'hmac-secret');
 
 	if (!process.stdin.isTTY) { // only in automation
-		secrets['GITHUB_OAUTH_TOKEN'] = await fetchSecret(keyVaultClient, 'capi-oauth');
-		secrets['VSCODE_COPILOT_CHAT_TOKEN'] = await fetchSecret(keyVaultClient, 'copilot-token');
+		secrets['GITHUB_OAUTH_TOKEN'] = await fetchSecret(keyVaultClient, 'capi-oauth-pipeline-token');
 		secrets['BLACKBIRD_EMBEDDINGS_KEY'] = await fetchSecret(keyVaultClient, 'vsc-aoai-key');
 		secrets['BLACKBIRD_REDIS_CACHE_KEY'] = await fetchSecret(keyVaultClient, 'blackbird-redis-cache-key');
 
@@ -89,6 +88,8 @@ async function main() {
 }
 
 main().catch(error => {
-	console.error(red(`Error when setting up .env file:\n${error}`));
+	const msg = `Error when setting up .env file:\n${error}`;
+	console.log(msg);
+	console.error(red(msg));
 	process.exit(1);
 });

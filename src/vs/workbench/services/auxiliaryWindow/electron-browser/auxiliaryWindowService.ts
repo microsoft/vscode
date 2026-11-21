@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
-import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
+import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
 import { ISandboxGlobals } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -26,6 +26,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { assert } from '../../../../base/common/assert.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -100,6 +101,10 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		}
 	}
 
+	override setBounds(bounds: IRectangle): Promise<void> {
+		return this.nativeHostService.positionWindow(bounds, { targetWindowId: this.window.vscodeWindowId });
+	}
+
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
 		this.preventUnload(e);
 
@@ -151,6 +156,13 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService, contextMenuService);
+	}
+
+	override async open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow> {
+		return super.open({
+			...options,
+			alwaysOnTop: options?.alwaysOnTop ?? await this.nativeHostService.isWindowAlwaysOnTop()
+		});
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {

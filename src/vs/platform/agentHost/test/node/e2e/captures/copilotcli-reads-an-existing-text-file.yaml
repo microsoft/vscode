@@ -1,0 +1,73 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read note.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: glob
+          input:
+            pattern: '**/note.txt'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read note.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: glob
+              input:
+                pattern: '**/note.txt'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./note.txt
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/note.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read note.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: glob
+              input:
+                pattern: '**/note.txt'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./note.txt
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/note.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 1. ALPHA BETA GAMMA
+    response:
+      content: ALPHA BETA GAMMA
+      stopReason: end_turn

@@ -96,7 +96,11 @@ export class ContextMenuController implements IEditorContribution {
 			return; // allow native menu on widgets to support right click on input field for example in find
 		}
 		if (e.target.type === MouseTargetType.CONTENT_TEXT && e.target.detail.injectedText) {
-			return; // allow native menu on injected text
+			// Injected text isn't part of the document, so the editor menu doesn't apply.
+			// Inlay hints with a location show their own menu (see InlayHintsController).
+			// The native default is still prevented: on macOS it selects the word under the pointer (#234758).
+			e.event.preventDefault();
+			return;
 		}
 
 		e.event.preventDefault();
@@ -128,7 +132,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		}
 
-		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
+		// Unless the user triggered the context menu through Shift+F10, use the mouse position as menu position
 		let anchor: IMouseEvent | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
 			anchor = e.event;
@@ -218,6 +222,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getOverflowWidgetsDomNode() ?? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 
 			getAnchor: () => anchor,
 
@@ -366,6 +371,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: (wasCancelled: boolean) => {

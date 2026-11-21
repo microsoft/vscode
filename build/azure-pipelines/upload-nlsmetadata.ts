@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through, merge } from '../lib/streams.ts';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
-import merge from 'gulp-merge-json';
-import gzip from 'gulp-gzip';
+import { mergeJson, gzip, azureStorage } from '../lib/gulp/facade.ts';
 import { ClientAssertionCredential } from '@azure/identity';
 import path from 'path';
 import { readFileSync } from 'fs';
-import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -24,14 +22,14 @@ interface NlsMetadata {
 
 function main(): Promise<void> {
 	return new Promise((c, e) => {
-		const combinedMetadataJson = es.merge(
+		const combinedMetadataJson = merge(
 			// vscode: we are not using `out-build/nls.metadata.json` here because
 			// it includes metadata for translators for `keys`. but for our purpose
 			// we want only the `keys` and `messages` as `string`.
-			es.merge(
+			merge(
 				vfs.src('out-build/nls.keys.json', { base: 'out-build' }),
 				vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
-				.pipe(merge({
+				.pipe(mergeJson({
 					fileName: 'vscode.json',
 					jsonSpace: '',
 					concatArrays: true,
@@ -50,7 +48,7 @@ function main(): Promise<void> {
 			vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
 			vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }),
 			vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' })
-		).pipe(merge({
+		).pipe(mergeJson({
 			fileName: 'combined.nls.metadata.json',
 			jsonSpace: '',
 			concatArrays: true,
@@ -114,16 +112,16 @@ function main(): Promise<void> {
 
 		const nlsMessagesJs = vfs.src('out-build/nls.messages.js', { base: 'out-build' });
 
-		es.merge(combinedMetadataJson, nlsMessagesJs)
+		merge(combinedMetadataJson, nlsMessagesJs)
 			.pipe(gzip({ append: false }))
 			.pipe(vfs.dest('./nlsMetadata'))
-			.pipe(es.through(function (data: Vinyl) {
+			.pipe(through(function (data: Vinyl) {
 				console.log(`Uploading ${data.path}`);
 				// trigger artifact upload
 				console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=${data.basename}]${data.path}`);
 				this.emit('data', data);
 			}))
-			.pipe(azure.upload({
+			.pipe(azureStorage.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
 				container: '$web',

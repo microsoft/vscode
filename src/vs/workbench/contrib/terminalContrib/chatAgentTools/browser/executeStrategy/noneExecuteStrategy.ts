@@ -12,7 +12,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { canClearPromptInputWithCtrlU, createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
@@ -72,7 +72,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				this._log.bind(this)
 			);
 
-			if (this._hasReceivedUserInput()) {
+			if (this._hasReceivedUserInput() && canClearPromptInputWithCtrlU(this._instance)) {
 				// Use Ctrl+U (kill line) to clear any pending input on the prompt
 				// rather than Ctrl+C, which would kill any command currently running.
 				// Without shell integration we cannot reliably detect whether a
@@ -154,6 +154,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			let output: string | undefined;
 			const additionalInformationLines: string[] = [];
 			try {
+				const startMarkerDisposed = this._startMarker.value?.line === -1;
 				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 				this._log('Fetched output via markers');
 
@@ -164,6 +165,11 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				// sendText), and trailing lines that look like shell prompts are removed.
 				if (output !== undefined) {
 					output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+				}
+
+				if (startMarkerDisposed) {
+					this._log('Start marker was disposed (output exceeded scrollback), output may be truncated from the beginning');
+					additionalInformationLines.push('Output exceeded terminal scrollback; beginning of output was lost');
 				}
 			} catch {
 				this._log('Failed to fetch output via markers');

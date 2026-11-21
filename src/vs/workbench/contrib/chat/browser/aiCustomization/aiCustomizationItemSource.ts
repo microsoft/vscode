@@ -6,33 +6,71 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMatch } from '../../../../../base/common/filters.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationSyncProvider, ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOrganizationControl, ICustomizationSectionNotice, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { storageToIcon } from './aiCustomizationIcons.js';
-import { type AICustomizationPromptsStorage, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
-import { extractExtensionIdFromPath } from './aiCustomizationListWidgetUtils.js';
+import { isOrganizationPromptFile } from '../../common/promptSyntax/utils/promptsServiceUtils.js';
+import { sourceToIcon } from './aiCustomizationIcons.js';
+import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
+
+interface IAICustomizationMarketplaceMetadata {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
+
+/** Browser-only grouping for skills already enumerated by a host. */
+interface ICustomizationSkillBundle {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly namePrefix: string;
+}
+
+export interface ICustomizationSkillItem extends ICustomizationItem {
+	readonly skillBundle?: ICustomizationSkillBundle;
+}
+
+/** Browser-only marker for hook actions already enumerated by a host. */
+export interface ICustomizationHookItem extends ICustomizationItem {
+	readonly isHookAction?: boolean;
+}
+
+/** Prefix of the item keys of hooks declared in a custom agent file, which are edited in that file rather than deleted. */
+export const CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX = 'agent-hook:';
+
+/**
+ * Identifies who supplied a customization within its scope.
+ * Items sharing an origin `id` are shown together under one separator.
+ */
+export interface IAICustomizationListItemOrigin {
+	readonly kind: 'plugin' | 'extension' | 'vscode' | 'harness' | 'account';
+	readonly id: string;
+	/** Display label. Optional for `harness`, which uses the active harness name. */
+	readonly label?: string;
+}
 
 /**
  * Represents an AI customization item in the list widget.
@@ -43,14 +81,19 @@ export interface IAICustomizationListItem {
 	readonly name: string;
 	readonly filename: string;
 	readonly description?: string;
-	/** Storage origin. Set by core when items come from promptsService; omitted for external provider items. */
-	readonly storage?: AICustomizationPromptsStorage;
+	/** Storage or provider origin. All items, including those from external providers, must provide a source. */
+	readonly source: AICustomizationSource;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
-	/** When set, overrides `storage` for display grouping purposes. */
+	/** When set, overrides `source` for display grouping purposes. */
 	readonly groupKey?: string;
+	/** Who this customization applies to; the primary display grouping. Derived from `source` when omitted. */
+	readonly scope?: AICustomizationScope;
+	/** Supplier within the scope, used to subgroup items. Undefined for files authored directly in the scope. */
+	readonly origin?: IAICustomizationListItemOrigin;
 	/** URI of the parent plugin, when this item comes from an installed plugin. */
 	readonly pluginUri?: URI;
+	readonly skillBundle?: ICustomizationSkillBundle;
 	/** When set, overrides the formatted name for display. */
 	readonly displayName?: string;
 	/** When set, shows a small inline badge next to the item name. */
@@ -59,6 +102,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Marketplace installation associated with this exact local item. */
+	readonly marketplace?: IAICustomizationMarketplaceMetadata;
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
@@ -67,12 +112,16 @@ export interface IAICustomizationListItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
+	/** True when this hook file uses the deprecated Local hook format; {@link statusMessage} explains what to do. */
+	readonly localFormatHook?: boolean;
+	/** Set when the user's organization manages this item. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** When true, this item can be selected for syncing to a remote harness. */
 	readonly syncable?: boolean;
 	/** When true, this syncable item is currently selected for syncing. */
 	readonly synced?: boolean;
 	nameMatches?: IMatch[];
-	descriptionMatches?: IMatch[];
+	secondaryTextMatches?: IMatch[];
 }
 
 /**
@@ -81,14 +130,25 @@ export interface IAICustomizationListItem {
  * Item sources fetch provider-shaped customization rows, normalize them into
  * the browser-only list item shape, and add view-only overlays such as sync state.
  */
-export interface IAICustomizationItemSource {
-	readonly onDidChange: Event<void>;
-	fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
+export interface IAICustomizationItemSource extends IDisposable {
+	readonly sessionResource: URI;
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
+	fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]>;
+	fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]>;
 }
 
 // #endregion
 
 // #region Utilities
+
+/**
+ * Returns the scope a list item is grouped under.
+ */
+export function getCustomizationListItemScope(item: Pick<IAICustomizationListItem, 'scope' | 'source'>): AICustomizationScope {
+	return item.scope ?? AICustomizationScopes.fromSource(item.source);
+}
 
 /**
  * Returns true if the given extension identifier matches the default
@@ -123,7 +183,7 @@ export function getFriendlyName(filename: string): string {
  * when parsing fails.
  */
 export async function expandHookFileItems(
-	hookFileItems: readonly ICustomizationItem[],
+	hookFileItems: readonly ICustomizationHookItem[],
 	workspaceService: IAICustomizationWorkspaceService,
 	fileService: IFileService,
 	pathService: IPathService,
@@ -134,6 +194,10 @@ export async function expandHookFileItems(
 	const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 	for (const item of hookFileItems) {
+		if (item.isHookAction || !hasReadableCustomizationContent(item.uri)) {
+			items.push(item);
+			continue;
+		}
 		let parsedHooks = false;
 		try {
 			const content = await fileService.readFile(item.uri);
@@ -155,9 +219,20 @@ export async function expandHookFileItems(
 							description: truncatedCmd || localize('hookUnset', "(unset)"),
 							enabled: item.enabled,
 							groupKey: item.groupKey,
-							storage: item.storage,
+							scope: item.scope,
+							origin: item.origin,
+							delivery: item.delivery,
+							source: item.source,
 							extensionId: item.extensionId,
+							extensionLabel: item.extensionLabel,
 							pluginUri: item.pluginUri,
+							pluginLabel: item.pluginLabel,
+							status: item.status,
+							statusMessage: item.statusMessage,
+							badge: item.badge,
+							badgeTooltip: item.badgeTooltip,
+							disabledReason: item.disabledReason,
+							organizationControl: item.organizationControl,
 							userInvocable: item.userInvocable,
 						});
 					}
@@ -184,10 +259,7 @@ export async function expandHookFileItems(
  */
 export class AICustomizationItemNormalizer {
 	constructor(
-		private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly labelService: ILabelService,
-		private readonly agentPluginService: IAgentPluginService,
 		private readonly productService: IProductService,
 	) { }
 
@@ -199,167 +271,175 @@ export class AICustomizationItemNormalizer {
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
-		const { storage, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
+	normalizeItem(item: ICustomizationSkillItem & ICustomizationHookItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
+		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
+		const scope = this.inferScope(item, source, isBuiltin);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
-		const isWorkspaceItem = storage === PromptsStorage.local;
+		const isWorkspaceItem = source === AICustomizationSources.local;
 
 		return {
-			id: `${item.uri.toString()}${duplicateSuffix}`,
+			id: item.isHookAction && item.itemKey ? item.itemKey : `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
-			filename: item.uri.scheme === Schemas.file
+			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
 				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,
-			storage,
+			source,
+			scope,
+			origin: this.inferOrigin(item, source, scope, pluginUri, extensionId),
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
 			pluginUri,
-			displayName: item.name,
+			skillBundle: item.skillBundle,
+			displayName: item.skillBundle && item.name.startsWith(item.skillBundle.namePrefix) ? item.name.slice(item.skillBundle.namePrefix.length) : item.name,
 			badge: item.badge,
 			badgeTooltip: item.badgeTooltip,
-			typeIcon: promptType === PromptsType.instructions && storage ? storageToIcon(storage) : undefined,
+			typeIcon: promptType === PromptsType.instructions && source ? sourceToIcon(source) : undefined,
 			isBuiltin,
 			extensionId,
 			status: item.status,
 			statusMessage: item.statusMessage,
+			organizationControl: item.organizationControl,
 		};
 	}
 
-	private inferStorageAndGroup(item: ICustomizationItem): { storage: AICustomizationPromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
-		const groupKey = item.groupKey;
-		const hasBuiltinStorage = item.storage === BUILTIN_STORAGE;
+	private inferStorageAndGroup(item: ICustomizationItem): { source: AICustomizationSource; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
+		const groupKey = isLegacyDeliveryGroupKey(item.groupKey) ? undefined : item.groupKey;
+		const hasBuiltinStorage = item.source === AICustomizationSources.builtin;
 		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
 		if (hasBuiltinStorage) {
-			return { storage: BUILTIN_STORAGE, groupKey: groupKey ?? BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
+			return { source: AICustomizationSources.builtin, groupKey: groupKey ?? BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
 		}
-		if (item.storage === PromptsStorage.plugin) {
-			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		if (item.source === AICustomizationSources.plugin) {
+			return { source: AICustomizationSources.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
 		}
-		if (item.extensionId) {
-			const extensionIdentifier = new ExtensionIdentifier(item.extensionId);
-			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
-				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
+		if (item.source === AICustomizationSources.extension) {
+			if (item.extensionId) {
+				const extensionIdentifier = new ExtensionIdentifier(item.extensionId);
+				if (isChatExtensionItem(extensionIdentifier, this.productService)) {
+					return { source: AICustomizationSources.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
+				}
 			}
-			return { storage: PromptsStorage.extension, extensionId: item.extensionId, groupKey, isBuiltin };
+			return { source: AICustomizationSources.extension, extensionId: item.extensionId, groupKey, isBuiltin };
 		}
-		if (item.pluginUri) {
-			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
-		}
-		if (item.storage) {
-			return { storage: item.storage, groupKey, isBuiltin };
-		}
-
-		const uri = item.uri;
-
-		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
-		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
-			return { storage: PromptsStorage.local, groupKey, isBuiltin };
-		}
-
-		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			if (isEqualOrParent(uri, folder.uri)) {
-				return { storage: PromptsStorage.local, groupKey, isBuiltin };
-			}
-		}
-
-		for (const plugin of this.agentPluginService.plugins.get()) {
-			if (isEqualOrParent(uri, plugin.uri)) {
-				return { storage: PromptsStorage.plugin, pluginUri: plugin.uri, groupKey, isBuiltin };
-			}
-		}
-
-		const extensionId = extractExtensionIdFromPath(uri.path);
-		if (extensionId) {
-			const extensionIdentifier = new ExtensionIdentifier(extensionId);
-			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
-				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId };
-			}
-			return { storage: PromptsStorage.extension, extensionId, groupKey, isBuiltin };
-		}
-		return { storage: PromptsStorage.user, groupKey, isBuiltin };
+		return { source: item.source, groupKey, isBuiltin, pluginUri: item.pluginUri, extensionId: item.extensionId };
 	}
 
+	private inferScope(item: ICustomizationItem, source: AICustomizationSource, isBuiltin: boolean | undefined): AICustomizationScope {
+		if (item.scope) {
+			return item.scope;
+		}
+		// Organization customizations are fetched for the signed-in user; the
+		// organization is a tag, not a scope.
+		if (item.origin?.kind === 'account' || this.getOrganizationName(item) !== undefined) {
+			return AICustomizationScopes.user;
+		}
+		// The default chat extension's own customizations ship with VS Code.
+		if (isBuiltin) {
+			return AICustomizationScopes.application;
+		}
+		return AICustomizationScopes.fromSource(source);
+	}
+
+	private inferOrigin(item: ICustomizationItem, source: AICustomizationSource, scope: AICustomizationScope, pluginUri: URI | undefined, extensionId: string | undefined): IAICustomizationListItemOrigin | undefined {
+		if (item.origin) {
+			return { kind: item.origin.kind, id: `${item.origin.kind}:${item.origin.label ?? ''}`, label: item.origin.label };
+		}
+		if (pluginUri) {
+			return { kind: 'plugin', id: `plugin:${pluginUri.toString()}`, label: item.pluginLabel ?? basename(pluginUri) };
+		}
+		const organization = this.getOrganizationName(item);
+		if (organization !== undefined) {
+			return { kind: 'account', id: `account:${organization}`, label: organization };
+		}
+		if (extensionId) {
+			if (isChatExtensionItem(new ExtensionIdentifier(extensionId), this.productService)) {
+				return { kind: 'vscode', id: 'vscode:' };
+			}
+			return { kind: 'extension', id: `extension:${extensionId.toLowerCase()}`, label: item.extensionLabel ?? extensionId };
+		}
+		if (source === AICustomizationSources.builtin || scope === AICustomizationScopes.application) {
+			return { kind: 'vscode', id: 'vscode:' };
+		}
+		return undefined;
+	}
+
+	/**
+	 * Organization customizations are cached by the default chat extension
+	 * under a `/github/<organization>/` folder.
+	 */
+	private getOrganizationName(item: ICustomizationItem): string | undefined {
+		if (!item.extensionId || !isOrganizationPromptFile(item.uri, new ExtensionIdentifier(item.extensionId), this.productService)) {
+			return undefined;
+		}
+		const segments = item.uri.path.split('/');
+		const githubIndex = segments.lastIndexOf('github');
+		return githubIndex >= 0 ? segments[githubIndex + 1] || undefined : undefined;
+	}
 }
 
 // #endregion
 
-// #region Item Source
-
 /**
- * Unified item source that fetches items from a provider (extension-contributed
- * or the promptsService adapter), normalizes them into list items, and optionally
- * blends in local syncable items when a sync provider is present.
+ * Item source backed by a session-scoped customization item provider.
  */
-export class ProviderCustomizationItemSource implements IAICustomizationItemSource {
+export class ItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
-	readonly onDidChange: Event<void>;
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
 
 	constructor(
-		private readonly itemProvider: ICustomizationItemProvider | undefined,
-		private readonly syncProvider: ICustomizationSyncProvider | undefined,
+		readonly sessionResource: URI,
+		private readonly itemProvider: ICustomizationItemProvider,
 		private readonly promptsService: IPromptsService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly fileService: IFileService,
 		private readonly pathService: IPathService,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
-		// When an itemProvider is present, it is the single source of truth (see fetchItems);
-		// the local syncable enumeration path is not used, so we must not subscribe to syncProvider
-		// or promptsService change events here either. Otherwise, providers that already forward
-		// those underlying events via their own onDidChange would cause duplicate refreshes.
-		const subscribeToSyncableEvents = !this.itemProvider && !!this.syncProvider;
-		const onDidChangeSyncableCustomizations = subscribeToSyncableEvents
-			? Event.any(
-				this.promptsService.onDidChangeCustomAgents,
-				this.promptsService.onDidChangeSlashCommands,
-				this.promptsService.onDidChangeSkills,
-				this.promptsService.onDidChangeHooks,
-				this.promptsService.onDidChangeInstructions,
-			)
-			: Event.None;
-
-		this.onDidChange = Event.any(
-			this.itemProvider?.onDidChange ?? Event.None,
-			(subscribeToSyncableEvents && this.syncProvider?.onDidChange) || Event.None,
-			onDidChangeSyncableCustomizations,
+		super();
+		this.onDidAICustomizationItemsChange = Event.any(
+			this.itemProvider.onDidChange,
+			this.promptsService.onDidChangeSkills
 		);
+
+		// Invalidate cache when provider or skills change
+		this._register(this.onDidAICustomizationItemsChange(() => {
+			this.cachedPromise = undefined;
+		}));
 	}
 
-	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const remoteItems = this.itemProvider
-			? await this.fetchItemsFromProvider(this.itemProvider, promptType)
-			: [];
-		if (!this.syncProvider) {
-			return remoteItems;
-		}
-		// If there's an itemProvider, it is the single source of truth for items.
-		// The provider is responsible for enumerating all items, including synced
-		// ones, so we don't need to add local synced items separately.
-		if (this.itemProvider) {
-			return remoteItems;
-		}
-		const localItems = await this.fetchLocalSyncableItems(promptType, this.syncProvider);
-		return [...remoteItems, ...localItems];
+	override dispose(): void {
+		super.dispose();
+		this.cachedPromise = undefined;
 	}
 
-	private async fetchItemsFromProvider(provider: ICustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
-		if (!allItems) {
+	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		if (!this.cachedPromise) {
+			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
+		}
+		const cached = this.cachedPromise;
+		const allItems = await cached;
+		if (cached !== this.cachedPromise || !allItems) {
 			return [];
 		}
+		return allItems;
+	}
+
+	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await this.fetchProviderItems();
 
 		let providerItems: readonly ICustomizationItem[];
 		if (promptType === PromptsType.hook) {
 			const hookItems = allItems.filter(item => item.type === PromptsType.hook);
 			// Plugin hooks are pre-expanded by plugin manifests — skip re-expansion.
-			const toExpand = hookItems.filter(item => item.storage !== PromptsStorage.plugin);
-			const preExpanded = hookItems.filter(item => item.storage === PromptsStorage.plugin);
+			const toExpand = hookItems.filter(item => item.source !== AICustomizationSources.plugin);
+			const preExpanded = hookItems.filter(item => item.source === AICustomizationSources.plugin);
 			const expanded = await expandHookFileItems(
 				toExpand, this.workspaceService, this.fileService, this.pathService,
 			);
@@ -379,24 +459,31 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		return normalized;
 	}
 
+	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		if (!this.itemProvider.provideSourceFolders) {
+			return [];
+		}
+
+		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
+	async fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return (await this.itemProvider.provideSectionNotices?.(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
 	/**
 	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
 	 * into the provider's items. The provider may re-discover the bundled
 	 * copies when scanning disk — those duplicates are dropped (deduped by
 	 * URI) and replaced with the authoritative built-in entry tagged
-	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
-	 * group. User-authored overrides (different URI, same name) are preserved.
+	 * `groupKey: BUILTIN_STORAGE`. User-authored overrides (different URI,
+	 * same name) are preserved and hide the built-in copy.
 	 *
-	 * A workbench that uses the base `PromptsService` will throw on
-	 * `BUILTIN_STORAGE` — we catch and return the items unchanged in that case.
+	 * A workbench that uses the base `PromptsService` contributes no built-in
+	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
 	 */
 	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		let builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = [];
-		try {
-			builtinPaths = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage, CancellationToken.None);
-		} catch {
-			return [...items];
-		}
+		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
 		if (builtinPaths.length === 0) {
 			return [...items];
 		}
@@ -410,14 +497,11 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		// re-discovered the bundled copy by scanning disk).
 		const deduped = items.filter(item => !builtinUris.has(item.uri));
 
-		const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
-		const uiIntegrationBadge = localize('uiIntegrationBadge', "UI Integration");
-
 		// Collect names of user/workspace skills so we can hide the built-in
 		// copy once the user has added an override at either level.
 		const overriddenNames = new Set<string>();
 		for (const item of deduped) {
-			if (item.storage === PromptsStorage.local || item.storage === PromptsStorage.user) {
+			if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
 				if (item.name) {
 					overriddenNames.add(item.name);
 				}
@@ -437,18 +521,14 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			if (overriddenNames.has(name)) {
 				continue;
 			}
-			const folderName = basename(dirname(p.uri));
-			const uiTooltip = uiIntegrations.get(folderName);
 			const builtinItem: ICustomizationItem = {
 				uri: p.uri,
 				type: PromptsType.skill,
 				name,
 				description: p.description,
-				storage: BUILTIN_STORAGE as unknown as PromptsStorage,
+				source: AICustomizationSources.builtin,
 				groupKey: BUILTIN_STORAGE,
 				enabled: !disabledPromptFiles.has(p.uri),
-				badge: uiTooltip ? uiIntegrationBadge : undefined,
-				badgeTooltip: uiTooltip,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
@@ -468,46 +548,98 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			}
 		}
 
-		return items.map(item => item.description
-			? item
-			: { ...item, description: descriptionsByUri.get(item.uri.toString()) });
+		return items.map(item => item.description ? item : { ...item, description: descriptionsByUri.get(item.uri.toString()) });
+	}
+}
+
+export class EmptyItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidAICustomizationItemsChange = Event.None;
+
+	constructor(
+		readonly sessionResource: URI,
+	) {
+		super();
 	}
 
-	private async fetchLocalSyncableItems(promptType: PromptsType, syncProvider: ICustomizationSyncProvider): Promise<IAICustomizationListItem[]> {
-		const files = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-		if (!files.length) {
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchSourceFolders(_promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchSectionNotices(_promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return Promise.resolve([]);
+	}
+}
+
+export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	// Caches the raw, unfiltered items returned by the provider so each
+	// `fetchAICustomizationItems` call can apply its own `promptType` filter.
+	// Previously the cache stored items already filtered/normalized for the
+	// first requested `promptType`, which caused every subsequent section
+	// (Instructions, Skills, …) to see an empty list whenever the Agents tab
+	// was loaded first.
+	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
+
+	constructor(
+		readonly sessionResource: URI,
+		private readonly itemProvider: ICustomizationItemProvider,
+		private readonly itemNormalizer: AICustomizationItemNormalizer,
+	) {
+		super();
+		this.onDidAICustomizationItemsChange = this.itemProvider.onDidChange;
+
+		// Invalidate cache when the provider changes
+		this._register(this.itemProvider.onDidChange(() => {
+			this.cachedPromise = undefined;
+		}));
+	}
+
+	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		if (!this.cachedPromise) {
+			const promise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
+			this.cachedPromise = promise;
+			promise.catch(() => {
+				if (this.cachedPromise === promise) {
+					this.cachedPromise = undefined;
+				}
+			});
+		}
+		const cached = this.cachedPromise;
+		const allItems = await cached;
+		if (cached !== this.cachedPromise || !allItems) {
+			return [];
+		}
+		return allItems;
+	}
+
+	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await this.fetchProviderItems();
+		return this.itemNormalizer.normalizeItems(allItems, promptType);
+	}
+
+	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		if (!this.itemProvider.provideSourceFolders) {
 			return [];
 		}
 
-		const toProviderItem = (file: typeof files[number]): ICustomizationItem => ({
-			uri: file.uri,
-			type: promptType,
-			name: getFriendlyName(basename(file.uri)),
-			groupKey: 'sync-local',
-			enabled: true,
-			extensionId: file.extension?.id,
-			pluginUri: file.pluginUri,
-			userInvocable: undefined
-		});
+		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
 
-		// Local/user files are sync-eligible (the user picks individual items
-		// to push to the remote agent host). Locally-installed plugin files
-		// always show up but are not individually syncable — the plugin is
-		// the unit of sync.
-		const syncEligibleFiles = files.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user);
-		const pluginFiles = files.filter(file => file.storage === PromptsStorage.plugin);
-
-		const syncEligibleItems = this.itemNormalizer.normalizeItems(syncEligibleFiles.map(toProviderItem), promptType)
-			.map(item => ({
-				...item,
-				id: `sync-${item.id}`,
-				syncable: true,
-				synced: !syncProvider.isDisabled(item.uri),
-			}));
-		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
-
-		return [...syncEligibleItems, ...pluginItems];
+	async fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return (await this.itemProvider.provideSectionNotices?.(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 }
+
+
 
 // #endregion

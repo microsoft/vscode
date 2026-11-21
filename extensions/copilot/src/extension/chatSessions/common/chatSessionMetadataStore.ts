@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ChatSessionWorktreeProperties } from './chatSessionWorktreeService';
-import type { IWorkspaceInfo } from './workspaceInfo';
 
 export interface WorkspaceFolderEntry {
 	readonly folderPath: string;
@@ -64,7 +63,10 @@ export interface RequestDetails {
 	 * recoverable from the persisted SDK event log).
 	 */
 	responseModelId?: string;
-
+	/**
+	 * Whether the request was made with Auto model.
+	 */
+	isUsingAutoModel?: boolean;
 	/**
 	 * Total credits consumed for this request turn. Persisted so that rebuilt history
 	 * can display credit usage alongside the model name.
@@ -105,21 +107,16 @@ export interface ChatSessionMetadataFile {
 	 * session or if the session is a child session created from the Agents app.
 	 */
 	parentSessionId?: string;
+	/**
+	 * Whether the session is currently archived. Tracked here so worktree-sharing
+	 * checks can ignore archived siblings (whose worktrees are reconstructed on
+	 * un-archive via {@link IChatSessionWorktreeService.recreateWorktreeOnUnarchive}).
+	 */
+	archived?: boolean;
 	/** Milliseconds since epoch when this metadata was first written. */
 	created?: number;
 	/** Milliseconds since epoch of the last write. Used for top-N trim sort and cross-process merge. */
 	modified?: number;
-}
-
-/**
- * One line in `~/.copilot/vscode.session.worktree.jsonl`. Maps a session id
- * to the path of its worktree so folder → session lookups work even when the
- * session has been evicted from the bulk metadata cache.
- */
-export interface WorktreeSessionEntry {
-	readonly id: string;
-	readonly path: string;
-	readonly created: number;
 }
 
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
@@ -135,8 +132,6 @@ export interface IChatSessionMetadataStore {
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;
 	getSessionWorkspaceFolderEntry(sessionId: string): Promise<WorkspaceFolderEntry | undefined>;
-	getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]>;
-	setAdditionalWorkspaces(sessionId: string, workspaces: IWorkspaceInfo[]): Promise<void>;
 	getSessionFirstUserMessage(sessionId: string): Promise<string | undefined>;
 	setSessionFirstUserMessage(sessionId: string, message: string): Promise<void>;
 	getCustomTitle(sessionId: string): Promise<string | undefined>;
@@ -152,7 +147,19 @@ export interface IChatSessionMetadataStore {
 	setSessionOrigin(sessionId: string): Promise<void>;
 	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
 	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
-	getSessionParentId(sessionId: string): Promise<string | undefined>;
+	/**
+	 * Returns the parent lineage info for a session, distinguishing forked sessions
+	 * (created via the fork action) from sub-sessions (spawned by a parent session
+	 * to do work on its behalf). Returns `undefined` for top-level sessions with no
+	 * stored parent.
+	 */
+	getSessionParentId(sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined>;
+	/**
+	 * Persist the archived state of a session. Called from the chat session item state
+	 * change handler so worktree-sharing checks can later ignore archived siblings.
+	 */
+	setSessionArchived(sessionId: string, archived: boolean): Promise<void>;
+	getSessionArchived(sessionId: string): Promise<boolean>;
 	/**
 	 * Re-read the shared bulk metadata file from disk and merge into the in-memory cache.
 	 * Wired to the chat-sessions UI refresh action so cross-process writes become visible

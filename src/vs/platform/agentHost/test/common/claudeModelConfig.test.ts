@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CLAUDE_THINKING_LEVEL_KEY, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
+import { CLAUDE_THINKING_LEVEL_KEY, toRuntimeEffortLevel, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
@@ -36,6 +36,24 @@ suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
 			{ id: 'claude-opus-4.6', config: { [CLAUDE_THINKING_LEVEL_KEY]: 'turbo' } },
 		];
 		assert.deepStrictEqual(cases.map(resolveClaudeEffort), [undefined, undefined, undefined, undefined, undefined]);
+	});
+});
+
+suite('toRuntimeEffortLevel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('passes every level through unchanged — including `max` — and preserves undefined', () => {
+		// The SDK's runtime `Settings.effortLevel` type declares it can't accept
+		// `'max'`, but the Anthropic API / CAPI do accept it, so the clamp
+		// deliberately lets `'max'` flow through rather than degrading it to
+		// `'xhigh'`. The declared return type still excludes `'max'`; the value
+		// carried at runtime does not.
+		const inputs: readonly (ClaudeEffortLevel | undefined)[] = [undefined, 'low', 'medium', 'high', 'xhigh', 'max'];
+		assert.deepStrictEqual(
+			inputs.map(toRuntimeEffortLevel),
+			[undefined, 'low', 'medium', 'high', 'xhigh', 'max'],
+		);
 	});
 });
 
@@ -87,10 +105,11 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high', 'xhigh', 'max'],
 						enumLabels: ['Low', 'Medium', 'High', 'Extra High', 'Max'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower', 'Highest reasoning depth but slowest', 'Absolute maximum capability with no constraints'],
 						default: 'high',
 					},
 				},
@@ -100,10 +119,11 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
+						enumDescriptions: ['Faster responses with less reasoning', 'Balanced reasoning and speed', 'Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -113,10 +133,11 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
+						enumDescriptions: ['Greater reasoning depth but slower'],
 						default: 'high',
 					},
 				},
@@ -126,10 +147,11 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['max', 'low'],
 						enumLabels: ['Max', 'Low'],
+						enumDescriptions: ['Absolute maximum capability with no constraints', 'Faster responses with less reasoning'],
 					},
 				},
 			},

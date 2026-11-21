@@ -19,7 +19,7 @@ import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { collectErrorMessages, collectSingleLineErrorMessage, ILogService, sanitizeNetworkErrorForTelemetry } from '../../../platform/log/common/logService';
 import { outputChannel } from '../../../platform/log/vscode/outputChannelLogTarget';
-import { FetchEvent, IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { FetchEvent, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
 import { IFetcher, userAgentLibraryHeader } from '../../../platform/networking/common/networking';
 import { NodeFetcher } from '../../../platform/networking/node/nodeFetcher';
 import { NodeFetchFetcher } from '../../../platform/networking/node/nodeFetchFetcher';
@@ -47,9 +47,16 @@ interface ProxyAgentParams {
 	loadSystemCertificatesFromNode: () => boolean | undefined;
 }
 
+interface ResolvedProxyInfo {
+	url: string | undefined;
+	type: 'DIRECT' | 'PROXY' | 'HTTP' | 'HTTPS' | 'SOCKS' | 'SOCKS5' | 'SOCKS4' | 'EMPTY' | 'UNRECOGNIZED';
+	source: 'localhost' | 'noProxyConfig' | 'noProxyEnv' | 'setting' | 'env' | 'remote' | 'system_cached' | 'system' | 'fallback';
+}
+
 interface ProxyAgent {
 	loadSystemCertificates?(params: ProxyAgentParams): Promise<string[]>;
 	resolveProxyURL?(url: string): Promise<string | undefined>;
+	resolveProxyByURL?(url: string): Promise<ResolvedProxyInfo>;
 }
 
 export class LoggingActionsContrib {
@@ -93,9 +100,9 @@ User Settings:
 			const loadSystemCertificatesFromNode = this.configurationService.getNonExtensionConfig<boolean>('http.systemCertificatesNode');
 			const osCertificates = proxyAgent?.loadSystemCertificates ? await loadSystemCertificates(proxyAgent.loadSystemCertificates, loadSystemCertificatesFromNode, this.logService) : undefined;
 			const urls = [
-				this.capiClientService.dotcomAPIURL,
-				this.capiClientService.capiPingURL,
-				this.capiClientService.proxyBaseURL + '/_ping',
+				{ url: this.capiClientService.dotcomAPIURL, expectedContent: 'current_user_url' },
+				{ url: this.capiClientService.capiPingURL, expectedContent: 'OK' },
+				{ url: this.capiClientService.proxyBaseURL + '/_ping', expectedContent: '"status":"ok"' },
 			];
 			const isGHEnterprise = this.capiClientService.dotcomAPIURL !== 'https://api.github.com';
 			const timeoutSeconds = 10;
@@ -105,23 +112,15 @@ User Settings:
 			const nodeFetchCurrent = !electronCurrent && !nodeCurrent && nodeFetchConfig;
 			const nodeCurrentFallback = !electronCurrent && !nodeFetchCurrent;
 			const activeFetcher = this.fetcherService.getUserAgentLibrary();
-			const nodeFetcher = new NodeFetcher(this.envService);
-			const fetchers = {
-				['Electron fetch']: {
-					fetcher: electronFetcher,
-					current: electronCurrent,
-				},
-				['Node.js https']: {
-					fetcher: nodeFetcher,
-					current: nodeCurrent || nodeCurrentFallback,
-				},
-				['Node.js fetch']: {
-					fetcher: new NodeFetchFetcher(this.envService),
-					current: nodeFetchCurrent,
-				},
-			};
+			const nodeFetcher = { name: 'Node.js https', fetcher: new NodeFetcher(this.envService), current: nodeCurrent || nodeCurrentFallback };
+			const nodeFetchFetcher = { name: 'Node.js fetch', fetcher: new NodeFetchFetcher(this.envService), current: nodeFetchCurrent };
+			const fetchers = [
+				{ name: 'Electron fetch', fetcher: electronFetcher, current: electronCurrent },
+				nodeFetcher,
+				nodeFetchFetcher,
+			];
 			const dnsLookup = util.promisify(dns.lookup);
-			for (const url of urls) {
+			for (const { url, expectedContent } of urls) {
 				const authHeaders = await this.getAuthHeaders(isGHEnterprise, url);
 				const host = new URL(url).hostname;
 				await appendText(editor, `\nConnecting to ${url}:\n`);
@@ -194,14 +193,23 @@ User Settings:
 						}
 					}
 				}
-				for (const [name, fetcher] of Object.entries(fetchers)) {
-					await appendText(editor, `- ${name}${fetcher.current ? ' (configured)' : fetcher.fetcher?.getUserAgentLibrary() === activeFetcher ? ' (active)' : ''}: `);
-					if (fetcher.fetcher) {
+				for (const { name, fetcher, current } of fetchers) {
+					await appendText(editor, `- ${name}${current ? ' (configured)' : fetcher?.getUserAgentLibrary() === activeFetcher ? ' (active)' : ''}: `);
+					if (fetcher) {
 						const start = Date.now();
 						try {
-							const response = await Promise.race([fetcher.fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-fetcher-probe' }), timeout(timeoutSeconds * 1000)]);
+							const response = await Promise.race([fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-fetcher-probe' }), timeout(timeoutSeconds * 1000)]);
 							if (response) {
-								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)\n`);
+								let contentNote = '';
+								try {
+									const body = await response.text();
+									if (!body.includes(expectedContent)) {
+										contentNote = ` - unexpected content: ${formatUnexpectedContent(body)} (expected: '${expectedContent}')`;
+									}
+								} catch (bodyErr) {
+									contentNote = ` - failed to read content: ${collectErrorMessages(bodyErr)}`;
+								}
+								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)${contentNote}\n`);
 							} else {
 								await appendText(editor, `timed out after ${timeoutSeconds} seconds\n`);
 							}
@@ -214,22 +222,54 @@ User Settings:
 				}
 			}
 
-			const currentFetcher = Object.values(fetchers).find(fetcher => fetcher.current)?.fetcher || nodeFetcher;
-			const secondaryUrls = [
-				{ url: 'https://mobile.events.data.microsoft.com', fetcher: currentFetcher },
-				{ url: 'https://dc.services.visualstudio.com', fetcher: currentFetcher },
-				{ url: 'https://copilot-telemetry.githubusercontent.com/_ping', fetcher: nodeFetcher },
-				{ url: vscode.Uri.parse(this.capiClientService.copilotTelemetryURL).with({ path: '/_ping' }).toString(), fetcher: nodeFetcher },
-				{ url: 'https://default.exp-tas.com', fetcher: nodeFetcher },
+			const currentFetcher = fetchers.find((entry): entry is typeof entry & { fetcher: IFetcher } => entry.current && !!entry.fetcher) ?? nodeFetcher;
+			const useVSCodeTelemetryLibForGH = this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.UseVSCodeTelemetryLibForGH, this.experimentationService);
+			const githubTelemetryFetcher = useVSCodeTelemetryLibForGH ? currentFetcher : nodeFetcher;
+			const microsoftAIKey = (this._context.extension.packageJSON as { ariaKey?: string }).ariaKey ?? '';
+			const microsoftIsOneDS = !microsoftAIKey || isOneDataSystemKey(microsoftAIKey);
+			const secondaryUrls: {
+				url: string;
+				fetcher: { name: string; fetcher: IFetcher };
+				connect: (fetcher: IFetcher, url: string) => Promise<Response | string>;
+			}[] = [
+				microsoftIsOneDS
+					? {
+						// Microsoft 1DS/OneCollector telemetry endpoint (newer).
+						url: oneCollectorTelemetryUrl,
+						fetcher: currentFetcher,
+						connect: (fetcher, url) => vscode.env.isTelemetryEnabled
+							? sendRawTelemetry(fetcher, this.envService, url, this._context, 'GitHub.copilot-chat/diagnosticsTelemetryProbe', {})
+							: Promise.resolve('Telemetry is not enabled'),
+					}
+					: {
+						// Azure Application Insights telemetry endpoint (older).
+						url: 'https://dc.services.visualstudio.com/v2.1/track',
+						fetcher: currentFetcher,
+						connect: (fetcher, url) => sendRawAITelemetry(fetcher, this.envService, url),
+					},
+				{
+					// GitHub Copilot telemetry endpoint (App Insights-compatible ingestion; the URL already
+					// ends in `/telemetry`, which is the path production posts telemetry to).
+					url: this.capiClientService.copilotTelemetryURL,
+					fetcher: githubTelemetryFetcher,
+					connect: (fetcher, url) => sendRawAITelemetry(fetcher, this.envService, url),
+				},
+				{
+					// Experimentation (ExP/TAS) service endpoint (path used by vscode-tas-client).
+					url: 'https://default.exp-tas.com/vscode/ab',
+					fetcher: nodeFetchFetcher,
+					connect: (fetcher, url) => fetcher.fetch(url, { callSite: 'diagnostics-secondary-probe' }),
+				},
 			];
 			await appendText(editor, `\n`);
-			for (const { url, fetcher } of secondaryUrls) {
-				const authHeaders = await this.getAuthHeaders(isGHEnterprise, url);
-				await appendText(editor, `Connecting to ${url}: `);
+			for (const { url, fetcher, connect } of secondaryUrls) {
+				await appendText(editor, `Connecting to ${url} (${fetcher.name}): `);
 				const start = Date.now();
 				try {
-					const response = await Promise.race([fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-secondary-probe' }), timeout(timeoutSeconds * 1000)]);
-					if (response) {
+					const response = await Promise.race([connect(fetcher.fetcher, url), timeout(timeoutSeconds * 1000)]);
+					if (typeof response === 'string') {
+						await appendText(editor, `${response}\n`);
+					} else if (response) {
 						await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)\n`);
 					} else {
 						await appendText(editor, `timed out after ${timeoutSeconds} seconds\n`);
@@ -239,10 +279,21 @@ User Settings:
 				}
 			}
 			await appendText(editor, `\nNumber of system certificates: ${osCertificates?.length ?? 'failed to load'}\n`);
-			await appendText(editor, `
-## Documentation
 
-In corporate networks: [Troubleshooting firewall settings for GitHub Copilot](https://docs.github.com/en/copilot/troubleshooting-github-copilot/troubleshooting-firewall-settings-for-github-copilot).`);
+			const activeFetcherName = fetchers.find(entry => entry.fetcher?.getUserAgentLibrary() === activeFetcher)?.name ?? activeFetcher;
+			const notes = [`- Active fetcher: ${activeFetcherName}.`];
+			if (currentFetcher.fetcher.getUserAgentLibrary() !== activeFetcher) {
+				notes.push(`- The active fetcher differs from the configured fetcher (${currentFetcher.name}). This can happen after a recent configuration change or an automatic fallback; reload the window or restart VS Code to apply the configured fetcher.`);
+			}
+			const proxySupport = vscode.workspace.getConfiguration().get<string>('http.proxySupport');
+			if (proxySupport !== 'override') {
+				notes.push(`- The \`"http.proxySupport"\` setting is set to \`"${proxySupport}"\`. The recommended default is \`"override"\`, which generally works best.`);
+			}
+			notes.push(`- For corporate networks also see: [Troubleshooting firewall settings for GitHub Copilot](https://docs.github.com/en/copilot/troubleshooting-github-copilot/troubleshooting-firewall-settings-for-github-copilot).`);
+			await appendText(editor, `
+## Notes
+
+${notes.join('\n')}`);
 
 			return document.getText();
 		};
@@ -281,6 +332,30 @@ async function appendText(editor: vscode.TextEditor, string: string) {
 
 function timeoutAfter(ms: number) {
 	return new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), ms));
+}
+
+/**
+ * Formats an unexpected response body for single-line display: replaces line breaks with `\n`
+ * indicators and truncates to 200 characters.
+ */
+function formatUnexpectedContent(body: string): string {
+	const oneLine = body.replace(/\r\n|\r|\n/g, '\\n');
+	return oneLine.length > 200 ? `${oneLine.slice(0, 200)}…` : oneLine;
+}
+
+/**
+ * Returns `true` when the given telemetry key is a 1DS (One Data System) key, which is sent to the
+ * OneCollector endpoint. Otherwise it is a classic Application Insights key sent to the Application
+ * Insights endpoint. Mirrors the check in `@vscode/extension-telemetry`.
+ */
+function isOneDataSystemKey(key: string): boolean {
+	return key.length === 74
+		&& key[32] === '-'
+		&& key[41] === '-'
+		&& key[46] === '-'
+		&& key[51] === '-'
+		&& key[56] === '-'
+		&& key[69] === '-';
 }
 
 function loadVSCodeModule<T>(moduleName: string): T | undefined {
@@ -389,9 +464,13 @@ const networkSettingsIds = [
 	'http.systemCertificatesNode',
 	'http.experimental.systemCertificatesV2',
 	'http.useLocalProxyConfiguration',
+	'telemetry.telemetryLevel',
+	'telemetry.enableTelemetry',
+	'telemetry.enableCrashReporter',
 ];
 const alwaysShowSettingsIds = [
 	'http.systemCertificatesNode',
+	'telemetry.telemetryLevel',
 ];
 
 function getNetworkSettings() {
@@ -417,6 +496,41 @@ function getProxyEnvVariables() {
 	return res.length ? `\n\nEnvironment Variables:${res.join('')}` : '';
 }
 
+interface ProxyInfo {
+	/** Resolved proxy type: `DIRECT`, `PROXY`, `HTTP`, `HTTPS`, `SOCKS`, `SOCKS5`, `SOCKS4`, `EMPTY`, `UNRECOGNIZED` or `UNKNOWN`. */
+	type: string;
+	/**
+	 * Where the proxy configuration came from: `localhost`, `noProxyConfig`
+	 * (`http.noProxy`), `noProxyEnv` (`no_proxy`), `setting` (`http.proxy`), `env`
+	 * (`http(s)_proxy`), `remote`, `system_cached`, `system` (OS/PAC) or `fallback`
+	 * from `@vscode/proxy-agent`, or one of the failure sentinels `missing`
+	 * (module/API unavailable), `timeout` or `error`.
+	 */
+	source: string;
+}
+
+/**
+ * Resolves the proxy type and configuration source for a URL using the bundled
+ * `@vscode/proxy-agent` module. The source reflects which configuration actually
+ * determined the resolved proxy (see `@vscode/proxy-agent`'s `resolveProxyByURL`).
+ */
+async function resolveProxyInfo(url: string, logService: ILogService): Promise<ProxyInfo> {
+	try {
+		const proxyAgent = loadVSCodeModule<ProxyAgent>('@vscode/proxy-agent');
+		if (!proxyAgent?.resolveProxyByURL) {
+			return { type: 'UNKNOWN', source: 'missing' };
+		}
+		const info = await Promise.race([proxyAgent.resolveProxyByURL(url), timeoutAfter(5000)]);
+		if (info === 'timeout') {
+			return { type: 'UNKNOWN', source: 'timeout' };
+		}
+		return { type: info.type, source: info.source };
+	} catch (err) {
+		logService.debug(`Fetcher telemetry: Failed to resolve proxy info: ${err?.message}`);
+		return { type: 'UNKNOWN', source: 'error' };
+	}
+}
+
 export class FetcherTelemetryContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -431,6 +545,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 	const logService = accessor.get(ILogService);
 	const configurationService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
+	const capiClientService = accessor.get(ICAPIClientService);
 
 	if (!vscode.env.isTelemetryEnabled || extensionContext.extensionMode !== vscode.ExtensionMode.Production || isScenarioAutomation) {
 		return;
@@ -476,7 +591,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 			const key = library.replace(/-/g, '');
 			const requestStartTime = Date.now();
 			try {
-				const response = await sendRawTelemetry(fetcher, envService, extensionContext, 'GitHub.copilot-chat/fetcherTelemetryProbe', {});
+				const response = await sendRawTelemetry(fetcher, envService, oneCollectorTelemetryUrl, extensionContext, 'GitHub.copilot-chat/fetcherTelemetryProbe', {});
 				probeResults[key] = `Status: ${response.status}`;
 				logService.debug(`Fetcher telemetry probe: ${library} ${probeResults[key]} (${Date.now() - requestStartTime}ms)`);
 			} catch (e) {
@@ -484,6 +599,9 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 				logService.debug(`Fetcher telemetry probe: ${library} ${probeResults[key]} (${Date.now() - requestStartTime}ms)`);
 			}
 		}
+
+		// Resolve the proxy type and configuration source for the CAPI endpoint.
+		const { type: proxyType, source: proxySource } = await resolveProxyInfo(capiClientService.capiPingURL, logService);
 
 		// Second loop: send the actual telemetry event including probe results.
 		const requestGroupId = generateUuid();
@@ -499,6 +617,8 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 						"clientLibrary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher library used for this request." },
 						"extensionKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the extension runs locally or remotely." },
 						"remoteName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The remote name, if any." },
+						"proxyType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The resolved proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTP, HTTPS, SOCKS, SOCKS5, SOCKS4, EMPTY, UNRECOGNIZED, UNKNOWN)." },
+						"proxySource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Where the proxy configuration came from: localhost, noProxyConfig (http.noProxy), noProxyEnv (no_proxy), setting (http.proxy), env (http(s)_proxy), remote, system_cached, system (OS/PAC), fallback, or a failure sentinel: missing, timeout or error." },
 						"electronfetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the electron-fetch fetcher." },
 						"nodefetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-fetch fetcher." },
 						"nodehttp": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-http fetcher." }
@@ -509,9 +629,11 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 					clientLibrary: fetcher.getUserAgentLibrary(),
 					extensionKind,
 					remoteName: vscode.env.remoteName ?? 'none',
+					proxyType,
+					proxySource,
 					...probeResults,
 				};
-				const response = await sendRawTelemetry(fetcher, envService, extensionContext, 'GitHub.copilot-chat/fetcherTelemetry', properties);
+				const response = await sendRawTelemetry(fetcher, envService, oneCollectorTelemetryUrl, extensionContext, 'GitHub.copilot-chat/fetcherTelemetry', properties);
 
 				logService.debug(`Fetcher telemetry: Succeeded in ${Date.now() - requestStartTime}ms using ${fetcher.getUserAgentLibrary()} with status ${response.status} (${response.statusText}).`);
 			} catch (e) {
@@ -523,8 +645,9 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 	});
 }
 
-async function sendRawTelemetry(fetcher: IFetcher, envService: IEnvService, extensionContext: IVSCodeExtensionContext, eventName: string, properties: Record<string, string>) {
-	const url = 'https://mobile.events.data.microsoft.com/OneCollector/1.0?cors=true&content-type=application/x-json-stream';
+const oneCollectorTelemetryUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0?cors=true&content-type=application/x-json-stream';
+
+async function sendRawTelemetry(fetcher: IFetcher, envService: IEnvService, url: string, extensionContext: IVSCodeExtensionContext, eventName: string, properties: Record<string, string>) {
 	const product = require(path.join(vscode.env.appRoot, 'product.json'));
 	const vscodeCommitHash: string = product.commit || '';
 	const ariaKey = (extensionContext.extension.packageJSON as { ariaKey?: string }).ariaKey ?? '';
@@ -577,6 +700,30 @@ async function sendRawTelemetry(fetcher: IFetcher, envService: IEnvService, exte
 		'time-delta-to-apply-millis': 'use-collector-delta',
 		'cache-control': 'no-cache, no-store',
 		'content-type': 'application/x-json-stream',
+		'User-Agent': `GitHubCopilotChat/${envService.getVersion()}`,
+		[userAgentLibraryHeader]: fetcher.getUserAgentLibrary(),
+	};
+	if (fetcher.getUserAgentLibrary() === NodeFetcher.ID) {
+		headers['content-length'] = String(Buffer.byteLength(body));
+	}
+	const response = await fetcher.fetch(url, {
+		method: 'POST',
+		headers,
+		body,
+		callSite: 'diagnostics-telemetry-probe',
+	});
+	await response.text();
+	return response;
+}
+
+/**
+ * Sends a raw Application Insights telemetry request with an empty batch (zero events) to probe
+ * connectivity to an Application Insights ingestion endpoint.
+ */
+async function sendRawAITelemetry(fetcher: IFetcher, envService: IEnvService, url: string) {
+	const body = '[]';
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
 		'User-Agent': `GitHubCopilotChat/${envService.getVersion()}`,
 		[userAgentLibraryHeader]: fetcher.getUserAgentLibrary(),
 	};

@@ -352,6 +352,15 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		this.reportMarkers();
 		this.cleanAllMarkers();
 	}
+
+	/**
+	 * Resolves once the lines passed to `processLine` so far have been
+	 * processed. Lines are processed asynchronously, one after the other.
+	 */
+	protected linesProcessed(): Promise<void> {
+		const ignore = () => { };
+		return this.tail ? this.tail.then(ignore, ignore) : Promise.resolve();
+	}
 }
 
 export const enum ProblemHandlingStrategy {
@@ -459,7 +468,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 				const oldLines = Array.from(this.lines);
 				for (const line of oldLines) {
-					await this.processLineInternal(line);
+					await this.processLineInternal(line, false);
 				}
 			});
 
@@ -485,11 +494,13 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	protected async processLineInternal(line: string): Promise<void> {
-		if (await this.tryBegin(line) || this.tryFinish(line)) {
+	protected async processLineInternal(line: string, recordLine = true): Promise<void> {
+		if (await this.tryBegin(line, recordLine) || this.tryFinish(line, recordLine)) {
 			return;
 		}
-		this.lines.push(line);
+		if (recordLine) {
+			this.lines.push(line);
+		}
 		const markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -513,7 +524,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		this.reportMarkersForCurrentResource();
 	}
 
-	private async tryBegin(line: string): Promise<boolean> {
+	private async tryBegin(line: string, recordLine: boolean): Promise<boolean> {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
 			const start = Date.now();
@@ -529,8 +540,10 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this._activeBackgroundMatchers.add(background.key);
 				result = true;
 				this._onDidFindFirstMatch.fire();
-				this.lines = [];
-				this.lines.push(line);
+				if (recordLine) {
+					this.lines = [];
+					this.lines.push(line);
+				}
 				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
@@ -547,7 +560,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		return result;
 	}
 
-	private tryFinish(line: string): boolean {
+	private tryFinish(line: string, recordLine: boolean): boolean {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
 			const start = Date.now();
@@ -557,6 +570,9 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.logService?.trace(`ProblemMatcher: slow end regexp took ${elapsed}ms to execute`, background.end.regexp.source);
 			}
 			if (matches) {
+				if (this._activeBackgroundMatchers.has(background.key)) {
+					this.reportMarkersForCurrentResource();
+				}
 				if (this._numberOfMatches > 0) {
 					this._onDidFindErrors.fire(this.markerService.read({ owner: background.matcher.owner }));
 				} else {
@@ -567,7 +583,9 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					const capturedVariables = matches.groups ? new Map(Object.entries(matches.groups)) : undefined;
 					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds, capturedVariables));
 					result = true;
-					this.lines.push(line);
+					if (recordLine) {
+						this.lines.push(line);
+					}
 					const owner = background.matcher.owner;
 					this.cleanMarkers(owner);
 					this.cleanMarkerCaches();
@@ -589,10 +607,17 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	public override done(): void {
+	/**
+	 * Reports the markers and cleans up the markers of the previous run. A
+	 * background task can exit right after printing its output, before its last
+	 * lines have been processed, so this waits for them first. The returned
+	 * promise resolves once the markers have been reported.
+	 */
+	public override async done(): Promise<void> {
 		[...this.applyToByOwner.keys()].forEach(owner => {
 			this.recordResourcesToClean(owner);
 		});
+		await this.linesProcessed();
 		super.done();
 	}
 

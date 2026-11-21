@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -19,7 +18,7 @@ import { AcceptElicitationRequestActionId } from '../../actions/chatElicitationA
 import { IChatToolRiskAssessmentService } from '../../tools/chatToolRiskAssessmentService.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { ToolRiskBadgeWidget } from './toolInvocationParts/toolRiskBadgeWidget.js';
+import { createToolRiskBadge } from './toolInvocationParts/toolRiskBadgeHelper.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 
 export class ChatElicitationContentPart extends Disposable implements IChatContentPart {
@@ -90,6 +89,10 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		}));
 		this._confirmWidget = confirmationWidget;
 		confirmationWidget.setShowButtons(elicitation.kind === 'elicitation2' && elicitation.state.get() === ElicitationState.Pending);
+		const keepActions = elicitation.kind === 'elicitation2' && elicitation.keepActionsWhilePending === true;
+		if (elicitation.kind === 'elicitation2' && keepActions) {
+			this._register(autorun(reader => confirmationWidget.setShowButtons(elicitation.state.read(reader) === ElicitationState.Pending)));
+		}
 
 		this._register(confirmationWidget.onDidClick(async ({ button: e }) => {
 			if (elicitation.kind !== 'elicitation2') {
@@ -110,7 +113,9 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 				await elicitation.reject();
 			}
 
-			confirmationWidget.setShowButtons(false);
+			if (!keepActions) {
+				confirmationWidget.setShowButtons(false);
+			}
 			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
 		}));
 
@@ -134,38 +139,8 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		if (elicitation.kind !== 'elicitation2' || !elicitation.riskAssessment) {
 			return undefined;
 		}
-		if (!this.riskAssessmentService.isEnabled()) {
-			return undefined;
-		}
 		const { toolId, parameters } = elicitation.riskAssessment;
-		const tool = this.languageModelToolsService.getTool(toolId);
-		if (!tool) {
-			return undefined;
-		}
-		const widget = this._register(this.instantiationService.createInstance(ToolRiskBadgeWidget));
-		const cached = this.riskAssessmentService.getCached(tool, parameters);
-		if (cached) {
-			widget.setAssessment(cached);
-		} else {
-			widget.setLoading();
-			const cts = this._register(new CancellationTokenSource());
-			(async () => {
-				try {
-					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
-					if (cts.token.isCancellationRequested) {
-						return;
-					}
-					if (!result) {
-						widget.setHidden();
-						return;
-					}
-					widget.setAssessment(result);
-				} catch {
-					widget.setHidden();
-				}
-			})();
-		}
-		return widget.domNode;
+		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, toolId, parameters)?.domNode;
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {

@@ -29,6 +29,18 @@ export enum AgentInstructionFileType {
 	copilotInstructionsMd = 'copilotInstructionsMd',
 }
 
+export namespace PromptConfig {
+	// Configuration keys (non-extension settings — read via getNonExtensionConfig).
+	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
+	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
+	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';
+	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
+	export const COLLECT_INSTRUCTIONS_IN_EXTENSION = 'chat.experimental.collectInstructionsInExtension';
+}
+
 /**
  * Represents a discovered agent instruction file.
  */
@@ -118,6 +130,13 @@ export interface IPromptsService {
 	 * The list of currently installed agent plugins.
 	 */
 	getPlugins(token: CancellationToken): Promise<readonly ChatPlugin[]>;
+
+	/**
+	 * Resolves customization discovery roots for the supplied workspace folders,
+	 * including trusted parent repositories when enabled by configuration.
+	 * These roots do not grant edit access outside the workspace.
+	 */
+	getWorkspaceFolderRoots(workspaceFolders: readonly URI[]): Promise<URI[]>;
 
 	/**
 	 * Gets the combined list of agent instruction files (`AGENTS.md`,

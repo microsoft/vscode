@@ -15,7 +15,7 @@ export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 export interface IDiagnosticsService {
 	readonly _serviceBrand: undefined;
 
-	getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
+	getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
 	getDiagnostics(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
 	getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }>;
@@ -88,7 +88,7 @@ export interface PerformanceInfo {
 	workspaceInfo?: string;
 }
 
-export interface IWorkspaceInformation extends IWorkspace {
+export interface IWorkspaceInformation extends Omit<IWorkspace, 'uri'> {
 	telemetryId: string | undefined;
 	rendererSessionId: string;
 }
@@ -101,7 +101,7 @@ export function isRemoteDiagnosticError(x: unknown): x is IRemoteDiagnosticError
 export class NullDiagnosticsService implements IDiagnosticsService {
 	_serviceBrand: undefined;
 
-	async getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
+	async getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo> {
 		return {};
 	}
 

@@ -32,8 +32,8 @@ export class ApiEmbeddingsIndex implements IApiEmbeddingsIndex {
 	) {
 		const cacheVersion = sanitizeVSCodeVersion(envService.getEditorInfo().version);
 		this.embeddingsCache = useRemoteCache ?
-			instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'api', cacheVersion, EmbeddingType.text3small_512, RemoteCacheType.Api) :
-			instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'api', cacheVersion, EmbeddingType.text3small_512);
+			instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'api', cacheVersion, EmbeddingType.metis_1024_I16_Binary, RemoteCacheType.Api) :
+			instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'api', cacheVersion, EmbeddingType.metis_1024_I16_Binary);
 	}
 
 	async updateIndex(): Promise<void> {
@@ -84,18 +84,16 @@ export class VSCodeAPIContextElement extends PromptElement<VSCodeAPIContextProps
 		super(props);
 	}
 
-	async renderAsString(): Promise<string> {
-		const snippets = await this.getSnippets(undefined);
-		return `Below are some potentially relevant code samples related to VS Code extension development. You may use information from these samples to help you answer the question if you believe it is relevant.\n${snippets.join('\n\n')}`;
-	}
-
 	private async getSnippets(token: CancellationToken | undefined): Promise<string[]> {
 		await this.apiEmbeddingsIndex.updateIndex();
 		if (token?.isCancellationRequested) {
 			return [];
 		}
 
-		const embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.text3small_512, [this.props.query], {}, new TelemetryCorrelationId('VSCodeAPIContextElement::getSnippets'), token);
+		const embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, [this.props.query], { inputType: 'query' }, new TelemetryCorrelationId('VSCodeAPIContextElement::getSnippets'), token);
+		if (embeddingResult.values.length === 0) {
+			return [];
+		}
 		return this.apiEmbeddingsIndex.nClosestValues(embeddingResult.values[0], 5);
 	}
 

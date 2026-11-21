@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
-import gulp from 'gulp';
+import { mapStream } from './lib/streams.ts';
+import { gulp, gunzip } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import * as cp from 'child_process';
 import { tmpdir } from 'os';
 import { existsSync, mkdirSync, rmSync } from 'fs';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import watcher from './lib/watch/index.ts';
 import { debounce, untar } from './lib/util.ts';
 import { createReporter } from './lib/reporter.ts';
-import gunzip from 'gulp-gunzip';
 
 const root = 'cli';
 const rootAbs = path.resolve(import.meta.dirname, '..', root);
@@ -96,7 +95,7 @@ const acquireBuiltOpenSSL = (callback: (err?: unknown) => void) => {
 		});
 };
 
-const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter) => es.map((_, callback) => {
+const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter) => mapStream((_, callback) => {
 	compileFromSources(err => {
 		if (!err) {
 			// no-op
@@ -143,5 +142,5 @@ const watchCliTask = task.define('watch-cli', () => {
 		.pipe(debounce(compileCliTask as task.StreamTask));
 });
 
-gulp.task(compileCliTask);
-gulp.task(watchCliTask);
+task.task(compileCliTask);
+task.task(watchCliTask);

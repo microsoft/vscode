@@ -6,14 +6,19 @@
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatConfiguration, ChatModeKind, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
+import { ChatInputCanScheduleContext, SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../sessions/common/sessionConfig.js';
+import { ChatAutomationsEnabledContext } from '../common/automations/automationsEnabled.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
@@ -29,6 +34,13 @@ export const enum ChatTipTier {
 }
 
 /**
+ * Treatment names for tip messages overridable via the workbench assignment service.
+ */
+export const enum ChatTipExperiment {
+	OpenAgentsWindowTip = 'openagentswindowtip',
+}
+
+/**
  * Context provided to tip builders for dynamic message construction.
  */
 export interface ITipBuildContext {
@@ -36,6 +48,11 @@ export interface ITipBuildContext {
 	 * Keybinding service for looking up keyboard shortcuts.
 	 */
 	readonly keybindingService: IKeybindingService;
+	/**
+	 * Experimental tip message overrides keyed by treatment name (see {@link ChatTipExperiment}).
+	 * Builders should fall back to their default localized strings when a treatment is not set.
+	 */
+	readonly experimentalTipMessages: ReadonlyMap<string, string>;
 }
 
 /**
@@ -98,6 +115,15 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 * When clause expression that determines if this tip is eligible to be shown.
 	 */
 	readonly when?: ContextKeyExpression;
+	/**
+	 * Command IDs that must be registered for this tip to be eligible.
+	 */
+	readonly requiresCommands?: readonly string[];
+	/**
+	 * Chat mode names that must be available in the current widget for this tip to
+	 * be eligible.
+	 */
+	readonly requiresModeNames?: readonly string[];
 	/**
 	 * Chat model IDs for which this tip is eligible (lowercase).
 	 */
@@ -231,13 +257,14 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.open?%5B%7B%22mode%22%3A%22Plan%22%7D%5D \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
 			);
 		},
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
+		requiresModeNames: ['Plan'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
@@ -265,6 +292,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				localize('tip.codeActions', "Select a code block in the editor and right-click to access more AI actions.")
 			);
 		},
+		when: IsSessionsWindowContext.negate(),
 		excludeWhenCommandsExecuted: ['inlineChat.start'],
 	},
 	{
@@ -296,6 +324,77 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
 	},
 	{
+		id: 'tip.sendInBackground',
+		tier: ChatTipTier.Qol,
+		buildMessage(ctx) {
+			return new MarkdownString(
+				localize(
+					'tip.sendInBackground',
+					"Use Send in Background{0} to start a new session without opening it. [Customize the shortcut](command:workbench.action.openGlobalKeybindings?{1} \"Open Keyboard Shortcuts\").",
+					formatKeybinding(ctx, SEND_IN_BACKGROUND_COMMAND_ID),
+					encodeURIComponent(JSON.stringify([SEND_IN_BACKGROUND_COMMAND_ID])),
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.SendInBackgroundTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			SessionIsCreatedContext.negate(),
+		),
+		requiresCommands: [SEND_IN_BACKGROUND_COMMAND_ID],
+		excludeWhenCommandsExecuted: [SEND_IN_BACKGROUND_COMMAND_ID],
+	},
+	{
+		id: 'tip.btw',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.btw', "Use `/btw <question>` to ask a side question without adding it to the current conversation.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.BtwTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ContextKeyExpr.has('sessionIsCreated'),
+			ContextKeyExpr.not('sessionIsArchived'),
+			ContextKeyExpr.has('sessionSupportsSideChat'),
+		),
+		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
+	},
+	{
+		id: 'tip.automate',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.automate', "Use `/automate` to have the agent walk you through turning a task into a recurring automation.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.AutomateTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			ChatAutomationsEnabledContext,
+		),
+		excludeWhenToolsInvoked: ['vscode_configureAutomation'],
+	},
+	{
+		id: 'tip.sendLater',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.sendLater', "Ask the agent to send a request later using natural language, like \"check the build in 10 minutes\".")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true),
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			ChatAutomationsEnabledContext,
+			ChatInputCanScheduleContext,
+		),
+	},
+	{
 		id: 'tip.forkConversation',
 		tier: ChatTipTier.Qol,
 		buildMessage(ctx) {
@@ -315,25 +414,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			'workbench.action.chat.forkConversation',
 			TipTrackingCommands.ForkConversationUsed,
 		],
-	},
-	{
-		id: 'tip.agenticBrowser',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.agenticBrowser',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D \"Open Settings\") to let the agent open and interact with pages in the Integrated Browser.",
-					'agentic browser integration'
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
-		),
-		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
 		id: 'tip.mermaid',
@@ -386,9 +466,12 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				)
 			);
 		},
-		when: ContextKeyExpr.or(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext.negate(),
+			ContextKeyExpr.or(
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+			),
 		),
 		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
@@ -412,23 +495,25 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenToolsInvoked: ['listDebugEvents'],
 	},
 	{
-		id: 'tip.copilotCli',
+		id: 'tip.agentsWindow',
 		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.copilotCli',
-					"Run agents in parallel with [Copilot CLI](command:workbench.action.chat.openNewChatSessionInPlace.copilotcli?%5B%22sidebar%22%5D \"Switch to Copilot CLI\")."
-				)
+		buildMessage(ctx) {
+			const defaultMessage = localize(
+				'tip.agentsWindow',
+				"Work across multiple projects at once in the [Agents window](command:{0} \"Open Agents Window\").",
+				OPEN_AGENTS_WINDOW_COMMAND_ID
 			);
+			const experimentalTemplate = ctx.experimentalTipMessages.get(ChatTipExperiment.OpenAgentsWindowTip);
+			const message = experimentalTemplate
+				? experimentalTemplate.replace(/\{0\}/g, OPEN_AGENTS_WINDOW_COMMAND_ID)
+				: defaultMessage;
+			return new MarkdownString(message);
 		},
-		when: ContextKeyExpr.and(
-			IsSessionsWindowContext.negate(),
-			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ChatContextKeys.hasCanDelegateProviders,
-		),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.openNewChatSessionInPlace.copilotcli'],
+		when: ContextKeyExpr.and(IsWebContext.negate(), OPEN_AGENTS_WINDOW_PRECONDITION),
+		excludeWhenCommandsExecuted: [
+			OPEN_AGENTS_WINDOW_COMMAND_ID,
+			OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
+		],
 	},
 	{
 		id: 'tip.defaultPermissions',

@@ -16,6 +16,7 @@ import { ITerminalInstance } from '../../browser/terminal.js';
 class MockCwdDetectionCapability implements ICwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;
 	readonly cwds: string[] = [];
+	readonly isTrusted = true;
 
 	private readonly _onDidChangeCwd = new Emitter<string>();
 	readonly onDidChangeCwd = this._onDidChangeCwd.event;

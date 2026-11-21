@@ -5,7 +5,7 @@
 
 import { IMarkerService, IMarkerData, type IMarker } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol.js';
+import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext, IMarkerChange } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -58,23 +58,17 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
 			const allMarkerData = this._markerService.read({ resource, ignoreResourceFilters: true });
-			if (allMarkerData.length === 0) {
-				data.push([resource, []]);
-			} else {
-				const foreignMarkerData = allMarkerData.filter(marker => marker?.origin !== this.extHostId);
-				if (foreignMarkerData.length > 0) {
-					data.push([resource, foreignMarkerData]);
-				}
-			}
+			const markerData = allMarkerData.filter(marker => marker.origin !== this.extHostId);
+			data.push([resource, markerData]);
 		}
 		if (data.length > 0) {
 			this._proxy.$acceptMarkersChange(data);
 		}
 	}
 
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+	$changeMany(owner: string, entries: IMarkerChange[]): void {
 		for (const entry of entries) {
-			const [uri, markers] = entry;
+			const [uri, markers, isTruncated] = entry;
 			if (markers) {
 				for (const marker of markers) {
 					if (marker.relatedInformation) {
@@ -90,7 +84,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 					}
 				}
 			}
-			this._markerService.changeOne(owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers);
+			this._markerService.changeOne(owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers ?? [], { isTruncated });
 		}
 		this._activeOwners.add(owner);
 	}

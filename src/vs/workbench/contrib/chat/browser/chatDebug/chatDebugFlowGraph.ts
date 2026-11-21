@@ -194,6 +194,18 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		}
 	}
 
+	// Order siblings chronologically so the flow reads in causal order. Events
+	// may arrive out of order — most notably Agent Host customization/discovery
+	// events, which are surfaced with a session-start timestamp but appended
+	// after the turns — so without this they would render as the last branch off
+	// the session-start root instead of at the beginning where they belong. The
+	// sort is stable, so events sharing a timestamp keep their emitted order.
+	const byCreated = (a: IChatDebugEvent, b: IChatDebugEvent): number => a.created.getTime() - b.created.getTime();
+	roots.sort(byCreated);
+	for (const children of idToChildren.values()) {
+		children.sort(byCreated);
+	}
+
 	function toFlowNode(event: IChatDebugEvent): FlowNode {
 		const children = event.id ? idToChildren.get(event.id) : undefined;
 

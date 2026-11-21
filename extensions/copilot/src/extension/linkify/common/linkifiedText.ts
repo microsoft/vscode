@@ -43,3 +43,13 @@ export function coalesceParts(parts: readonly LinkifiedPart[]): LinkifiedPart[] 
 
 	return out;
 }
+
+/**
+ * Picks the single resource a path resolved to. A relative path present under several
+ * workspace folders is ambiguous, and taking the first would open a file from a root the
+ * response never mentioned.
+ */
+export function singleMatch(candidates: readonly (Uri | undefined)[]): Uri | undefined {
+	const matches = candidates.filter((candidate): candidate is Uri => candidate !== undefined);
+	return new Set(matches.map(match => match.toString())).size === 1 ? matches[0] : undefined;
+}

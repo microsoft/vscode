@@ -13,7 +13,15 @@ export const enum InlineDecorationType {
 	Regular = 0,
 	Before = 1,
 	After = 2,
-	RegularAffectingLetterSpacing = 3
+	RegularAffectingLetterSpacing = 3,
+	/**
+	 * A decoration that covers no character, yet is rendered as an element of its own.
+	 * Used for injected text that only reserves horizontal space (e.g. `{ content: '', widthInEm: 1 }`):
+	 * there is no character to decorate, so the width comes from the decoration's class instead.
+	 * Unlike {@link InlineDecorationType.Before}/{@link InlineDecorationType.After}, this is not a
+	 * pseudo element attached to a surrounding decoration, but the injected content itself.
+	 */
+	WidthOnly = 4
 }
 
 export class InlineDecoration {
@@ -230,27 +238,40 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 			const lineEndOffsetInInputWithInjections = breakOffsets[outputLineIndex];
 
 			while (currentInjectedOffset < injectionOffsets.length) {
-				const length = injectionOptions![currentInjectedOffset].content.length;
+				const options = injectionOptions![currentInjectedOffset];
+				const length = options.content.length;
 				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
 				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+				const isWidthOnly = (length === 0 && options.widthInEm !== undefined);
+				const isLastOutputLine = outputLineIndex === breakOffsets.length - 1;
+				const isAtInternalWrapBoundary = injectedTextStartOffsetInInputWithInjections === lineEndOffsetInInputWithInjections && !isLastOutputLine;
 
-				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections) {
+				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections || (isWidthOnly && isAtInternalWrapBoundary)) {
 					// Injected text only starts in later wrapped lines.
 					break;
 				}
 
-				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
+				const isInLine = isWidthOnly
+					? lineStartOffsetInInputWithInjections <= injectedTextStartOffsetInInputWithInjections
+					&& (injectedTextStartOffsetInInputWithInjections < lineEndOffsetInInputWithInjections || isLastOutputLine)
+					: lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections;
+				if (isInLine) {
 					// Injected text ends after or in this line (but also starts in or before this line).
-					const options = injectionOptions![currentInjectedOffset];
 					if (options.inlineClassName) {
 						const wrappedTextIndentLength = this.context.getWrappedTextIndentLength(modelLineNumber);
 						const offset = (outputLineIndex > 0 ? wrappedTextIndentLength : 0);
 						const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
 						const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections);
-						if (start !== end) {
+						if (start !== end || isWidthOnly) {
 							const viewLineNumber = this.context.getBaseViewLineNumber(modelLineNumber) + outputLineIndex;
 							const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
-							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+							const type: InlineDecorationType = (
+								isWidthOnly
+									? InlineDecorationType.WidthOnly
+									: options.inlineClassNameAffectsLetterSpacing
+										? InlineDecorationType.RegularAffectingLetterSpacing
+										: InlineDecorationType.Regular
+							);
 							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type));
 						}
 					}

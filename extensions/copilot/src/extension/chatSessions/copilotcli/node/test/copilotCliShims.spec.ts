@@ -83,7 +83,7 @@ describe('Copilot CLI shims', () => {
 		// Marketplace/VSIX installs live outside VS Code's app tree. In that route the SDK
 		// cannot rely on the built-in extension packaging marker, so runtime setup copies
 		// both native dependencies from VS Code's appRoot into the extension's SDK layout.
-		const ripgrepSourceDir = join(vscodeAppRoot, 'node_modules', '@vscode', 'ripgrep', 'bin');
+		const ripgrepSourceDir = join(vscodeAppRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', process.platform + '-' + process.arch);
 		const nodePtySourceDir = join(vscodeAppRoot, 'node_modules', 'node-pty', 'prebuilds', process.platform + '-' + process.arch);
 		await mkdir(ripgrepSourceDir, { recursive: true });
 		await mkdir(nodePtySourceDir, { recursive: true });

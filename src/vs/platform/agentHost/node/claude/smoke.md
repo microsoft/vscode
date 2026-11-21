@@ -21,12 +21,13 @@ refs that change between runs.
 | 6 (sendMessage, single-turn, no tools) | Same as Phase 4 PLUS `createSession` returns a *provisional* session (no SDK contact yet); first user prompt materializes the SDK subprocess and **renders a real text response** (no `TODO: Phase` match in the snapshot); IPC log carries `session/responsePart`, `session/delta`, `session/usage`, `session/turnComplete` actions. |
 | 7 (tool calls + permission + user input) | Same as Phase 6 PLUS: a tool-using prompt fires `pending_confirmation`; approving it lands `SessionToolCallComplete` with the result; flipping `permissionMode → bypassPermissions` skips confirmation; an `AskUserQuestion` invocation surfaces the question carousel and answers reach the model. |
 | 8 (file edit tracking) | Same as Phase 7 PLUS: a `Write`/`Edit`/`MultiEdit` invocation that the user approves lands a `SessionToolCallComplete` whose `result.content` carries a `ToolResultFileEditContent` block (`type: 'file_edit'`) with non-empty `before` and `after` `session-db:` URIs; `Options.enableFileCheckpointing` is `true`, `Options.hooks` stays `undefined`, and file-edit staging is driven by the SDK message stream observer (`ClaudeFileEditObserver`) on assistant/user events. Note: an `Edit`/`MultiEdit` invocation is preceded by a `Read` permission prompt (Claude reads the file to find the target string before editing); both must be approved before the tool runs. |
-| 9+ | Add per-phase assertion to the table above. |
+| 9 (abort + steering + changeModel) | Same as Phase 8 PLUS: (a) sending a long prompt then clicking **Abort** mid-stream surfaces an aborted state in the UI; the next `sendMessage` rebuilds the SDK plumbing via resume mode (one extra `[Claude] session <id>: resume rebuild` log line) and streams a fresh response. (b) Sending a long prompt and then a steering message preempts the in-flight turn (the SDK's `'now'`-priority path); a `steering_consumed` signal fires in the IPC log carrying the original `PendingMessage.id`. (c) Switching the model mid-conversation via the model picker fires `Query.setModel` (and, when the picker also changes effort, `Query.applyFlagSettings`) at the next yield boundary \u2014 no extra `startup` call. (d) Selecting `'max'` effort mid-session emits the warning substring `'max' effort clamped to 'xhigh'`. (e) Killing the SDK subprocess externally (or simulating a crash) surfaces a turn error; the next `sendMessage` rebinds via resume. |
+| 10+ | Add per-phase assertion to the table above. |
 
 ## Prerequisites
 
 - A fresh build. Confirm via the `VS Code - Build` task or run
-  `npm run compile-check-ts-native` once.
+  `pnpm run typecheck-client` once.
 - `@playwright/cli` available (`npx @playwright/cli --version` should work).
 - A real GitHub Copilot login. Models only populate after authenticate, and
   the Anthropic catalog is only visible to authenticated Copilot accounts.
@@ -136,14 +137,11 @@ SMOKE_DIR=$(ls -td /tmp/claude-smoke/*/ | head -1)
 npx @playwright/cli screenshot --filename="$SMOKE_DIR/picker-open.png"
 ```
 
-> **Gotcha — clicking the option directly fails.** The dropdown overlay
-> registers a `context-view-pointerBlock` element that intercepts pointer
-> events on the option items. Use `ArrowDown` then `Enter` instead:
->
-> ```bash
-> npx @playwright/cli press ArrowDown
-> npx @playwright/cli press Enter
-> ```
+Click the Claude option using its ref from the snapshot:
+
+```bash
+npx @playwright/cli click <ref>
+```
 
 After selecting Claude, re-snapshot and verify:
 
@@ -348,4 +346,3 @@ that does run live — by which point the bisect window is wider.
 | Stub fires `TODO: Phase 5` but plan expected Phase 6 | Operator clicked Claude on a brand-new session, which hits `createSession` first. In Phase 5 this stub is normal; in Phase 6+ it indicates the materialize spine is missing — `createSession` should return `provisional: true` not throw. |
 | Phase 6 prompt hangs without rendering text | Either (a) the SDK subprocess never started (check `[ClaudeProxyService]` access logs for the `/v1/messages` POST), (b) the proxy returned non-SSE bytes (check the proxy's stream-loop warn log), or (c) the mapper allocated no part-id and the UI has nothing to render. |
 | `npx @playwright/cli evaluate` returns a help screen | The command is `eval`, not `evaluate`. Use `--raw` to strip wrapper output. |
-| `npx @playwright/cli click` retries forever with `pointer-block intercepts` | Use keyboard navigation (`press ArrowDown` + `press Enter`). |

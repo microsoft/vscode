@@ -6,7 +6,7 @@
 				"git": {
 					"name": "dotenv-org/dotenv-vscode",
 					"repositoryUrl": "https://github.com/dotenv-org/dotenv-vscode",
-					"commitHash": "e7e41baa5b23e01c1ff0567a4e596c24860e7def"
+					"commitHash": "3b4caf3398b3958b5fef8ef723c332eb1f30dfbb"
 				}
 			},
 			"licenseDetail": [
@@ -33,7 +33,7 @@
 				"SOFTWARE."
 			],
 			"license": "MIT License",
-			"version": "0.26.0"
+			"version": "1.0.0"
 		}
 	],
 	"version": 1

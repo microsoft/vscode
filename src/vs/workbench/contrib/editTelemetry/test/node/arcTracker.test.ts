@@ -13,6 +13,7 @@ import { join, resolve } from '../../../../../base/common/path.js';
 import { StringEdit, StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ensureDependenciesAreSet } from '../../../../../editor/common/core/text/positionToOffset.js';
+import { EditArcTracker, IArcTextEdit } from '../../../../../base/common/editArcTracker.js';
 
 suite('ArcTracker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -123,22 +124,37 @@ function createStringEditFromJson(editData: IEdits['edits'][0]): StringEdit {
 	return new StringEdit(replacements);
 }
 
+function createArcTextEditFromJson(editData: IEdits['edits'][0]): IArcTextEdit {
+	return {
+		replacements: editData.replacements.map(replacement => ({
+			start: replacement.start,
+			endExclusive: replacement.endEx,
+			text: replacement.text,
+		}))
+	};
+}
+
 function runTestWithData(data: IEdits): unknown {
 	const edits = data.edits.map(editData => createStringEditFromJson(editData));
+	const coreEdits = data.edits.map(editData => createArcTextEditFromJson(editData));
 
 	const t = new ArcTracker(
 		new StringText(data.initialText),
 		edits[0]
 	);
+	const coreTracker = new EditArcTracker(data.initialText, coreEdits[0]);
 
 	const stats: unknown[] = [];
 	stats.push(t.getValues());
+	assert.deepStrictEqual(coreTracker.getValues(), t.getValues());
 	let lastLineNumbers = t.getLineCountInfo().insertedLineCounts;
 	let lastArc = t.getAcceptedRestrainedCharactersCount();
 
 	for (let i = 1; i < edits.length; i++) {
 		t.handleEdits(edits[i]);
+		coreTracker.handleEdits(coreEdits[i]);
 		stats.push(t.getValues());
+		assert.deepStrictEqual(coreTracker.getValues(), t.getValues());
 
 		const newLineNumbers = t.getLineCountInfo().insertedLineCounts;
 		assert.ok(newLineNumbers <= lastLineNumbers, `Line numbers must not increase. Last: ${lastLineNumbers}, new: ${newLineNumbers}`);

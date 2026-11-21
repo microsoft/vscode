@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /** @jsxRuntime automatic */
-/** @jsxImportSource ../../../../prompt/jsx-runtime/ */
+/** @jsxImportSource ../../../../prompt/jsx-runtime */
 
 import { DiagnosticSeverity, type Diagnostic } from 'vscode';
 import { ICompletionsLogTargetService, logger } from '../../logger';
@@ -541,30 +541,6 @@ abstract class BaseComponentsCompletionsPromptFactory implements IPromptFactory 
 		}
 		bags.push(result);
 		return bags;
-	}
-}
-
-export class ComponentsCompletionsPromptFactory extends BaseComponentsCompletionsPromptFactory {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICompletionsTelemetryService completionsTelemetryService: ICompletionsTelemetryService,
-		@IIgnoreService ignoreService: IIgnoreService,
-		@ICompletionsContextProviderBridgeService contextProviderBridge: ICompletionsContextProviderBridgeService,
-		@ICompletionsLogTargetService logTarget: ICompletionsLogTargetService,
-		@ICompletionsContextProviderService contextProviderStatistics: ICompletionsContextProviderService,
-		@ILanguageDiagnosticsService languageDiagnosticsService: ILanguageDiagnosticsService,
-	) {
-		super(
-			undefined,
-			undefined,
-			instantiationService,
-			completionsTelemetryService,
-			ignoreService,
-			contextProviderBridge,
-			logTarget,
-			contextProviderStatistics,
-			languageDiagnosticsService
-		);
 	}
 }
 

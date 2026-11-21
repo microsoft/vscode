@@ -8,6 +8,8 @@ import { getExtensionForMimeType } from '../../../../base/common/mime.js';
 import { basename as pathBasename } from '../../../../base/common/path.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { getGeneratedImageResources } from './chatImageExtraction.js';
 import { IChatToolInvocation, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { ChatResponseResource, IResponse } from './model/chatModel.js';
 import { IArtifactGroupConfig, IChatArtifact } from './tools/chatArtifactsService.js';
@@ -120,6 +122,24 @@ export function extractArtifactsFromResponse(
 	const artifacts: IChatArtifact[] = [];
 	const seenUris = new Set<string>();
 
+	for (const image of getGeneratedImageResources(response, sessionResource)) {
+		const key = `${image.toolCallId}:${image.index}`;
+		if (seenUris.has(key)) {
+			continue;
+		}
+		seenUris.add(key);
+		artifacts.push({
+			label: image.name,
+			fileName: image.name,
+			generatedImageMimeType: image.mimeType,
+			uri: image.uri.toString(),
+			toolCallId: image.toolCallId,
+			dataPartIndex: image.index,
+			type: 'screenshot',
+			groupName: localize('chat.artifacts.generatedImages', "Generated Images"),
+		});
+	}
+
 	for (const part of response.value) {
 		// File writes: codeblockUri
 		if (part.kind === 'codeblockUri') {
@@ -183,6 +203,26 @@ export function extractArtifactsFromResponse(
 						onlyShowGroup: rule.onlyShowGroup,
 					});
 				}
+			}
+		}
+
+		// File writes: externalEdit (from agent host file edits)
+		if (part.kind === 'externalEdit') {
+			const uri = part.uri;
+			const uriStr = uri.toString();
+			if (seenUris.has(uriStr)) {
+				continue;
+			}
+			const rule = findFilePathRule(uri.path, byFilePath);
+			if (rule) {
+				seenUris.add(uriStr);
+				artifacts.push({
+					label: basename(uri),
+					uri: uriStr,
+					type: 'plan',
+					groupName: rule.groupName,
+					onlyShowGroup: rule.onlyShowGroup,
+				});
 			}
 		}
 

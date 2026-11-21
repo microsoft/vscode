@@ -183,6 +183,11 @@ export interface IModelDecorationOptions {
 	 */
 	hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 	/**
+	 * Plain text to copy from the decoration hover instead of its rendered message.
+	 * @internal
+	 */
+	hoverMessageCopyContent?: string | null;
+	/**
 	 * Array of MarkdownString to render as the line number message.
 	 */
 	lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
@@ -346,6 +351,12 @@ export interface InjectedTextOptions {
 	 * If there is an `inlineClassName` which affects letter spacing.
 	 */
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
+
+	/**
+	 * Sets the width used to wrap this injected text in editor-font em units.
+	 * @internal
+	 */
+	readonly widthInEm?: number;
 
 	/**
 	 * This field allows to attach data to this injected text.

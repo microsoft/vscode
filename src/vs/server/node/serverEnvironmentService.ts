@@ -15,6 +15,20 @@ import { joinPath } from '../../base/common/resources.js';
 import { join } from '../../base/common/path.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
 
+/**
+ * Returns server arguments with connection tokens redacted for logging.
+ */
+export function getRedactedServerParsedArgs(args: ServerParsedArgs): ServerParsedArgs {
+	const redactedArgs = { ...args };
+	if (typeof redactedArgs['connection-token'] !== 'undefined') {
+		redactedArgs['connection-token'] = '<redacted>';
+	}
+	if (typeof redactedArgs['agent-host-bridge-connection-token'] !== 'undefined') {
+		redactedArgs['agent-host-bridge-connection-token'] = '<redacted>';
+	}
+	return redactedArgs;
+}
+
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	/* ----- server setup ----- */
@@ -87,6 +101,11 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'agent-host-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-port', "The port the agent host WebSocket server should listen on.") },
 	'agent-host-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-path', "The path to a socket file for the agent host WebSocket server to listen on.") },
+	// Ignored: CLIs pass these for servers that predate agent host discovery through the endpoint registry.
+	'agent-host-bridge-port': { type: 'string' },
+	'agent-host-bridge-path': { type: 'string' },
+	'agent-host-bridge-host': { type: 'string' },
+	'agent-host-bridge-connection-token': { type: 'string' },
 
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
@@ -220,6 +239,10 @@ export interface ServerParsedArgs {
 
 	'agent-host-port'?: string;
 	'agent-host-path'?: string;
+	'agent-host-bridge-port'?: string;
+	'agent-host-bridge-path'?: string;
+	'agent-host-bridge-host'?: string;
+	'agent-host-bridge-connection-token'?: string;
 
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;

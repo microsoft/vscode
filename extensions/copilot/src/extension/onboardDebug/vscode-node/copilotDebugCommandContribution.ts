@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
+import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import { connect } from 'net';
 import * as vscode from 'vscode';
@@ -12,8 +13,6 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
-import { IGitService } from '../../../platform/git/common/gitService';
-import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -38,12 +37,17 @@ import powershellScript from '../node/copilotDebugWorker/copilotDebugWorker.ps1'
 
 // When enabled, holds the storage location of binaries for the PATH:
 const WAS_REGISTERED_STORAGE_KEY = 'copilot-chat.terminalToDebugging.registered';
+// Nonce exposed to terminals so the legitimate `copilot-debug` worker can
+// authenticate itself against the URI handler (see VSCODE-410).
+const COPILOT_DEBUG_NONCE_STORAGE_KEY = 'copilot-chat.terminalToDebugging.nonce';
+export const COPILOT_DEBUG_NONCE_ENV_VAR = 'COPILOT_DEBUG_NONCE';
 export const COPILOT_DEBUG_COMMAND = `copilot-debug`;
 const DEBUG_COMMAND_JS = 'copilotDebugCommand.js';
 
 export class CopilotDebugCommandContribution extends Disposable implements vscode.UriHandler {
 	private chatSessionsUriHandler: CustomUriHandler;
 	private registerSerializer: Promise<void>;
+	private readonly nonce: string;
 
 	constructor(
 		@IVSCodeExtensionContext private readonly context: IVSCodeExtensionContext,
@@ -55,13 +59,12 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITasksService private readonly tasksService: ITasksService,
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IOctoKitService private readonly _octoKitService: IOctoKitService,
-		@IGitService private readonly _gitService: IGitService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 	) {
 		super();
 
+		this.nonce = this.ensureNonce();
 		this._register(vscode.window.registerUriHandler(this));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ConfigKey.TerminalToDebuggerEnabled.fullyQualifiedId)) {
@@ -76,7 +79,7 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 
 		this.registerSerializer = this.registerEnvironment();
 		// Initialize ChatSessionsUriHandler with extension context for storage
-		this.chatSessionsUriHandler = new ChatSessionsUriHandler(this._octoKitService, this._gitService, this._gitExtensionService, this.context, this.logService, this.fileSystemService, this.telemetryService);
+		this.chatSessionsUriHandler = new ChatSessionsUriHandler(this._gitExtensionService, this.context, this.logService, this.fileSystemService, this.telemetryService);
 		// Check for pending chat sessions when this contribution is initialized
 		(this.chatSessionsUriHandler as ChatSessionsUriHandler).openPendingSession().catch((err) => {
 			this.logService.error('Failed to check for pending chat sessions from debug command contribution:', err);
@@ -149,7 +152,8 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 
 			const rpc = new SimpleRPC(socket);
 			const handle = new CopilotDebugCommandHandle(rpc);
-			const { launchConfigService, authService } = this;
+			const { launchConfigService, authService, nonce } = this;
+			const logService = this.logService;
 			const exit = (code: number, error?: string) => handle.exit(code, error);
 			const factory = this.instantiationService.createInstance(CopilotDebugCommandSessionFactory, {
 				ensureTask: (wf, def) => this.ensureTask(wf || vscode.workspace.workspaceFolders?.[0].uri, def, handle),
@@ -159,6 +163,13 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 			});
 
 			rpc.registerMethod('start', async function start(opts: IStartOptions): Promise<void> {
+				if (!opts || opts.nonce !== nonce) {
+					// Reject unauthenticated callers without revealing details to the peer.
+					logService.warn(`Rejected debug connection on ${pipePath}: nonce mismatch`);
+					socket.destroy();
+					cts.dispose(true);
+					return;
+				}
 				if (!authService.copilotToken) {
 					await authService.getGitHubSession('any', { createIfNone: { detail: l10n.t('Sign in to GitHub to use Copilot debug.') } });
 				}
@@ -228,6 +239,20 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 
 		const extensionInfo = vscode.extensions.getExtension(EXTENSION_ID);
 		return (extensionInfo?.packageJSON.version ?? String(Date.now())) + '/' + vscode.env.remoteName;
+	}
+
+	private ensureNonce(): string {
+		let nonce = this.context.workspaceState.get<string>(COPILOT_DEBUG_NONCE_STORAGE_KEY);
+		if (!nonce || typeof nonce !== 'string' || nonce.length < 32) {
+			nonce = randomBytes(16).toString('hex');
+			this.context.workspaceState.update(COPILOT_DEBUG_NONCE_STORAGE_KEY, nonce);
+		}
+
+		if (this.context.environmentVariableCollection.get(COPILOT_DEBUG_NONCE_ENV_VAR)?.value !== nonce) {
+			this.context.environmentVariableCollection.replace(COPILOT_DEBUG_NONCE_ENV_VAR, nonce);
+		}
+
+		return nonce;
 	}
 
 	private async registerEnvironment() {

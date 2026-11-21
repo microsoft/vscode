@@ -650,9 +650,9 @@ export class StartFindWithArgsAction extends EditorAction {
 
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+				seedSearchStringFromSelection: args?.searchString === undefined && (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
 				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-				seedSearchStringFromGlobalClipboard: true,
+				seedSearchStringFromGlobalClipboard: args?.searchString === undefined,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
 				updateSearchScope: args?.findInSelection || false,
@@ -1074,7 +1074,7 @@ registerEditorCommand(new FindCommand({
 	handler: x => x.closeFindWidget(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -1167,7 +1167,7 @@ registerEditorCommand(new FindCommand({
 	handler: x => x.replace(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED, EditorContextKeys.isComposing.negate()),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
 		primary: KeyCode.Enter
 	}
 }));

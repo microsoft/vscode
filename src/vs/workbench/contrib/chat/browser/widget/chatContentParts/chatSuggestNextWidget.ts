@@ -12,6 +12,8 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
@@ -43,7 +45,8 @@ export class ChatSuggestNextWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -99,9 +102,8 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 		const isAutopilotPolicyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const firstAutoSendHandoff = isAutopilotEnabled && !isAutopilotPolicyRestricted ? handoffs.find(h => h.send) : undefined;
+		const firstAutoSendHandoff = !isAutopilotPolicyRestricted ? handoffs.find(h => h.send) : undefined;
 
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);
@@ -135,6 +137,10 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
+		disposables.add(this.hoverService.setupDelayedHover(button, {
+			content: handoff.label,
+			style: HoverStyle.Pointer,
+		}));
 
 		// Optional showContinueOn behaves like send: only present if specified
 		const showContinueOn = handoff.showContinueOn ?? true;
@@ -166,7 +172,7 @@ export class ChatSuggestNextWidget extends Disposable {
 
 			const separator = dom.append(dropdownContainer, dom.$('.chat-suggest-next-separator'));
 			separator.setAttribute('aria-hidden', 'true');
-			const chevron = dom.append(dropdownContainer, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
+			const chevron = dom.append(dropdownContainer, dom.$('.codicon.codicon-chevron-down-compact.dropdown-chevron'));
 			chevron.setAttribute('aria-hidden', 'true');
 
 			const showContextMenu = (e: MouseEvent | KeyboardEvent, anchor?: HTMLElement) => {
@@ -194,7 +200,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor || dropdownContainer,
 					getActions: () => actions,
-					autoSelectFirstItem: true,
+					autoSelectItem: true,
 				});
 			};
 
@@ -258,6 +264,10 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = label;
+		disposables.add(this.hoverService.setupDelayedHover(button, {
+			content: label,
+			style: HoverStyle.Pointer,
+		}));
 
 		disposables.add(dom.addDisposableListener(button, 'click', () => {
 			const currentHandoff = getCurrentHandoff();

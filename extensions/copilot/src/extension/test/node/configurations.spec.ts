@@ -99,6 +99,13 @@ describe('Configurations', () => {
 				// This setting should be internal, but can't be made TeamInternal because we lose the team and internal flags as part of its testing.
 				return;
 			}
+			if (key === ConfigKey.Advanced.CLISessionEventLoggingEnabled.fullyQualifiedId) {
+				// Test-only diagnostic toggle: enables verbose tool/permission/event
+				// logging from CopilotCLISession. Not surfaced to end users so it
+				// intentionally has no package.json entry. The smoke test enables it
+				// directly in settings.json.
+				return;
+			}
 			expect(advancedConfigurationsInPackageJson, `Advanced setting ${key} should be defined in the advanced section of package.json`).toContain(key);
 		});
 
@@ -108,13 +115,12 @@ describe('Configurations', () => {
 		});
 	});
 
-	it('prompt override string setting uses camelCase', () => {
-		const advancedSection = packageJson.contributes.configuration.find(section => section.id === 'advanced')!;
-		const promptOverrideStringKey = ConfigKey.Advanced.DebugPromptOverrideString;
+	it('Agents window default for github.copilot.enable keeps the catch-all language entry', () => {
+		const setting = packageJson.contributes.configuration.map(section => section.properties[ConfigKey.Enable.fullyQualifiedId]).find(setting => setting !== undefined);
 
-		expect(promptOverrideStringKey.fullyQualifiedId).toBe('github.copilot.chat.debug.promptOverrideString');
-		expect(promptOverrideStringKey.fullyQualifiedOldId).toBeUndefined();
-		expect(Object.keys(advancedSection.properties)).toContain(promptOverrideStringKey.fullyQualifiedId);
+		// `agentsWindow.default` replaces the default instead of merging into it, so it must repeat the
+		// `*` entry. Without it, next edit suggestions are off for every language it does not list.
+		expect(setting?.agentsWindow?.default).toEqual({ ...setting?.default, markdown: true, plaintext: true });
 	});
 
 	it('all localization strings in package.json are present in package.nls.json', async () => {

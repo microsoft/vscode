@@ -22,6 +22,37 @@ suite('DefaultSettings', () => {
 		configurationService = new TestConfigurationService();
 	});
 
+	test('preserves deprecation message presentation', () => {
+		const config: IConfigurationNode = {
+			id: 'deprecatedSettings',
+			title: 'Deprecated Settings',
+			type: 'object',
+			properties: {
+				'test.deprecatedSetting': {
+					type: 'boolean',
+					default: false,
+					deprecationMessage: 'Use the replacement setting.',
+					deprecationMessageSeverity: 'info',
+					deprecationMessageShowInSettings: true
+				}
+			}
+		};
+
+		configurationRegistry.registerConfiguration(config);
+		disposables.add(toDisposable(() => configurationRegistry.deregisterConfigurations([config])));
+
+		const defaultSettings = disposables.add(new DefaultSettings([], ConfigurationTarget.USER, configurationService));
+		const setting = defaultSettings.getRegisteredGroups()
+			.flatMap(group => group.sections)
+			.flatMap(section => section.settings)
+			.find(setting => setting.key === 'test.deprecatedSetting');
+
+		assert.deepStrictEqual({
+			severity: setting?.deprecationMessageSeverity,
+			showInSettings: setting?.deprecationMessageShowInSettings,
+		}, { severity: 'info', showInSettings: true });
+	});
+
 	test('groups settings by title when they share the same extension id', () => {
 		const extensionId = 'test.extension';
 		const config1: IConfigurationNode = {

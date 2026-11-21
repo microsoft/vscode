@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, filter } from './lib/gulp/facade.ts';
 import path from 'path';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
-import es from 'event-stream';
+import * as task from './lib/gulp/task.ts';
+import { through, merge } from './lib/streams.ts';
 import File from 'vinyl';
 import * as i18n from './lib/i18n.ts';
 import * as standalone from './lib/standalone.ts';
+import { applyMonacoConditionals } from './lib/monacoConditionals.ts';
 import * as cp from 'child_process';
 import * as compilation from './lib/compilation.ts';
 import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
-import filter from 'gulp-filter';
 import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
+import rootPackage from '../package.json' with { type: 'json' };
 
 const root = path.dirname(import.meta.dirname);
+const standaloneEnumsPath = path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts');
 const sha1 = getVersion(root);
 const semver = monacoPackage.version;
 const headerVersion = semver + '(' + sha1 + ')';
@@ -64,6 +66,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /\.css$/,
+		transformSource: (fileName, contents) => applyMonacoConditionals(contents, fileName),
 		destRoot: path.join(root, 'out-editor-src'),
 		tsOutDir: '../out-monaco-editor-core/esm/vs',
 	});
@@ -130,9 +133,9 @@ function toExternalDTS(contents: string) {
 }
 
 const finalEditorResourcesTask = task.define('final-editor-resources', () => {
-	return es.merge(
+	return merge(
 		// other assets
-		es.merge(
+		merge(
 			gulp.src('build/monaco/LICENSE'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
@@ -140,7 +143,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// place the .d.ts in the esm folder
 		gulp.src('src/vs/monaco.d.ts')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data: File.BufferFile) {
 				this.emit('data', new File({
 					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
 					base: data.base,
@@ -151,7 +154,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// package.json
 		gulp.src('build/monaco/package.json')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data: File.BufferFile) {
 				const json = JSON.parse(data.contents.toString());
 				json.private = false;
 
@@ -176,7 +179,9 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 				setUnsetField(json, 'dependencies', {
 					'marked': markedVersion,
-					'dompurify': dompurifyVersion
+					'dompurify': dompurifyVersion,
+					// Imported by Monaco-only code (see // #if MONACO in build/lib/monacoConditionals.ts).
+					'@vscode/diff': rootPackage.dependencies['@vscode/diff'],
 				});
 
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
@@ -186,7 +191,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// version.txt
 		gulp.src('build/monaco/version.txt')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data) {
 				data.contents = Buffer.from(`monaco-editor-core: https://github.com/microsoft/vscode/tree/${sha1}`);
 				this.emit('data', data);
 			}))
@@ -194,7 +199,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// README.md
 		gulp.src('build/monaco/README-npm.md')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data) {
 				this.emit('data', new File({
 					path: data.path.replace(/README-npm\.md/, 'README.md'),
 					base: data.base,
@@ -205,14 +210,14 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 	);
 });
 
-gulp.task('extract-editor-src',
+task.task('extract-editor-src',
 	task.series(
 		util.rimraf('out-editor-src'),
 		extractEditorSrcTask
 	)
 );
 
-gulp.task('editor-distro',
+task.task('editor-distro',
 	task.series(
 		task.parallel(
 			util.rimraf('out-editor-src'),
@@ -224,10 +229,21 @@ gulp.task('editor-distro',
 	)
 );
 
-gulp.task('monacodts', task.define('monacodts', () => {
+task.task('monacodts', task.define('monacodts', () => {
 	const result = monacoapi.execute();
 	fs.writeFileSync(result.filePath, result.content);
-	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	fs.writeFileSync(standaloneEnumsPath, result.enums);
+	return Promise.resolve(true);
+}));
+
+task.task('monacodts-check', task.define('monacodts-check', () => {
+	const result = monacoapi.execute();
+	const currentEnums = fs.readFileSync(standaloneEnumsPath).toString();
+	const normalizedCurrentEnums = currentEnums.replace(/\r\n/g, '\n');
+	const normalizedGeneratedEnums = result.enums.replace(/\r\n/g, '\n');
+	if (!result.isTheSame || normalizedCurrentEnums !== normalizedGeneratedEnums) {
+		throw new Error('Monaco declarations are no longer up to date. Run `pnpm run gulp monacodts` and commit the generated files.');
+	}
 	return Promise.resolve(true);
 }));
 
@@ -236,7 +252,7 @@ gulp.task('monacodts', task.define('monacodts', () => {
 function createTscCompileTask(watch: boolean) {
 	return () => {
 		return new Promise((resolve, reject) => {
-			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+			const args = ['./node_modules/.bin/tsc6', '-p', './src/tsconfig.monaco.json', '--noEmit'];
 			if (watch) {
 				args.push('-w');
 			}

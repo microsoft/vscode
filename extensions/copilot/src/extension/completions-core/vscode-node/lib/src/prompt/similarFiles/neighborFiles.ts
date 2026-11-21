@@ -15,19 +15,32 @@ import { getRelatedFilesAndTraits, relatedFilesLogger, RelatedFileTrait } from '
 
 // There is a limitation of the number of the neighbor files. So I use the next strategies to pick the most relevant cursor focused files.
 export enum NeighboringFileType {
-	None = 'none', // Do not add neighbor files.
 	OpenTabs = 'opentabs', // Add open files.
-	CursorMostRecent = 'cursormostrecent', // Add the most recent cursor focused files.
-	CursorMostCount = 'cursormostcount', // Add the most cursor focused files.
-	WorkspaceSharingSameFolder = 'workspacesharingsamefolder', // Add the workspace files sharing the same folder with the target file.
-	WorkspaceSmallestPathDist = 'workspacesmallestpathdist', // Add the workspace files according to their path distance toward the target file
-	OpenTabsAndCocommitted = 'opentabsandcocommitted', // Add open files and the co-committed files.
 	RelatedCSharp = 'related/csharp', // The Semantic Code Context says this file is related.
 	RelatedCSharpRoslyn = 'related/csharproslyn', // The C# language service says this file is related.
 	RelatedCpp = 'related/cpp', // The C++ language service says this file is related.
 	RelatedTypeScript = 'related/typescript', // The Typescript language service says this file is related.
 	RelatedCppSemanticCodeContext = 'related/cppsemanticcodecontext', // The Semantic Code Context says this file is related.
 	RelatedOther = 'related/other', // An unknown language service says this file is related.
+}
+
+/**
+ * Whether the given neighboring-file type denotes a language-service "related"
+ * file (suggested by a language service / semantic code context) rather than an
+ * open tab or cursor/workspace heuristic.
+ */
+export function isRelatedNeighboringFileType(type: NeighboringFileType): boolean {
+	switch (type) {
+		case NeighboringFileType.RelatedCSharp:
+		case NeighboringFileType.RelatedCSharpRoslyn:
+		case NeighboringFileType.RelatedCpp:
+		case NeighboringFileType.RelatedTypeScript:
+		case NeighboringFileType.RelatedCppSemanticCodeContext:
+		case NeighboringFileType.RelatedOther:
+			return true;
+		default:
+			return false;
+	}
 }
 
 /**
@@ -61,8 +74,6 @@ export class NeighborSource {
 	static MAX_NEIGHBOR_AGGREGATE_LENGTH = 200000;
 	static MAX_NEIGHBOR_FILES = 20;
 
-	static EXCLUDED_NEIGHBORS = ['node_modules', 'dist', 'site-packages'];
-
 	static defaultEmptyResult() {
 		return {
 			docs: new Map<string, SimilarFileInfo>(),
@@ -85,7 +96,8 @@ export class NeighborSource {
 		telemetryData: TelemetryWithExp,
 		cancellationToken?: ICancellationToken,
 		data?: unknown,
-		forceRelatedFilesComputation?: boolean
+		forceRelatedFilesComputation?: boolean,
+		includeRelatedFiles: boolean = true
 	): Promise<{
 		docs: NeighborsCollection;
 		neighborSource: Map<NeighboringFileType, string[]>;
@@ -104,7 +116,7 @@ export class NeighborSource {
 			traits: [] as RelatedFileTrait[],
 		};
 
-		if (featuresService.excludeRelatedFiles(fileType, telemetryData)) { return result; }
+		if (!includeRelatedFiles || featuresService.excludeRelatedFiles(fileType, telemetryData)) { return result; }
 
 		const doc = await docManager.getTextDocument({ uri });
 		if (!doc) {
@@ -149,7 +161,7 @@ export class NeighborSource {
 				if (!relativePath) { return; }
 				// Check that results.docs does not already contain an entry for the given uri.
 				if (result.docs.has(uri)) { return; }
-				const relatedFileDocInfo: SimilarFileInfo = { relativePath, uri, source };
+				const relatedFileDocInfo: SimilarFileInfo = { relativePath, uri, source, isFromRelatedFile: isRelatedNeighboringFileType(type) };
 				addedDocs.unshift(relatedFileDocInfo);
 				result.docs.set(uri, relatedFileDocInfo);
 			});

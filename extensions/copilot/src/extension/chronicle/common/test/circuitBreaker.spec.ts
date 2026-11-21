@@ -80,17 +80,6 @@ describe('CircuitBreaker', () => {
 		expect(cb.getState()).toBe(CircuitState.OPEN);
 	});
 
-	it('resets to CLOSED state', () => {
-		const cb = new CircuitBreaker({ failureThreshold: 1 });
-		cb.recordFailure();
-		expect(cb.getState()).toBe(CircuitState.OPEN);
-
-		cb.reset();
-		expect(cb.getState()).toBe(CircuitState.CLOSED);
-		expect(cb.getFailureCount()).toBe(0);
-		expect(cb.canRequest()).toBe(true);
-	});
-
 	it('resets failure count on success', () => {
 		const cb = new CircuitBreaker({ failureThreshold: 5 });
 		cb.recordFailure();
@@ -148,5 +137,60 @@ describe('CircuitBreaker', () => {
 		vi.advanceTimersByTime(10);
 		// Probe timed out, should allow another
 		expect(cb.canRequest()).toBe(true);
+	});
+
+	it('cancelProbe releases an unused probe slot without changing state', () => {
+		const cb = new CircuitBreaker({ failureThreshold: 1, resetTimeoutMs: 0 });
+		cb.recordFailure();
+		expect(cb.getState()).toBe(CircuitState.HALF_OPEN);
+
+		expect(cb.canRequest()).toBe(true); // probe consumed
+		expect(cb.canRequest()).toBe(false); // second probe blocked
+
+		cb.cancelProbe();
+		expect(cb.getState()).toBe(CircuitState.HALF_OPEN);
+		expect(cb.getFailureCount()).toBe(1);
+		expect(cb.canRequest()).toBe(true); // probe available again immediately
+	});
+
+	it('clamps failure count at the threshold across repeated probe failures', () => {
+		const cb = new CircuitBreaker({
+			failureThreshold: 3,
+			resetTimeoutMs: 0,
+			maxResetTimeoutMs: 100,
+			probeTimeoutMs: 5,
+		});
+		for (let i = 0; i < 3; i++) {
+			cb.recordFailure();
+		}
+		expect(cb.getFailureCount()).toBe(3);
+
+		for (let i = 0; i < 10; i++) {
+			cb.canRequest();
+			cb.recordFailure();
+		}
+		expect(cb.getFailureCount()).toBe(3);
+	});
+
+	it('fires onStateChange for every transition', () => {
+		const transitions: Array<[CircuitState, CircuitState]> = [];
+		const cb = new CircuitBreaker({
+			failureThreshold: 1,
+			resetTimeoutMs: 10,
+			probeTimeoutMs: 5,
+			onStateChange: (from, to) => transitions.push([from, to]),
+		});
+
+		cb.recordFailure(); // CLOSED → OPEN
+		vi.advanceTimersByTime(10);
+		expect(cb.getState()).toBe(CircuitState.HALF_OPEN); // OPEN → HALF_OPEN
+		cb.canRequest();
+		cb.recordSuccess(); // HALF_OPEN → CLOSED
+
+		expect(transitions).toEqual([
+			[CircuitState.CLOSED, CircuitState.OPEN],
+			[CircuitState.OPEN, CircuitState.HALF_OPEN],
+			[CircuitState.HALF_OPEN, CircuitState.CLOSED],
+		]);
 	});
 });

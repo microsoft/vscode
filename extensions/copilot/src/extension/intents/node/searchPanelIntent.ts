@@ -55,7 +55,7 @@ export class SearchPanelIntent implements IIntent {
 
 	async invoke(invocationContext: IIntentInvocationContext): Promise<IIntentInvocation> {
 		const location = invocationContext.location;
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		return this.instantiationService.createInstance(SearchIntentInvocation, this, location, endpoint);
 	}
 }

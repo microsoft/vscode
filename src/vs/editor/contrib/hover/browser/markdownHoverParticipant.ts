@@ -11,6 +11,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, ITextModel } from '../../../common/model.js';
@@ -48,6 +49,7 @@ export class MarkdownHover implements IHoverPart {
 		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number,
 		public readonly source: HoverSource | undefined = undefined,
+		public readonly copyContent?: string | null,
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -159,7 +161,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++, undefined, d.options.hoverMessageCopyContent));
 		}
 
 		return result;
@@ -214,6 +216,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
+	}
+
+	public getCopyContent(hoverPart: MarkdownHover): string {
+		return this._renderedHoverParts?.getCopyContent(hoverPart) ?? '';
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
@@ -420,6 +426,10 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		return accessibleContent;
 	}
 
+	public getCopyContent(hoverPart: MarkdownHover): string | undefined {
+		return hoverPart.copyContent ?? this.getAccessibleContent(hoverPart);
+	}
+
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
 		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(index);
 		const hoverSource = hoverRenderedPart?.hoverPart.source;
@@ -524,6 +534,7 @@ function renderMarkdown(
 
 		const renderedContents = disposables.add(markdownRendererService.render(markdownString, {
 			context: editor,
+			sanitizerConfig: getEditorMarkdownSanitizerConfig(editor),
 			asyncRenderCallback: () => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				onFinishedRendering();

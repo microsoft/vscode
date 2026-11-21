@@ -103,12 +103,6 @@ export function getLanguageId(uri: URI) {
 	}) || ext.replace(/^\./, '');
 }
 
-export function getMdCodeBlockLanguage(uri: URI) {
-	const languageId = getLanguageId(uri);
-
-	return languageIdToMDCodeBlockLang(languageId);
-}
-
 export interface MarkdownCodeBlock {
 	/** The fence characters used to start the block. */
 	readonly startMarkup: string;
@@ -137,18 +131,6 @@ export function extractCodeBlocks(text: string): MarkdownCodeBlock[] {
 				startLine: token.map[0],
 				endLine: token.map[1],
 			});
-		}
-	}
-	return out;
-}
-
-export function extractInlineCode(text: string): string[] {
-	const out: string[] = [];
-	const md = new MarkdownIt();
-	const tokens = md.parse(text, {});
-	for (const token of flattenTokensLists(tokens)) {
-		if (token.type === 'code_inline') {
-			out.push(token.content.replace(/\n$/, ''));
 		}
 	}
 	return out;

@@ -120,6 +120,105 @@ suite('AuthenticationMcpAccessService', () => {
 		});
 	});
 
+	suite('isAccessAllowedForUrl URL binding (security)', () => {
+		const serverUrl = 'https://server.example.com/mcp';
+
+		test('grants access when the supplied URL matches the stored URL', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl);
+			assert.strictEqual(result, true);
+		});
+
+		test('grants access despite cosmetic origin differences (root slash, host case)', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: 'https://server.example.com' }
+			]);
+
+			// "foo.com" and "foo.com/" are the same origin, and the host is case-insensitive.
+			assert.strictEqual(
+				authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://server.example.com/'),
+				true
+			);
+			assert.strictEqual(
+				authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://SERVER.EXAMPLE.COM'),
+				true
+			);
+		});
+
+		test('re-prompts when a path trailing slash differs (foo.com/a vs foo.com/a/)', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: 'https://server.example.com/mcp' }
+			]);
+
+			// A trailing slash on a path points at a different endpoint, so the user must re-consent.
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://server.example.com/mcp/');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('re-prompts (returns undefined) when the URL changed for the same server id', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://evil.example.com/mcp');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('breaks legacy grants that have no stored URL when a URL is supplied', () => {
+			// Legacy grant: stored before URL binding existed, so it has no URL.
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('inspection (isAccessAllowed) returns the stored decision regardless of stored URL', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server');
+			assert.strictEqual(result, true);
+		});
+
+		test('stdio servers (inspection, no URL) are unaffected', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'stdio-server', name: 'Stdio Server', allowed: true }
+			]);
+
+			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'stdio-server');
+			assert.strictEqual(result, true);
+		});
+
+		test('product.json trusted servers bypass the URL check', () => {
+			productService.trustedMcpAuthAccess = ['trusted-http-server'];
+
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'trusted-http-server', 'https://anything.example.com/mcp');
+			assert.strictEqual(result, true);
+		});
+
+		test('a management toggle that omits the URL does not clear the stored binding', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
+			]);
+
+			// Simulate the management UI toggling access without knowledge of the URL.
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'http-server', name: 'HTTP Server', allowed: true }
+			]);
+
+			const stored = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com')
+				.find(s => s.id === 'http-server');
+			assert.strictEqual(stored?.url, serverUrl);
+			assert.strictEqual(authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl), true);
+		});
+	});
+
 	suite('readAllowedMcpServers', () => {
 		test('returns empty array when no data exists', () => {
 			const result = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com');
@@ -349,27 +448,38 @@ suite('AuthenticationMcpAccessService', () => {
 			assert.strictEqual(allServers.length, 2);
 		});
 
+		test('persists agentHost metadata and preserves it when a later toggle omits it', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'agent-host-mcp:remote/GitHub/https://api.example/mcp', name: 'GitHub', allowed: true, url: 'https://api.example/mcp', agentHost: { authority: 'remote', label: 'SSH: my-host' } }
+			]);
+
+			// A management toggle (no agentHost/url) must not clear the stored metadata.
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'agent-host-mcp:remote/GitHub/https://api.example/mcp', name: 'GitHub', allowed: true }
+			]);
+
+			const stored = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com')
+				.find(s => s.id === 'agent-host-mcp:remote/GitHub/https://api.example/mcp');
+			assert.deepStrictEqual(stored?.agentHost, { authority: 'remote', label: 'SSH: my-host' });
+		});
+
 		test('fires onDidChangeMcpSessionAccess event', () => {
 			let eventFired = false;
 			let eventData: { providerId: string; accountName: string } | undefined;
 
-			const disposable = authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
 				eventFired = true;
 				eventData = event;
-			});
+			}));
 
-			try {
-				authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
-					{ id: 'server1', name: 'Server 1', allowed: true }
-				]);
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'server1', name: 'Server 1', allowed: true }
+			]);
 
-				assert.strictEqual(eventFired, true);
-				assert.ok(eventData);
-				assert.strictEqual(eventData.providerId, 'github');
-				assert.strictEqual(eventData.accountName, 'user@example.com');
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(eventFired, true);
+			assert.ok(eventData);
+			assert.strictEqual(eventData.providerId, 'github');
+			assert.strictEqual(eventData.accountName, 'user@example.com');
 		});
 	});
 
@@ -419,21 +529,17 @@ suite('AuthenticationMcpAccessService', () => {
 			let eventFired = false;
 			let eventData: { providerId: string; accountName: string } | undefined;
 
-			const disposable = authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
 				eventFired = true;
 				eventData = event;
-			});
+			}));
 
-			try {
-				authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
+			authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
 
-				assert.strictEqual(eventFired, true);
-				assert.ok(eventData);
-				assert.strictEqual(eventData.providerId, 'github');
-				assert.strictEqual(eventData.accountName, 'user@example.com');
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(eventFired, true);
+			assert.ok(eventData);
+			assert.strictEqual(eventData.providerId, 'github');
+			assert.strictEqual(eventData.accountName, 'user@example.com');
 		});
 
 		test('handles removal of non-existent data gracefully', () => {
@@ -448,59 +554,50 @@ suite('AuthenticationMcpAccessService', () => {
 		test('event is fired for each update operation', () => {
 			const events: Array<{ providerId: string; accountName: string }> = [];
 
-			const disposable = authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
 				events.push(event);
-			});
+			}));
 
-			try {
-				// Should fire for update
-				authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
-					{ id: 'server1', name: 'Server 1', allowed: true }
-				]);
+			// Should fire for update
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'server1', name: 'Server 1', allowed: true }
+			]);
 
-				// Should fire for remove
-				authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
+			// Should fire for remove
+			authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
 
-				// Should fire for different account
-				authenticationMcpAccessService.updateAllowedMcpServers('microsoft', 'admin@company.com', [
-					{ id: 'server2', name: 'Server 2', allowed: false }
-				]);
+			// Should fire for different account
+			authenticationMcpAccessService.updateAllowedMcpServers('microsoft', 'admin@company.com', [
+				{ id: 'server2', name: 'Server 2', allowed: false }
+			]);
 
-				assert.strictEqual(events.length, 3);
-				assert.strictEqual(events[0].providerId, 'github');
-				assert.strictEqual(events[0].accountName, 'user@example.com');
-				assert.strictEqual(events[1].providerId, 'github');
-				assert.strictEqual(events[1].accountName, 'user@example.com');
-				assert.strictEqual(events[2].providerId, 'microsoft');
-				assert.strictEqual(events[2].accountName, 'admin@company.com');
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(events.length, 3);
+			assert.strictEqual(events[0].providerId, 'github');
+			assert.strictEqual(events[0].accountName, 'user@example.com');
+			assert.strictEqual(events[1].providerId, 'github');
+			assert.strictEqual(events[1].accountName, 'user@example.com');
+			assert.strictEqual(events[2].providerId, 'microsoft');
+			assert.strictEqual(events[2].accountName, 'admin@company.com');
 		});
 
 		test('multiple listeners receive events', () => {
 			let listener1Fired = false;
 			let listener2Fired = false;
 
-			const disposable1 = authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
 				listener1Fired = true;
-			});
+			}));
 
-			const disposable2 = authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
 				listener2Fired = true;
-			});
+			}));
 
-			try {
-				authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
-					{ id: 'server1', name: 'Server 1', allowed: true }
-				]);
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'server1', name: 'Server 1', allowed: true }
+			]);
 
-				assert.strictEqual(listener1Fired, true);
-				assert.strictEqual(listener2Fired, true);
-			} finally {
-				disposable1.dispose();
-				disposable2.dispose();
-			}
+			assert.strictEqual(listener1Fired, true);
+			assert.strictEqual(listener2Fired, true);
 		});
 	});
 

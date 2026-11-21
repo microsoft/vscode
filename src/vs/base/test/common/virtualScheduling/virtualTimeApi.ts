@@ -48,14 +48,15 @@ export function createVirtualTimeApi(
 	clock: VirtualClock,
 	options?: CreateVirtualTimeApiOptions,
 ): TimeApi {
+	const performanceTimeOrigin = clock.now;
 
 	function virtualSetTimeout(handler: () => void, timeout: number = 0): IDisposable {
-		const stack = new Error().stack;
+		const stack = new Error();
 		const trace = TraceContext.instance.currentTrace().child(`setTimeout(${timeout}ms)`, stack);
 		return clock.schedule({
 			time: clock.now + timeout,
 			run: handler,
-			source: { toString: () => 'setTimeout', stackTrace: stack },
+			source: { toString: () => 'setTimeout', get stackTrace() { return stack.stack; } },
 			trace,
 		});
 	}
@@ -65,7 +66,7 @@ export function createVirtualTimeApi(
 	}
 
 	function virtualSetInterval(handler: () => void, interval: number): IDisposable {
-		const stack = new Error().stack;
+		const stack = new Error();
 		const baseTrace = TraceContext.instance.currentTrace().child(`setInterval(${interval}ms)`, stack);
 		let iter = 0;
 		let disposed = false;
@@ -81,7 +82,7 @@ export function createVirtualTimeApi(
 					arm();          // schedule the next tick first, so a throwing
 					handler();      // handler doesn't kill the interval
 				},
-				source: { toString: () => `setInterval (iteration ${myIter})`, stackTrace: stack },
+				source: { toString: () => `setInterval (iteration ${myIter})`, get stackTrace() { return stack.stack; } },
 				trace: baseTrace.child(`tick #${myIter}`),
 			});
 		};
@@ -142,6 +143,8 @@ export function createVirtualTimeApi(
 		setInterval: virtualSetInterval as unknown as TimeApi['setInterval'],
 		clearInterval: virtualClearInterval,
 		Date: VirtualDate as unknown as DateConstructor,
+		performanceNow: () => clock.now - performanceTimeOrigin,
+		performanceTimeOrigin,
 	};
 
 	// Expose the real setTimeout as `originalFn` on the virtual one. The
@@ -155,16 +158,16 @@ export function createVirtualTimeApi(
 
 		api.requestAnimationFrame = ((callback: (time: number) => void) => {
 			const id = ++rafIdCounter;
-			const stack = new Error().stack;
+			const stack = new Error();
 			const trace = TraceContext.instance.currentTrace().child('requestAnimationFrame', stack);
 			const d = clock.schedule({
 				time: clock.now + 16,
 				preferRealAnimationFrame: true,
 				run: () => {
 					rafDisposables.delete(id);
-					callback(clock.now);
+					callback(api.performanceNow());
 				},
-				source: { toString: () => 'requestAnimationFrame', stackTrace: stack },
+				source: { toString: () => 'requestAnimationFrame', get stackTrace() { return stack.stack; } },
 				trace,
 			});
 			rafDisposables.set(id, d);

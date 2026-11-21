@@ -116,6 +116,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				const baseBranchName = baseBranch ?? activeRepository.headBranchName;
 				const baseBranchProtected = await this.gitService.isBranchProtected(activeRepository.rootUri, baseBranchName);
 
+				this.logService.trace(`[ChatSessionWorktreeService][_createWorktree] Base branch for worktree: ${baseBranchName}, protected: ${baseBranchProtected}`);
+
 				if (baseBranch && !baseCommit) {
 					const refs = await this.gitService.getRefs(activeRepository.rootUri, { pattern: `refs/heads/${baseBranch}` });
 					baseCommit = refs.length === 1 && refs[0].commit ? refs[0].commit : undefined;
@@ -210,15 +212,6 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 
 			await this.setWorktreeProperties(sessionId, { ...currentProperties, ...properties } as ChatSessionWorktreeProperties);
 		});
-	}
-
-	async getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined> {
-		const worktreeProperties = await this.getWorktreeProperties(sessionId);
-		if (typeof worktreeProperties === 'string' || !worktreeProperties?.repositoryPath) {
-			return undefined;
-		}
-
-		return this.gitService.getRepository(vscode.Uri.file(worktreeProperties.repositoryPath));
 	}
 
 	async getWorktreePath(sessionId: string): Promise<vscode.Uri | undefined> {
@@ -321,14 +314,6 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				changes: undefined
 			});
 		}
-	}
-
-	async hasCachedChanges(sessionId: string): Promise<boolean> {
-		const worktreeProperties = await this.getWorktreeProperties(sessionId);
-		if (!worktreeProperties || typeof worktreeProperties === 'string') {
-			return false;
-		}
-		return !!worktreeProperties.changes;
 	}
 
 	async refreshWorktreeChanges(sessionId: string): Promise<void> {
@@ -853,56 +838,5 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				: undefined,
 			change.statistics.additions,
 			change.statistics.deletions);
-	}
-
-	async getAdditionalWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties[]> {
-		const additionalWorkspaces = await this.metadataStore.getAdditionalWorkspaces(sessionId);
-		return additionalWorkspaces
-			.map(ws => ws.worktreeProperties)
-			.filter((props): props is ChatSessionWorktreeProperties => !!props);
-	}
-
-	async setAdditionalWorktreeProperties(sessionId: string, properties: ChatSessionWorktreeProperties[]): Promise<void> {
-		const workspaces = properties.map(props => ({
-			folder: undefined,
-			repository: vscode.Uri.file(props.repositoryPath),
-			worktree: vscode.Uri.file(props.worktreePath),
-			worktreeProperties: props,
-		}));
-		await this.metadataStore.setAdditionalWorkspaces(sessionId, workspaces);
-	}
-
-	async handleRequestCompletedForWorktree(worktreeProperties: ChatSessionWorktreeProperties): Promise<void> {
-		if (worktreeProperties.autoCommit === false) {
-			this.logService.trace(`[ChatSessionWorktreeService][handleRequestCompletedForWorktree] Auto-commit is disabled, skipping commit for worktree ${worktreeProperties.worktreePath}`);
-			return;
-		}
-
-		const worktreePath = worktreeProperties.worktreePath;
-		const repository = await this.gitCommitMessageService.getRepository(vscode.Uri.file(worktreePath));
-		if (!repository) {
-			this.logService.error(`[ChatSessionWorktreeService][handleRequestCompletedForWorktree] Unable to find repository for working directory ${worktreePath}`);
-			throw new Error(`Unable to find repository for working directory ${worktreePath}`);
-		}
-
-		if (repository.state.workingTreeChanges.length === 0 && repository.state.indexChanges.length === 0 && repository.state.untrackedChanges.length === 0) {
-			this.logService.trace(`[ChatSessionWorktreeService][handleRequestCompletedForWorktree] No changes to commit in working directory ${worktreePath}`);
-			return;
-		}
-
-		let message: string | undefined;
-		try {
-			message = await this.gitCommitMessageService.generateCommitMessage(repository, CancellationToken.None);
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			this.logService.error(`[ChatSessionWorktreeService][handleRequestCompletedForWorktree] Error generating commit message for ${worktreePath}: ${errorMessage}`);
-		}
-
-		if (!message) {
-			message = `Copilot CLI session changes`;
-		}
-
-		await this.gitService.commit(vscode.Uri.file(worktreePath), message, { all: true, noVerify: true, signCommit: false });
-		this.logService.trace(`[ChatSessionWorktreeService][handleRequestCompletedForWorktree] Committed all changes in working directory ${worktreePath}`);
 	}
 }

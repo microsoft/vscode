@@ -32,13 +32,14 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorCannotCloseContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
 import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { prepareMoveCopyEditors } from './editor.js';
+import { getEditorsTransferVeto, getGroupTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -453,7 +454,7 @@ export class CloseEditorTabAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, ThemeIcon.asClassName(Codicon.close));
+		super(id, label, ThemeIcon.asClassName(Codicon.closeSmall));
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
@@ -483,6 +484,38 @@ export class CloseEditorTabAction extends Action {
 	}
 }
 
+// The alt-hold alternative to CloseEditorTabAction (see MultiEditorTabsControl), not the multi-select-aware closeOtherEditors command.
+export class CloseOtherEditorTabsInGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.closeOtherEditorTabInGroup';
+	static readonly LABEL = localize('closeOthers', "Close Others");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
+	}
+
+	override async run(context?: IEditorCommandsContext): Promise<void> {
+		const group = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
+		if (!group) {
+			// group mentioned in context does not exist
+			return;
+		}
+
+		const targetEditor = context?.editorIndex !== undefined ? group.getEditorByIndex(context.editorIndex) : group.activeEditor;
+		if (!targetEditor) {
+			// No editor open or editor at index does not exist
+			return;
+		}
+
+		const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => editor !== targetEditor);
+		await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
+	}
+}
+
 export class RevertAndCloseEditorAction extends Action2 {
 
 	constructor() {
@@ -490,7 +523,8 @@ export class RevertAndCloseEditorAction extends Action2 {
 			id: 'workbench.action.revertAndCloseActiveEditor',
 			title: localize2('revertAndCloseActiveEditor', 'Revert and Close Editor'),
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: ActiveEditorCannotCloseContext.toNegated()
 		});
 	}
 
@@ -501,6 +535,10 @@ export class RevertAndCloseEditorAction extends Action2 {
 		const activeEditorPane = editorService.activeEditorPane;
 		if (activeEditorPane) {
 			const editor = activeEditorPane.input;
+			if (editor.hasCapability(EditorInputCapabilities.CannotClose)) {
+				return;
+			}
+
 			const group = activeEditorPane.group;
 
 			// first try a normal revert where the contents of the editor are restored
@@ -585,6 +623,10 @@ abstract class AbstractCloseAllAction extends Action2 {
 		const editorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
 		for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
+			if (editor.hasCapability(EditorInputCapabilities.CannotClose)) {
+				continue;
+			}
+
 			let confirmClose = false;
 			let handlerDidError = false;
 			if (editor.closeHandler) {
@@ -801,7 +843,9 @@ export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 		await super.doCloseAll(editorGroupService);
 
 		for (const groupToClose of this.groupsToClose(editorGroupService)) {
-			editorGroupService.removeGroup(groupToClose);
+			if (groupToClose.count === 0) {
+				editorGroupService.removeGroup(groupToClose);
+			}
 		}
 	}
 }
@@ -2581,22 +2625,31 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
 
+		const dialogService = accessor.get(IDialogService);
+
 		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
 		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
-
+		// Only the selected editors are asked whether they can go: others of the group stay where they are
 		const { group, editors } = resolvedContext.groupedEditors[0]; // only single group supported for move/copy for now
-		const editorsWithOptions = prepareMoveCopyEditors(group, editors, resolvedContext.preserveFocus);
-		if (this.move) {
-			group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
-		} else {
-			group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
-		}
+		await transferToNewWindow({
+			getVeto: target => getEditorsTransferVeto(editors, group.id, target, { copy: !this.move }),
+			showVeto: veto => showEditorTransferVeto(dialogService, veto),
+			createPart: () => editorGroupsService.createAuxiliaryEditorPart(),
+			isSourceAlive: () => editorGroupsService.getGroup(group.id) === group,
+			transfer: auxiliaryEditorPart => {
+				const editorsWithOptions = prepareMoveCopyEditors(group, editors, resolvedContext.preserveFocus);
+				if (this.move) {
+					group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
+				} else {
+					group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
+				}
 
-		auxiliaryEditorPart.activeGroup.focus();
+				auxiliaryEditorPart.activeGroup.focus();
+			},
+		});
 	}
 }
 
@@ -2647,15 +2700,22 @@ abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const dialogService = accessor.get(IDialogService);
 		const activeGroup = editorGroupService.activeGroup;
 
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		await transferToNewWindow({
+			getVeto: target => getGroupTransferVeto(activeGroup, target, { copy: !this.move }),
+			showVeto: veto => showEditorTransferVeto(dialogService, veto),
+			createPart: () => editorGroupService.createAuxiliaryEditorPart(),
+			isSourceAlive: () => editorGroupService.getGroup(activeGroup.id) === activeGroup,
+			transfer: auxiliaryEditorPart => {
+				editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
+					mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+				});
 
-		editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
-			mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+				auxiliaryEditorPart.activeGroup.focus();
+			},
 		});
-
-		auxiliaryEditorPart.activeGroup.focus();
 	}
 }
 

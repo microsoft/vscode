@@ -3,19 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
+import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
+import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService, IToolPreApprovalStore } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
 const RUN_WITHOUT_APPROVAL = localize('runWithoutApproval', "without approval");
@@ -231,6 +235,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -251,8 +256,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
-		// If contribution disables default approvals, don't check default stores
+		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return undefined;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return undefined;
 		}
 
@@ -291,8 +300,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}
 
-		// If contribution disables default approvals, don't check default stores
+		// If contribution disables default permissions, don't check default stores
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return undefined;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return undefined;
 		}
 
@@ -322,8 +335,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			actions.push(...contribution.getPreConfirmActions(ref));
 		}
 
-		// If contribution disables default approvals, only return contribution actions
+		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
@@ -441,8 +458,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			actions.push(...contribution.getPostConfirmActions(ref));
 		}
 
-		// If contribution disables default approvals, only return contribution actions
+		// If contribution disables default permissions, only return contribution actions
 		if (contribution && contribution.canUseDefaultApprovals === false) {
+			return actions;
+		}
+
+		if (isAutoApprovePolicyRestricted(this._configurationService)) {
 			return actions;
 		}
 
@@ -557,7 +578,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		return results;
 	}
 
-	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string }): void {
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string; preApprovalStore?: IToolPreApprovalStore }): void {
 		interface IToolTreeItem extends IQuickTreeItem {
 			type: 'tool' | 'server' | 'tool-pre' | 'tool-post' | 'server-pre' | 'server-post' | 'manage' | 'combination';
 			toolId?: string;
@@ -565,7 +586,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			scope?: 'workspace' | 'profile';
 			combinationKey?: string;
 			combinationArgs?: string;
+			manageActionIndex?: number;
 		}
+
+		const manageActionSequencer = new Sequencer();
+		const uncheckedManageActions = new Map<string, { item: IToolTreeItem; index: number }>();
+		const preApprovalStore = options?.preApprovalStore;
 
 		const viewArgsButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.info),
@@ -584,125 +610,150 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		const addServerToolFromSource = (source: ToolDataSource, toolId: string, serversWithTools: Map<string, { label: string; tools: Set<string> }>) => {
 			if (source.type === 'mcp') {
 				trackServerTool(source.definitionId, source.serverLabel || source.label, toolId, serversWithTools);
-			} else if (source.type === 'extension') {
+			} else if (!preApprovalStore && source.type === 'extension') {
 				trackServerTool(source.extensionId.value, source.label, toolId, serversWithTools);
 			}
 		};
 
 		// Determine which tools should be shown
+		let allTools = tools;
 		const relevantTools = new Set<string>();
 		const serversWithTools = new Map<string, { label: string; tools: Set<string> }>();
-
-		// Add tools that request approval
-		for (const tool of tools) {
-			if (tool.canRequestPreApproval || tool.canRequestPostApproval || this._contributions.has(tool.id)) {
-				relevantTools.add(tool.id);
-				addServerToolFromSource(tool.source, tool.id, serversWithTools);
+		const updateTools = (discoveredTools: readonly IToolData[]) => {
+			allTools = preApprovalStore ? [...new Map([...tools, ...discoveredTools].map(tool => [tool.id, tool])).values()] : tools;
+			relevantTools.clear();
+			serversWithTools.clear();
+			for (const server of preApprovalStore?.servers ?? []) {
+				serversWithTools.set(server.id, { label: server.label, tools: new Set() });
 			}
-		}
+			for (const tool of allTools) {
+				if (preApprovalStore
+					? (tool.source.type === 'mcp' && tool.canRequestPreApproval) || this._contributions.has(tool.id)
+					: tool.canRequestPreApproval || tool.canRequestPostApproval || this._contributions.has(tool.id)) {
+					relevantTools.add(tool.id);
+					addServerToolFromSource(tool.source, tool.id, serversWithTools);
+				}
+			}
+		};
+		updateTools(preApprovalStore?.discoveredTools?.get() ?? []);
 
-		// Add tools that have stored approvals (but we can't display them without metadata)
-		for (const id of this._preExecutionToolConfirmStore.getAllConfirmed()) {
-			if (!relevantTools.has(id)) {
-				// Only add if we have the tool data
-				const tool = tools.find(t => t.id === id);
-				if (tool) {
-					relevantTools.add(id);
-					addServerToolFromSource(tool.source, id, serversWithTools);
+		if (!preApprovalStore) {
+			// Add tools that have stored approvals (but we can't display them without metadata)
+			for (const id of this._preExecutionToolConfirmStore.getAllConfirmed()) {
+				if (!relevantTools.has(id)) {
+					// Only add if we have the tool data
+					const tool = tools.find(t => t.id === id);
+					if (tool) {
+						relevantTools.add(id);
+						addServerToolFromSource(tool.source, id, serversWithTools);
+					}
+				}
+			}
+			for (const id of this._postExecutionToolConfirmStore.getAllConfirmed()) {
+				if (!relevantTools.has(id)) {
+					// Only add if we have the tool data
+					const tool = tools.find(t => t.id === id);
+					if (tool) {
+						relevantTools.add(id);
+						addServerToolFromSource(tool.source, id, serversWithTools);
+					}
+				}
+			}
+
+			// Add tools that have combination approvals
+			for (const tool of tools) {
+				if (!relevantTools.has(tool.id) && this._hasCombinationApprovalsForTool(tool.id)) {
+					relevantTools.add(tool.id);
+					addServerToolFromSource(tool.source, tool.id, serversWithTools);
 				}
 			}
 		}
-		for (const id of this._postExecutionToolConfirmStore.getAllConfirmed()) {
-			if (!relevantTools.has(id)) {
-				// Only add if we have the tool data
-				const tool = tools.find(t => t.id === id);
-				if (tool) {
-					relevantTools.add(id);
-					addServerToolFromSource(tool.source, id, serversWithTools);
-				}
-			}
-		}
 
-		// Add tools that have combination approvals
-		for (const tool of tools) {
-			if (!relevantTools.has(tool.id) && this._hasCombinationApprovalsForTool(tool.id)) {
-				relevantTools.add(tool.id);
-				addServerToolFromSource(tool.source, tool.id, serversWithTools);
-			}
-		}
-
-		if (relevantTools.size === 0) {
+		if (relevantTools.size === 0 && serversWithTools.size === 0 && !preApprovalStore?.isDiscovering?.get()) {
 			return; // Nothing to show
 		}
 
 		// Determine initial scope from options
 		let currentScope = options?.defaultScope ?? 'workspace';
+		const isServerPreApproved = (serverId: string) => preApprovalStore
+			? preApprovalStore.isServerApproved(serverId)
+			: this._preExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
+		const isToolPreApproved = (tool: IToolData) => preApprovalStore
+			? preApprovalStore.isToolApproved(tool)
+			: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope);
 
 		// Helper function to build tree items based on current scope
 		const buildTreeItems = (): IToolTreeItem[] => {
 			const treeItems: IToolTreeItem[] = [];
+			const defaultApprovalsDisabled = isAutoApprovePolicyRestricted(this._configurationService);
 
 			// Add server nodes
 			for (const [serverId, serverInfo] of serversWithTools) {
 				const serverChildren: IToolTreeItem[] = [];
 
 				// Add server-level controls as first children
-				const hasAnyPre = Array.from(serverInfo.tools).some(toolId => {
-					const tool = tools.find(t => t.id === toolId);
+				const hasAnyPre = !!preApprovalStore || Array.from(serverInfo.tools).some(toolId => {
+					const tool = allTools.find(t => t.id === toolId);
 					return tool?.canRequestPreApproval;
 				});
-				const hasAnyPost = Array.from(serverInfo.tools).some(toolId => {
-					const tool = tools.find(t => t.id === toolId);
+				const hasAnyPost = !preApprovalStore && Array.from(serverInfo.tools).some(toolId => {
+					const tool = allTools.find(t => t.id === toolId);
 					return tool?.canRequestPostApproval;
 				});
 
-				const serverPreConfirmed = this._preExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
-				const serverPostConfirmed = this._postExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
+				const serverPreConfirmed = isServerPreApproved(serverId);
+				const serverPostConfirmed = !preApprovalStore && this._postExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
 
 				// Add individual tools from this server as children
 				for (const toolId of serverInfo.tools) {
-					const tool = tools.find(t => t.id === toolId);
+					const tool = allTools.find(t => t.id === toolId);
 					if (!tool) {
 						continue;
 					}
 
 					const toolChildren: IToolTreeItem[] = [];
-					const hasPre = !serverPreConfirmed && (tool.canRequestPreApproval || this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope));
-					const hasPost = !serverPostConfirmed && (tool.canRequestPostApproval || this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope));
+					const hasPre = !serverPreConfirmed && (tool.canRequestPreApproval || isToolPreApproved(tool));
+					const hasPost = !preApprovalStore && !serverPostConfirmed && (tool.canRequestPostApproval || this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope));
 
 					// Add child items for granular control when both approval types exist
 					if (hasPre && hasPost) {
 						toolChildren.push({
+							id: `tool-pre/${tool.id}`,
 							type: 'tool-pre',
 							toolId: tool.id,
 							label: RUN_WITHOUT_APPROVAL,
-							checked: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
+							disabled: defaultApprovalsDisabled,
+							checked: isToolPreApproved(tool)
 						});
 						toolChildren.push({
+							id: `tool-post/${tool.id}`,
 							type: 'tool-post',
 							toolId: tool.id,
 							label: CONTINUE_WITHOUT_REVIEWING_RESULTS,
+							disabled: defaultApprovalsDisabled,
 							checked: this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 					}
 
 					// Add combination approval children
-					const combinationApprovals = this._getCombinationApprovalsForTool(tool.id, currentScope);
+					const combinationApprovals = preApprovalStore ? [] : this._getCombinationApprovalsForTool(tool.id, currentScope);
 					for (const { key, label, arguments: args } of combinationApprovals) {
 						toolChildren.push({
+							id: `combination/${key}`,
 							type: 'combination',
 							toolId: tool.id,
 							combinationKey: key,
 							combinationArgs: args,
 							label,
+							disabled: defaultApprovalsDisabled,
 							checked: true,
 							buttons: args ? [viewArgsButton] : undefined,
 						});
 					}
 
 					// Tool item always has a checkbox
-					const preApproval = this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope);
-					const postApproval = this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope);
+					const preApproval = isToolPreApproved(tool);
+					const postApproval = !preApprovalStore && this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope);
 					let checked: boolean | 'mixed';
 					let description: string | undefined;
 
@@ -729,10 +780,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					}
 
 					serverChildren.push({
+						id: `tool/${tool.id}`,
 						type: 'tool',
 						toolId: tool.id,
 						label: tool.displayName || tool.id,
 						description,
+						disabled: defaultApprovalsDisabled,
 						checked,
 						collapsed: true,
 						children: toolChildren.length > 0 ? toolChildren : undefined
@@ -743,26 +796,30 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 				if (hasAnyPost) {
 					serverChildren.unshift({
+						id: `server-post/${serverId}`,
 						type: 'server-post',
 						serverId,
 						iconClass: ThemeIcon.asClassName(Codicon.play),
 						label: localize('continueWithoutReviewing', "Continue without reviewing any tool results"),
+						disabled: defaultApprovalsDisabled,
 						checked: serverPostConfirmed
 					});
 				}
 				if (hasAnyPre) {
 					serverChildren.unshift({
+						id: `server-pre/${serverId}`,
 						type: 'server-pre',
 						serverId,
 						iconClass: ThemeIcon.asClassName(Codicon.play),
 						label: localize('runToolsWithoutApproval', "Run any tool without approval"),
+						disabled: defaultApprovalsDisabled,
 						checked: serverPreConfirmed
 					});
 				}
 
 				// Server node has checkbox to control both pre and post
-				const serverHasPre = this._preExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
-				const serverHasPost = this._postExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
+				const serverHasPre = isServerPreApproved(serverId);
+				const serverHasPost = !preApprovalStore && this._postExecutionServerConfirmStore.getAutoConfirmationIn(serverId, currentScope);
 				let serverChecked: boolean | 'mixed';
 				if (hasAnyPre && hasAnyPost) {
 					serverChecked = serverHasPre && serverHasPost ? true : (!serverHasPre && !serverHasPost ? false : 'mixed');
@@ -774,47 +831,62 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					serverChecked = false;
 				}
 
-				const existingItem = quickTree.itemTree.find(i => i.serverId === serverId);
 				treeItems.push({
+					id: `server/${serverId}`,
 					type: 'server',
 					serverId,
 					label: serverInfo.label,
+					disabled: defaultApprovalsDisabled,
 					checked: serverChecked,
 					children: serverChildren,
-					collapsed: existingItem ? quickTree.isCollapsed(existingItem) : true,
+					collapsed: true,
 					pickable: false
 				});
 			}
 
 			// Add individual tool nodes (only for non-MCP/extension tools)
-			const sortedTools = tools.slice().sort((a, b) => a.displayName.localeCompare(b.displayName));
+			const sortedTools = allTools.slice().sort((a, b) => a.displayName.localeCompare(b.displayName));
 			for (const tool of sortedTools) {
 				if (!relevantTools.has(tool.id)) {
 					continue;
 				}
 
 				// Skip tools that belong to MCP/extension servers (they're shown under server nodes)
-				if (tool.source.type === 'mcp' || tool.source.type === 'extension') {
+				if (tool.source.type === 'mcp' || (!preApprovalStore && tool.source.type === 'extension')) {
 					continue;
 				}
 
 				const contributed = this._contributions.get(tool.id);
 				const toolChildren: IToolTreeItem[] = [];
 
-				const manageActions = contributed?.getManageActions?.();
-				if (manageActions) {
-					toolChildren.push(...manageActions.map(action => ({
-						type: 'manage' as const,
-						...action,
-					})));
+				const manageActions: IToolTreeItem[] = (contributed?.getManageActions?.() ?? []).map(action => ({
+					type: 'manage',
+					...action,
+					id: `manage/${tool.id}/${action.id ?? action.label}`,
+					toolId: tool.id,
+				}));
+				for (const [id, retained] of [...uncheckedManageActions].sort((a, b) => a[1].index - b[1].index)) {
+					if (retained.item.toolId !== tool.id) {
+						continue;
+					}
+					const freshAction = manageActions.find(action => action.id === id);
+					if (freshAction?.checked) {
+						uncheckedManageActions.delete(id);
+					} else if (!freshAction) {
+						manageActions.splice(Math.min(retained.index, manageActions.length), 0, { ...retained.item, checked: false });
+					}
 				}
+				toolChildren.push(...manageActions.map((action, index) => ({ ...action, manageActionIndex: index })));
 
+				if (preApprovalStore && toolChildren.length === 0) {
+					continue;
+				}
 
 				let checked: boolean | 'mixed' = false;
 				let description: string | undefined;
 				let pickable = false;
 
-				if (contributed?.canUseDefaultApprovals !== false) {
+				if (!preApprovalStore && contributed?.canUseDefaultApprovals !== false) {
 					pickable = true;
 					const hasPre = tool.canRequestPreApproval || this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope);
 					const hasPost = tool.canRequestPostApproval || this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope);
@@ -822,15 +894,19 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					// Add child items for granular control when both approval types exist
 					if (hasPre && hasPost) {
 						toolChildren.push({
+							id: `tool-pre/${tool.id}`,
 							type: 'tool-pre',
 							toolId: tool.id,
 							label: RUN_WITHOUT_APPROVAL,
+							disabled: defaultApprovalsDisabled,
 							checked: this._preExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 						toolChildren.push({
+							id: `tool-post/${tool.id}`,
 							type: 'tool-post',
 							toolId: tool.id,
 							label: CONTINUE_WITHOUT_REVIEWING_RESULTS,
+							disabled: defaultApprovalsDisabled,
 							checked: this._postExecutionToolConfirmStore.getAutoConfirmationIn(tool.id, currentScope)
 						});
 					}
@@ -839,11 +915,13 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					const combinationApprovals = this._getCombinationApprovalsForTool(tool.id, currentScope);
 					for (const { key, label, arguments: args } of combinationApprovals) {
 						toolChildren.push({
+							id: `combination/${key}`,
 							type: 'combination',
 							toolId: tool.id,
 							combinationKey: key,
 							combinationArgs: args,
 							label,
+							disabled: defaultApprovalsDisabled,
 							checked: true,
 							buttons: args ? [viewArgsButton] : undefined,
 						});
@@ -875,13 +953,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				}
 
 				treeItems.push({
+					id: `tool/${tool.id}`,
 					type: 'tool',
 					toolId: tool.id,
 					label: tool.displayName || tool.id,
 					description,
+					disabled: defaultApprovalsDisabled && contributed?.canUseDefaultApprovals !== false,
 					checked,
 					pickable,
-					collapsed: tools.length > 1,
+					collapsed: preApprovalStore ? true : allTools.length > 1,
 					children: toolChildren.length > 0 ? toolChildren : undefined
 				});
 			}
@@ -895,7 +975,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		quickTree.sortByLabel = false;
 
 		// Only show toggle if not in session scope
-		if (currentScope !== 'session') {
+		if (!preApprovalStore && currentScope !== 'session') {
 			const scopeButton: IQuickInputButtonWithToggle = {
 				iconClass: ThemeIcon.asClassName(Codicon.folder),
 				tooltip: localize('workspaceScope', "Configure for this workspace only"),
@@ -913,7 +993,9 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}
 
 		const updatePlaceholder = () => {
-			if (currentScope === 'session') {
+			if (preApprovalStore) {
+				quickTree.placeholder = preApprovalStore.placeholder;
+			} else if (currentScope === 'session') {
 				quickTree.placeholder = localize('configureSessionToolApprovals', "Configure session tool approvals");
 			} else {
 				quickTree.placeholder = currentScope === 'workspace'
@@ -924,8 +1006,37 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		updatePlaceholder();
 
 		quickTree.setItemTree(buildTreeItems());
+		if (preApprovalStore) {
+			quickTree.busy = preApprovalStore.isDiscovering?.get() ?? false;
+		}
+
+		// Serialize contributed edits, including their settings reads, before rebuilding.
+		const runManageAction = (action: () => void | Promise<void>) => manageActionSequencer.queue(async () => {
+			await action();
+			if (!disposables.isDisposed) {
+				quickTree.setItemTree(buildTreeItems());
+			}
+		});
 
 		disposables.add(quickTree.onDidChangeCheckboxState(item => {
+			if (isAutoApprovePolicyRestricted(this._configurationService) && item.type !== 'manage') {
+				quickTree.setItemTree(buildTreeItems());
+				return;
+			}
+
+			if (preApprovalStore && item.type !== 'manage') {
+				if ((item.type === 'server' || item.type === 'server-pre') && item.serverId) {
+					preApprovalStore.setServerApproved(item.serverId, !!item.checked);
+				} else if ((item.type === 'tool' || item.type === 'tool-pre') && item.toolId) {
+					const tool = allTools.find(t => t.id === item.toolId);
+					if (tool?.source.type === 'mcp') {
+						preApprovalStore.setToolApproved(tool, !!item.checked);
+					}
+				}
+				quickTree.setItemTree(buildTreeItems());
+				return;
+			}
+
 			const newState = item.checked ? currentScope : 'never';
 
 			if (item.type === 'server' && item.serverId) {
@@ -936,7 +1047,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					this._postExecutionServerConfirmStore.setAutoConfirmation(item.serverId, newState);
 				}
 			} else if (item.type === 'tool' && item.toolId) {
-				const tool = tools.find(t => t.id === item.toolId);
+				const tool = allTools.find(t => t.id === item.toolId);
 				if (tool?.canRequestPostApproval || newState === 'never') {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(item.toolId, newState);
 				}
@@ -963,7 +1074,11 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				this._postExecutionServerConfirmStore.setAutoConfirmation(item.serverId, newState);
 				quickTree.setItemTree(buildTreeItems());
 			} else if (item.type === 'manage') {
-				(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidChangeChecked?.(!!item.checked);
+				const checked = !!item.checked;
+				if (!checked && item.id && item.manageActionIndex !== undefined) {
+					uncheckedManageActions.set(item.id, { item, index: item.manageActionIndex });
+				}
+				void runManageAction(() => (item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidChangeChecked?.(checked));
 			} else if (item.type === 'combination' && item.combinationKey) {
 				this._combinationConfirmStore.setAutoConfirmation(item.combinationKey, newState, item.label, item.combinationArgs);
 				quickTree.setItemTree(buildTreeItems());
@@ -972,7 +1087,10 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		disposables.add(quickTree.onDidTriggerItemButton(i => {
 			if (i.item.type === 'manage') {
-				(i.item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidTriggerItemButton?.(i.button);
+				if (i.item.id) {
+					uncheckedManageActions.delete(i.item.id);
+				}
+				void runManageAction(() => (i.item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidTriggerItemButton?.(i.button));
 			} else if (i.item.type === 'combination' && i.button === viewArgsButton && i.item.combinationArgs) {
 				this._dialogService.prompt({
 					message: localize('combinationArguments', "Arguments"),
@@ -987,11 +1105,13 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}));
 
 		disposables.add(quickTree.onDidAccept(async () => {
-			const manageItem = quickTree.activeItems.find(i => i.type === 'manage');
+			const manageItem = quickTree.activeItems.find(i => i.type === 'manage') as ILanguageModelToolConfirmationContributionQuickTreeItem | undefined;
 			if (manageItem) {
 				quickTree.hide();
-				await (manageItem as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
-				this.manageConfirmationPreferences(tools, options);
+				await manageItem.onDidOpen?.();
+				if (!manageItem.closesPicker) {
+					this.manageConfirmationPreferences(tools, options);
+				}
 			} else {
 				quickTree.hide();
 			}
@@ -1001,23 +1121,32 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			disposables.dispose();
 		}));
 
-		quickTree.show();
-
-		// If a focus tool was specified, expand its parent and set it as active.
-		// Must happen after show() since the tree data is applied via autorun on visibility.
-		if (options?.focusToolId) {
-			const focusToolId = options.focusToolId;
+		let focusToolId = options?.focusToolId;
+		const focusTool = () => {
+			if (!focusToolId) {
+				return;
+			}
 			for (const serverItem of quickTree.itemTree) {
-				const serverItemTyped = serverItem as IToolTreeItem;
-				if (serverItemTyped.children) {
-					const toolItem = (serverItemTyped.children as IToolTreeItem[]).find(c => c.type === 'tool' && c.toolId === focusToolId);
-					if (toolItem) {
-						quickTree.expand(serverItem);
-						quickTree.reveal(toolItem);
-						break;
-					}
+				const toolItem = (serverItem.children as readonly IToolTreeItem[] | undefined)?.find(child => child.type === 'tool' && child.toolId === focusToolId);
+				if (toolItem) {
+					quickTree.expand(serverItem);
+					quickTree.reveal(toolItem);
+					focusToolId = undefined;
+					break;
 				}
 			}
+		};
+
+		quickTree.show();
+		if (preApprovalStore) {
+			disposables.add(autorun(reader => {
+				updateTools(preApprovalStore.discoveredTools?.read(reader) ?? []);
+				quickTree.busy = preApprovalStore.isDiscovering?.read(reader) ?? false;
+				quickTree.setItemTree(buildTreeItems());
+				focusTool();
+			}));
+		} else {
+			focusTool();
 		}
 	}
 

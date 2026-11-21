@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, filter } from './lib/gulp/facade.ts';
 import * as path from 'path';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as util from './lib/util.ts';
 import electron from '@vscode/gulp-electron';
 import { config } from './lib/electron.ts';
-import filter from 'gulp-filter';
 import * as deps from './lib/dependencies.ts';
 import { existsSync, readdirSync } from 'fs';
 
@@ -70,18 +69,23 @@ BUILD_TARGETS.forEach(buildTarget => {
 		task.series(...tasks)
 	);
 
-	gulp.task(setupSymbolsTask);
+	task.task(setupSymbolsTask);
 });
 
-function getProductionDependencySources() {
+/**
+ * Returns the files of the production dependencies, at their packaged paths.
+ */
+function getProductionDependencyFiles(): NodeJS.ReadWriteStream {
 	const productionDependencies = deps.getProductionDependencies(root);
-	return productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	const sources = productionDependencies.map(d => path.relative(root, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	return gulp.src(sources, { base: '.', dot: true })
+		.pipe(deps.toPackagedLayout(productionDependencies));
 }
 
 function nodeModules(destinationExe: string, destinationPdb: string, platform: string): task.CallbackTask {
 
 	const exe = () => {
-		return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
+		return getProductionDependencyFiles()
 			.pipe(filter([
 				'**/*.node',
 				// Exclude these paths.
@@ -93,22 +97,22 @@ function nodeModules(destinationExe: string, destinationPdb: string, platform: s
 
 	if (platform === 'win32') {
 		const pdb = () => {
-			return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
+			return getProductionDependencyFiles()
 				.pipe(filter(['**/*.pdb']))
 				.pipe(gulp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb) as task.CallbackTask;
+		return task.parallel(exe, pdb) as task.CallbackTask;
 	}
 
 	if (platform === 'linux') {
 		const pdb = () => {
-			return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
+			return getProductionDependencyFiles()
 				.pipe(filter(['**/*.sym']))
 				.pipe(gulp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb) as task.CallbackTask;
+		return task.parallel(exe, pdb) as task.CallbackTask;
 	}
 
 	return exe;

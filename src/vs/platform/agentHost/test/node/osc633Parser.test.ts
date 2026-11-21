@@ -295,4 +295,34 @@ suite('Osc633Parser', () => {
 			}],
 		});
 	});
+
+	// -- Ordered segments -------------------------------------------------
+
+	test('parseSegments preserves the order of output before a CommandFinished marker', () => {
+		// Output that precedes the D marker in the same chunk must be emitted as
+		// a data segment BEFORE the CommandFinished event, so consumers can
+		// attribute it to the command before handling the finished event.
+		const segments = parser.parseSegments(`${osc633('C')}hi\r\n${osc633('D;0')}`);
+		assert.deepStrictEqual(segments, [
+			{ kind: 'event', event: { type: Osc633EventType.CommandExecuted } },
+			{ kind: 'data', data: 'hi\r\n' },
+			{ kind: 'event', event: { type: Osc633EventType.CommandFinished, exitCode: 0 } },
+		]);
+	});
+
+	test('parseSegments interleaves data and events across a full command chunk', () => {
+		const segments = parser.parseSegments(
+			`prompt${osc633('A')}$ ${osc633('E;ls;nonce1')}${osc633('C')}file1\nfile2\n${osc633('D;0')}done`
+		);
+		assert.deepStrictEqual(segments, [
+			{ kind: 'data', data: 'prompt' },
+			{ kind: 'event', event: { type: Osc633EventType.PromptStart } },
+			{ kind: 'data', data: '$ ' },
+			{ kind: 'event', event: { type: Osc633EventType.CommandLine, commandLine: 'ls', nonce: 'nonce1' } },
+			{ kind: 'event', event: { type: Osc633EventType.CommandExecuted } },
+			{ kind: 'data', data: 'file1\nfile2\n' },
+			{ kind: 'event', event: { type: Osc633EventType.CommandFinished, exitCode: 0 } },
+			{ kind: 'data', data: 'done' },
+		]);
+	});
 });

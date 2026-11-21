@@ -11,6 +11,7 @@ export class TestDialogService implements IDialogService {
 
 	declare readonly _serviceBrand: undefined;
 
+	readonly hasDialog = false;
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 

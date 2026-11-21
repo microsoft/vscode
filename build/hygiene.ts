@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import cp from 'child_process';
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { through, merge, mapStream } from './lib/streams.ts';
 import fs from 'fs';
-import filter from 'gulp-filter';
+import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
 import vfs from 'vinyl-fs';
-import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.ts';
-import eslint from './gulp-eslint.ts';
-import * as formatter from './lib/formatter.ts';
+import { all, copyrightFilter, indentationFilter, lintFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.ts';
+import { Formatter } from './lib/formatter.ts';
+import { oxlint } from './oxlint.ts';
 import gulpstylelint from './stylelint.ts';
 
 const copyrightHeaderLines = [
@@ -43,13 +44,53 @@ export function checkCopilotEnginesVersion(repoRoot: string): string | undefined
 }
 
 /**
+ * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
+ * `.eslint-allowed-javascript-files`. This complements the
+ * `local/code-no-new-javascript-files` lint rule by also covering files
+ * that are excluded via `.eslint-ignore`.
+ *
+ * Returns an error message if there are unknown JS files, or undefined if OK.
+ */
+export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined {
+	const allowlistPath = path.join(repoRoot, '.eslint-allowed-javascript-files');
+	const allowed = new Set(
+		fs.readFileSync(allowlistPath, 'utf8')
+			.split(/\r\n|\n/)
+			.map(line => line.trim())
+			.filter(line => line && !line.startsWith('#'))
+	);
+
+	// `git ls-files` lists tracked files relative to repo root using forward slashes.
+	const out = cp.execSync('git ls-files "*.js" "*.cjs" "*.mjs"', {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		maxBuffer: 10 * 1024 * 1024,
+	});
+	const tracked = out.split(/\r?\n/).filter(line => !!line);
+
+	const unknown = tracked.filter(file => !allowed.has(file));
+	if (unknown.length > 0) {
+		return [
+			'New JavaScript files are not allowed. Use TypeScript (.ts) instead.',
+			'If a file genuinely must be JavaScript, add it to .eslint-allowed-javascript-files',
+			'(this requires CODEOWNERS review). Offending files:',
+			...unknown.map(f => `  ${f}`),
+		].join('\n');
+	}
+	return undefined;
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
-export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
-	console.log('Starting hygiene...');
+export function hygiene(some: NodeJS.ReadableStream | string[] | undefined, runOxlint = true): NodeJS.ReadWriteStream {
+	const started = Date.now();
+	const requestedPaths = Array.isArray(some) ? some : undefined;
+	const scope = requestedPaths ? `${requestedPaths.length} requested path${requestedPaths.length === 1 ? '' : 's'}` : some ? 'provided file stream' : 'full repository';
+	console.log(`Starting hygiene (${scope})...`);
 	let errorCount = 0;
 
-	const productJson = es.through(function (file: VinylFile) {
+	const productJson = through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
 		if (product.extensionsGallery) {
@@ -60,7 +101,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const unicode = es.through(function (file: VinylFileWithLines) {
+	const unicode = through(function (file: VinylFileWithLines) {
 		const lines = file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
@@ -97,7 +138,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const indentation = es.through(function (file: VinylFileWithLines) {
+	const indentation = through(function (file: VinylFileWithLines) {
 		const lines = file.__lines || file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 
@@ -119,7 +160,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const copyrights = es.through(function (file: VinylFileWithLines) {
+	const copyrights = through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
 
 		for (let i = 0; i < copyrightHeaderLines.length; i++) {
@@ -133,23 +174,25 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const formatting = es.map(function (file: any, cb) {
-		try {
-			const rawInput = file.contents!.toString('utf8');
-			if (!formatter.verifyFormatting(file.path, rawInput)) {
-				console.error(
-					`File not formatted. Run the 'Format Document' command to fix it:`,
-					file.relative
-				);
-				errorCount++;
-			}
-			cb(undefined, file);
-		} catch (err) {
-			cb(err);
-		}
+	// Started for the first file that the formatting check covers.
+	let formatter: Promise<Formatter> | undefined;
+	const formatting = mapStream(function (file: VinylFile, cb) {
+		formatter ??= Formatter.start();
+		formatter
+			.then(f => f.verifyFormatting(file.path, file.contents!.toString('utf8')))
+			.then(formatted => {
+				if (!formatted) {
+					console.error(
+						`File not formatted. Run the 'Format Document' command to fix it:`,
+						file.relative
+					);
+					errorCount++;
+				}
+				cb(undefined, file);
+			}, err => cb(err));
 	});
 
-	let input: NodeJS.ReadWriteStream;
+	let input: NodeJS.ReadableStream;
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
 		const options = { base: '.', follow: true, allowEmpty: true };
 		if (some) {
@@ -165,53 +208,71 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
+	const checkedFiles = new Set<string>();
+	const trackCheckedFile = () => through(function (file: VinylFile) {
+		checkedFiles.add(file.relative);
+		this.emit('data', file);
+	});
 
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
-		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? through() : trackCheckedFile().pipe(productJson))
 		.pipe(productJsonFilter.restore)
 		.pipe(unicodeFilterStream)
+		.pipe(trackCheckedFile())
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
 		.pipe(filter(Array.from(indentationFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(indentation)
 		.pipe(filter(Array.from(copyrightFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(copyrights);
 
 	const streams: NodeJS.ReadWriteStream[] = [
-		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(formatting)
+		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
 	];
 
-	if (runEslint) {
+	if (runOxlint) {
+		// oxlint lints files on disk, so it runs once on all of their paths
+		const lintPaths: string[] = [];
 		streams.push(
 			result
-				.pipe(filter(Array.from(eslintFilter)))
-				.pipe(
-					eslint((results) => {
-						errorCount += results.warningCount;
-						errorCount += results.errorCount;
-					})
-				)
+				.pipe(filter(Array.from(lintFilter)))
+				.pipe(trackCheckedFile())
+				.pipe(through(function (file: VinylFile) {
+					lintPaths.push(file.relative.replace(/\\/g, '/'));
+					this.emit('data', file);
+				}, async function () {
+					try {
+						if (lintPaths.length) {
+							errorCount += await oxlint(lintPaths);
+						}
+						this.emit('end');
+					} catch (error) {
+						this.emit('error', error);
+					}
+				}))
 		);
 	}
 
 	streams.push(
-		result.pipe(filter(Array.from(stylelintFilter))).pipe(gulpstylelint(((message: string, isError: boolean) => {
+		result.pipe(filter(Array.from(stylelintFilter))).pipe(trackCheckedFile()).pipe(gulpstylelint(((message: string, isError: boolean) => {
 			if (isError) {
 				console.error(message);
 				errorCount++;
 			} else {
 				console.warn(message);
 			}
-		})))
+		}), false, false))
 	);
 
 	let count = 0;
-	return es.merge(...streams).pipe(
-		es.through(
+	return merge(...streams).pipe(
+		through(
 			function (data: unknown) {
 				count++;
 				if (process.env['TRAVIS'] && count % 10 === 0) {
@@ -219,9 +280,13 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 				}
 				this.emit('data', data);
 			},
-			function () {
+			async function () {
+				await formatter?.then(f => f.dispose(), () => undefined);
 				process.stdout.write('\n');
-				if (errorCount > 0) {
+				console.log(`Hygiene checked ${checkedFiles.size} file${checkedFiles.size === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
+				if (requestedPaths && checkedFiles.size === 0) {
+					this.emit('error', `No hygiene-eligible files matched the requested paths: ${requestedPaths.join(', ')}`);
+				} else if (errorCount > 0) {
 					this.emit(
 						'error',
 						'Hygiene failed with ' +
@@ -310,13 +375,29 @@ if (import.meta.main) {
 						}
 					}
 
-					console.log('Reading git index versions...');
+					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
+					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
+						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());
+						if (jsAllowlistError) {
+							console.error(jsAllowlistError);
+							process.exit(1);
+						}
+					}
+
+					console.log(`Reading ${some.length} git index version${some.length === 1 ? '' : 's'}...`);
+
+					// oxlint lints the files on disk rather than their staged versions
+					const unstaged = new Set(cp.execSync('git diff --name-only', { encoding: 'utf8', maxBuffer: 2000 * 1024 }).split(/\r?\n/));
+					const partiallyStaged = some.filter(file => unstaged.has(file) && /\.[cm]?[jt]sx?$/.test(file));
+					if (partiallyStaged.length > 0) {
+						console.warn(`oxlint checks the unstaged changes of these files too: ${partiallyStaged.join(', ')}`);
+					}
 
 					createGitIndexVinyls(some)
 						.then(
 							(vinyls) => {
 								return new Promise<void>((c, e) =>
-									hygiene(es.readArray(vinyls).pipe(filter(Array.from(all))))
+									hygiene(Readable.from(vinyls).pipe(filter(Array.from(all))))
 										.on('end', () => c())
 										.on('error', e)
 								);
@@ -327,6 +408,9 @@ if (import.meta.main) {
 							console.error(err);
 							process.exit(1);
 						});
+				} else {
+					console.error('No staged files found. Pass file paths to check unstaged files.');
+					process.exit(1);
 				}
 			}
 		);

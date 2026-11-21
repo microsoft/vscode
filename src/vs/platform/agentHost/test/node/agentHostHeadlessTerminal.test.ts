@@ -14,10 +14,8 @@ type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
 suite('AgentHostHeadlessTerminal', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createTerminal(cols = 80, rows = 24): AgentHostHeadlessTerminal {
 		return disposables.add(new AgentHostHeadlessTerminal({
@@ -62,6 +60,17 @@ suite('AgentHostHeadlessTerminal', () => {
 		assert.deepStrictEqual(responses, []);
 	});
 
+	test('does not answer OSC color queries', async () => {
+		const terminal = createTerminal();
+		const responses: string[] = [];
+		disposables.add(terminal.onResponseData(data => responses.push(data)));
+
+		await terminal.writePtyData('\x1b]10;?\x1b\\');
+		await terminal.writePtyData('\x1b]11;?\x1b\\');
+
+		assert.deepStrictEqual(responses, []);
+	});
+
 	test('does not emit response data for normal terminal output', async () => {
 		const terminal = createTerminal();
 		const responses: string[] = [];
@@ -80,6 +89,26 @@ suite('AgentHostHeadlessTerminal', () => {
 		assert.strictEqual(terminal.isBracketedPasteMode(), true);
 		await terminal.writePtyData('\x1b[?2004l');
 		assert.strictEqual(terminal.isBracketedPasteMode(), false);
+	});
+
+	test('resolves alt-buffer promise on alternate buffer entry', async () => {
+		const terminal = createTerminal();
+		const altBufferStore = disposables.add(new DisposableStore());
+		const altBufferPromise = terminal.createAltBufferPromise(altBufferStore);
+		let resolved = false;
+		void altBufferPromise.then(() => resolved = true);
+
+		assert.strictEqual(terminal.isInAltBuffer(), false);
+		await terminal.writePtyData('\x1b[?1049h');
+		assert.strictEqual(terminal.isInAltBuffer(), true);
+		await altBufferPromise;
+		assert.strictEqual(resolved, true);
+
+		await terminal.writePtyData('\x1b[?1049h');
+		assert.strictEqual(terminal.isInAltBuffer(), true);
+
+		await terminal.writePtyData('\x1b[?1049l');
+		assert.strictEqual(terminal.isInAltBuffer(), false);
 	});
 
 	test('ignores writes after dispose', async () => {

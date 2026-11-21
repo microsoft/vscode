@@ -6,6 +6,7 @@
 import { assertNever } from '../../../base/common/assert.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
+import * as json from '../../../base/common/json.js';
 import * as types from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -240,7 +241,9 @@ export function toValuesTree(properties: IStringDictionary<unknown>, conflictRep
 	const root = Object.create(null);
 
 	for (const key in properties) {
-		addToValueTree(root, key, properties[key], conflictReporter);
+		if (Object.hasOwn(properties, key)) {
+			addToValueTree(root, key, properties[key], conflictReporter);
+		}
 	}
 
 	return root;
@@ -253,10 +256,11 @@ export function addToValueTree(settingsTreeRoot: IStringDictionary<unknown>, key
 	let curr: IStringDictionary<unknown> = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
 		const s = segments[i];
-		let obj = curr[s];
+		let obj = Object.hasOwn(curr, s) ? curr[s] : undefined;
 		switch (typeof obj) {
 			case 'undefined':
-				obj = curr[s] = Object.create(null);
+				obj = Object.create(null);
+				json.setObjectProperty(curr, s, obj);
 				break;
 			case 'object':
 				if (obj === null) {
@@ -302,7 +306,7 @@ function doRemoveFromValueTree(valueTree: IStringDictionary<unknown> | unknown, 
 
 	if (Object.keys(valueTreeRecord).indexOf(first) !== -1) {
 		const value = valueTreeRecord[first];
-		if (typeof value === 'object' && !Array.isArray(value)) {
+		if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			doRemoveFromValueTree(value, segments);
 			if (Object.keys(value as object).length === 0) {
 				delete valueTreeRecord[first];

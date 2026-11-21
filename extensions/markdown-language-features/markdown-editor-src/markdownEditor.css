@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html, body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	background: var(--vscode-editor-background);
+}
+
+body {
+	overflow: hidden;
+}
+
+/*
+ * Embedded editor frames get the theme's color scheme (see codeBlockEditorTheme.ts). The editor must use the same
+ * one: browsers paint an opaque backdrop behind a frame whose color scheme differs from its embedding element's.
+ */
+body[data-vscode-theme-kind="vscode-dark"],
+body[data-vscode-theme-kind="vscode-high-contrast"] {
+	color-scheme: dark;
+}
+
+body[data-vscode-theme-kind="vscode-light"],
+body[data-vscode-theme-kind="vscode-high-contrast-light"] {
+	color-scheme: light;
+}
+
+#editor {
+	height: 100%;
+	width: 100%;
+	overflow: auto;
+	scrollbar-gutter: stable both-edges;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.md-comment-widget {
+	background:
+		linear-gradient(var(--vscode-menu-background), var(--vscode-menu-background)),
+		var(--vscode-editor-background);
+}
+
+.md-comment-widget:hover,
+.md-comment-widget--hover {
+	background:
+		linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground)),
+		var(--vscode-editor-background);
+}

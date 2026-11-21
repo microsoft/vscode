@@ -9,7 +9,11 @@ export const ISandboxHelperService = createDecorator<ISandboxHelperService>('san
 
 export interface ISandboxDependencyStatus {
 	readonly bubblewrapInstalled: boolean;
+	readonly bubblewrapUsable: boolean;
 	readonly socatInstalled: boolean;
+	readonly bubblewrapError?: string;
+	readonly dependencyInstallCommand?: string;
+	readonly apparmorRestrictsUnprivilegedUserNamespaces?: boolean;
 }
 
 export interface ISandboxHelperService {

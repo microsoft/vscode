@@ -91,7 +91,7 @@ export interface IEnvironmentService {
 	serviceMachineIdResource: URI;
 
 	// --- agent sessions workspace
-	agentSessionsWorkspace?: URI;
+	agentSessionsWorkspace: URI;
 	// --- Policy
 	policyFile?: URI;
 
@@ -135,6 +135,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	 * a level that is platform dependent.
 	 */
 	appRoot: string;
+	/** Application bundle contents: `Contents` on macOS, the installation directory on Windows/Linux, or `appRoot` for non-packaged layouts. */
+	readonly appBundleRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
 	tmpDir: URI;

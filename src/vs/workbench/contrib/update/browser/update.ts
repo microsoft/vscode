@@ -32,18 +32,20 @@ import { Event } from '../../../../base/common/event.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IVersion, tryParseVersion } from '../common/updateUtils.js';
+import { UpdateGlobalActivityBadgeVisibleContext } from '../common/update.js';
+import { ReleaseNotesSource } from './releaseNotesTelemetry.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean, source: ReleaseNotesSource = 'other') {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return releaseNotesManager.show(version, useCurrentFile);
+	return releaseNotesManager.show(version, useCurrentFile, source);
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
@@ -61,7 +63,7 @@ async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
 async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 	const instantiationService = accessor.get(IInstantiationService);
 	try {
-		await showReleaseNotesInEditor(instantiationService, version, false);
+		await showReleaseNotesInEditor(instantiationService, version, false, 'updateMenu');
 	} catch (err) {
 		try {
 			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
@@ -137,6 +139,16 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 
 	MenuRegistry.appendMenuItem(menuId, {
 		group,
+		command: {
+			id: 'update.cancelling',
+			title: nls.localize('cancellingUpdateMenuEntry', "Cancelling Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Cancelling)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
 		order: 2,
 		command: {
 			id: 'update.restart',
@@ -181,7 +193,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes (unless post-install info is enabled, which takes over)
 			if (shouldShowReleaseNotes && !shouldShowPostInstallInfo && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version, false)
+				showReleaseNotesInEditor(instantiationService, productService.version, false, 'automaticUpdate')
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
@@ -213,10 +225,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.state = updateService.state;
@@ -224,6 +238,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(contextKeyService);
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
+
+		const updateGlobalActivityBadgeContextKeys = new Set(UpdateGlobalActivityBadgeVisibleContext.keys());
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(updateGlobalActivityBadgeContextKeys)) {
+				this.updateBadge(this.updateService.state);
+			}
+		}));
+
 		this.onUpdateStateChange(this.updateService.state);
 
 		/*
@@ -250,6 +272,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
+			case StateType.Idle:
+				// Themed dialog shown from the last focused window; the windowless macOS case is handled by the main process.
+				if (state.notAvailable && !state.error && await this.hostService.hadLastFocus()) {
+					this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
+				}
+				break;
+
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
@@ -261,7 +290,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}
 		}
 
-		let badge: IBadge | undefined = undefined;
+		this.updateBadge(state);
+
+		this.state = state;
+	}
+
+	private updateBadge(state: UpdateState): void {
+		let badge: IBadge | undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
@@ -271,15 +306,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
+		} else if (state.type === StateType.Cancelling) {
+			badge = new ProgressBadge(() => nls.localize('cancellingUpdate', "Cancelling {0} update...", this.productService.nameShort));
 		}
 
 		this.badgeDisposable.clear();
 
-		if (badge) {
+		if (badge && this.contextKeyService.contextMatchesRules(UpdateGlobalActivityBadgeVisibleContext)) {
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
-
-		this.state = state;
 	}
 
 	private registerGlobalActivityActions(): void {
@@ -289,6 +324,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		CommandsRegistry.registerCommand('update.downloading', () => { });
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
 		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.cancelling', () => { });
 		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
 		CommandsRegistry.registerCommand('_update.state', () => {
 			return this.state;

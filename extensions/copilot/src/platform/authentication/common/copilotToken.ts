@@ -102,6 +102,18 @@ export class CopilotToken {
 		return this._info.organization_list || [];
 	}
 
+	/** Returns the legacy CLS experiment user kind, preserving the known-organization precedence. */
+	get userKind(): string {
+		// Do not add org mapping.
+		const knownOrganizations = [
+			'a5db0bcaae94032fe715fb34a5e4bce2',
+			'7184f66dfcee98cb5f08a1cb936d5225',
+			'faef89d9169d5eacf1d8c8dde3412e37',
+			'4535c7beffc844b46bb1ed4aa04d759a',
+		];
+		return knownOrganizations.find(org => this.organizationList.includes(org)) ?? '';
+	}
+
 	/**
 	 * Returns the list of organization logins that provide Copilot access to the user.
 	 * These are the organizations through which the user has a Copilot subscription (Business/Enterprise).
@@ -167,7 +179,7 @@ export class CopilotToken {
 		return this._info.codex_agent_enabled ?? false;
 	}
 
-	get copilotPlan(): 'free' | 'individual' | 'individual_pro' | 'business' | 'enterprise' {
+	get copilotPlan(): 'free' | 'individual' | 'individual_pro' | 'individual_max' | 'business' | 'enterprise' {
 		if (this.isFreeUser) {
 			return 'free';
 		}
@@ -175,6 +187,7 @@ export class CopilotToken {
 		switch (plan) {
 			case 'individual':
 			case 'individual_pro':
+			case 'individual_max':
 			case 'business':
 			case 'enterprise':
 				return plan;
@@ -198,6 +211,10 @@ export class CopilotToken {
 
 	get quotaInfo() {
 		return { quota_snapshots: this._info.quota_snapshots, quota_reset_date: this._info.quota_reset_date };
+	}
+
+	get tokenBasedBilling(): boolean | undefined {
+		return this._info.token_based_billing;
 	}
 
 	get username(): string {
@@ -233,6 +250,10 @@ export class CopilotToken {
 		return this.getTokenValue('editor_preview_features') !== '0';
 	}
 
+	isBlackbirdExternalIndexingEnabled(): boolean {
+		return this.getTokenValue('blackbird_external_indexing') === '1';
+	}
+
 	isMcpEnabled(): boolean {
 		// MCP is disabled if the flag is present and set to 0
 		return this.getTokenValue('mcp') !== '0';
@@ -261,21 +282,6 @@ export class CopilotToken {
 		return this.tokenMap.get('sn') === '1';
 	}
 }
-
-/**
- * Details of the user's telemetry consent status we get from the server during token retrieval.
- *
- * `unconfigured` is a transitional state for pre-GA that indicates the user is in the Technical Preview
- * and needs to be asked about telemetry consent client-side. It can be removed post-GA as the server
- * will never return it again.
- *
- * `enabled` indicates that they agreed to full telemetry.
- *
- * `disabled` indicates that they opted out of full telemetry so we can only send the core messages
- * that users cannot opt-out of.
- *
- */
-export type UserTelemetryChoice = 'enabled' | 'disabled';
 
 /**
  * A notification we get from the server during token retrieval. Needs to be presented to the user.
@@ -313,6 +319,7 @@ export interface Endpoints {
 	'origin-tracker'?: string;
 	proxy?: string;
 	telemetry?: string;
+	exp?: string;
 }
 
 //#endregion
@@ -345,8 +352,6 @@ export interface TokenEnvelope {
 	codesearch: boolean;
 	/** Whether content exclusion (.copilotignore) is enabled. */
 	copilotignore_enabled: boolean;
-	/** Whether VS Code electron fetcher v2 is enabled. */
-	vsc_electron_fetcher_v2: boolean;
 
 	// Consent settings
 	/** 'enabled', 'disabled', or 'unconfigured' for public code suggestions. */
@@ -365,8 +370,6 @@ export interface TokenEnvelope {
 	limited_user_reset_date?: number | null;
 	/** Organization tracking IDs if user has org access. */
 	organization_list?: string[];
-	/** Notification to show in editor on successful token retrieval. */
-	user_notification?: NotificationEnvelope;
 }
 
 /**
@@ -419,7 +422,6 @@ const tokenEnvelopeValidator = vObj({
 	code_review_enabled: vBoolean(),
 	codesearch: vBoolean(),
 	copilotignore_enabled: vBoolean(),
-	vsc_electron_fetcher_v2: vBoolean(),
 	public_suggestions: vEnum('enabled', 'disabled', 'unconfigured'),
 	telemetry: vEnum('enabled', 'disabled'),
 	endpoints: vObj({
@@ -427,6 +429,7 @@ const tokenEnvelopeValidator = vObj({
 		'origin-tracker': vString(),
 		proxy: vString(),
 		telemetry: vString(),
+		exp: vString(),
 	}),
 	enterprise_list: vNullable(vArray(vNumber())),
 	limited_user_quotas: vNullable(vObj({
@@ -434,8 +437,7 @@ const tokenEnvelopeValidator = vObj({
 		completions: vRequired(vNumber()),
 	})),
 	limited_user_reset_date: vNullable(vNumber()),
-	organization_list: vArray(vString()),
-	user_notification: notificationEnvelopeValidator,
+	organization_list: vArray(vString())
 });
 
 const standardErrorEnvelopeValidator = vObj({
@@ -498,10 +500,6 @@ export function validateTokenEnvelope(obj: unknown): TokenValidationResult {
 	};
 }
 
-export function isTokenEnvelope(obj: unknown): obj is TokenEnvelope {
-	return validateTokenEnvelope(obj).valid;
-}
-
 export function isErrorEnvelope(obj: unknown): obj is ErrorEnvelope {
 	return errorEnvelopeValidator.validate(obj).error === undefined;
 }
@@ -512,12 +510,6 @@ export function isStandardErrorEnvelope(obj: unknown): obj is StandardErrorEnvel
 
 //#endregion
 
-
-/**
- * Combined response type from the /copilot_internal/v2/token endpoint.
- * Can be either a success (TokenEnvelope) or error (ErrorEnvelope) response.
- */
-export type CopilotTokenResponse = TokenEnvelope | ErrorEnvelope | StandardErrorEnvelope;
 
 /**
  * A server response containing the user info for the copilot user from the /copilot_internal/user endpoint
@@ -565,7 +557,6 @@ export function createTestExtendedTokenInfo(overrides?: Partial<ExtendedTokenInf
 		code_review_enabled: false,
 		codesearch: false,
 		copilotignore_enabled: false,
-		vsc_electron_fetcher_v2: false,
 		// Consent settings
 		public_suggestions: 'enabled',
 		telemetry: 'enabled',
@@ -616,19 +607,10 @@ export const enum TokenErrorNotificationId {
 	ServerError = 'server_error'
 }
 
-/**
- * Notification IDs that appear in user_notification on success responses.
- */
-export type SuccessNotificationId =
-	| 'subscription_trial_ending'
-	| 'subscription_trial_ended'
-	| 'subscription_ending'
-	| 'free_over_limits'
-	| 'codespaces_demo_welcome'
-	| `copilot_seat_added_${number}`;
-
 export type TokenError = {
 	reason: TokenErrorReason;
+	/** Milliseconds the caller should wait before retrying a rate-limited request. */
+	retryAfterMs?: number;
 	notification_id?: TokenErrorNotificationId | string;
 	message?: string;
 	/** URL for action button to help user resolve the error. */

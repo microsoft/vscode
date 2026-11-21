@@ -534,6 +534,67 @@ suite('Map', () => {
 		assert.deepStrictEqual(Array.from(map), [[fileAUpper, 1]]);
 	});
 
+	test('ResourceMap - clone preserves custom toKey', function () {
+		const original = new ResourceMap<number>(uri => extUriIgnorePathCase.getComparisonKey(uri));
+		const fileA = URI.parse('file://some/filea');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		original.set(fileA, 1);
+
+		const copy = new ResourceMap(original);
+		const afterCopy = {
+			entries: Array.from(copy),
+			has: [copy.has(fileA), copy.has(fileAUpper)],
+			values: [copy.get(fileA), copy.get(fileAUpper)],
+		};
+
+		copy.set(fileAUpper, 2);
+		const afterSet = {
+			entries: Array.from(copy),
+			values: [copy.get(fileA), copy.get(fileAUpper)],
+			original: Array.from(original),
+		};
+
+		const deleted = copy.delete(fileA);
+
+		assert.deepStrictEqual({
+			afterCopy,
+			afterSet,
+			deleted,
+			afterDelete: { size: copy.size, has: copy.has(fileAUpper) },
+			original: Array.from(original),
+		}, {
+			afterCopy: { entries: [[fileA, 1]], has: [true, true], values: [1, 1] },
+			afterSet: { entries: [[fileAUpper, 2]], values: [2, 2], original: [[fileA, 1]] },
+			deleted: true,
+			afterDelete: { size: 0, has: false },
+			original: [[fileA, 1]],
+		});
+	});
+
+	test('ResourceMap - clone with new toKey re-keys entries', function () {
+		const original = new ResourceMap<number>();
+		const fileA = URI.parse('file://some/filea');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		original.set(fileA, 1);
+		original.set(fileAUpper, 2);
+		assert.strictEqual(original.size, 2);
+
+		// Re-key with case-insensitive comparator
+		const copy = new ResourceMap(original, uri => extUriIgnorePathCase.getComparisonKey(uri));
+		assert.strictEqual(copy.size, 1);
+		assert.strictEqual(copy.has(fileA), true);
+		assert.strictEqual(copy.has(fileAUpper), true);
+		assert.strictEqual(copy.get(fileA), 2);
+		assert.strictEqual(copy.get(fileAUpper), 2);
+
+		// Original should remain unchanged with 2 distinct entries
+		assert.strictEqual(original.size, 2);
+		assert.strictEqual(original.get(fileA), 1);
+		assert.strictEqual(original.get(fileAUpper), 2);
+	});
+
 	test('mapsStrictEqualIgnoreOrder', () => {
 		const map1 = new Map();
 		const map2 = new Map();
@@ -607,6 +668,16 @@ suite('BidirectionalMap', () => {
 		assert.strictEqual(map.get('four'), undefined);
 		assert.strictEqual(map.getKey(4), undefined);
 		assert.strictEqual(map.delete('four'), false);
+	});
+
+	test('should not leave a stale reverse entry when a key value is updated', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('one', 2);
+
+		assert.strictEqual(map.get('one'), 2);
+		assert.strictEqual(map.getKey(2), 'one');
+		assert.strictEqual(map.getKey(1), undefined);
 	});
 
 	test('should handle forEach correctly', () => {
@@ -714,6 +785,49 @@ suite('NKeyMap', () => {
 		map.set(2, 'a', 'c', 'c', 'd');
 		map.set(3, 'b', 'e', 'f', 'g');
 		assert.deepStrictEqual(Array.from(map.values()), [1, 2, 3]);
+	});
+
+	test('getAll', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'a', 'b', 'd');
+		map.set(3, 'a', 'e', 'f');
+		map.set(4, 'g', 'h', 'i');
+		assert.deepStrictEqual(Array.from(map.getAll('a', 'b')), [1, 2]);
+		assert.deepStrictEqual(Array.from(map.getAll('a')), [1, 2, 3]);
+		assert.deepStrictEqual(Array.from(map.getAll('missing')), []);
+	});
+
+	test('delete', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'a', 'b', 'd');
+		map.set(3, 'x', 'y', 'z');
+		assert.strictEqual(map.delete('a', 'b', 'c'), true);
+		assert.strictEqual(map.delete('a', 'b', 'c'), false);
+		assert.deepStrictEqual(Array.from(map.values()), [2, 3]);
+	});
+
+	test('deleteAll', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'a', 'b', 'd');
+		map.set(3, 'a', 'e', 'f');
+		map.set(4, 'g', 'h', 'i');
+		assert.strictEqual(map.deleteAll('a', 'b'), true);
+		assert.deepStrictEqual(Array.from(map.values()), [3, 4]);
+		assert.strictEqual(map.deleteAll('missing'), false);
+		assert.strictEqual(map.deleteAll(), true);
+		assert.deepStrictEqual(Array.from(map.values()), []);
+	});
+
+	test('deleteAll cleans empty parent maps', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'a', 'b', 'c');
+		map.set(2, 'x', 'y', 'z');
+		assert.strictEqual(map.deleteAll('a', 'b'), true);
+		assert.strictEqual(map.deleteAll('a'), false);
+		assert.deepStrictEqual(Array.from(map.values()), [2]);
 	});
 
 	test('toString', () => {

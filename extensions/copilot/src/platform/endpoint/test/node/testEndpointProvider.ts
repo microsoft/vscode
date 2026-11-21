@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatRequest, LanguageModelChat } from 'vscode';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { CacheableRequest, SQLiteCache } from '../../../../../test/base/cache';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { TestingCacheSalts } from '../../../../../test/base/salts';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { CurrentTestRunInfo } from '../../../../../test/base/simulationContext';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { SequencerByKey } from '../../../../util/vs/base/common/async';
@@ -187,11 +190,13 @@ export class TestEndpointProvider implements IEndpointProvider {
 		}
 		return Array.from(this._chatEndpoints.values());
 	}
-	async getChatEndpoint(requestOrFamilyOrModel: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint> {
+	getChatEndpoint(requestOrModel: LanguageModelChat | ChatRequest): Promise<IChatEndpoint>;
+	getChatEndpoint(family: ChatEndpointFamily): Promise<IChatEndpoint | undefined>;
+	async getChatEndpoint(requestOrFamilyOrModel: LanguageModelChat | ChatRequest | ChatEndpointFamily): Promise<IChatEndpoint | undefined> {
 		if (typeof requestOrFamilyOrModel !== 'string') {
-			requestOrFamilyOrModel = 'copilot-base';
+			requestOrFamilyOrModel = 'copilot-utility';
 		}
-		if (requestOrFamilyOrModel === 'copilot-base') {
+		if (requestOrFamilyOrModel === 'copilot-utility') {
 			return await this.getChatEndpointInfo(this.gpt4ModelToRunAgainst ?? CHAT_MODEL.GPT41, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);
 		} else {
 			return await this.getChatEndpointInfo(this.gpt4oMiniModelToRunAgainst ?? CHAT_MODEL.GPT4OMINI, await this._modelLabChatModelMetadata, await this._prodChatModelMetadata);

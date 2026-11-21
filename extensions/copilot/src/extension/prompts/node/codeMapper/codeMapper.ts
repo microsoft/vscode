@@ -24,7 +24,7 @@ import { IEditLogService } from '../../../../platform/multiFileEdit/common/editL
 import { IMultiFileEditInternalTelemetryService } from '../../../../platform/multiFileEdit/common/multiFileEditQualityTelemetry';
 import { Completion } from '../../../../platform/nesFetch/common/completionsAPI';
 import { CompletionsFetchError } from '../../../../platform/nesFetch/common/completionsFetchService';
-import { FinishedCallback, IResponseDelta } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, gitHubCopilotRequestTeProperty, IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { IAlternativeNotebookContentEditGenerator, NotebookEditGenerationTelemtryOptions, NotebookEditGenrationSource } from '../../../../platform/notebook/common/alternativeContentEditGenerator';
 import { INotebookService } from '../../../../platform/notebook/common/notebookService';
@@ -324,7 +324,7 @@ export class CodeMapper {
 		}
 		// continue with "slow rewrite endpoint" when fast rewriting was not possible
 		// use copilot base as fallback
-		const chatEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const chatEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 
 		// Only attempt a full file rewrite if the original document fits into 3/4 of the max output token limit, leaving space for the model to add code. The limit is currently a flat 4K tokens from CAPI across all our models.
 		// If there are multiple input documents, pick the longest one to base the limit on
@@ -391,7 +391,7 @@ export class CodeMapper {
 				return undefined;
 			}
 			const outageStatus = await this.octoKitService.getGitHubOutageStatus();
-			const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, this.authenticationService.copilotToken?.copilotPlan, outageStatus);
+			const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, this.authenticationService.copilotToken?.copilotPlan, outageStatus, this.authenticationService.copilotToken?.tokenBasedBilling, this.authenticationService.copilotToken?.quotaInfo.quota_reset_date);
 			result = createOutcome([{ label: errorDetails.message, message: `request ${fetchResult.type}`, severity: 'error' }], errorDetails);
 		}
 		if (result.annotations.length || result.errorDetails) {
@@ -598,7 +598,7 @@ export class CodeMapper {
 			if (telemetryInfo?.chatRequestId) {
 				const prompt = JSON.stringify(builtPrompt.messages);
 				this.editLogService.logSpeculationRequest(telemetryInfo.chatRequestId, request.uri, prompt, speculation, response.responseText);
-				this.multiFileEditInternalTelemetryService.storeEditPrompt({ prompt, uri: request.uri, isAgent: telemetryInfo.isAgent, document: request.existingDocument?.document }, { chatRequestId: telemetryInfo.chatRequestId, chatSessionId: telemetryInfo.chatSessionId, speculationRequestId: requestId, mapper });
+				this.multiFileEditInternalTelemetryService.storeEditPrompt({ prompt, uri: request.uri, isAgent: telemetryInfo.isAgent, document: request.existingDocument?.document }, { chatRequestId: telemetryInfo.chatRequestId, chatSessionId: telemetryInfo.chatSessionId, speculationRequestId: requestId, mapper, gitHubCopilotRequestTe: outcomeCorrelationTelemetry.gitHubCopilotRequestTe });
 			}
 			return { annotations, telemetry: outcomeCorrelationTelemetry };
 		} catch (err) {
@@ -635,7 +635,7 @@ export class CodeMapper {
 			messageText: useGPT4oProxy ? JSON.stringify(builtPrompt.messages) : builtPrompt.prompt,
 			completionTextJson: result.allResponseText.join(''),
 		};
-		this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/successfulEdit', multiplexProperties(payload));
+		void multiplexProperties({ ...payload, ...gitHubCopilotRequestTeProperty(outcomeTelemetry.gitHubCopilotRequestTe) }).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/successfulEdit', properties)).catch(() => { /* best-effort telemetry */ });
 		this.telemetryService.sendInternalMSFTTelemetryEvent('fastApply/successfulEdit', payload);
 	}
 
@@ -654,6 +654,7 @@ export class CodeMapper {
 			};
 		}
 
+		outcomeTelemetry.gitHubCopilotRequestTe = fetchResult.gitHubCopilotRequestTe;
 		const res = { allResponseText: fetchResult.allResponseText, firstTokenTime: fetchResult.firstTokenTime, startTime, finishReason: Completion.FinishReason.Stop, annotations: fetchResult.annotations, requestId };
 		this.sendModelResponseInternalAndEnhancedTelemetry(true, builtPrompt, res, outcomeTelemetry, builtPrompt.endpoint.model);
 		return res;
@@ -671,6 +672,7 @@ export class CodeMapper {
 
 		//const { codeBlock, uri, documentContext, markdownBeforeBlock } = codemapperRequestInput;
 		const pushedLines: string[] = [];
+		let modelCallCount = 0;
 		const fetchStreamSource = new FetchStreamSource();
 		const textStream = fetchStreamSource.stream.map((part) => part.delta.text);
 
@@ -701,6 +703,7 @@ export class CodeMapper {
 				undefined,
 				{ stream: true, temperature: 0, prediction: { type: 'content', content: speculation } }
 			);
+			modelCallCount++;
 
 
 			if (result.type === ChatFetchResponseType.Length) {
@@ -731,7 +734,8 @@ export class CodeMapper {
 					await handleTrailingLines(uri, existingDocument, resultStream, pushedLines, token);
 				}
 				this.logCodemapperLoopTelemetry(request, result, uri, endpoint.model, documentLength, responseLength, false);
-				return { result, firstTokenTime, allResponseText, annotations: [] };
+				// Continued (length-limited) edits span several model calls, so the value can't be attributed.
+				return { result, firstTokenTime, allResponseText, annotations: [], gitHubCopilotRequestTe: modelCallCount === 1 ? result.gitHubCopilotRequestTe : undefined };
 			} else {
 				// error or cancelled
 				fetchStreamSource.resolve();
@@ -836,6 +840,8 @@ export interface CodeMapperOutcomeTelemetry {
 	readonly chatRequestModel?: string;
 	readonly speculationRequestId: string;
 	readonly mapper: 'fast' | 'fast-lora' | 'full' | 'patch' | string;
+	/** Raw `X-GitHub-Copilot-Request-Te` value of the speculation model call, when the edit came from a single call. */
+	gitHubCopilotRequestTe?: string;
 }
 
 class CodeMapperRefusal {
@@ -847,6 +853,7 @@ interface ISpeculationFetchResult {
 	firstTokenTime: number;
 	allResponseText: string[];
 	annotations: OutcomeAnnotation[];
+	gitHubCopilotRequestTe?: string;
 }
 
 function getTrailingDocumentEmptyLineCount(document: TextDocumentSnapshot): number {
