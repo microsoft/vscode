@@ -140,6 +140,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		rootContainer.classList.add('markdown-cell-row');
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const templateDisposables = new DisposableStore();
+		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const contextKeyService = templateDisposables.add(this.contextKeyServiceProvider(container));
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
@@ -201,7 +202,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			editorContainer,
 			foldingIndicator,
 			templateDisposables,
-			elementDisposables: templateDisposables.add(new DisposableStore()),
+			elementDisposables,
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -262,6 +263,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		rootContainer.classList.add('code-cell-row');
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const templateDisposables = new DisposableStore();
+		const editorWidgetDisposables = templateDisposables.add(new DisposableStore());
 		const contextKeyService = templateDisposables.add(this.contextKeyServiceProvider(container));
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const focusIndicatorTop = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top')));
@@ -285,8 +287,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const editorInstaService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService])));
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 
-		const editorOverflowWidgets = templateDisposables.add(new CellEditorOverflowWidgets(this.notebookEditor.getOverflowContainerDomNode()));
-		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
+		const editorOverflowWidgets = editorWidgetDisposables.add(new CellEditorOverflowWidgets(this.notebookEditor.getOverflowContainerDomNode()));
+		const editor = editorWidgetDisposables.add(editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions.getDefaultValue(),
 			overflowWidgetsDomNode: editorOverflowWidgets.domNode,
 			allowVariableLineHeights: false,
@@ -302,9 +304,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			},
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
-		});
-
-		templateDisposables.add(editor);
+		}));
 		editorOverflowWidgets.bindEditor(editor);
 
 		const outputContainer = new FastDomNode(DOM.append(container, $('.output')));

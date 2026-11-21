@@ -34,6 +34,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
@@ -70,6 +71,19 @@ suite('Notebook cell editor overflow widgets', () => {
 
 	teardown(() => sinon.restore());
 
+	class DisposableTestInstantiationService extends TestInstantiationService {
+		private readonly childServices = new DisposableStore();
+
+		override createChild(services: ServiceCollection): TestInstantiationService {
+			return this.childServices.add(new DisposableTestInstantiationService(services, false, this, true));
+		}
+
+		override dispose(): void {
+			this.childServices.dispose();
+			super.dispose();
+		}
+	}
+
 	function ownTemplate<T extends BaseCellRenderTemplate>(template: T, store: DisposableStore): T {
 		store.add(toDisposable(() => {
 			template.elementDisposables.clear();
@@ -78,12 +92,12 @@ suite('Notebook cell editor overflow widgets', () => {
 		return template;
 	}
 
-	async function withFixture(kind: CellKind, callback: (fixture: ReturnType<typeof createFixture>, cell: CellViewModel, store: DisposableStore) => Promise<void>) {
+	async function withFixture(kind: CellKind, callback: (fixture: ReturnType<typeof createFixture>, cell: CellViewModel, store: DisposableStore) => Promise<void>, contributionInstantiation = EditorContributionInstantiation.Eager) {
 		await withTestNotebook([['cell', 'plaintext', kind]], async (notebookEditor, viewModel, _store, notebookServices) => {
 			const fixtureStore = new DisposableStore();
 			const renderedCells = fixtureStore.add(new DisposableStore());
 			try {
-				const fixture = createFixture(notebookEditor, notebookServices, fixtureStore);
+				const fixture = createFixture(notebookEditor, notebookServices, fixtureStore, contributionInstantiation);
 				const cell = viewModel.viewCells[0];
 				assert.ok(cell instanceof CodeCellViewModel || cell instanceof MarkupCellViewModel);
 				await callback(fixture, cell, renderedCells);
@@ -94,7 +108,9 @@ suite('Notebook cell editor overflow widgets', () => {
 		});
 	}
 
-	function createFixture(notebookEditor: IActiveNotebookEditorDelegate, notebookServices: TestInstantiationService, store: DisposableStore) {
+	function createFixture(notebookEditor: IActiveNotebookEditorDelegate, notebookServices: TestInstantiationService, store: DisposableStore, contributionInstantiation: EditorContributionInstantiation) {
+		const sandbox = sinon.createSandbox();
+		store.add(toDisposable(() => sandbox.restore()));
 		const root = DOM.append(mainWindow.document.body, DOM.$('.notebook-overflow-test'));
 		const overflowRoot = DOM.append(root, DOM.$('.notebook-overflow-root'));
 		store.add(toDisposable(() => root.remove()));
@@ -115,9 +131,9 @@ suite('Notebook cell editor overflow widgets', () => {
 		for (const cell of notebookEditor.getViewModel().viewCells) {
 			assert.ok(cell instanceof CodeCellViewModel || cell instanceof MarkupCellViewModel);
 			const model = store.add(services.get(IModelService).createModel(cell.getText(), null, cell.uri));
-			sinon.stub(cell, 'resolveTextModel').resolves(model);
-			sinon.stub(cell, 'attachTextEditor');
-			sinon.stub(cell, 'detachTextEditor');
+			sandbox.stub(cell, 'resolveTextModel').resolves(model);
+			sandbox.stub(cell, 'attachTextEditor');
+			sandbox.stub(cell, 'detachTextEditor');
 		}
 		const notebookContext = store.add(contextKeyService.createScoped(root));
 		NOTEBOOK_EDITOR_FOCUSED.bindTo(notebookContext).set(true);
@@ -137,9 +153,9 @@ suite('Notebook cell editor overflow widgets', () => {
 				cellExecuteToolbar: MenuId.NotebookCellExecute,
 			},
 			cellEditorContributions: [
-				{ id: ContentHoverController.ID, ctor: ContentHoverController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Eager },
-				{ id: ParameterHintsController.ID, ctor: ParameterHintsController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Eager },
-				{ id: SuggestController.ID, ctor: SuggestController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Eager },
+				{ id: ContentHoverController.ID, ctor: ContentHoverController as EditorContributionCtor, instantiation: contributionInstantiation },
+				{ id: ParameterHintsController.ID, ctor: ParameterHintsController as EditorContributionCtor, instantiation: contributionInstantiation },
+				{ id: SuggestController.ID, ctor: SuggestController as EditorContributionCtor, instantiation: contributionInstantiation },
 			]
 		};
 		const baseEditorOptions = new class extends mock<IBaseCellEditorOptions>() {
@@ -194,8 +210,9 @@ suite('Notebook cell editor overflow widgets', () => {
 			override registerDragHandle(): void { }
 		};
 		const contextProvider = (container: HTMLElement) => notebookContext.createScoped(container);
-		const codeRenderer = store.add(services.createInstance(CodeCellRenderer, cellNotebookEditor, editors, pool, dnd, contextProvider));
-		const markupRenderer = store.add(services.createInstance(MarkupCellRenderer, cellNotebookEditor, dnd, editors, contextProvider));
+		const rendererServices = store.add(new DisposableTestInstantiationService(new ServiceCollection(), false, services, true));
+		const codeRenderer = store.add(rendererServices.createInstance(CodeCellRenderer, cellNotebookEditor, editors, pool, dnd, contextProvider));
+		const markupRenderer = store.add(rendererServices.createInstance(MarkupCellRenderer, cellNotebookEditor, dnd, editors, contextProvider));
 		return { root, overflowRoot, services, codeRenderer, markupRenderer };
 	}
 
@@ -243,6 +260,36 @@ suite('Notebook cell editor overflow widgets', () => {
 
 	for (const kind of [CellKind.Code, CellKind.Markup]) {
 		const name = kind === CellKind.Code ? 'code' : 'Markdown';
+
+		test(`${name}: template disposal keeps services alive for lazy editor contributions`, async () => {
+			await runWithFakedTimers({}, async () => {
+				await withFixture(kind, async (fixture, cell, store) => {
+					let editor: ICodeEditor;
+					let disposeTemplate: () => void;
+					const container = DOM.append(fixture.root, DOM.$('.cell-row'));
+					if (cell instanceof CodeCellViewModel) {
+						const template = ownTemplate(fixture.codeRenderer.renderTemplate(container), store);
+						editor = template.editor;
+						disposeTemplate = () => fixture.codeRenderer.disposeTemplate(template);
+					} else {
+						const markupCell = cell as MarkupCellViewModel;
+						markupCell.updateEditState(CellEditState.Editing, 'test');
+						const template = ownTemplate(fixture.markupRenderer.renderTemplate(container), store);
+						template.cellParts = template.templateDisposables.add(new CellPartsCollection(mainWindow, [], []));
+						fixture.markupRenderer.renderElement(markupCell, 0, template, { height: 100 });
+						editor = template.currentEditor!;
+						disposeTemplate = () => fixture.markupRenderer.disposeTemplate(template);
+					}
+					const host = editor.getOverflowWidgetsDomNode()!;
+					let servicesAliveOnDispose = false;
+					store.add(editor.onDidDispose(() => {
+						servicesAliveOnDispose = editor.invokeWithinContext(() => true);
+					}));
+					disposeTemplate();
+					assert.deepStrictEqual({ servicesAliveOnDispose, hostRemoved: !host.isConnected }, { servicesAliveOnDispose: true, hostRemoved: true });
+				}, EditorContributionInstantiation.Eventually);
+			});
+		});
 
 		test(`${name}: mouse can enter the edge of a detached hover and leave it normally`, async () => {
 			await withFixture(kind, async (fixture, cell, store) => {
@@ -410,6 +457,37 @@ suite('Notebook cell editor overflow widgets', () => {
 				fixture.codeRenderer.disposeTemplate(template);
 				assert.strictEqual(host.isConnected, false);
 			});
+		});
+	});
+
+	test('Markdown: replacing an editor before model resolution keeps services alive during teardown', async () => {
+		await runWithFakedTimers({}, async () => {
+			await withFixture(CellKind.Markup, async (fixture, viewCell, store) => {
+				const cell = viewCell as MarkupCellViewModel;
+				cell.layoutChange({ outerWidth: 600 });
+				cell.updateEditState(CellEditState.Editing, 'test');
+				const template = ownTemplate(fixture.markupRenderer.renderTemplate(DOM.append(fixture.root, DOM.$('.cell-row'))), store);
+				template.cellParts = template.templateDisposables.add(new CellPartsCollection(mainWindow, [], []));
+				fixture.markupRenderer.renderElement(cell, 0, template, { height: 100 });
+				const editor = template.currentEditor!;
+				const host = editor.getOverflowWidgetsDomNode()!;
+				let servicesAliveOnDispose = false;
+				store.add(editor.onDidDispose(() => {
+					servicesAliveOnDispose = editor.invokeWithinContext(() => true);
+				}));
+
+				cell.isInputCollapsed = false;
+				const replacement = template.currentEditor!;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					servicesAliveOnDispose,
+					oldHostRemoved: !host.isConnected,
+					editorReplaced: replacement !== editor,
+					replacementHasModel: replacement.hasModel(),
+					replacementHostConnected: replacement.getOverflowWidgetsDomNode()!.isConnected
+				}, { servicesAliveOnDispose: true, oldHostRemoved: true, editorReplaced: true, replacementHasModel: true, replacementHostConnected: true });
+			}, EditorContributionInstantiation.Eventually);
 		});
 	});
 
