@@ -147,6 +147,7 @@
 	"command.graphCompareRef": "Compare with...",
 	"command.graphCompareWithMergeBase": "Compare with Merge Base",
 	"command.graphCompareWithRemote": "Compare with Remote",
+	"command.graphReview": "Review with Copilot",
 	"command.deleteRef": "Delete",
 	"command.artifactCopyCommitHash": "Copy Commit Hash",
 	"command.artifactCopyBranchName": "Copy Branch Name",
