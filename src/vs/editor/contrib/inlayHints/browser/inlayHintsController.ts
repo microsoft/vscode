@@ -574,6 +574,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		//
 		const maxLength = this._editor.getOption(EditorOption.inlayHints).maximumLength;
+		const maxItemLength = this._editor.getOption(EditorOption.inlayHints).maximumItemLength;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -640,6 +641,21 @@ export class InlayHintsController implements IEditorContribution {
 				if (over > 0) {
 					textlabel = textlabel.slice(0, -over) + '…';
 					tooLong = true;
+				}
+
+				// Enforce per-item maximum length if configured
+				if (maxItemLength && maxItemLength > 0) {
+					const remainingForItem = maxItemLength - itemActualLength;
+					if (remainingForItem <= 0) {
+						// Item already at or above max length; just add an ellipsis and stop
+						textlabel = '…';
+						tooLong = true;
+					} else if (textlabel.length > remainingForItem) {
+						// Trim current part to fit remaining and add ellipsis
+						const keep = Math.max(0, remainingForItem - 1);
+						textlabel = (keep === 0 ? '' : textlabel.slice(0, keep)) + '…';
+						tooLong = true;
+					}
 				}
 
 				itemActualLength += textlabel.length;
