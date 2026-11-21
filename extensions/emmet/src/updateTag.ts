@@ -36,7 +36,7 @@ export async function updateTag(tagName: string | undefined): Promise<boolean | 
 
 	if (tagName === undefined) {
 		tagName = await vscode.window.showInputBox({
-			prompt: 'Enter Tag',
+			prompt: vscode.l10n.t("Enter Tag"),
 			value: tagNamesAreEqual ? firstTagName : undefined
 		});
 
