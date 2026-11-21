@@ -19,13 +19,6 @@ interface IBorderSide {
 	readonly style: Exclude<DecorationStrokeStyle, 'wavy'>;
 }
 
-export function configureContentDecorationFallbackOverlay(domNode: HTMLElement): void {
-	// The opaque GPU canvas must remain below fallback paint without allowing the
-	// elevated overlay's line divs to intercept editor pointer input.
-	domNode.style.zIndex = '1';
-	domNode.style.pointerEvents = 'none';
-}
-
 /**
  * Resolves the browser's final CSS cascade for content decorations into the
  * narrow typed paint vocabulary supported by `@vscode/editor-view`.

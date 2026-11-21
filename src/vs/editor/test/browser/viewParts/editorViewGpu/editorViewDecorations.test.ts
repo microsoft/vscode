@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Range } from '../../../../common/core/range.js';
 import { ModelDecorationOptions } from '../../../../common/model/textModel.js';
 import { ViewModelDecoration } from '../../../../common/viewModel/viewModelDecoration.js';
-import { configureContentDecorationFallbackOverlay, EditorViewDecorationResolver } from '../../../../browser/viewParts/editorViewGpu/editorViewDecorations.js';
+import { EditorViewDecorationResolver } from '../../../../browser/viewParts/editorViewGpu/editorViewDecorations.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('EditorViewDecorationResolver', () => {
@@ -34,20 +34,6 @@ suite('EditorViewDecorationResolver', () => {
 		styleElement.textContent = css;
 		return new EditorViewDecorationResolver(editorRoot);
 	}
-
-	test('keeps the elevated DOM fallback overlay transparent to pointer input', () => {
-		const domNode = document.createElement('div');
-
-		configureContentDecorationFallbackOverlay(domNode);
-
-		assert.deepStrictEqual({
-			zIndex: domNode.style.zIndex,
-			pointerEvents: domNode.style.pointerEvents,
-		}, {
-			zIndex: '1',
-			pointerEvents: 'none',
-		});
-	});
 
 	function decoration(className: string, extra: Partial<{
 		inlineClassName: string;

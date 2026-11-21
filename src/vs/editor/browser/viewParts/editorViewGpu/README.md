@@ -107,9 +107,31 @@ with what it last sent, and sends any change through one `setVerticalLayout`
 call. The renderer then places all GPU paint, and computes its visible lines,
 with the same offsets as `LinesLayout`, matching VS Code's hit testing. Guide
 batches use `getLinesViewportDataAtScrollTop`, so they cover the lines visible
-around zones. The renderer leaves zone rows transparent: zone DOM in the content
-area and the margin stays beneath the opaque canvas everywhere else, but shows
-through at the zone itself.
+around zones. Zone DOM in the content area and the margin sits above the canvas
+(see "Layering").
+
+## Layering
+
+The canvas is the editor's bottom layer, in the place of the DOM text it
+replaces. `View` mounts it first in the overflow guard. Once the renderer has
+painted its first frame, `EditorViewGpu` adds the `editor-view-gpu` class to the
+editor root, and [`editorViewGpu.css`](./editorViewGpu.css) makes the DOM editor
+and gutter backgrounds transparent. Until then the DOM backgrounds stay, so
+loading never shows an unpainted editor. Every remaining DOM layer then stacks
+above the GPU picture as it would above DOM text:
+
+- gutter: change bars and other line decorations, glyph-margin icons and
+  widgets (breakpoints, lightbulbs), and line numbers with a
+  `lineNumberClassName` decoration (coverage, agent feedback). The DOM
+  `LineNumbersOverlay` renders only those decorated lines, and the GPU leaves
+  their labels blank.
+- content: view zones, non-overflowing content widgets, rulers and the
+  unsupported-decoration fallback overlay.
+
+Content widgets get positions from the renderer through `RenderingContext`,
+because the DOM view lines hold no text in this mode. The one stacking
+difference from DOM mode is that DOM layers drawn below text there (rulers,
+fallback decorations) draw above the GPU text here.
 
 ## Line-dependent state
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './editorViewGpu.css';
 import type { EditorView, EditorViewConfig, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
 import { addDisposableListener, EventType, getWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
@@ -20,7 +21,7 @@ import { HorizontalGuidesState } from '../../../common/textModelGuides.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
-import { HorizontalPosition, type RenderingContext, type RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { HorizontalPosition, HorizontalRange, LineVisibleRanges, type IViewLines, type RenderingContext, type RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { Range } from '../../../common/core/range.js';
 import type { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
@@ -122,7 +123,7 @@ export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
  * It is only constructed when `editor.experimentalGpuAcceleration` is set to
  * `'editorView'`; with any other value nothing here runs.
  */
-export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvider, IViewLineHitTestProvider {
+export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvider, IViewLineHitTestProvider, IViewLines {
 
 	public readonly canvas: FastDomNode<HTMLCanvasElement>;
 
@@ -143,6 +144,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _foldingControlsHovered = false;
 	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
 	private _sentGutterLabels: (string | undefined)[] = [];
+	/** 1-based view lines in the renderer's range with a `lineNumberClassName` decoration. */
+	private _decoratedGutterLines = new Set<number>();
 	/** Selected-text recoloring of each view line as last sent ({@link _selectedTextKey}). */
 	private _sentSelectedText: string[] = [];
 	/** Selected-text key of lines built by `_buildLine`, recorded when they are sent. */
@@ -176,6 +179,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	/** Flat-blink half-period, matching `ViewCursors.BLINK_INTERVAL`. */
 	private static readonly BLINK_INTERVAL = 500;
+	/** Editor root class while the renderer paints; see editorViewGpu.css. */
+	public static readonly READY_CLASS_NAME = 'editor-view-gpu';
 	private readonly _editorRoot: HTMLElement;
 
 	constructor(
@@ -202,10 +207,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this.canvas.setPosition('absolute');
 		this.canvas.setTop(0);
 		this.canvas.setLeft(0);
-		this.canvas.domNode.style.zIndex = '0';
-		// Let pointer input fall through to the DOM editor underneath, which
-		// remains the source of truth and drives our sync while this is a
-		// read-only proof of concept.
+		// `View` mounts the canvas as the editor's bottom layer. Pointer input
+		// reaches the DOM editor above it, which remains the source of truth.
 		this.canvas.domNode.style.pointerEvents = 'none';
 
 		void this._initialize();
@@ -238,11 +241,14 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			// The renderer is ready; the planner still holds its initial full-reload
 			// state, so the first present loads the whole model.
 			this._present();
+			// Only now let the canvas show through the DOM editor and gutter
+			// backgrounds, so loading never shows an unpainted editor.
+			this._editorRoot.classList.add(EditorViewGpu.READY_CLASS_NAME);
 		} catch (err) {
 			if (this._disposed) {
 				return;
 			}
-			this._editorRoot.classList.remove('editor-view-gpu-folding-controls');
+			this._editorRoot.classList.remove('editor-view-gpu-folding-controls', EditorViewGpu.READY_CLASS_NAME);
 			editorGpuAcceleration.disableEditorView();
 			onUnexpectedError(err);
 		}
@@ -608,6 +614,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * so wrapped lines no longer number every continuation row.
 	 */
 	private _getGutterLabel(viewLineNumber: number): string {
+		if (this._decoratedGutterLines.has(viewLineNumber)) {
+			// The DOM `LineNumbersOverlay` draws decorated labels above the canvas.
+			return '';
+		}
 		const converter = this._context.viewModel.coordinatesConverter;
 		const modelPosition = converter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1));
 		if (modelPosition.column !== 1) {
@@ -805,6 +815,28 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 		}
 		flush(end);
+	}
+
+	/**
+	 * Collect the lines whose label the DOM `LineNumbersOverlay` draws (it
+	 * covers each decoration's full line range, as in DOM mode).
+	 */
+	private _updateDecoratedGutterLines(scrollTop: number): void {
+		const { start, end } = this._rendererLineRange(scrollTop);
+		const lines = new Set<number>();
+		if (start < end) {
+			const range = new Range(start + 1, 1, end, this._context.viewModel.getLineMaxColumn(end));
+			for (const decoration of this._context.viewModel.getDecorationsInViewport(range)) {
+				if (decoration.options.lineNumberClassName) {
+					const first = Math.max(decoration.range.startLineNumber, start + 1);
+					const last = Math.min(decoration.range.endLineNumber, end);
+					for (let line = first; line <= last; line++) {
+						lines.add(line);
+					}
+				}
+			}
+		}
+		this._decoratedGutterLines = lines;
 	}
 
 	/**
@@ -1061,6 +1093,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		this._editorView.setConfig(this._buildConfig());
+		this._updateDecoratedGutterLines(scrollTop);
 		this._syncModel();
 		this._syncLineDerivedState(scrollTop);
 		this._syncDecorations();
@@ -1132,6 +1165,20 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
 		const offset = this.getColumnOffset(position.lineNumber, position.column);
 		return offset === undefined ? null : new HorizontalPosition(false, offset);
+	}
+
+	/** Horizontal ranges of `range` on each visible line, measured in one renderer call. */
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		if (!this._editorView) {
+			return null;
+		}
+		const lines = this.layoutContentDecorationRanges([{ range, includeNewLines }])[0];
+		return lines.length === 0 ? null : lines.map(line => new LineVisibleRanges(
+			false,
+			line.lineNumber,
+			[new HorizontalRange(line.left, line.width)],
+			line.continuesOnNextLine,
+		));
 	}
 
 	public getPositionAtCoordinate(lineNumber: number, mouseContentHorizontalOffset: number): Position | undefined {
@@ -1253,7 +1300,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._blinkTimer.dispose();
 		this._editorView?.dispose();
 		this._editorView = undefined;
-		this._editorRoot.classList.remove('editor-view-gpu-folding-controls');
+		this._editorRoot.classList.remove('editor-view-gpu-folding-controls', EditorViewGpu.READY_CLASS_NAME);
 		this.canvas.domNode.remove();
 		super.dispose();
 	}

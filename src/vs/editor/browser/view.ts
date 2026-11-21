@@ -59,7 +59,6 @@ import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/t
 import { ViewGpuContext } from './gpu/viewGpuContext.js';
 import { ViewLinesGpu } from './viewParts/viewLinesGpu/viewLinesGpu.js';
 import { EditorViewGpu, EDITOR_VIEW_GPU_CAPABILITIES, type EditorViewGpuCapabilities } from './viewParts/editorViewGpu/editorViewGpu.js';
-import { configureContentDecorationFallbackOverlay } from './viewParts/editorViewGpu/editorViewDecorations.js';
 import { DynamicViewOverlay } from './view/dynamicViewOverlay.js';
 import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
@@ -271,7 +270,13 @@ export class View extends ViewEventHandler {
 			marginOverlays.push(new MarginViewLineDecorationsOverlay(this._context));
 			marginOverlays.push(new LinesDecorationsOverlay(this._context));
 		}
-		if (!gpu?.lineNumbers) { marginOverlays.push(new LineNumbersOverlay(this._context)); }
+		if (!gpu?.lineNumbers) {
+			marginOverlays.push(new LineNumbersOverlay(this._context));
+		} else if (this._editorViewGpu) {
+			// Decorated line numbers (coverage, agent feedback) can carry arbitrary
+			// CSS, so the DOM renders them above the canvas.
+			marginOverlays.push(new LineNumbersOverlay(this._context, true));
+		}
 		if (this._viewGpuContext) {
 			marginOverlays.push(new GpuMarkOverlay(this._context, this._viewGpuContext));
 		}
@@ -338,11 +343,6 @@ export class View extends ViewEventHandler {
 		}
 
 		if (contentViewOverlays) {
-			if (gpu?.supportedContentDecorations) {
-				// The renderer canvas is opaque. Keep the selectively filtered
-				// fallback overlay above it so unsupported CSS remains visible.
-				configureContentDecorationFallbackOverlay(contentViewOverlays.getDomNode().domNode);
-			}
 			this._linesContent.appendChild(contentViewOverlays.getDomNode());
 		}
 		if (rulers && 'domNode' in rulers) {
@@ -354,13 +354,17 @@ export class View extends ViewEventHandler {
 		if (this._viewCursors) {
 			this._linesContent.appendChild(this._viewCursors.getDomNode());
 		}
+		if (this._editorViewGpu) {
+			// The editorView canvas is the bottom layer, like the DOM text it
+			// replaces: gutter decorations, view zones, content widgets, rulers and
+			// fallback decorations stay above it (their backgrounds turn transparent
+			// once the renderer is ready, see editorViewGpu.css).
+			this._overflowGuardContainer.appendChild(this._editorViewGpu.canvas);
+		}
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		if (this._viewGpuContext) {
 			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
-		}
-		if (this._editorViewGpu) {
-			this._overflowGuardContainer.appendChild(this._editorViewGpu.canvas);
 		}
 		if (scrollDecoration) {
 			this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
@@ -746,7 +750,7 @@ export class View extends ViewEventHandler {
 				// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 				const viewPartsToRender = this._getViewPartsToRender();
 
-				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines, this._viewLinesGpu)];
+				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines, this._viewLinesGpu ?? this._editorViewGpu)];
 			},
 			prepareRender: (viewPartsToRender: ViewPart[], ctx: RenderingContext) => {
 				for (const viewPart of viewPartsToRender) {
