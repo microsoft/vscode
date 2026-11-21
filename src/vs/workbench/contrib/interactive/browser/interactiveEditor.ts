@@ -400,6 +400,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
 					MenuPreventer.ID,
 					SelectionClipboardContributionID,
+					'editor.contrib.formatOnPaste',
 					ContextMenuController.ID,
 					SuggestController.ID,
 					ParameterHintsController.ID,
