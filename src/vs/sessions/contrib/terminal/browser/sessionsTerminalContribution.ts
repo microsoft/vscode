@@ -121,6 +121,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
 	private readonly _customViewTerminalOwners = new Map<number, string>();
+	private readonly _customViewActiveTerminalIds = new Map<string, number>();
 	private readonly _sessionTerminalLaunchConfigs = new WeakSet<ITerminalInstance['shellLaunchConfig']>();
 	private _activeCustomViewId: string | undefined;
 	private _customViewTerminalGeneration = 0;
@@ -327,6 +328,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// (e.g. user closes a terminal tab) so the map doesn't hold stale entries.
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
+			const customViewId = this._customViewTerminalOwners.get(instance.instanceId);
+			if (customViewId && this._customViewActiveTerminalIds.get(customViewId) === instance.instanceId) {
+				this._customViewActiveTerminalIds.delete(customViewId);
+			}
 			this._customViewTerminalOwners.delete(instance.instanceId);
 			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
@@ -422,6 +427,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (customViewId === this._activeCustomViewId) {
 			return;
 		}
+		const activeTerminal = this._terminalService.activeInstance;
+		if (this._activeCustomViewId && activeTerminal && this._customViewTerminalOwners.get(activeTerminal.instanceId) === this._activeCustomViewId) {
+			this._customViewActiveTerminalIds.set(this._activeCustomViewId, activeTerminal.instanceId);
+		}
 		this._activeCustomViewId = customViewId;
 		const generation = ++this._customViewTerminalGeneration;
 		for (const instance of this._terminalService.foregroundInstances) {
@@ -440,6 +449,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private async _restoreCustomViewTerminals(customViewId: string, generation: number): Promise<void> {
+		let terminalToActivate: ITerminalInstance | undefined;
+		const activeTerminalId = this._customViewActiveTerminalIds.get(customViewId);
 		for (const [instanceId, owner] of this._customViewTerminalOwners) {
 			if (generation !== this._customViewTerminalGeneration) {
 				return;
@@ -463,7 +474,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				}
 				return;
 			}
-			this._terminalService.setActiveInstance(available);
+			if (!terminalToActivate || instanceId === activeTerminalId) {
+				terminalToActivate = available;
+			}
+		}
+		if (terminalToActivate && generation === this._customViewTerminalGeneration) {
+			this._terminalService.setActiveInstance(terminalToActivate);
 		}
 	}
 

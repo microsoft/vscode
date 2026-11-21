@@ -655,6 +655,30 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
+	test('returning to a custom view restores its selected terminal rather than the last created terminal', async () => {
+		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true });
+		activeCustomViewObs.set(view, undefined);
+		const first = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		const second = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		for (const instance of [first, second]) {
+			terminalInstances.set(instance.instanceId, instance);
+			onDidCreateInstance.fire(instance);
+		}
+		activeInstanceId = first.instanceId;
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+		}, {
+			active: first.instanceId,
+			backgrounded: [],
+		});
+	});
+
 	test('creates a terminal at the worktree for a background session', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const session = makeAgentSession({ worktree: worktreeUri, repository: URI.file('/repo'), providerType: AgentSessionProviders.Background });
