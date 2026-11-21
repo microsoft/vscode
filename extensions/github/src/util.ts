@@ -71,10 +71,47 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 	return result;
 }
 
-export function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
-	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
-		|| /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
-	return match ? { owner: match[1], repo: match[2] } : undefined;
+export function getRepositoryFromUrl(url: string): { owner: string; repo: string; baseUrl: string } | undefined {
+	// GitHub.com (https and ssh)
+	let match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[1], repo: match[2], baseUrl: 'https://github.com' };
+	}
+
+	match = /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[1], repo: match[2], baseUrl: 'https://github.com' };
+	}
+
+	// Generic HTTP(S) URL: http(s)://host/owner/repo[.git]
+	match = /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		try {
+			// Use URL to extract the origin, stripping any embedded credentials.
+			const origin = new URL(url).origin;
+			return { owner: match[2], repo: match[3], baseUrl: origin };
+		} catch {
+			return undefined;
+		}
+	}
+
+	// Generic SSH URI: ssh://[user@]host[:port]/owner/repo[.git]
+	match = /^ssh:\/\/(?:[^@]+@)?([^/:]+)(?::\d+)?\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		try {
+			return { owner: match[2], repo: match[3], baseUrl: `https://${new URL(url).hostname}` };
+		} catch {
+			return undefined;
+		}
+	}
+
+	// Generic SSH SCP syntax: git@host:owner/repo[.git]
+	match = /^git@([^:]+):([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
+	}
+
+	return undefined;
 }
 
 export function getRepositoryFromQuery(query: string): { owner: string; repo: string } | undefined {
@@ -83,7 +120,11 @@ export function getRepositoryFromQuery(query: string): { owner: string; repo: st
 }
 
 export function repositoryHasGitHubRemote(repository: Repository) {
-	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
+	return !!repository.state.remotes.find(remote => {
+		if (!remote.fetchUrl) { return false; }
+		const repo = getRepositoryFromUrl(remote.fetchUrl);
+		return repo?.baseUrl === 'https://github.com';
+	});
 }
 
 export function getRepositoryDefaultRemoteUrl(repository: Repository, order: string[]): string | undefined {
