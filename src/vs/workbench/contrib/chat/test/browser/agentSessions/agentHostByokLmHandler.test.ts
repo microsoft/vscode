@@ -370,7 +370,49 @@ suite('AgentHostByokLmHandler', () => {
 				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 			],
 			responseId: 'resp_provider',
-			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
+			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2, cachedTokens: undefined },
+		});
+	});
+
+	test('decodes usage including cached tokens from prompt_tokens_details and cache_read_input_tokens', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+			() => responseOf([
+				{ type: 'text', value: 'hello' },
+				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"prompt_tokens":12,"completion_tokens":3,"prompt_tokens_details":{"cached_tokens":7},"completion_tokens_details":{"reasoning_tokens":1}}') },
+			]),
+		);
+		const handler = createHandler(service);
+		const result = await handler.chat(
+			{ vendor: 'acme', modelId: 'claude', input: [] },
+			CancellationToken.None,
+		);
+		assert.deepStrictEqual(result.usage, {
+			inputTokens: 12,
+			outputTokens: 3,
+			reasoningTokens: 1,
+			cachedTokens: 7,
+		});
+	});
+
+	test('decodes usage from Anthropic input_tokens and cache_read_input_tokens', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+			() => responseOf([
+				{ type: 'text', value: 'hello' },
+				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"input_tokens":15,"output_tokens":4,"cache_read_input_tokens":10}') },
+			]),
+		);
+		const handler = createHandler(service);
+		const result = await handler.chat(
+			{ vendor: 'acme', modelId: 'claude', input: [] },
+			CancellationToken.None,
+		);
+		assert.deepStrictEqual(result.usage, {
+			inputTokens: 15,
+			outputTokens: 4,
+			reasoningTokens: undefined,
+			cachedTokens: 10,
 		});
 	});
 

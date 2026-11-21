@@ -477,13 +477,21 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	private _decodeUsage(data: VSBuffer): IByokLmChatResult['usage'] {
 		try {
 			const value = JSON.parse(data.toString()) as Record<string, unknown>;
+			const inputDetails = typeof value.prompt_tokens_details === 'object' && value.prompt_tokens_details !== null
+				? value.prompt_tokens_details as Record<string, unknown>
+				: typeof value.input_tokens_details === 'object' && value.input_tokens_details !== null
+					? value.input_tokens_details as Record<string, unknown>
+					: undefined;
 			const outputDetails = typeof value.completion_tokens_details === 'object' && value.completion_tokens_details !== null
 				? value.completion_tokens_details as Record<string, unknown>
 				: undefined;
 			return {
-				inputTokens: this._numberProperty(value, 'prompt_tokens'),
-				outputTokens: this._numberProperty(value, 'completion_tokens'),
+				inputTokens: this._numberProperty(value, 'prompt_tokens') ?? this._numberProperty(value, 'input_tokens'),
+				outputTokens: this._numberProperty(value, 'completion_tokens') ?? this._numberProperty(value, 'output_tokens'),
 				reasoningTokens: outputDetails ? this._numberProperty(outputDetails, 'reasoning_tokens') : undefined,
+				cachedTokens: inputDetails
+					? this._numberProperty(inputDetails, 'cached_tokens')
+					: this._numberProperty(value, 'cache_read_input_tokens'),
 			};
 		} catch {
 			return undefined;
