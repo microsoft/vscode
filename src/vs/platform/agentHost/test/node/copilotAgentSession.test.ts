@@ -4430,7 +4430,7 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({
 			requests: mockSession.sendRequests,
 			credentialUpdates: mockSession.gitHubCredentialUpdates,
-		}, { requests: [{ prompt: 'other source', attachments: undefined, mode: 'immediate' }], credentialUpdates: [] });
+		}, { requests: [{ prompt: 'other source', attachments: undefined, mode: 'immediate', clientTurnId: 'steering' }], credentialUpdates: [] });
 	});
 
 	test('changes the SDK and shell working directory without replacing the session', async () => {
@@ -8381,13 +8381,14 @@ suite('CopilotAgentSession', () => {
 			}, {
 				requests: [
 					{
+						clientTurnId: 'first',
 						prompt, attachments: [
 							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Unrelated model context')), mimeType: 'text/plain', displayName: skill.label },
 							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Command instructions')), mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=command', displayName: command.label },
 						],
 					},
-					{ prompt, attachments: [{ type: 'file', path: URI.file('/workspace/readme.md').fsPath, displayName: 'readme.md' }] },
-					{ prompt, attachments: undefined, mode: 'immediate' },
+					{ prompt, attachments: [{ type: 'file', path: URI.file('/workspace/readme.md').fsPath, displayName: 'readme.md' }], clientTurnId: 'second' },
+					{ prompt, attachments: undefined, mode: 'immediate', clientTurnId: 'steering' },
 				],
 				messages: [
 					{ text: prompt, attachments: [unrelated, forwardedCommand, command, repeatedCommand, skill, repeatedSkill, completionOnlySkill] },
@@ -8475,7 +8476,7 @@ suite('CopilotAgentSession', () => {
 				messages: (await restored.session.getMessages()).map(turn => ({ text: turn.message.text, attachments: turn.message.attachments })),
 				withoutMetadata: withoutMetadata.turns.map(turn => turn.message.text),
 			}, {
-				requests: [{ prompt: contributedPrompt, attachments: undefined }, { prompt: texts[1], attachments: undefined, mode: 'immediate' }],
+				requests: [{ prompt: contributedPrompt, attachments: undefined, clientTurnId: 'first' }, { prompt: texts[1], attachments: undefined, mode: 'immediate', clientTurnId: 'steering' }],
 				messages: texts.map((text, index) => ({ text, attachments: [references[index]] })),
 				withoutMetadata: ['/review', '/review'],
 			});
@@ -9750,7 +9751,7 @@ suite('CopilotAgentSession', () => {
 				sends: mockSession.sendRequests,
 			}, {
 				cancelledState: { sends: [], hasActiveTurn: false, terminalActions: [] },
-				sends: [{ prompt: 'replacement', attachments: undefined }],
+				sends: [{ prompt: 'replacement', attachments: undefined, clientTurnId: 'turn-replacement' }],
 			});
 		});
 	}
@@ -10226,7 +10227,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [],
-			sendRequests: [{ prompt: '/env', attachments: undefined }],
+			sendRequests: [{ prompt: '/env', attachments: undefined, clientTurnId: 'turn-env' }],
 			responseParts: [],
 			turnComplete: [],
 		});
@@ -10526,7 +10527,7 @@ suite('CopilotAgentSession', () => {
 					completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 				}, {
 					invocations: [{ name: 'chronicle', input }],
-					sends: [{ prompt: `Expanded Chronicle instructions for ${input}.`, attachments: undefined, displayPrompt }],
+					sends: [{ prompt: `Expanded Chronicle instructions for ${input}.`, attachments: undefined, displayPrompt, clientTurnId: 'turn-chronicle' }],
 					completed: [],
 				});
 			});
@@ -10793,7 +10794,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'rubber-duck', input: 'focus on tests' }],
-			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined, displayPrompt: 'Review the current work' }],
+			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined, displayPrompt: 'Review the current work', clientTurnId: 'turn-rubber-duck' }],
 		});
 	});
 
@@ -10823,7 +10824,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'wait-what' }],
-			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined, displayPrompt: '/wait-what' }],
+			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined, displayPrompt: '/wait-what', clientTurnId: 'turn-wait-what' }],
 		});
 	});
 
@@ -10878,7 +10879,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [],
-			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
+			sendRequests: [{ prompt: '/security-review', attachments: undefined, clientTurnId: 'turn-security-review' }],
 			responseParts: [],
 			turnComplete: [],
 		});
@@ -10961,7 +10962,7 @@ suite('CopilotAgentSession', () => {
 				continuationSendMessagesRequests: continuation.mockSession.sendMessagesRequests,
 			}, {
 				normalMarker: undefined,
-				normalSendRequests: [{ prompt: 'start', attachments: undefined }],
+				normalSendRequests: [{ prompt: 'start', attachments: undefined, clientTurnId: 'turn-send' }],
 				continuationMarker: undefined,
 				continuationSendMessagesRequests: [{ messages: [] }],
 			});
@@ -11072,8 +11073,8 @@ suite('CopilotAgentSession', () => {
 				deleteAttempts: 1,
 				marker: undefined,
 				sendRequests: [
-					{ prompt: 'first', attachments: undefined, mode: 'immediate' },
-					{ prompt: 'second', attachments: undefined, mode: 'immediate' },
+					{ prompt: 'first', attachments: undefined, mode: 'immediate', clientTurnId: 'steer-one' },
+					{ prompt: 'second', attachments: undefined, mode: 'immediate', clientTurnId: 'steer-two' },
 				],
 			});
 		});
@@ -11144,7 +11145,7 @@ suite('CopilotAgentSession', () => {
 				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
 				deleteAttempts: database.deleteAttempts,
 			}, {
-				sendRequests: [{ prompt: 'retry', attachments: undefined }],
+				sendRequests: [{ prompt: 'retry', attachments: undefined, clientTurnId: 'turn-retry' }],
 				marker: undefined,
 				deleteAttempts: 2,
 			});
@@ -11663,7 +11664,7 @@ suite('CopilotAgentSession', () => {
 			overrideModeAfterInvokeBeforeSend: log.lastIndexOf('mode.set') > log.indexOf('commands.invoke') && log.lastIndexOf('mode.set') < log.indexOf('send'),
 		}, {
 			modeSetCalls: [{ mode: 'interactive' }, { mode: 'autopilot' }],
-			sendRequests: [{ prompt: 'do it', attachments: undefined, displayPrompt: 'do it' }],
+			sendRequests: [{ prompt: 'do it', attachments: undefined, displayPrompt: 'do it', clientTurnId: 'turn-refine' }],
 			firstModeBeforeInvoke: true,
 			overrideModeAfterInvokeBeforeSend: true,
 		});
@@ -16804,7 +16805,7 @@ suite('CopilotAgentSession', () => {
 				return status ? [status.state] : [];
 			});
 			assert.deepStrictEqual({ before, queries, statuses, sends: mockSession.sendRequests }, {
-				before: false, queries: 1, statuses: ['notInstalled'], sends: [{ prompt: 'hello', attachments: undefined }],
+				before: false, queries: 1, statuses: ['notInstalled'], sends: [{ prompt: 'hello', attachments: undefined, clientTurnId: 'turn-1' }],
 			});
 		});
 
@@ -16992,7 +16993,7 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.deepStrictEqual({ queries, statuses, sends: mockSession.sendRequests }, {
 				queries: 1, statuses: [{ state: 'error', detail: 'Certificate RPC unavailable' }],
-				sends: [{ prompt: 'hello', attachments: undefined }],
+				sends: [{ prompt: 'hello', attachments: undefined, clientTurnId: 'turn-1' }],
 			});
 		});
 
@@ -17095,7 +17096,7 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, 'turn-1');
 			assert.deepStrictEqual({ queries, sends: mockSession.sendRequests }, {
 				queries: 2,
-				sends: [{ prompt: 'hello', attachments: undefined }],
+				sends: [{ prompt: 'hello', attachments: undefined, clientTurnId: 'turn-1' }],
 			});
 		}));
 
@@ -18827,6 +18828,7 @@ suite('CopilotAgentSession', () => {
 					displayName: 'Pasted Image',
 				}],
 				mode: 'immediate',
+				clientTurnId: 'steer-1',
 			}]);
 		});
 
@@ -18860,6 +18862,7 @@ suite('CopilotAgentSession', () => {
 					displayName: 'Pasted text #1',
 				}],
 				mode: 'immediate',
+				clientTurnId: 'steer-text',
 			}]);
 		});
 
@@ -19432,7 +19435,7 @@ Use the attached image as context.
 			return getActions(signals).flatMap(action => action.type === ActionType.ChatTurnStarted ? [{ text: action.message.text, queuedMessageId: action.queuedMessageId }] : []);
 		}
 
-		test('sends each message with the source of whoever authored it and marks the ones no person authored', async () => {
+		test('sends caller-turn identity independently of message provenance, including human steering', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			await session.send('from a person', undefined, 'turn-person');
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -19443,9 +19446,9 @@ Use the attached image as context.
 			await session.sendSteering({ id: 'steer-unattributed', message: { text: 'unattributed', origin: { kind: MessageKind.Agent } } });
 
 			assert.deepStrictEqual(mockSession.sendRequests, [
-				{ prompt: 'from a person', attachments: undefined },
+				{ prompt: 'from a person', attachments: undefined, clientTurnId: 'turn-person' },
 				{ prompt: 'run the nightly task', attachments: undefined, source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-automation' },
-				{ prompt: 'person steers', attachments: undefined, mode: 'immediate' },
+				{ prompt: 'person steers', attachments: undefined, mode: 'immediate', clientTurnId: 'steer-person' },
 				{ prompt: 'coordinator steers', attachments: undefined, mode: 'immediate', source: 'agent-copilot:/coordinator', clientTurnId: 'steer-coordinator' },
 				{ prompt: 'peer steers', attachments: undefined, mode: 'immediate', source: 'agent-copilot:/peer', clientTurnId: 'steer-peer' },
 				{ prompt: 'unattributed', attachments: undefined, mode: 'immediate', source: 'system', clientTurnId: 'steer-unattributed' },
@@ -19922,7 +19925,7 @@ Use the attached image as context.
 				sendMessagesRequests: disabled.mockSession.sendMessagesRequests,
 			}, {
 				actions: [],
-				sendRequests: [{ prompt: '$error-ui-tool', attachments: undefined }],
+				sendRequests: [{ prompt: '$error-ui-tool', attachments: undefined, clientTurnId: 'turn-error' }],
 				sendMessagesRequests: [],
 			});
 		});
@@ -36755,7 +36758,7 @@ Use the attached image as context.
 					sends: mockSession.sendRequests,
 				}, {
 					invocations: [{ name: qualifiedName, input: 'focus on tests' }],
-					sends: [{ prompt: 'Loaded review instructions.', attachments: undefined, displayPrompt: prompt }],
+					sends: [{ prompt: 'Loaded review instructions.', attachments: undefined, displayPrompt: prompt, clientTurnId: 'turn-mcp-skill' }],
 				});
 			});
 
@@ -36779,6 +36782,7 @@ Use the attached image as context.
 						prompt: `Use /${qualifiedName}\n/${qualifiedName}\t/${qualifiedName} /unknown:skill /fs:Reviewer (/fs:Review) path/fs:Review`,
 						attachments: undefined,
 						displayPrompt: prompt,
+						clientTurnId: 'turn-inline-mcp-skill',
 					}],
 				});
 			});

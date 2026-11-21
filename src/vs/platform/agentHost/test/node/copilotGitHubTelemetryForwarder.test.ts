@@ -119,6 +119,20 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}))));
 	});
 
+	test('preserves the caller ID independently of the remapped execution turn', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+		const caller = 'request_3D813CBB-47FB-42BA-91DF-831E1593AC29';
+		for (const kind of ['response.success', 'response.error', 'tool_call_executed', 'assistant_usage']) {
+			forwarder.forward({
+				sessionId: 'worker-session', restricted: false,
+				event: { kind, properties: { client_turn_id: caller }, metrics: {} },
+			}, 'worker-execution-turn');
+		}
+		assert.deepStrictEqual(telemetryService.events.map(({ data }) => data?.client_turn_id), Array(4).fill(caller));
+		assert.strictEqual(telemetryService.events[0].data?.turnId, 'worker-execution-turn');
+	});
+
 	test('reuses standard runtime canvas tool and authoring events without requiring restricted telemetry', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
