@@ -792,12 +792,12 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 				// An error, since the prompt never reached the model, and shown even with hook warnings off: it is the only answer to the user's prompt.
 				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true, isError: true };
 			}
-			if (meta.hook?.outcome !== AgentHookOutcome.Failed) {
+			if (meta.hook?.outcome !== AgentHookOutcome.Failed && meta.hook?.outcome !== AgentHookOutcome.Warned) {
 				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
 			}
 			return showHookFailures ? {
 				kind: 'warning',
-				content: new MarkdownString(escapeHostText(formatHookFailure(meta.hook, markdown.value))),
+				content: new MarkdownString(escapeHostText(meta.hook.outcome === AgentHookOutcome.Failed ? formatHookFailure(meta.hook, markdown.value) : formatHookWarning(meta.hook, markdown.value))),
 				keepVisibleWhenCollapsed: true,
 				mute: { commandId: AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID, tooltip: localize('agentHost.hookFailed.disable', "Disable Hook Warnings") },
 			} : undefined;
@@ -829,6 +829,14 @@ function formatHookFailure(hook: IAgentSystemNotificationHookMeta, hostText: str
 	const label = hook.type && getCopilotHookLabel(hook.type);
 	return label && hook.source && hook.message
 		? localize('agentHost.hookFailed', "The {0} hook from {1} failed: {2}", label, hook.source, hook.message)
+		: hostText;
+}
+
+function formatHookWarning(hook: IAgentSystemNotificationHookMeta, hostText: string): string {
+	// The Local label when there is one, else the provider's event name.
+	const event = hook.type && (getCopilotHookLabel(hook.type) ?? hook.type);
+	return event && hook.message
+		? localize('agentHost.hookWarning', "Warning from the {0} hook: {1}", event, hook.message)
 		: hostText;
 }
 

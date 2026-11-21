@@ -43,11 +43,14 @@ export const enum AgentHookOutcome {
 	Failed = 'failed',
 	/** A hook blocked the prompt of the turn the notification is in; its message is the hook's reason. */
 	Blocked = 'blocked',
+	/** The provider reported a warning about a hook, such as its message when it exits with code 2 where that does not block, or a part of its answer that was not used. */
+	Warned = 'warned',
 }
 
 const knownHookOutcomes: ReadonlySet<string> = new Set<string>([
 	AgentHookOutcome.Failed,
 	AgentHookOutcome.Blocked,
+	AgentHookOutcome.Warned,
 ]);
 
 /** Identifies the hook a {@link AgentSystemNotificationKind.Hook} notification reports. */
