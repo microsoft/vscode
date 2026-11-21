@@ -5,7 +5,6 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { isNumber, isObject } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState, ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
@@ -88,7 +87,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 			if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
 				return;
 			}
-			const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+			const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
 			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 			const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 				return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
