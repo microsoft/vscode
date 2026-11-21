@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -26,6 +27,7 @@ suite('Chat tool picker', () => {
 	function fixture(initial: IToolData[], selection?: () => ToolAndToolSetEnablementMap) {
 		const services = workbenchInstantiationService({}, store);
 		const changed = store.add(new Emitter<void>());
+		const checkbox = store.add(new Emitter<IQuickTreeItem>());
 		const accepted = store.add(new Emitter<void>());
 		const hidden = store.add(new Emitter<IQuickInputHideEvent>());
 		const cancellation = store.add(new CancellationTokenSource());
@@ -38,7 +40,7 @@ suite('Chat tool picker', () => {
 			override onDidHide = hidden.event;
 			override onDidTriggerButton = Event.None;
 			override onDidTriggerItemButton = Event.None;
-			override onDidChangeCheckboxState = Event.None;
+			override onDidChangeCheckboxState = checkbox.event;
 			override setItemTree(items: IQuickTreeItem[]) { this.itemTree = items; }
 			override isCollapsed(item: IQuickTreeItem) { return !!item.collapsed; }
 			override show() { }
@@ -60,7 +62,18 @@ suite('Chat tool picker', () => {
 		return {
 			picker, result,
 			rows: () => picker.itemTree.flatMap(bucket => bucket.children ?? []),
-			change(tools: IToolData[]) { registered = tools; changed.fire(); },
+			check(id: string, checked: boolean) {
+				const row = picker.itemTree.flatMap(bucket => bucket.children ?? []).find(row => row.id === id);
+				assert.ok(row);
+				row.checked = checked;
+				checkbox.fire(row);
+			},
+			async change(tools: IToolData[]) {
+				registered = tools;
+				changed.fire();
+				// The picker coalesces registry changes before it rebuilds its rows.
+				await timeout(150);
+			},
 			accept() { accepted.fire(); },
 			cancel() { cancellation.cancel(); },
 		};
@@ -74,11 +87,11 @@ suite('Chat tool picker', () => {
 		try {
 			assert.deepStrictEqual(f.rows().map(row => row.id), ['excluded', 'first', 'removed', 'second']);
 			// The tree controller keeps the current checkbox state on its item objects.
-			f.rows().find(row => row.id === first.id)!.checked = false;
-			f.rows().find(row => row.id === second.id)!.checked = true;
+			f.check(first.id, false);
+			f.check(second.id, true);
 			const replacement = tool('first');
 			choices = ToolAndToolSetEnablementMap.fromEntries([[replacement, true], [second, false], [added, true]]);
-			f.change([replacement, second, excluded, added]);
+			await f.change([replacement, second, excluded, added]);
 			assert.deepStrictEqual(f.rows().map(row => [row.id, row.checked]), [['added', true], ['first', false], ['second', true]]);
 			f.accept();
 			const result = await f.result;
@@ -95,14 +108,14 @@ suite('Chat tool picker', () => {
 		const first = tool('first'), added = tool('added');
 		const f = fixture([first]);
 		try {
-			f.change([first, added]);
+			await f.change([first, added]);
 			assert.deepStrictEqual(f.rows().map(row => [row.id, row.checked]), [['added', false], ['first', false]]);
 		} finally {
 			f.cancel();
 			assert.strictEqual(await f.result, undefined);
 		}
 		const closedTree = f.picker.itemTree;
-		f.change([]);
+		await f.change([]);
 		assert.strictEqual(f.picker.itemTree, closedTree);
 	});
 });

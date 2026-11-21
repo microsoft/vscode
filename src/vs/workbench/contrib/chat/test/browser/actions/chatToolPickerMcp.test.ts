@@ -67,6 +67,7 @@ suite('Chat tool picker MCP groups', () => {
 			keep, removed, added, toolset, tree, result,
 			click(label: string) { const checkbox = row(label)?.querySelector<HTMLElement>('[role="checkbox"]'); assert.ok(checkbox); checkbox.click(); },
 			change() { tools = [keep, added]; changes.fire(); },
+			async set(next: IToolData[]) { tools = next; changes.fire(); await waitFor(() => [keep, removed, added].every(tool => !!row(tool.id) === next.includes(tool))); },
 			async current() { await waitFor(() => !!row(added.id) && !row(removed.id)); },
 			async close() { cancellation.cancel(); await result; }
 		};
@@ -99,6 +100,33 @@ suite('Chat tool picker MCP groups', () => {
 			assert.ok(accepted);
 			assert.deepStrictEqual({ group: accepted.get(f.toolset), keep: accepted.get(f.keep), added: accepted.get(f.added), removed: accepted.has(f.removed) },
 				{ group: false, keep: false, added: true, removed: false });
+		} finally { await f.close(); }
+	});
+
+	test('keeps an individual edit individual across repeated refreshes', async () => {
+		const f = await fixture(true);
+		try {
+			f.click(f.keep.id);
+			await f.set([f.keep]);
+			await f.set([f.keep, f.added]);
+			f.tree.accept();
+			const accepted = await f.result;
+			assert.ok(accepted);
+			assert.deepStrictEqual({ keep: accepted.get(f.keep), added: accepted.get(f.added) }, { keep: false, added: true });
+		} finally { await f.close(); }
+	});
+
+	test('applies a pending MCP group choice to later tools after an individual edit', async () => {
+		const f = await fixture(true);
+		try {
+			f.click('Fixture MCP');
+			await f.set([f.keep, f.added]);
+			f.click(f.keep.id);
+			await f.set([f.keep, f.added, f.removed]);
+			f.tree.accept();
+			const accepted = await f.result;
+			assert.ok(accepted);
+			assert.deepStrictEqual({ keep: accepted.get(f.keep), added: accepted.get(f.added), removed: accepted.get(f.removed) }, { keep: true, added: false, removed: false });
 		} finally { await f.close(); }
 	});
 });

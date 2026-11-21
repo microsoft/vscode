@@ -94,4 +94,45 @@ suite('Chat tool picker live refresh', () => {
 			await result;
 		}
 	});
+
+	test('updates Check All and the selected count when rows are replaced', async () => {
+		const services = workbenchInstantiationService({}, store);
+		const changes = store.add(new Emitter<void>());
+		const cancellation = store.add(new CancellationTokenSource());
+		const keep = tool('keep');
+		const removed = tool('removed');
+		const added = tool('added');
+		let tools = [keep, removed];
+		services.stub(IMcpService, { servers: constObservable([]) });
+		services.stub(ILanguageModelToolsConfirmationService, { toolCanManageConfirmation: () => false });
+		services.stub(ILanguageModelToolsService, {
+			onDidChangeTools: changes.event,
+			getTools: () => tools,
+			getAllToolsIncludingDisabled: () => tools,
+			getToolSetsForModel: () => [],
+		});
+
+		const header = () => {
+			// The mixed state renders as an unchecked box with a dash icon.
+			const checkAll = mainWindow.document.querySelector('.quick-input-widget [aria-label="Toggle all checkboxes"]');
+			return {
+				checkAll: checkAll?.classList.contains('codicon-dash') ? 'mixed' : checkAll?.getAttribute('aria-checked'),
+				count: mainWindow.document.querySelector('.quick-input-widget .quick-input-count')?.textContent,
+			};
+		};
+		const selection = () => ToolAndToolSetEnablementMap.fromEntries(tools.map(tool => [tool, tool !== added]));
+		const result = services.invokeFunction(showToolsPicker, 'Select tools', 'test', undefined, selection, undefined, cancellation.token);
+		try {
+			await waitForRows(() => !!visibleRow(keep.id) && header().count === '2 Selected');
+			assert.deepStrictEqual(header(), { checkAll: 'true', count: '2 Selected' });
+
+			tools = [keep, added];
+			changes.fire();
+			await waitForRows(() => !!visibleRow(added.id) && !visibleRow(removed.id));
+			assert.deepStrictEqual(header(), { checkAll: 'mixed', count: '1 Selected' });
+		} finally {
+			cancellation.cancel();
+			await result;
+		}
+	});
 });
