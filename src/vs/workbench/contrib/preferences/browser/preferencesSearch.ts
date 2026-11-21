@@ -114,10 +114,17 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		// Check the top key match type.
 		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
+		// If the query is a contiguous substring of any setting's ID, the query is
+		// specific enough that we keep all key-level matches rather than dropping
+		// lower-tier ones. This ensures siblings whose IDs differ by small details
+		// (e.g. plural vs. singular) still surface when the user types a precise
+		// substring. See https://github.com/microsoft/vscode/issues/247715.
+		const hasSubstringIdMatch = filterMatches.some(m => m.matchType & SettingMatchType.ContiguousQueryInSettingId);
+		const allowedKeyMatchTypes = hasSubstringIdMatch ? SettingKeyMatchTypes : topKeyMatchType;
 		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
 		const filteredMatches = filterMatches
-			.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)
+			.filter(m => (m.matchType & allowedKeyMatchTypes) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)
 			.map(m => ({ ...m, providerName: STRING_MATCH_SEARCH_PROVIDER_NAME }));
 		return Promise.resolve({
 			filterMatches: filteredMatches,
