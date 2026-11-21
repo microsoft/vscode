@@ -52,7 +52,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
 	private readonly _webglAddon: MutableDisposable<WebglAddonType> = this._register(new MutableDisposable());
+	private readonly _webglContextLossListener = this._register(new MutableDisposable());
 	private _webglAddonCustomGlyphs?: boolean;
+	private _isWebglUnavailable = false;
 	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
@@ -119,6 +121,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+					// Retry WebGL after a context loss, like the terminal does on configuration changes
+					this._isWebglUnavailable = false;
 					this._syncOptions();
 				}
 			}));
@@ -511,7 +515,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private async _refreshGpuAcceleration() {
 		if (this._shouldLoadWebgl() && (!this._webglAddon.value || this._webglAddonCustomGlyphs !== this._terminalConfigurationService.config.customGlyphs)) {
 			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || !this._shouldLoadWebgl()) {
 				return;
 			}
 			// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
@@ -519,14 +523,30 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				customGlyphs: this._terminalConfigurationService.config.customGlyphs
 			});
 			this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
-			this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
+			try {
+				this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
+				this._webglContextLossListener.value = this._webglAddon.value.onContextLoss(() => this._disableWebgl());
+			} catch {
+				this._disableWebgl();
+			}
 		} else if (!this._shouldLoadWebgl() && this._webglAddon.value) {
+			this._webglContextLossListener.clear();
 			this._webglAddon.clear();
 		}
 	}
 
+	/**
+	 * Falls back to the DOM renderer until the terminal configuration changes, otherwise the next
+	 * options sync would recreate the addon on a lost or unavailable WebGL context.
+	 */
+	private _disableWebgl() {
+		this._isWebglUnavailable = true;
+		this._webglContextLossListener.clear();
+		this._webglAddon.clear();
+	}
+
 	private _shouldLoadWebgl(): boolean {
-		return this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on';
+		return !this._isWebglUnavailable && (this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on');
 	}
 
 	private _getTheme(isHovering: boolean): ITheme {
