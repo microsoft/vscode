@@ -8,10 +8,29 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { isHookResourceInWorkspace } from '../../../browser/promptSyntax/hookActions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { isHookResourceInWorkspace, registerHookActions } from '../../../browser/promptSyntax/hookActions.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('hookActions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Configure Hooks opens the Hooks section of Chat Customizations', async () => {
+		store.add(registerHookActions());
+		const executed: unknown[][] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+				executed.push([id, ...args]);
+				return undefined;
+			}
+		}());
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.configure.hooks')!.handler(accessor));
+
+		assert.deepStrictEqual(executed, [[AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks]]);
+	});
 
 	test('restricts hook resources to the selected workspace folder', () => {
 		const firstWorkspace = URI.file('/workspace/first');

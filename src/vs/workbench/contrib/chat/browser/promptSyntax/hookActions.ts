@@ -38,6 +38,10 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { OS } from '../../../../../base/common/platform.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 
 /**
  * Action ID for the `Configure Hooks` action.
@@ -818,6 +822,9 @@ export async function showConfigureHooksQuickPick(
 	}
 }
 
+/**
+ * Opens the Hooks section of Chat Customizations, which is where hooks are managed.
+ */
 class ManageHooksAction extends Action2 {
 	constructor() {
 		super({
@@ -826,7 +833,7 @@ class ManageHooksAction extends Action2 {
 			shortTitle: localize2('configure-hooks.short', "Hooks"),
 			icon: Codicon.zap,
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			category: CHAT_CATEGORY
 		});
 	}
@@ -834,7 +841,7 @@ class ManageHooksAction extends Action2 {
 	public override async run(
 		accessor: ServicesAccessor,
 	): Promise<void> {
-		return showConfigureHooksQuickPick(accessor);
+		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
 	}
 }
 
