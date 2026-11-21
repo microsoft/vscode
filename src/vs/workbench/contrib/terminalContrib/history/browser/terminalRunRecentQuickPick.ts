@@ -10,6 +10,7 @@ import { ITextModelContentProvider, ITextModelService } from '../../../../../edi
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { collapseTildePath } from '../../../../../platform/terminal/common/terminalEnvironment.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -352,7 +353,15 @@ export async function showRunRecentQuickPick(
 		const result = quickPick.activeItems[0];
 		let text: string;
 		if (type === 'cwd') {
-			text = `cd ${await instance.preparePathForShell(result.rawLabel)}`;
+			// preparePathForShell returns the PowerShell call-operator form
+			// `& '...'` for paths with spaces or quotes, which is meant for
+			// invoking executables — not for use as an argument to `cd`.
+			// Quote the path directly here for PowerShell. See #232258.
+			if (instance.shellType === GeneralShellType.PowerShell) {
+				text = `cd '${result.rawLabel.replace(/'/g, '\'\'')}'`;
+			} else {
+				text = `cd ${await instance.preparePathForShell(result.rawLabel)}`;
+			}
 		} else { // command
 			text = result.rawLabel;
 		}
