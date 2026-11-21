@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
-import { addArg } from '../../node/argvHelper.js';
+import { addArg, stripRemoteConnectionTokenLaunchArgs } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
 	return {
@@ -219,4 +219,55 @@ suite('parseArgs', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+
+suite('Remote token relaunch arguments', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('unrelated launches are unchanged', () => {
+		const args = ['--remote', 'ssh-remote+host', '-r', '/project'];
+		assert.strictEqual(stripRemoteConnectionTokenLaunchArgs(args, false), args);
+	});
+
+	test('drops transient target and window flags, retaining application options and their values', () => {
+		assert.deepStrictEqual(stripRemoteConnectionTokenLaunchArgs([
+			'--user-data-dir', '/profile', '--remote', 'localhost:8000', '--remote-token-file', '/token',
+			'-r', '-w', '--waitMarkerFilePath', '/wait', '--log', 'trace', '/remote/project', '--locale=fr'
+		], false), ['--locale=fr', '--user-data-dir=/profile', '--log=trace']);
+	});
+
+	test('handles equals syntax and end of options without converting remote paths to local paths', () => {
+		assert.deepStrictEqual(stripRemoteConnectionTokenLaunchArgs([
+			'--remote=localhost:8000', '--remote-token-file=/token', '--profile', 'Work', '--locale=fr', '--', '-remote-path'
+		], false), ['--locale=fr']);
+	});
+
+	test('removes grouped short window flags', () => {
+		assert.deepStrictEqual(stripRemoteConnectionTokenLaunchArgs([
+			'-nr', '--remote=localhost:8000', '--remote-token-file=/token', '/project'
+		], false), []);
+	});
+
+	test('does not retain remote paths consumed by unknown Chromium switches', () => {
+		for (const option of ['--some-chromium-switch', '--some-chromium-switch=value']) {
+			assert.deepStrictEqual(stripRemoteConnectionTokenLaunchArgs([
+				'--remote', '127.0.0.1:9000', '--remote-token-file', '/t', option, '/remote/project'
+			], false), []);
+		}
+	});
+
+	test('preserves declared Chromium switches and repeated option values', () => {
+		assert.deepStrictEqual(stripRemoteConnectionTokenLaunchArgs([
+			'--remote=localhost:8000', '--remote-token-file=/token', '--no-sandbox',
+			'--proxy-server=http://localhost:8080', '--disable-extension=a', '--disable-extension=b',
+			'--', '--disable-gpu'
+		], false), ['--disable-extension=a', '--disable-extension=b', '--no-sandbox', '--proxy-server=http://localhost:8080']);
+	});
+
+	test('preserves the development application path', () => {
+		assert.deepStrictEqual(stripRemoteConnectionTokenLaunchArgs([
+			'.', '--remote', 'localhost:8000', '--remote-token-file', '/token', '/remote/project', '--verbose'
+		], true), ['.', '--verbose']);
+	});
 });

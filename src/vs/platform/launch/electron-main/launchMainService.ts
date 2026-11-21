@@ -181,11 +181,12 @@ export class LaunchMainService implements ILaunchMainService {
 				}
 			}
 
-			// Open new Window
-			if (openNewWindow) {
+			// Token-bearing launches must load the target, even when an existing window can be reused.
+			if (openNewWindow || args['remote-token-file'] !== undefined) {
 				usedWindows = await this.windowsMainService.open({
 					...baseConfig,
-					forceNewWindow: true,
+					forceNewWindow: openNewWindow || !args['reuse-window'],
+					forceReuseWindow: openNewWindow ? undefined : args['reuse-window'],
 					forceEmpty: true
 				});
 			}

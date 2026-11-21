@@ -611,6 +611,10 @@ export interface IWindowFolderLocation {
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
+
+	/** Non-secret restore marker. The credential is never serialized into this configuration. */
+	remoteConnectionTokenRequired?: boolean;
+
 	mainPid: number;
 	handle?: VSBuffer;
 

@@ -11,6 +11,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../b
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { RemoteConnectionTokenFile } from '../../remote/node/remoteConnectionToken.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ServicesAccessor, createDecorator } from '../../instantiation/common/instantiation.js';
@@ -36,6 +37,8 @@ export interface IWindowsMainService {
 	readonly onDidChangeAlwaysOnTop: Event<{ window: ICodeWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
+
+	getRemoteConnectionToken(windowId: number, authority: string): Promise<string | undefined>;
 
 	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
@@ -100,6 +103,8 @@ export interface IBaseOpenConfiguration {
 }
 
 export interface IOpenConfiguration extends IBaseOpenConfiguration {
+	/** Main-process-only source; never copied into INativeWindowConfiguration. */
+	readonly remoteConnectionTokenFile?: RemoteConnectionTokenFile;
 	readonly cli: NativeParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];

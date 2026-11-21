@@ -11,8 +11,7 @@ import { generateUuid } from '../../base/common/uuid.js';
 import { connectionTokenCookieName, connectionTokenQueryName } from '../../base/common/network.js';
 import { ServerParsedArgs } from './serverEnvironmentService.js';
 import { Promises } from '../../base/node/pfs.js';
-
-const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
+import { isValidConnectionToken, parseConnectionTokenFile } from '../../platform/remote/common/connectionToken.js';
 
 export const enum ServerConnectionTokenType {
 	None,
@@ -64,14 +63,14 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 			return new ServerConnectionTokenParseError(`Please do not use the argument '--connection-token' at the same time as '--connection-token-file'.`);
 		}
 
-		let rawConnectionToken: string;
+		let rawConnectionToken: string | undefined;
 		try {
-			rawConnectionToken = (await fs.promises.readFile(connectionTokenFile, 'utf8')).replace(/\r?\n$/, '');
+			rawConnectionToken = parseConnectionTokenFile(await fs.promises.readFile(connectionTokenFile, 'utf8'));
 		} catch (e) {
 			return new ServerConnectionTokenParseError(`Unable to read the connection token file at '${connectionTokenFile}'.`);
 		}
 
-		if (!connectionTokenRegex.test(rawConnectionToken)) {
+		if (rawConnectionToken === undefined) {
 			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`);
 		}
 
@@ -79,7 +78,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 	}
 
 	if (typeof connectionToken !== 'undefined') {
-		if (!connectionTokenRegex.test(connectionToken)) {
+		if (!isValidConnectionToken(connectionToken)) {
 			return new ServerConnectionTokenParseError(`The connection token '${connectionToken} does not adhere to the characters 0-9, a-z, A-Z or -.`);
 		}
 
@@ -100,8 +99,8 @@ export async function determineServerConnectionToken(args: ServerParsedArgs): Pr
 		// First try to find a connection token
 		try {
 			const fileContents = await fs.promises.readFile(storageLocation);
-			const connectionToken = fileContents.toString().replace(/\r?\n$/, '');
-			if (connectionTokenRegex.test(connectionToken)) {
+			const connectionToken = parseConnectionTokenFile(fileContents.toString());
+			if (connectionToken !== undefined) {
 				return connectionToken;
 			}
 		} catch (err) { }
