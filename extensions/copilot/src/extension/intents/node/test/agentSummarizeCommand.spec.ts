@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
+import { IChatMLFetcher, IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
+import { ChatFetchResponseType, ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -25,9 +26,20 @@ import { ChatTelemetryBuilder } from '../../../prompt/node/chatParticipantTeleme
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { MockChatResponseStream, TestChatRequest } from '../../../test/node/testHelpers';
 import { ToolName } from '../../../tools/common/toolNames';
-import { AgentIntent } from '../agentIntent';
+import { BackgroundSummarizer } from '../../../prompts/node/agent/backgroundSummarizer';
+import { AgentIntent, AgentIntentInvocation } from '../agentIntent';
+
+class RecordingChatMLFetcher extends StaticChatMLFetcher {
+	readonly requests: IFetchMLOptions[] = [];
+
+	override fetchOne(options: IFetchMLOptions) {
+		this.requests.push(options);
+		return super.fetchOne(options);
+	}
+}
 
 describe('AgentIntent /summarize command', () => {
+	let fetcher: RecordingChatMLFetcher;
 	let accessor: ITestingServicesAccessor;
 	let instantiationService: IInstantiationService;
 	let configService: IConfigurationService;
@@ -44,7 +56,8 @@ describe('AgentIntent /summarize command', () => {
 			]
 		));
 		chatResponse = [];
-		services.define(IChatMLFetcher, new StaticChatMLFetcher(chatResponse));
+		fetcher = new RecordingChatMLFetcher(chatResponse);
+		services.define(IChatMLFetcher, fetcher);
 		accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		configService = accessor.get(IConfigurationService);
@@ -58,6 +71,7 @@ describe('AgentIntent /summarize command', () => {
 		// Reset config to enabled by default
 		configService.setConfig(ConfigKey.SummarizeAgentConversationHistory, true);
 		chatResponse.length = 0;
+		fetcher.requests.length = 0;
 		chatResponse.push('This is a test summary of the conversation.');
 	});
 
@@ -66,9 +80,8 @@ describe('AgentIntent /summarize command', () => {
 		onCancellationRequested: Event.None,
 	};
 
-	async function runSummarize(conversation: Conversation, intent?: AgentIntent) {
+	async function runSummarize(conversation: Conversation, intent?: AgentIntent, request = new TestChatRequest('')) {
 		intent ??= instantiationService.createInstance(AgentIntent);
-		const request = new TestChatRequest('');
 		request.command = 'compact';
 		const stream = new MockChatResponseStream();
 
@@ -152,6 +165,24 @@ describe('AgentIntent /summarize command', () => {
 		expect(result.metadata?.summary?.text).toBeTruthy();
 	});
 
+	test('manual /compact forwards each conversation configuration without retaining another chat selection', async () => {
+		const configurations = [
+			Object.freeze({ reasoningEffort: 'high', contextSize: 500_000 }),
+			Object.freeze({ reasoningEffort: 'medium', contextSize: 1_033_616 }),
+			undefined,
+		];
+		const intent = instantiationService.createInstance(AgentIntent);
+		for (const modelConfiguration of configurations) {
+			const request = Object.assign(new TestChatRequest(''), { modelConfiguration });
+			const conversation = new Conversation(request.sessionId, createConversationWithHistory().turns);
+			const { result } = await runSummarize(conversation, intent, request);
+			expect(result.metadata?.summary?.text).toBeTruthy();
+		}
+
+		expect(fetcher.requests).toHaveLength(configurations.length);
+		expect(fetcher.requests.map(options => options.modelConfiguration)).toEqual(configurations);
+	});
+
 	test('summarizes even when auto-summarize setting is disabled', async () => {
 		// Disable auto-summarization - /compact should still work since it's an explicit user action
 		configService.setConfig(ConfigKey.SummarizeAgentConversationHistory, false);
@@ -217,5 +248,61 @@ describe('AgentIntent /summarize command', () => {
 		const first = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
 		const second = intent.getOrCreateBackgroundSummarizer('sessionId', 100_000, 'model-a');
 		expect(second).toBe(first);
+	});
+
+	test('background compaction forwards the selected request configuration and preserves absence', async () => {
+		const captureBackgroundConfiguration = async (modelConfiguration: Readonly<Record<string, unknown>> | undefined) => {
+			const endpoint = instantiationService.createInstance(MockEndpoint, undefined);
+			const captured: Array<Readonly<Record<string, unknown>> | undefined> = [];
+			endpoint.makeChatRequest2 = async options => {
+				captured.push(options.modelConfiguration);
+				return {
+					type: ChatFetchResponseType.Success,
+					value: '<summary>background summary</summary>',
+					requestId: 'background-request',
+					serverRequestId: undefined,
+					usage: undefined,
+					resolvedModel: endpoint.model,
+				};
+			};
+
+			const request = new TestChatRequest('');
+			(request as TestChatRequest & { modelConfiguration?: Readonly<Record<string, unknown>> }).modelConfiguration = modelConfiguration;
+			const conversation = createConversationWithHistory();
+			const backgroundSummarizer = new BackgroundSummarizer(100_000, endpoint.model);
+			const startBackgroundSummarization = (AgentIntentInvocation.prototype as unknown as {
+				_startBackgroundSummarization(
+					this: unknown,
+					backgroundSummarizer: BackgroundSummarizer,
+					mainRenderMessages: [],
+					promptContext: unknown,
+					props: unknown,
+					token: unknown,
+					contextRatio: number,
+				): void;
+			})._startBackgroundSummarization;
+			startBackgroundSummarization.call({
+				endpoint,
+				request,
+				_lastModelCapabilities: undefined,
+				instantiationService,
+				logService: { debug() { }, warn() { }, error() { } },
+				sessionTranscriptService: { getTranscriptPath() { return undefined; } },
+				telemetryService: { sendMSFTTelemetryEvent() { } },
+			}, backgroundSummarizer, [], {
+				history: conversation.turns.slice(0, -1),
+				toolCallRounds: [],
+				conversation,
+			}, {}, token, 0.8);
+			await backgroundSummarizer.waitForCompletion();
+
+			expect(backgroundSummarizer.error).toBeUndefined();
+			expect(captured).toHaveLength(1);
+			return captured[0];
+		};
+
+		const selected = { reasoningEffort: 'high', contextSize: 500_000 } as const;
+		expect(await captureBackgroundConfiguration(selected)).toEqual(selected);
+		expect(await captureBackgroundConfiguration(undefined)).toBeUndefined();
 	});
 });
