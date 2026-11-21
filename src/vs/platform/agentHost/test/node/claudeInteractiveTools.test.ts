@@ -94,26 +94,23 @@ suite('claudeInteractiveTools', () => {
 					{ id: 'A', label: 'A', description: 'first' },
 					{ id: 'B', label: 'B' },
 				],
-				allowFreeformInput: false,
+				allowFreeformInput: true,
 			}]);
 		});
 
-		test('multi-select flips question kind and honors allowFreeformInput', () => {
+		test('multi-select flips question kind and honors explicit allowFreeformInput', () => {
 			const askInput: ParsedAskUserQuestionInput = {
-				questions: [{
-					question: 'Pick many',
-					header: 'pickMany',
-					options: [{ label: 'X' }],
-					multiSelect: true,
-					allowFreeformInput: true,
-				}],
+				questions: [
+					{ question: 'Pick many', header: 'pickMany', options: [{ label: 'X' }], multiSelect: true, allowFreeformInput: false },
+					{ question: 'Pick more', header: 'pickMore', options: [{ label: 'Y' }], multiSelect: true, allowFreeformInput: true },
+					{ question: 'Pick any', header: 'pickAny', options: [{ label: 'Z' }], multiSelect: true },
+				],
 			};
 
 			const result = buildAskUserSessionInputQuestions(askInput);
 
-			const question = result[0];
-			assert.strictEqual(question.kind, ChatInputQuestionKind.MultiSelect);
-			assert.strictEqual(question.kind === ChatInputQuestionKind.MultiSelect ? question.allowFreeformInput : undefined, true);
+			assert.deepStrictEqual(result.map(q => q.kind), [ChatInputQuestionKind.MultiSelect, ChatInputQuestionKind.MultiSelect, ChatInputQuestionKind.MultiSelect]);
+			assert.deepStrictEqual(result.map(q => q.kind === ChatInputQuestionKind.MultiSelect ? q.allowFreeformInput : undefined), [false, true, true]);
 		});
 
 		test('falls back to q-{idx} id when header is empty', () => {
