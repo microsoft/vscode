@@ -11,7 +11,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { FindModelBoundToEditorModel } from '../../browser/findModel.js';
+import { FindModelBoundToEditorModel, MATCHES_LIMIT } from '../../browser/findModel.js';
 import { FindReplaceState } from '../../browser/findState.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
@@ -2389,6 +2389,35 @@ suite('FindModel', () => {
 			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
 			assert.strictEqual(findState.matchesPosition, 900);
 		});
+	});
+
+	suite('replaceAll preserves replacement semantics', () => {
+		for (const { name, searchString, replaceString, isRegex, expected } of [
+			{ name: 'literal dollars', searchString: 'x', replaceString: '$$', isRegex: false, expected: '$$' },
+			{ name: 'literal whole-match reference', searchString: 'x', replaceString: '$&', isRegex: false, expected: '$&' },
+			{ name: 'escaped capture reference', searchString: '(x)', replaceString: '$$1', isRegex: true, expected: '$1' },
+			{ name: 'missing capture', searchString: 'x', replaceString: '$1', isRegex: true, expected: '$1' },
+			{ name: 'unmatched and missing captures', searchString: 'x(y)?', replaceString: '$1$2', isRegex: true, expected: '$2' },
+			{ name: 'missing capture after named group', searchString: '(?<letter>x)', replaceString: '$2', isRegex: true, expected: '$2' },
+			{ name: 'capture fallback after nine groups', searchString: '(x)()()()()()()()()', replaceString: '$10', isRegex: true, expected: 'x0' },
+		]) {
+			for (const matchCount of [2, MATCHES_LIMIT + 1]) {
+				test(`${name} with ${matchCount} matches`, () => {
+					let actual: string | undefined;
+					withTestCodeEditor(['x'.repeat(matchCount)], {}, (_editor) => {
+						const editor = _editor as IActiveCodeEditor;
+						const findState = disposables.add(new FindReplaceState());
+						findState.change({ searchString, replaceString, isRegex }, false);
+						const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+						findModel.replaceAll();
+
+						actual = editor.getModel().getValue();
+					});
+					assert.strictEqual(actual, expected.repeat(matchCount));
+				});
+			}
+		}
 	});
 
 });

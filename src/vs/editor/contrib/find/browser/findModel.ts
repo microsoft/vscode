@@ -557,12 +557,21 @@ export class FindModelBoundToEditorModel {
 		const preserveCase = this._state.preserveCase;
 
 		if (replacePattern.hasReplacementPatterns || preserveCase) {
-			resultText = modelText.replace(searchRegex, function () {
-				// eslint-disable-next-line local/code-no-any-casts
-				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
+			resultText = modelText.replace(searchRegex, (match: string, ...args: unknown[]) => {
+				const matches = [match];
+				// Captures are strings or undefined; the numeric offset starts the metadata.
+				for (const arg of args) {
+					if (typeof arg === 'number') {
+						break;
+					}
+					matches.push(typeof arg === 'string' ? arg : '');
+				}
+				return replacePattern.buildReplaceString(matches, preserveCase);
 			});
 		} else {
-			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
+			const replaceString = replacePattern.buildReplaceString(null, preserveCase);
+			// Escape dollars so String.replace treats the parsed replacement literally.
+			resultText = modelText.replace(searchRegex, replaceString.replace(/\$/g, '$$$$'));
 		}
 
 		const command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
