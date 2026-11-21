@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { isWindows } from '../../../../../../../base/common/platform.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -735,6 +736,35 @@ suite('PromptFilesLocator', () => {
 							],
 							searchedFolders: ['/Users/legomushroom/repos/Game [URP] {v2}/deps'],
 						},
+					);
+				});
+
+				testT('normalizes the configured path before detecting glob patterns', async () => {
+					setLocations({
+						'unused*/../shared/prompts': true,
+						// backslashes are path separators only on Windows
+						...(isWindows ? { 'deps\\*.prompt.md': true } : {}),
+					});
+					setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+					await mockFiles(fileService, [
+						{
+							path: '/Users/legomushroom/repos/vscode/shared/prompts/default.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+						{
+							path: '/Users/legomushroom/repos/vscode/deps/my.prompt.md',
+							contents: ['oh hi, bot!'],
+						},
+					]);
+					const locator = instantiationService.createInstance(PromptFilesLocator);
+
+					assertOutcome(
+						await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
+						[
+							'/Users/legomushroom/repos/vscode/shared/prompts/default.prompt.md',
+							...(isWindows ? ['/Users/legomushroom/repos/vscode/deps/my.prompt.md'] : []),
+						],
+						'Must find correct prompts.',
 					);
 				});
 			});

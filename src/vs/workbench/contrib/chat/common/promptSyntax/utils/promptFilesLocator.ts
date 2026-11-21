@@ -620,7 +620,7 @@ export class PromptFilesLocator {
 					const uri = joinPath(userHome, configuredLocation.substring(2));
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						const { searchRoot, filePattern } = resolveSearchLocation(type, userHome, configuredLocation.substring(2));
+						const { searchRoot, filePattern } = resolveSearchLocation(type, uri, userHome);
 						result.push({ uri, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 					continue;
@@ -636,8 +636,7 @@ export class PromptFilesLocator {
 					}
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						// the whole absolute path is user-configured, so any segment may contain a glob pattern
-						const { searchRoot, filePattern } = resolveSearchLocation(type, uri.with({ path: '/' }), uri.path.substring(1));
+						const { searchRoot, filePattern } = resolveSearchLocation(type, uri);
 						result.push({ uri, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 				} else {
@@ -645,7 +644,7 @@ export class PromptFilesLocator {
 						const absolutePath = joinPath(folder, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							const { searchRoot, filePattern } = resolveSearchLocation(type, folder, configuredLocation);
+							const { searchRoot, filePattern } = resolveSearchLocation(type, absolutePath, folder);
 							result.push({ uri: absolutePath, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
@@ -1012,28 +1011,29 @@ interface ISearchLocationResult {
  * Resolves the search root and optional file pattern for the provided location.
  * For paths with glob patterns, finds the deepest non-glob ancestor directory.
  *
- * Only the configured `path` is checked for glob patterns, so glob-like characters
- * in the `base` folder (e.g. a workspace folder named `Project [URP]`) never move
- * the search root outside of `base`.
+ * When `base` is provided, only the part of the (already normalized) `location`
+ * relative to `base` is checked for glob patterns, so glob-like characters in the
+ * `base` folder (e.g. a workspace folder named `Project [URP]`) never move the
+ * search root outside of `base`. Without `base`, the whole path is checked.
  *
  * ## Examples
  *
  * ```typescript
  * assert.strictDeepEqual(
- *     resolveSearchLocation(PromptsType.prompt, URI.file('/home/user'), '{folder1,folder2}/file.md'),
+ *     resolveSearchLocation(PromptsType.prompt, URI.file('/home/user/{folder1,folder2}/file.md'), URI.file('/home/user')),
  *     { searchRoot: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
  *     'Must find correct non-glob search root.',
  * );
  * ```
  */
-function resolveSearchLocation(type: PromptsType, base: URI, path: string): ISearchLocationResult {
-	const location = joinPath(base, path);
+function resolveSearchLocation(type: PromptsType, location: URI, base?: URI): ISearchLocationResult {
 	if (type !== PromptsType.instructions && type !== PromptsType.prompt) {
 		// only instructions and prompts support glob patterns, so we can return the location as is
 		return { searchRoot: location };
 	}
 
-	const segments = path.split('/');
+	const configuredPath = base ? relativePath(base, location) : undefined;
+	const segments = configuredPath !== undefined ? configuredPath.split('/') : location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
 		i++;
@@ -1043,7 +1043,9 @@ function resolveSearchLocation(type: PromptsType, base: URI, path: string): ISea
 		// just find all prompt files in the provided location
 		return { searchRoot: location };
 	}
-	const parent = joinPath(base, ...segments.slice(0, i));
+	const parent = configuredPath !== undefined
+		? joinPath(base!, ...segments.slice(0, i))
+		: location.with({ path: segments.slice(0, i).join('/') });
 	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
 		return { searchRoot: parent };
 	}
