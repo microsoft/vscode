@@ -1083,6 +1083,7 @@ export interface IWebviewPanelOptions {
 }
 
 export interface CustomEditorProviderCapabilities {
+	readonly saveAsFilters?: { name: string; extensions: string[] }[];
 	readonly supportsMove?: boolean;
 	readonly supportsNavigation?: boolean;
 	readonly supportsInlineDiff?: boolean;

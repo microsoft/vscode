@@ -189,6 +189,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 		disposables.add(this._customEditorService.registerCustomEditorCapabilities(viewType, {
 			supportsMultipleEditorsPerDocument,
+			saveAsFilters: capabilities.saveAsFilters,
 			isTextEditor: modelType === CustomEditorModelType.Text,
 			supportsInlineDiff: capabilities.supportsInlineDiff,
 			supportsSideBySideDiff: capabilities.supportsSideBySideDiff,
@@ -642,6 +643,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		startDirty: boolean,
 		private readonly _getEditors: () => CustomEditorWebviewInput[],
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IFileService fileService: IFileService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
@@ -903,7 +905,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		const localResource = toLocalResource(this._editorResource, remoteAuthority, this._pathService.defaultUriScheme);
 
-		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);
+		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems, this._customEditorService.getCustomEditorCapabilities(this._viewType)?.saveAsFilters);
 	}
 
 	public async saveCustomEditorAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {

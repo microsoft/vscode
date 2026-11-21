@@ -337,7 +337,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 
 		const dialogPath = this._editorResource;
-		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
+		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems, this.customEditorService.getCustomEditorCapabilities(this.viewType)?.saveAsFilters);
 		if (!target) {
 			return undefined; // save cancelled
 		}
