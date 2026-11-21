@@ -233,6 +233,28 @@ jq -r '[.rows[] | select(.currentState == null and .owner == "alexdima" and .lan
   | .[:50][] | [.number, (.valueRaw // 0), (.severity // ""), .title] | @tsv' "$DIR/$FILE"
 ```
 
+**"Which sweeper closes came back?"** — closes the sweeper proposed (by a person or
+the sweeper-close bot) that were reopened, or drew a reply from the issue author or
+a non-team account after the close. A reopened row may be open again, so do NOT
+filter on `currentState` here:
+
+```bash
+jq -r '[.rows[] | select(.reopenedAt != null or .closeRepliedAt != null)]
+  | sort_by(.reopenedAt // .closeRepliedAt) | reverse
+  | .[:50][] | [.number,
+      (if .reopenedAt then "reopened" else "replied" end),
+      (if (.priorAutoLane // .autoLane) then "bot" else (.actedBy // .closedBy // "") end),
+      (.priorCloseReason // .closeReason // ""),
+      ((.reopenedAt // .closeRepliedAt)[0:10]),
+      (.priorCloseVerdict // .closeVerdict // "no verdict"),
+      .title] | @tsv' "$DIR/$FILE"
+```
+
+`closeHandledAt` absent on a replied row means no team member answered yet. The
+index never carries the reply's text: to drop thank-you-only replies, read each
+`closeRepliedUrl` comment (`gh api repos/<repo>/issues/comments/<id>`, read-only)
+and say which ones you dropped. A reopen always counts.
+
 **"What did the sweeper find on 285145?"** — one issue, so read its record (section
 5). Confirm the row first (open? which verdict? `contentStale`?), then fetch:
 
@@ -293,6 +315,7 @@ _Generated from `src/index-schema.ts` — index schema 2. Do not edit by hand; r
 | `infoRequestedAt` | string | on a needs-info row whose request still stands (ISO, or `unknown`) | When the repo's needs-info label was applied. |
 | `infoAnsweredAt` | string | beside `infoRequestedAt`, when the reporter answered but the label is still on | The reporter's first reply after the ask — the issue now waits on the maintainer. |
 | `infoAnsweredBy` | string | beside `infoAnsweredAt` | Who answered. Values: `reporter`. |
+| `autoAskedAt` | string | beside `infoRequestedAt`, when the needs-info bot posted the ask (ISO) | The bot asked, not a maintainer — never count the row as a maintainer's ask. Absent until the auto-ask lane runs. |
 | `infoRequestedBy` | string | on needs-info rows with a post-review request | Login that applied the label. |
 | `infoCommentUsed` | string | on needs-info rows with a post-review request | Whether the proposed question was posted. Values: `verbatim`, `embedded`, `edited`, `none`, `not-proposed`. |
 | `infoActedBy` | string | beside `infoCommentUsed` | Login that posted the question. |
@@ -305,6 +328,16 @@ _Generated from `src/index-schema.ts` — index schema 2. Do not edit by hand; r
 | `autoClosedAt` | string | rows the sweeper-close action closed (ISO) | An automatic close — never a maintainer action. |
 | `autoLane` | string | beside `autoClosedAt` | Which auto-close lane closed it. Values: `duplicate`, `implemented`. |
 | `autoObjectedAt` | string | auto-closed rows someone replied to afterwards (ISO) | A possible objection the assignee should look at. |
+| `reopenedAt` | string | rows reopened after a close the sweeper proposed (ISO) — open again, or closed a second time | The close was reversed. A row came back when it has `reopenedAt` or `closeRepliedAt`. |
+| `reopenedBy` | string | beside `reopenedAt`, when known | Login that reopened the issue. |
+| `priorCloseReason` | string | beside `reopenedAt`, when known | The close reason of the reversed close, `closeReason`'s values (the row's own `closeReason` may be a later re-review's). |
+| `priorAutoLane` | string | beside `reopenedAt`, when the sweeper-close action made the reversed close | That close was automatic (absent = a person closed it). Values: `duplicate`, `implemented`. |
+| `priorCloseVerdict` | string | beside `reopenedAt`, once a maintainer judged the reversed close | `wrong`: the close was a mistake; `held`: it stands (a reopen for another reason). Values: `held`, `wrong`. |
+| `closeRepliedAt` | string | closed close-proposal rows the issue author or a non-team account commented on after the close (ISO) | A reply after a close that used the sweeper's comment, or after an auto-close. Its text is not in the index — read the comment at `closeRepliedUrl` (a thank-you looks like any other reply here). |
+| `closeRepliedBy` | string | beside `closeRepliedAt` | Who replied. Values: `author`, `other`. |
+| `closeRepliedUrl` | string | beside `closeRepliedAt` | The reply comment's link (`…#issuecomment-<id>`; the id reads it with `gh api repos/<repo>/issues/comments/<id>`). |
+| `closeHandledAt` | string | beside `closeRepliedAt`, once a team member answered (ISO) | Absent = the reply is still unanswered. |
+| `closeVerdict` | string | closed close-proposal rows a maintainer judged after a reply | `wrong`: the close was a mistake; `held`: it stands (a thank-you, a question, an unfounded objection). Values: `held`, `wrong`. |
 | `lastCommentAt` | string | open rows with a non-bot comment (ISO) | The newest human comment. |
 | `lastCommentBy` | string | beside `lastCommentAt` | `reporter` for the issue author, else the login. |
 | `assigneeActedAt` | string | open rows where a live assignee acted (ISO) | The assignee's latest action. |
