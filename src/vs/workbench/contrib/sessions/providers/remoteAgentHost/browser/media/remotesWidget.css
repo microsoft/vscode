@@ -690,10 +690,6 @@
 }
 
 .remotes-method-choices.monaco-custom-radio.cards {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-	gap: var(--vscode-spacing-size120);
-	align-items: stretch;
 	margin-block: var(--vscode-spacing-size120);
 }
 

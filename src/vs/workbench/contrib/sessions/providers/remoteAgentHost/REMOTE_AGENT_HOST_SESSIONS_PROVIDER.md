@@ -184,7 +184,7 @@ User-local MC attachment has a one-minute client deadline covering identity, liv
 
 The remote Agent Host services may remember a user's preferred run location. The owning location-preference service defines its persistence key and selection policy. Providers consume the resolved location; they do not duplicate preference state in session metadata.
 
-Remote Environments presents this preference on a focused Agent Run Behavior page. A Saved preference label identifies the saved preference; the checked card is the pending selection. Back and Cancel discard the draft.
+Remote Environments edits this preference on a focused page. The saved preference remains separate from the pending selection until Save; Back and Cancel discard the draft.
 
 The This computer section is controlled by the experiment-controlled `sessions.chat.remoteEnvironments.sharingSetup` setting. When disabled, a segmented control applies Off, GitHub Environments, or Dev Tunnels as soon as it is chosen. When enabled, Share This Computer expands an inline setup: the user chooses the connection method and display name before Start Sharing persists the name through the owning service or configuration and enables access. Once sharing is active, the Stop Sharing split button offers the other method directly. Switching methods can stop the existing connection before starting the new one; a failed switch reports the resulting sharing state without reopening the setup.
 

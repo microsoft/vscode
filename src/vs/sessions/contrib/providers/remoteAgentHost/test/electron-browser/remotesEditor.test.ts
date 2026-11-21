@@ -890,6 +890,7 @@ suite('RemotesEditor', () => {
 			const search = container.querySelector('.remotes-search-row')!.getBoundingClientRect();
 			const refresh = container.querySelector('.remotes-header-actions .monaco-button')!.getBoundingClientRect();
 			const row = container.querySelector('[data-remote-id]')!.getBoundingClientRect();
+			const tableContent = container.querySelector('.remotes-table-inner')!.getBoundingClientRect();
 			const title = container.querySelector<HTMLElement>('.remotes-this-computer-title')!;
 			const otherTitle = container.querySelector<HTMLElement>('.remotes-heading-title')!;
 			const name = container.querySelector<HTMLElement>('.remotes-this-computer-name')!;
@@ -918,7 +919,7 @@ suite('RemotesEditor', () => {
 			return {
 				focusRingsFit,
 				rightAligned: [share.right, search.right, refresh.right].every(right => Math.abs(right - table.right) < 1)
-					&& Math.abs(row.right - container.querySelector('.monaco-list-rows')!.getBoundingClientRect().right) < 1,
+					&& Math.abs(row.right - tableContent.right) < 1,
 				leftAligned: Math.abs(row.left - table.left) < 1,
 				refreshFits: refresh.width > 0 && refresh.left >= table.left,
 				shareBesideHeading: Math.abs(share.top + share.height / 2 - titleBounds.top - titleBounds.height / 2) < 1,

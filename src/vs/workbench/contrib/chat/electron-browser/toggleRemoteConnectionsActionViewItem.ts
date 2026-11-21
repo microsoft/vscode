@@ -291,13 +291,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			labelIcon: compact ? undefined : Codicon.radioTower,
 			...explain(getDevTunnelsDetail()),
 		});
-		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
-		const management = this._options.getManagementAction?.() ?? (this._isChatInput ? undefined : toAction({
-			id: 'remoteConnections.rename',
-			label: localize('remoteConnections.renameComputer', "Change Sharing Name..."),
-			enabled: this.isEnabled() && !!this._sharing.name && !this._sharing.getState().isConnecting,
-			run: () => this._rename(usesGitHubEnvironment),
-		}));
+		const management = this._options.getManagementAction?.();
 		if (management) {
 			for (const method of methods) {
 				method.category = { label: 'methods', order: 0 };
