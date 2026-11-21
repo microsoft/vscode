@@ -109,7 +109,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	private _currentPosition(): number {
 		const currentElement = this._navigator.current();
-		if (!currentElement) {
+		if (currentElement === null) {
 			return -1;
 		}
 
