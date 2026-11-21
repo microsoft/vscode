@@ -3260,6 +3260,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._grantImplicitReadsForCustomizations(action.activeClient.customizations);
 				}
 				break;
+			case ActionType.AutomationCreateRequested:
+				if (action.definition.session.customizations) {
+					this._grantImplicitReadsForCustomizations(action.definition.session.customizations);
+				}
+				break;
+			case ActionType.AutomationUpdateRequested:
+				if (action.changes.session?.customizations) {
+					this._grantImplicitReadsForCustomizations(action.changes.session.customizations);
+				}
+				break;
 			case ActionType.ChatTurnStarted:
 			case ActionType.ChatPendingMessageSet:
 				this._grantImplicitReadsForMessage(action.message);
