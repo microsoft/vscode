@@ -508,8 +508,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
 		}
 		if (collection?.lazy) {
+			const lazyCollection = collection;
 			await collection.lazy.load();
 			collection = this._collections.get().find(c => c.id === collectionRef.id);
+			if (collection === lazyCollection) {
+				collection.lazy?.removed?.();
+				return undefined;
+			}
 		}
 		if (collection && !this.isCollectionAllowed(collection, this._strictPluginOnlyCustomization.get())) {
 			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
