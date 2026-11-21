@@ -73,4 +73,20 @@ suite('AgentPlugin items', () => {
 		const plugin = installed(uri);
 		assert.strictEqual(findInstalledPlugin([plugin], uri), plugin);
 	});
+
+	test('matches CLI installations by plugin and marketplace identity', () => {
+		const plugin = {
+			...installed(URI.file('/home/user/.copilot/installed-plugins/catalog/test')),
+			copilotCliInstallation: { name: 'test', marketplace: 'catalog' },
+		};
+		const expectedUri = URI.file('/vscode/plugins/test');
+		assert.deepStrictEqual([
+			findInstalledPlugin([plugin], expectedUri, { ...marketplace(), marketplace: 'catalog' }),
+			findInstalledPlugin([plugin], expectedUri, { ...marketplace(), marketplaceName: 'catalog' }),
+			findInstalledPlugin([plugin], expectedUri, { ...marketplace(), marketplace: 'catalog', marketplaceName: 'another-catalog' }),
+			findInstalledPlugin([plugin], expectedUri, { ...marketplace('another'), marketplace: 'catalog' }),
+			findInstalledPlugin([plugin], expectedUri, marketplace('test', 'owner/another')),
+			findInstalledPlugin([{ ...plugin, copilotCliInstallation: { name: 'test', marketplace: '' } }], expectedUri, marketplace()),
+		], [plugin, plugin, undefined, undefined, undefined, undefined]);
+	});
 });

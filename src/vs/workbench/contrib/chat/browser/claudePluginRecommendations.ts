@@ -10,6 +10,7 @@ import { INotificationService, NeverShowAgainScope, Severity } from '../../../..
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { IAgentPluginService, matchesMarketplacePlugin } from '../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 
 export class AgentPluginRecommendations extends Disposable implements IWorkbenchContribution {
@@ -22,6 +23,7 @@ export class AgentPluginRecommendations extends Disposable implements IWorkbench
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super();
 
@@ -61,8 +63,13 @@ export class AgentPluginRecommendations extends Disposable implements IWorkbench
 			}
 		}
 		const knownKeys = new Set<string>();
+		const installedPlugins = this._agentPluginService.plugins.get();
 		for (const plugin of fetched) {
-			knownKeys.add(`${plugin.name}@${plugin.marketplace}`);
+			const key = `${plugin.name}@${plugin.marketplace}`;
+			knownKeys.add(key);
+			if (installedPlugins.some(installed => matchesMarketplacePlugin(installed, plugin))) {
+				installedKeys.add(key);
+			}
 		}
 
 		let uninstalledCount = 0;
