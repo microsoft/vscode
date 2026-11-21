@@ -24,9 +24,9 @@ import { DEFAULT_MCP_APP } from '../../common/state/protocol/mcpAppDefaults.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
 import { readCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
-import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
-import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
+import { SessionCustomizationDiscovery, type SessionDiscoveredCustomization } from '../../node/copilot/sessionCustomizationDiscovery.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostHooksEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
@@ -83,6 +83,12 @@ suite('SessionCustomizationDiscovery', () => {
 				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
 			},
 		} as unknown as CopilotClient;
+	}
+
+	/** The load state of the directory that reports hook files the runtime failed to load. */
+	function hookLoadDiagnostics(customizations: readonly SessionDiscoveredCustomization[]) {
+		const directory = customizations.find(item => item.uri.endsWith('/hooks/diagnostics'));
+		return directory?.type === CustomizationType.Directory ? directory.load : undefined;
 	}
 
 	test('groups discovered customizations by parent folder', async () => {
@@ -416,6 +422,7 @@ suite('SessionCustomizationDiscovery', () => {
 					readable: hasReadableCustomizationContent(URI.parse(hook.uri)),
 				})),
 				load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+				loadDiagnostics: hookLoadDiagnostics(result),
 				requests,
 			}, {
 				hooks: [
@@ -423,7 +430,8 @@ suite('SessionCustomizationDiscovery', () => {
 					{ id: 'opaque-user', source: 'user', enabled: false, readable: false },
 					{ id: 'opaque-workspace', source: 'repository', enabled: false, readable: false },
 				],
-				load: { kind: CustomizationLoadStatus.Degraded, message: 'SDK partial error\nSDK warning' },
+				load: { kind: CustomizationLoadStatus.Loaded },
+				loadDiagnostics: { kind: CustomizationLoadStatus.Degraded, message: 'SDK partial error\nSDK warning' },
 				requests: [
 					{ projectPaths: [workspace.fsPath, secondWorkspace.fsPath] },
 					// A folder the runtime already reports repository hooks for needs no fallback.
@@ -537,6 +545,37 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	});
 
+	test('reports hook load errors and warnings in their own directory instead of on the hooks that loaded', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const hooksFor = async (hooks: Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>['hooks'], errors: string[], warnings: string[]) => {
+			const result = await discovery.discover(hookDiscoveryClient(async () => ({ hooks, errors, warnings })), CancellationToken.None);
+			return result.filter(item => item.contents === CustomizationType.Hook && URI.parse(item.uri).scheme === AGENT_DISCOVERY_CUSTOMIZATION_SCHEME).map(item => ({
+				path: URI.parse(item.uri).path,
+				name: item.name,
+				load: item.type === CustomizationType.Directory ? item.load : undefined,
+				children: item.children?.map(child => child.id),
+			}));
+		};
+		const loaded = [{ id: 'guard', hookType: 'preToolUse' as const, origin: 'user' as const, enabled: true }];
+		assert.deepStrictEqual({
+			errorsAndWarnings: await hooksFor(loaded, ['Invalid hook configuration in broken.json', 'Invalid hook configuration in other.json'], ['Recovered source']),
+			warningsOnly: await hooksFor(loaded, [], ['Recovered source']),
+			nothingLoaded: await hooksFor([], ['Invalid hook configuration in broken.json'], []),
+		}, {
+			errorsAndWarnings: [
+				{ path: '/hooks', name: 'Copilot hooks', load: { kind: CustomizationLoadStatus.Loaded }, children: ['guard'] },
+				{ path: '/hooks/diagnostics', name: 'Some hook files could not be loaded', load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json\nRecovered source' }, children: [] },
+			],
+			warningsOnly: [
+				{ path: '/hooks', name: 'Copilot hooks', load: { kind: CustomizationLoadStatus.Loaded }, children: ['guard'] },
+				{ path: '/hooks/diagnostics', name: 'Some hook files have warnings', load: { kind: CustomizationLoadStatus.Degraded, message: 'Recovered source' }, children: [] },
+			],
+			nothingLoaded: [
+				{ path: '/hooks/diagnostics', name: 'Some hook files could not be loaded', load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json' }, children: [] },
+			],
+		});
+	});
+
 	test('rediscovers hooks when workspace trust changes', async () => {
 		setWorkspaceTrust({ enabled: true, trustedUris: [] });
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
@@ -591,9 +630,11 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual({
 			ids: hooks?.children?.map(hook => hook.id),
 			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+			loadDiagnostics: hookLoadDiagnostics(result),
 		}, {
 			ids: ['native'],
-			load: { kind: CustomizationLoadStatus.Degraded, message: 'Workspace hook discovery failed: SDK fallback unavailable' },
+			load: { kind: CustomizationLoadStatus.Loaded },
+			loadDiagnostics: { kind: CustomizationLoadStatus.Degraded, message: 'Workspace hook discovery failed: SDK fallback unavailable' },
 		});
 	});
 
@@ -662,6 +703,7 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual({
 			hooks: hooks?.children?.map(hook => ({ id: hook.id, name: hook.name, enabled: hook.type === CustomizationType.Hook ? hook.enabled : undefined, readable: hasReadableCustomizationContent(URI.parse(hook.uri)), provenance: readCustomizationDiscoveryMeta(hook) })),
 			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+			loadDiagnostics: hookLoadDiagnostics(customizations),
 			mcp: mcp?.type === CustomizationType.McpServer ? { name: mcp.name, uri: mcp.uri, state: mcp.state, provenance: readCustomizationDiscoveryMeta(mcp) } : undefined,
 			requests: mcpRequests,
 			diagnostics: messages.filter(message => message.includes('Hook discovery:')),
@@ -670,7 +712,8 @@ suite('SessionCustomizationDiscovery', () => {
 				id: index === 0 ? 'opaque:one' : 'opaque:two', name: 'sessionStart', enabled, readable: false,
 				provenance: { source: 'plugin', sourceLabel: 'hooks-only', hookType: 'sessionStart', defaultEnabled: undefined, sourceId: undefined, pluginId: undefined },
 			})),
-			load: { kind: CustomizationLoadStatus.Degraded, message: 'Another source failed\nRecovered source' },
+			load: { kind: CustomizationLoadStatus.Loaded },
+			loadDiagnostics: { kind: CustomizationLoadStatus.Degraded, message: 'Another source failed\nRecovered source' },
 			mcp: { name: 'native', uri: inMemoryPathToUri('/host/plugins/mcp.json').toString(), state: { kind: McpServerStatus.Stopped }, provenance: { source: 'plugin', sourceLabel: undefined, hookType: undefined, defaultEnabled: false, sourceId: 'do-not-parse', pluginId: 'opaque-plugin' } },
 			requests: [{ workingDirectory: workspace.fsPath, includeEffectiveSource: true }],
 			diagnostics: ['[SessionCustomizationDiscovery] Hook discovery: Recovered source', '[SessionCustomizationDiscovery] Hook discovery: Another source failed'],
