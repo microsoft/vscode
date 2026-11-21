@@ -111,9 +111,15 @@ export function findFirstIdxMonotonousOrArrLen<T>(array: readonly T[], predicate
 	return i;
 }
 
+/**
+ * Finds the first item where predicate is true using binary search.
+ * `predicate` must be monotonous, i.e. `arr.map(predicate)` must be like `[false, ..., false, true, ..., true]`!
+ *
+ * @returns `-1` if predicate is false for all items in `[startIdx, endIdxEx)`, otherwise the index of the first item that matches the predicate.
+ */
 export function findFirstIdxMonotonous<T>(array: readonly T[], predicate: (item: T) => boolean, startIdx = 0, endIdxEx = array.length): number {
 	const idx = findFirstIdxMonotonousOrArrLen(array, predicate, startIdx, endIdxEx);
-	return idx === array.length ? -1 : idx;
+	return idx === endIdxEx ? -1 : idx;
 }
 
 /**
