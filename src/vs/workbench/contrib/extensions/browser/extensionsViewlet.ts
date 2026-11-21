@@ -62,6 +62,7 @@ import { extractEditorsAndFilesDropData } from '../../../../platform/dnd/browser
 import { extname } from '../../../../base/common/resources.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { focusFirstPopulatedExtensionsList } from './extensionsFocus.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
@@ -1000,20 +1001,13 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		}
 	}
 
-	private getFirstExpandedPane(): ExtensionsListView | undefined {
-		for (const pane of this.panes) {
-			if (pane.isExpanded() && pane instanceof ExtensionsListView) {
-				return pane;
-			}
-		}
-		return undefined;
+	/** Navigate to an available results list without updating the search text. */
+	focusResults(): void {
+		this.focusListView();
 	}
 
 	private focusListView(): void {
-		const pane = this.getFirstExpandedPane();
-		if (pane && pane.count() > 0) {
-			pane.focus();
-		}
+		focusFirstPopulatedExtensionsList(this.panes.filter(pane => pane instanceof ExtensionsListView));
 	}
 
 	private onViewletOpen(viewlet: IPaneComposite): void {
