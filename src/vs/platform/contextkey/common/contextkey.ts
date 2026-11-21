@@ -1459,10 +1459,18 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 		}
 		const thisSource = this.regexp ? this.regexp.source : '';
 		const otherSource = other.regexp ? other.regexp.source : '';
+		const thisFlags = this.regexp ? this.regexp.flags : '';
+		const otherFlags = other.regexp ? other.regexp.flags : '';
 		if (thisSource < otherSource) {
 			return -1;
 		}
 		if (thisSource > otherSource) {
+			return 1;
+		}
+		if (thisFlags < otherFlags) {
+			return -1;
+		}
+		if (thisFlags > otherFlags) {
 			return 1;
 		}
 		return 0;
@@ -1472,7 +1480,9 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 		if (other.type === this.type) {
 			const thisSource = this.regexp ? this.regexp.source : '';
 			const otherSource = other.regexp ? other.regexp.source : '';
-			return (this.key === other.key && thisSource === otherSource);
+			const thisFlags = this.regexp ? this.regexp.flags : '';
+			const otherFlags = other.regexp ? other.regexp.flags : '';
+			return (this.key === other.key && thisSource === otherSource && thisFlags === otherFlags);
 		}
 		return false;
 	}
