@@ -234,7 +234,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly workspaceFolders?: readonly URI[];
 	readonly repositories?: readonly IGitRepository[];
 	readonly scmRepositories?: readonly IGitRepository[];
-	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
+	readonly openRepository?: (root: URI, token?: CancellationToken) => Promise<IGitRepository | undefined>;
 	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	readonly getSessionHistory?: (token: CancellationToken) => Promise<IReplayedTaskHistory>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
@@ -650,8 +650,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(IGitService, new class extends mock<IGitService>() {
 		override get repositories() { return options?.openRepository ? [] : state.repositories; }
-		override async openRepository(root: URI) {
-			return options?.openRepository ? options.openRepository(root) : state.repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root));
+		override async openRepository(root: URI, token?: CancellationToken) {
+			return options?.openRepository ? options.openRepository(root, token) : state.repositories.find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root));
 		}
 	}());
 	instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
@@ -3275,6 +3275,28 @@ suite('Editor cloud sandbox discovery', () => {
 			snapshots.push(h.items().map(item => item.resource.path));
 		}
 		assert.deepStrictEqual(snapshots, [[], [], ['/original-task'], []]);
+	});
+
+	test('cancels queued per-folder repository lookups once SCM registers the repository containing them', async () => {
+		const folders = [workspaceFolder, URI.joinPath(workspaceFolder, 'src'), URI.joinPath(workspaceFolder, 'test')];
+		const lookups: { readonly root: string; readonly token: CancellationToken | undefined }[] = [];
+		const h = createHarness(store, {
+			workspaceFolders: folders,
+			repositories: [],
+			scmRepositories: [],
+			openRepository: (root, token) => {
+				lookups.push({ root: root.path, token });
+				return new DeferredPromise<IGitRepository | undefined>().p;
+			},
+		});
+		await h.refresh();
+		h.addRepository(repository(['https://github.com/example/project.git']));
+		assert.deepStrictEqual(lookups.map(({ root, token }) => ({ root, cancelled: token?.isCancellationRequested })), [
+			{ root: '/local/project', cancelled: true },
+			{ root: '/local/project/src', cancelled: true },
+			{ root: '/local/project/test', cancelled: true },
+			{ root: '/local/project', cancelled: false },
+		]);
 	});
 
 	test('a repository lookup completing after a workspace change does not restore unrelated rows', async () => {
