@@ -5,9 +5,10 @@
 
 import type * as http from 'http';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatResult } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -80,6 +81,9 @@ export interface IByokLmProxyService {
 
 	/** Fires when a request's tools were capped at {@link BYOK_MAX_TOOLS}. */
 	readonly onDidCapTools: Event<IByokLmToolsCappedEvent>;
+
+	/** Resolves the active turn's initiating client for an SDK session. */
+	registerClientResolver(resolver: (sessionId: string) => string | undefined): IDisposable;
 
 	/** Start the proxy (if not already running) and return a refcounted handle. */
 	start(): Promise<IByokLmProxyHandle>;
@@ -164,6 +168,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _clientResolvers = new Set<(sessionId: string) => string | undefined>();
+	private readonly _connectionIds = new WeakMap<IByokLmBridgeConnection, number>();
+	private _nextConnectionId = 0;
 	private readonly _onDidCapTools = new Emitter<IByokLmToolsCappedEvent>();
 	readonly onDidCapTools = this._onDidCapTools.event;
 
@@ -172,6 +179,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		@IByokLmBridgeRegistry private readonly _bridgeRegistry: IByokLmBridgeRegistry,
 	) {
 		super(PROXY_USER_FACING_NAME, logService);
+	}
+
+	registerClientResolver(resolver: (sessionId: string) => string | undefined): IDisposable {
+		this._clientResolvers.add(resolver);
+		return toDisposable(() => this._clientResolvers.delete(resolver));
 	}
 
 	protected createState(): ByokLmProxyState {
@@ -201,6 +213,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 	override dispose(): void {
 		super.dispose();
+		this._clientResolvers.clear();
 		this._onDidCapTools.dispose();
 	}
 
@@ -273,7 +286,27 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
-		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model) : undefined;
+		let clientId: string | undefined;
+		for (const resolve of this._clientResolvers) {
+			clientId = resolve(sessionId);
+			if (clientId !== undefined) {
+				break;
+			}
+		}
+		const connection = this._bridgeRegistry.getServingConnection(clientId);
+		if (!connection) {
+			try {
+				responsesRequestToBridge(vendor, body);
+			} catch (err) {
+				const message = err instanceof ResponsesTranslationError ? err.message : String(err);
+				this._writeJsonError(res, 400, message, 'invalid_request_error');
+				return;
+			}
+			this._writeJsonError(res, 503, 'No renderer connection available to service BYOK models', 'api_error');
+			return;
+		}
+
+		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model, connection) : undefined;
 		const explicitResponseId = body?.previous_response_id;
 		const mappedProviderResponseId = continuationScope && explicitResponseId !== undefined
 			? runtime.state.wireToProviderResponseIds.get(this._wireResponseIdKey(continuationScope, explicitResponseId))
@@ -333,12 +366,6 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			this._logService.trace(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: dropped tools: ${capped.droppedToolNames.join(', ')}`);
 			bridgeRequest = capped.request;
 			this._onDidCapTools.fire({ sessionId, requestedToolCount, sentToolCount });
-		}
-
-		const connection = this._bridgeRegistry.getServingConnection();
-		if (!connection) {
-			this._writeJsonError(res, 503, 'No renderer connection available to service BYOK models', 'api_error');
-			return;
 		}
 
 		// Register the request so {@link LoopbackProxyServer} aborts it on
@@ -471,8 +498,13 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		}
 	}
 
-	private _continuationScope(sessionId: string, vendor: string, modelId: string): string {
-		return JSON.stringify([sessionId, vendor, modelId]);
+	private _continuationScope(sessionId: string, vendor: string, modelId: string, connection: IByokLmBridgeConnection): string {
+		let connectionId = this._connectionIds.get(connection);
+		if (connectionId === undefined) {
+			connectionId = ++this._nextConnectionId;
+			this._connectionIds.set(connection, connectionId);
+		}
+		return JSON.stringify([sessionId, vendor, modelId, connectionId]);
 	}
 
 	private _wireResponseIdKey(scope: string, wireResponseId: string): string {
@@ -604,6 +636,10 @@ export class NullByokLmProxyService implements IByokLmProxyService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidCapTools: Event<IByokLmToolsCappedEvent> = Event.None;
+
+	registerClientResolver(_resolver: (sessionId: string) => string | undefined): IDisposable {
+		return Disposable.None;
+	}
 
 	start(): Promise<IByokLmProxyHandle> {
 		return Promise.reject(new Error('BYOK is not supported in this agent host'));
