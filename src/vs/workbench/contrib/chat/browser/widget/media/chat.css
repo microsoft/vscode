@@ -732,6 +732,7 @@
 	}
 }
 
+/* NOTE- CodeBlockPart.getBlockquoteInset sizes request code blocks to this padding and border */
 .interactive-item-container .value .rendered-markdown blockquote {
 	margin: 0px;
 	padding: 0px 16px 0 10px;

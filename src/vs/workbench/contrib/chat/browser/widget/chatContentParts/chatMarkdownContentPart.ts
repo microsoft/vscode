@@ -545,6 +545,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 			this.domNode.classList.toggle('chat-markdown-has-code-block', this.allRefs.some(ref => ref.object instanceof CodeBlockPart));
+			if (isRequestVM(element)) {
+				// Request code blocks are sized to their enclosing blockquotes, which only exist once the markdown is rendered
+				for (const ref of this.allRefs) {
+					if (ref.object instanceof CodeBlockPart) {
+						ref.object.layout();
+					}
+				}
+			}
 			dispose(reusableOutputCodeBlockRefs.values());
 			dispose(reusableHtmlPreviewRefs.values());
 			dispose(reusableNativeComponentsRefs.values());
