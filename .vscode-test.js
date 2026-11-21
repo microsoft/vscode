@@ -53,6 +53,10 @@ const extensions = [
 		mocha: { timeout: 6000_000 }
 	},
 	{
+		label: 'merge-conflict',
+		mocha: { timeout: 60_000 }
+	},
+	{
 		label: 'configuration-editing',
 		workspaceFolder: path.join(os.tmpdir(), `confeditout-${Math.floor(Math.random() * 100000)}`),
 		mocha: { timeout: 60_000 }
