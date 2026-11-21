@@ -50,7 +50,11 @@ export class ErrorHandler {
 	}
 
 	private _removeListener(listener: ErrorListenerCallback): void {
-		this.listeners.splice(this.listeners.indexOf(listener), 1);
+		const idx = this.listeners.indexOf(listener);
+
+		if (idx >= 0) {
+			this.listeners.splice(idx, 1);
+		}
 	}
 
 	setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
