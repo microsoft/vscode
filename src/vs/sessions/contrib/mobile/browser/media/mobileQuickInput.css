@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench.mobile-workbench .quick-input-widget .monaco-inputbox,
+.monaco-workbench.mobile-workbench .quick-input-widget .monaco-inputbox .input {
+	min-height: var(--mobile-target);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.monaco-workbench.mobile-workbench .quick-input-list .quick-input-list-entry-action-bar,
+.monaco-workbench.mobile-workbench .quick-input-tree .quick-input-tree-entry-action-bar {
+	margin-top: 0;
+}
+
 /* Phone input sheet: a prompt, a 48px field, and one filled action. */
 
 .mobile-content-sheet-body .mobile-quick-input-prompt {

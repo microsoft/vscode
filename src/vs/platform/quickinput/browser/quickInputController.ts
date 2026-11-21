@@ -273,7 +273,7 @@ export class QuickInputController extends Disposable {
 
 		// List
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles, this.options.minimumItemHeight));
 		// The item hover is positioned relative to the viewport, which requires that the
 		// widget is not a containing block for it when it is measured
 		this._register(list.onWillShowItemHover(() => this.settleOpenAnimation(container)));
@@ -322,7 +322,8 @@ export class QuickInputController extends Disposable {
 			QuickInputTreeController,
 			container,
 			this.options.hoverDelegate,
-			this.styles
+			this.styles,
+			this.options.minimumItemHeight
 		));
 		this._register(tree.tree.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
