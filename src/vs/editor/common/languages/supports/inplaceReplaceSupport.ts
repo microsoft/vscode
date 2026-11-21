@@ -55,7 +55,7 @@ export class BasicInplaceReplace {
 				//			} else if(n1 === 9 && up) {
 				//				return null; // don't insert 10 into a number
 			} else {
-				n1 = Math.floor(n1 * precision);
+				n1 = Math.round(n1 * precision);
 				n1 += up ? precision : -precision;
 				return String(n1 / precision);
 			}
