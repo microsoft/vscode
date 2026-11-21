@@ -17,6 +17,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { FloatingEditorClickWidget } from '../../../browser/codeeditor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { onDidDiffComputationTimeOut } from './diffComputationTimeout.js';
 import { DiffEditorAccessibilityHelp } from './diffEditorAccessibilityHelp.js';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
@@ -52,22 +53,18 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 				}
 			}));
 
-			this._register(this._diffEditor.onDidUpdateDiff(() => {
-				const diffComputationResult = this._diffEditor.getDiffComputationResult();
-
-				if (diffComputationResult && diffComputationResult.quitEarly) {
-					this._notificationService.prompt(
-						Severity.Warning,
-						localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
-						[{
-							label: localize('removeTimeout', "Remove Limit"),
-							run: () => {
-								this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.maxComputationTime', 0);
-							}
-						}],
-						{}
-					);
-				}
+			this._register(onDidDiffComputationTimeOut(this._diffEditor, () => {
+				this._notificationService.prompt(
+					Severity.Warning,
+					localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
+					[{
+						label: localize('removeTimeout', "Remove Limit"),
+						run: () => {
+							this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.maxComputationTime', 0);
+						}
+					}],
+					{}
+				);
 			}));
 		}
 	}
