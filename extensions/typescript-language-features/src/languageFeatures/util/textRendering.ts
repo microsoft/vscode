@@ -111,7 +111,9 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 		const parts = tag.text;
 		if (parts && typeof (parts) !== 'string') {
 			const params = parts.filter(p => p.kind === 'typeParameterName').map(p => p.text).join(', ');
-			const docs = parts.filter(p => p.kind === 'text').map(p => convertLinkTags(p.text.replace(/^\s*-?\s*/, ''), filePathConverter)).join(' ');
+			// The documentation is everything after the last type parameter name, including any `{@link}` tags
+			const docParts = parts.slice(parts.map(p => p.kind).lastIndexOf('typeParameterName') + 1);
+			const docs = convertLinkTags(docParts, filePathConverter).replace(/^\s*-?\s*/, '');
 			return params ? ['', params, docs] : undefined;
 		}
 	}
