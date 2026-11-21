@@ -407,6 +407,56 @@ suite('RipgrepTextSearchEngine', () => {
 			]);
 		});
 
+		test('word match args for ASCII and non-ASCII patterns (#347926)', () => {
+			const options: RipgrepTextSearchOptions = {
+				folderOptions: {
+					includes: [],
+					excludes: [],
+					useIgnoreFiles: {
+						local: false,
+						global: false,
+						parent: false
+					},
+					followSymlinks: false,
+					folder: URI.file('/some/folder'),
+					encoding: 'utf8',
+				},
+				maxResults: 1000,
+			};
+
+			const asciiResult = getRgArgs({ pattern: 'word', isWordMatch: true }, options);
+			assert.ok(asciiResult.includes('--regexp'));
+			assert.strictEqual(asciiResult[asciiResult.indexOf('--regexp') + 1], '\\bword\\b');
+
+			const cyrillicResult = getRgArgs({ pattern: 'дать', isWordMatch: true }, options);
+			assert.ok(cyrillicResult.includes('--regexp'));
+			assert.strictEqual(cyrillicResult[cyrillicResult.indexOf('--regexp') + 1], '\\bдать\\b');
+
+			const greekResult = getRgArgs({ pattern: 'και', isWordMatch: true }, options);
+			assert.ok(greekResult.includes('--regexp'));
+			assert.strictEqual(greekResult[greekResult.indexOf('--regexp') + 1], '\\bκαι\\b');
+
+			const hebrewResult = getRgArgs({ pattern: 'עם', isWordMatch: true }, options);
+			assert.ok(hebrewResult.includes('--regexp'));
+			assert.strictEqual(hebrewResult[hebrewResult.indexOf('--regexp') + 1], '\\bעם\\b');
+
+			const arabicResult = getRgArgs({ pattern: 'من', isWordMatch: true }, options);
+			assert.ok(arabicResult.includes('--regexp'));
+			assert.strictEqual(arabicResult[arabicResult.indexOf('--regexp') + 1], '\\bمن\\b');
+
+			const leadingSpaceResult = getRgArgs({ pattern: ' дать', isWordMatch: true }, options);
+			assert.ok(leadingSpaceResult.includes('--regexp'));
+			assert.strictEqual(leadingSpaceResult[leadingSpaceResult.indexOf('--regexp') + 1], ' дать\\b');
+
+			const trailingSpaceResult = getRgArgs({ pattern: 'дать ', isWordMatch: true }, options);
+			assert.ok(trailingSpaceResult.includes('--regexp'));
+			assert.strictEqual(trailingSpaceResult[trailingSpaceResult.indexOf('--regexp') + 1], '\\bдать ');
+
+			const symbolResult = getRgArgs({ pattern: '+дать+', isWordMatch: true }, options);
+			assert.ok(symbolResult.includes('--regexp'));
+			assert.strictEqual(symbolResult[symbolResult.indexOf('--regexp') + 1], '\\+дать\\+');
+		});
+
 		test('exclude exception globs', () => {
 			assert.deepStrictEqual({
 				anchored: getExcludeExceptionGlobs(['node_modules/{@types,typescript}', 'src/**/keep.js', 'gulpfile.js']),
