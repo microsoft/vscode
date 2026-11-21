@@ -399,6 +399,7 @@ export class ExtensionEditor extends EditorPane {
 		otherExtensionContainers.push(extensionStatusAction, new class extends ExtensionWidget {
 			render() {
 				actionsAndStatusContainer.classList.toggle('list-layout', this.extension?.state === ExtensionState.Installed);
+				name.classList.toggle('deprecated', !!this.extension?.deprecationInfo);
 			}
 		}());
 
@@ -553,7 +554,6 @@ export class ExtensionEditor extends EditorPane {
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
-		template.name.classList.toggle('deprecated', !!extension.deprecationInfo);
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
