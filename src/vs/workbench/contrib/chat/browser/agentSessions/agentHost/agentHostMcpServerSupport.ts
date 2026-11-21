@@ -679,6 +679,7 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 				transport: launch.transport === 'sse' ? 'sse' : 'http',
 				url: launch.uri.toString(),
 				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
+				oauth: launch.oauth?.clientId ? { clientId: launch.oauth.clientId } : undefined,
 			};
 	}
 }
@@ -734,7 +735,7 @@ function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boole
 			reasons.push(AgentHostMcpSupportReason.SandboxConfigurationIgnored);
 		}
 	} else {
-		if (launch.oauth) {
+		if (launch.oauth && (!launch.oauth.clientId || launch.oauth.enterpriseManaged)) {
 			reasons.push(AgentHostMcpSupportReason.OAuthClientConfigurationIgnored);
 		}
 		if (launch.transport === 'sse') {
