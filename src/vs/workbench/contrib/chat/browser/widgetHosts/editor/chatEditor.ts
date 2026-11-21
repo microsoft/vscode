@@ -37,7 +37,7 @@ import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, isRemoteAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
@@ -126,25 +126,25 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
 			const resource = this.widget?.viewModel?.sessionResource ?? this._providerReloadState?.input.sessionResource;
-			if (!resource || (resource.scheme !== 'agent-host-claude' && resource.scheme !== 'agent-host-codex')) {
+			if (!resource || (resource.scheme !== 'agent-host-claude' && resource.scheme !== 'agent-host-codex' && !isRemoteAgentHostTarget(resource.scheme))) {
 				return;
 			}
 			if (removed.includes(resource.scheme)) {
 				this._chatWithUnregisteredProvider = resource;
 			}
 			if (added.includes(resource.scheme) && isEqual(resource, this._chatWithUnregisteredProvider)) {
-				void this._reloadChatAfterPolicy(resource).catch(onUnexpectedError);
+				void this._reloadChatAfterProviderReturns(resource).catch(onUnexpectedError);
 			}
 		}));
 	}
 
-	private async _reloadChatAfterPolicy(resource: URI): Promise<void> {
+	private async _reloadChatAfterProviderReturns(resource: URI): Promise<void> {
 		const input = this.input;
 		if (!(input instanceof ChatEditorInput)) {
 			return;
 		}
 		const model = this.widget.viewModel?.model ?? this.chatService.getSession(resource);
-		if (model && isLocalAgentHostProviderDisabledByPolicy(resource.scheme.slice('agent-host-'.length), this.configurationService)) {
+		if (model && !isRemoteAgentHostTarget(resource.scheme) && isLocalAgentHostProviderDisabledByPolicy(resource.scheme.slice('agent-host-'.length), this.configurationService)) {
 			if (this._providerReload.value) {
 				input.updateModel(model);
 				this._providerReload.clear();

@@ -102,15 +102,15 @@ suite('ChatEditorInput', () => {
 					setModel: (model: IChatModel | undefined) => bound.push(model),
 					restoreViewState: () => { },
 				},
-			}) as { _reloadChatAfterPolicy(resource: URI): Promise<void> };
-			const reloading = editor._reloadChatAfterPolicy(resource);
+			}) as { _reloadChatAfterProviderReturns(resource: URI): Promise<void> };
+			const reloading = editor._reloadChatAfterProviderReturns(resource);
 			await timeout(0);
 			const waiting = { references, resolutions, changes: bound.length, loading: loadingState(container) };
 			if (cancel === 'navigation') {
 				pending.clear();
 			} else if (cancel === 'policy') {
 				configurationService.blocked = true;
-				await editor._reloadChatAfterPolicy(resource);
+				await editor._reloadChatAfterProviderReturns(resource);
 			}
 			references--;
 			if (references === 0) {
@@ -123,9 +123,16 @@ suite('ChatEditorInput', () => {
 		});
 	}
 
-	for (const outcome of ['success', 'navigation', 'policy'] as const) {
-		test(`policy recovery owns its loading overlay until ${outcome}`, async () => {
-			const resource = URI.parse('agent-host-claude:/deferred-policy');
+	for (const { scheme, outcome } of [
+		{ scheme: 'agent-host-claude', outcome: 'success' },
+		{ scheme: 'agent-host-claude', outcome: 'navigation' },
+		{ scheme: 'agent-host-claude', outcome: 'policy' },
+		{ scheme: 'remote-127.0.0.1__51996-testing', outcome: 'success' },
+		{ scheme: 'remote-127.0.0.1__51996-testing', outcome: 'navigation' },
+		{ scheme: 'remote-127.0.0.1__51996-testing', outcome: 'reconnect' },
+	] as const) {
+		test(`provider recovery (${scheme}) owns its loading overlay until ${outcome}`, async () => {
+			const resource = URI.from({ scheme, path: '/deferred-recovery' });
 			const nextResource = outcome === 'navigation' ? URI.parse('agent-host-codex:/next-session') : resource;
 			const changed = disposables.add(new Emitter<{ added: string[]; removed: string[] }>());
 			const disposed = disposables.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
@@ -193,8 +200,8 @@ suite('ChatEditorInput', () => {
 				editor.clearInput();
 				loadingAfterCancel = loadingState(container);
 				navigating = editor.setInput(createInput(nextResource), undefined, {}, CancellationToken.None);
-			} else if (outcome === 'policy') {
-				configurationService.blocked = true;
+			} else if (outcome === 'policy' || outcome === 'reconnect') {
+				configurationService.blocked = outcome === 'policy';
 				changed.fire({ removed: [resource.scheme], added: [] });
 				changed.fire({ removed: [], added: [resource.scheme] });
 				loadingAfterCancel = loadingState(container);
