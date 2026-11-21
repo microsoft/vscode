@@ -3879,9 +3879,47 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: pre;
 }
 
-/* The slot of the activities' chevron, which shows on hover, already sets them apart. */
+/* After activities, the separator rests in the slot of their chevron instead, so that slot leaves no gap. */
 .chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
-	content: '\00b7  ';
+	content: none;
+}
+
+/* The same space follows the slot as leads it, so what the slot shows sits midway between the label and the stats. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats {
+	margin-inline-start: var(--vscode-spacing-size20);
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button {
+	position: relative;
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	content: '\00b7';
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	transition: opacity 100ms ease-in-out;
+}
+
+/* The chevron takes the separator's place in the states that show it, so nothing moves. */
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button:is(:hover, .hovered, :focus-visible, [aria-expanded="true"])::after {
+	opacity: 0;
+}
+
+.monaco-reduce-motion .chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+		transition: none;
+	}
 }
 
 .chat-working-activities {
