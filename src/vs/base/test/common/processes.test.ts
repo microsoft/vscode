@@ -47,6 +47,39 @@ suite('Processes', () => {
 		assert.strictEqual(Object.keys(env).length, 3);
 	});
 
+	test('sanitizeProcessEnvironment restores Snap original values', () => {
+		const env = {
+			FOO: 'bar',
+			GTK_PATH: '/snap/code/191/usr/lib/x86_64-linux-gnu/gtk-3.0',
+			GTK_PATH_VSCODE_SNAP_ORIG: '/usr/lib/original-gtk',
+			GIO_MODULE_DIR: '/snap/code/191/usr/lib/gio',
+			GIO_MODULE_DIR_VSCODE_SNAP_ORIG: '',
+			GTK_EXE_PREFIX: '/snap/code/191/usr',
+			GTK_EXE_PREFIX_VSCODE_SNAP_ORIG: '/usr',
+			XDG_SESSION_TYPE: 'wayland',
+			XDG_SESSION_TYPE_VSCODE_SNAP_ORIG: 'x11',
+			GDK_BACKEND: 'wayland',
+			GDK_BACKEND_VSCODE_SNAP_ORIG: 'x11',
+			GDK_PIXBUF_MODULE_FILE: '/snap/code/191/usr/lib/gdk-pixbuf-loaders.cache',
+			GDK_PIXBUF_MODULE_FILE_VSCODE_SNAP_ORIG: '/usr/lib/gdk-pixbuf-loaders.cache',
+			GDK_PIXBUF_MODULEDIR: '/snap/code/191/usr/lib/gdk-pixbuf-2.0/loaders',
+			GDK_PIXBUF_MODULEDIR_VSCODE_SNAP_ORIG: '/usr/lib/gdk-pixbuf-2.0/loaders',
+			MOZ_ENABLE_WAYLAND: '1',
+			MOZ_ENABLE_WAYLAND_VSCODE_SNAP_ORIG: '0',
+		};
+		processes.sanitizeProcessEnvironment(env);
+		assert.deepStrictEqual(env, {
+			FOO: 'bar',
+			GTK_PATH: '/usr/lib/original-gtk',
+			GTK_EXE_PREFIX: '/usr',
+			XDG_SESSION_TYPE: 'x11',
+			GDK_BACKEND: 'x11',
+			GDK_PIXBUF_MODULE_FILE: '/usr/lib/gdk-pixbuf-loaders.cache',
+			GDK_PIXBUF_MODULEDIR: '/usr/lib/gdk-pixbuf-2.0/loaders',
+			MOZ_ENABLE_WAYLAND: '0',
+		});
+	});
+
 	test('removeDangerousEnvVariables', () => {
 		const env = {
 			SAFE: 'value',
