@@ -103,7 +103,7 @@ end
 
 # Handle the shell integration nonce
 if set -q VSCODE_NONCE
-	set -l __vsc_nonce $VSCODE_NONCE
+	set -g __vsc_nonce $VSCODE_NONCE
 	set -e VSCODE_NONCE
 end
 
@@ -175,7 +175,7 @@ end
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
-	__vsc_esc P Cwd=(__vsc_escape_value "$PWD")
+	__vsc_esc P Cwd=(__vsc_escape_value "$PWD") $__vsc_nonce
 
 	# If a command marker exists, remove it.
 	# Otherwise, the commandline is empty and no command was run.
