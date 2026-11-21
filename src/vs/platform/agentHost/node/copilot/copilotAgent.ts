@@ -61,6 +61,7 @@ import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
+import { selectCopilotAuthenticationRequirement, type CopilotReplacedSignIn } from './copilotAuthenticationRequirement.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
 import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -1320,10 +1321,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		undefined,
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
-	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
-		isMicrosoftCopilotAccountContext(this._accountService.state.read(reader))
-			? this._entraAuthentication?.authenticationRequired.read(reader)
-			: this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
+	/** Set when the credential of the other account arrives, which the host takes as the choice of that account; see {@link selectCopilotAuthenticationRequirement}. */
+	private readonly _replacedSignIn = observableValue<CopilotReplacedSignIn | undefined>(this, undefined);
+	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader => selectCopilotAuthenticationRequirement({
+		account: this._accountService.state.read(reader),
+		replacedSignIn: this._replacedSignIn.read(reader),
+		github: this._authenticationRequired.read(reader),
+		microsoft: this._entraAuthentication?.authenticationRequired.read(reader),
+	}));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
@@ -4062,6 +4067,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
 		return this._authenticationSequencer.queue(async () => {
+			if (token) {
+				// Losing this token later asks for GitHub again and not for the Microsoft sign-in it replaced.
+				this._replacedSignIn.set('microsoft', undefined);
+			}
 			if (token && isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
 				await this._entraAuthentication!.authenticate({ resource: copilotEntraDiscoveryMetadata.resource, token: '' });
 			}
@@ -4205,11 +4214,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._accountService.state.get();
 		if (params.resource === copilotEntraDiscoveryMetadata.resource || context.kind === 'choiceRequired' && context.choices.some(choice => choice.resource === params.resource)) {
 			await this._authenticationSequencer.queue(async () => {
-				if (this._accountService.state.get().kind === 'legacy') {
-					this._clearLegacySessions();
-					await this._applyGitHubToken(undefined, undefined);
+				try {
+					if (this._accountService.state.get().kind === 'legacy') {
+						this._replacedSignIn.set('github', undefined);
+						this._clearLegacySessions();
+						await this._applyGitHubToken(undefined, undefined);
+					}
+					await this._accountService.authenticate(this._ensureClient(), params);
+				} finally {
+					// The account context now hides the GitHub request; a setup that is given up shows it again.
+					this._replacedSignIn.set(undefined, undefined);
 				}
-				await this._accountService.authenticate(this._ensureClient(), params);
 			});
 		}
 	}

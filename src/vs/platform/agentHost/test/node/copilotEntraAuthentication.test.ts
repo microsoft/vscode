@@ -17,7 +17,7 @@ import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDisc
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from '../../node/copilot/copilotEntraAuthentication.js';
+import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata, isRevokedEntraSignIn } from '../../node/copilot/copilotEntraAuthentication.js';
 
 suite('Copilot Entra authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -330,6 +330,24 @@ suite('Copilot Entra authentication', () => {
 				resource: { resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'], required: false },
 				reason: AuthRequiredReason.Expired,
 			},
+		});
+	});
+
+	test('only a withdrawn sign-in is recognized as revoked, not what the runtime asks for', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		const missingIdentity = f.bridge.authenticationRequired.get();
+		await f.authenticate(f.credential());
+		await f.acquire({ ...tokenRequest(), skipCachedAccessToken: true });
+		const expiredService = f.bridge.authenticationRequired.get();
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		const withdrawn = f.bridge.authenticationRequired.get();
+		assert.deepStrictEqual({
+			reasons: [missingIdentity?.reason, expiredService?.reason, withdrawn?.reason],
+			revoked: [missingIdentity, expiredService, withdrawn].map(isRevokedEntraSignIn),
+		}, {
+			reasons: [AuthRequiredReason.Required, AuthRequiredReason.Expired, AuthRequiredReason.Expired],
+			revoked: [false, false, true],
 		});
 	});
 

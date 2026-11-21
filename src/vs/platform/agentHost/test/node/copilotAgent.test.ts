@@ -6098,6 +6098,56 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual(published, [copilotEntraDiscoveryResource, GITHUB_COPILOT_PROTECTED_RESOURCE.resource, copilotEntraDiscoveryResource]);
 	});
 
+	test('a request for the sign-in the user replaced is held back', async () => {
+		const { agent, authenticationService, instantiationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([], []), rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+		afterTest(() => disposeAgent(agent));
+		const accountService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
+		const github = { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, token: 'github-credential' };
+		const microsoft = { resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity', accountId: 'selected' };
+		// Like a connected window, answers the first request for a credential it still holds; the host takes the answer as a choice of account.
+		const windowCredentials = new Map<string, AuthenticateParams>([[github.resource, github], [microsoft.resource, microsoft]]);
+		let requested: string[] = [];
+		const answers: Promise<unknown>[] = [];
+		disposables.add(autorun(reader => {
+			const resource = agent.authenticationRequired.read(reader)?.resource.resource;
+			if (!resource) {
+				return;
+			}
+			const credential = requested.includes(resource) ? undefined : windowCredentials.get(resource);
+			requested.push(resource);
+			if (credential) {
+				answers.push(authenticationService.authenticate(credential, [agent]));
+			}
+		}));
+		// The fixture runtime cannot finish discovery, which leaves the account with Microsoft as an error.
+		const account = () => accountService.state.get().kind !== 'legacy' ? 'microsoft' : agent.isReadyForAutomation(undefined) ? 'github' : 'none';
+		const send = async (params: AuthenticateParams) => {
+			requested = [];
+			await authenticationService.authenticate(params, [agent]);
+			while (answers.length) {
+				await answers.shift();
+			}
+			return { requested, account: account() };
+		};
+		const signedIn = await send(github);
+		const chosen = await send(microsoft);
+		const cancelled = await send({ resource: microsoft.resource, token: '' });
+		const chosenAgain = await send(microsoft);
+		// Signing in with GitHub replaces Microsoft; the GitHub request left from the earlier replacement is withdrawn by that sign-in.
+		const replaced = await send(github);
+		windowCredentials.delete(github.resource);
+		const signedOut = await send({ ...github, token: '' });
+		assert.deepStrictEqual({ signedIn, chosen, cancelled, chosenAgain, replaced, signedOut }, {
+			signedIn: { requested: [], account: 'github' },
+			chosen: { requested: [], account: 'microsoft' },
+			cancelled: { requested: [github.resource], account: 'github' },
+			chosenAgain: { requested: [], account: 'microsoft' },
+			replaced: { requested: [github.resource], account: 'github' },
+			// A GitHub sign-out or token loss asks for GitHub as before and does not hand the account back to Microsoft.
+			signedOut: { requested: [github.resource], account: 'none' },
+		});
+	});
+
 	for (const credentials of ['github', 'microsoft', 'both', 'neither'] as const) {
 		test(`enabled account alternatives preserve credential-specific operations (${credentials})`, async () => {
 			const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
