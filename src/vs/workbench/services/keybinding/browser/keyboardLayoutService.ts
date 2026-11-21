@@ -88,14 +88,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 
 		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
 			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
-				// Update user keyboard map settings
-				this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
-					if (this.isKeyMappingActive(mapping)) {
-						return;
-					}
-
-					this.setLayoutFromBrowserAPI();
-				});
+				this._onBrowserLayoutChange();
 			});
 		}
 
@@ -253,22 +246,85 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	}
 
 	setActiveKeymapInfo(keymapInfo: KeymapInfo) {
+		const changed = this._activeKeymapInfo !== keymapInfo;
 		this._activeKeymapInfo = keymapInfo;
 
 		const index = this._mru.indexOf(this._activeKeymapInfo);
 
-		if (index === 0) {
+		if (index > 0) {
+			this._mru.splice(index, 1);
+			this._mru.unshift(this._activeKeymapInfo);
+		} else if (!changed) {
 			return;
 		}
-
-		this._mru.splice(index, 1);
-		this._mru.unshift(this._activeKeymapInfo);
 
 		this._setKeyboardData(this._activeKeymapInfo);
 	}
 
 	public setLayoutFromBrowserAPI(): void {
 		this._updateKeyboardLayoutAsync(this._initialized);
+	}
+
+	protected _onKeymapInfosLoaded(keymapInfos: IKeymapInfo[]): void {
+		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
+		this._mru = this._keymapInfos;
+		this._initialized = true;
+		this._setLayoutFromConfigurationOrBrowserAPI();
+	}
+
+	/**
+	 * Applies the layout configured in `keyboard.layout`. Falls back to the
+	 * browser API when the setting is `autodetect` or matches no known layout.
+	 */
+	private _setLayoutFromConfigurationOrBrowserAPI(): void {
+		const layout = this._getConfiguredKeyboardLayout();
+		if (layout && this.setKeyboardLayout(layout)) {
+			return;
+		}
+
+		this.setLayoutFromBrowserAPI();
+	}
+
+	protected _onBrowserLayoutChange(): Promise<void> {
+		if (this._isConfiguredKeyboardLayoutKept()) {
+			// The keyboard layout is set explicitly in settings, don't override it
+			return Promise.resolve();
+		}
+
+		// Update user keyboard map settings
+		return this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
+			// The configured layout may have been applied while the mapping was being read
+			if (this._isConfiguredKeyboardLayoutKept() || this.isKeyMappingActive(mapping)) {
+				return;
+			}
+
+			this.setLayoutFromBrowserAPI();
+		});
+	}
+
+	/**
+	 * Whether the layout configured in `keyboard.layout` must not be overridden
+	 * by auto-detection: while the layouts are loading and afterwards only while
+	 * the configured layout is the active one.
+	 */
+	private _isConfiguredKeyboardLayoutKept(): boolean {
+		const layout = this._getConfiguredKeyboardLayout();
+		if (!layout) {
+			return false;
+		}
+
+		if (!this._initialized) {
+			// A detection started now could finish after the layouts are loaded
+			// and override the configured layout applied on load
+			return true;
+		}
+
+		return !!this._activeKeymapInfo && getKeyboardLayoutId(this._activeKeymapInfo.layout) === layout;
+	}
+
+	private _getConfiguredKeyboardLayout(): string | undefined {
+		const layout = this._configurationService.getValue<string>('keyboard.layout');
+		return layout && layout !== 'autodetect' ? layout : undefined;
 	}
 
 	private _updateKeyboardLayoutAsync(initialized: boolean, keyboardEvent?: IKeyboardEvent) {
@@ -311,12 +367,15 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		this._updateKeyboardLayoutAsync(true, keyboardEvent);
 	}
 
-	public setKeyboardLayout(layoutName: string) {
+	public setKeyboardLayout(layoutName: string): boolean {
 		const matchedLayouts: KeymapInfo[] = this.keymapInfos.filter(keymapInfo => getKeyboardLayoutId(keymapInfo.layout) === layoutName);
 
 		if (matchedLayouts.length > 0) {
 			this.setActiveKeymapInfo(matchedLayouts[0]);
+			return true;
 		}
+
+		return false;
 	}
 
 	private _setKeyboardData(keymapInfo: KeymapInfo): void {
@@ -399,7 +458,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		return true;
 	}
 
-	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
+	protected async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
 		if (this.keyboardLayoutMapAllowed) {
 			try {
 				return await (navigator as INavigatorWithKeyboard).keyboard.getLayoutMap().then((e: any) => {
@@ -462,10 +521,7 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 
 		import(/* webpackIgnore: true */FileAccess.asBrowserUri(`vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.${platform}.js` satisfies AppResourcePath).path).then((m) => {
 			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
-			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
-			this._mru = this._keymapInfos;
-			this._initialized = true;
-			this.setLayoutFromBrowserAPI();
+			this._onKeymapInfosLoaded(keymapInfos);
 		});
 	}
 }
@@ -543,22 +599,17 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		super();
 		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
 		const layout = keyboardConfig.layout;
-		this._keyboardLayoutMode = layout ?? 'autodetect';
+		this._keyboardLayoutMode = layout || 'autodetect';
 		this._factory = new BrowserKeyboardMapperFactory(configurationService, notificationService, storageService, commandService);
 
 		this._register(this._factory.onDidChangeKeyboardMapper(() => {
 			this._onDidChangeKeyboardLayout.fire();
 		}));
 
-		if (layout && layout !== 'autodetect') {
-			// set keyboard layout
-			this._factory.setKeyboardLayout(layout);
-		}
-
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('keyboard.layout')) {
 				const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
-				const layout = keyboardConfig.layout;
+				const layout = keyboardConfig.layout || 'autodetect';
 				this._keyboardLayoutMode = layout;
 
 				if (layout === 'autodetect') {
