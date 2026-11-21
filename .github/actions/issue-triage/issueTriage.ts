@@ -6,7 +6,7 @@
 // Deterministic steps of the Issue Triage agentic workflow (.github/workflows/issue-triage.md). They
 // only use the workflow's GITHUB_TOKEN.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 type RequestParameters = Readonly<Record<string, string | number | readonly string[]>>;
@@ -232,32 +232,63 @@ function parseLogins(logins: string): string[] {
 }
 
 /**
+ * Runs `update` while holding a lock on `stateFile`. Each call of the agent's tool runs in its own
+ * process, and the agent can make several calls at the same time.
+ */
+async function withStateLock<T>(stateFile: string, update: () => T): Promise<T> {
+	const lockFile = `${stateFile}.lock`;
+	for (let attempt = 0; ; attempt++) {
+		try {
+			closeSync(openSync(lockFile, 'wx'));
+			break;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || attempt >= 100) {
+				throw error;
+			}
+			await sleep(50);
+		}
+	}
+	try {
+		return update();
+	} finally {
+		rmSync(lockFile, { force: true });
+	}
+}
+
+/**
  * Checks which of up to 10 logins are members of the team, for the agent to rank only team members.
- * Remembers the logins that it checked in `stateFile`, because each call runs in a new process, and
- * checks at most 20 people per run.
+ * Records the logins that it checks in `stateFile` before checking them, because each call runs in a
+ * new process and calls can overlap, and checks at most 20 people per run.
  */
 export async function checkTeamMembers(github: IGitHub, owner: string, repo: string, logins: string, stateFile: string): Promise<{ readonly members: string[]; readonly notMembers: string[]; readonly notChecked: string[] }> {
-	let checked: string[] = [];
-	try {
-		checked = JSON.parse(readFileSync(stateFile, 'utf8'));
-	} catch {
-		// The first check of the run.
-	}
+	const notChecked: string[] = [];
+	const toCheck = await withStateLock(stateFile, () => {
+		let checked: string[] = [];
+		try {
+			checked = JSON.parse(readFileSync(stateFile, 'utf8'));
+		} catch {
+			// The first check of the run.
+		}
+		const reserved: string[] = [];
+		for (const [index, login] of parseLogins(logins).entries()) {
+			if (index >= maxProposedOwners || (!checked.includes(login.toLowerCase()) && checked.length >= maxTeamMemberChecks)) {
+				notChecked.push(login);
+				continue;
+			}
+			if (!checked.includes(login.toLowerCase())) {
+				checked.push(login.toLowerCase());
+			}
+			reserved.push(login);
+		}
+		writeFileSync(stateFile, JSON.stringify(checked));
+		return reserved;
+	});
 	const members: string[] = [];
 	const notMembers: string[] = [];
-	const notChecked: string[] = [];
-	for (const [index, login] of parseLogins(logins).entries()) {
-		if (index >= maxProposedOwners || (!checked.includes(login.toLowerCase()) && checked.length >= maxTeamMemberChecks)) {
-			notChecked.push(login);
-			continue;
-		}
-		if (!checked.includes(login.toLowerCase())) {
-			checked.push(login.toLowerCase());
-		}
+	for (const login of toCheck) {
 		const check = await checkTeamMember(github, owner, repo, login);
 		(check.eligible ? members : notMembers).push(login);
 	}
-	writeFileSync(stateFile, JSON.stringify(checked));
 	return { members, notMembers, notChecked };
 }
 

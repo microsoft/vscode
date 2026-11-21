@@ -166,6 +166,19 @@ suite('Issue Triage', () => {
 		}
 	});
 
+	test('overlapping team member checks also check at most 20 people per run', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const stateFile = path.join(directory, 'team-checks.json');
+			const github = new FakeGitHub(call => handlePermission(call) ?? 404);
+			const batches = Array.from({ length: 3 }, (_, batch) => Array.from({ length: 10 }, (_, index) => `external-${batch * 10 + index}`).join(','));
+			const results = await Promise.all(batches.map(batch => checkTeamMembers(github, 'microsoft', 'vscode', batch, stateFile)));
+			assert.deepStrictEqual({ checks: github.calls.length, notChecked: results.map(result => result.notChecked.length) }, { checks: 20, notChecked: [0, 0, 10] });
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('assigns the first proposed owner who is a member of the team, or else requests triage', async () => {
 		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
 		try {

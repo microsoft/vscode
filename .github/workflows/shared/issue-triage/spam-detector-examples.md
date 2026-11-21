@@ -120,9 +120,9 @@ Real-world examples from microsoft/vscode issues labeled `spam`, with explanatio
 **Why SPAM:**
 1. Pervasive profanity and slurs throughout, including an obscene insult targeting the company
 2. Although there IS a real technical complaint buried in the text, the abusive language violates code of conduct
-3. Profanity applies **even if there is technical content alongside it** — respectful language is always required
+3. Slurs and insults are flagged **even if there is technical content alongside them**
 
-**Key lesson:** An issue can describe a real problem AND still be spam. Profanity and vulgar slurs are never acceptable regardless of whether the underlying complaint is legitimate. The user could refile without the abusive language.
+**Key lesson:** An issue can describe a real problem AND still be spam when it is abusive: pervasive profanity, slurs, or insults aimed at people or the company. A few frustrated curse words in an otherwise genuine report are not enough. The user could refile without the abusive language.
 
 ---
 
