@@ -275,7 +275,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		code {
 			font-size: 1em;
-			font-family: var(--vscode-editor-font-family);
+			font-family: var(--vscode-editor-font-family), "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
 		}
 
 		pre code {
