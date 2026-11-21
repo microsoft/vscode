@@ -56,6 +56,20 @@ function fileOperationPrompt(
 	return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 }
 
+/** Summarizes the tool calls a turn completed, so a missing shell side effect says what the tool reported. */
+function describeTurnToolResults(context: IAgentHostE2ETestContext, turnId: string): string {
+	const completions = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+		.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
+		.filter(action => action.turnId === turnId);
+	if (completions.length === 0) {
+		return 'no tool call completed in this turn';
+	}
+	return completions.map(({ result }) => {
+		const text = result.content?.filter(content => content.type === ToolResultContentType.Text).map(content => content.text).join('') ?? '';
+		return `success=${result.success}${result.error ? `, error=${result.error.message}` : ''}: ${text.trim().slice(0, 300)}`;
+	}).join('; ');
+}
+
 function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, providerEnabled = true, profile: AgentHostTestProfile = 'pr'): void {
 	const enabled = providerEnabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled)
 		&& (profile === 'pr' || getAgentHostTestProfile() === 'full');
@@ -681,7 +695,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		// harder made it skip the creation entirely.
 		const nestedCreateCommand = `node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','NESTED_CREATED')"`;
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-nested-create', `Run exactly this shell command, with no modifications: \`${nestedCreateCommand}\`. Then reply with exactly "created".`, 1);
-		assert.strictEqual(readFileSync(join(workspace, 'output', 'report.txt'), 'utf8'), 'NESTED_CREATED');
+		const report = join(workspace, 'output', 'report.txt');
+		assert.ok(existsSync(report), `The shell command did not create ${report}. Tool results: ${describeTurnToolResults(context, 'turn-nested-create')}`);
+		assert.strictEqual(readFileSync(report, 'utf8'), 'NESTED_CREATED');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
@@ -699,7 +715,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		// suite runs under it, and this quoting works in both cmd and POSIX shells.
 		const renameCommand = `node -e "require('fs').renameSync('before.txt','after.txt')"`;
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-rename', `Run exactly this shell command, with no modifications: \`${renameCommand}\`. Do not run any other command or tool. Then reply with exactly "renamed".`, 1);
-		assert.strictEqual(existsSync(join(workspace, 'before.txt')), false);
+		assert.strictEqual(existsSync(join(workspace, 'before.txt')), false, `The shell command did not rename before.txt. Tool results: ${describeTurnToolResults(context, 'turn-rename')}`);
 		assert.strictEqual(readFileSync(join(workspace, 'after.txt'), 'utf8'), 'RENAME_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});

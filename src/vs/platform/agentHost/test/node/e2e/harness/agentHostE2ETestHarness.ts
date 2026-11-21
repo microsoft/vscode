@@ -108,17 +108,28 @@ function clearReadOnlyAttributes(dir: string): void {
 
 /** Initializes a test repository without background Git maintenance that can retain filesystem handles during teardown. */
 export function initTestGitRepo(cwd: string, options?: { readonly bare: boolean }): void {
-	execSync(options?.bare ? 'git init --bare -q' : 'git init', { cwd });
+	runTestGitCommand(options?.bare ? 'git init --bare -q' : 'git init', cwd);
 	const git = options?.bare ? 'git --git-dir=.' : 'git';
-	execSync(`${git} config user.name "Agent Host Test"`, { cwd });
-	execSync(`${git} config user.email "agent-host-test@example.com"`, { cwd });
+	runTestGitCommand(`${git} config user.name "Agent Host Test"`, cwd);
+	runTestGitCommand(`${git} config user.email "agent-host-test@example.com"`, cwd);
 	disableTestGitMaintenance(cwd, options);
 }
 
 export function disableTestGitMaintenance(cwd: string, options?: { readonly bare: boolean }): void {
 	const git = options?.bare ? 'git --git-dir=.' : 'git';
-	execSync(`${git} config gc.auto 0`, { cwd });
-	execSync(`${git} config maintenance.auto false`, { cwd });
+	runTestGitCommand(`${git} config gc.auto 0`, cwd);
+	runTestGitCommand(`${git} config maintenance.auto false`, cwd);
+}
+
+/** Runs a fixture Git command, and reports its exit code and stderr if it fails, since the inherited stderr is lost in the test log. */
+function runTestGitCommand(command: string, cwd: string): void {
+	try {
+		execSync(command, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+	} catch (error) {
+		const { status, signal, stderr } = error as { status?: number | null; signal?: string | null; stderr?: Buffer | string };
+		const detail = String(stderr ?? '').trim().slice(0, 500);
+		throw new Error(`Command failed: ${command} (exit ${status ?? signal ?? 'unknown'})${detail ? `: ${detail}` : ''}`, { cause: error });
+	}
 }
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
