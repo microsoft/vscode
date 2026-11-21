@@ -30,6 +30,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InputMode } from '../../../common/inputMode.js';
 import { EditSources } from '../../../common/textModelEditSource.js';
+import { rubyIndentationRules } from '../../common/modes/supports/indentationRules.js';
 
 // --------- utils
 
@@ -4033,6 +4034,116 @@ suite('Editor Controller', () => {
 			viewModel.type('d', 'keyboard');
 			assert.strictEqual(model.getLineContent(4), '  end');
 		});
+	});
+
+	test('Enter honors Ruby method indentation rules', () => {
+		const rubyLanguageId = setupIndentRulesLanguage('rubyIndentationRules', rubyIndentationRules);
+		const withVisibilities = (headers: readonly string[], expectedIndent: boolean) => headers.flatMap(header => [
+			{ line: header, expectedIndent },
+			{ line: `public ${header}`, expectedIndent },
+			{ line: `private ${header}`, expectedIndent },
+			{ line: `protected ${header}`, expectedIndent },
+		]);
+		const withExpectedIndent = (headers: readonly string[], expectedIndent: boolean) => headers.map(line => ({ line, expectedIndent }));
+		const cases = [
+			...withVisibilities([
+				'def normal',
+				'def normal(name)',
+				'def normal(name = "world")',
+				'def normal(value = foo() == 1)',
+				'def normal(pattern = /; end/)',
+				'def normal name',
+				'def normal name = "world"',
+			], true),
+			...withExpectedIndent([
+				'def self.normal',
+				'def self.normal(name)',
+				'def self.normal(name = "world")',
+				'def self.normal name',
+				'def self.normal name = "world"',
+				'def Class.normal',
+				'def Class.normal(name)',
+				'def Class.normal(name = "world")',
+				'def Class.normal name',
+				'def Class.normal name = "world"',
+			], true),
+			...withVisibilities([
+				'def greeting=(value)',
+				'def greeting=(value = "hello")',
+			], true),
+			...withExpectedIndent([
+				'def self.greeting=(value)',
+				'def self.greeting=(value = "hello")',
+				'def Class.greeting=(value)',
+				'def Class.greeting=(value = "hello")',
+			], true),
+			...withVisibilities([
+				'def endless = "hello"',
+				'def endless(name) = name',
+				'def endless(name = "world") = name',
+			], false),
+			...withExpectedIndent([
+				'def self.endless = "hello"',
+				'def self.endless(name) = name',
+				'def self.endless(name = "world") = name',
+				'def Class.endless = "hello"',
+				'def Class.endless(name) = name',
+				'def Class.endless(name = "world") = name',
+			], false),
+			...withVisibilities([
+				'def say_hello_to name = "John", last_name = "Doe"; puts "Hello #{name} #{last_name}"; end',
+				'def say_goodbye_to name = "John", last_name = "Doe"; puts "Goodbye #{name} #{last_name}"; end',
+			], false),
+			...withExpectedIndent([
+				'def self.say_hello_to name = "John", last_name = "Doe"; puts "Hello #{name} #{last_name}"; end',
+				'def self.say_goodbye_to name = "John", last_name = "Doe"; puts "Goodbye #{name} #{last_name}"; end',
+				'def Class.say_hello_to name = "John", last_name = "Doe"; puts "Hello #{name} #{last_name}"; end',
+				'def Class.say_goodbye_to name = "John", last_name = "Doe"; puts "Goodbye #{name} #{last_name}"; end',
+			], false),
+			...withExpectedIndent([
+				'private_class_method def self.normal',
+				'private_class_method def self.normal(name)',
+				'private_class_method def self.normal(name = "world")',
+				'private_class_method def self.normal name',
+				'private_class_method def self.normal name = "world"',
+				'private_class_method def Test1.normal',
+				'private_class_method def Test1.normal(name)',
+				'private_class_method def Test1.normal(name = "world")',
+				'private_class_method def Test1.normal name',
+				'private_class_method def Test1.normal name = "world"',
+				'private_class_method def self.greeting=(value)',
+				'private_class_method def self.greeting=(value = "hello")',
+				'private_class_method def Test1.greeting=(value)',
+				'private_class_method def Test1.greeting=(value = "hello")',
+			], true),
+			...withExpectedIndent([
+				'private_class_method def self.endless = "hello"',
+				'private_class_method def self.endless(name) = name',
+				'private_class_method def self.endless(name = "world") = name',
+				'private_class_method def Test1.endless = "hello"',
+				'private_class_method def Test1.endless(name) = name',
+				'private_class_method def Test1.endless(name = "world") = name',
+				'private_class_method def self.inline; puts "hello"; end',
+				'private_class_method def self.inline(value); puts value; end',
+				'private_class_method def self.inline(value = "world"); puts value; end',
+				'private_class_method def self.inline value; puts value; end',
+				'private_class_method def self.inline value = "world"; puts value; end',
+				'private_class_method def Test1.inline; puts "hello"; end',
+				'private_class_method def Test1.inline(value); puts value; end',
+				'private_class_method def Test1.inline(value = "world"); puts value; end',
+				'private_class_method def Test1.inline value; puts value; end',
+				'private_class_method def Test1.inline value = "world"; puts value; end',
+			], false),
+		];
+
+		for (const { line, expectedIndent } of cases) {
+			const model = createTextModel(line, rubyLanguageId, { insertSpaces: false });
+			withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
+				moveTo(editor, viewModel, 1, line.length + 1, false);
+				viewModel.type('\n', 'keyboard');
+				assert.strictEqual(model.getLineContent(2), expectedIndent ? '\t' : '');
+			});
+		}
 	});
 
 	test('Auto indent on type: increaseIndentPattern has higher priority than decreaseIndent when inheriting', () => {
