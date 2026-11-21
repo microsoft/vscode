@@ -137,7 +137,8 @@ export class MoveLinesCommand implements ICommand {
 							model.getLanguageIdAtPosition(movingLineNumber, 1),
 							s.startLineNumber,
 							indentConverter,
-							this._languageConfigurationService
+							this._languageConfigurationService,
+							{ tabSize, indentSize, insertSpaces }
 						);
 						if (indentOfMovingLine !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
@@ -184,7 +185,8 @@ export class MoveLinesCommand implements ICommand {
 							model.getLanguageIdAtPosition(movingLineNumber, 1),
 							s.startLineNumber + 1,
 							indentConverter,
-							this._languageConfigurationService
+							this._languageConfigurationService,
+							{ tabSize, indentSize, insertSpaces }
 						);
 
 						if (newIndentatOfMovingBlock !== null) {
@@ -232,7 +234,8 @@ export class MoveLinesCommand implements ICommand {
 							model.getLanguageIdAtPosition(s.startLineNumber, 1),
 							movingLineNumber,
 							indentConverter,
-							this._languageConfigurationService
+							this._languageConfigurationService,
+							{ tabSize, indentSize, insertSpaces }
 						);
 						if (indentOfFirstLine !== null) {
 							// adjust the indentation of the moving block

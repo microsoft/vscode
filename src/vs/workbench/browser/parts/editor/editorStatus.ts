@@ -803,7 +803,9 @@ class EditorStatus extends Disposable {
 						? modelOpts.tabSize === modelOpts.indentSize
 							? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
 							: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
-						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
+						: modelOpts.tabSize === modelOpts.indentSize
+							? localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
+							: localize({ key: 'tabsAndIndentSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0} (Indent: {1})", modelOpts.tabSize, modelOpts.indentSize)
 				);
 			}
 		}

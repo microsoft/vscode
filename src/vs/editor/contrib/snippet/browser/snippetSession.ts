@@ -16,6 +16,7 @@ import { Range } from '../../../common/core/range.js';
 import { Selection, SelectionDirection } from '../../../common/core/selection.js';
 import { TextChange } from '../../../common/core/textChange.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { normalizeIndentationWithLogicalTabs } from '../../../common/core/misc/indentation.js';
 import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
@@ -113,7 +114,7 @@ export class OneSnippet {
 						const transformedValueLines = placeholder.transform.resolve(currentValue).split(/\r\n|\r|\n/);
 						// fix indentation for transformed lines
 						for (let i = 1; i < transformedValueLines.length; i++) {
-							transformedValueLines[i] = model.normalizeIndentation(this._snippetLineLeadingWhitespace + transformedValueLines[i]);
+							transformedValueLines[i] = normalizeIndentationWithLogicalTabs(this._snippetLineLeadingWhitespace, transformedValueLines[i], model.getOptions().tabSize, model.getOptions().indentSize, model.getOptions().insertSpaces);
 						}
 						operations.push(EditOperation.replace(range, transformedValueLines.join(model.getEOL())));
 					}
@@ -427,6 +428,7 @@ export class SnippetSession {
 	static adjustWhitespace(model: ITextModel, position: IPosition, adjustIndentation: boolean, snippet: TextmateSnippet, filter?: Set<Marker>): string {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
+		const { tabSize, indentSize, insertSpaces } = model.getOptions();
 
 		// the snippet as inserted
 		let snippetTextString: string | undefined;
@@ -449,21 +451,22 @@ export class SnippetSession {
 				// -the snippet-start doesn't get extra-indented (lineLeadingWhitespace), only normalized
 				// -all N+1 lines get extra-indented and normalized
 				// -the text start get extra-indented and normalized when following a linebreak
+				// the leading tabs of snippet lines are logical tab markers (one per indentation level)
 				const offset = snippet.offset(marker);
 				if (offset === 0) {
 					// snippet start
-					lines[0] = model.normalizeIndentation(lines[0]);
+					lines[0] = normalizeIndentationWithLogicalTabs('', lines[0], tabSize, indentSize, insertSpaces);
 
 				} else {
 					// check if text start is after a linebreak
 					snippetTextString = snippetTextString ?? snippet.toString();
 					const prevChar = snippetTextString.charCodeAt(offset - 1);
 					if (prevChar === CharCode.LineFeed || prevChar === CharCode.CarriageReturn) {
-						lines[0] = model.normalizeIndentation(lineLeadingWhitespace + lines[0]);
+						lines[0] = normalizeIndentationWithLogicalTabs(lineLeadingWhitespace, lines[0], tabSize, indentSize, insertSpaces);
 					}
 				}
 				for (let i = 1; i < lines.length; i++) {
-					lines[i] = model.normalizeIndentation(lineLeadingWhitespace + lines[i]);
+					lines[i] = normalizeIndentationWithLogicalTabs(lineLeadingWhitespace, lines[i], tabSize, indentSize, insertSpaces);
 				}
 			}
 

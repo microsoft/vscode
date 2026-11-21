@@ -207,7 +207,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
-				indentSize: 'tabSize', // TODO@Alex: guess indentSize independent of tabSize
+				indentSize: guessedIndentation.indentSize ?? 'tabSize',
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
@@ -721,13 +721,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize,
-			indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
+			indentSize: guessedIndentation.indentSize ?? guessedIndentation.tabSize
 		});
 	}
 
 	public normalizeIndentation(str: string): string {
 		this._assertNotDisposed();
-		return normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces);
+		return normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces, this._options.tabSize);
 	}
 
 	//#endregion
