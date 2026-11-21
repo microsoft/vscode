@@ -148,6 +148,20 @@ suite('Replace Pattern test', () => {
 		assert.strictEqual(actual, 'aLlGoODMen');
 	});
 
+	for (const [name, pattern, replacement, text, expected] of [
+		['uppercase operations longer than capture', '(a)', '\\u\\u$1', 'a', 'A'],
+		['lowercase operations longer than capture', '(A)', '\\l\\l$1', 'A', 'a'],
+		['mixed operations longer than capture', '(ab)', '\\u\\l\\u$1', 'ab', 'Ab'],
+		['empty capture', '(a*)b', 'before\\U$1after', 'b', 'beforeafter'],
+		['unmatched optional capture', '(a)?b', 'before\\u$1after', 'b', 'beforeafter'],
+		['operations on subsequent captures', '(a)?(b)', '\\u$1-\\u\\u$2', 'b', '-B'],
+	]) {
+		test(`case operations - ${name}`, () => {
+			const testObject = new ReplacePattern(replacement, { pattern, isRegExp: true });
+			assert.strictEqual(testObject.getReplaceString(text), expected);
+		});
+	}
+
 	test('case operations - no false positive', () => {
 		let testObject = new ReplacePattern('\\left $1', { pattern: '(pattern)', isRegExp: true });
 		let actual = testObject.getReplaceString('pattern');
