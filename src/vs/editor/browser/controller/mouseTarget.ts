@@ -817,6 +817,15 @@ export class MouseTargetFactory {
 			return this._createMouseTarget(ctx, request);
 		}
 
+		// At a sub-pixel line edge, the browser can attribute the event to the `.view-lines` container
+		// while the event's integer coordinates still map into the line. An empty line has no text for
+		// the hit test to find, so treat such a mouse event as being on that empty line
+		const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+		if (ctx.viewModel.getLineLength(lineNumber) === 0) {
+			const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - ctx.getLineWidth(lineNumber));
+			return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
+		}
+
 		// We have tried everything...
 		return request.fulfillUnknown();
 	}
