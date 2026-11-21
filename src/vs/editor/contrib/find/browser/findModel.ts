@@ -495,7 +495,9 @@ export class FindModelBoundToEditorModel {
 
 				this._executeEditorCommand('replace', command);
 
-				this._decorations.setStartPosition(new Position(selection.startLineNumber, selection.startColumn + replaceString.length));
+				// `ReplaceCommand` leaves the cursor at the end of the inserted text,
+				// which is not on the start line when the replacement has a newline.
+				this._decorations.setStartPosition(this._editor.getPosition());
 				this.research(true);
 			} else {
 				this._decorations.setStartPosition(this._editor.getPosition());
