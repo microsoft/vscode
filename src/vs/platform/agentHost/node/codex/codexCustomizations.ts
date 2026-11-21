@@ -171,50 +171,64 @@ export function excludeCodexWorkspaceSkillDuplicates(
 }
 
 /**
- * Surfaces the root `AGENTS.md` file that Codex natively loads for each
- * workspace. The transport/provider owns applying the instruction; this scan
- * only projects that effective workspace customization into AHP state.
+ * Surfaces the instruction files that Codex natively loads: the root
+ * `AGENTS.md` of each workspace and the user-level `AGENTS.md` under
+ * CODEX_HOME (mirroring how the Claude provider surfaces the user-scope
+ * `~/.claude/CLAUDE.md`). The transport/provider owns applying the
+ * instructions; this scan only projects those effective customizations into
+ * AHP state so the workbench Customizations surface lists them under the
+ * matching "User" / workspace scope.
  */
-export async function discoverCodexWorkspaceInstructions(
+export async function discoverCodexInstructions(
 	workingDirectories: readonly URI[],
+	codexHome: URI,
 	fileService: IFileService,
 ): Promise<readonly DirectoryCustomization[]> {
 	const containers: DirectoryCustomization[] = [];
-	const seenDirectories = new Set<string>();
-	for (const workingDirectory of workingDirectories) {
-		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
-		if (seenDirectories.has(directoryKey)) {
-			continue;
-		}
-		seenDirectories.add(directoryKey);
-		const resource = URI.joinPath(workingDirectory, 'AGENTS.md');
-		try {
-			if (!(await fileService.stat(resource)).isFile) {
-				continue;
-			}
-		} catch {
-			continue;
-		}
-		const ruleUri = resource.toString();
-		const rule: RuleCustomization = {
-			type: CustomizationType.Rule,
-			id: customizationId(ruleUri),
-			uri: ruleUri,
-			name: 'AGENTS.md',
-			alwaysApply: true,
-		};
-		const directoryUri = workingDirectory.toString();
+	const seenRuleKeys = new Set<string>();
+	const pushRuleContainer = (directory: URI, rule: RuleCustomization): void => {
+		const directoryUri = directory.toString();
 		containers.push({
 			type: CustomizationType.Directory,
 			id: customizationId(directoryUri),
 			uri: directoryUri,
-			name: basename(workingDirectory),
+			name: basename(directory),
 			enabled: true,
 			contents: CustomizationType.Rule,
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
 			children: [rule],
 		});
+	};
+	const tryRuleContainer = async (directory: URI, resource: URI): Promise<void> => {
+		// Compare case-insensitively on Windows: CODEX_HOME and a workspace root
+		// can point at the same directory with different casing, and publishing
+		// the same AGENTS.md twice would double-count it in the panel.
+		const ruleKey = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		if (seenRuleKeys.has(ruleKey)) {
+			return;
+		}
+		try {
+			if (!(await fileService.stat(resource)).isFile) {
+				return;
+			}
+		} catch {
+			return;
+		}
+		seenRuleKeys.add(ruleKey);
+		const ruleUri = resource.toString();
+		pushRuleContainer(directory, {
+			type: CustomizationType.Rule,
+			id: customizationId(ruleUri),
+			uri: ruleUri,
+			name: 'AGENTS.md',
+			alwaysApply: true,
+		});
+	};
+	// The user-level `AGENTS.md` applies to every session, so surface it first.
+	await tryRuleContainer(codexHome, URI.joinPath(codexHome, 'AGENTS.md'));
+	for (const workingDirectory of workingDirectories) {
+		await tryRuleContainer(workingDirectory, URI.joinPath(workingDirectory, 'AGENTS.md'));
 	}
 	return containers;
 }
