@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDimension } from '../../../common/core/2d/dimension.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../common/core/position.js';
@@ -360,6 +360,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const origViewZoneIdsToIgnore = new Set<string>();
 		const modViewZoneIdsToIgnore = new Set<string>();
 		let isUpdatingViewZones = false;
+		const isWrapping = () => [this._editors.original, this._editors.modified].some(e => e.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
 		const viewZoneManager = derivedDisposable(this, reader => /** @description ViewZoneManager */
 			this._instantiationService.createInstance(
 				readHotReloadableExport(DiffEditorViewZones, reader),
@@ -368,7 +369,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._diffModel,
 				this._options,
 				this,
-				() => isUpdatingViewZones || unchangedRangesFeature.read(undefined).isUpdatingHiddenAreas,
+				// Hidden lines are not wrapped, so hiding or revealing them changes the alignments when wrapping.
+				() => isUpdatingViewZones || (unchangedRangesFeature.read(undefined).isUpdatingHiddenAreas && !isWrapping()),
 				origViewZoneIdsToIgnore,
 				modViewZoneIdsToIgnore
 			)
