@@ -180,10 +180,14 @@ registerAction2(class OpenMatchAction extends Action2 {
 			const viewer = searchView.getControl();
 			const focus = tree.getFocus()[0];
 
+			if (!focus) {
+				return;
+			}
+
 			if (isSearchTreeFolderMatch(focus)) {
 				viewer.toggleCollapsed(focus);
 			} else {
-				searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, false, true);
+				searchView.open(<FileMatchOrMatch>focus, false, false, true);
 			}
 		}
 	}
