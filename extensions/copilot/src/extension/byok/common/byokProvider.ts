@@ -27,6 +27,10 @@ export type LMResponsePart = LanguageModelTextPart | LanguageModelToolCallPart |
 export interface BYOKModelCapabilities {
 	name: string;
 	url?: string;
+	description?: string;
+	icon?: string;
+	maxTokens?: number;
+	credits?: { input?: number; output?: number; cacheRead?: number };
 	/**
 	 * The maximum number of prompt (input) tokens. Optional when {@link contextWindow}
 	 * is supplied, in which case it is derived as `contextWindow - maxOutputTokens`.
@@ -71,7 +75,7 @@ export type BYOKKnownModels = Record<string, BYOKModelCapabilities>;
 
 /**
  * Resolves a model's token limits from its BYOK capabilities, honoring an explicit
- * {@link BYOKModelCapabilities.contextWindow} when provided.
+ * {@link BYOKModelCapabilities.contextWindow} or {@link BYOKModelCapabilities.maxTokens} when provided.
  *
  * - When `contextWindow` is set it is the source of truth for the full window and, if
  *   `maxInputTokens` is omitted, the prompt budget is derived as
@@ -85,8 +89,11 @@ export type BYOKKnownModels = Record<string, BYOKModelCapabilities>;
  * `maxOutputTokens > contextWindow`, or a `maxInputTokens` supplied alongside a smaller
  * `contextWindow` overflowing the window.
  */
-export function resolveModelTokenLimits(capabilities: Pick<BYOKModelCapabilities, 'maxInputTokens' | 'maxOutputTokens' | 'contextWindow'>): { contextWindow: number; maxInputTokens: number; maxOutputTokens: number } {
-	const contextWindow = capabilities.contextWindow ?? ((capabilities.maxInputTokens ?? 0) + capabilities.maxOutputTokens);
+export function resolveModelTokenLimits(capabilities: Pick<BYOKModelCapabilities, 'maxInputTokens' | 'maxOutputTokens' | 'contextWindow' | 'maxTokens'>): { contextWindow: number; maxInputTokens: number; maxOutputTokens: number } {
+	let contextWindow = capabilities.contextWindow ?? ((capabilities.maxInputTokens ?? 0) + capabilities.maxOutputTokens);
+	if (capabilities.maxTokens !== undefined) {
+		contextWindow = Math.min(contextWindow, capabilities.maxTokens);
+	}
 	// The output budget can never exceed the full window.
 	const maxOutputTokens = Math.min(capabilities.maxOutputTokens, contextWindow);
 	// The prompt budget is whatever remains after the output reservation; an explicitly
@@ -140,6 +147,15 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		modelOptions: knownModelInfo?.modelOptions,
 		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
+	if (knownModelInfo?.credits) {
+		modelInfo.billing = {
+			token_prices: {
+				input_tokens: knownModelInfo.credits.input,
+				output_tokens: knownModelInfo.credits.output,
+				cache_read_tokens: knownModelInfo.credits.cacheRead
+			}
+		};
+	}
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {
 		modelInfo.requestHeaders = { ...knownModelInfo.requestHeaders };
 	}
@@ -161,7 +177,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		// vendor (e.g. multiple Ollama servers) are distinguishable in
 		// the model picker.
 		family: id,
-		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
+		tooltip: capabilities.description || `${capabilities.name} is contributed via the ${providerName} provider.`,
 		multiplierNumeric: undefined,
 		isUserSelectable: true,
 		capabilities: {
