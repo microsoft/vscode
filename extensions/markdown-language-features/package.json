@@ -1049,57 +1049,57 @@
         },
         {
           "command": "markdown.editor.insertTable",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.insertRowAbove",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.insertRowBelow",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.deleteRow",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.insertColumnLeft",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.insertColumnRight",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.deleteColumn",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.alignColumnLeft",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.alignColumnCenter",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.alignColumnRight",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         },
         {
           "command": "markdown.editor.table.alignColumnNone",
-          "when": "false",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'",
           "$generated": true
         }
       ]
