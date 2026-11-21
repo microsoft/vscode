@@ -73,4 +73,19 @@ suite('ResourceTree', function () {
 		assert(!tree.root.get('foo'));
 		assert(!tree.root.get('bar'));
 	});
+
+	test('deleting a child does not remove a folder that has its own element', function () {
+		const tree = new ResourceTree<string, null>(null);
+
+		tree.add(URI.file('/foo'), 'foo');
+		tree.add(URI.file('/foo/file.txt'), 'file');
+
+		assert.strictEqual(tree.delete(URI.file('/foo/file.txt')), 'file');
+
+		const foo = tree.root.get('foo');
+		assert(foo);
+		assert.strictEqual(foo.element, 'foo');
+		assert.strictEqual(foo.childrenCount, 0);
+		assert.deepStrictEqual(ResourceTree.collect(tree.root), ['foo']);
+	});
 });
