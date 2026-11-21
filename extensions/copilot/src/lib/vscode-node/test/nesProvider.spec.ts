@@ -15,11 +15,15 @@ import { CopilotToken, createTestExtendedTokenInfo } from '../../../platform/aut
 import { ICopilotTokenManager } from '../../../platform/authentication/common/copilotTokenManager';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { MutableObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
+import { NullLanguageContextProviderService } from '../../../platform/languageContextProvider/common/nullLanguageContextProviderService';
+import { ContextItem, ContextKind } from '../../../platform/languageServer/common/languageContextService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { TestLanguageDiagnosticsService } from '../../../platform/languages/common/testLanguageDiagnosticsService';
 import { FetchOptions, IAbortController, IHeaders, PaginationOptions, Response } from '../../../platform/networking/common/fetcherService';
 import { IFetcher } from '../../../platform/networking/common/networking';
 import { NullTerminalService } from '../../../platform/terminal/common/terminalService';
+import { NullWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { createTextDocumentData } from '../../../util/common/test/shims/textDocument';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -432,6 +436,57 @@ describe('NESProvider Facade', () => {
 		expect(logTarget.logs.length).toBeGreaterThan(0);
 		const errorLogs = logTarget.logs.filter(l => l.level === LogLevel.Error);
 		assert.strictEqual(errorLogs.length, 0, `Unexpected error logs: ${JSON.stringify(errorLogs, null, 2)}`);
+	});
+
+	it('includes language context supplied by the embedder in the prompt', async () => {
+		const uri = URI.file('/test/test.ts');
+		const text = outdent`
+			class Point {
+				constructor(
+					private readonly x: number,
+					private readonly y: number,
+				) { }
+			}`.trimStart();
+		const workspace = new MutableObservableWorkspace();
+		const doc = workspace.addDocument({ id: DocumentId.create(uri.toString()), initialValue: text });
+		doc.setSelection([new OffsetRange(1, 1)], undefined);
+		const snippet = 'interface Vector3 { readonly z: number }';
+		const languageContextProvider = new class extends NullLanguageContextProviderService {
+			override getContextProviders() {
+				return [{ id: 'embedder', selector: '*', resolver: { resolve: async () => [] } }];
+			}
+			override async *getContextItems(): AsyncIterable<ContextItem> {
+				yield { kind: ContextKind.Snippet, priority: 1, uri: URI.file('/test/vector.ts'), value: snippet };
+			}
+		};
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({ models: [] }),
+			'/chat/completions': await fs.readFile(path.join(__dirname, 'nesProvider.reply.txt'), 'utf8'),
+		});
+		const nextEditProvider = createNESProvider({
+			workspace,
+			fetcher,
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+			configOverrides: new Map([['chat.advanced.inlineEdits.xtabProvider.languageContext.enabled', true]]),
+			languageContextProvider,
+			workspaceService: new NullWorkspaceService([], [createTextDocumentData(uri, text, 'typescript').document]),
+		});
+		nextEditProvider.updateTreatmentVariables({
+			'config.github.copilot.chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString': '{ "modelName": "xtab-test", "promptingStrategy": "copilotNesXtab", "includeTagsInCurrentFile": false }',
+		});
+
+		doc.applyEdit(StringEdit.insert(11, '3D'));
+		await nextEditProvider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+		nextEditProvider.dispose();
+
+		const completionRequest = fetcher.requests.find(request => request.url.endsWith('/chat/completions'));
+		assert(completionRequest, `Unexpected requests: ${JSON.stringify(fetcher.requests, null, 2)}`);
+		expect(JSON.stringify(completionRequest.options.json)).toContain(snippet);
 	});
 
 	describe('inline completion classification', () => {
