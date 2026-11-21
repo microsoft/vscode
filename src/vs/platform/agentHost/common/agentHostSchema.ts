@@ -572,6 +572,14 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
+/**
+ * Root config key forwarded from the renderer's `chat.useHooks` setting. When
+ * `false`, Copilot sessions launch without the hooks VS Code controls:
+ * repository hooks, custom agent hooks, and the plugin hooks VS Code runs
+ * itself. VS Code's own SDK callbacks are unaffected.
+ */
+export const AgentHostHooksEnabledConfigKey = 'hooksEnabled';
+
 export interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
@@ -986,6 +994,12 @@ export const platformRootSchema = createSchema({
 		},
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
+	}),
+	[AgentHostHooksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hooksEnabled.title', "Hooks"),
+		description: localize('agentHost.config.hooksEnabled.description', "Whether VS Code's `chat.useHooks` setting allows hooks. When `false`, Copilot sessions run no repository hooks, custom agent hooks, or plugin hooks that VS Code runs itself."),
+		default: true,
 	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -42,7 +42,7 @@ import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../..
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { readArtifactIntegrationNotice, readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta, type IAgentSystemNotificationHookMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
@@ -54,6 +54,8 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
+import { resolveCopilotCliHookType } from '../../../common/promptSyntax/hookCopilotCliCompat.js';
+import { HOOK_METADATA } from '../../../common/promptSyntax/hookTypes.js';
 import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMarkdownContent, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatSingleSelectAnswer, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -75,6 +77,7 @@ import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
+import { AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID } from './agentHostHookWarnings.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
 import { getComputerUseActivationCardText, getComputerUseSetupCardText } from './computerUseSetup.js';
 
@@ -706,8 +709,9 @@ export function isSubagentToolName(toolName: string): boolean {
  * @param managedPluginRetry The chat a managed plugin preparation failure can
  * be retried for. When omitted, for example for a host without the local
  * retry path, the failure is shown without a Retry link.
+ * @param showHookFailures Whether hook failures are shown, from `chat.hooks.showWarnings`.
  */
-export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress | undefined {
+export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false): IChatProgress | undefined {
 	const meta = readAgentSystemNotificationMeta({ _meta });
 	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
 		// The chat model already treats an empty thinking chunk as the end of a thinking section.
@@ -783,6 +787,16 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			};
 		case AgentSystemNotificationKind.ModelRouterSuggestion:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.lightbulb, alwaysVisible: true };
+		case AgentSystemNotificationKind.Hook:
+			if (meta.hook?.outcome !== AgentHookOutcome.Failed) {
+				return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
+			}
+			return showHookFailures ? {
+				kind: 'warning',
+				content: new MarkdownString(escapeHostText(formatHookFailure(meta.hook, markdown.value))),
+				keepVisibleWhenCollapsed: true,
+				mute: { commandId: AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID, tooltip: localize('agentHost.hookFailed.disable', "Disable Hook Warnings") },
+			} : undefined;
 		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
 		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
@@ -804,6 +818,16 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
+}
+
+/** Names the hook with its Local harness label, since Copilot names hook events as in its hook files (`sessionStart`). */
+function formatHookFailure(hook: IAgentSystemNotificationHookMeta, hostText: string): string {
+	const hookType = resolveCopilotCliHookType(hook.type);
+	// Host-provided names such as `constructor` resolve to inherited properties, not hook types.
+	const label = hookType && Object.hasOwn(HOOK_METADATA, hookType) ? HOOK_METADATA[hookType].label : undefined;
+	return label && hook.source && hook.message
+		? localize('agentHost.hookFailed', "The {0} hook from {1} failed: {2}", label, hook.source, hook.message)
+		: hostText;
 }
 
 /** Appends a link that opens the Tools section of the Chat Customizations editor. */
@@ -1377,7 +1401,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	let previousRouted: IModelRoutedInfo | undefined;
 	for (const turn of turns) {
@@ -1467,7 +1491,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.SystemNotification:
 					{
-						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry);
+						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry, showHookFailures);
 						if (progress) {
 							parts.push(progress);
 						}
@@ -1899,7 +1923,7 @@ export function reasoningPartToThinking(part: ReasoningResponsePart, value = par
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, showHookFailures = false): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, (lookup?.forTurn?.(activeTurn.message.model?.id) ?? lookup)?.toModelDisplayName);
 	if (usage) {
@@ -1944,7 +1968,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 			}
 			case ResponsePartKind.SystemNotification:
 				{
-					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry);
+					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry, showHookFailures);
 					if (progress) {
 						parts.push(progress);
 					}
