@@ -5,34 +5,13 @@
 
 import assert from 'assert';
 import { spawnSync } from 'child_process';
-import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
-import { getLockedVersion } from '../pnpmLock.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, renderCopilotShimLauncher } from '../copilot.ts';
 import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
-
-/**
- * Builds a fake `@github/copilot-win32-x64@1.0.73` tarball on disk and returns
- * its path plus the `sha512-...` integrity of its bytes, so a test can pin that
- * integrity in a lockfile the build verifies against.
- */
-function createPinnedCopilotWin32Tarball(dir: string): { tarball: string; integrity: string } {
-	const stage = fs.mkdtempSync(path.join(dir, 'pkg-'));
-	const packageRoot = path.join(stage, 'package');
-	fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'win32-x64'), { recursive: true });
-	fs.mkdirSync(path.join(packageRoot, 'tgrep', 'bin', 'win32-x64'), { recursive: true });
-	fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ version: '1.0.73' }));
-	fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'win32-x64', 'runtime.node'), 'EXT-NATIVE-1.0.73');
-	fs.writeFileSync(path.join(packageRoot, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'), 'EXT-TGREP-1.0.73');
-	const tarball = path.join(stage, 'copilot-win32-x64.tgz');
-	create({ file: tarball, cwd: stage, gzip: true, sync: true }, ['package']);
-	const integrity = 'sha512-' + createHash('sha512').update(fs.readFileSync(tarball)).digest('base64');
-	return { tarball, integrity };
-}
 
 suite('copilot', () => {
 	test('reads the runtime version owned by the SDK', () => {
@@ -238,153 +217,6 @@ suite('copilot', () => {
 			nonTargetSdkRuntime: false,
 			nonTargetCliRuntime: false,
 		});
-	});
-
-	test('materializes target Copilot SDK prebuilds and tgrep for the built-in extension', () => {
-		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-prebuild-test-'));
-		try {
-			const builtInCopilotExtensionDir = path.join(repoRoot, 'extensions', 'copilot');
-			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
-			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
-			const platformPackageDir = path.join(appNodeModulesDir, '@github', 'copilot-win32-x64');
-
-			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'linux-x64'), { recursive: true });
-			fs.writeFileSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'linux-x64', 'runtime.node'), '');
-			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
-			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty'), { recursive: true });
-			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
-			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'MediaRemoteAdapter.framework'), { recursive: true });
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'copilot-runtime.exe'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'copilot-runtime-bin.exe'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'OneAuthInterop.dll'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty.node'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'mediaremote-adapter.pl'), '');
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'MediaRemoteAdapter.framework', 'MediaRemoteAdapter'), '');
-			fs.mkdirSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64'), { recursive: true });
-			fs.writeFileSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'), '');
-			fs.mkdirSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64'), { recursive: true });
-			fs.writeFileSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64', 'rg.exe'), '');
-
-			prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir);
-
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'runtime.node')));
-			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'copilot-runtime.exe')));
-			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'copilot-runtime-bin.exe')));
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'OneAuthInterop.dll')));
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty.node')));
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe')));
-			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'mediaremote-adapter')));
-			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'linux-x64')));
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe')));
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'tgrep', 'bin', 'win32-x64', 'tgrep.exe')));
-			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'ripgrep', 'bin', 'win32-x64', 'rg.exe')));
-		} finally {
-			fs.rmSync(repoRoot, { recursive: true, force: true });
-		}
-	});
-
-	test('materializes a version-matched native when app-root diverges from the pinned extension', () => {
-		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-pinned-test-'));
-		try {
-			const builtInCopilotExtensionDir = path.join(repoRoot, 'extensions', 'copilot');
-			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
-			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
-			const platformPackageDir = path.join(appNodeModulesDir, '@github', 'copilot-win32-x64');
-
-			// Extension pinned at 1.0.73.
-			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
-			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
-
-			// App-root updated ahead of the pinned extension — its (mismatched) native must NOT be used.
-			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64'), { recursive: true });
-			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '9.9.9-canary' }));
-			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), 'CANARY-NATIVE');
-			fs.mkdirSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64'), { recursive: true });
-			fs.writeFileSync(path.join(platformPackageDir, 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'), 'CANARY-TGREP');
-
-			fs.mkdirSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64'), { recursive: true });
-			fs.writeFileSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64', 'rg.exe'), '');
-
-			// Pin the fetched tarball's integrity in the extension lockfile the build verifies against.
-			const { tarball, integrity } = createPinnedCopilotWin32Tarball(repoRoot);
-			const extensionLockfilePath = path.join(builtInCopilotExtensionDir, 'pnpm-lock.yaml');
-			writePnpmLockfile(extensionLockfilePath, { '@github/copilot-win32-x64': { version: '1.0.73', integrity } });
-
-			const packCalls: { packageName: string; version: string }[] = [];
-			prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, {
-				extensionLockfilePath,
-				packPackage: (packageName, version) => {
-					packCalls.push({ packageName, version });
-					return tarball;
-				}
-			});
-
-			// The version-matched (1.0.73) native was fetched and used — not app-root's canary.
-			assert.deepStrictEqual(packCalls, [{ packageName: '@github/copilot-win32-x64', version: '1.0.73' }]);
-			assert.strictEqual(
-				fs.readFileSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'runtime.node'), 'utf8'),
-				'EXT-NATIVE-1.0.73'
-			);
-			assert.strictEqual(
-				fs.readFileSync(path.join(extensionCopilotDir, 'sdk', 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'), 'utf8'),
-				'EXT-TGREP-1.0.73'
-			);
-		} finally {
-			fs.rmSync(repoRoot, { recursive: true, force: true });
-		}
-	});
-
-	test('refuses to ship a fetched native that does not match the pinned extension lockfile integrity', () => {
-		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-integrity-test-'));
-		try {
-			const builtInCopilotExtensionDir = path.join(repoRoot, 'extensions', 'copilot');
-			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
-			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
-
-			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
-			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
-			fs.mkdirSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64'), { recursive: true });
-			fs.writeFileSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64', 'rg.exe'), '');
-
-			const { tarball } = createPinnedCopilotWin32Tarball(repoRoot);
-			const extensionLockfilePath = path.join(builtInCopilotExtensionDir, 'pnpm-lock.yaml');
-			// Lockfile pins a DIFFERENT (tampered) integrity than the fetched tarball.
-			writePnpmLockfile(extensionLockfilePath, { '@github/copilot-win32-x64': { version: '1.0.73', integrity: `sha512-${'A'.repeat(88)}` } });
-
-			assert.throws(() => prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, {
-				extensionLockfilePath,
-				packPackage: () => tarball
-			}), /integrity mismatch/);
-		} finally {
-			fs.rmSync(repoRoot, { recursive: true, force: true });
-		}
-	});
-
-	test('verifies fetched natives against the repository lockfile that records extensions/copilot', () => {
-		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-repo-lockfile-test-'));
-		try {
-			const builtInCopilotExtensionDir = path.join(repoRoot, 'extensions', 'copilot');
-			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
-			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
-			const version = getLockedVersion('extensions/copilot', '@github/copilot');
-
-			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
-			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version }));
-
-			// Without a lockfile override, the pinned integrity must be found before the native is fetched.
-			const packCalls: string[] = [];
-			assert.throws(() => prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, {
-				packPackage: (packageName, packageVersion) => {
-					packCalls.push(`${packageName}@${packageVersion}`);
-					throw new Error('not fetched in tests');
-				}
-			}), /not fetched in tests/);
-			assert.deepStrictEqual(packCalls, [`@github/copilot-win32-x64@${version}`]);
-		} finally {
-			fs.rmSync(repoRoot, { recursive: true, force: true });
-		}
 	});
 
 	test('strips all copilot platform packages for unsupported armhf builds', () => {

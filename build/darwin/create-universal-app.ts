@@ -60,10 +60,6 @@ const x64ArchFiles = `{${[
 	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*',
 	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*',
 	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*',
-	'**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*',
-	'**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*',
-	'**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*',
-	'**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*',
 	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*',
 	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*',
 	'**/node_modules/@vscode/os-proxy-resolver-darwin-*/**',
@@ -128,16 +124,6 @@ async function main(buildDir?: string) {
 			// @vscode/ripgrep-universal/bin/{platform} (rg binary)
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@vscode', 'ripgrep-universal', 'bin', plat));
 		}
-
-		const copilotExtensionNodeModules = path.join('Contents', 'Resources', 'app', 'extensions', 'copilot', 'node_modules');
-		// @github/copilot/sdk/prebuilds/{platform} (pty.node, spawn-helper)
-		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'prebuilds', plat));
-		// @github/copilot/sdk/ripgrep/bin/{platform} (ripgrep shim)
-		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'ripgrep', 'bin', plat));
-		// @github/copilot/sdk/tgrep/bin/{platform} (tgrep binary)
-		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'tgrep', 'bin', plat));
-		// @github/copilot/tgrep/bin/{platform} (tgrep binary)
-		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'tgrep', 'bin', plat));
 	}
 
 	const filesToSkip = [

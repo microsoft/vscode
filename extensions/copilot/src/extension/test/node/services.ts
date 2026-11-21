@@ -54,8 +54,6 @@ import { IWorkspaceChunkSearchService, NullWorkspaceChunkSearchService } from '.
 import { Event } from '../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
-import { ILanguageModelServer } from '../../agents/node/langModelServer';
-import { MockLanguageModelServer } from '../../agents/node/test/mockLanguageModelServer';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';
 import { IPromptWorkspaceLabels, PromptWorkspaceLabels } from '../../context/node/resolvers/promptWorkspaceLabels';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
@@ -135,7 +133,6 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IToolEmbeddingsComputer, new SyncDescriptor(TestToolEmbeddingsComputer));
 	testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(RemoteEmbeddingsComputer));
 	testingServiceCollection.define(ITodoListContextProvider, new SyncDescriptor(TodoListContextProvider));
-	testingServiceCollection.define(ILanguageModelServer, new SyncDescriptor(MockLanguageModelServer));
 	testingServiceCollection.define(IEditToolLearningService, new SyncDescriptor(EditToolLearningService));
 	testingServiceCollection.define(IMemoryCleanupService, new SyncDescriptor(MemoryCleanupService));
 	testingServiceCollection.define(IGitService, new SyncDescriptor(NullGitExtensionService));
