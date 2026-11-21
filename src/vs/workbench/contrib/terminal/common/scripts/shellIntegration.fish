@@ -149,6 +149,12 @@ end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
 function __preserve_fish_prompt --on-event fish_prompt
+	# config.fish has been evaluated by now. Apply the environment variables
+	# before the first prompt is displayed, so that the user's prompt can use
+	# them (for example a tool on a PATH entry added by an extension). The
+	# prompt wrappers run the user's prompt before anything else, so it still
+	# sees the $status and $pipestatus of the last command.
+	__vsc_apply_env_vars
 	if functions --query fish_prompt
 		if functions --query __vsc_fish_prompt
 			# Erase the fallback so it can be set to the user's prompt
@@ -206,8 +212,8 @@ end
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
-	# Applying environment variables is deferred to after config.fish has been
-	# evaluated
+	# The environment variables are normally applied before the first prompt
+	# (see __preserve_fish_prompt), in which case this does nothing.
 	__vsc_apply_env_vars
 	__vsc_esc A
 	set -g vsc_initialized 1
@@ -223,6 +229,17 @@ function __vsc_fish_has_mode_prompt -d "Returns true if fish_mode_prompt is defi
 	functions fish_mode_prompt | string match -rvq '^ *(#|function |end$|$)'
 end
 
+# Print the lines captured from a prompt function the same way fish prints a
+# prompt: every line but the last is followed by a newline.
+function __vsc_fish_print_prompt
+	if set -q argv[2]
+		builtin printf '%s\n' $argv[1..-2]
+	end
+	if set -q argv[1]
+		builtin printf '%s' $argv[-1]
+	end
+end
+
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
@@ -231,8 +248,12 @@ function __init_vscode_shell_integration
 		functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
 		function fish_mode_prompt
+			# Run the user's prompt first so it sees the real $status and
+			# $pipestatus of the last command, before our helpers overwrite them.
+			set -l __vsc_prompt (__vsc_fish_mode_prompt)
 			__vsc_fish_prompt_start
-			__vsc_fish_mode_prompt
+			# fish joins the lines of the mode prompt without newlines.
+			builtin printf '%s' $__vsc_prompt
 		end
 
 		function fish_prompt
@@ -242,8 +263,11 @@ function __init_vscode_shell_integration
 	else
 		# No fish_mode_prompt, so put everything in fish_prompt.
 		function fish_prompt
+			# Run the user's prompt first so it sees the real $status and
+			# $pipestatus of the last command, before our helpers overwrite them.
+			set -l __vsc_prompt (__vsc_fish_prompt)
 			__vsc_fish_prompt_start
-			__vsc_fish_prompt
+			__vsc_fish_print_prompt $__vsc_prompt
 			__vsc_fish_cmd_start
 		end
 	end
