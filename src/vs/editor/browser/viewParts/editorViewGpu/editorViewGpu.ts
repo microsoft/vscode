@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { EditorView, EditorViewConfig, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
-import { addDisposableListener, EventType, getActiveWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
 import { equals } from '../../../../base/common/arrays.js';
@@ -141,8 +141,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Last vertical layout sent to the renderer: `[paddingTop, beforeLine0, height0, ...]`. */
 	private _verticalLayout: number[] = [0];
 	private _foldingControlsHovered = false;
-	/** View line (1-based) holding the primary cursor; its number is highlighted. */
-	private _activeLineNumber = 1;
+	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
+	private _sentGutterLabels: (string | undefined)[] = [];
 	/** Current selections in renderer coordinates (0-based line, 0-based UTF-16 column). */
 	private _selections: SelectionInput[] = [];
 	/** 0-based view lines carrying a cursor (deduped), on which the current-line highlight is painted. */
@@ -251,7 +251,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		return {
 			width: layoutInfo.width,
 			height: layoutInfo.height,
-			dpr: getActiveWindow().devicePixelRatio || 1,
+			// The editor's own window: auxiliary windows can be on monitors with a
+			// different scale than the focused one.
+			dpr: getWindow(this._editorRoot).devicePixelRatio || 1,
 		};
 	}
 
@@ -317,8 +319,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			foreground: this._packColor(this._context.theme.getColor(editorForeground), 0xd4d4d4ff),
 			lineNumberForeground: this._packColor(this._context.theme.getColor(editorLineNumbers), 0x858585ff),
 			lineNumberActiveForeground: this._packColor(this._context.theme.getColor(editorActiveLineNumber), 0xc6c6c6ff),
-			// 0-based view line of the primary cursor, drawn with the active color.
-			activeLine: this._activeLineNumber - 1,
+			// 0-based view line whose label is drawn with the active color: the first
+			// row of the primary cursor's model line, as `LineNumbersOverlay` does
+			// (wrap continuation rows have no label).
+			activeLine: this._activeGutterLine(),
 			selections: this._selections,
 			// `roundedSelection` mirrors the DOM `SelectionsOverlay`; the CSS
 			// forces the radius off in high-contrast themes, so we do the same.
@@ -431,7 +435,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			this._blinkTimer.cancelAndSet(() => {
 				this._caretOn = !this._caretOn;
 				this._present();
-			}, EditorViewGpu.BLINK_INTERVAL, getActiveWindow());
+			}, EditorViewGpu.BLINK_INTERVAL, getWindow(this._editorRoot));
 		}
 	}
 
@@ -597,6 +601,13 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			.lineNumber;
 	}
 
+	/** 0-based view line carrying the primary cursor's (labelled) first wrapped row. */
+	private _activeGutterLine(): number {
+		return this._context.viewModel.coordinatesConverter
+			.convertModelPositionToViewPosition(new Position(this._primaryCursorModelLineNumber(), 1))
+			.lineNumber - 1;
+	}
+
 	/**
 	 * The token color palette (indexed by `ColorId`, pre-packed) plus the default
 	 * foreground, resolved once so a batch of line/token rebuilds shares them.
@@ -674,10 +685,70 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _applyDelta(delta: ModelDeltaInput): void {
 		try {
 			this._editorView!.applyDelta(delta);
+			if (delta.type === 'replaceLines') {
+				this._sentGutterLabels.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => line.gutterLabel));
+			}
 		} catch (err) {
 			onUnexpectedError(err);
 			this._sync.scheduleFullReload();
 		}
+	}
+
+	private _setLines(lines: LineInput[]): void {
+		this._editorView!.setLines(lines);
+		this._sentGutterLabels = lines.map(line => line.gutterLabel);
+	}
+
+	/**
+	 * Gutter labels depend on other lines (inserts/deletes renumber everything
+	 * below), the primary cursor (relative/interval) and the `lineNumbers`
+	 * option, so a line's stored label can go stale without its content
+	 * changing. Re-send the renderer's visible lines whose label differs, as one
+	 * `replaceLines` per contiguous run.
+	 */
+	private _syncGutterLabels(scrollTop: number): void {
+		const { start, end } = this._rendererLineRange(scrollTop);
+		let ctx: { colorMap: number[]; defaultForeground: number } | undefined;
+		let runStart = -1;
+		const flush = (runEnd: number) => {
+			if (runStart < 0) {
+				return;
+			}
+			ctx ??= this._tokenColorContext();
+			const insert: LineInput[] = [];
+			for (let line = runStart; line < runEnd; line++) {
+				insert.push(this._buildLine(line + 1, ctx.colorMap, ctx.defaultForeground));
+			}
+			this._applyDelta({ type: 'replaceLines', start: runStart, deleteCount: insert.length, insert });
+			runStart = -1;
+		};
+		for (let line = start; line < end; line++) {
+			if (this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]) {
+				if (runStart < 0) {
+					runStart = line;
+				}
+			} else {
+				flush(line);
+			}
+		}
+		flush(end);
+	}
+
+	/**
+	 * 0-based `[start, end)` view lines the renderer may paint at `scrollTop`: its
+	 * visible range with two lines of overscan, which starts at the line above a
+	 * partly scrolled-past view zone.
+	 */
+	private _rendererLineRange(scrollTop: number): { start: number; end: number } {
+		const lineCount = this._context.viewModel.getLineCount();
+		if (lineCount === 0) {
+			return { start: 0, end: 0 };
+		}
+		const viewport = this._context.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
+		return {
+			start: Math.max(0, viewport.startLineNumber - 4),
+			end: Math.min(lineCount, viewport.endLineNumber + 3),
+		};
 	}
 
 	/**
@@ -693,7 +764,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		const plan = this._sync.takePlan();
 		if (plan.fullReload) {
-			this._editorView!.setLines(this._gatherLines());
+			this._setLines(this._gatherLines());
 			return;
 		}
 		if (plan.structural.length === 0 && plan.contentLines.length === 0 && plan.tokenLines.length === 0) {
@@ -733,11 +804,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		if (lineCount === 0) {
 			return;
 		}
-		// Cover the renderer's visible range, which includes two lines of overscan
-		// and starts at the line above a partly scrolled-past view zone.
-		const viewport = this._context.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
-		const start = Math.max(0, viewport.startLineNumber - 4);
-		const end = Math.min(lineCount, viewport.endLineNumber + 3);
+		const { start, end } = this._rendererLineRange(scrollTop);
 		if (start >= end) {
 			return;
 		}
@@ -920,6 +987,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		this._editorView.setConfig(this._buildConfig());
 		this._syncModel();
+		this._syncGutterLabels(scrollTop);
 		this._syncDecorations();
 		this._syncGuides(scrollTop);
 		this._editorView.setViewport({
@@ -1011,11 +1079,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		return true;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		// Track the primary cursor's view line so its number is highlighted with
-		// `editorLineNumber.activeForeground`, mirror the full selection set so the
-		// renderer can paint it, and derive the current-line highlight state
-		// (cursor lines + whether the selection is empty).
-		const activeLineNumber = e.selections[0].getPosition().lineNumber;
+		// Mirror the full selection set so the renderer can paint it, and derive
+		// the current-line highlight state (cursor lines + whether the selection
+		// is empty). The active line number is derived from the primary cursor.
 		// View selections are 1-based (line, column); the renderer is 0-based.
 		const selections: SelectionInput[] = e.selections.map(s => ({
 			startLine: s.startLineNumber - 1,
@@ -1025,7 +1091,6 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}));
 		// Distinct 0-based cursor (position) lines — VS Code highlights each one.
 		const cursorLines = Array.from(new Set(e.selections.map(s => s.getPosition().lineNumber - 1))).sort((a, b) => a - b);
-		this._activeLineNumber = activeLineNumber;
 		this._selections = selections;
 		this._cursorLines = cursorLines;
 		this._selectionIsEmpty = e.selections.every(s => s.isEmpty());
