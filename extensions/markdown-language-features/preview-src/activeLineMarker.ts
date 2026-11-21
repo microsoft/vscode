@@ -9,7 +9,8 @@ export class ActiveLineMarker {
 
 	onDidChangeTextEditorSelection(line: number, documentVersion: number) {
 		const { previous } = getElementsForSourceLine(line, documentVersion);
-		this.#update(previous && (previous.codeElement || previous.element));
+		// Fenced code blocks are marked on the `<pre>` since their `<code>` scrolls and would clip the marker
+		this.#update(previous && previous.element);
 	}
 
 	#update(before: HTMLElement | undefined) {
