@@ -1,0 +1,37 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index d77af2bd90fa5145a5c5c0a3ca1f96b19f3c69b4..67539f79354c98b39e667ee9a764f10d436379e1 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -94,7 +94,7 @@ declare interface AstVisualizationNode {
+ export declare class AsyncClipboardStrategy implements IClipboardStrategy {
+     private readonly _clipboard;
+     private readonly _paste?;
+-    constructor(_clipboard?: Clipboard, _paste?: ((context: IClipboardContext, plainText: boolean, nativeData?: NativeClipboardData) => Promise<void>) | undefined);
++    constructor(_clipboard?: Clipboard, _paste?: ((context: IClipboardContext, plainText: boolean, nativeData?: NativeClipboardData) => Promise<void>) | undefined, handlePasteAsTextKeybinding?: boolean);
+     writeText(text: string): Promise<void>;
+     connect(context: IClipboardContext): IDisposable;
+ }
+diff --git a/dist/index.js b/dist/index.js
+index 6d1dda072f92a3854c5ccd9d6415d8467e704966..ba94a18bcd963697d62ff4557dd31d457c92aa0f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -9617,8 +9617,8 @@ class xh {
+   }
+ }
+ class Cu {
+-  constructor(e = navigator.clipboard, t) {
+-    this._clipboard = e, this._paste = t;
++  constructor(e = navigator.clipboard, t, s = true) {
++    this._clipboard = e, this._paste = t, this._handlePasteAsTextKeybinding = s;
+   }
+   writeText(e) {
+     return this._clipboard.writeText(e);
+@@ -9681,6 +9681,8 @@ class Cu {
+             break;
+           }
+           case "v": {
++            if (u.shiftKey && !this._handlePasteAsTextKeybinding)
++              return;
+             if (u.preventDefault(), u.stopPropagation(), this._paste) {
+               this._paste(e, u.shiftKey);
+               break;

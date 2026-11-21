@@ -245,6 +245,7 @@ suite('Markdown editor initial state', () => {
 			documentVersion: 17,
 			editEpoch: 3,
 			readonly: true,
+			forwardPasteAsTextKeybinding: true,
 			richLinksEnabled: true,
 			highlightActiveBlock: false,
 			renderWhitespace: true,

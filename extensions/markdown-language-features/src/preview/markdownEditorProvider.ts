@@ -1241,6 +1241,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			documentVersion: document.version,
 			editEpoch,
 			readonly,
+			forwardPasteAsTextKeybinding: vscode.env.uiKind === vscode.UIKind.Desktop,
 			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', true),
 			linkPresentationRules: vscode.window.linkPresentationRules.map(rule => ({
 				id: rule.id,

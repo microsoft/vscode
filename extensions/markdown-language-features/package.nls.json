@@ -2,6 +2,7 @@
 	"displayName": "Markdown Language Features",
 	"description": "Provides rich language support for Markdown.",
 	"markdown.editor.rename": "Rename Symbol",
+	"markdown.editor.pasteAsText": "Paste as Text",
 	"markdown.editor.triggerSuggest": "Trigger Suggest",
 	"configuration.preview": "Preview",
 	"configuration.editor": "Language Features",
