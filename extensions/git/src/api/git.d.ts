@@ -525,5 +525,6 @@ export const enum GitErrorCodes {
 	CherryPickConflict = 'CherryPickConflict',
 	WorktreeContainsChanges = 'WorktreeContainsChanges',
 	WorktreeAlreadyExists = 'WorktreeAlreadyExists',
-	WorktreeBranchAlreadyUsed = 'WorktreeBranchAlreadyUsed'
+	WorktreeBranchAlreadyUsed = 'WorktreeBranchAlreadyUsed',
+	CommitHookFailed = 'CommitHookFailed'
 }
