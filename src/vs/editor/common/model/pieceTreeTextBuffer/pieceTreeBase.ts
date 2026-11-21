@@ -8,7 +8,7 @@ import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
 import { FindMatch, ITextSnapshot, SearchData } from '../../model.js';
 import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from './rbTreeBase.js';
-import { Searcher, createFindMatch, isValidMatch } from '../textModelSearch.js';
+import { Searcher, createFindMatch, findNextWordStart, isValidMatch } from '../textModelSearch.js';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 const AverageBufferSize = 65535;
@@ -738,7 +738,7 @@ export class PieceTreeBase {
 	public findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
 		const result: FindMatch[] = [];
 		let resultLen = 0;
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const searcher = new Searcher(searchData.wordSeparators, searchData.regex, searchData.isLiteralSearch);
 
 		let startPosition = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
 		if (startPosition === null) {
@@ -816,13 +816,18 @@ export class PieceTreeBase {
 			const searchStringLen = searchString.length;
 			const textLength = text.length;
 
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
+			let searchStartIndex = 0;
+			let lastMatchIndex: number;
+			while ((lastMatchIndex = text.indexOf(searchString, searchStartIndex)) !== -1) {
 				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
 					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
 					if (resultLen >= limitResultCount) {
 						return resultLen;
 					}
+					searchStartIndex = lastMatchIndex + searchStringLen;
+				} else {
+					// A rejected candidate can overlap a valid whole-word match.
+					searchStartIndex = findNextWordStart(wordSeparators, text, textLength, lastMatchIndex);
 				}
 			}
 			return resultLen;
