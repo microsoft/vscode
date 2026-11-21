@@ -109,6 +109,28 @@ suite('AgentCustomizationItemProvider', () => {
 			})), [{ name: 'troubleshoot', source: AICustomizationSources.builtin, readable: false }]);
 		});
 
+		test(`surfaces argumentHint for directory skills with skill metadata (${kind.name})`, async () => {
+			const directory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
+			const resource = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/automate' });
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomizations(): readonly Customization[] {
+					return [{
+						type: CustomizationType.Directory, id: directory.toString(), uri: directory.toString(), name: 'builtin',
+						contents: CustomizationType.Skill, enabled: true, writable: false,
+						children: [{
+							type: CustomizationType.Skill, id: resource.toString(), uri: resource.toString(), name: 'automate',
+							_meta: { 'vscode.skill.argumentHint': 'Describe a task, schedule, and where it should run' }
+						}],
+					}];
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined,
+				upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+			const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
+			const skillItem = items.find(item => item.name === 'automate');
+			assert.strictEqual(skillItem?.argumentHint, 'Describe a task, schedule, and where it should run');
+		});
+
 		test(`groups MCP skills by user source and parent plugin while preserving enablement and host resource mapping (${kind.name})`, async () => {
 			const session = URI.parse('agent-host-copilot:/remote');
 			const resource = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
