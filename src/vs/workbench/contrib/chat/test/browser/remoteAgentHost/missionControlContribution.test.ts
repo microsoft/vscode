@@ -245,6 +245,16 @@ suite('Mission Control sharing service', () => {
 		}));
 	}
 
+	// Pins existing behaviour: the owner lookup already requires the default account's provider to be the GitHub provider.
+	test('does not withdraw an existing registration with a Microsoft default account and an unrelated GitHub session', () => runWithFakedTimers({}, async () => {
+		const { calls } = fixture({
+			available: false, existingEnvironment: 'registered-host',
+			defaultAccount: { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 'microsoft-session', enterprise: false },
+		});
+		await timeout(0);
+		assert.deepStrictEqual(calls, []);
+	}));
+
 	test('does not guess an owner for an existing registration with multiple signed-in accounts', () => runWithFakedTimers({}, async () => {
 		const { calls, logService } = fixture({
 			available: false, existingEnvironment: 'registered-host',
@@ -1323,6 +1333,14 @@ suite('Mission Control sharing service', () => {
 			assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 		}));
 	}
+
+	test('does not use a Microsoft default account for sharing', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			defaultAccount: { authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: copilotSession.id, enterprise: false },
+		});
+		await assert.rejects(sharing.setEnabled(true), sharingFailure('nonGitHubAccount', /Copilot account/));
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
+	}));
 
 	for (const account of [null, { ...copilotAccount, sessionId: otherSession.id, accountName: otherSession.account.label }]) {
 		test(`withdraws sharing on Copilot ${account ? 'account change' : 'sign-out'} and requires a new opt-in`, () => runWithFakedTimers({}, async () => {

@@ -71,6 +71,18 @@ export interface IDefaultAccountProvider {
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
+
+	/**
+	 * Remembers a Microsoft account as the default account. The choice is stored for the application: this window's
+	 * default account is updated before the returned promise resolves, and other windows read it when they next
+	 * update their default account. Does nothing when the Microsoft default account is not enabled.
+	 */
+	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void>;
+
+	/**
+	 * Forgets the remembered Microsoft account. Resolves once this window's default account has been updated.
+	 */
+	forgetMicrosoftAccount(): Promise<void>;
 }
 
 export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
@@ -98,6 +110,18 @@ export interface IDefaultAccountService {
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
+
+	/**
+	 * Remembers a Microsoft account as the default account. The choice is stored for the application: this window's
+	 * default account is updated before the returned promise resolves, and other windows read it when they next
+	 * update their default account. Does nothing when the Microsoft default account is not enabled.
+	 */
+	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void>;
+
+	/**
+	 * Forgets the remembered Microsoft account. Resolves once this window's default account has been updated.
+	 */
+	forgetMicrosoftAccount(): Promise<void>;
 
 	/**
 	 * Resolves a GitHub path against the selected session's enterprise server, or `https://github.com` for a non-enterprise provider.

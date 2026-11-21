@@ -735,6 +735,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		refresh: async () => null,
 		signIn: async () => null,
 		signOut: async () => { },
+		rememberMicrosoftAccount: async () => { },
+		forgetMicrosoftAccount: async () => { },
 	});
 
 	const overrideFocus = disposables instanceof FixtureDisposableStore ? disposables.overrideFocus : true;
