@@ -25,4 +25,14 @@ suite('ExtHostWindowLayouts', () => {
 
 		assert.deepStrictEqual({ changes, active: testObject.activeLayout.label }, { changes: ['Debug', 'Debug'], active: 'Debug' });
 	});
+
+	test('the label of the active layout is updated without a change of the active layout', () => {
+		const testObject = new ExtHostWindowLayouts(SingleProxyRPCProtocol({}));
+		const changes: string[] = [];
+		store.add(testObject.onDidChangeActiveLayout(layout => changes.push(layout.label)));
+
+		testObject.$acceptActiveLayout({ id: DEFAULT_NAMED_LAYOUT_ID, label: 'Standard', contribution: undefined });
+
+		assert.deepStrictEqual({ changes, active: testObject.activeLayout.label }, { changes: [], active: 'Standard' });
+	});
 });

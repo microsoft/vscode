@@ -40,13 +40,13 @@ export class ExtHostWindowLayouts implements ExtHostWindowLayoutsShape {
 	}
 
 	$acceptActiveLayout(layout: WindowLayoutDto): void {
-		if (layout.id === this.activeLayoutId) {
-			return;
-		}
-
+		// The label of the same layout can change, for example the workbench localizes the label of the default layout
+		const changed = layout.id !== this.activeLayoutId;
 		this.activeLayoutId = layout.id;
 		this._activeLayout = toWindowLayout(layout);
-		this._onDidChangeActiveLayout.fire(this._activeLayout);
+		if (changed) {
+			this._onDidChangeActiveLayout.fire(this._activeLayout);
+		}
 	}
 
 	async switchLayout(extension: IExtensionDescription, id: string): Promise<vscode.WindowLayoutSwitch> {
