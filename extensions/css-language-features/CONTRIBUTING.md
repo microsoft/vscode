@@ -12,6 +12,8 @@
 - Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/css-language-features/.vscode/launch.json) debug target in the Debug View. This will:
 	- Launch a new VS Code instance with the `css-language-features` extension loaded
 - Open a `.css` file to activate the extension. The extension will start the CSS language server process.
+- After compiling both the client and server, run `npm test` from `extensions/css-language-features/` to run the client resource-link tests and the server completion and link tests.
+- The integration test runner also works when only the CSS server has been compiled (as in VS Code's standard integration builds). In that case it runs the server tests and reports that client tests were skipped. Compile both sides before running `npm test` locally to exercise the full CSS suite.
 - Add `"css.trace.server": "verbose"` to the settings to observe the communication between client and server in the `CSS Language Server` output.
 - Debug the extension and the language server client by setting breakpoints in`css-language-features/client/`
 - Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `css-language-features`.
