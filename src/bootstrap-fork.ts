@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { setSourceMapsSupport } from 'node:module';
 import * as performance from './vs/base/common/performance.js';
 import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
@@ -227,6 +228,11 @@ if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
 // Terminate when parent terminates
 if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
+}
+
+// Enable source maps before loading the extension host and its extensions.
+if (process.env['VSCODE_ENABLE_SOURCE_MAPS'] === 'true') {
+	setSourceMapsSupport(true);
 }
 
 // Bootstrap ESM
