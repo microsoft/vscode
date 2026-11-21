@@ -297,7 +297,11 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 			folderMatch.dispose();
 		}
 
-		this._onChange.fire(event);
+		// `replacingAll` is only set on workspace root folder matches: changes from nested
+		// folders still reach them (so empty folders get pruned) but stop here during Replace All
+		if (!this._replacingAll) {
+			this._onChange.fire(event);
+		}
 	}
 
 	doRemoveFile(fileMatches: ISearchTreeFileMatch[], dispose: boolean = true, trigger: boolean = true, keepReadonly = false): void {
