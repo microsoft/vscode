@@ -13,6 +13,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { AgentSession } from '../../common/agent.js';
+import { AgentHostSessionResidencyLimitEnvVar } from '../../common/agentService.js';
+import { AgentHostSessionResidencyLimitConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentHostSubscriptionService } from '../../common/agentHostSubscriptionService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
@@ -24,6 +26,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 
 suite('AgentSessionResidency', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,9 +39,14 @@ suite('AgentSessionResidency', () => {
 	let residency: AgentSessionResidency;
 	let delegate: IAgentSessionReleaseDelegate;
 	let subscriptions: AgentHostSubscriptionService;
+	let configurationService: AgentConfigurationService;
+	let originalLimitEnvironment: string | undefined;
 
 	setup(() => {
+		originalLimitEnvironment = process.env[AgentHostSessionResidencyLimitEnvVar];
+		delete process.env[AgentHostSessionResidencyLimitEnvVar];
 		stateManager = disposables.add(new AgentHostStateManager(logService));
+		configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		releaseHold = disposables.add(new Emitter<string>());
 		onDidEvict = disposables.add(new Emitter<void>());
 		released = [];
@@ -63,10 +71,19 @@ suite('AgentSessionResidency', () => {
 	});
 
 
-	function createResidency(limit: number, releaseRetryMs = 30_000, idleReleaseMs = 10_000): AgentSessionResidency {
+	teardown(() => {
+		if (originalLimitEnvironment === undefined) {
+			delete process.env[AgentHostSessionResidencyLimitEnvVar];
+		} else {
+			process.env[AgentHostSessionResidencyLimitEnvVar] = originalLimitEnvironment;
+		}
+	});
+
+	function createResidency(limit: number | undefined, releaseRetryMs = 30_000, idleReleaseMs = 10_000): AgentSessionResidency {
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostSubscriptionService, subscriptions],
+			[IAgentConfigurationService, configurationService],
 		)));
 		return disposables.add(instantiationService.createInstance(
 			AgentSessionResidency,
@@ -110,6 +127,107 @@ suite('AgentSessionResidency', () => {
 			await Event.toPromise(Event.filter(onDidEvict.event, isEvicted));
 		}
 	}
+
+	test('uses the configured residency limit', async () => {
+		residency.dispose();
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 2 });
+		residency = createResidency(undefined);
+		const sessions = ['first', 'second', 'third'].map(id => createUsedSession(id));
+
+		await residency.reconcile();
+		assert.deepStrictEqual(sessions.map(session => !!stateManager.getSessionState(session.toString())), [false, true, true]);
+	});
+
+	test('lowering the configured limit reconciles existing sessions without restarting', async () => {
+		residency.dispose();
+		residency = createResidency(undefined);
+		const sessions = ['first', 'second', 'third'].map(id => createUsedSession(id));
+		await residency.reconcile();
+
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 1 });
+		await waitForEviction(sessions[1]);
+		assert.deepStrictEqual({
+			resident: sessions.map(session => !!stateManager.getSessionState(session.toString())),
+			released,
+		}, { resident: [false, false, true], released: sessions.slice(0, 2).map(session => session.toString()) });
+	});
+
+	test('raising the configured limit retains additional sessions', async () => {
+		residency.dispose();
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 1 });
+		residency = createResidency(undefined);
+		const first = createUsedSession('first');
+		await residency.reconcile();
+
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 3 });
+		const second = createUsedSession('second');
+		const third = createUsedSession('third');
+		await residency.reconcile();
+		assert.deepStrictEqual([first, second, third].map(session => !!stateManager.getSessionState(session.toString())), [true, true, true]);
+	});
+
+	test('zero releases eligible sessions while protecting active turns and subscribers', async () => {
+		residency.dispose();
+		residency = createResidency(undefined);
+		const active = createUsedSession('active', false);
+		const subscribed = createUsedSession('subscribed');
+		subscriptions.addSubscriber(subscribed, 'client');
+		const idle = createUsedSession('idle');
+		await residency.reconcile();
+
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 0 });
+		await waitForEviction(idle);
+		assert.deepStrictEqual({
+			resident: [active, subscribed, idle].map(session => !!stateManager.getSessionState(session.toString())),
+			released,
+		}, { resident: [true, true, false], released: [idle.toString()] });
+	});
+
+	test('an environment override takes precedence over live configuration changes', async () => {
+		residency.dispose();
+		process.env[AgentHostSessionResidencyLimitEnvVar] = '2';
+		residency = createResidency(undefined);
+		const sessions = ['first', 'second', 'third'].map(id => createUsedSession(id));
+		await residency.reconcile();
+
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 0 });
+		await residency.reconcile();
+		assert.deepStrictEqual(sessions.map(session => !!stateManager.getSessionState(session.toString())), [false, true, true]);
+	});
+
+	test('an explicit limit takes precedence over the environment and configuration', async () => {
+		residency.dispose();
+		process.env[AgentHostSessionResidencyLimitEnvVar] = '0';
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 0 });
+		residency = createResidency(1);
+		const sessions = ['first', 'second'].map(id => createUsedSession(id));
+		await residency.reconcile();
+		assert.deepStrictEqual(sessions.map(session => !!stateManager.getSessionState(session.toString())), [false, true]);
+	});
+
+	for (const configured of [undefined, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+		test(`an absent or invalid limit falls back to ten: ${configured}`, async () => {
+			residency.dispose();
+			process.env[AgentHostSessionResidencyLimitEnvVar] = 'invalid';
+			configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: configured });
+			residency = createResidency(undefined);
+			const sessions = Array.from({ length: 11 }, (_, i) => createUsedSession(`session-${i}`));
+			await residency.reconcile();
+			assert.deepStrictEqual(released, [sessions[0].toString()]);
+		});
+	}
+
+	test('removing the configured limit restores the default and reconciles existing sessions', async () => {
+		residency.dispose();
+		configurationService.updateRootConfig({ [AgentHostSessionResidencyLimitConfigKey]: 20 });
+		residency = createResidency(undefined);
+		const sessions = Array.from({ length: 11 }, (_, i) => createUsedSession(`session-${i}`));
+		await residency.reconcile();
+
+		configurationService.updateRootConfig({}, true);
+		await waitForEviction(sessions[0]);
+		assert.deepStrictEqual(released, [sessions[0].toString()]);
+	});
 
 	test('keeps the most-recently-used sessions within the soft limit', async () => {
 		residency.dispose();

@@ -10,22 +10,23 @@ import { LinkedMap, Touch } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../common/agentService.js';
+import { AgentHostSessionResidencyLimitConfigKey, AgentHostSessionResidencyLimitDefault, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isSessionStatusArchived, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 
-const DEFAULT_SESSION_RESIDENCY_LIMIT = 10;
 const DEFAULT_SESSION_RELEASE_RETRY_MS = 30_000;
 /** Long enough to outlast a window reload or a chat switching views, short enough for another client to resume the session without a warning. */
 const DEFAULT_SESSION_IDLE_RELEASE_MS = 10_000;
 
-function readNonNegativeIntegerEnv(name: string, defaultValue: number): number {
+function readNonNegativeIntegerEnv(name: string): number | undefined {
 	const raw = process.env[name];
 	const parsed = raw !== undefined ? parseInt(raw, 10) : NaN;
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 export interface IAgentSessionRelease {
@@ -81,7 +82,8 @@ export class AgentSessionResidency extends Disposable {
 	private readonly _idleReleaseTimers = this._register(new DisposableMap<string>());
 	/** Sessions held in use that no client observed for {@link _idleReleaseMs}: released whatever the limit. */
 	private readonly _idleReleaseDue = new Set<string>();
-	private readonly _limit: number;
+	private readonly _limitOverride: number | undefined;
+	private _limit: number;
 	private readonly _releaseRetryMs: number;
 	private readonly _idleReleaseMs: number;
 
@@ -92,11 +94,20 @@ export class AgentSessionResidency extends Disposable {
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
-		this._limit = _options.limit ?? readNonNegativeIntegerEnv(AgentHostSessionResidencyLimitEnvVar, DEFAULT_SESSION_RESIDENCY_LIMIT);
-		this._releaseRetryMs = _options.releaseRetryMs ?? readNonNegativeIntegerEnv(AgentHostSessionReleaseRetryMsEnvVar, DEFAULT_SESSION_RELEASE_RETRY_MS);
+		this._limitOverride = _options.limit ?? readNonNegativeIntegerEnv(AgentHostSessionResidencyLimitEnvVar);
+		this._limit = this._readLimit();
+		this._releaseRetryMs = _options.releaseRetryMs ?? readNonNegativeIntegerEnv(AgentHostSessionReleaseRetryMsEnvVar) ?? DEFAULT_SESSION_RELEASE_RETRY_MS;
 		this._idleReleaseMs = _options.idleReleaseMs ?? DEFAULT_SESSION_IDLE_RELEASE_MS;
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const limit = this._readLimit();
+			if (limit !== this._limit) {
+				this._limit = limit;
+				void this.reconcile();
+			}
+		}));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
 			if (active) {
 				this.touch(URI.parse(session));
@@ -119,6 +130,14 @@ export class AgentSessionResidency extends Disposable {
 		this._register(this._options.onDidReleaseHold(() => void this.reconcile()));
 		// Nothing waits for a session a move held once the host shuts down.
 		this._register(toDisposable(() => this._moveHolds.forEach(hold => hold.ended.complete())));
+	}
+
+	private _readLimit(): number {
+		if (this._limitOverride !== undefined) {
+			return this._limitOverride;
+		}
+		const configured = this._configurationService.getRootValue(platformRootSchema, AgentHostSessionResidencyLimitConfigKey);
+		return typeof configured === 'number' && Number.isSafeInteger(configured) && configured >= 0 ? configured : AgentHostSessionResidencyLimitDefault;
 	}
 
 	touch(resource: URI): void {
