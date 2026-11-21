@@ -98,6 +98,9 @@ export interface WebviewOptions {
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 
+	/** Whether the content is read-only. Omits Cut and Paste from the default context menu. */
+	readonly readOnly?: boolean;
+
 	/**
 	 * Disable the service worker used for loading local resources in the webview.
 	 */
