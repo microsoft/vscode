@@ -48,3 +48,6 @@ export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
 export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
 export const NEW_UNTITLED_FILE_LABEL = nls.localize2('newUntitledFile', "New Untitled Text File");
 export const NEW_FILE_COMMAND_ID = 'workbench.action.files.newFile';
+
+export const COLLAPSE_FOLDER_ID = 'explorer.collapseResource';
+export const COLLAPSE_FOLDER_RECURSIVE_ID = 'explorer.collapseResourceRecursive';
