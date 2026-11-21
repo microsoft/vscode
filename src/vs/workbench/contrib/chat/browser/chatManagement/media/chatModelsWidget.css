@@ -50,7 +50,7 @@
 .models-widget .models-search-and-button-container .section-title-actions .models-add-model-button,
 .models-widget .models-search-and-button-container .section-title-actions .models-browse-marketplace-button {
 	white-space: nowrap;
-	padding: 6px 8px 6px 4px;
+	padding: 6px 8px;
 }
 
 /** Table styling **/
