@@ -616,6 +616,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	findScrollWidgetState(): StickyScrollWidgetState {
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
+		const lineCount = this._editor.getModel()?.getLineCount() ?? 0;
 		let lastLineRelativePosition: number = 0;
 		const startLineNumbers: number[] = [];
 		const endLineNumbers: number[] = [];
@@ -632,7 +633,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
 				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
 					startLineNumbers.push(start);
-					endLineNumbers.push(end + 1);
+					// A scope can end on the last line, which has no line after it.
+					endLineNumbers.push(Math.min(end + 1, lineCount));
 					if (bottomOfElement > bottomOfEndLine) {
 						lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
 					}
