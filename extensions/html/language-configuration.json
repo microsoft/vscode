@@ -24,6 +24,9 @@
 		{ "open": "<", "close": ">" }
 	],
 	"colorizedBracketPairs": [
+		["{{", "}}"],
+		["{%", "%}"],
+		["{#", "#}"]
 	],
 	"folding": {
 		"markers": {
