@@ -1981,6 +1981,35 @@ suite('PromptFilesLocator', () => {
 				'Must find instructions files recursively in subdirectories of .github/instructions.',
 			);
 		});
+
+		testT('finds instructions files in subdirectories when the workspace folder path contains glob-like characters', async () => {
+			setLocations({
+				'.github/instructions': true,
+				'.claude/rules': false,
+				'~/.copilot/instructions': false,
+			});
+			setWorkspaceFolders(['/Users/legomushroom/repos/Game * [URP]']);
+			await mockFiles(fileService, [
+				{
+					path: '/Users/legomushroom/repos/Game * [URP]/.github/instructions/root.instructions.md',
+					contents: ['root instructions'],
+				},
+				{
+					path: '/Users/legomushroom/repos/Game * [URP]/.github/instructions/frontend/react.instructions.md',
+					contents: ['react instructions'],
+				},
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			assertOutcome(
+				await locator.listFiles(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+				[
+					'/Users/legomushroom/repos/Game * [URP]/.github/instructions/root.instructions.md',
+					'/Users/legomushroom/repos/Game * [URP]/.github/instructions/frontend/react.instructions.md',
+				],
+				'Must find instructions files recursively in subdirectories.',
+			);
+		});
 	});
 
 	suite('skills', () => {

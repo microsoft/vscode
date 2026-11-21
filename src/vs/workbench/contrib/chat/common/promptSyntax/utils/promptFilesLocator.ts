@@ -660,8 +660,9 @@ export class PromptFilesLocator {
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
 	 * For instruction folders, this searches recursively (up to {@link MAX_INSTRUCTIONS_RECURSION_DEPTH} levels deep) provided
-	 * the location is not a workspace folder root and does not contain wildcards, to support subdirectories while avoiding
-	 * accidentally broad traversal.
+	 * the location is not a workspace folder root, to support subdirectories while avoiding accidentally broad traversal.
+	 * Configured glob patterns are resolved before calling this method, so any glob-like characters left in `location`
+	 * (e.g. a workspace folder named `Project *`) are literal.
 	 */
 	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken, depth: number = 0, root?: URI): Promise<URI[]> {
 		if (type === PromptsType.skill) {
@@ -669,12 +670,10 @@ export class PromptFilesLocator {
 		}
 		// Recurse into subdirectories for instruction folders, but only if:
 		// - the location is not a workspace folder root (to avoid full workspace traversal)
-		// - the path does not contain wildcards (already filtered upstream, but guard here too)
 		// - the recursion depth hasn't exceeded the limit
 		const isWorkspaceRoot = depth === 0 && (root ? isEqual(root, location) : this.getWorkspaceFolders().some(f => isEqual(f.uri, location)));
 		const recursive = type === PromptsType.instructions
 			&& !isWorkspaceRoot
-			&& !hasGlobPattern(location.path)
 			&& depth < MAX_INSTRUCTIONS_RECURSION_DEPTH;
 		try {
 			const info = await this.fileService.resolve(location);
