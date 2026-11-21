@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IExperimentationFilterProvider } from 'tas-client';
+import { IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
+import { isString } from '../../../../base/common/types.js';
 import { getInternalOrg, isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -270,6 +272,17 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
  * the GitHub account signals available in core. Hex org/business ids are not yet parsed
  * in core, so they are intentionally omitted here.
  */
+/**
+ * Returns the universal key of who pays for the user's Copilot, or `undefined` unless the
+ * entitlements carry both the key and the account type as non-empty strings.
+ */
+function parseBillableOwner(entitlements: IEntitlementsData | undefined | null): string | undefined {
+	// The response is not validated, so check the shape here.
+	const universalKey: unknown = entitlements?.billable_owner?.universal_key;
+	const accountType: unknown = entitlements?.billable_owner?.account_type;
+	return isString(universalKey) && universalKey && isString(accountType) && accountType ? universalKey : undefined;
+}
+
 export enum GitHubAssignmentsFilter {
 	CopilotTrackingId = 'copilottrackingid',
 	/** Whether the account is staff or belongs to a recognized internal organization. */
@@ -278,6 +291,8 @@ export enum GitHubAssignmentsFilter {
 	CopilotSku = 'github_core_copilotsku',
 	CopilotIsSn = 'github_core_issn',
 	CopilotIsFcv1 = 'github_core_isfcv1',
+	/** The universal key of who pays for the user's Copilot. */
+	CopilotBillableEntityId = 'github_core_copilotbillableentityid',
 }
 
 /**
@@ -326,6 +341,8 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 				return tokenInfo?.sn === '1' ? '1' : '0';
 			case GitHubAssignmentsFilter.CopilotIsFcv1:
 				return tokenInfo?.fcv1 === '1' ? '1' : '0';
+			case GitHubAssignmentsFilter.CopilotBillableEntityId:
+				return parseBillableOwner(entitlements) ?? null;
 			default:
 				return null;
 		}
