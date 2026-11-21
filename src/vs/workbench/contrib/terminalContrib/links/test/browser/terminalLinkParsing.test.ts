@@ -578,6 +578,101 @@ suite('TerminalLinkParsing', () => {
 			}
 		});
 
+		suite('() and [] in paths (#212109)', () => {
+			function onlyPath(text: string, index: number): IParsedLink[] {
+				return [{ path: { index, text }, prefix: undefined, suffix: undefined }];
+			}
+			function pathWithSuffix(text: string, index: number, suffix: string, row: number, col?: number): IParsedLink[] {
+				return [{
+					path: { index, text },
+					prefix: undefined,
+					suffix: { row, col, rowEnd: undefined, colEnd: undefined, suffix: { index: index + text.length, text: suffix } }
+				}];
+			}
+
+			for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+				test(`should keep bracketed segments inside a path ${osLabel[os]}`, () => {
+					// Next.js route groups, dynamic segments and optional catch-all segments
+					deepStrictEqual(detectLinks('./src/(hello)/[world]/file.tsx', os), onlyPath('./src/(hello)/[world]/file.tsx', 0));
+					deepStrictEqual(detectLinks('app/(marketing)/about/page.tsx', os), onlyPath('app/(marketing)/about/page.tsx', 0));
+					deepStrictEqual(detectLinks('app/[[...slug]]/page.tsx', os), onlyPath('app/[[...slug]]/page.tsx', 0));
+					deepStrictEqual(detectLinks('echo "./src/(hello)/file.tsx"', os), onlyPath('./src/(hello)/file.tsx', 6));
+					deepStrictEqual(detectLinks('/foo/(a)(b)/bar', os), onlyPath('/foo/(a)(b)/bar', 0));
+				});
+				test(`should allow a relative path to start with a bracketed segment ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('(group)/page.tsx', os), onlyPath('(group)/page.tsx', 0));
+					deepStrictEqual(detectLinks('[slug]/page.tsx', os), onlyPath('[slug]/page.tsx', 0));
+					deepStrictEqual(detectLinks('[[...slug]]/page.tsx', os), onlyPath('[[...slug]]/page.tsx', 0));
+					deepStrictEqual(detectLinks('[test]/(test)/file.txt', os), onlyPath('[test]/(test)/file.txt', 0));
+				});
+				test(`should keep runs of mixed bracket groups as one segment ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('app/(a)[b]/page.tsx', os), onlyPath('app/(a)[b]/page.tsx', 0));
+					deepStrictEqual(detectLinks('app/[b](a)/page.tsx', os), onlyPath('app/[b](a)/page.tsx', 0));
+					deepStrictEqual(detectLinks('(a)[b]/page.tsx', os), onlyPath('(a)[b]/page.tsx', 0));
+					deepStrictEqual(detectLinks('app/(a)[b]/page.tsx:3', os), pathWithSuffix('app/(a)[b]/page.tsx', 0, ':3', 3));
+					deepStrictEqual(detectLinks('app/[b](a)/page.tsx:3', os), pathWithSuffix('app/[b](a)/page.tsx', 0, ':3', 3));
+				});
+				test(`should end a bracketed segment before a query string ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('app/(group)?a=b', os), onlyPath('app/(group)', 0));
+					deepStrictEqual(detectLinks('app/(group)/page.tsx?a=b', os), onlyPath('app/(group)/page.tsx', 0));
+					deepStrictEqual(detectLinks('(group)?a=b:42', os), pathWithSuffix('(group)?a=b', 0, ':42', 42));
+					deepStrictEqual(detectLinks('app/(group)?a=b:42', os), pathWithSuffix('app/(group)?a=b', 0, ':42', 42));
+				});
+				test(`should keep bracketed segments in paths with a suffix ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('(group)/page.tsx:12:5', os), pathWithSuffix('(group)/page.tsx', 0, ':12:5', 12, 5));
+					deepStrictEqual(detectLinks('[slug]/page.tsx:3', os), pathWithSuffix('[slug]/page.tsx', 0, ':3', 3));
+					deepStrictEqual(detectLinks('[[...slug]]/page.tsx:3', os), pathWithSuffix('[[...slug]]/page.tsx', 0, ':3', 3));
+					deepStrictEqual(detectLinks('app/(marketing)/page.tsx:42', os), pathWithSuffix('app/(marketing)/page.tsx', 0, ':42', 42));
+					deepStrictEqual(detectLinks('app/[[...slug]]/page.tsx:7', os), pathWithSuffix('app/[[...slug]]/page.tsx', 0, ':7', 7));
+					deepStrictEqual(detectLinks('error in (group)/page.tsx:12', os), pathWithSuffix('(group)/page.tsx', 9, ':12', 12));
+					// A bracket segment at the end of the path
+					deepStrictEqual(detectLinks('(group):42', os), pathWithSuffix('(group)', 0, ':42', 42));
+					deepStrictEqual(detectLinks('[slug]:42', os), pathWithSuffix('[slug]', 0, ':42', 42));
+					deepStrictEqual(detectLinks('app/(group):42', os), pathWithSuffix('app/(group)', 0, ':42', 42));
+				});
+				test(`should not take in unbalanced or surrounding parentheses ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('(./foo/bar)', os), onlyPath('./foo/bar', 1));
+					deepStrictEqual(detectLinks('foo(./foo/bar)', os), onlyPath('./foo/bar', 4));
+					deepStrictEqual(detectLinks('./foo/bar)', os), onlyPath('./foo/bar', 0));
+					deepStrictEqual(detectLinks('(see /foo/bar)', os), onlyPath('/foo/bar', 5));
+				});
+				test(`should not take in brackets that are not a whole segment ${osLabel[os]}`, () => {
+					// glibc backtrace
+					deepStrictEqual(detectLinks('./prog(myfunc3+0x5c) [0x400a3c]', os), onlyPath('./prog', 0));
+					// git branch in a shell prompt
+					deepStrictEqual(detectLinks('~/projects/app(main) $ ls', os), onlyPath('~/projects/app', 0));
+					// log level prefix
+					deepStrictEqual(detectLinks('(WARN)./src/foo.ts', os), onlyPath('./src/foo.ts', 6));
+					deepStrictEqual(detectLinks('foo(bar)/baz', os), onlyPath('/baz', 8));
+				});
+			}
+
+			test('should keep bracketed segments inside a path [Windows]', () => {
+				deepStrictEqual(detectLinks('.\\src\\(hello)\\[world]\\file.tsx', OperatingSystem.Windows), onlyPath('.\\src\\(hello)\\[world]\\file.tsx', 0));
+				deepStrictEqual(detectLinks('C:\\app\\(marketing)\\page.tsx', OperatingSystem.Windows), onlyPath('C:\\app\\(marketing)\\page.tsx', 0));
+				deepStrictEqual(detectLinks('(group)\\page.tsx', OperatingSystem.Windows), onlyPath('(group)\\page.tsx', 0));
+				deepStrictEqual(detectLinks('[[...slug]]\\page.tsx', OperatingSystem.Windows), onlyPath('[[...slug]]\\page.tsx', 0));
+				deepStrictEqual(detectLinks('app\\(a)[b]\\page.tsx', OperatingSystem.Windows), onlyPath('app\\(a)[b]\\page.tsx', 0));
+				deepStrictEqual(detectLinks('app\\[b](a)\\page.tsx', OperatingSystem.Windows), onlyPath('app\\[b](a)\\page.tsx', 0));
+				deepStrictEqual(detectLinks('C:\\app\\(group)?a=b', OperatingSystem.Windows), onlyPath('C:\\app\\(group)', 0));
+			});
+			test('should keep bracketed segments in paths with a suffix [Windows]', () => {
+				deepStrictEqual(detectLinks('(group)\\page.tsx:42', OperatingSystem.Windows), pathWithSuffix('(group)\\page.tsx', 0, ':42', 42));
+				deepStrictEqual(detectLinks('[slug]\\page.tsx:3:4', OperatingSystem.Windows), pathWithSuffix('[slug]\\page.tsx', 0, ':3:4', 3, 4));
+				deepStrictEqual(detectLinks('C:\\app\\(marketing)\\page.tsx:42', OperatingSystem.Windows), pathWithSuffix('C:\\app\\(marketing)\\page.tsx', 0, ':42', 42));
+				deepStrictEqual(detectLinks('(group):42', OperatingSystem.Windows), pathWithSuffix('(group)', 0, ':42', 42));
+				deepStrictEqual(detectLinks('C:\\app\\(group):42', OperatingSystem.Windows), pathWithSuffix('C:\\app\\(group)', 0, ':42', 42));
+			});
+			test('should not take in unbalanced or surrounding parentheses [Windows]', () => {
+				deepStrictEqual(detectLinks('(C:\\foo\\bar)', OperatingSystem.Windows), onlyPath('C:\\foo\\bar', 1));
+				deepStrictEqual(detectLinks('foo(.\\foo\\bar)', OperatingSystem.Windows), onlyPath('.\\foo\\bar', 4));
+			});
+			test('should not take in brackets that are not a whole segment [Windows]', () => {
+				deepStrictEqual(detectLinks('.\\prog(myfunc3+0x5c) [0x400a3c]', OperatingSystem.Windows), onlyPath('.\\prog', 0));
+				deepStrictEqual(detectLinks('(WARN).\\src\\foo.ts', OperatingSystem.Windows), onlyPath('.\\src\\foo.ts', 6));
+			});
+		});
+
 		suite('query strings', () => {
 			for (const os of operatingSystems) {
 				test(`should exclude query strings from link paths ${osLabel[os]}`, () => {
