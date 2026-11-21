@@ -11471,6 +11471,20 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('a warning marked as an error shows the error icon', () => {
+		const { model, request, node, createRenderer } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const { renderer, template } = createRenderer(undefined);
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('A hook blocked this prompt.'), isError: true });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		assert.deepStrictEqual([...template.value.querySelectorAll<HTMLElement>('.chat-notification-widget')].map(widget => ({
+			error: !!widget.querySelector('.chat-error-codicon'),
+			warning: !!widget.querySelector('.chat-warning-codicon'),
+		})), [{ error: true, warning: false }, { error: false, warning: true }]);
+	});
+
 	test('completed edit totals include diffs that were available before the chain attached', async () => {
 		const diff = {
 			originalURI: URI.file('/snapshots/before/progress.ts'), modifiedURI: URI.file('/workspace/progress.ts'),
