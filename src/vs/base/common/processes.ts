@@ -123,6 +123,20 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 				}
 			}
 		});
+
+	// Restore original values saved by the Snap desktop launcher.
+	const suffix = '_VSCODE_SNAP_ORIG';
+	for (const key of Object.keys(env)) {
+		if (key.endsWith(suffix)) {
+			const originalKey = key.slice(0, -suffix.length);
+			if (env[key]) {
+				env[originalKey] = env[key];
+			} else {
+				delete env[originalKey];
+			}
+			delete env[key];
+		}
+	}
 }
 
 /**

@@ -249,9 +249,50 @@ function getSnapBuildPath(arch: string): string {
 	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
 }
 
-function prepareSnapPackage(arch: string) {
+type LinuxPackageArchitecture = 'x64' | 'arm64' | 'armhf';
+type SnapArchitecture = 'x64' | 'arm64';
+
+const snapArchitectureConfig: Record<SnapArchitecture, {
+	architecture: string;
+	multiarch: string;
+	fcCacheInterpreter: string;
+	fcCacheRpath: string;
+	core24Interpreter: string;
+	core24Rpath: string;
+	gtkQueryRpath: string;
+}> = {
+	x64: {
+		architecture: 'amd64',
+		multiarch: 'x86_64-linux-gnu',
+		fcCacheInterpreter: '/snap/core24/current/lib64/ld-linux-x86-64.so.2',
+		fcCacheRpath: '$ORIGIN/../lib/x86_64-linux-gnu:/snap/core24/current/lib/x86_64-linux-gnu',
+		core24Interpreter: '/snap/core24/current/lib64/ld-linux-x86-64.so.2',
+		core24Rpath: '/snap/core24/current/lib/x86_64-linux-gnu',
+		gtkQueryRpath: '$ORIGIN/..:/snap/core24/current/lib/x86_64-linux-gnu',
+	},
+	arm64: {
+		architecture: 'arm64',
+		multiarch: 'aarch64-linux-gnu',
+		fcCacheInterpreter: '/snap/core24/current/lib/ld-linux-aarch64.so.1',
+		fcCacheRpath: '$ORIGIN/../lib/aarch64-linux-gnu:/snap/core24/current/lib/aarch64-linux-gnu',
+		core24Interpreter: '/snap/core24/current/lib/ld-linux-aarch64.so.1',
+		core24Rpath: '/snap/core24/current/lib/aarch64-linux-gnu',
+		gtkQueryRpath: '$ORIGIN/..:/snap/core24/current/lib/aarch64-linux-gnu',
+	},
+};
+
+function prepareSnapPackage(arch: SnapArchitecture) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const destination = getSnapBuildPath(arch);
+	const {
+		architecture,
+		multiarch,
+		fcCacheInterpreter,
+		fcCacheRpath,
+		core24Interpreter,
+		core24Rpath,
+		gtkQueryRpath,
+	} = snapArchitectureConfig[arch];
 
 	return function () {
 		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
@@ -282,7 +323,13 @@ function prepareSnapPackage(arch: string) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
 			// Possible run-on values https://snapcraft.io/docs/architectures
-			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
+			.pipe(replace('@@ARCHITECTURE@@', architecture))
+			.pipe(replace('@@MULTIARCH@@', multiarch))
+			.pipe(replace('@@FC_CACHE_INTERPRETER@@', fcCacheInterpreter))
+			.pipe(replace('@@FC_CACHE_RPATH@@', fcCacheRpath))
+			.pipe(replace('@@CORE24_INTERPRETER@@', core24Interpreter))
+			.pipe(replace('@@CORE24_RPATH@@', core24Rpath))
+			.pipe(replace('@@GTK_QUERY_RPATH@@', gtkQueryRpath))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
@@ -294,12 +341,12 @@ function prepareSnapPackage(arch: string) {
 	};
 }
 
-function buildSnapPackage(arch: string) {
+function buildSnapPackage(arch: SnapArchitecture) {
 	const cwd = getSnapBuildPath(arch);
 	return () => exec('snapcraft', { cwd });
 }
 
-const BUILD_TARGETS = [
+const BUILD_TARGETS: readonly { arch: LinuxPackageArchitecture }[] = [
 	{ arch: 'x64' },
 	{ arch: 'armhf' },
 	{ arch: 'arm64' },
@@ -317,7 +364,14 @@ BUILD_TARGETS.forEach(({ arch }) => {
 	task.task(prepareRpmTask);
 	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
 	task.task(buildRpmTask);
+});
 
+const SNAP_BUILD_TARGETS: readonly { arch: SnapArchitecture }[] = [
+	{ arch: 'x64' },
+	{ arch: 'arm64' },
+];
+
+SNAP_BUILD_TARGETS.forEach(({ arch }) => {
 	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
 	task.task(prepareSnapTask);
 	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
