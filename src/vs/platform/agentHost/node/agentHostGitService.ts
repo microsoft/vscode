@@ -152,6 +152,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return remoteBranch?.kind === GitRefType.RemoteHead ? remoteBranch : undefined;
 	}
 
+	async getBranchBase(workingDirectory: URI): Promise<IRemoteBranch | undefined> {
+		const head = await this.getHEAD(workingDirectory);
+		if (head?.kind !== GitRefType.Head) {
+			return undefined;
+		}
+		if (!head.upstream) {
+			return undefined;
+		}
+		const branch = await this.getBranch(workingDirectory, head.upstream.ref);
+		return branch?.kind === GitRefType.RemoteHead && branch.name.substring(branch.remote.length + 1) !== head.name ? branch : undefined;
+	}
+
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
 		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
 

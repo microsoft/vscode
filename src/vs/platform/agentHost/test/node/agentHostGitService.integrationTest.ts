@@ -634,6 +634,45 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('getBranchBase returns an existing upstream that tracks a different branch', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-branch-base-'));
+		const origin = join(tmpRoot, 'origin.git');
+		const clone = join(tmpRoot, 'clone');
+		mkdirSync(origin);
+		mkdirSync(clone);
+		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+		const run = (cwd: string, ...args: string[]) => cp.execFileSync('git', args, { cwd, env, stdio: 'pipe' });
+		run(origin, 'init', '-q', '--bare', '-b', 'main');
+		run(clone, 'init', '-q', '-b', 'main');
+		run(clone, 'commit', '-q', '--allow-empty', '-m', 'initial');
+		run(clone, 'remote', 'add', 'origin', origin);
+		run(clone, 'push', '-q', 'origin', 'main', 'main:dev', 'main:own', 'main:gone');
+		run(clone, 'fetch', '-q', 'origin');
+		const baseOf = async (...checkout: string[]) => {
+			run(clone, 'checkout', '-q', ...checkout);
+			return (await svc!.getBranchBase(URI.file(clone)))?.name;
+		};
+
+		const differentUpstream = await baseOf('-b', 'feat/test', '--track', 'origin/dev');
+		run(clone, 'checkout', '-q', '-b', 'feat/gone', '--track', 'origin/gone');
+		run(clone, 'update-ref', '-d', 'refs/remotes/origin/gone');
+		const missingUpstreamRef = await baseOf('feat/gone');
+
+		assert.deepStrictEqual({
+			differentUpstream,
+			missingUpstreamRef,
+			sameNameUpstream: await baseOf('-b', 'own', '--track', 'origin/own'),
+			noUpstream: await baseOf('-b', 'local'),
+			detached: await baseOf('--detach'),
+		}, {
+			differentUpstream: 'origin/dev',
+			missingUpstreamRef: undefined,
+			sameNameUpstream: undefined,
+			noUpstream: undefined,
+			detached: undefined,
+		});
+	});
+
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
 		const directory = URI.file(tmpRoot);

@@ -253,6 +253,13 @@ export interface IAgentHostGitService {
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
+	/**
+	 * Returns the checked-out branch's upstream when it is a differently named remote
+	 * branch (e.g. `origin/dev` for `feat/test`), i.e. the branch it was started from.
+	 * A same-named upstream is the branch's own remote copy, not its base. Undefined
+	 * when the upstream is missing or same-named, or HEAD is detached.
+	 */
+	getBranchBase?(workingDirectory: URI): Promise<IRemoteBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
