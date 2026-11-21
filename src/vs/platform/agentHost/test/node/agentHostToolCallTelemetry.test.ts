@@ -596,6 +596,31 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		}]);
 	});
 
+	test('reports calls to tools the session does not offer apart from built-in failures', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-invented', 'view_range');
+		toolComplete('turn-1', 'tc-invented', { success: false, pastTenseMessage: 'failed', error: { message: 'Tool \'view_range\' does not exist.', code: 'failure' } });
+		toolStart('turn-1', 'tc-builtin', 'view');
+		toolComplete('turn-1', 'tc-builtin', { success: false, pastTenseMessage: 'failed', error: { message: 'Path \'/missing\' does not exist.', code: 'failure' } });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			agentHost: agentHostToolEvents().map(({ data }) => ({ toolId: data.toolId, toolSourceKind: data.toolSourceKind, result: data.result, errorCode: data.errorCode })),
+			legacy: toolEvents().map(({ data }) => ({ toolId: data.toolId, toolSourceKind: data.toolSourceKind })),
+		}, {
+			agentHost: [
+				{ toolId: 'sha256:b1b0f926bc4dc5674c68deada71063cce11c72f399077f1252ae347f1939c1e0', toolSourceKind: 'unknown', result: 'error', errorCode: 'toolNotFound' },
+				{ toolId: 'view', toolSourceKind: 'agentHost', result: 'error', errorCode: 'failure' },
+			],
+			legacy: [
+				{ toolId: 'sha256:b1b0f926bc4dc5674c68deada71063cce11c72f399077f1252ae347f1939c1e0', toolSourceKind: 'unknown' },
+				{ toolId: 'view', toolSourceKind: 'agentHost' },
+			],
+		});
+	});
+
 	test('uses the resolved usage model for an in-flight tool call', () => {
 		setupSession();
 		agent.setModels([
