@@ -34,7 +34,7 @@ import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, ge
 import { drawChatPetComposite, drawChatPetEyeAccessory, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 import { isImageGenerationToolInProgress } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { ChatPetJumpGame, ChatPetJumpGameRetry } from './chatPetJumpGame.js';
+import { ChatPetJumpGame, ChatPetJumpGameRetry, IChatPetJumpGameOptions } from './chatPetJumpGame.js';
 
 export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
@@ -1408,6 +1408,7 @@ export class ChatPetWidget extends Disposable {
 	private _respawnPhase: 'none' | 'despawning' | 'respawning' | 'falling' = 'none';
 	private _respawnPosition: readonly [number, number] | undefined;
 	private readonly _resizeObserver: dom.DisposableResizeObserver;
+	private readonly _loadJumpGameWebGpuRenderer: IChatPetJumpGameOptions['loadWebGpuRenderer'];
 	private _variant: ChatPetVariant;
 	private _color: ChatPetColor;
 	private _selectedAccessory: ChatPetAccessoryId | undefined;
@@ -1418,6 +1419,7 @@ export class ChatPetWidget extends Disposable {
 		options: {
 			readonly resizeObserverCtor?: typeof ResizeObserver;
 			readonly intersectionObserverCtor?: typeof IntersectionObserver;
+			readonly loadJumpGameWebGpuRenderer?: IChatPetJumpGameOptions['loadWebGpuRenderer'];
 		} | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -1433,6 +1435,7 @@ export class ChatPetWidget extends Disposable {
 		this.dragBounds = host.dragBounds;
 		this.movementBounds = host.movementBounds;
 		this._host = observableValue(this, host);
+		this._loadJumpGameWebGpuRenderer = options?.loadJumpGameWebGpuRenderer;
 		this._register(toDisposable(() => this._clearPlatformOccupation()));
 		this._color = this.chatPetService.color.get();
 		this._variant = getChatPetColorVariant(this._color);
@@ -1938,6 +1941,7 @@ export class ChatPetWidget extends Disposable {
 			platform: platform.element,
 			motionReduced: this._motionReduced,
 			model: retryModel,
+			loadWebGpuRenderer: this._loadJumpGameWebGpuRenderer,
 			onRender: (airborne, direction, charge) => {
 				if (direction !== 0) {
 					this._setFacingDirection(direction < 0 ? 'left' : 'right');
