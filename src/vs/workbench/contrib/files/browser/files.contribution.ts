@@ -673,7 +673,7 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: false,
 			'default': {
 				'*.ts': '${capture}.js',
-				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts, ${capture}.d.ts.map',
 				'*.jsx': '${capture}.js',
 				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
