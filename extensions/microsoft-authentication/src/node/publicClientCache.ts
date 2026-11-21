@@ -156,7 +156,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	}
 
 	private async _doCreatePublicClientApplication(clientId: string): Promise<ICachedPublicClientApplication> {
-		const pca = await CachedPublicClientApplication.create(clientId, this._secretStorage, this._accountAccess, this._logger, this._telemetryReporter);
+		const pca = await CachedPublicClientApplication.create(clientId, this._secretStorage, this._accountAccess, this._logger, this._telemetryReporter, this._env);
 		this._pcas.set(clientId, pca);
 		const disposable = Disposable.from(
 			pca,

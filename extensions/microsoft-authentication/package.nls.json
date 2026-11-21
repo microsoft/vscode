@@ -6,6 +6,13 @@
 	"microsoft-authentication.implementation.description": "The authentication implementation to use for signing in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.msal": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.msal-no-broker": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account using a browser. This is useful if you are having issues with the native broker.",
+	"microsoft-authentication.instanceDiscovery.description": {
+		"message": "Controls whether the Authority Host used for authentication should be validated via Instance Discovery using the public Microsoft Entra endpoint. This should only be disabled when signing in to a custom environment (see `#microsoft-sovereign-cloud.customEnvironment#`) whose authority cannot be validated publicly.",
+		"comment": [
+			"{Locked='`#microsoft-sovereign-cloud.customEnvironment#`'}",
+			"The `#microsoft-sovereign-cloud.customEnvironment#` syntax will turn into a link. Do not translate it."
+		]
+	},
 	"microsoft-sovereign-cloud.environment.description": {
 		"message": "The Sovereign Cloud to use for authentication. If you select `custom`, you must also set the `#microsoft-sovereign-cloud.customEnvironment#` setting.",
 		"comment": [

@@ -5,6 +5,7 @@
 
 import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest, BrokerOptions, DeviceCodeRequest } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
+import { Environment } from '@azure/ms-rest-azure-env';
 import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter, workspace, env, Uri, UIKind } from 'vscode';
 import { DeferredPromise, raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
@@ -26,6 +27,39 @@ export function getNativeBrokerOptions(clientId: string, logger: LogOutputChanne
 	const nativeBrokerPlugin = new NativeBrokerPlugin();
 	logger.info(`[${clientId}] Native Broker enabled: ${nativeBrokerPlugin.isBrokerAvailable}`);
 	return nativeBrokerPlugin.isBrokerAvailable ? { nativeBrokerPlugin } : undefined;
+}
+
+const builtInAuthorityHosts = new Set(
+	[Environment.AzureCloud, Environment.ChinaCloud, Environment.USGovernment, Environment.GermanCloud]
+		.map(e => new URL(e.activeDirectoryEndpointUrl).host)
+);
+
+/**
+ * The authorities MSAL should trust without Instance Discovery, when the user has disabled it.
+ *
+ * MSAL validates the Authority Host via Instance Discovery against the public Microsoft Entra
+ * endpoint (login.microsoftonline.com) which confirms that this is well known - but this won't
+ * succeed for custom authorities. Therefore, when Instance Discovery is disabled via settings, we
+ * trust the Authority Host of a custom environment instead - mirroring the approach used by other
+ * Azure tooling which allows disabling Instance Discovery. Built-in clouds keep Instance Discovery.
+ */
+function getKnownAuthorities(clientId: string, environment: Environment, logger: LogOutputChannel): string[] | undefined {
+	if (workspace.getConfiguration('microsoft-authentication').get<boolean>('instanceDiscovery') !== false) {
+		return undefined;
+	}
+	let host: string;
+	try {
+		host = new URL(environment.activeDirectoryEndpointUrl).host;
+	} catch {
+		logger.warn(`[${clientId}] Instance Discovery disabled but the environment's activeDirectoryEndpointUrl is not a valid URL; falling back to Instance Discovery`);
+		return undefined;
+	}
+	if (builtInAuthorityHosts.has(host)) {
+		logger.info(`[${clientId}] Instance Discovery disabled via settings but ignored for the built-in authority host: ${host}`);
+		return undefined;
+	}
+	logger.info(`[${clientId}] Instance Discovery disabled via settings; trusting authority host: ${host}`);
+	return [host];
 }
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
@@ -56,7 +90,8 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		private readonly _secretStorage: SecretStorage,
 		private readonly _accountAccess: IAccountAccess,
 		private readonly _logger: LogOutputChannel,
-		telemetryReporter: MicrosoftAuthenticationTelemetryReporter
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
+		environment: Environment
 	) {
 		this._secretStorageCachePlugin = new SecretStorageCachePlugin(
 			this._secretStorage,
@@ -67,8 +102,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
 		const broker = getNativeBrokerOptions(_clientId, _logger);
 		this.isBrokerAvailable = !!broker;
+		const knownAuthorities = getKnownAuthorities(_clientId, environment, _logger);
 		this._pca = new PublicClientApplication({
-			auth: { clientId: _clientId },
+			auth: { clientId: _clientId, knownAuthorities },
 			system: {
 				loggerOptions: {
 					correlationId: _clientId,
@@ -97,9 +133,10 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		secretStorage: SecretStorage,
 		accountAccess: IAccountAccess,
 		logger: LogOutputChannel,
-		telemetryReporter: MicrosoftAuthenticationTelemetryReporter
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
+		environment: Environment
 	): Promise<CachedPublicClientApplication> {
-		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger, telemetryReporter);
+		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger, telemetryReporter, environment);
 		await app.initialize();
 		return app;
 	}
