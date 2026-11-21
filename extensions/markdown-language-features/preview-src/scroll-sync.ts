@@ -322,9 +322,19 @@ export function getEditorLineNumberForPageOffset(offset: number, documentVersion
  * Try to find the html element by using a fragment id
  */
 export function getLineElementForFragment(fragment: string, documentVersion: number): CodeLineElement | undefined {
-	return getCodeLineMap(documentVersion).elements.find((element) => {
-		return element.element.id === fragment;
-	});
+	const elements = getCodeLineMap(documentVersion).elements;
+	const exactMatch = elements.find(element => element.element.id === fragment);
+	if (exactMatch) {
+		return exactMatch;
+	}
+
+	// The preview encodes the fragment, but heading IDs may contain Unicode characters.
+	try {
+		const decodedFragment = decodeURIComponent(fragment);
+		return elements.find(element => element.element.id === decodedFragment);
+	} catch {
+		return undefined;
+	}
 }
 
 function* getParentsWithTagName<T extends HTMLElement>(element: HTMLElement, tagName: string): Iterable<T> {
