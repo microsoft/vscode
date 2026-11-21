@@ -820,4 +820,15 @@ suite('TextModelSearch', () => {
 			]
 		);
 	});
+
+	test('issue #220139. Find does not match text that has been deleted', () => {
+		const model = createTextModel('foo bar baz');
+		model.applyEdits([{ range: new Range(1, 8, 1, 12), text: '' }]); // delete " baz"
+		assert.strictEqual(model.getLineContent(1), 'foo bar');
+
+		const matches = model.findMatches('foo bar baz', false, false, false, null, false);
+		assert.deepStrictEqual(matches, []);
+
+		model.dispose();
+	});
 });
