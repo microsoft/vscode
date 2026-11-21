@@ -367,6 +367,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
 			default: false
 		},
+		'scm.workingSets.persistPins': {
+			type: 'boolean',
+			description: localize('scm.workingSets.persistPins', "Keep pinned editor tabs open across source control working-set switches. Unpinned editors remain specific to their working sets."),
+			default: false
+		},
 		'scm.workingSets.default': {
 			type: 'string',
 			enum: ['empty', 'current'],
