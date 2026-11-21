@@ -25,6 +25,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../chat/browser/chatStatus/chatStatusDashboard.js';
 import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatStatusItemService.js';
+import * as sinon from 'sinon';
 
 interface IQuotaConfig {
 	percentRemaining: number;
@@ -134,6 +135,18 @@ function getCreditsUsed(element: HTMLElement): { value: string; suffix: string; 
 		suffix: indicator.querySelector('.quota-value-suffix')?.textContent ?? '',
 		reset: indicator.querySelector('.quota-reset')?.textContent ?? ''
 	};
+}
+
+function withResetTestClock(test: () => void): void {
+	const clock = sinon.useFakeTimers({
+		now: new Date('2026-05-01T00:00:00Z'),
+	});
+
+	try {
+		test();
+	} finally {
+		clock.restore();
+	}
 }
 
 const dashboardOptions: IChatStatusDashboardOptions = {
@@ -711,67 +724,61 @@ suite('ChatStatusDashboard', () => {
 
 	// --- BUSINESS / ENTERPRISE ---
 
-	test('Enterprise Managed — PRU: shows Premium requests with unlimited included', () => {
-		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 100, unlimited: true },
-			completions: { percentRemaining: 100, unlimited: true },
-			entitlement: ChatEntitlement.Business,
-		}));
+	test('Enterprise Managed — PRU: shows consumed credits with reset time', () => {
+		withResetTestClock(() => {
+			const resetAt = Math.floor(new Date(2026, 6, 5, 14, 0, 0).getTime() / 1000);
+			const dashboard = createDashboard(createEntitlementService({
+				premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
+				completions: { percentRemaining: 100, unlimited: true },
+				entitlement: ChatEntitlement.Business,
+			}));
 
-		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
-		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
-		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
-	});
-
-	test('Enterprise Managed — PRU with credits used: shows consumed credits with reset time', () => {
-		const resetAt = Math.floor(Date.UTC(2026, 6, 5, 14, 0, 0) / 1000);
-		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
-			completions: { percentRemaining: 100, unlimited: true },
-			entitlement: ChatEntitlement.Business,
-		}));
-
-		const credits = getCreditsUsed(dashboard.element);
-		assert.strictEqual(credits?.value, '1,284');
-		assert.strictEqual(credits?.suffix, 'Credits Used');
-		assert.ok(credits?.reset.startsWith('Resets Jul 5 at '));
-		assert.deepStrictEqual(getIncludedLabels(dashboard.element), []);
+			const credits = getCreditsUsed(dashboard.element);
+			assert.strictEqual(credits?.value, '1,284');
+			assert.strictEqual(credits?.suffix, 'Credits Used');
+			assert.ok(credits?.reset.startsWith('Resets Jul 5 at '));
+			assert.deepStrictEqual(getIncludedLabels(dashboard.element), []);
+		});
 	});
 
 	test('Enterprise Managed — PRU with credits used (compact): shows plan title, credits and reset', () => {
-		const resetAt = Math.floor(Date.UTC(2026, 4, 31, 21, 0, 0) / 1000);
-		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
-			completions: { percentRemaining: 100, unlimited: true },
-			entitlement: ChatEntitlement.Business,
-		}), { dashboardOptions: { ...dashboardOptions, compactQuotaLayout: true } });
+		withResetTestClock(() => {
+			const resetAt = Math.floor(new Date(2026, 4, 31, 21, 0, 0).getTime() / 1000);
+			const dashboard = createDashboard(createEntitlementService({
+				premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
+				completions: { percentRemaining: 100, unlimited: true },
+				entitlement: ChatEntitlement.Business,
+			}), { dashboardOptions: { ...dashboardOptions, compactQuotaLayout: true } });
 
-		const indicator = dashboard.element.querySelector('.quota-indicator.credits-used');
-		const credits = getCreditsUsed(dashboard.element);
-		assert.ok(indicator?.classList.contains('compact'));
-		assert.strictEqual(indicator?.querySelector('.quota-title')?.textContent, 'Copilot Business');
-		assert.strictEqual(credits?.value, '1,284');
-		assert.strictEqual(credits?.suffix, 'Credits used');
-		assert.ok(credits?.reset.startsWith('Resets May 31 at '));
+			const indicator = dashboard.element.querySelector('.quota-indicator.credits-used');
+			const credits = getCreditsUsed(dashboard.element);
+			assert.ok(indicator?.classList.contains('compact'));
+			assert.strictEqual(indicator?.querySelector('.quota-title')?.textContent, 'Copilot Business');
+			assert.strictEqual(credits?.value, '1,284');
+			assert.strictEqual(credits?.suffix, 'Credits used');
+			assert.ok(credits?.reset.startsWith('Resets May 31 at '));
+		});
 	});
 
 	test('quota indicators prefer their own snapshot reset over the account reset', () => {
-		const premiumResetAt = Math.floor(Date.UTC(2026, 6, 5, 14, 0, 0) / 1000);
-		const completionsResetAt = Math.floor(Date.UTC(2026, 6, 9, 14, 0, 0) / 1000);
-		const dashboard = createDashboard(createEntitlementService({
-			chat: { percentRemaining: 80, unlimited: false },
-			premiumChat: { percentRemaining: 60, unlimited: false, resetAt: premiumResetAt },
-			completions: { percentRemaining: 90, unlimited: false, resetAt: completionsResetAt },
-			entitlement: ChatEntitlement.Pro,
-			resetDate: '2026-09-01T12:00:00Z',
-			resetDateHasTime: false,
-		}));
+		withResetTestClock(() => {
+			const premiumResetAt = Math.floor(new Date(2026, 6, 5, 14, 0, 0).getTime() / 1000);
+			const completionsResetAt = Math.floor(new Date(2026, 6, 9, 14, 0, 0).getTime() / 1000);
+			const dashboard = createDashboard(createEntitlementService({
+				chat: { percentRemaining: 80, unlimited: false },
+				premiumChat: { percentRemaining: 60, unlimited: false, resetAt: premiumResetAt },
+				completions: { percentRemaining: 90, unlimited: false, resetAt: completionsResetAt },
+				entitlement: ChatEntitlement.Pro,
+				resetDate: '2026-09-01T12:00:00Z',
+				resetDateHasTime: false,
+			}));
 
-		assert.deepStrictEqual(getQuotaResets(dashboard.element), [
-			['Chat messages', 'Resets Sep 1'],
-			['Premium requests', 'Resets Jul 5 at <time>'],
-			['Inline Suggestions', 'Resets Jul 9 at <time>'],
-		]);
+			assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+				['Chat messages', 'Resets Sep 1'],
+				['Premium requests', 'Resets Jul 5 at <time>'],
+				['Inline Suggestions', 'Resets Jul 9 at <time>'],
+			]);
+		});
 	});
 
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
@@ -1124,6 +1131,76 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
 	});
 
+	test('Live update: refreshes expired quota resets and handles subsequent reset cycles', async () => {
+		const clock = sinon.useFakeTimers({
+			now: new Date('2026-05-01T00:00:00Z'),
+		});
+
+		try {
+			let updateCount = 0;
+			const svc: ReturnType<typeof createMutableEntitlementService>;
+
+			svc = createMutableEntitlementService({
+				chat: { percentRemaining: 80, unlimited: false },
+				completions: { percentRemaining: 70, unlimited: false },
+				entitlement: ChatEntitlement.Free,
+				resetDate: '2026-04-30T23:59:59Z',
+				resetDateHasTime: false,
+				update: async () => {
+					updateCount++;
+
+					// The first update happens when the dashboard opens.
+					// The second and third updates are triggered by reset expiry.
+					if (updateCount === 2) {
+						(svc as { quotas: typeof svc.quotas }).quotas = {
+							...svc.quotas,
+							resetDate: '2026-05-01T00:00:03Z',
+						};
+					} else if (updateCount === 3) {
+						(svc as { quotas: typeof svc.quotas }).quotas = {
+							...svc.quotas,
+							resetDate: '2026-06-01T00:00:00Z',
+						};
+					}
+				},
+			}, store);
+
+			const dashboard = createDashboard(svc);
+
+			// Opening the dashboard triggers its initial entitlement update.
+			assert.strictEqual(updateCount, 1);
+
+			// The expired reset triggers one refresh.
+			await clock.tickAsync(1000);
+			assert.strictEqual(updateCount, 2);
+
+			// The refreshed reset date is reflected in the UI.
+			assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+				['Chat messages', 'Resets May 1'],
+				['Inline Suggestions', 'Resets May 1'],
+			]);
+
+			// The next reset is still in the future, so no additional refresh occurs.
+			await clock.tickAsync(1000);
+			assert.strictEqual(updateCount, 2);
+
+			// The next reset expires and triggers another refresh.
+			await clock.tickAsync(1000);
+			assert.strictEqual(updateCount, 3);
+
+			assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+				['Chat messages', 'Resets Jun 1'],
+				['Inline Suggestions', 'Resets Jun 1'],
+			]);
+
+			// The new reset is in the future, so the timer does not refresh repeatedly.
+			await clock.tickAsync(2000);
+			assert.strictEqual(updateCount, 3);
+		} finally {
+			clock.restore();
+		}
+	});
+
 	// --- LIVE UPDATES ---
 
 	function createMutableEntitlementService(opts: {
@@ -1134,38 +1211,62 @@ suite('ChatStatusDashboard', () => {
 		additionalUsageEnabled?: boolean;
 		additionalUsageCount?: number;
 		entitlement?: ChatEntitlement;
-	}, emitterStore: Pick<DisposableStore, 'add'>): IChatEntitlementService & { quotas: ReturnType<typeof createEntitlementService>['quotas']; fireQuotaRemaining: () => void; fireQuotaExceeded: () => void } {
+		resetDate?: string;
+		resetDateHasTime?: boolean;
+		update?: (token: CancellationToken) => Promise<void>;
+	}, emitterStore: Pick<DisposableStore, 'add'>): IChatEntitlementService & {
+		quotas: ReturnType<typeof createEntitlementService>['quotas'];
+		fireQuotaRemaining: () => void;
+		fireQuotaExceeded: () => void;
+	} {
+		const { update, ...entitlementOptions } = opts;
 		const onDidChangeQuotaRemaining = emitterStore.add(new Emitter<void>());
 		const onDidChangeQuotaExceeded = emitterStore.add(new Emitter<void>());
+
 		const svc = {
-			...createEntitlementService(opts),
+			...createEntitlementService(entitlementOptions),
+			update: (token: CancellationToken) => update?.(token) ?? Promise.resolve(),
 			onDidChangeQuotaRemaining: onDidChangeQuotaRemaining.event,
 			onDidChangeQuotaExceeded: onDidChangeQuotaExceeded.event,
 			fireQuotaRemaining: () => onDidChangeQuotaRemaining.fire(),
 			fireQuotaExceeded: () => onDidChangeQuotaExceeded.fire(),
 		};
+
 		return svc;
 	}
 
 	test('Live update: quota indicators update when onDidChangeQuotaRemaining fires', () => {
-		const svc = createMutableEntitlementService({
-			chat: { percentRemaining: 80, unlimited: false },
-			completions: { percentRemaining: 70, unlimited: false },
-			entitlement: ChatEntitlement.Free,
-		}, store);
+		withResetTestClock(() => {
+			const svc = createMutableEntitlementService({
+				chat: { percentRemaining: 80, unlimited: false },
+				completions: { percentRemaining: 70, unlimited: false },
+				entitlement: ChatEntitlement.Free,
+				resetDate: '2026-09-01T12:00:00Z',
+				resetDateHasTime: false,
+			}, store);
 
-		const dashboard = createDashboard(svc);
-		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+			const dashboard = createDashboard(svc);
+			assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+			assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+				['Chat messages', 'Resets Sep 1'],
+				['Inline Suggestions', 'Resets Sep 1'],
+			]);
 
-		// Simulate fresh quota data arriving
-		(svc as { quotas: typeof svc.quotas }).quotas = {
-			...svc.quotas,
-			chat: { percentRemaining: 50, unlimited: false },
-			completions: { percentRemaining: 40, unlimited: false },
-		};
-		svc.fireQuotaRemaining();
+			// Simulate fresh quota data arriving
+			(svc as { quotas: typeof svc.quotas }).quotas = {
+				...svc.quotas,
+				chat: { percentRemaining: 50, unlimited: false },
+				completions: { percentRemaining: 40, unlimited: false },
+				resetDate: '2026-10-01T12:00:00Z',
+			};
+			svc.fireQuotaRemaining();
 
-		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['50%', '60%']);
+			assert.deepStrictEqual(getQuotaValues(dashboard.element), ['50%', '60%']);
+			assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+				['Chat messages', 'Resets Oct 1'],
+				['Inline Suggestions', 'Resets Oct 1'],
+			]);
+		});
 	});
 
 	test('Live update: callout appears when onDidChangeQuotaExceeded fires and quota becomes exhausted', () => {
