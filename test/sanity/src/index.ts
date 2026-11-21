@@ -32,6 +32,7 @@ if (options.help) {
 	console.info('  --crash-dumps-dir, -d <path>    Save crash dumps from desktop app runs to the specified directory');
 	console.info('  --artifacts-dir <path>          Resolve builds from downloaded pipeline artifacts instead of the update service');
 	console.info('  --setuid-sandbox                Test installed DEB/RPM apps using the setuid sandbox (requires a non-root user)');
+	console.info('  --installer                     Also run installer tests, which change machine-wide state: packages, /etc and /usr/bin on Linux (requires root), app preferences on macOS');
 	console.info('  --verbose, -v                   Enable verbose logging');
 	console.info('  --help, -h                      Show this help message');
 	process.exit(0);
