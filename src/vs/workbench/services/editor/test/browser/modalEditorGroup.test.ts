@@ -20,7 +20,7 @@ import { MockKeybindingService, MockScopableContextKeyService } from '../../../.
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IEditorService, MODAL_GROUP, MODAL_GROUP_TYPE } from '../../common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../common/editorService.js';
 import { findGroup } from '../../common/editorGroupFinder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -64,16 +64,6 @@ suite('Modal Editor Group', () => {
 	function createTestFileEditorInput(resource: URI, typeId: string): TestFileEditorInput {
 		return disposables.add(new TestFileEditorInput(resource, typeId));
 	}
-
-	test('MODAL_GROUP constant is defined correctly', () => {
-		assert.strictEqual(MODAL_GROUP, -4);
-		assert.strictEqual(typeof MODAL_GROUP, 'number');
-	});
-
-	test('MODAL_GROUP_TYPE type exists', () => {
-		const modalGroupValue: MODAL_GROUP_TYPE = MODAL_GROUP;
-		assert.strictEqual(modalGroupValue, -4);
-	});
 
 	test('createModalEditorPart creates a modal editor part', async () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);

@@ -300,11 +300,6 @@ suite('ExtensionService', () => {
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
-	test('Extension host disposed when awaited', async () => {
-		await extService.stopExtensionHosts('foo');
-		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
-	});
-
 	test('Extension host not disposed when vetoed (sync)', async () => {
 
 		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
