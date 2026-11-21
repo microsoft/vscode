@@ -131,7 +131,7 @@ export class ExtHostWebview implements vscode.Webview {
 			return false;
 		}
 		const serialized = serializeWebviewMessage(message, { serializeBuffersForPostMessage: this.#serializeBuffersForPostMessage });
-		return this.#proxy.$postMessage(this.#handle, serialized.message, ...serialized.buffers);
+		return this.#proxy.$postMessage(this.#handle, serialized.message, new SerializableObjectWithBuffers(serialized.buffers));
 	}
 
 	private assertNotDisposed() {

@@ -4,23 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { MainThreadWebviewManager } from '../../browser/mainThreadWebviewManager.js';
+import { MainThreadWebviews } from '../../browser/mainThreadWebviews.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 import { IExtHostRpcService } from '../../common/extHostRpcService.js';
-import { IWebviewContentOptions } from '../../common/extHost.protocol.js';
-import { ExtHostWebviews } from '../../common/extHostWebview.js';
+import { IWebviewContentOptions, MainContext } from '../../common/extHost.protocol.js';
+import { ExtHostWebview, ExtHostWebviews } from '../../common/extHostWebview.js';
 import { ExtHostWebviewPanels } from '../../common/extHostWebviewPanels.js';
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { decodeAuthority, webviewResourceBaseHost } from '../../../contrib/webview/common/webview.js';
 import { EditorGroupColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { RPCProtocol } from '../../../services/extensions/common/rpcProtocol.js';
+import { IWebview } from '../../../contrib/webview/browser/webview.js';
 import type * as vscode from 'vscode';
 
 suite('ExtHostWebview', () => {
@@ -48,6 +55,70 @@ suite('ExtHostWebview', () => {
 				path: '/ext/path',
 			})
 		} as IExtensionDescription, 'type', 'title', 1, {}));
+	}
+
+	for (const bufferCount of [0, 1, 253, 254, 255, 256]) {
+		test(`postMessage transfers ${bufferCount} distinct buffers over RPC`, async () => {
+			const buffers = Array.from({ length: bufferCount }, (_, index) => new Uint8Array([0, index % 256, 0]).subarray(1, 2));
+			const message = { buffers, rawBuffers: buffers.map(buffer => buffer.buffer) };
+			const toMainThread = disposables.add(new Emitter<VSBuffer>());
+			const toExtHost = disposables.add(new Emitter<VSBuffer>());
+			const extHostRpc = disposables.add(new RPCProtocol({
+				onMessage: toExtHost.event,
+				send: message => queueMicrotask(() => toMainThread.fire(message)),
+			}));
+			const mainThreadRpc = disposables.add(new RPCProtocol({
+				onMessage: toMainThread.event,
+				send: message => queueMicrotask(() => toExtHost.fire(message)),
+			}));
+			const mainThreadWebviews = disposables.add(new MainThreadWebviews(
+				SingleProxyRPCProtocol({}),
+				new class extends mock<IOpenerService>() { },
+				new class extends mock<IProductService>() { },
+			));
+			mainThreadRpc.set(MainContext.MainThreadWebviews, mainThreadWebviews);
+
+			let received: typeof message | undefined;
+			let transferred: readonly ArrayBuffer[] | undefined;
+			const onDidDispose = disposables.add(new Emitter<void>());
+			mainThreadWebviews.addWebview('test', new class extends mock<IWebview>() {
+				override onDidDispose = onDidDispose.event;
+				override onDidClickLink = Event.None;
+				override onMessage = Event.None;
+				override onMissingCsp = Event.None;
+				override async postMessage(message: typeof received, transfer?: readonly ArrayBuffer[]) {
+					received = message;
+					transferred = transfer;
+					return true;
+				}
+			}, { serializeBuffersForPostMessage: true });
+			const webview = disposables.add(new ExtHostWebview(
+				'test',
+				extHostRpc.getProxy(MainContext.MainThreadWebviews),
+				{},
+				{ authority: undefined, isRemote: false },
+				undefined,
+				{ engines: { vscode: '^1.57.0' } } as IExtensionDescription,
+				NullApiDeprecationService,
+			));
+
+			try {
+				const posted = await webview.postMessage(message);
+				assert.deepStrictEqual({
+					posted,
+					received,
+					transferredBufferCount: transferred?.length,
+					sharedBuffers: received?.buffers.every((buffer, index) => buffer.buffer === received?.rawBuffers[index]),
+				}, {
+					posted: true,
+					received: message,
+					transferredBufferCount: bufferCount,
+					sharedBuffers: true,
+				});
+			} finally {
+				onDidDispose.fire();
+			}
+		});
 	}
 
 	test('Cannot register multiple serializers for the same view type', async () => {
