@@ -101,7 +101,19 @@ export class MatchImpl implements ISearchTreeMatch {
 			}
 		}
 
-		// If match string is not matching then regex pattern has a lookahead expression
+		// If match string is not matching then regex pattern has a lookaround expression.
+		// Retry from the start of this match so that the first match found is this one,
+		// not an earlier match in the same preview.
+		const textFromMatchStart = this.textFromMatchStart();
+		for (const text of [textFromMatchStart, textFromMatchStart.replace(/\r\n/g, '\n')]) {
+			if (searchModel.replacePattern.regExp.exec(text)?.index === 0) {
+				replaceString = searchModel.replacePattern.getReplaceString(text, searchModel.preserveCase);
+				if (replaceString !== null) {
+					return replaceString;
+				}
+			}
+		}
+
 		const contextMatchTextWithSurroundingContent = this.fullMatchText(true);
 		replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithSurroundingContent, searchModel.preserveCase);
 		if (replaceString !== null) {
@@ -132,6 +144,14 @@ export class MatchImpl implements ISearchTreeMatch {
 		}
 
 		return thisMatchPreviewLines.join('\n');
+	}
+
+	/**
+	 * The preview text from the start of this match to the end of the preview.
+	 */
+	private textFromMatchStart(): string {
+		const { startLineNumber, startColumn } = this._fullPreviewRange;
+		return [this._fullPreviewLines[startLineNumber].slice(startColumn), ...this._fullPreviewLines.slice(startLineNumber + 1)].join('\n');
 	}
 
 	rangeInPreview() {
