@@ -435,12 +435,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	) {
 		super();
 
-		// Start tearing down drafts early (not awaited) so it overlaps the rest of shutdown, which waits for it.
-		this._register(lifecycleService.onWillShutdown(e => e.join(async () => this._disposeOwnedBackendsOnShutdown(), {
-			id: 'join.agentHostProvisionalSessions',
-			label: localize('join.agentHostProvisionalSessions', "Discarding unsent agent session drafts"),
-			order: WillShutdownJoinerOrder.Last,
-		})));
+		// Local host only: quitting waits for it, so start tearing down drafts early (not awaited) to overlap the rest of shutdown.
+		if (!_environmentService.remoteAuthority) {
+			this._register(lifecycleService.onWillShutdown(e => e.join(async () => this._disposeOwnedBackendsOnShutdown(), {
+				id: 'join.agentHostProvisionalSessions',
+				label: localize('join.agentHostProvisionalSessions', "Discarding unsent agent session drafts"),
+				order: WillShutdownJoinerOrder.Last,
+			})));
+		}
 
 		// Drop provisional sessions when the chat infra disposes their
 		// chat-input session resource (e.g. the user closes the widget

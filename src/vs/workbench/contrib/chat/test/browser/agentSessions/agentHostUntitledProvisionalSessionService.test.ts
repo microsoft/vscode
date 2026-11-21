@@ -283,6 +283,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let workspaceName: string | undefined;
 	let workbenchState: WorkbenchState;
 	let isSessionsWindow: boolean;
+	let remoteAuthority: string | undefined;
+	let insta: TestInstantiationService;
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	let acquiredScopeRoots: string[][];
@@ -309,10 +311,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workspaceName = undefined;
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
+		remoteAuthority = undefined;
 		acquiredScopeRoots = [];
 		legacyApprovalRestricted = false;
 		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
-		const insta = ds.add(new TestInstantiationService());
+		insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(IAgentHostConnectionsService, {
 			onDidChangeSessionResolution: onDidChangeSessionResolution.event,
@@ -354,7 +357,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			}
 		}();
 		insta.stub(IConfigurationService, configurationService);
-		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; }, get remoteAuthority() { return remoteAuthority; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
 			override getWorkspace(): IWorkspace {
@@ -585,6 +588,25 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			disposeAttempts: agentHost.disposeAttempts.map(uri => uri.toString()),
 		}, {
 			disposedOnShutdown: [backend?.toString()],
+			disposeAttempts: [backend?.toString()],
+		});
+	});
+
+	test('a remote window leaves its drafts to be disposed with the service, as its remote connection ends during shutdown', async () => {
+		remoteAuthority = 'ssh-remote+test';
+		const remoteProvisional = insta.createInstance(AgentHostUntitledProvisionalSessionService);
+		const backend = await remoteProvisional.getOrCreate(untitledChatUri('remote-shutdown'), 'copilot', undefined);
+
+		lifecycleService.fireShutdown();
+		await Promise.all(lifecycleService.shutdownJoiners);
+		const disposedOnShutdown = agentHost.disposeAttempts.map(uri => uri.toString());
+		remoteProvisional.dispose();
+
+		assert.deepStrictEqual({
+			disposedOnShutdown,
+			disposeAttempts: agentHost.disposeAttempts.map(uri => uri.toString()),
+		}, {
+			disposedOnShutdown: [],
 			disposeAttempts: [backend?.toString()],
 		});
 	});
