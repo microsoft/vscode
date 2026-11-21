@@ -615,7 +615,10 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			trailingStats.element.classList.add('chat-working-progress-trailing-stats');
 			this.domNode.appendChild(trailingStats.element);
 			this._register(autorun(reader => {
-				this.showsResponseStats = leadingStats.isShown.read(reader) || trailingStats.isShown.read(reader);
+				const showsTrailingStats = trailingStats.isShown.read(reader);
+				this.showsResponseStats = leadingStats.isShown.read(reader) || showsTrailingStats;
+				// Styles rest the separator of the trailing stats in the chevron slot of the activities.
+				this.domNode.classList.toggle('chat-working-progress-has-trailing-stats', showsTrailingStats);
 				this.updateActiveState();
 			}));
 		}

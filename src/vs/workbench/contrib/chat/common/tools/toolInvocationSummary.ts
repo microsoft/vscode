@@ -14,7 +14,7 @@ export interface IChatToolSummaryResource {
 
 /** Structured facts used for local tool-group summaries, including after history restoration. */
 export type ChatToolInvocationSummary =
-	| { readonly kind: 'incomplete' | 'unknown' | 'failed' | 'skipped' | 'denied' }
+	| { readonly kind: 'incomplete' | 'unknown' | 'failed' | 'skipped' | 'denied' | 'blockedByHook' }
 	| { readonly kind: 'read'; readonly resources: readonly IChatToolSummaryResource[] }
 	| { readonly kind: 'search'; readonly queries: readonly string[]; readonly searchKind: 'text' | 'files' }
 	| { readonly kind: 'command' }

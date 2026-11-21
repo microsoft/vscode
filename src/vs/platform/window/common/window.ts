@@ -226,8 +226,17 @@ export const enum AgentsWindowOpenSource {
 	Unknown = 'unknown',
 }
 
-/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher. */
+/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher, with its {@link IAgentsLauncherOptions}. */
 export const AGENTS_LAUNCHER_IPC_CHANNEL = 'vscode:showAgentsLauncher';
+
+/** How the Agents Launcher shows, as `workbench.action.agentsLauncher` takes it, such as from the `args` of a keybinding. */
+export interface IAgentsLauncherOptions {
+	/**
+	 * The workspace its composer starts in: `''` for a chat without a workspace, as picking Chat in its workspace picker does.
+	 * The workspace it has stays when undefined. Folder paths are not supported yet.
+	 */
+	readonly workspace?: string;
+}
 
 export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
 	switch (value) {

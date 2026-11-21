@@ -1217,6 +1217,11 @@ export function getUntitledSessionTitle(isQuickChat: boolean): string {
 		: localize('agentSessions.newSession', "New Session");
 }
 
+export interface ISessionWorkspaceBrowseOptions {
+	readonly recentFolders: readonly URI[];
+	readonly token: CancellationToken;
+}
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
@@ -1246,7 +1251,7 @@ export interface ISessionWorkspaceBrowseAction {
 	 * if cancelled. The current execution workspace is provided so context
 	 * pickers can scope results to its repository.
 	 */
-	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
+	run(currentWorkspace?: ISessionWorkspace, options?: ISessionWorkspaceBrowseOptions): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
