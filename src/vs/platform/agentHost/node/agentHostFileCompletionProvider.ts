@@ -14,7 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, isCompletionTokenStart, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { IAgentHostFileCompletionRoots, resolveAgentHostFileCompletionRoots } from './agentHostFileCompletionUtils.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
@@ -33,8 +33,8 @@ interface IAtToken {
 }
 
 /**
- * Walk back from `offset` to find the most recent `@` that is preceded by
- * whitespace (or start-of-string) and not interrupted by whitespace. Returns
+ * Walk back from `offset` to find the most recent `@` that starts a token, see
+ * {@link isCompletionTokenStart}, and is not interrupted by whitespace. Returns
  * the substring after `@` together with the range to replace, or `undefined`
  * if no `@`-token is being typed at `offset`.
  *
@@ -51,13 +51,8 @@ export function extractAtToken(text: string, offset: number): IAtToken | undefin
 			return undefined;
 		}
 		if (text[i] === CompletionTriggerCharacter.File || text[i] === CompletionTriggerCharacter.Hash) {
-			// The trigger character must be at start-of-input or preceded by whitespace.
-			if (i > 0) {
-				const prev = text.charCodeAt(i - 1);
-				const prevIsWs = prev === 0x20 || prev === 0x09 || prev === 0x0a || prev === 0x0d;
-				if (!prevIsWs) {
-					return undefined;
-				}
+			if (!isCompletionTokenStart(text, i)) {
+				return undefined;
 			}
 			return { token: text.slice(i + 1, offset), triggerChar: text[i], rangeStart: i, rangeEnd: offset };
 		}

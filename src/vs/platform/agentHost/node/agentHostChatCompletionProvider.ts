@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { ChatInteractivity, ChatOriginKind, MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, isCompletionTokenStart, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 
 /** Maximum number of chat completion items returned per call. */
@@ -33,9 +33,9 @@ export interface IChatToken {
 }
 
 /**
- * Walk back from `offset` to the nearest `#` that is at start-of-input or
- * preceded by whitespace (aborting if whitespace is hit first), then decide
- * whether the token being typed could still become a `#chat:` reference.
+ * Walk back from `offset` to the nearest `#` that starts a token, see
+ * {@link isCompletionTokenStart} (aborting if whitespace is hit first), then
+ * decide whether the token being typed could still become a `#chat:` reference.
  *
  * Returns the title filter (the text after `#chat:`) together with the range to
  * replace, or `undefined` when the token cannot become a `#chat:` reference —
@@ -59,13 +59,8 @@ export function extractChatToken(text: string, offset: number): IChatToken | und
 			return undefined;
 		}
 		if (text[i] === CompletionTriggerCharacter.Hash) {
-			// The `#` must be at start-of-input or preceded by whitespace.
-			if (i > 0) {
-				const prev = text.charCodeAt(i - 1);
-				const prevIsWs = prev === 0x20 || prev === 0x09 || prev === 0x0a || prev === 0x0d;
-				if (!prevIsWs) {
-					return undefined;
-				}
+			if (!isCompletionTokenStart(text, i)) {
+				return undefined;
 			}
 			const raw = text.slice(i + 1, offset);
 			const lower = raw.toLowerCase();

@@ -1243,9 +1243,11 @@ export class BuiltinDynamicCompletions extends Disposable {
 			};
 		};
 
+		// What follows the cursor, such as a closing parenthesis, is not part of the name being typed.
+		const typedWord = getCompletionRangeWord(info);
 		let pattern: string | undefined;
-		if (info.varWord?.word && (info.varWord.word.startsWith(chatVariableLeader) || info.varWord.word.startsWith(chatAgentLeader))) {
-			pattern = info.varWord.word.toLowerCase().slice(1); // remove leading # or @
+		if (typedWord && (typedWord.startsWith(chatVariableLeader) || typedWord.startsWith(chatAgentLeader))) {
+			pattern = typedWord.toLowerCase().slice(1); // remove leading # or @
 		}
 
 		const seen = new ResourceSet();
