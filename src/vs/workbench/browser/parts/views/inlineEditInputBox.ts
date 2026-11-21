@@ -31,6 +31,12 @@ export interface IInlineEditInputBoxOptions {
 	 * The initially selected range of the value. Defaults to the whole value.
 	 */
 	readonly selection?: { readonly start: number; readonly end: number };
+
+	/**
+	 * Whether pressing Escape cancels editing. Defaults to `true`. Set to `false` to leave Escape
+	 * to keybindings, for callers that cancel through a command.
+	 */
+	readonly cancelOnEscape?: boolean;
 }
 
 /**
@@ -38,9 +44,10 @@ export interface IInlineEditInputBoxOptions {
  *
  * Errors reported by {@link IEditableData.validationMessage} block accepting the value, other
  * messages are shown as information. Pressing Enter accepts the value, pressing Escape cancels
- * editing and moving focus elsewhere accepts the value if it is valid. Losing window focus
- * (for example via Alt+Tab or an OS input-source switcher) keeps editing while the input remains
- * the active element of its document.
+ * editing unless {@link IInlineEditInputBoxOptions.cancelOnEscape} is `false`, and moving focus
+ * elsewhere accepts the value if it is valid. Losing window focus (for example via Alt+Tab or an
+ * OS input-source switcher) keeps editing while the input remains the active element of its
+ * document.
  *
  * Once editing finishes the input box is removed and {@link IEditableData.onFinish} is called.
  * Disposing the input box before editing finishes removes it without calling `onFinish`.
@@ -85,14 +92,14 @@ export class InlineEditInputBox extends Disposable {
 
 		this._showMessage();
 
-		// Enter and Escape are handled here and must not trigger keybindings of the containing view
+		// Keys handled here must not trigger keybindings of the containing view
 		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter)) {
 				e.stopPropagation();
 				if (!inputBox.validate()) {
 					this._finish(true);
 				}
-			} else if (e.equals(KeyCode.Escape)) {
+			} else if (e.equals(KeyCode.Escape) && options.cancelOnEscape !== false) {
 				e.preventDefault();
 				e.stopPropagation();
 				this._finish(false);
