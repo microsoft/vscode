@@ -17,7 +17,6 @@ import {
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
-	IByokLmReasoningItem,
 	IByokLmStreamDelta,
 	IByokLmStreamDeltaBody,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
@@ -369,11 +368,18 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			return;
 		}
 		const summary = Array.isArray(part.value) ? part.value : [part.value];
-		const encryptedContent = this._encodeReasoningMetadata(part.metadata);
 		const previous = output.at(-1);
-		// Whether the fold below extends the open reasoning item instead of starting
-		// a new one, which is the only case `startsNewSummaryPart` distinguishes.
-		const extendsOpenItem = previous?.type === 'reasoning' && previous.id === part.id;
+		// The reasoning item this part extends, if any. Whether the fold below extends the open item instead
+		// of starting a new one is the only case `startsNewSummaryPart` distinguishes.
+		const open = previous?.type === 'reasoning' && previous.id === part.id ? previous : undefined;
+		// A later part of the same item can carry only a marker such as `{ toolId }`. Encoding that part on
+		// its own would replace what an earlier part recorded, so the item's metadata and encoded string are
+		// merged first and used for the streamed deltas and for the buffered item alike.
+		const ownEncryptedContent = this._encodeReasoningMetadata(part.metadata);
+		const metadata = open && (open.metadata || part.metadata) ? { ...open.metadata, ...part.metadata } : part.metadata;
+		const encryptedContent = open && (ownEncryptedContent === undefined || ownEncryptedContent.startsWith(REASONING_METADATA_PREFIX))
+			? this._encodeReasoningMetadata(metadata) ?? open.encryptedContent
+			: ownEncryptedContent;
 		if (emit) {
 			// One delta per summary entry the fold adds, so replaying the deltas
 			// reproduces this item's `summary` array entry for entry.
@@ -386,27 +392,20 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					emit({ kind: 'reasoning', id: part.id, delta: '', newSummaryPart: false, ...encrypted });
 				}
 			} else {
-				emit({ kind: 'reasoning', id: part.id, delta: part.value, newSummaryPart: !extendsOpenItem || startsNewSummaryPart, ...encrypted });
+				emit({ kind: 'reasoning', id: part.id, delta: part.value, newSummaryPart: !open || startsNewSummaryPart, ...encrypted });
 			}
 		}
-		const reasoning: IByokLmReasoningItem = {
-			type: 'reasoning',
-			id: part.id,
-			summary,
-			encryptedContent,
-			metadata: part.metadata,
-		};
-		if (previous?.type === 'reasoning' && previous.id === reasoning.id) {
+		if (open) {
 			output[output.length - 1] = {
-				...previous,
+				...open,
 				summary: startsNewSummaryPart || Array.isArray(part.value)
-					? [...previous.summary, ...reasoning.summary]
-					: this._mergeReasoningSummary(previous.summary, part.value),
-				encryptedContent: reasoning.encryptedContent ?? previous.encryptedContent,
-				metadata: previous.metadata || reasoning.metadata ? { ...previous.metadata, ...reasoning.metadata } : undefined,
+					? [...open.summary, ...summary]
+					: this._mergeReasoningSummary(open.summary, part.value),
+				encryptedContent,
+				metadata,
 			};
 		} else {
-			output.push(reasoning);
+			output.push({ type: 'reasoning', id: part.id, summary, encryptedContent, metadata });
 		}
 	}
 
@@ -422,11 +421,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (encryptedContent) {
 			return encryptedContent;
 		}
-		const continuationMetadata = {
-			...(this._stringMetadata(metadata, 'signature') ? { signature: this._stringMetadata(metadata, 'signature') } : {}),
-			...(this._stringMetadata(metadata, '_completeThinking') ? { _completeThinking: this._stringMetadata(metadata, '_completeThinking') } : {}),
-			...(this._stringMetadata(metadata, 'redactedData') ? { redactedData: this._stringMetadata(metadata, 'redactedData') } : {}),
-		};
+		const continuationMetadata: Record<string, unknown> = {};
+		// Keep every key the provider put on its thinking part, not only the Anthropic continuation
+		// fields, so the provider gets its own metadata back on the next turn. The Responses
+		// reasoning item only carries `encrypted_content`, so this string is the one place it survives.
+		// `vscode_*` keys are VS Code's own markers and never go back to the provider.
+		for (const [key, value] of Object.entries(metadata ?? {})) {
+			if (value !== undefined && !key.startsWith('vscode_')) {
+				continuationMetadata[key] = value;
+			}
+		}
 		return Object.keys(continuationMetadata).length > 0
 			? `${REASONING_METADATA_PREFIX}${JSON.stringify(continuationMetadata)}`
 			: undefined;

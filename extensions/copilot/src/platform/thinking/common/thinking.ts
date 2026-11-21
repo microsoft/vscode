@@ -108,6 +108,21 @@ export function asThinkingOriginApi(value: unknown): ThinkingOriginApi | undefin
  */
 export const thinkingOriginApiMetadataKey = 'vscode_thinking_origin_api';
 
+/**
+ * Which key an OpenAI-compatible server used for its reasoning text (`reasoning_content` or `reasoning`).
+ * It is recorded when the reasoning arrives so it can be sent back under the same key, because servers that
+ * treat the two names as one field reject a message that has both. Deliberately not a `vscode_` key: it has
+ * to survive the Agent Host BYOK bridge, which drops those.
+ */
+export const reasoningSourceFieldMetadataKey = 'reasoningSourceField';
+
+export type ReasoningSourceField = 'reasoning_content' | 'reasoning';
+
+export function reasoningSourceFieldFromMetadata(metadata: { readonly [key: string]: any } | undefined): ReasoningSourceField | undefined {
+	const value = metadata?.[reasoningSourceFieldMetadataKey];
+	return value === 'reasoning_content' || value === 'reasoning' ? value : undefined;
+}
+
 export function thinkingOriginToMetadata(originApi: ThinkingOriginApi): { [key: string]: string } {
 	return { [thinkingOriginApiMetadataKey]: originApi };
 }

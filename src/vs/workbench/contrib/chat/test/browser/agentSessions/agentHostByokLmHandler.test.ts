@@ -472,6 +472,87 @@ suite('AgentHostByokLmHandler', () => {
 		}]);
 	});
 
+	test('round-trips arbitrary provider thinking metadata, not only the Anthropic continuation keys', async () => {
+		const providerMetadata = { presentFields: ['reasoning_content'] };
+		const encoded = 'vscode-reasoning-metadata:{"presentFields":["reasoning_content"]}';
+
+		// out: the provider's thinking part metadata is carried in the reasoning item's encrypted content,
+		// and VS Code's own `vscode_*` markers are left out
+		const outService = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'provider')]]),
+			() => responseOf([{ type: 'thinking', value: 'hmm', id: '', metadata: { ...providerMetadata, vscode_reasoning_done: false } }]),
+		);
+		const result = await createHandler(outService).chat({
+			vendor: 'acme',
+			modelId: 'provider',
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+		}, CancellationToken.None);
+		assert.strictEqual(result.output[0].type === 'reasoning' ? result.output[0].encryptedContent : undefined, encoded);
+
+		// in: the same string comes back as the provider's thinking metadata on the next turn
+		const inService = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'provider')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		await createHandler(inService).chat({
+			vendor: 'acme',
+			modelId: 'provider',
+			input: [
+				{ type: 'reasoning', id: 'rs_byok_1', summary: ['hmm'], encryptedContent: encoded },
+				{ type: 'message', role: 'user', content: [{ type: 'text', text: 'again' }] },
+			],
+		}, CancellationToken.None);
+		const thinking = inService.captured?.messages[0].content[0];
+		assert.deepStrictEqual(thinking?.type === 'thinking' ? thinking.metadata : undefined, providerMetadata);
+	});
+
+	test('keeps provider metadata from an earlier part when a later part of the same thinking item carries only a marker', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'provider')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'hmm', id: 'rs_1', metadata: { reasoningSourceField: 'reasoning_content' } },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { toolId: 'call_1' } },
+			]),
+		);
+		const result = await createHandler(service).chat({
+			vendor: 'acme',
+			modelId: 'provider',
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+		}, CancellationToken.None);
+		const item = result.output[0];
+		assert.strictEqual(item.type === 'reasoning' ? item.encryptedContent : undefined, 'vscode-reasoning-metadata:{"reasoningSourceField":"reasoning_content","toolId":"call_1"}');
+	});
+
+	test('streams the merged provider metadata when a marker part and a tool call follow the reasoning', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'provider')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'hmm', id: 'rs_1', metadata: { reasoningSourceField: 'reasoning_content' } },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { toolId: 'call_1' } },
+				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+			]),
+		);
+		const handler = createHandler(service);
+		const deltas: IByokLmStreamDelta[] = [];
+		store.add(handler.onDidDelta(delta => deltas.push(delta)));
+
+		const result = await handler.chat({
+			requestId: 'req-1',
+			vendor: 'acme',
+			modelId: 'provider',
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+			tools: [{ type: 'function', name: 'getWeather' }],
+		}, CancellationToken.None);
+
+		const merged = 'vscode-reasoning-metadata:{"reasoningSourceField":"reasoning_content","toolId":"call_1"}';
+		const reasoningDeltas = deltas.filter(d => d.kind === 'reasoning');
+		const item = result.output[0];
+		// The streamed state after the marker part must be the merged value, the same as the buffered item,
+		// otherwise a consumer that follows the stream loses the field the earlier part recorded.
+		assert.strictEqual(reasoningDeltas.at(-1)?.kind === 'reasoning' ? reasoningDeltas.at(-1)?.encryptedContent : undefined, merged);
+		assert.strictEqual(item.type === 'reasoning' ? item.encryptedContent : undefined, merged);
+	});
+
 	test('preserves streamed reasoning summary part boundaries', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('customendpoint', 'reasoning')]]),
