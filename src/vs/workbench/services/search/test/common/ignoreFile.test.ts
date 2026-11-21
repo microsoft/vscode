@@ -567,6 +567,25 @@ suite('Parsing .gitignore files', () => {
 
 	});
 
+	test('directory negation traverses directory ignored by file wildcard', () => {
+		const i = '*\n!d/\n!d/a\n!b\n';
+
+		assertTraverses(i, '/', '/b');
+		assertTraverses(i, '/', '/d/');
+		assertTraverses(i, '/', '/d/a');
+
+		assertNoIgnoreMatch(i, '/', '/b');
+		assertNoIgnoreMatch(i, '/', '/d/a');
+	});
+
+	test('directory negation does not include all children', () => {
+		const i = '*\n!d/\n';
+
+		assertTraverses(i, '/', '/d/');
+		assertNoTraverses(i, '/', '/d/a');
+		assertIgnoreMatch(i, '/', '/d/a');
+	});
+
 	test('child negation overrides parent ignore', () => {
 		// Simulates: global gitignore has `.myconfig`, project .gitignore has `!.myconfig/`
 		// The child negation should override the parent positive pattern.
