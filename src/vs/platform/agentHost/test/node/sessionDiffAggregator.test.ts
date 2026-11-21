@@ -12,6 +12,7 @@ import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionS
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
+import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
 const TEST_SESSION_URI = 'session://test-session';
 
@@ -149,7 +150,7 @@ suite('computeSessionDiffs', () => {
 			beforeContent: encodeString('bye'),
 		});
 
-		// A line diff against empty content counts its single empty line, as the real diff service does.
+		// A diff service that counts a line for the empty side, as a line diff against empty content does.
 		const result = await computeSessionDiffs(TEST_SESSION_URI, db, new TestDiffComputeService({ added: 1, removed: 1, changes: [] }));
 
 		assert.deepStrictEqual(result.map(diff => [getDiffUri(diff)?.split('/').at(-1), diff.diff]).sort(), [
@@ -779,6 +780,29 @@ suite('computeTurnDiffs', () => {
 		assert.deepStrictEqual(
 			result.map(simplify).sort((x, y) => (x.uri ?? '').localeCompare(y.uri ?? '')),
 			[simpleDiff('/repo/a/x.txt', 1, 0), simpleDiff('/repo/b/y.txt', 1, 0)],
+		);
+	});
+
+	test('counts the lines of a created file that ends with a line break as Git does', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/math.js', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('function add(a, b) {\n\treturn a + b;\n}\n'),
+			afterContent: encodeString('function add(a, b) {\n\treturn a + b;\n}\n\nfunction multiply(a, b) {\n\treturn a * b;\n}\n'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/notes.md', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('multiply returns the product of two numbers.\n'),
+		});
+
+		// The real diff worker: a fake one cannot show how a final line break is counted.
+		const result = await computeTurnDiffs(TEST_SESSION_URI, db, new InProcessDiffComputeService(), 't1');
+
+		assert.deepStrictEqual(
+			result.map(simplify).sort((x, y) => (x.uri ?? '').localeCompare(y.uri ?? '')),
+			[simpleDiff('/repo/math.js', 4, 0), simpleDiff('/repo/notes.md', 1, 0)],
 		);
 	});
 
