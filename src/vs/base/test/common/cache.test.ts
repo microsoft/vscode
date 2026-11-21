@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../common/async.js';
-import { Cache } from '../../common/cache.js';
+import { Cache, CachedFunction, LRUCachedFunction } from '../../common/cache.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Cache', () => {
@@ -64,5 +64,98 @@ suite('Cache', () => {
 				assert.strictEqual(counter1, 2);
 				assert.strictEqual(counter2, 1);
 			});
+	});
+
+	test('LRUCachedFunction with initial undefined key', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction((arg?: string) => {
+			callCount++;
+			return arg ? `val:${arg}` : 'default';
+		});
+
+		assert.strictEqual(cached.get(undefined), 'default');
+		assert.strictEqual(callCount, 1);
+	});
+
+	test('LRUCachedFunction with custom getCacheKey returning undefined', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction(
+			{ getCacheKey: (item: { id?: string }) => item.id },
+			(item: { id?: string; data: number }) => {
+				callCount++;
+				return item.data * 2;
+			}
+		);
+
+		assert.strictEqual(cached.get({ id: undefined, data: 5 }), 10);
+		assert.strictEqual(callCount, 1);
+
+		// Same undefined key should return cached result
+		assert.strictEqual(cached.get({ id: undefined, data: 99 }), 10);
+		assert.strictEqual(callCount, 1);
+	});
+
+	test('LRUCachedFunction alternating between undefined and defined keys', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction((arg: string | undefined) => {
+			callCount++;
+			return arg === undefined ? 'is-undefined' : `str:${arg}`;
+		});
+
+		assert.strictEqual(cached.get(undefined), 'is-undefined');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(undefined), 'is-undefined');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get('first'), 'str:first');
+		assert.strictEqual(callCount, 2);
+
+		assert.strictEqual(cached.get(undefined), 'is-undefined');
+		assert.strictEqual(callCount, 3);
+	});
+
+	test('CachedFunction with custom cache key and cachedValues map', () => {
+		let callCount = 0;
+		const cached = new CachedFunction(
+			{ getCacheKey: (item: { id: string }) => item.id },
+			(item: { id: string; name: string }) => {
+				callCount++;
+				return item.name.toUpperCase();
+			}
+		);
+
+		const first = { id: 'a', name: 'apple' };
+		const second = { id: 'a', name: 'apricot' };
+		const third = { id: 'b', name: 'banana' };
+
+		assert.strictEqual(cached.get(first), 'APPLE');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(second), 'APPLE');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(third), 'BANANA');
+		assert.strictEqual(callCount, 2);
+
+		assert.strictEqual(cached.cachedValues.size, 2);
+	});
+
+	test('LRUCachedFunction with null and boolean keys', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction((arg: boolean | null) => {
+			callCount++;
+			return arg === null ? 'null' : String(arg);
+		});
+
+		assert.strictEqual(cached.get(null), 'null');
+		assert.strictEqual(callCount, 1);
+		assert.strictEqual(cached.get(null), 'null');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(false), 'false');
+		assert.strictEqual(callCount, 2);
+		assert.strictEqual(cached.get(false), 'false');
+		assert.strictEqual(callCount, 2);
 	});
 });
