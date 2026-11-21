@@ -653,6 +653,11 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 
 	isSessionsWindow?: boolean;
+
+	/**
+	 * Whether the main process keeps windows hidden (`--hidden-window`).
+	 */
+	hiddenWindow?: boolean;
 }
 
 /**

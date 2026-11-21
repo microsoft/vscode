@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { registerWindow } from '../../../../base/browser/dom.js';
+import { enableFallbackActiveWindow, registerWindow, setFallbackActiveWindow } from '../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -251,5 +251,43 @@ suite('MainThreadEditorTabs with several editor parts', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual(switches, ['main', 'chat']);
+	});
+
+	test('without focus in any window, the active tab group of the extension host follows the fallback active window, as for hidden windows', async () => {
+		const { parts, editorService } = await createServices();
+
+		let activeGroupId: number | undefined;
+		disposables.add(new MainThreadEditorTabs(SingleProxyRPCProtocol({
+			$acceptEditorTabModel(groups: IEditorTabGroupDto[]) {
+				activeGroupId = groups.find(group => group.isActive)?.groupId ?? activeGroupId;
+			},
+			$acceptTabGroupUpdate(group: IEditorTabGroupDto) {
+				if (group.isActive) {
+					activeGroupId = group.groupId;
+				}
+			},
+			$acceptTabOperation() { }
+		}), parts, new TestConfigurationService(), new NullLogService(), editorService));
+		await parts.whenReady;
+		await Promise.resolve();
+
+		const { containerIn } = createFocusedWindow(5151);
+		const otherWindowDocument = containerIn().ownerDocument;
+		otherWindowDocument.hasFocus = () => false;
+		disposables.add(enableFallbackActiveWindow());
+
+		const otherWindow: IContentPart = parts.createEditorPart({ container: containerIn() });
+		otherWindow.layout(400, 300, 0, 0);
+		parts.activateGroup(otherWindow.activeGroup.id);
+		const beforeFallback = activeGroupId;
+
+		setFallbackActiveWindow(otherWindow.windowId);
+		const afterFallback = activeGroupId;
+
+		const expected = { beforeFallback: parts.mainPart.activeGroup.id, afterFallback: otherWindow.activeGroup.id };
+		otherWindow.close();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ beforeFallback, afterFallback }, expected);
 	});
 });
