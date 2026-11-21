@@ -338,13 +338,23 @@ const agentHostCustomizations: readonly Customization[] = [
 	},
 ];
 
+/** The hook load problems of {@link agentHostCustomizations}, with many errors for a constrained layout. */
+const agentHostCustomizationsWithManyHookErrors: readonly Customization[] = agentHostCustomizations.map(customization => customization.id === 'copilot-hook-diagnostics' && customization.type === CustomizationType.Directory ? {
+	...customization,
+	load: {
+		kind: CustomizationLoadStatus.Degraded,
+		message: Array.from({ length: 12 }, (_, index) => `Invalid hook configuration in ${joinPath(workspaceRoot, `.github/hooks/broken-${index + 1}.json`).fsPath}: Invalid JSON: EOF while parsing an object at line 2 column 0`).join('\n'),
+	},
+} : customization);
+
 class FixtureAgentHostCustomizationService extends NullAgentHostCustomizationService {
-	override getCustomizations(): readonly Customization[] { return agentHostCustomizations; }
+	constructor(private readonly customizations: readonly Customization[] = agentHostCustomizations) { super(); }
+	override getCustomizations(): readonly Customization[] { return this.customizations; }
 	override getWorkingDirectories(): readonly string[] { return [workspaceRoot.toString()]; }
 	override getClientWorkingDirectoryUris(): readonly URI[] { return [workspaceRoot]; }
 }
 
-async function createAgentHostItemProvider(ctx: ComponentFixtureContext, promptsService: IPromptsService): Promise<AgentCustomizationItemProvider> {
+async function createAgentHostItemProvider(ctx: ComponentFixtureContext, promptsService: IPromptsService, customizations?: readonly Customization[]): Promise<AgentCustomizationItemProvider> {
 	const logService = new NullLogService();
 	const fileService = ctx.disposableStore.add(new FileService(logService));
 	ctx.disposableStore.add(fileService.registerProvider('file', ctx.disposableStore.add(new InMemoryFileSystemProvider())));
@@ -357,7 +367,7 @@ async function createAgentHostItemProvider(ctx: ComponentFixtureContext, prompts
 		undefined,
 		fileService,
 		logService,
-		new FixtureAgentHostCustomizationService(),
+		new FixtureAgentHostCustomizationService(customizations),
 		promptsService,
 		new class extends mock<ILabelService>() { },
 	));
@@ -425,6 +435,7 @@ interface IRenderOptions {
 	readonly section: AICustomizationManagementSection;
 	readonly harness: 'local' | 'agentHost';
 	readonly data?: ILocalFixtureData;
+	readonly agentHostCustomizations?: readonly Customization[];
 	readonly width?: number;
 	readonly height?: number;
 	readonly searchQuery?: string;
@@ -447,7 +458,7 @@ async function renderOrganization(ctx: ComponentFixtureContext, options: IRender
 			agentLabel: 'Copilot',
 			icon: ThemeIcon.fromId(Codicon.copilot.id),
 			hideGenerateButton: true,
-			itemProvider: await createAgentHostItemProvider(ctx, promptsService),
+			itemProvider: await createAgentHostItemProvider(ctx, promptsService, options.agentHostCustomizations),
 		};
 		sessionResource = AGENT_HOST_SESSION;
 	} else {
@@ -580,5 +591,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/organizat
 	AgentHostHooksWithLoadErrorsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderOrganization(ctx, { harness: 'agentHost', section: AICustomizationManagementSection.Hooks, width: 380, height: 640 }),
+	}),
+	AgentHostHooksWithManyLoadErrorsShort: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderOrganization(ctx, { harness: 'agentHost', section: AICustomizationManagementSection.Hooks, agentHostCustomizations: agentHostCustomizationsWithManyHookErrors, width: 380, height: 420 }),
 	}),
 });

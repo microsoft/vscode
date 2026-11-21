@@ -877,8 +877,11 @@ per-word capitalization does not survive translation. */
 }
 
 /* Problems with a section's customizations as a whole, such as hook files that failed to load */
+/* Many or long errors scroll rather than push the list out of view */
 .ai-customization-list-widget .customization-section-notices {
 	flex-shrink: 0;
+	max-height: 40%;
+	overflow-y: auto;
 }
 
 .customization-section-notice {
