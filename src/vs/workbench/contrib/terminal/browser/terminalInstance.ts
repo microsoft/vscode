@@ -23,6 +23,7 @@ import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { uppercaseFirstLetter } from '../../../../base/common/strings.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import * as nls from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -70,7 +71,7 @@ import { LineDataEventAddon } from './xterm/lineDataEventAddon.js';
 import { XtermTerminal, getXtermScaledDimensions } from './xterm/xtermTerminal.js';
 import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
 import { ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
-import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
+import { ansiColorMap, TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -2504,6 +2505,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
 		if (color) {
+			// Support color shorthands like "brightRed" and "blue"
+			if (!Object.hasOwn(ansiColorMap, color)) {
+				const colorName = color.toLowerCase();
+				const ansiColor = colorName.startsWith('bright')
+					? `terminal.ansiBright${uppercaseFirstLetter(colorName.slice(6))}`
+					: `terminal.ansi${uppercaseFirstLetter(colorName)}`;
+				color = Object.hasOwn(ansiColorMap, ansiColor) ? ansiColor : color;
+			}
 			this.shellLaunchConfig.color = color;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
 			return color;

@@ -8,13 +8,15 @@ import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname } from '../../../../base/common/resources.js';
-import { hasKey, isObject, isString } from '../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { hasKey, isBoolean, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -25,6 +27,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -68,6 +71,29 @@ import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/sel
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
+
+export const TERMINAL_TARGET_PROPERTIES: IJSONSchemaMap = {
+	terminalId: {
+		description: localize({ key: 'workbench.action.terminal.target.terminalId', comment: ['Do not translate the JSON argument names terminalId, resource, or tab.'] }, "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all selectors to use the active terminal."),
+		type: 'integer',
+		minimum: 1
+	},
+	resource: {
+		description: localize({ key: 'workbench.action.terminal.target.resource', comment: ['Do not translate the URI scheme vscode-terminal or the JSON argument names terminalId, resource, or tab.'] }, "The vscode-terminal URI of an existing terminal. Use only one of terminalId, resource, or tab."),
+		type: 'string',
+		minLength: 1
+	},
+	tab: {
+		description: localize({ key: 'workbench.action.terminal.target.tab', comment: ['Do not translate the JSON argument names terminalId, resource, or tab. The tab position starts at 1.'] }, "The 1-based position of a terminal tab in the terminal panel. Use only one of terminalId, resource, or tab."),
+		type: 'integer',
+		minimum: 1
+	},
+	pane: {
+		description: localize({ key: 'workbench.action.terminal.target.pane', comment: ['A pane is one terminal within a tab. Do not translate tab or pane when they refer to JSON argument names. The pane position starts at 1.'] }, "The 1-based position of a pane in the selected tab, or the active terminal tab when tab is omitted. When pane is omitted, the selected tab's active terminal is used."),
+		type: 'integer',
+		minimum: 1
+	}
+};
 
 // Some terminal context keys get complicated. Since normalizing and/or context keys can be
 // expensive this is done once per context key and shared.
@@ -712,7 +738,31 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon()
+		metadata: {
+			description: terminalStrings.changeIcon,
+			args: [{
+				name: 'args',
+				isOptional: true,
+				schema: {
+					anyOf: [{ type: 'string' }, {
+						type: 'object',
+						properties: {
+							icon: {
+								description: localize('workbench.action.terminal.changeIcon.icon', "An icon ID or an expression such as {0}. When omitted, the icon picker is shown.", '$(rocket)'),
+								type: 'string'
+							},
+							...TERMINAL_TARGET_PROPERTIES
+						}
+					}]
+				}
+			}]
+		},
+		run: (c, accessor, args) => {
+			const options = isObject(args) && !URI.isUri(args) ? args as Record<string, unknown> : undefined;
+			const instance = options ? getTargetTerminal(c, options, accessor.get(INotificationService)) : getResourceOrActiveInstance(c, args);
+			const icon = options ? options.icon : args;
+			return instance?.changeIcon(isString(icon) ? ThemeIcon.fromString(icon) || ThemeIcon.fromId(icon) : undefined);
+		}
 	});
 
 	registerTerminalAction({
@@ -739,7 +789,40 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args) => getResourceOrActiveInstance(c, args)?.changeColor()
+		metadata: {
+			description: terminalStrings.changeColor,
+			args: [{
+				name: 'args',
+				isOptional: true,
+				schema: {
+					anyOf: [{ type: 'string' }, {
+						type: 'object',
+						properties: {
+							color: {
+								description: localize('workbench.action.terminal.changeColor.color', "A terminal color ID or an ANSI color name such as {0}, {1}, or {2}. When omitted, the color picker is shown unless skipQuickPick is true.", 'red', 'blue', 'brightBlue'),
+								type: 'string'
+							},
+							skipQuickPick: {
+								description: localize('workbench.action.terminal.changeColor.skipQuickPick', "Reset the color without showing the picker when no color is provided."),
+								type: 'boolean'
+							},
+							...TERMINAL_TARGET_PROPERTIES
+						}
+					}]
+				}
+			}, {
+				name: 'skipQuickPick',
+				isOptional: true,
+				schema: { type: 'boolean' }
+			}]
+		},
+		run: (c, accessor, args, args2) => {
+			const options = isObject(args) && !URI.isUri(args) ? args as Record<string, unknown> : undefined;
+			const instance = options ? getTargetTerminal(c, options, accessor.get(INotificationService)) : getResourceOrActiveInstance(c, args);
+			const color = options ? options.color : args;
+			const skipQuickPick = options ? options.skipQuickPick : args2;
+			return instance?.changeColor(isString(color) ? color : undefined, isBoolean(skipQuickPick) ? skipQuickPick : undefined);
+		}
 	});
 
 	registerTerminalAction({
@@ -759,6 +842,19 @@ export function registerTerminalActions() {
 				// Always show the quickpick on the first iteration
 				color = await terminal.changeColor(color, skipQuickPick);
 				i++;
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.CopyInstanceId,
+		title: localize2('workbench.action.terminal.copyInstanceId', "Copy Terminal ID"),
+		precondition: sharedWhenClause.terminalAvailable,
+		run: (c, accessor, args) => {
+			const context = parseActionArgs(args)?.[0];
+			const instance = context ? c.service.getInstanceFromId(context.instanceId) : c.service.activeInstance;
+			if (instance && !instance.isDisposed) {
+				return accessor.get(IClipboardService).writeText(String(instance.instanceId));
 			}
 		}
 	});
@@ -1015,7 +1111,7 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveInstanceAction({
+	registerTerminalAction({
 		id: TerminalCommandId.RenameWithArgs,
 		title: terminalStrings.renameWithArgs,
 		metadata: {
@@ -1030,21 +1126,24 @@ export function registerTerminalActions() {
 							description: localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal"),
 							type: 'string',
 							minLength: 1
-						}
+						},
+						...TERMINAL_TARGET_PROPERTIES
 					}
 				}
 			}]
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		f1: false,
-		run: async (activeInstance, c, accessor, args) => {
+		run: async (c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
-			const name = args ? toOptionalString((<{ name?: string }>args).name) : undefined;
-			if (!name) {
+			const options = isObject(args) ? args as Record<string, unknown> : undefined;
+			const name = options?.name;
+			if (!options || !isString(name) || !name) {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
 			}
-			activeInstance.rename(name);
+			const instance = getTargetTerminal(c, options, notificationService);
+			instance?.rename(name);
 		}
 	});
 
@@ -1644,6 +1743,46 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 		}
 	});
 	return newWithProfileAction;
+}
+
+/**
+ * Resolves a terminal selector without changing focus or falling back from an explicit target.
+ */
+export function getTargetTerminal(c: ITerminalServicesCollection, options: Record<string, unknown>, notificationService: INotificationService): ITerminalInstance | undefined {
+	const { terminalId, resource, tab, pane } = options;
+	const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
+	const invalidIndex = [terminalId, tab, pane].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
+	if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (pane !== undefined && (terminalId !== undefined || resource !== undefined))) {
+		notificationService.warn(localize({ key: 'workbench.action.terminal.target.invalidSelector', comment: ['Do not translate the JSON argument names terminalId, resource, tab, or pane. A pane is one terminal within a tab.'] }, "Invalid terminal selector. Use one of terminalId, resource, or tab. Pane can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and panes must be positive integers."));
+		return;
+	}
+
+	let instance: ITerminalInstance | undefined;
+	if (typeof terminalId === 'number') {
+		instance = c.service.getInstanceFromId(terminalId);
+	} else if (isString(resource)) {
+		let uri: URI | undefined;
+		try {
+			uri = URI.parse(resource, true);
+		} catch {
+			// An invalid explicit resource must not fall back to the active terminal.
+		}
+		if (uri?.scheme === Schemas.vscodeTerminal) {
+			instance = c.service.getInstanceFromResource(uri);
+		}
+	} else if (typeof tab === 'number' || typeof pane === 'number') {
+		const group = typeof tab === 'number' ? c.groupService.groups[tab - 1] : c.groupService.activeGroup;
+		instance = typeof pane === 'number' ? group?.terminalInstances[pane - 1] : group?.activeInstance;
+	} else {
+		instance = c.service.activeInstance;
+	}
+	if (!instance) {
+		if (selectorCount > 0 || pane !== undefined) {
+			notificationService.warn(localize('workbench.action.terminal.target.notFound', "The selected terminal was not found."));
+		}
+		return;
+	}
+	return instance;
 }
 
 function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {

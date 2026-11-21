@@ -7,7 +7,7 @@ import assert from 'assert';
 import type { IPty } from 'node-pty';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { IProcessEnvironment, isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -16,15 +16,48 @@ import { IShellLaunchConfig, ITerminalProcessOptions } from '../../common/termin
 import { ChildProcessMonitor } from '../../node/childProcessMonitor.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
 
+const options: ITerminalProcessOptions = {
+	shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' },
+	windowsUseConptyDll: false,
+	environmentVariableCollections: undefined,
+	workspaceFolder: undefined,
+	isScreenReaderOptimized: false
+};
+
+suite('TerminalProcess environment', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const cases = [
+		{ name: 'exposes the workbench ID without shell integration', terminalId: 12, strictEnv: false, inheritedId: undefined, expected: '12' },
+		{ name: 'replaces an inherited terminal ID', terminalId: 12, strictEnv: false, inheritedId: '99', expected: '12' },
+		{ name: 'does not inject an ID into a strict environment', terminalId: 12, strictEnv: true, inheritedId: undefined, expected: '<unset>' },
+		{ name: 'preserves explicitly supplied IDs in strict environments', terminalId: 12, strictEnv: true, inheritedId: '99', expected: '99' },
+		{ name: 'does not invent an ID when the workbench ID is unavailable', terminalId: undefined, strictEnv: false, inheritedId: undefined, expected: '<unset>' }
+	];
+	for (const { name, terminalId, strictEnv, inheritedId, expected } of cases) {
+		(isWindows ? test.skip : test)(name, async () => {
+			const env: IProcessEnvironment = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+			if (inheritedId === undefined) {
+				delete env.VSCODE_TERMINAL_ID;
+			} else {
+				env.VSCODE_TERMINAL_ID = inheritedId;
+			}
+			const terminal = store.add(new TerminalProcess({
+				executable: process.execPath,
+				args: ['-e', 'console.log("terminal-id=" + (process.env.VSCODE_TERMINAL_ID ?? "<unset>"))'],
+				strictEnv
+			}, process.cwd(), 80, 24, env, env, { ...options, terminalId }, store.add(new NullLogService()), { applicationName: 'vscode' } as IProductService));
+			let output = '';
+			store.add(terminal.onProcessData(data => output += data));
+			const exited = new Promise<number>(resolve => store.add(Event.once(terminal.onProcessExit)(resolve)));
+			assert.strictEqual(await terminal.start(), undefined);
+			assert.strictEqual(await exited, 0);
+			assert.strictEqual(output.match(/terminal-id=(?<terminalId>\d+|<unset>)/)?.groups?.terminalId, expected);
+		});
+	}
+});
+
 suite('TerminalProcess startup disposal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const options: ITerminalProcessOptions = {
-		shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' },
-		windowsUseConptyDll: false,
-		environmentVariableCollections: undefined,
-		workspaceFolder: undefined,
-		isScreenReaderOptimized: false
-	};
 
 	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd(), throttle?: () => Promise<void>) {
 		let spawnAttempts = 0;
