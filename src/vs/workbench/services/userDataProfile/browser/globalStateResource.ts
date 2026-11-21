@@ -20,6 +20,25 @@ interface IGlobalState {
 	storage: IStringDictionary<string>;
 }
 
+/**
+ * Keys that must not be taken from profile content.
+ *
+ * `GlobalStateResource.getGlobalState` only ever writes out `StorageTarget.USER`
+ * values, so a key held at `StorageTarget.MACHINE` never came out of a profile.
+ * Applying profile content writes at `StorageTarget.USER`, which means an
+ * unfiltered key arrives holding a value for something the product reads as
+ * machine-local state.
+ */
+function getNonProfileStorageKeys(storageService: IStorageService): string[] {
+	return [
+		// Do not include application scope user target keys because they also include default profile user target keys
+		...storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
+		...storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE),
+		...storageService.keys(StorageScope.WORKSPACE, StorageTarget.USER),
+		...storageService.keys(StorageScope.WORKSPACE, StorageTarget.MACHINE),
+	];
+}
+
 export class GlobalStateResourceInitializer implements IProfileResourceInitializer {
 
 	constructor(@IStorageService private readonly storageService: IStorageService) {
@@ -29,8 +48,12 @@ export class GlobalStateResourceInitializer implements IProfileResourceInitializ
 		const globalState: IGlobalState = JSON.parse(content);
 		const storageKeys = Object.keys(globalState.storage);
 		if (storageKeys.length) {
+			const nonProfileKeys = getNonProfileStorageKeys(this.storageService);
 			const storageEntries: Array<IStorageEntry> = [];
 			for (const key of storageKeys) {
+				if (nonProfileKeys.includes(key)) {
+					continue;
+				}
 				storageEntries.push({ key, value: globalState.storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
 			}
 			this.storageService.storeAll(storageEntries, true);
@@ -72,12 +95,7 @@ export class GlobalStateResource implements IProfileResource {
 		const storageKeys = Object.keys(globalState.storage);
 		if (storageKeys.length) {
 			const updatedStorage = new Map<string, string | undefined>();
-			const nonProfileKeys = [
-				// Do not include application scope user target keys because they also include default profile user target keys
-				...this.storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
-				...this.storageService.keys(StorageScope.WORKSPACE, StorageTarget.USER),
-				...this.storageService.keys(StorageScope.WORKSPACE, StorageTarget.MACHINE),
-			];
+			const nonProfileKeys = getNonProfileStorageKeys(this.storageService);
 			for (const key of storageKeys) {
 				if (nonProfileKeys.includes(key)) {
 					this.logService.info(`Importing Profile (${profile.name}): Ignoring global state key '${key}' because it is not a profile key.`);
