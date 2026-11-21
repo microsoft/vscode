@@ -11332,6 +11332,47 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('allows /fleet when command attachment is present without user attachments', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await session.send(
+				'/fleet go',
+				[{
+					type: MessageAttachmentKind.Simple,
+					label: '/fleet',
+					displayKind: 'command',
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+					_meta: { command: 'fleet', description: 'Enable fleet mode for parallel subagent execution', argumentHint: 'prompt' },
+				}],
+				'turn-fleet',
+				'interactive',
+			);
+
+			assert.deepStrictEqual(mockSession.fleetStartCalls, [{ prompt: 'go' }]);
+		});
+
+		test('rejects /fleet when both command and user attachments are present', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await assert.rejects(session.send(
+				'/fleet go',
+				[
+					{
+						type: MessageAttachmentKind.Simple,
+						label: '/fleet',
+						displayKind: 'command',
+						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+						_meta: { command: 'fleet', description: 'Enable fleet mode for parallel subagent execution', argumentHint: 'prompt' },
+					},
+					{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/file.ts', label: 'file.ts', displayKind: 'document' },
+				],
+				'turn-fleet',
+				'interactive',
+			), /Attachments are not supported with the \/fleet command\./);
+		});
+
 		test('started:false surfaces an error and clears the turn without an SDK send', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			mockSession.commandListResult = { commands: [fleetCommand()] };
