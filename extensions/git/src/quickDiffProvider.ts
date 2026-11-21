@@ -57,6 +57,12 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
+		// Ignore path that is local only
+		if (this.repository.localOnlyGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is local only: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore path that is untracked
 		if (this.repository.untrackedGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path)) ||
 			this.repository.workingTreeGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path) && r.type === Status.UNTRACKED)) {

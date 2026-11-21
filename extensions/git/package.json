@@ -768,6 +768,18 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.addToLocalOnly",
+        "title": "%command.addToLocalOnly%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.removeFromLocalOnly",
+        "title": "%command.removeFromLocalOnly%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.revealInExplorer",
         "title": "%command.revealInExplorer%",
         "category": "Git"
@@ -1628,6 +1640,14 @@
         {
           "command": "git.ignore",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
+        },
+        {
+          "command": "git.addToLocalOnly",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.removeFromLocalOnly",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashIncludeUntracked",
@@ -2596,6 +2616,11 @@
           "group": "1_modification@3"
         },
         {
+          "command": "git.addToLocalOnly",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@4"
+        },
+        {
           "command": "git.revealFileInOS.linux",
           "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isLinux",
           "group": "2_view@1"
@@ -2664,6 +2689,51 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.addToLocalOnly",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@4"
+        },
+        {
+          "command": "git.openChange",
+          "when": "scmProvider == git && scmResourceGroup == localOnly",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openHEADFile",
+          "when": "scmProvider == git && scmResourceGroup == localOnly",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == localOnly",
+          "group": "navigation"
+        },
+        {
+          "command": "git.removeFromLocalOnly",
+          "when": "scmProvider == git && scmResourceGroup == localOnly",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == localOnly && remoteName == '' && isLinux",
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == localOnly && remoteName == '' && isMac",
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == localOnly && remoteName == '' && isWindows",
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == localOnly",
+          "group": "2_view@2"
         }
       ],
       "scm/history/title": [
