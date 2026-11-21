@@ -444,10 +444,18 @@
 	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
-.agent-status-badge-section.sparkle .action-container:focus-within,
-.agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
+/* Not :focus-within - the dropdown menu is rendered inside .dropdown-action-container (menuAsChild),
+   so :focus-within would outline the chevron whenever the open menu has focus */
+.agent-status-badge-section.sparkle .action-container:is(:focus-visible, :has(.action-label:focus-visible)),
+.agent-status-badge-section.sparkle .dropdown-action-container:has(.action-label:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+/* The sparkle section also receives focus from mouse interaction (e.g. when the dropdown menu
+   closes), so suppress the global [tabindex]:focus outline unless focus came from the keyboard */
+.monaco-workbench .agent-status-badge-section.sparkle:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .agent-status-badge-section.sparkle .action-label {
@@ -481,7 +489,7 @@
 	background-color: transparent !important;
 }
 
-.agent-status-badge-section.sparkle .action-label:focus {
+.agent-status-badge-section.sparkle .action-label:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
