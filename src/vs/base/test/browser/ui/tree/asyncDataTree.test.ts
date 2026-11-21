@@ -984,4 +984,123 @@ suite('AsyncDataTree', function () {
 		assert.strictEqual(tree.navigate(model.get('aa.txt')).previous()?.id, 'aa');
 		assert.strictEqual(tree.navigate(model.get('aa.txt')).next()?.id, 'ba');
 	});
+
+	test('issue #349459 - refresh returning duplicate sibling ids does not corrupt tree', async () => {
+		const container = document.createElement('div');
+		let withDuplicate = false;
+		const makeB = () => ({ id: 'b', children: [{ id: 'b1' }] });
+		const root: Element = { id: 'root' };
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return element === root || element.id === 'group' || (!!element.children && element.children.length > 0);
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				if (element === root) {
+					return [{ id: 'group', children: [] }];
+				}
+				if (element.id === 'group') {
+					return [{ id: 'a' }, makeB(), ...(withDuplicate ? [makeB()] : [])];
+				}
+				return element.children ?? [];
+			}
+		};
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(root);
+		const group = tree.getNode(root).children[0].element;
+		await tree.expand(group);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b']);
+
+		// Refresh returns duplicate sibling id `b`
+		withDuplicate = true;
+		await tree.updateChildren(root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b', 'b']);
+
+		// Subsequent refresh removes duplicate; tree must recover cleanly
+		withDuplicate = false;
+		await tree.updateChildren(root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b']);
+
+		// Another refresh continues working normally
+		await tree.updateChildren(root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b']);
+	});
+
+	test('issue #349459 - refresh returning duplicate expanded sibling id preserves state and avoids duplicate child fetches', async () => {
+		const container = document.createElement('div');
+		let withDuplicate = false;
+		let bFetchCount = 0;
+		const makeB = () => ({ id: 'b', children: [{ id: 'b1' }] });
+		const root: Element = { id: 'root' };
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return element === root || element.id === 'group' || (!!element.children && element.children.length > 0);
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				if (element === root) {
+					return [{ id: 'group', children: [] }];
+				}
+				if (element.id === 'group') {
+					return [{ id: 'a' }, makeB(), ...(withDuplicate ? [makeB()] : [])];
+				}
+				if (element.id === 'b') {
+					bFetchCount++;
+				}
+				return element.children ?? [];
+			}
+		};
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(root);
+		const group = tree.getNode(root).children[0].element;
+		await tree.expand(group);
+		const b = tree.getNode(group).children[1].element;
+		await tree.expand(b);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b', 'b1']);
+
+		bFetchCount = 0;
+		withDuplicate = true;
+		await tree.updateChildren(root);
+		assert.strictEqual(bFetchCount, 1);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b', 'b1', 'b']);
+
+		withDuplicate = false;
+		await tree.updateChildren(root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['group', 'a', 'b', 'b1']);
+	});
+
+	test('issue #349459 - refresh returning duplicate ids across sibling subtrees does not throw', async () => {
+		const container = document.createElement('div');
+		const root: Element = { id: 'root' };
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return element === root || element.id === 'g1' || element.id === 'g2' || (!!element.children && element.children.length > 0);
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				if (element === root) {
+					return [{ id: 'g1', children: [] }, { id: 'g2', children: [] }];
+				}
+				if (element.id === 'g1' || element.id === 'g2') {
+					return [{ id: 'shared', children: [{ id: `${element.id}-leaf` }] }];
+				}
+				return element.children ?? [];
+			}
+		};
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(root);
+		const [g1, g2] = tree.getNode(root).children.map(c => c.element);
+		await tree.expand(g1);
+		await tree.expand(g2);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['g1', 'shared', 'g2', 'shared']);
+
+		await tree.updateChildren(root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['g1', 'shared', 'g2', 'shared']);
+	});
 });
