@@ -15,6 +15,27 @@ This extension shows reference search results as separate view, just like search
 
 This extension is just an alternative UI for reference search and extensions implementing reference search must still be installed.
 
+## Opening the references view from an extension
+
+An extension can show reference locations in this view regardless of the user's `references.preferredLocation` setting through the extension API:
+
+```ts
+import * as vscode from 'vscode';
+
+interface ReferencesViewApi {
+	showReferences(uri: vscode.Uri, position: vscode.Position, locations: vscode.Location[] | vscode.LocationLink[]): Thenable<void>;
+}
+
+const extension = vscode.extensions.getExtension<ReferencesViewApi>('vscode.references-view');
+if (extension) {
+	const referencesView = await extension.activate();
+	// uri, position, and locations come from the extension's reference search.
+	await referencesView.showReferences(uri, position, locations);
+}
+```
+
+Pass the source `Uri`, source `Position`, and the `Location[]` or `LocationLink[]` results. The API always opens the References view and uses the supplied locations.
+
 ## Issues
 
 This extension ships with Visual Studio Code and uses its issue tracker. Please file issue here: https://github.com/Microsoft/vscode/issues
