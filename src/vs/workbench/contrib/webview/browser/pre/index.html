@@ -466,6 +466,15 @@
 		};
 
 		if (!disableServiceWorker) {
+			const notifyUnload = () => {
+				navigator.serviceWorker.controller?.postMessage({
+					channel: 'did-unload-webview',
+					id: ID,
+				});
+			};
+			window.addEventListener('pagehide', notifyUnload);
+			window.addEventListener('unload', notifyUnload);
+
 			hostMessaging.onMessage('did-load-resource', (_event, data) => {
 				const transfer = data.stream ? [data.stream] : [];
 				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);
