@@ -6,11 +6,52 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { extractChatSessionToOpen, getMacOSWindowControlsPosition, isValidCopilotCliSessionId, parseExternalAgentsWindowNewSessionLinkUri } from '../../common/window.js';
+import { extractChatSessionToOpen, getMacOSWindowControlsPosition, getWindowControlsStyle, isValidCopilotCliSessionId, parseExternalAgentsWindowNewSessionLinkUri, WindowControlsStyle } from '../../common/window.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 suite('window', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses custom window controls for Snap Wayland by default', () => {
+		const configurationService = new TestConfigurationService({});
+		assert.strictEqual(getWindowControlsStyle(configurationService, {
+			isLinuxSnap: true,
+			xdgSessionType: 'wayland',
+		}), WindowControlsStyle.CUSTOM);
+	});
+
+	test('Snap Wayland overrides the registered native default with custom controls', () => {
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return key === 'window.controlsStyle'
+					? { ...inspected, defaultValue: 'native' as T, value: 'native' as T, userValue: undefined, userLocalValue: undefined }
+					: inspected;
+			}
+		}({});
+		assert.strictEqual(getWindowControlsStyle(configurationService, {
+			isLinuxSnap: true,
+			xdgSessionType: 'wayland',
+		}), WindowControlsStyle.CUSTOM);
+	});
+
+	test('preserves explicit Snap Wayland window control choices', () => {
+		assert.deepStrictEqual([
+			new TestConfigurationService({ window: { controlsStyle: 'native' } }),
+			new TestConfigurationService({ window: { controlsStyle: 'custom' } }),
+			new TestConfigurationService({ window: { controlsStyle: 'hidden' } }),
+			new TestConfigurationService({ window: { titleBarStyle: 'native' } }),
+		].map(configurationService => getWindowControlsStyle(configurationService, {
+			isLinuxSnap: true,
+			xdgSessionType: 'wayland',
+		})), [
+			WindowControlsStyle.NATIVE,
+			WindowControlsStyle.CUSTOM,
+			WindowControlsStyle.HIDDEN,
+			WindowControlsStyle.NATIVE,
+		]);
+	});
 
 	test('preserves legacy macOS traffic-light positioning without a fixed inset', () => {
 		assert.deepStrictEqual({

@@ -39,7 +39,7 @@ sudo apt-get install -y curl apt-transport-https ca-certificates gcc
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 
-# Build OpenSSL 3 shared libraries against core20 glibc from the prebuilt static
+# Build OpenSSL 3 shared libraries against core24 glibc from the prebuilt static
 # archives so the Copilot SDK runtime resolves libcrypto.so.3 / libssl.so.3 from
 # the snap rather than loading an incompatible host OpenSSL.
 OPENSSL_PREBUILT_DIR="$(pwd)/.build/linux/snap/openssl"
@@ -70,12 +70,11 @@ esac
   snapcraftLog=$(mktemp)
   trap 'rm -f "$snapcraftLog"' EXIT
 
-  # Snapcraft 7.5.3 saves global state before running any part; only retry before that.
-  # Recheck this boundary when upgrading the pinned image:
-  # https://github.com/canonical/snapcraft/blob/7.5.3/snapcraft_legacy/internal/lifecycle/_runner.py#L121-L145
+  # Retry Store initialization 429s only while Snapcraft has not written part state
+  # or created a partial output snap.
   # Three backoffs with jitter, then a final attempt (0 means no more retries).
   for delay in 30 60 120 0; do
-    if sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+    if sudo --preserve-env snapcraft pack --destructive-mode $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
       break
     else
       exitCodes=("${PIPESTATUS[@]}")
@@ -84,8 +83,8 @@ esac
     (( exitCodes[1] == 0 )) || exit "${exitCodes[1]}"
 
     if (( delay == 0 || exitCodes[0] != 1 )) ||
-      [[ -e parts/.snapcraft_global_state ]] ||
-      ! grep -Fxq 'Starting Snapcraft 7.5.3' "$snapcraftLog" ||
+      [[ -d parts && -n "$(find parts -mindepth 1 -print -quit)" ]] ||
+      [[ -e "$SNAP_PATH" ]] ||
       [[ "$(awk 'NF { last = $0 } END { print last }' "$snapcraftLog")" != 'Issue encountered while processing your request: [429] Too Many Requests.' ]]; then
       exit "${exitCodes[0]}"
     fi

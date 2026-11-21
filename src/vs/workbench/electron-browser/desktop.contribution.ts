@@ -8,7 +8,8 @@ import { localize, localize2 } from '../../nls.js';
 import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/common/actions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
-import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
+import { isLinux, isLinuxSnap, isMacintosh, isWindows } from '../../base/common/platform.js';
+import { env } from '../../base/common/process.js';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing, StartHeapTracing } from './actions/developerActions.js';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, SwitchToMainWindowAction, FocusWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
@@ -249,7 +250,7 @@ import product from '../../platform/product/common/product.js';
 			'window.controlsStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom', 'hidden'],
-				'default': 'native',
+				'default': isLinuxSnap && env.XDG_SESSION_TYPE === 'wayland' ? 'custom' : 'native',
 				'included': !isMacintosh,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('controlsStyle', "Adjust the appearance of the window controls to be native by the OS, custom drawn or hidden. Changes require a full restart to apply."),

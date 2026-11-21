@@ -1,18 +1,25 @@
 name: @@NAME@@
 version: '@@VERSION@@'
+title: Visual Studio Code
 summary: Code editing. Redefined.
 description: |
   Visual Studio Code is a new choice of tool that combines the
   simplicity of a code editor with what developers need for the core
   edit-build-debug cycle.
+license: MIT
+contact: https://github.com/microsoft/vscode
+issues: https://github.com/microsoft/vscode/issues
+source-code: https://github.com/microsoft/vscode
+website: https://code.visualstudio.com/
 
-architectures:
-  - build-on: amd64
-    run-on: @@ARCHITECTURE@@
+platforms:
+  @@ARCHITECTURE@@:
+    build-on: [@@ARCHITECTURE@@]
+    build-for: [@@ARCHITECTURE@@]
 
 grade: stable
 confinement: classic
-base: core20
+base: core24
 compression: lzo
 
 parts:
@@ -21,25 +28,54 @@ parts:
     source: .
     stage-packages:
       - ca-certificates
-      - libasound2
-      - libatk-bridge2.0-0
-      - libatk1.0-0
-      - libatspi2.0-0
+      - libasound2t64
+      - libatk-bridge2.0-0t64
+      - libatk1.0-0t64
+      - libatspi2.0-0t64
       - libcairo2
       - libcanberra-gtk3-module
-      - libcurl3-gnutls
-      - libcurl3-nss
-      - libcurl4
+      - libcurl4t64
       - libegl1
       - libdrm2
       - libgbm1
       - libgl1
       - libgles2
-      - libglib2.0-0
-      - libgtk-3-0
+      - libgl1-mesa-dri
+      - libegl-mesa0
+      - libglx-mesa0
+      - libglu1-mesa
+      - libglut3.12
+      - libvulkan1
+      - mesa-vulkan-drivers
+      - libglib2.0-0t64
+      - libgtk-3-0t64
+      - libgtk-3-bin
+      - libgtk-3-common
       - libibus-1.0-5
+      - ibus-gtk3
+      - fcitx5-frontend-gtk3
       - libnss3
       - libpango-1.0-0
+      - librsvg2-common
+      - libdecor-0-0
+      - libdecor-0-plugin-1-cairo
+      - libdecor-0-plugin-1-gtk
+      - libpipewire-0.3-0t64
+      - libpipewire-0.3-modules
+      - libpulse0
+      - libpulse-mainloop-glib0
+      - pipewire-bin
+      - pipewire-pulse
+      - va-driver-all
+      - vdpau-driver-all
+      - libva-drm2
+      - libva2
+      - hicolor-icon-theme
+      - adwaita-icon-theme
+      - gtk-update-icon-cache
+      - shared-mime-info
+      - libwebkit2gtk-4.1-0
+      - libsoup-3.0-0
       - libsecret-1-0
       - libwayland-egl1
       - libxcomposite1
@@ -55,32 +91,48 @@ parts:
     prime:
       - -usr/share/doc
       - -usr/share/fonts
-      - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
     override-build: |
-      snapcraftctl build
-      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
-      chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
+      craftctl default
+      patchelf --set-interpreter '@@CORE24_INTERPRETER@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/@@NAME@@"
+      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@MULTIARCH@@:$ORIGIN:/snap/core24/current/lib/@@MULTIARCH@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/@@NAME@@"
+      patchelf --set-interpreter '@@CORE24_INTERPRETER@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox"
+      patchelf --force-rpath --set-rpath '@@CORE24_RPATH@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox"
+      patchelf --set-interpreter '@@CORE24_INTERPRETER@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler"
+      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@MULTIARCH@@:$ORIGIN:/snap/core24/current/lib/@@MULTIARCH@@' "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler"
+      chmod 0755 "$CRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox"
   cleanup:
     after:
       - code
     plugin: nil
     build-snaps:
-      - core20
+      - core24
     override-prime: |
       set -eux
-      for snap in "core20"; do
-        cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
+      for snap in "core24"; do
+        cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$CRAFT_PRIME/{}" \;
       done
-      patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
+      patchelf --print-rpath "$CRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler"
+      if [ -f "$CRAFT_PRIME/usr/bin/fc-cache" ]; then
+        patchelf --set-interpreter '@@FC_CACHE_INTERPRETER@@' "$CRAFT_PRIME/usr/bin/fc-cache"
+        patchelf --set-rpath '@@FC_CACHE_RPATH@@' "$CRAFT_PRIME/usr/bin/fc-cache"
+      fi
+      GTK_QUERY="$CRAFT_PRIME/usr/lib/@@MULTIARCH@@/libgtk-3-0t64/gtk-query-immodules-3.0"
+      if [ -f "$GTK_QUERY" ]; then
+        patchelf --set-interpreter '@@CORE24_INTERPRETER@@' "$GTK_QUERY"
+        patchelf --set-rpath '@@GTK_QUERY_RPATH@@' "$GTK_QUERY"
+      fi
       ARCH_TRIPLET="${SNAPCRAFT_ARCH_TRIPLET:-x86_64-linux-gnu}"
       for f in \
-        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
-        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \
-        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/libssl.so.3; do
+        "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
+        "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \
+        "$CRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/libssl.so.3; do
         if [ -f "$f" ]; then
-          patchelf --force-rpath --set-rpath '$ORIGIN:/snap/core20/current/lib/'"$ARCH_TRIPLET" "$f"
+          patchelf --force-rpath --set-rpath '$ORIGIN:/snap/core24/current/lib/'"$ARCH_TRIPLET" "$f"
+          if [ "$(basename "$f")" = "copilot-runtime" ]; then
+            patchelf --set-interpreter '@@CORE24_INTERPRETER@@' "$f"
+          fi
         fi
       done
 
