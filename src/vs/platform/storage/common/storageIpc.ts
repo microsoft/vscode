@@ -7,13 +7,15 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { UriDto } from '../../../base/common/uri.js';
 import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from '../../../base/parts/storage/common/storage.js';
+import { IStorageDatabase, IStorageItemsChangeEvent, IStorageUpdateResult, IUpdateRequest } from '../../../base/parts/storage/common/storage.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export type Key = string;
 export type Value = string;
+export type Revision = number;
 export type Item = [Key, Value];
+export type RevisionItem = [Key, Revision];
 
 export interface IBaseSerializableStorageRequest {
 
@@ -64,6 +66,11 @@ export interface ISerializableCompareAndSwapResult {
 export interface ISerializableItemsChangeEvent {
 	readonly changed?: Item[];
 	readonly deleted?: Key[];
+	readonly revisions?: RevisionItem[];
+}
+
+export interface ISerializableUpdateResult {
+	readonly revisions?: RevisionItem[];
 }
 
 abstract class BaseStorageDatabaseClient extends Disposable implements IStorageDatabase {
@@ -89,7 +96,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 		return new Map(items);
 	}
 
-	updateItems(request: IUpdateRequest): Promise<void> {
+	async updateItems(request: IUpdateRequest): Promise<IStorageUpdateResult | undefined> {
 		const serializableRequest: ISerializableUpdateRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
 
 		if (request.insert) {
@@ -100,7 +107,9 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 			serializableRequest.delete = Array.from(request.delete.values());
 		}
 
-		return this.channel.call('updateItems', serializableRequest);
+		const result: ISerializableUpdateResult | undefined = await this.channel.call('updateItems', serializableRequest);
+
+		return result?.revisions ? { revisions: new Map(result.revisions) } : undefined;
 	}
 
 	optimize(): Promise<void> {
@@ -131,7 +140,8 @@ abstract class BaseProfileAwareStorageDatabaseClient extends BaseStorageDatabase
 		if (Array.isArray(e.changed) || Array.isArray(e.deleted)) {
 			this._onDidChangeItemsExternal.fire({
 				changed: e.changed ? new Map(e.changed) : undefined,
-				deleted: e.deleted ? new Set<string>(e.deleted) : undefined
+				deleted: e.deleted ? new Set<string>(e.deleted) : undefined,
+				revisions: e.revisions ? new Map(e.revisions) : undefined
 			});
 		}
 	}
