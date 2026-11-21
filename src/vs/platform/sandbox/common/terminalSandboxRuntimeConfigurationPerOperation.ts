@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from '../../../base/common/platform.js';
 import type { ITerminalSandboxCommand } from './terminalSandboxService.js';
-import { type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
+import { getTerminalSandboxCommandRuleValuesForAllCommands, type ITerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxRuntimeConfigurationOperation {
 	GnuPG = 'gnupg',
@@ -67,31 +67,13 @@ function getTerminalSandboxRuntimeConfigurationForOperation(operation: TerminalS
 }
 
 export function getTerminalSandboxRuntimeConfigurationForCommands(os: OperatingSystem, commandDetails: readonly ITerminalSandboxCommand[]): Record<string, unknown> {
-	const operations = new Set<TerminalSandboxRuntimeConfigurationOperation>();
-	for (const command of commandDetails) {
-		for (const rule of terminalSandboxRuntimeConfigurationCommandRules) {
-			if (matchesTerminalSandboxCommandRule(command, rule, { os }) && shouldApplyRuntimeConfigurationOperation(rule.value, commandDetails)) {
-				operations.add(rule.value);
-			}
-		}
-	}
+	const operations = getTerminalSandboxCommandRuleValuesForAllCommands(commandDetails, terminalSandboxRuntimeConfigurationCommandRules, { os });
 
 	const configuration: Record<string, unknown> = {};
 	for (const operation of operations) {
 		mergeAdditionalSandboxConfigProperties(configuration, getTerminalSandboxRuntimeConfigurationForOperation(operation, os));
 	}
 	return configuration;
-}
-
-function shouldApplyRuntimeConfigurationOperation(operation: TerminalSandboxRuntimeConfigurationOperation, commandDetails: readonly ITerminalSandboxCommand[]): boolean {
-	switch (operation) {
-		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
-			// Docker socket access can grant host-level privileges, so do not allow all Unix
-			// sockets when a Docker-related command is part of the sandbox invocation.
-			return commandDetails.every(command => !command.keyword.toLowerCase().startsWith('docker'));
-		case TerminalSandboxRuntimeConfigurationOperation.Node:
-			return true;
-	}
 }
 
 function mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {
