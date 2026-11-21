@@ -1216,6 +1216,8 @@ class BackwardsCompatibleRegExp {
 export class TitleCaseAction extends AbstractCaseAction {
 
 	public static titleBoundary = new BackwardsCompatibleRegExp('(^|[^\\p{L}\\p{N}\']|((^|\\P{L})\'))\\p{L}', 'gmu');
+	public static caseBoundary = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static singleLetters = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
 
 	constructor() {
 		super({
@@ -1228,11 +1230,15 @@ export class TitleCaseAction extends AbstractCaseAction {
 
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const titleBoundary = TitleCaseAction.titleBoundary.get();
-		if (!titleBoundary) {
+		const caseBoundary = TitleCaseAction.caseBoundary.get();
+		const singleLetters = TitleCaseAction.singleLetters.get();
+		if (!titleBoundary || !caseBoundary || !singleLetters) {
 			// cannot support this
 			return text;
 		}
 		return text
+			.replace(caseBoundary, '$1 $2')
+			.replace(singleLetters, '$1 $2$3')
 			.toLocaleLowerCase()
 			.replace(titleBoundary, (b) => b.toLocaleUpperCase());
 	}
