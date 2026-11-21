@@ -120,8 +120,21 @@
 	height: 25px;
 	vertical-align: middle;
 	box-sizing: border-box;
+	background: transparent;
+	border: 0;
+	color: inherit;
+	font: inherit;
 	text-align: center;
 	line-height: 23px;
+}
+
+.monaco-editor .find-widget .matchesCount:enabled {
+	cursor: pointer;
+}
+
+.monaco-editor .find-widget .matchesCount:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .monaco-editor .find-widget .button {
