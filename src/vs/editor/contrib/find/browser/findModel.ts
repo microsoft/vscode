@@ -326,6 +326,10 @@ export class FindModelBoundToEditorModel {
 
 		// ...|...(----)...
 		if (before.isBefore(searchRange.getStartPosition())) {
+			if (!this._state.canNavigateInLoop()) {
+				// Loop is disabled and we are before the search range - no backward match
+				return;
+			}
 			before = searchRange.getEndPosition();
 		}
 
@@ -349,6 +353,11 @@ export class FindModelBoundToEditorModel {
 
 		if (!isRecursed && !searchRange.containsRange(prevMatch.range)) {
 			return this._moveToPrevMatch(prevMatch.range.getStartPosition(), true);
+		}
+
+		// When loop is disabled, check if the match wrapped around (found after our search position)
+		if (!this._state.canNavigateInLoop() && position.isBefore(prevMatch.range.getStartPosition())) {
+			return;
 		}
 
 		this._setCurrentFindMatch(prevMatch.range);
@@ -423,6 +432,10 @@ export class FindModelBoundToEditorModel {
 
 		// ...(----)...|...
 		if (searchRange.getEndPosition().isBefore(after)) {
+			if (!this._state.canNavigateInLoop()) {
+				// Loop is disabled and we are past the search range - no forward match
+				return null;
+			}
 			after = searchRange.getStartPosition();
 		}
 
@@ -451,6 +464,11 @@ export class FindModelBoundToEditorModel {
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch.range)) {
 			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, forceMove, true);
+		}
+
+		// When loop is disabled, check if the match wrapped around (found before our search position)
+		if (!this._state.canNavigateInLoop() && nextMatch.range.getEndPosition().isBefore(position)) {
+			return null;
 		}
 
 		return nextMatch;
