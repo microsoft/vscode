@@ -10,6 +10,7 @@ import { ConfigurationTarget } from '../../../configuration/common/configuration
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ISandboxNetworkRestrictions } from '../../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
+import { extractDomainFromUri } from '../../common/domainMatcher.js';
 import { AgentNetworkFilterService } from '../../common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../common/settings.js';
 
@@ -258,6 +259,59 @@ suite('AgentNetworkFilterService', () => {
 			const service = await createService();
 			assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com/page')), true);
 			assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com/page')), false);
+		});
+
+		test('blocks local-address forms for a deny-only network policy', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['localhost', '127.0.0.1']);
+			const service = await createService();
+			const cases = [
+				['localhost', 'localhost', false],
+				['127.0.0.1', '127.0.0.1', false],
+				['0', '0.0.0.0', false],
+				['[::1]', '[::1]', false],
+				['[::ffff:127.0.0.1]', '[::ffff:7f00:1]', false],
+				['[::]', '[::]', false],
+				['127.0.0.2', '127.0.0.2', false],
+				['127.1.2.3', '127.1.2.3', false],
+				['allowed.example.test', 'allowed.example.test', true],
+			] as const;
+			const schemes = ['http', 'https', 'ws', 'wss'];
+
+			assert.deepStrictEqual(schemes.map(scheme => cases.map(([authority]) => {
+				const uri = URI.parse(`${scheme}://${authority}:8080/`);
+				return { domain: extractDomainFromUri(uri), allowed: service.isUriAllowed(uri) };
+			})), schemes.map(() => cases.map(([, domain, allowed]) => ({ domain, allowed }))));
+		});
+
+		test('refreshes local-address denials and honors per-call sandbox restrictions', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['localhost']);
+			const service = await createService();
+			const uri = URI.parse('http://127.0.0.2:8080/');
+			const restrictions: ISandboxNetworkRestrictions = {
+				sandboxEnabled: true, allowNetwork: true, allowedDomains: ['127.0.0.2'], deniedDomains: [],
+			};
+			const decisions = [
+				service.isUriAllowed(uri),
+				service.isUriAllowed(uri, restrictions),
+				service.isUriAllowed(uri, { ...restrictions, deniedDomains: ['::1'] }),
+				service.isUriAllowed(uri),
+			];
+
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
+			fireConfigChange(AgentNetworkDomainSettingId.DeniedNetworkDomains);
+			decisions.push(service.isUriAllowed(uri));
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['127.0.0.1']);
+			fireConfigChange(AgentNetworkDomainSettingId.DeniedNetworkDomains);
+			decisions.push(service.isUriAllowed(uri));
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
+			fireConfigChange(AgentNetworkDomainSettingId.NetworkFilter);
+			decisions.push(
+				service.isUriAllowed(uri),
+				service.isUriAllowed(uri, { ...restrictions, deniedDomains: ['localhost'] }),
+			);
+
+			assert.deepStrictEqual(decisions, [false, true, false, false, true, false, true, false]);
 		});
 
 		test('allows explicitly configured local hosts', async () => {

@@ -82,6 +82,61 @@ suite('OpenBrowserTool', () => {
 		assert.deepStrictEqual(blocked, urls.map(() => true));
 	});
 
+	test('blocks local-address forms before creating or reading browser pages', async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['localhost', '127.0.0.1']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const createdUrls: (string | undefined)[] = [];
+		const readUrls: string[] = [];
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				waitForPageAndGetSummary: async (_sessionId, _pageId, url) => {
+					readUrls.push(url);
+					return 'Allowed test content';
+				},
+			}),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({
+				resolveNetwork: () => undefined,
+				createBrowserView: async options => {
+					createdUrls.push(options.initialUrl);
+					return upcastPartial<BrowserEditorInput>({ id: 'page-id' });
+				},
+			}),
+			upcastPartial<IRemoteExplorerService>({
+				tunnelModel: upcastPartial<TunnelModel>({ forwarded: new Map(), detected: new Map() }),
+			}),
+			networkFilterService,
+			upcastPartial<IChatService>({}),
+			configService,
+			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+		);
+		const deniedUrls = ['http://0:8080/', 'http://127.0.0.2:8080/', 'http://[::1]:8080/'];
+		const allowedUrl = 'http://allowed.example.test:8080/';
+		const errors = [];
+		for (const url of [...deniedUrls, allowedUrl]) {
+			const result = await tool.invoke(
+				upcastPartial<IToolInvocation>({
+					parameters: { url, forceNew: true },
+					context: { sessionResource: URI.parse('chat:session') },
+				}),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+			errors.push(result.toolResultError);
+		}
+
+		assert.deepStrictEqual({ errors, createdUrls, readUrls }, {
+			errors: [...deniedUrls.map(url => networkFilterService.formatError(URI.parse(url))), undefined],
+			createdUrls: [allowedUrl],
+			readUrls: [allowedUrl],
+		});
+	});
+
 	test('creates agent-owned pages through the workbench before summarizing', async () => {
 		let createOptions: IBrowserViewWorkbenchCreateOptions | undefined;
 		let editorOpenOptions: IBrowserViewEditorOpenOptions | undefined;
