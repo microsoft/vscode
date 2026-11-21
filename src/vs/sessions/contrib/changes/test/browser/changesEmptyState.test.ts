@@ -24,6 +24,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/changesView.css';
+import '../../browser/changesView.contribution.js';
 
 suite('Sessions - Changes empty state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

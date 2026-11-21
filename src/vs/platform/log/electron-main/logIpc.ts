@@ -26,9 +26,9 @@ export class LoggerChannel extends Disposable implements IServerChannel {
 
 	listen(_: unknown, event: string, windowId?: number): Event<any> {
 		switch (event) {
-			case 'onDidChangeLoggers': return windowId ? this.loggerService.getOnDidChangeLoggersEvent(windowId) : this.loggerService.onDidChangeLoggers;
-			case 'onDidChangeLogLevel': return windowId ? this.loggerService.getOnDidChangeLogLevelEvent(windowId) : this.loggerService.onDidChangeLogLevel;
-			case 'onDidChangeVisibility': return windowId ? this.loggerService.getOnDidChangeVisibilityEvent(windowId) : this.loggerService.onDidChangeVisibility;
+			case 'onDidChangeLoggers': return this.loggerService.getOnDidChangeLoggersEvent(windowId);
+			case 'onDidChangeLogLevel': return this.loggerService.getOnDidChangeLogLevelEvent(windowId);
+			case 'onDidChangeVisibility': return this.loggerService.getOnDidChangeVisibilityEvent(windowId);
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
@@ -40,8 +40,12 @@ export class LoggerChannel extends Disposable implements IServerChannel {
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
 			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
 			case 'setVisibility': return this.loggerService.setVisibility(URI.revive(arg[0]), arg[1]);
-			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
-			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]));
+			case 'registerLogger': {
+				const resource = URI.revive(arg[0].resource);
+				this.loggerService.registerLogger({ ...arg[0], resource }, arg[1]);
+				return this.loggerService.getRegisteredLogger(resource);
+			}
+			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]), arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);
