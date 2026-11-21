@@ -27,16 +27,22 @@ export interface IAgentHostSessionWorkingDirectoryResolver {
 	isNewSession(sessionResource: URI): boolean;
 }
 
-class AgentHostSessionWorkingDirectoryResolver implements IAgentHostSessionWorkingDirectoryResolver {
+export class AgentHostSessionWorkingDirectoryResolver implements IAgentHostSessionWorkingDirectoryResolver {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _resolvers = new Map<string, { readonly resolve: (sessionResource: URI) => RequestedWorkingDirectory; readonly isNewSession?: (sessionResource: URI) => boolean }>();
+	private readonly _resolvers = new Map<string, Set<{ readonly resolve: (sessionResource: URI) => RequestedWorkingDirectory; readonly isNewSession?: (sessionResource: URI) => boolean }>>();
 
 	registerResolver(sessionType: string, resolver: (sessionResource: URI) => RequestedWorkingDirectory, isNewSession?: (sessionResource: URI) => boolean): IDisposable {
 		const entry = { resolve: resolver, isNewSession };
-		this._resolvers.set(sessionType, entry);
+		let entries = this._resolvers.get(sessionType);
+		if (!entries) {
+			entries = new Set();
+			this._resolvers.set(sessionType, entries);
+		}
+		entries.add(entry);
 		return toDisposable(() => {
-			if (this._resolvers.get(sessionType) === entry) {
+			entries.delete(entry);
+			if (entries.size === 0 && this._resolvers.get(sessionType) === entries) {
 				this._resolvers.delete(sessionType);
 			}
 		});
@@ -47,11 +53,34 @@ class AgentHostSessionWorkingDirectoryResolver implements IAgentHostSessionWorki
 	}
 
 	resolveRequested(sessionResource: URI): RequestedWorkingDirectory {
-		return this._resolvers.get(sessionResource.scheme)?.resolve(sessionResource);
+		const entries = this._resolvers.get(sessionResource.scheme);
+		if (!entries) {
+			return undefined;
+		}
+		let hasNull = false;
+		for (const entry of entries) {
+			const result = entry.resolve(sessionResource);
+			if (result !== undefined) {
+				if (result !== null) {
+					return result;
+				}
+				hasNull = true;
+			}
+		}
+		return hasNull ? null : undefined;
 	}
 
 	isNewSession(sessionResource: URI): boolean {
-		return this._resolvers.get(sessionResource.scheme)?.isNewSession?.(sessionResource) ?? false;
+		const entries = this._resolvers.get(sessionResource.scheme);
+		if (!entries) {
+			return false;
+		}
+		for (const entry of entries) {
+			if (entry.isNewSession?.(sessionResource)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
