@@ -191,6 +191,7 @@
 
 .extension-list-item > .details > .footer > .publisher-container {
 	flex: 1;
+	min-width: 0;
 	line-height: 24px;
 }
 
