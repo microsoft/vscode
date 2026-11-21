@@ -92,6 +92,8 @@ import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
  */
 class CodeMain {
 
+	private editorViewDetection: Promise<void> = Promise.resolve();
+
 	main(): void {
 		try {
 			this.startup();
@@ -193,8 +195,11 @@ class CodeMain {
 		}
 		services.set(ILogService, logService);
 
-		productService.hasEditorView = isEditorViewInstalled(environmentMainService.isBuilt, logService);
-		Object.assign(product, { hasEditorView: productService.hasEditorView });
+		// Awaited by `initServices`, before any window registers editor settings.
+		this.editorViewDetection = isEditorViewInstalled(environmentMainService.isBuilt, logService).then(installed => {
+			productService.hasEditorView = installed;
+			Object.assign(product, { hasEditorView: installed });
+		});
 
 		// Files
 		const fileService = new FileService(logService);
@@ -335,7 +340,10 @@ class CodeMain {
 			stateService.init(),
 
 			// Configuration service
-			configurationService.initialize()
+			configurationService.initialize(),
+
+			// Optional editor-view renderer
+			this.editorViewDetection
 		]);
 
 		// Initialize user data profiles after initializing the state

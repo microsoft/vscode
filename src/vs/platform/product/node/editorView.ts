@@ -7,17 +7,17 @@ import { createRequire } from 'module';
 import { FileAccess, nodeModulesAsarPath, nodeModulesPath } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
 
-const { statSync }: typeof import('fs') = createRequire(import.meta.url)('fs');
+const { promises }: typeof import('fs') = createRequire(import.meta.url)('fs');
 
 /**
  * Probe the same application-owned path the renderer will import. CommonJS
  * `fs` retains Electron's ASAR support, unlike the ESM bootstrap hook.
  */
-export function isEditorViewInstalled(isBuilt: boolean, logService: ILogService, stat: (path: string) => { isFile(): boolean } = statSync): boolean {
+export async function isEditorViewInstalled(isBuilt: boolean, logService: ILogService, stat: (path: string) => Promise<{ isFile(): boolean }> = path => promises.stat(path)): Promise<boolean> {
 	const modulesPath = isBuilt ? nodeModulesAsarPath : nodeModulesPath;
 	const entry = FileAccess.asFileUri(`${modulesPath}/@vscode/editor-view/dist/index.js`).fsPath;
 	try {
-		return stat(entry).isFile();
+		return (await stat(entry)).isFile();
 	} catch (error) {
 		if (error.code === 'ENOENT' || error.code === 'ENOTDIR') {
 			logService.debug('Optional @vscode/editor-view renderer is not installed.');

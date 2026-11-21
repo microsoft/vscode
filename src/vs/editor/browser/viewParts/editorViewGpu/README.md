@@ -12,15 +12,23 @@ next published release in the distro to enable them.
 
 ## Distro setup
 
-Add the pinned runtime dependency to `npm/package.json` and its lockfile in
-`microsoft/vscode-distro` (checked out as `.build/distro` during product builds):
+In `microsoft/vscode-distro` (checked out as `.build/distro` during product
+builds), add the pinned runtime dependency to `npm/package.json`:
 
 ```json
 "@vscode/editor-view": "0.0.1"
 ```
 
-The existing distro npm install/mixin and production-dependency packaging handle
-the package. Ship all of `dist/` together: the JS entry point references its
+Then refresh that folder's `pnpm-lock.yaml` by running `pnpm install` in `npm/`.
+`npm/` is a separate pnpm install root. Its `minimumReleaseAge` exempts
+`@vscode/*`, so a new renderer release can be pinned right after it is
+published. The package has no install scripts, so it needs no `allowBuilds`
+entry, and it has no runtime dependencies.
+
+During the build, the root `pnpm install` installs the distro roots. Then
+`build/azure-pipelines/distro/mixin-npm.ts` copies each distro dependency,
+following symlinks, into the root `node_modules/@vscode/editor-view`, and
+production-dependency packaging picks that copy up. Ship all of `dist/` together: the JS entry point references its
 hashed WASM asset relatively. Desktop packaging stores the JS in
 `node_modules.asar` and unpacks WASM through the existing `**/*.wasm` rule.
 No `product.json` opt-in flag or source `package.json` dependency is required.
@@ -55,9 +63,19 @@ The existing `on` renderer is independent of this package and is unchanged.
 Availability is detected on application startup; restart after installing or
 removing the optional package.
 
-For local development, install the package without saving it to the source
-manifest/lockfile, or hot-link a local build. The same startup detection applies.
-Ordinary `npm install`/`npm ci` may remove such an undeclared local installation.
+For local development, place the package at `node_modules/@vscode/editor-view`
+without declaring it in `package.json` or `pnpm-lock.yaml`. pnpm does not remove
+undeclared folders there, and the same startup detection applies. To use a
+published release:
+
+```sh
+mkdir -p node_modules/@vscode/editor-view
+npm pack @vscode/editor-view@0.0.1 --pack-destination /tmp
+tar -xzf /tmp/vscode-editor-view-0.0.1.tgz -C node_modules/@vscode/editor-view --strip-components=1
+```
+
+To use a local renderer build, run `npm run build` in the package, then link it:
+`ln -sfn /path/to/vscode-editor-view node_modules/@vscode/editor-view`.
 
 ## Document size
 
@@ -107,17 +125,17 @@ Run the detector tests in both Node and the Electron unit runner: Electron loads
 ES modules through an import map, so Node-only validation can miss import errors.
 
 ```sh
-npm run test-node -- --run src/vs/platform/product/test/node/editorView.test.ts
+pnpm run test-node -- --run src/vs/platform/product/test/node/editorView.test.ts
 ./scripts/test.sh --run src/vs/platform/product/test/node/editorView.test.ts
-npm run monaco-compile-check
-npm run gulp monacodts-check
-npm run gulp editor-distro
+pnpm run monaco-compile-check
+pnpm run gulp monacodts-check
+pnpm run gulp editor-distro
 ```
 
 Changes to editor options must also preserve the generated Monaco declaration
 surface. The declaration generator processes modules in isolation: explicitly
 type the availability singleton and keep implementation classes `@internal`.
-After intentional API changes, regenerate with `npm run gulp monacodts`.
+After intentional API changes, regenerate with `pnpm run gulp monacodts`.
 The distro build also tree-shakes class members. GPU hit-test implementations
 must explicitly implement `IViewLineHitTestProvider` so its methods are retained.
 

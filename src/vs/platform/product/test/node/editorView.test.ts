@@ -19,9 +19,9 @@ suite('Optional editor-view detection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const built of [false, true]) {
-		test(`checks the renderer's application path (built=${built})`, () => {
+		test(`checks the renderer's application path (built=${built})`, async () => {
 			const paths: string[] = [];
-			const installed = isEditorViewInstalled(built, store.add(new NullLogService()), path => {
+			const installed = await isEditorViewInstalled(built, store.add(new NullLogService()), async path => {
 				paths.push(path);
 				return { isFile: () => true };
 			});
@@ -41,11 +41,11 @@ suite('Optional editor-view detection', () => {
 	}
 
 	for (const commit of [undefined, 'custom-build-commit']) {
-		test(`commit metadata does not override runtime build state (commit=${commit})`, () => {
+		test(`commit metadata does not override runtime build state (commit=${commit})`, async () => {
 			const environmentService = new NativeEnvironmentService(parseArgs([], OPTIONS), { ...product, _serviceBrand: undefined, commit });
 			const built = !env.VSCODE_DEV;
 			const paths: string[] = [];
-			const installed = isEditorViewInstalled(environmentService.isBuilt, store.add(new NullLogService()), path => {
+			const installed = await isEditorViewInstalled(environmentService.isBuilt, store.add(new NullLogService()), async path => {
 				paths.push(path);
 				return { isFile: () => true };
 			});
@@ -70,19 +70,19 @@ suite('Optional editor-view detection', () => {
 		);
 	});
 
-	test('a directory is not an installed entry point', () => {
-		assert.strictEqual(isEditorViewInstalled(false, store.add(new NullLogService()), () => ({ isFile: () => false })), false);
+	test('a directory is not an installed entry point', async () => {
+		assert.strictEqual(await isEditorViewInstalled(false, store.add(new NullLogService()), async () => ({ isFile: () => false })), false);
 	});
 
 	for (const code of ['ENOENT', 'ENOTDIR', 'EACCES']) {
-		test(`handles ${code} without breaking desktop startup`, () => {
+		test(`handles ${code} without breaking desktop startup`, async () => {
 			const debug: string[] = [];
 			const errors: string[] = [];
 			class TestLogService extends NullLogService {
 				override debug(message: string): void { debug.push(message); }
 				override error(message: string): void { errors.push(message); }
 			}
-			const installed = isEditorViewInstalled(false, store.add(new TestLogService()), () => {
+			const installed = await isEditorViewInstalled(false, store.add(new TestLogService()), async () => {
 				throw Object.assign(new Error(code), { code });
 			});
 			assert.deepStrictEqual({ installed, debug: debug.length, errors: errors.length }, {
