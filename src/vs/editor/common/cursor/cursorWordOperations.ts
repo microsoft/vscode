@@ -254,7 +254,7 @@ export class WordOperations {
 
 		// We are stopping at the ending of words
 
-		if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
+		while (prevWordOnLine && column <= prevWordOnLine.end + 1) {
 			prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 		}
 
@@ -355,7 +355,7 @@ export class WordOperations {
 				column = model.getLineMaxColumn(lineNumber);
 			}
 		} else {
-			if (nextWordOnLine && !movedDown && column >= nextWordOnLine.start + 1) {
+			while (nextWordOnLine && !movedDown && column >= nextWordOnLine.start + 1) {
 				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 			if (nextWordOnLine) {
@@ -466,7 +466,7 @@ export class WordOperations {
 				}
 			}
 		} else {
-			if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
+			while (prevWordOnLine && column <= prevWordOnLine.end + 1) {
 				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 			}
 			if (prevWordOnLine) {
@@ -683,7 +683,7 @@ export class WordOperations {
 				}
 			}
 		} else {
-			if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
+			while (nextWordOnLine && column >= nextWordOnLine.start + 1) {
 				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 			if (nextWordOnLine) {
