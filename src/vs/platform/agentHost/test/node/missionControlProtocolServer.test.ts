@@ -3592,6 +3592,23 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
+		test('omits discovered shared roots that cannot be canonicalized while sharing valid project roots', async () => {
+			await withEnvironment([], async ({ service, options, directory, attachments, diagnostics }) => {
+				const project = join(directory, 'valid-project');
+				await mkdir(project, { recursive: true });
+				const missingDiscoveredRoot = join(directory, 'unresolvable-discovered-root');
+				await service.configure({
+					...options,
+					roots: [project, missingDiscoveredRoot],
+					projects: [project],
+					defaultDirectory: directory,
+				});
+				assert.deepStrictEqual(attachments[0].getRoots(), [realpathSync(project)]);
+				assert.strictEqual(diagnostics.some(d => d.phase === 'configureResolveRoot' && d.detail === `root=${missingDiscoveredRoot}`), true);
+				await service.configure(undefined);
+			});
+		});
+
 		test('reports changed and removed managed policy immediately without parsing it or losing heartbeat Retry-After', async () => {
 			await withEnvironment([{ retryAfter: '300' }], async ({ changePolicy, clock, requests, heartbeats, sockets, errors }) => {
 				await changePolicy({ mode: 'disabled' });
