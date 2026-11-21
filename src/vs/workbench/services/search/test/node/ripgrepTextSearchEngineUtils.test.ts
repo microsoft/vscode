@@ -44,12 +44,21 @@ suite('RipgrepTextSearchEngine', () => {
 			['fo\\n+o', 'fo(?:\\r?\\n)+o'],
 			['fo[^\\n]o', 'fo(?!\\r?\\n)o'],
 			['fo[^\\na-z]o', 'fo(?!\\r?\\n|[a-z])o'],
-			['foo[^\\n]+o', 'foo.+o'],
-			['foo[^\\nzq]+o', 'foo[^zq]+o'],
-			['foo[^\\nzq]+o', 'foo[^zq]+o'],
+			// quantified negative bracket expressions also exclude `\r`, see #271544
+			['foo[^\\n]+o', 'foo[^\\r\\n]+o'],
+			['foo[^\\nzq]+o', 'foo[^\\r\\nzq]+o'],
 			// preserves quantifies, #137899
-			['fo[^\\S\\n]*o', 'fo[^\\S]*o'],
-			['fo[^\\S\\n]{3,}o', 'fo[^\\S]{3,}o'],
+			['fo[^\\S\\n]*o', 'fo[^\\r\\n\\S]*o'],
+			['fo[^\\S\\n]{3,}o', 'fo[^\\r\\n\\S]{3,}o'],
+			// `.` should not match `\r` (or `\n`), to be consistent across CRLF/LF files, #271544
+			['b.+', 'b[^\\r\\n]+'],
+			['a$\\n\\s+b.+$', 'a$\\r?\\n\\s+b[^\\r\\n]+$'],
+			['.', '[^\\r\\n]'],
+			// literal `.` inside a character class should not be touched
+			['[.]', '[.]'],
+			['[a.b]', '[a.b]'],
+			// `.` inside a lookbehind is preserved to avoid changing its width, see #100569
+			['(?<=.)x', '(?<=.)x'],
 		];
 
 		for (const [input, expected] of ttable) {
@@ -79,6 +88,11 @@ suite('RipgrepTextSearchEngine', () => {
 			['foo\\n+abc', 'foo\n\n\nabc', true],
 			['foo\\n+abc', 'foo\r\n\r\n\r\nabc', true],
 			['foo[\\n-9]+abc', 'foo1abc', true],
+
+			// `.` should not match `\r` so behavior is consistent for CRLF and LF, #271544
+			['b.+', 'b\r', false],
+			['b.+', 'b\r\n', false],
+			['b.+', 'bx', true],
 		] as const).forEach(testFixRegexNewline);
 	});
 
