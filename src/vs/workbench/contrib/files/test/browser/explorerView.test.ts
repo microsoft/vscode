@@ -274,6 +274,25 @@ suite('Files - ExplorerView', () => {
 			});
 		});
 
+		test('restores file focus and multi-selection when reopening a hidden Explorer', async () => {
+			view.setVisible(true);
+			await view.setTreeInput();
+			tree.setFocus([second]);
+			tree.setSelection([first, second]);
+
+			view.setVisible(false);
+			view.setVisible(true);
+			await view.setTreeInput();
+
+			assert.deepStrictEqual({
+				focus: tree.getFocus().map(item => item.resource),
+				selection: tree.getSelection().map(item => item.resource),
+			}, {
+				focus: [second.resource],
+				selection: [first.resource, second.resource],
+			});
+		});
+
 		function getContextMenuTarget(item: ExplorerItem | null): HTMLElement {
 			if (!item) {
 				return tree.getHTMLElement();
