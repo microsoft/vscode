@@ -1507,6 +1507,8 @@ function createSessionsListActions(): DisposableStore {
 			const now = new Date();
 			const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 9).getTime();
 			const picked = await quickInput.pick([
+				{ label: localize('snoozeTenMinutes', "In 10 Minutes"), value: now.getTime() + 10 * 60 * 1000 },
+				{ label: localize('snoozeThirtyMinutes', "In 30 Minutes"), value: now.getTime() + 30 * 60 * 1000 },
 				{ label: localize('snoozeHour', "In One Hour"), value: now.getTime() + 60 * 60 * 1000 },
 				{ label: localize('snoozeTomorrow', "Tomorrow Morning"), value: morning(1) },
 				{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },
