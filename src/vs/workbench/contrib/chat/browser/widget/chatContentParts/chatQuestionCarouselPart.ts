@@ -1518,7 +1518,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {
 				content: optionLabel,
-				position: { hoverPosition: HoverPosition.BELOW },
+				// To the side, so the hover does not cover the next option; it flips sides, or goes below, when there is no room
+				position: { hoverPosition: HoverPosition.RIGHT },
 				appearance: { showPointer: true }
 			}));
 
@@ -1736,7 +1737,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {
 				content: option.label,
-				position: { hoverPosition: HoverPosition.BELOW },
+				// To the side, so the hover does not cover the next option; it flips sides, or goes below, when there is no room
+				position: { hoverPosition: HoverPosition.RIGHT },
 				appearance: { showPointer: true }
 			}));
 
