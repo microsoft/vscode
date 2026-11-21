@@ -79,6 +79,13 @@ function frameDataToString(data: unknown): string {
 	return String(data);
 }
 
+function isPingReply(response: JsonRpcResponse): boolean {
+	if (hasKey(response, { error: true })) {
+		return isObject(response.error) && typeof response.error.code === 'number' && typeof response.error.message === 'string';
+	}
+	return hasKey(response, { result: true });
+}
+
 export interface IWebPubSubRelayTransportOptions {
 	readonly clientConnectionKind?: AgentHostClientConnectionKind.MissionControl | AgentHostClientConnectionKind.WebPubSub;
 	/** Mission Control's logical client ID, shared with the AHP initialize request. */
@@ -160,7 +167,8 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private _handshakeId: JsonRpcRequest['id'] | undefined;
 	private _handshakeMethod: ConnectionHandshakeMethod | undefined;
 	private _handshakeState: ConnectionHandshakeState | undefined;
-	private readonly _requests = new Set<JsonRpcRequest['id']>();
+	/** Outstanding request IDs, with the current handshake ID for pings sent during that handshake. */
+	private readonly _requests = new Map<JsonRpcRequest['id'], JsonRpcRequest['id'] | undefined>();
 	private readonly _closedBeforeHandshake = new Set<number>();
 	private readonly _watch = StopWatch.create(false);
 	private _publishAcknowledged = false;
@@ -447,11 +455,12 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				}
 			}
 		} else if (result.kind === 'payload' || result.kind === 'batch') {
+			const onReplyLane = result.group.lane === 'to-client' && typeof frame['group'] === 'string' && this._options.joinGroups.includes(frame['group']);
 			for (const value of result.kind === 'batch' ? result.payloads : [result.payload]) {
 				if (this._closed) {
 					break;
 				}
-				this._deliver(value as ProtocolMessage, result.generation);
+				this._deliver(value as ProtocolMessage, result.generation, onReplyLane);
 			}
 		} else if (result.kind === 'pending') {
 			if (this._handshakeId !== undefined) {
@@ -467,7 +476,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 	}
 
-	private _deliver(payload: ProtocolMessage, generation: number | undefined): void {
+	private _deliver(payload: ProtocolMessage, generation: number | undefined, onReplyLane: boolean): void {
 		if (!isObject(payload) || payload.jsonrpc !== '2.0') {
 			this._options.onProtocolError?.(new Error('Invalid AHP relay message'));
 			return;
@@ -475,9 +484,12 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		const response = isJsonRpcResponse(payload);
 		if (this._handshakeId !== undefined && !(response && payload.id === this._handshakeId)) {
 			this._reportHandshakeProgress('otherMessagesReceived');
-			return;
-		}
-		if (response && payload.id !== null && payload.id === this._handshakeId) {
+			// A reply to our live ping proves reachability, not completion of the handshake.
+			if (!onReplyLane || !response || payload.id === null || this._requests.get(payload.id) !== this._handshakeId
+				|| !isPingReply(payload) || (generation !== undefined && this._closedBeforeHandshake.has(generation))) {
+				return;
+			}
+		} else if (response && payload.id !== null && payload.id === this._handshakeId) {
 			this._reportHandshakeProgress('responseReceived');
 			if (generation !== undefined && this._closedBeforeHandshake.has(generation)) {
 				this._fireClose('hostLaneClosed');
@@ -534,7 +546,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._fireClose('requestLimit');
 				throw new Error('Web PubSub outstanding request limit exceeded');
 			}
-			this._requests.add(message.id);
+			this._requests.set(message.id, message.method === 'ping' ? this._handshakeId : undefined);
 			if (message.method === 'initialize' || message.method === 'reconnect') {
 				this._handshakeId = message.id;
 				this._handshakeMethod = message.method;
