@@ -6,7 +6,8 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { AsyncIterableObject, DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -38,7 +39,7 @@ import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpServer } from '../../common/mcpServer.js';
 import { McpService } from '../../common/mcpService.js';
 import { McpSamplingService } from '../../common/mcpSamplingService.js';
-import { IMcpSamplingService, ISamplingResult, McpConnectionState, McpError, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
+import { IMcpSamplingService, ISamplingResult, McpConnectionFailedError, McpConnectionState, McpError, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
 
@@ -746,6 +747,96 @@ suite('Workbench - MCP - McpService', () => {
 			meta: originalMeta,
 		});
 	});
+
+	test('tool call interrupted by a lost connection fails instead of being cancelled', async () => {
+		const { mcpService, registry } = createMcpService();
+		const transport = store.add(new TestMcpMessageTransport());
+		registry.makeTestTransport = () => transport;
+		transport.setResponder('tools/list', message => ({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: (message as MCP.JSONRPCRequest).id,
+			result: { tools: [{ name: 'offline_probe', inputSchema: { type: 'object' } }] },
+		}));
+		transport.setResponder('tools/call', () => {
+			transport.stop();
+			return undefined;
+		});
+		mcpService.updateCollectedServers();
+		const server = mcpService.servers.get()[0];
+		await server.start();
+		const [tool] = await waitForState(server.tools, tools => tools.length > 0);
+
+		const error = await tool.call({}, undefined, CancellationToken.None).then(
+			() => assert.fail('Expected the interrupted tool call to reject'),
+			error => error,
+		);
+		assert.ok(error instanceof McpConnectionFailedError);
+		assert.ok(!isCancellationError(error));
+	});
+
+	test('server cancellation on a running connection is a tool failure, not connection loss', async () => {
+		const { mcpService, registry } = createMcpService();
+		const transport = store.add(new TestMcpMessageTransport());
+		registry.makeTestTransport = () => transport;
+		transport.setResponder('tools/list', message => ({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: (message as MCP.JSONRPCRequest).id,
+			result: { tools: [{ name: 'cancel_probe', inputSchema: { type: 'object' } }] },
+		}));
+		transport.setResponder('tools/call', message => {
+			transport.simulateReceiveMessage({
+				jsonrpc: MCP.JSONRPC_VERSION,
+				method: 'notifications/cancelled',
+				params: { requestId: (message as MCP.JSONRPCRequest).id, reason: 'Server cancelled the call' },
+			});
+			return undefined;
+		});
+		mcpService.updateCollectedServers();
+		const server = mcpService.servers.get()[0];
+		await server.start();
+		const [tool] = await waitForState(server.tools, tools => tools.length > 0);
+		const error = await tool.call({}, undefined, CancellationToken.None).then(
+			() => assert.fail('Expected the server-cancelled tool call to reject'),
+			error => error,
+		);
+		assert.ok(error instanceof Error);
+		assert.ok(!(error instanceof McpConnectionFailedError));
+		assert.ok(!isCancellationError(error));
+		assert.strictEqual(server.connectionState.get().state, McpConnectionState.Kind.Running);
+	});
+
+	for (const userCancelled of [false, true]) {
+		test(`handler cancellation preserves caller cancellation: ${userCancelled}`, async () => {
+			const { mcpService, registry } = createMcpService();
+			const transport = store.add(new TestMcpMessageTransport());
+			registry.makeTestTransport = () => transport;
+			transport.setResponder('tools/list', message => ({
+				jsonrpc: MCP.JSONRPC_VERSION,
+				id: (message as MCP.JSONRPCRequest).id,
+				result: { tools: [{ name: 'task_probe', inputSchema: { type: 'object' } }] },
+			}));
+			mcpService.updateCollectedServers();
+			const server = mcpService.servers.get()[0];
+			await server.start();
+			const [tool] = await waitForState(server.tools, tools => tools.length > 0);
+			const handler = server.connection.get()!.handler.get()!;
+			const cts = store.add(new CancellationTokenSource());
+			const callStub = sinon.stub(handler, 'callTool').callsFake(async () => {
+				if (userCancelled) { cts.cancel(); }
+				throw new CancellationError();
+			});
+			try {
+				const error = await tool.call({}, undefined, cts.token).then(
+					() => assert.fail('Expected cancellation to reject'),
+					error => error,
+				);
+				assert.strictEqual(isCancellationError(error), userCancelled);
+				assert.ok(!(error instanceof McpConnectionFailedError));
+			} finally {
+				callStub.restore();
+			}
+		});
+	}
 
 	test('app request metadata does not change sampling policy outside chat', async () => {
 		const { mcpService, registry, instantiationService } = createMcpService();
