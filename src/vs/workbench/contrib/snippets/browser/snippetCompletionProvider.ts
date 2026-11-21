@@ -118,6 +118,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			let candidate: ISnippetPosition | undefined;
 			for (const anchor of anchors) {
 
+				if (anchor.prefixLow.length > snippet.prefixLow.length) {
+					continue;
+				}
+
 				if (anchor.prefixLow.match(/^\s/) && !snippet.prefixLow.match(/^\s/)) {
 					// only allow whitespace anchor when snippet prefix starts with whitespace too
 					continue;
