@@ -303,6 +303,7 @@ class NewSkillFileAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
 
 		let folderUri: URI;
 		if (options?.targetFolder) {
@@ -339,6 +340,10 @@ class NewSkillFileAction extends Action2 {
 				if (name.includes('--')) {
 					return localize('commands.new.skill.name.consecutiveHyphens', "Skill name must not contain consecutive hyphens");
 				}
+				const skillFolder = URI.joinPath(folderUri, name);
+				if (await fileService.exists(skillFolder)) {
+					return localize('commands.new.skill.name.exists', "A skill with this name already exists");
+				}
 				return undefined;
 			}
 		});
@@ -349,26 +354,30 @@ class NewSkillFileAction extends Action2 {
 
 		const trimmedName = skillName.trim();
 
-		// Create the skill folder and SKILL.md file
-		const skillFolder = URI.joinPath(folderUri, trimmedName);
-		await fileService.createFolder(skillFolder);
+		try {
+			// Create the skill folder and SKILL.md file
+			const skillFolder = URI.joinPath(folderUri, trimmedName);
+			await fileService.createFolder(skillFolder);
 
-		const skillFileUri = URI.joinPath(skillFolder, SKILL_FILENAME);
-		const template = getDefaultContentSnippet(PromptsType.skill, trimmedName, Target.Undefined);
-		await fileService.createFile(skillFileUri, VSBuffer.fromString(SnippetParser.asInsertText(template)));
+			const skillFileUri = URI.joinPath(skillFolder, SKILL_FILENAME);
+			const template = getDefaultContentSnippet(PromptsType.skill, trimmedName, Target.Undefined);
+			await fileService.createFile(skillFileUri, VSBuffer.fromString(SnippetParser.asInsertText(template)));
 
-		let editor: ICodeEditor | null | undefined;
-		if (options?.openFile) {
-			editor = await options.openFile(skillFileUri);
-		} else {
-			await openerService.open(skillFileUri);
-			editor = getCodeEditor(editorService.activeTextEditorControl);
-		}
-		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
-			SnippetController2.get(editor)?.apply([{
-				range: editor.getModel().getFullModelRange(),
-				template,
-			}]);
+			let editor: ICodeEditor | null | undefined;
+			if (options?.openFile) {
+				editor = await options.openFile(skillFileUri);
+			} else {
+				await openerService.open(skillFileUri);
+				editor = getCodeEditor(editorService.activeTextEditorControl);
+			}
+			if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
+				SnippetController2.get(editor)?.apply([{
+					range: editor.getModel().getFullModelRange(),
+					template,
+				}]);
+			}
+		} catch (error) {
+			notificationService.error(error);
 		}
 	}
 }

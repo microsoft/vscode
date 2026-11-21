@@ -15,6 +15,7 @@ import { createInMemoryFileService } from '../../../../../../platform/files/test
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { INewPromptOptions, NEW_SKILL_COMMAND_ID, registerNewPromptFileActions } from '../../../browser/promptSyntax/newPromptFileActions.js';
 
@@ -39,6 +40,7 @@ suite('New skill file', () => {
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IQuickInputService, { input: async () => ' test-skill ' });
 		instantiationService.stub(IEditorService, { activeTextEditorControl: undefined });
+		instantiationService.stub(INotificationService, { error: () => { } });
 		store.add(registerNewPromptFileActions());
 		return { instantiationService, fileService };
 	}
@@ -100,5 +102,43 @@ suite('New skill file', () => {
 			content: expectedContent,
 			selectedText: 'Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.',
 		});
+	});
+
+	test('rejects duplicate skill name when skill folder already exists', async () => {
+		const { instantiationService, fileService } = setup();
+		let validateResult: unknown;
+		instantiationService.stub(IQuickInputService, {
+			input: async options => {
+				validateResult = await options.validateInput?.('test-skill');
+				return undefined;
+			}
+		});
+
+		// Create the existing skill folder
+		await fileService.createFolder(URI.joinPath(targetFolder, 'test-skill'));
+
+		await createSkill(instantiationService);
+
+		assert.strictEqual(validateResult, 'A skill with this name already exists');
+	});
+
+	test('surfaces error notification when skill creation fails', async () => {
+		const { instantiationService, fileService } = setup();
+		let notifiedError: unknown;
+		instantiationService.stub(INotificationService, {
+			error: (error: unknown) => {
+				notifiedError = error;
+			}
+		});
+		instantiationService.stub(IFileService, {
+			...fileService,
+			exists: async () => false,
+			createFolder: async () => { throw new Error('Disk full'); },
+		});
+
+		await createSkill(instantiationService);
+
+		assert.ok(notifiedError instanceof Error);
+		assert.strictEqual((notifiedError as Error).message, 'Disk full');
 	});
 });
