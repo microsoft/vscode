@@ -28,7 +28,7 @@ import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collect
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { disposableTimeout, Sequencer, Throttler } from '../../../../base/common/async.js';
-import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from '../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource, ITreeMouseEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { ResourceTree, IResourceNode } from '../../../../base/common/resourceTree.js';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/tree/objectTree.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -1745,6 +1745,7 @@ export class SCMViewPane extends ViewPane {
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.structuralDiff);
 		this.disposables.add(treeDataSource);
 
+		const openOnClick = this.configurationService.getValue<boolean>('scm.openItemOnClick') ?? true;
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
 
 		this.tree = this.instantiationService.createInstance(
@@ -1766,6 +1767,8 @@ export class SCMViewPane extends ViewPane {
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				transformOptimization: false,
+				openOnSingleClick: openOnClick,
+				openOnDoubleClick: openOnClick,
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
@@ -1782,6 +1785,7 @@ export class SCMViewPane extends ViewPane {
 
 		this.disposables.add(this.tree);
 
+		this.tree.onMouseDblClick(this.handleDoubleClick, this, this.disposables);
 		this.tree.onDidOpen(this.open, this, this.disposables);
 		this.structuralDiff.onDidChange(resource => this.updateStructuralChildren(resource), this, this.disposables);
 		this.tree.onDidChangeCollapseState(e => {
@@ -1801,6 +1805,12 @@ export class SCMViewPane extends ViewPane {
 		}));
 
 		append(container, overflowWidgetsDomNode);
+	}
+
+	private async handleDoubleClick(e: ITreeMouseEvent<TreeElement | undefined>): Promise<void> {
+		if (isSCMResource(e.element) && e.element.doubleClickCommand) {
+			await this.commandService.executeCommand(e.element.doubleClickCommand.id, ...(e.element.doubleClickCommand.arguments || []));
+		}
 	}
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
