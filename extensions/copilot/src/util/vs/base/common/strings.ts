@@ -110,7 +110,12 @@ export function truncate(value: string, maxLength: number, suffix = Ellipsis): s
 		return value;
 	}
 
-	return `${value.substr(0, maxLength)}${suffix}`;
+	let end = maxLength;
+	if (end > 0 && isHighSurrogate(value.charCodeAt(end - 1)) && isLowSurrogate(value.charCodeAt(end))) {
+		end--;
+	}
+
+	return `${value.substring(0, end)}${suffix}`;
 }
 
 export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
