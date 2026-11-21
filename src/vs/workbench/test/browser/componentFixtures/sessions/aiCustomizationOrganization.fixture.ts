@@ -326,7 +326,7 @@ const agentHostCustomizations: readonly Customization[] = [
 		})),
 	},
 	{
-		type: CustomizationType.Directory, id: 'copilot-hook-diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Couldn\'t load some hook files',
+		type: CustomizationType.Directory, id: 'copilot-hook-diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Some hook files could not be loaded',
 		contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
 		load: {
 			kind: CustomizationLoadStatus.Degraded,

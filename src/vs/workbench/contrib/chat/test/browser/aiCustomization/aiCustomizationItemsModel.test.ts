@@ -305,7 +305,7 @@ suite('AICustomizationItemsModel', () => {
 		});
 
 		test('section notices are fetched with their section and refreshed when the provider changes', async () => {
-			providerA_hookNotices = [{ severity: 'warning', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in a.json' }];
+			providerA_hookNotices = [{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }];
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			await model.whenSectionLoaded(AICustomizationManagementSection.Hooks);
 			const loaded = model.getSectionNotices(AICustomizationManagementSection.Hooks).get();
@@ -317,7 +317,7 @@ suite('AICustomizationItemsModel', () => {
 				skills: model.getSectionNotices(AICustomizationManagementSection.Skills).get(),
 				fixed: model.getSectionNotices(AICustomizationManagementSection.Hooks).get(),
 			}, {
-				loaded: [{ severity: 'warning', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in a.json' }],
+				loaded: [{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }],
 				skills: [],
 				fixed: [],
 			});

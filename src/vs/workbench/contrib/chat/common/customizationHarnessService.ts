@@ -474,7 +474,7 @@ export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavaila
  */
 export interface ICustomizationSectionNotice {
 	readonly severity: 'warning' | 'error';
-	/** Short summary, such as "Couldn't load some hook files". */
+	/** Short summary, such as "Some hook files could not be loaded". */
 	readonly title: string;
 	/** Details, one per line. */
 	readonly message: string;

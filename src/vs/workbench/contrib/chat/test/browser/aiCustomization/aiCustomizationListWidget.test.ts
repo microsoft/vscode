@@ -6,6 +6,7 @@
 import '../../../../../browser/actions/listCommands.js';
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -1024,9 +1025,9 @@ suite('aiCustomizationListWidget', () => {
 			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
 		});
 
-		test('shows the section notices above the list and updates them', async () => {
+		test('shows the section notices between the search box and the list, collapsible, and updates them', async () => {
 			const notices = observableValue<readonly ICustomizationSectionNotice[]>('test', [
-				{ severity: 'warning', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' },
+				{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' },
 			]);
 			instaService.stub(IAICustomizationItemsModel, {
 				getItems: () => observableValue('test', [] as readonly never[]),
@@ -1036,22 +1037,32 @@ suite('aiCustomizationListWidget', () => {
 				whenSectionLoaded: async () => { },
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-			const rendered = () => [...widget.element.querySelectorAll<HTMLElement>('.section-title-header .customization-section-notice')].map(notice => ({
-				className: notice.className,
-				role: notice.getAttribute('role'),
-				title: notice.querySelector('.customization-section-notice-title')?.textContent,
-				message: notice.querySelector('.customization-section-notice-message')?.textContent,
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const notice = () => widget.element.querySelector<HTMLDetailsElement>('.customization-section-notice');
+			const rendered = () => [...widget.element.querySelectorAll<HTMLDetailsElement>('.customization-section-notice')].map(element => ({
+				afterSearch: element.parentElement?.previousElementSibling?.classList.contains('list-search-and-button-container'),
+				open: element.open,
+				label: element.querySelector('summary')?.getAttribute('aria-label'),
+				title: element.querySelector('.customization-section-notice-title')?.textContent,
+				message: element.querySelector('.customization-section-notice-message')?.textContent,
 			}));
 
 			await widget.setSection(AICustomizationManagementSection.Hooks);
-			const hooks = rendered();
+			const loaded = rendered();
+			notice()!.open = false;
+			await timeout(0);
+			// A collapsed notice stays collapsed when its errors change.
+			notices.set([{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }], undefined);
+			const collapsedAfterUpdate = rendered();
 			notices.set([], undefined);
 			const fixed = rendered();
 			notices.set([{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' }], undefined);
 			await widget.setSection(AICustomizationManagementSection.McpServers);
 
-			assert.deepStrictEqual({ hooks, fixed, otherSection: rendered() }, {
-				hooks: [{ className: 'customization-section-notice warning', role: 'note', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' }],
+			assert.deepStrictEqual({ loaded, collapsedAfterUpdate, fixed, otherSection: rendered() }, {
+				loaded: [{ afterSearch: true, open: true, label: 'Warning: Some hook files could not be loaded', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' }],
+				collapsedAfterUpdate: [{ afterSearch: true, open: false, label: 'Warning: Some hook files could not be loaded', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }],
 				fixed: [],
 				otherSection: [],
 			});

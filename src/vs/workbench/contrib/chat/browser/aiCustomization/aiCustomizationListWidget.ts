@@ -843,6 +843,9 @@ export class AICustomizationListWidget extends Disposable {
 	private organizationPolicyNotice!: CustomizationOrganizationPolicyNotice;
 	private sectionNoticesElement!: HTMLElement;
 	private sectionNotices: readonly ICustomizationSectionNotice[] = [];
+	private readonly sectionNoticeDisposables = this._register(new DisposableStore());
+	/** Notices the user collapsed, by severity and title, kept while their messages change. */
+	private readonly collapsedSectionNotices = new Set<string>();
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
@@ -978,7 +981,6 @@ export class AICustomizationListWidget extends Disposable {
 		this.organizationPolicyNotice = this._register(this.instantiationService.createInstance(CustomizationOrganizationPolicyNotice));
 		this.sectionTitleHeader.appendChild(this.organizationPolicyNotice.element);
 		this.organizationPolicyNotice.setSection(this.currentSection);
-		this.sectionNoticesElement = DOM.append(this.sectionTitleHeader, $('.customization-section-notices'));
 
 		// Re-layout when the header height changes (e.g. description wraps,
 		// or CSS adjustments alter padding) so the list's allotted height stays
@@ -1048,6 +1050,9 @@ export class AICustomizationListWidget extends Disposable {
 		}));
 		this.addButton.element.classList.add('list-add-button');
 		this._register(this.addButton.onDidClick(() => this.executePrimaryCreateAction()));
+
+		// Problems with the section as a whole, such as files that failed to load
+		this.sectionNoticesElement = DOM.append(this.element, $('.customization-section-notices'));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.list-container'));
@@ -1614,20 +1619,45 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Shows the section's notices, such as files that failed to load, above the search box.
+	 * Shows the section's notices, such as files that failed to load, between the search box and the list. Each
+	 * notice can be collapsed to its title.
 	 */
 	private renderSectionNotices(notices: readonly ICustomizationSectionNotice[]): void {
 		if (equals(this.sectionNotices, notices, (a, b) => a.severity === b.severity && a.title === b.title && a.message === b.message)) {
 			return;
 		}
 		this.sectionNotices = notices;
+		this.sectionNoticeDisposables.clear();
 		DOM.clearNode(this.sectionNoticesElement);
 		for (const notice of notices) {
-			const element = DOM.append(this.sectionNoticesElement, $(`.customization-section-notice.${notice.severity}`, { role: 'note' }));
-			DOM.append(element, $(`.customization-section-notice-icon${ThemeIcon.asCSSSelector(notice.severity === 'error' ? Codicon.error : Codicon.warning)}`, { 'aria-hidden': 'true' }));
-			const content = DOM.append(element, $('.customization-section-notice-content'));
-			DOM.append(content, $('.customization-section-notice-title')).textContent = notice.title;
-			DOM.append(content, $('.customization-section-notice-message')).textContent = notice.message;
+			const key = `${notice.severity}:${notice.title}`;
+			const element = DOM.append(this.sectionNoticesElement, $<HTMLDetailsElement>(`details.customization-section-notice.${notice.severity}`));
+			element.open = !this.collapsedSectionNotices.has(key);
+			const summary = DOM.append(element, $('summary.customization-section-notice-summary', {
+				'aria-label': notice.severity === 'error'
+					? localize('sectionNoticeError', "Error: {0}", notice.title)
+					: localize('sectionNoticeWarning', "Warning: {0}", notice.title),
+			}));
+			DOM.append(summary, $(`.customization-section-notice-chevron${ThemeIcon.asCSSSelector(Codicon.chevronRight)}`, { 'aria-hidden': 'true' }));
+			DOM.append(summary, $(`.customization-section-notice-icon${ThemeIcon.asCSSSelector(notice.severity === 'error' ? Codicon.error : Codicon.warning)}`, { 'aria-hidden': 'true' }));
+			DOM.append(summary, $('span.customization-section-notice-title')).textContent = notice.title;
+			DOM.append(element, $('.customization-section-notice-message')).textContent = notice.message;
+			this.sectionNoticeDisposables.add(DOM.addDisposableListener(element, 'toggle', () => {
+				if (element.open) {
+					this.collapsedSectionNotices.delete(key);
+				} else {
+					this.collapsedSectionNotices.add(key);
+				}
+				this.relayout();
+			}));
+		}
+		this.relayout();
+	}
+
+	/** Lays the list out again at its last size, after content above it changed height. */
+	private relayout(): void {
+		if (this.lastLayoutHeight > 0 && this.lastLayoutWidth > 0) {
+			this.layout(this.lastLayoutHeight, this.lastLayoutWidth);
 		}
 	}
 

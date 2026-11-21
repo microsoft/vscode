@@ -975,7 +975,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return {
 			type: CustomizationType.Directory, id: customizationId(uri), uri,
 			name: errors.length
-				? localize('copilot.hookLoadErrors', "Couldn't load some hook files")
+				? localize('copilot.hookLoadErrors', "Some hook files could not be loaded")
 				: localize('copilot.hookLoadWarnings', "Some hook files have warnings"),
 			contents: CustomizationType.Hook, enabled: true, writable: false,
 			load: { kind: CustomizationLoadStatus.Degraded, message: [...errors, ...warnings].join('\n') },

@@ -564,14 +564,14 @@ suite('SessionCustomizationDiscovery', () => {
 		}, {
 			errorsAndWarnings: [
 				{ path: '/hooks', name: 'Copilot hooks', load: { kind: CustomizationLoadStatus.Loaded }, children: ['guard'] },
-				{ path: '/hooks/diagnostics', name: 'Couldn\'t load some hook files', load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json\nRecovered source' }, children: [] },
+				{ path: '/hooks/diagnostics', name: 'Some hook files could not be loaded', load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json\nRecovered source' }, children: [] },
 			],
 			warningsOnly: [
 				{ path: '/hooks', name: 'Copilot hooks', load: { kind: CustomizationLoadStatus.Loaded }, children: ['guard'] },
 				{ path: '/hooks/diagnostics', name: 'Some hook files have warnings', load: { kind: CustomizationLoadStatus.Degraded, message: 'Recovered source' }, children: [] },
 			],
 			nothingLoaded: [
-				{ path: '/hooks/diagnostics', name: 'Couldn\'t load some hook files', load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json' }, children: [] },
+				{ path: '/hooks/diagnostics', name: 'Some hook files could not be loaded', load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json' }, children: [] },
 			],
 		});
 	});

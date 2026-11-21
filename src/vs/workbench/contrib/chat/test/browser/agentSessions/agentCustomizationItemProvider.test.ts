@@ -241,7 +241,7 @@ suite('AgentCustomizationItemProvider', () => {
 						name: 'Copilot hooks', contents: CustomizationType.Hook, enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Loaded },
 						children: [{ type: CustomizationType.Hook, id: 'guard', uri: 'file:///workspace/.github/hooks/guard.json', name: 'preToolUse', enabled: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository', hookType: 'preToolUse' }) }],
 					},
-					loadProblem('hooks/diagnostics', 'Couldn\'t load some hook files', { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' }),
+					loadProblem('hooks/diagnostics', 'Some hook files could not be loaded', { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' }),
 					// A failed discovery, as published by another host.
 					loadProblem('other-host-hooks', 'Couldn\'t load hooks', { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' }),
 					loadProblem('hooks/empty', 'Empty', { kind: CustomizationLoadStatus.Loaded }),
@@ -261,7 +261,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}, {
 			items: [{ name: 'Pre-Tool Use', status: 'loaded', message: undefined, enabled: true }],
 			hookNotices: [
-				{ severity: 'warning', title: 'Couldn\'t load some hook files', message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' },
+				{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' },
 				{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' },
 			],
 			skillNotices: [],
@@ -455,7 +455,7 @@ suite('AgentCustomizationItemProvider', () => {
 			// Files that failed to load are reported in their own directory and are missing from the host's inventory.
 			hostLoadErrors: await notRunning({
 				customizations: [...hostHooks({ kind: CustomizationLoadStatus.Loaded }), {
-					type: CustomizationType.Directory, id: 'diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Couldn\'t load some hook files',
+					type: CustomizationType.Directory, id: 'diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Some hook files could not be loaded',
 					contents: CustomizationType.Hook, enabled: true, writable: false, children: [], load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration' },
 				}],
 			}),
