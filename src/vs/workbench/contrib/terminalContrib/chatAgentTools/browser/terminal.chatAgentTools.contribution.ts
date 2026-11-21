@@ -5,11 +5,27 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
+import { EditorExtensions } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { SandboxProfilesEditor } from './sandboxProfilesEditor.js';
+import { SandboxProfilesInput } from './sandboxProfilesInput.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { readHostSandboxProfiles } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -48,6 +64,50 @@ import { isNumber } from '../../../../../base/common/types.js';
 registerSingleton(ITerminalSandboxService, TerminalSandboxService, InstantiationType.Delayed);
 
 // #endregion Services
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(SandboxProfilesEditor, SandboxProfilesEditor.ID, localize('sandboxProfiles', "Sandbox Profiles")),
+	[new SyncDescriptor(SandboxProfilesInput)],
+);
+AccessibleViewRegistry.register({
+	name: 'sandboxProfiles',
+	type: AccessibleViewType.Help,
+	priority: 100,
+	when: ActiveEditorContext.isEqualTo(SandboxProfilesEditor.ID),
+	getProvider() {
+		const focused = getActiveElement();
+		if (!isHTMLElement(focused) || !focused.closest('.sandbox-profiles-editor')) {
+			return undefined;
+		}
+		return new AccessibleContentProvider(AccessibleViewProviderId.SandboxProfiles, { type: AccessibleViewType.Help },
+			() => localize('sandboxProfilesHelp', "Sandbox Profiles manages the profiles saved on one agent host; every device connected to that host shares them, and the latest change wins. Saved profiles are listed on the left and the selected profile's settings on the right. Use New Profile to create a profile from your current VS Code sandbox settings. Use the arrow keys to move between profiles; each profile has Use for New Sessions, Edit Profile, and Delete Profile actions, and the active profile is marked Active. New sessions on the host use the active profile; without one, they use the host's default sandbox settings. Use Tab to move between settings. Save stores your changes on the host. Discard Changes restores the saved values. Deleting the active profile makes new sessions use the default sandbox settings."),
+			() => focused.focus(), AccessibilityVerbositySettingId.SandboxProfiles);
+	}
+});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({ id: 'workbench.action.manageSandboxProfiles', title: localize2('manageSandboxProfiles', "Manage Sandbox Profiles"), category: localize2('sandboxCategory', "Sandbox"), f1: true, precondition: ChatContextKeys.enabled });
+	}
+	async run(accessor: ServicesAccessor, authority?: string): Promise<void> {
+		const editors = accessor.get(IEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
+		if (typeof authority !== 'string') {
+			const hosts = accessor.get(IAgentHostConnectionsService).connections.filter(info => info.connection && readHostSandboxProfiles(info.connection));
+			authority = hosts.length <= 1 ? hosts[0]?.authority : (await accessor.get(IQuickInputService).pick(
+				hosts.map(info => ({ label: info.name, description: info.isAmbient ? localize('thisComputer', "This Computer") : info.address, authority: info.authority })),
+				{ placeHolder: localize('pickHost', "Select the agent host whose sandbox profiles to manage") },
+			))?.authority;
+			if (!authority) {
+				if (!hosts.length) {
+					accessor.get(INotificationService).info(localize('noHosts', "No connected agent host supports sandbox profiles."));
+				}
+				return;
+			}
+		}
+		const input = editors.editors.find(editor => editor instanceof SandboxProfilesInput && editor.authority === authority) ?? instantiationService.createInstance(SandboxProfilesInput, authority);
+		await editors.openEditor(input, { pinned: true, revealIfOpened: true });
+	}
+});
 
 class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
