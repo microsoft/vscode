@@ -30683,6 +30683,62 @@ Use the attached image as context.
 		}
 	});
 
+	suite('hook tool denials', () => {
+		const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'view', toolArgs: { path: '/repo/notes.txt' } };
+
+		/** Starts a turn whose turn-start checkpoint failed, so VS Code's own `preToolUse` callback denies every call. */
+		async function createSessionThatDeniesTools() {
+			const checkpoint = new DeferredPromise<void>();
+			const created = await createAgentSession(disposables);
+			await created.session.send('Read the notes', undefined, 'turn-hooks', undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, undefined, undefined, undefined, checkpoint.p);
+			checkpoint.error(new Error('checkpoint failed'));
+			return created;
+		}
+
+		async function runDeniedCalls(created: Awaited<ReturnType<typeof createAgentSession>>, calls: Record<string, { readonly hookEnd?: Partial<SessionEventPayload<'hook.end'>['data']>; readonly code: string }>) {
+			const { mockSession, signals, waitForSignal } = created;
+			for (const [toolCallId, { hookEnd, code }] of Object.entries(calls)) {
+				const message = `Denied by preToolUse hook: ${toolCallId}`;
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'view', arguments: { path: '/repo/notes.txt' } });
+				if (hookEnd) {
+					mockSession.fire('hook.end', { hookInvocationId: `hook-${toolCallId}`, hookType: 'preToolUse', success: true, output: { [toolCallId]: message }, ...hookEnd });
+				}
+				mockSession.fire('tool.execution_complete', { toolCallId, success: false, error: { message, code } });
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+			}
+			return Object.fromEntries(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, readToolCallMeta(action)['vscode.deniedByHook']]] : []));
+		}
+
+		test('attributes runtime denials to the preToolUse hook that answered for the call, except VS Code\'s own', async () => {
+			const created = await createSessionThatDeniesTools();
+			assert.strictEqual((await created.runtime.handlePreToolUse({ ...hook, toolCallId: 'vscode' }))?.permissionDecision, 'deny');
+
+			assert.deepStrictEqual(await runDeniedCalls(created, {
+				explicit: { hookEnd: {}, code: 'denied' },
+				crashed: { hookEnd: { success: false, error: { message: 'Error: Hook command failed with code 1', source: '.github/hooks/policy.json' } }, code: 'denied' },
+				vscode: { hookEnd: {}, code: 'denied' },
+				otherFailure: { hookEnd: {}, code: 'failure' },
+				otherHook: { hookEnd: { hookType: 'postToolUse' }, code: 'denied' },
+				noHookAnswer: { code: 'denied' },
+			}), {
+				explicit: { hookType: 'preToolUse' },
+				crashed: { hookType: 'preToolUse', source: '.github/hooks/policy.json' },
+				vscode: undefined,
+				otherFailure: undefined,
+				otherHook: undefined,
+				noHookAnswer: undefined,
+			});
+		});
+
+		test('attributes no denials once VS Code denies a call the runtime did not identify', async () => {
+			const created = await createSessionThatDeniesTools();
+			assert.strictEqual((await created.runtime.handlePreToolUse(hook))?.permissionDecision, 'deny');
+
+			assert.deepStrictEqual(await runDeniedCalls(created, { explicit: { hookEnd: {}, code: 'denied' } }), { explicit: undefined });
+		});
+	});
+
 	suite('SDK callback logging', () => {
 
 		suite('turn-start checkpoint', () => {
