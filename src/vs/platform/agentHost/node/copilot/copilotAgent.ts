@@ -733,9 +733,6 @@ interface IWorkingDirectoryChangeTransactionOptions {
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
-const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_lifecycle_failed';
-const EXTENSION_LIFECYCLE_RETRY_INITIAL_DELAY_MS = 5_000;
-const EXTENSION_LIFECYCLE_RETRY_MAX_DELAY_MS = 5 * 60_000;
 
 class IncompleteCopilotSessionMarkerError extends Error { }
 
@@ -748,15 +745,8 @@ function extensionReconciliationCode(error: unknown): string | undefined {
 	return typeof code === 'string' ? code : undefined;
 }
 
-function isExtensionLifecycleReconciliationError(error: unknown): boolean {
-	return extensionReconciliationCode(error) === EXTENSION_RECONCILIATION_LIFECYCLE_FAILED;
-}
-
-class CopilotExtensionReconciliationError extends Error {
-	constructor(message: string, readonly failedExtensions: readonly IAgentExtensionInfo[]) {
-		super(message);
-	}
-}
+/** The selected chat's runtime reports an extension it just enabled as failed to start. */
+class CopilotExtensionStartFailedError extends Error { }
 
 class CopilotExtensionReconcileTargetUnavailableError extends Error {
 	constructor() {
@@ -1520,8 +1510,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _appliedExtensionRevisions = new WeakMap<CopilotAgentSession, number>();
 	private readonly _extensionReconciliationFailures = new WeakMap<CopilotAgentSession, { readonly revision: number; readonly message: string }>();
 	private readonly _queuedExtensionCatchUps = new WeakSet<CopilotAgentSession>();
-	/** Runtimes whose last reconcile tolerated a lifecycle failure, retried in the background with a delay that doubles per revision. */
-	private readonly _extensionLifecycleRetries = new WeakMap<CopilotAgentSession, { readonly revision: number; readonly delay: number; readonly retryAt: number }>();
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Selections awaiting replay survive a failed replacement or model update. */
@@ -3560,38 +3548,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 					? localize('copilot.extensionEnableTargetUnavailable', "After enabling '{0}', the canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is enabled in settings.", extension.name)
 					: localize('copilot.extensionDisableTargetUnavailable', "After disabling '{0}', the canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is disabled in settings.", extension.name));
 			}
-			if (error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
-				if (enabled) {
-					throw new Error(error.failedExtensions.length === 1
-						? localize(
-							'copilot.extensionEnableRefreshFailed',
-							"After enabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your canvas extension settings.",
-							extension.name,
-							error.failedExtensions[0].name,
-						)
-						: localize(
-							'copilot.extensionEnableRefreshMultipleFailed',
-							"After enabling '{0}', this chat couldn't finish updating canvas extensions because other canvas extensions failed to start. This chat may not match your canvas extension settings.",
-							extension.name,
-						));
-				}
-				throw new Error(error.failedExtensions.length === 1
-					? localize(
-						'copilot.extensionDisableRefreshFailed',
-						"After disabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your canvas extension settings.",
-						extension.name,
-						error.failedExtensions[0].name,
-					)
-					: localize(
-						'copilot.extensionDisableRefreshMultipleFailed',
-						"After disabling '{0}', this chat couldn't finish updating canvas extensions because other canvas extensions failed to start. This chat may not match your canvas extension settings.",
-						extension.name,
-					));
-			}
-			if (error instanceof CopilotExtensionReconciliationError) {
-				throw new Error(enabled
-					? localize('copilot.extensionEnableTargetFailed', "After enabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' failed to start. This chat may not match your canvas extension settings.", extension.name)
-					: localize('copilot.extensionDisableTargetFailed', "After disabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' couldn't be stopped. This chat may not match your canvas extension settings.", extension.name));
+			if (error instanceof CopilotExtensionStartFailedError) {
+				throw new Error(localize('copilot.extensionEnableStartFailed', "Canvas extension '{0}' was enabled in settings, but failed to start in this chat.", extension.name));
 			}
 			throw new Error(enabled
 				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't be started in this chat. {1}", extension.name, getErrorMessage(error))
@@ -3622,10 +3580,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _scheduleExtensionCatchUp(session: CopilotAgentSession, retryFailure = false): void {
 		const canReconcile = () => !this._isShuttingDown && !session.isDisposed
 			&& this._findSessionBySdkId(session.sessionId) === session && this._isAttachedExtensionSession(session)
-			&& !session.hasActiveTurn && !session.hasActiveSubagents
-			&& (this._isExtensionEnablementCurrent(session)
-				? this._isExtensionLifecycleRetryDue(session)
-				: retryFailure || !this._extensionReconciliationFailure(session));
+			&& !session.hasActiveTurn && !session.hasActiveSubagents && !this._isExtensionEnablementCurrent(session)
+			&& (retryFailure || !this._extensionReconciliationFailure(session));
 		if (!canReconcile() || this._queuedExtensionCatchUps.has(session)) {
 			return;
 		}
@@ -3637,7 +3593,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (retryFailure) {
 					this._extensionReconciliationFailures.delete(session);
 				}
-				await (this._isExtensionEnablementCurrent(session) ? this._retryExtensionLifecycle(session) : this._catchUpExtensions(session));
+				await this._catchUpExtensions(session);
 			}
 		}).catch(error => {
 			this._logService.warn(`[Copilot:${session.sessionId}] Failed to reconcile canvas extension enablement`, error);
@@ -3645,20 +3601,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				session.publishCanvases();
 			}
 		});
-	}
-
-	private _isExtensionLifecycleRetryDue(session: CopilotAgentSession): boolean {
-		// The next turn replaces a runtime marked for restart instead.
-		return (this._extensionLifecycleRetries.get(session)?.retryAt ?? Infinity) <= Date.now() && !session.requiresControlPlaneResync;
-	}
-
-	private async _retryExtensionLifecycle(session: CopilotAgentSession): Promise<void> {
-		const retry = this._extensionLifecycleRetries.get(session);
-		if (retry) {
-			// Postpone the next attempt first, so a failure without the lifecycle code can't retry immediately.
-			this._extensionLifecycleRetries.set(session, { ...retry, retryAt: Date.now() + retry.delay });
-		}
-		await this._reconcileExtensionsTolerantly(session);
 	}
 
 	private async _catchUpExtensions(session: CopilotAgentSession, atTurnBoundary = false): Promise<void> {
@@ -3678,7 +3620,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const revision = this._extensionPreferenceRevision;
 			try {
-				await this._reconcileExtensionsTolerantly(session);
+				await this._reconcileExtensions(session);
 			} catch (error) {
 				if (revision === this._extensionPreferenceRevision || !isCurrentSession()) {
 					const failure = !atTurnBoundary && this._extensionReconciliationFailure(session);
@@ -3723,99 +3665,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} while (!this._isExtensionEnablementCurrent(entry));
 	}
 
-	private async _reconcileExtensionsTolerantly(session: CopilotAgentSession): Promise<void> {
-		const lifecycleError = await this._reconcileExtensions(session);
-		if (lifecycleError) {
-			this._logService.warn(`[Copilot:${session.sessionId}] Some canvas extensions failed to start or stop; the chat remains usable and retries in the background`, lifecycleError);
-		}
-	}
-
-	/**
-	 * Resolves with a lifecycle error instead of rejecting, so an extension that failed to start or stop doesn't block
-	 * the rest of the chat. The runtime retries a failed stop only when reconciled again, so an idle attached chat
-	 * retries in the background with backoff until a reconcile succeeds.
-	 */
-	private async _reconcileExtensions(session: CopilotAgentSession): Promise<unknown> {
+	private async _reconcileExtensions(session: CopilotAgentSession): Promise<void> {
 		const revision = this._extensionPreferenceRevision;
-		let lifecycleError: unknown;
 		try {
 			await session.reconcileExtensions();
 		} catch (error) {
-			if (!isExtensionLifecycleReconciliationError(error)) {
-				const code = extensionReconciliationCode(error);
-				if (!isCancellationError(error) && code !== 'extension_reconciliation_superseded' && code !== 'extension_reconciliation_not_ready'
-					&& revision === this._extensionPreferenceRevision && (this._appliedExtensionRevisions.get(session) ?? 0) < revision && !session.isDisposed
-					&& (this._findSessionBySdkId(session.sessionId) === session || this._sessionsPendingRegistration.has(session))) {
-					this._extensionReconciliationFailures.set(session, {
-						revision,
-						message: localize('copilot.extensionReconcileFailed', "Canvas extension changes couldn't be fully applied. Disable the failing extension or send a message when this chat is idle to restart it. {0}", getErrorMessage(error)),
-					});
-				}
-				throw error;
+			const code = extensionReconciliationCode(error);
+			if (!isCancellationError(error) && code !== 'extension_reconciliation_superseded' && code !== 'extension_reconciliation_not_ready'
+				&& revision === this._extensionPreferenceRevision && (this._appliedExtensionRevisions.get(session) ?? 0) < revision && !session.isDisposed
+				&& (this._findSessionBySdkId(session.sessionId) === session || this._sessionsPendingRegistration.has(session))) {
+				this._extensionReconciliationFailures.set(session, {
+					revision,
+					message: localize('copilot.extensionReconcileFailed', "Canvas extension changes couldn't be fully applied. Disable the failing extension or send a message when this chat is idle to restart it. {0}", getErrorMessage(error)),
+				});
 			}
-			lifecycleError = error;
+			throw error;
 		}
 		const registered = this._findSessionBySdkId(session.sessionId) === session;
 		if (session.isDisposed || !registered && !this._sessionsPendingRegistration.has(session)) {
 			throw new CopilotExtensionReconcileTargetUnavailableError();
 		}
 		this._appliedExtensionRevisions.set(session, Math.max(this._appliedExtensionRevisions.get(session) ?? 0, revision));
-		if (lifecycleError) {
-			const retry = this._extensionLifecycleRetries.get(session);
-			const delay = retry?.revision === revision ? Math.min(retry.delay * 2, EXTENSION_LIFECYCLE_RETRY_MAX_DELAY_MS) : EXTENSION_LIFECYCLE_RETRY_INITIAL_DELAY_MS;
-			this._extensionLifecycleRetries.set(session, { revision, delay, retryAt: Date.now() + delay });
-		} else {
-			this._extensionLifecycleRetries.delete(session);
-		}
 		if ((this._extensionReconciliationFailures.get(session)?.revision ?? 0) <= revision) {
 			this._extensionReconciliationFailures.delete(session);
 		}
 		if (registered && this._isExtensionEnablementCurrent(session)) {
 			session.publishCanvases();
 		}
-		return lifecycleError;
 	}
 
 	private async _reconcileExtensionEnablement(session: CopilotAgentSession, extensionId: string, enabled: boolean): Promise<void> {
-		try {
-			// The chat stays usable after a lifecycle failure, but the selected chat still reports it.
-			const lifecycleError = await this._reconcileExtensions(session);
-			if (lifecycleError) {
-				throw lifecycleError;
-			}
-		} catch (error) {
-			if (session.isDisposed || !isExtensionLifecycleReconciliationError(error)) {
-				throw error;
-			}
-			let extensions: readonly IAgentExtensionInfo[];
-			try {
-				extensions = await session.listExtensions();
-			} catch (verificationError) {
-				throw new AggregateError([error, verificationError], getErrorMessage(error));
-			}
-			if (session.isDisposed) {
-				throw error;
-			}
-			const targets = extensions.filter(extension => extension.id === extensionId);
-			const targetSettled = targets.length > 0 && targets.every(extension => enabled ? isAgentExtensionEnabledAndSettled(extension.status) : extension.status === 'disabled');
-			if (enabled && targetSettled) {
-				this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
-				return;
-			}
-			const targetFailed = targets.some(extension => extension.status === 'failed');
-			const targetStatuses = new Set(targets.map(extension => extension.status));
-			const targetConsistentlyStarting = enabled && targetStatuses.size === 1 && targetStatuses.has('starting');
-			const canAttributeOtherFailures = !targetFailed && (targetSettled || targetConsistentlyStarting);
-			const failedExtensions = canAttributeOtherFailures
-				? [...new Map(extensions
-					.filter(extension => extension.id !== extensionId && extension.status === 'failed')
-					.map(extension => [extension.id, extension])).values()]
-				: [];
-			if ((!enabled && targetSettled || enabled && !targetFailed) && failedExtensions.length === 0) {
-				throw error;
-			}
-			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' reconciliation reported a lifecycle failure`, error);
-			throw new CopilotExtensionReconciliationError(getErrorMessage(error), failedExtensions);
+		await this._reconcileExtensions(session);
+		// The runtime reports an extension that fails to start as failed without failing the reconcile.
+		if (enabled && (await session.listExtensions()).some(extension => extension.id === extensionId && extension.status === 'failed')) {
+			throw new CopilotExtensionStartFailedError();
 		}
 	}
 

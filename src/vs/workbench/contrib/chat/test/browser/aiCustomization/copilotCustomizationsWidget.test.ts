@@ -1192,54 +1192,52 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
-	for (const status of ['failed', 'disabled'] as const) {
-		test(`blocks a stale Canvas open after a data-only ${status} inventory update`, async () => {
-			const preview = definition();
-			const harness = createHarness({ definitions: [preview] });
-			await timeout(0);
-			const openMenu = () => {
-				const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
-				assert.ok(more);
-				if (!more.checkVisibility()) {
-					return undefined;
-				}
-				more.click();
-				return harness.menuActions.find(action => action.id === 'canvas.show');
-			};
-			const staleOpen = openMenu();
-			assert.ok(staleOpen);
-			const closeStarted = new DeferredPromise<void>();
-			const releaseClose = new DeferredPromise<void>();
-			harness.widget.setCloseCustomizationEditor(async () => {
-				closeStarted.complete();
-				await releaseClose.p;
-				return true;
-			});
-			const opening = Promise.resolve(staleOpen.run());
-			await closeStarted.p;
-			harness.setExtensionInventory(inventory([preview], status));
-			await timeout(0);
-			releaseClose.complete();
-			await opening;
-			harness.hideMenu();
-			const currentOpen = openMenu();
-			harness.hideMenu();
-
-			assert.deepStrictEqual({
-				initiallyEnabled: staleOpen.enabled,
-				currentOpen: currentOpen?.enabled,
-				canManage: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
-				opens: harness.openCalls,
-				notifications: harness.notifications,
-			}, {
-				initiallyEnabled: true,
-				currentOpen: status === 'failed' ? false : undefined,
-				canManage: true,
-				opens: 0,
-				notifications: status === 'failed' ? ['This canvas extension failed to start.'] : [],
-			});
+	test('blocks a stale Canvas open after a data-only disabled inventory update', async () => {
+		const preview = definition();
+		const harness = createHarness({ definitions: [preview] });
+		await timeout(0);
+		const openMenu = () => {
+			const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			if (!more.checkVisibility()) {
+				return undefined;
+			}
+			more.click();
+			return harness.menuActions.find(action => action.id === 'canvas.show');
+		};
+		const staleOpen = openMenu();
+		assert.ok(staleOpen);
+		const closeStarted = new DeferredPromise<void>();
+		const releaseClose = new DeferredPromise<void>();
+		harness.widget.setCloseCustomizationEditor(async () => {
+			closeStarted.complete();
+			await releaseClose.p;
+			return true;
 		});
-	}
+		const opening = Promise.resolve(staleOpen.run());
+		await closeStarted.p;
+		harness.setExtensionInventory(inventory([preview], 'disabled'));
+		await timeout(0);
+		releaseClose.complete();
+		await opening;
+		harness.hideMenu();
+		const currentOpen = openMenu();
+		harness.hideMenu();
+
+		assert.deepStrictEqual({
+			initiallyEnabled: staleOpen.enabled,
+			currentOpen: currentOpen?.enabled,
+			canManage: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+			opens: harness.openCalls,
+			notifications: harness.notifications,
+		}, {
+			initiallyEnabled: true,
+			currentOpen: undefined,
+			canManage: true,
+			opens: 0,
+			notifications: [],
+		});
+	});
 
 	test('retains known reconciliation health during a toggle-triggered refresh', async () => {
 		const preview = definition();

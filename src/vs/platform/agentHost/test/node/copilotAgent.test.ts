@@ -2844,7 +2844,7 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('keeps a chat usable when its extensions fail to start or stop', async () => {
+	test('records a failed extension stop on a background chat like any other reconcile failure', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
 			mode: 'load_and_augment',
@@ -2862,9 +2862,10 @@ suite('CopilotAgent', () => {
 		});
 		setPeerChatStub(agent, peer, {
 			listCanvases: async () => [],
-			listExtensions: async () => [{ id: 'user:broken', name: 'Broken', source: 'user', status: 'failed' }],
+			// The runtime lists an extension disabled in settings as disabled even when its process didn't stop.
+			listExtensions: async () => [{ id: 'user:preview', name: 'Preview', source: 'user', status: 'disabled' }],
 			reconcileExtensions: async () => {
-				throw Object.assign(new Error('extension did not become ready: user:broken'), { data: { code: 'extension_reconciliation_lifecycle_failed' } });
+				throw Object.assign(new Error('extension did not stop: user:preview'), { data: { code: 'extension_reconciliation_lifecycle_failed' } });
 			},
 			publishCanvases: () => { published.complete(); },
 		});
@@ -2875,10 +2876,11 @@ suite('CopilotAgent', () => {
 		await agent.setAgentExtensionEnabled('user:preview', false, session, selected);
 		await published.p;
 
-		assert.deepStrictEqual({
-			reconciliation: (await agent.listAgentExtensions(session, peer)).reconciliation,
-			canvases: await agent.listSessionCanvases(session, peer, exactChatContext(session, peer)),
-		}, { reconciliation: undefined, canvases: [] });
+		assert.deepStrictEqual((await agent.listAgentExtensions(session, peer)).reconciliation, {
+			status: 'failed',
+			message: 'Canvas extension changes couldn\'t be fully applied. Disable the failing extension or send a message when this chat is idle to restart it. extension did not stop: user:preview',
+		});
+		await assert.rejects(agent.listSessionCanvases(session, peer, exactChatContext(session, peer)), /extension did not stop: user:preview/);
 	});
 
 	test('defers busy extension catch-up without queuing inventory reads behind the turn', async () => {
@@ -3100,6 +3102,7 @@ suite('CopilotAgent', () => {
 			override get canvasRuntimeEnabled() { return true; }
 			override get extensionLaunchDirectories(): readonly URI[] { return []; }
 			override readonly onDidChangeRuntimePlugins = Event.None;
+			override readonly onDidReloadRuntimeContributions = Event.None;
 			override setExtensionLaunchAdmission(admission: IDisposable): void { disposables.add(admission); }
 			override async initializeSession(): Promise<void> {
 				calls.push('initialize');
@@ -3181,76 +3184,36 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	for (const scenario of [
-		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your canvas extension settings/ },
-		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true, expectedError: undefined },
-		{ name: 'dormant target and unrelated failure', enabled: true, statuses: ['dormant'], succeeds: true, expectedError: undefined },
-		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
-		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your canvas extension settings/ },
-		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
-		{ name: 'target absent', enabled: false, statuses: [], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
-		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
-		{ name: 'conflicting duplicate target states while enabling', enabled: true, statuses: ['disabled', 'running'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings, but couldn't be started in this chat. unrelated extension did not become ready/ },
-		{ name: 'unknown target state while enabling', enabled: true, statuses: ['unknown'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings, but couldn't be started in this chat. unrelated extension did not become ready/ },
-		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
-		{ name: 'disposed during verification', enabled: true, statuses: ['running'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings/ },
-		{ name: 'disposed during disable verification', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
-	] as const) {
-		test(`verifies extension enablement after reconciliation failure: ${scenario.name}`, async () => {
+	for (const target of ['failed', 'running'] as const) {
+		test(`reports whether an extension enabled for the selected chat started: ${target}`, async () => {
 			const client = new TestCopilotClient([]);
 			client.extensionInventory = {
 				mode: 'load_and_augment',
-				extensions: [{ id: 'user:preview', name: 'preview', path: '/extensions/preview.mjs', source: 'user', enabled: !scenario.enabled }],
+				extensions: [{ id: 'user:preview', name: 'preview', path: '/extensions/preview.mjs', source: 'user', enabled: false }],
 			};
-			const logService = new NullLogService();
-			const warnings = spy(logService, 'warn');
-			const agent = createTestAgent(disposables, { copilotClient: client, logService });
-			const session = AgentSession.uri('copilotcli', 'partial-extension-reconcile');
-			let reconciled = false;
-			let listedAfterReconcile = false;
-			setDefaultSessionStub(agent, 'partial-extension-reconcile', {
-				get isDisposed() { return listedAfterReconcile && (scenario.name === 'disposed during verification' || scenario.name === 'disposed during disable verification'); },
-				reconcileExtensions: async () => {
-					reconciled = true;
-					throw Object.assign(new Error('unrelated extension did not become ready'), {
-						data: { code: 'extension_reconciliation_lifecycle_failed' },
-					});
-				},
-				listExtensions: async () => {
-					if (reconciled) {
-						listedAfterReconcile = true;
-						if (scenario.name === 'verification unavailable') {
-							throw new Error('inventory unavailable');
-						}
-					}
-					return [
-						...scenario.statuses.map(status => ({ id: 'user:preview', name: 'preview', source: 'user', status })),
-						{ id: 'plugin:other', name: 'other', source: 'plugin', status: 'failed' },
-					];
-				},
+			const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'extension-start-failure');
+			// The runtime reconciles successfully and reports the extensions that failed to start.
+			setDefaultSessionStub(agent, 'extension-start-failure', {
+				reconcileExtensions: async () => { },
+				listExtensions: async () => [
+					{ id: 'user:preview', name: 'preview', source: 'user', status: target },
+					{ id: 'plugin:other', name: 'other', source: 'plugin', status: 'failed' },
+				],
 			});
-			try {
-				const mutation = agent.setAgentExtensionEnabled('user:preview', scenario.enabled, session);
-				if (scenario.succeeds) {
-					await mutation;
-				} else {
-					await assert.rejects(mutation, scenario.expectedError);
-				}
-				assert.deepStrictEqual({
-					persisted: scenario.enabled ? client.extensionEnableRequests : client.extensionDisableRequests,
-					warned: warnings.calledOnce,
-				}, {
-					persisted: [{ ids: ['user:preview'] }],
-					warned: scenario.name !== 'verification unavailable'
-						&& scenario.name !== 'disposed during verification'
-						&& scenario.name !== 'disposed during disable verification'
-						&& scenario.name !== 'conflicting duplicate target states while enabling'
-						&& scenario.name !== 'unknown target state while enabling',
-				});
-			} finally {
-				warnings.restore();
-				await disposeAgent(agent);
-			}
+
+			const error = await agent.setAgentExtensionEnabled('user:preview', true, session).then(() => undefined, (error: Error) => error.message);
+
+			assert.deepStrictEqual({
+				error,
+				persisted: client.extensionEnableRequests,
+				reconciliation: (await agent.listAgentExtensions(session)).reconciliation,
+			}, {
+				error: target === 'failed' ? 'Canvas extension \'preview\' was enabled in settings, but failed to start in this chat.' : undefined,
+				persisted: [{ ids: ['user:preview'] }],
+				reconciliation: undefined,
+			});
 		});
 	}
 
@@ -28647,77 +28610,6 @@ suite('CopilotAgent', () => {
 				});
 			});
 		}
-
-		test('retries a failed extension start or stop in the background with backoff, never before a message', async () => {
-			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date'] });
-			disposables.add(toDisposable(() => clock.restore()));
-			const client = new TestCopilotClient([]);
-			client.extensionInventory = {
-				mode: 'load_and_augment',
-				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
-			};
-			const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
-			afterTest(() => disposeAgent(agent));
-			const session = AgentSession.uri('copilotcli', 'lifecycle-extension-retry');
-			const chat = URI.parse(buildChatUri(session, 'peer'));
-			const peer = makeFakeChatSession(session, 'lifecycle-extension-retry-peer');
-			Object.assign(peer.fake, { canvasRuntimeEnabled: true });
-			const fake = peer.fake as { chatChannelUri: URI; requiresControlPlaneResync: boolean };
-			fake.chatChannelUri = chat;
-			let reconciles = 0;
-			let launches = 0;
-			const failures = ['extension_reconciliation_lifecycle_failed', 'extension_reconciliation_lifecycle_failed', 'extension_reconciliation_discovery_failed', 'extension_reconciliation_lifecycle_failed'];
-			peer.fake.reconcileExtensions = async () => {
-				const code = failures[reconciles++];
-				if (code) {
-					throw Object.assign(new Error(code), { data: { code } });
-				}
-			};
-			peer.fake.listExtensions = async () => [];
-			setPeerChatStub(agent, chat, peer.fake);
-			agent['_ensureResolvedChatSession'] = async () => {
-				launches++;
-				return peer.fake;
-			};
-			const context = exactChatContext(session, chat);
-			contributeActiveClient(agent, chat, context);
-			const timeline: { step: string; reconciles: number; blocked: boolean }[] = [];
-			const idle = async (step: string, elapsed = 0) => {
-				clock.tick(elapsed);
-				agent['_onChatTurnEnded']();
-				await agent['_queueChat'](peer.fake.sessionId, peer.fake.sessionId, 'drainExtensionRetry', async () => { });
-				timeline.push({ step, reconciles, blocked: !!(await agent.listAgentExtensions(session, chat)).reconciliation });
-			};
-
-			await agent.setAgentExtensionEnabled('user:preview', false);
-			await idle('change');
-			await agent.chats.sendMessage(chat, 'turn', undefined, undefined, 'turn-1', undefined, context);
-			await idle('message');
-			await idle('first retry due', 5_000);
-			await idle('backed off', 5_000);
-			await idle('second retry due', 5_000);
-			fake.requiresControlPlaneResync = true;
-			await idle('marked for restart', 10_000);
-			fake.requiresControlPlaneResync = false;
-			await idle('restart cleared');
-			await idle('third retry due', 20_000);
-			await idle('succeeded', 300_000);
-
-			assert.deepStrictEqual({ timeline, launches, disposed: peer.rec.disposed, sends: peer.rec.sends.map(s => s.prompt) }, {
-				timeline: [
-					{ step: 'change', reconciles: 1, blocked: false },
-					{ step: 'message', reconciles: 1, blocked: false },
-					{ step: 'first retry due', reconciles: 2, blocked: false },
-					{ step: 'backed off', reconciles: 2, blocked: false },
-					{ step: 'second retry due', reconciles: 3, blocked: false },
-					{ step: 'marked for restart', reconciles: 3, blocked: false },
-					{ step: 'restart cleared', reconciles: 4, blocked: false },
-					{ step: 'third retry due', reconciles: 5, blocked: false },
-					{ step: 'succeeded', reconciles: 5, blocked: false },
-				],
-				launches: 0, disposed: false, sends: ['turn'],
-			});
-		});
 
 		test('registers an initialized runtime as unconfirmed so the turn can recover a raced extension change', async () => {
 			const client = new TestCopilotClient([]);
