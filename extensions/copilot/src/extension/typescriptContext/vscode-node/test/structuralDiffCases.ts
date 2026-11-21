@@ -354,13 +354,14 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 	});
 
 	test('names functions after the targets they are assigned to', async () => {
-		const original = 'export default () => 1;\nmodule.exports.helper = function () { return 1; };';
+		const original = 'export default () => 1;\nmodule.exports.helper = function () { return 1; };\nmodule.exports["foo bar"] = () => 1;';
 		const modified = original.replaceAll('1', '2');
 		const result = await compute(original, modified);
 		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
 			[['default'], vscode.SymbolKind.Function],
 			[['Top-Level Code'], vscode.SymbolKind.Module],
 			[['Top-Level Code', 'module.exports.helper'], vscode.SymbolKind.Function],
+			[['Top-Level Code', 'module.exports["foo bar"]'], vscode.SymbolKind.Function],
 		]);
 	});
 
@@ -664,10 +665,11 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		]);
 	});
 
-	test('lists Playwright suites and suite registrations within parentheses or after void', async () => {
+	test('lists Playwright suites without their titled hooks, and suites registered within parentheses or after void', async () => {
 		const original = [
 			'test.describe("Carousel", () => {',
 			'\ttest.beforeEach(async ({ page }) => { await page.goto("/1"); });',
+			'\ttest.afterEach("reset state", async () => { reset(1); });',
 			'\ttest("advances", async () => { expect(1); });',
 			'});',
 			'test.describe.skip("Skipped", () => {',
@@ -691,6 +693,25 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			[['Voided', 'works'], vscode.SymbolKind.Method],
 			[['Wrapped'], vscode.SymbolKind.Class],
 			[['Wrapped', 'works'], vscode.SymbolKind.Method],
+		]);
+	});
+
+	test('classifies the arguments after a test callback and those of calls chained to the test as its implementation', async () => {
+		const original = [
+			'test("waits", () => { run(); }).timeout(1000);',
+			'test("limits", () => { run(); }, 1000);',
+			'test("reports", () => { run(); }).then(undefined, error => report(error, 1));',
+		].join('\n');
+		const modified = original.replaceAll('1000', '2000').replace('error, 1', 'error, 2');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') },
+			{ originalRange: rangeOf(original, '1', original.indexOf('limits')), modifiedRange: rangeOf(modified, '2', modified.indexOf('limits')) },
+			{ originalRange: rangeOf(original, '1', original.indexOf('error,')), modifiedRange: rangeOf(modified, '2', modified.indexOf('error,')) },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.modifiedChanges.map(change => change[1])]), [
+			[['waits'], [vscode.StructuralDiffClassification.Implementation]],
+			[['limits'], [vscode.StructuralDiffClassification.Implementation]],
+			[['reports'], [vscode.StructuralDiffClassification.Implementation]],
 		]);
 	});
 

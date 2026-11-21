@@ -517,7 +517,7 @@ function getAssignmentInfo(node: tt.ExpressionStatement, file: tt.SourceFile): E
 		return undefined;
 	}
 	const target = expression.left;
-	const base = { name: toName(target.getText(file).replace(/\s+/g, '')), nameNode: target, rangeNode: node };
+	const base = { name: toName(target.getText(file)), nameNode: target, rangeNode: node };
 	return getValueInfo(base, expression.right, ts.isIdentifier(target) ? StructuralDiffSymbolKind.Variable : StructuralDiffSymbolKind.Property, 'assignment');
 }
 
@@ -897,6 +897,11 @@ function isTriviaKind(kind: tt.SyntaxKind): boolean {
 type TestKind = 'suite' | 'test';
 
 /**
+ * The hooks of Playwright, which can have a title like a test, as in `test.beforeEach('title', () => {})`.
+ */
+const hookNames: ReadonlySet<string> = new Set(['beforeEach', 'afterEach', 'beforeAll', 'afterAll']);
+
+/**
  * Returns the expression of a statement without the parentheses, type assertions and `await` or `void` operators around
  * it, such as the call in `await load();`.
  */
@@ -925,7 +930,7 @@ function getTestInfo(node: tt.ExpressionStatement, file: tt.SourceFile): EntityI
 		rangeNode: node,
 		kind: isSuite ? StructuralDiffSymbolKind.Class : StructuralDiffSymbolKind.Method,
 		languageKind: test.kind,
-		body: [test.callback.body],
+		body: [test.callback.body, ...test.trailingArguments],
 		statements: isSuite && ts.isBlock(test.callback.body) ? test.callback.body.statements : undefined,
 		isSuite,
 		isTest: true,
@@ -933,38 +938,55 @@ function getTestInfo(node: tt.ExpressionStatement, file: tt.SourceFile): EntityI
 	};
 }
 
+interface TestCall {
+	readonly call: tt.CallExpression;
+	readonly kind: TestKind;
+	readonly callback: tt.ArrowFunction | tt.FunctionExpression;
+	/** The arguments after the callback, such as a timeout, and those of the calls chained to the registration, in document order. */
+	readonly trailingArguments: readonly tt.Expression[];
+}
+
 /**
  * Returns the call that registers a suite or a test. It has a title and a callback, as in `test('title', () => {})`,
  * unlike a hook such as `test.beforeEach(() => {})`, and other calls can be chained to it, as in
- * `test('title', () => {}).timeout(1000)`.
+ * `test('title', () => {}).timeout(1000)`. It is the innermost call of that form, since a chained call can have that
+ * form as well, as in `test('title', () => {}).then(undefined, onRejected)`, whereas the first call of a variant such as
+ * `test.each(cases)('title', () => {})` does not.
  */
-function getTestCall(expression: tt.Expression): { readonly call: tt.CallExpression; readonly kind: TestKind; readonly callback: tt.ArrowFunction | tt.FunctionExpression } | undefined {
+function getTestCall(expression: tt.Expression): TestCall | undefined {
+	const calls: tt.CallExpression[] = [];
 	let node = expression;
 	while (ts.isCallExpression(node) || ts.isPropertyAccessExpression(node)) {
 		if (ts.isCallExpression(node)) {
-			const kind = getTestKind(node.expression);
-			const [title, ...rest] = node.arguments;
-			const callback = rest.find(isFunctionValue);
-			if (kind !== undefined && title !== undefined && !isFunctionValue(title) && callback !== undefined) {
-				return { call: node, kind, callback };
-			}
+			calls.push(node);
 		}
 		node = tss.Nodes.skipOuterExpressions(node.expression);
+	}
+	for (let index = calls.length - 1; index >= 0; index--) {
+		const call = calls[index];
+		const kind = getTestKind(call.expression);
+		const [title, ...rest] = call.arguments;
+		const callback = rest.find(isFunctionValue);
+		if (kind !== undefined && kind !== 'hook' && title !== undefined && !isFunctionValue(title) && callback !== undefined) {
+			const chained = calls.slice(0, index).reverse().flatMap(outer => outer.arguments);
+			return { call, kind, callback, trailingArguments: [...rest.slice(rest.indexOf(callback) + 1), ...chained] };
+		}
 	}
 	return undefined;
 }
 
 /**
- * Returns whether a function registers suites or tests, such as `suite`, `test.skip` or Playwright's `test.describe`.
+ * Returns whether a function registers suites or tests, such as `suite`, `test.skip` or Playwright's `test.describe`,
+ * or whether it is one of Playwright's hooks.
  */
-function getTestKind(node: tt.Node): TestKind | undefined {
+function getTestKind(node: tt.Node): TestKind | 'hook' | undefined {
 	if (ts.isIdentifier(node)) {
 		return node.text === 'describe' || node.text === 'suite' ? 'suite' : node.text === 'test' || node.text === 'it' ? 'test' : undefined;
 	}
 	if (ts.isPropertyAccessExpression(node)) {
 		const kind = getTestKind(node.expression);
 		// Variants such as `test.describe.only` register suites as well.
-		return kind !== undefined && node.name.text === 'describe' ? 'suite' : kind;
+		return kind === undefined ? undefined : node.name.text === 'describe' ? 'suite' : hookNames.has(node.name.text) ? 'hook' : kind;
 	}
 	if (ts.isCallExpression(node) || ts.isParenthesizedExpression(node)) {
 		return getTestKind(node.expression);
