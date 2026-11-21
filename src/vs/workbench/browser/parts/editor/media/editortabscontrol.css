@@ -45,3 +45,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
 	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
 }
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label.monaco-decoration-badge::after {
+	font-variant-numeric: tabular-nums; /* use equal width digits so numeric decorations don't change the label width */
+}
