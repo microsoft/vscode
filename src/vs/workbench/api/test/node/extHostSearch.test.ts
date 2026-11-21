@@ -293,6 +293,20 @@ suite('ExtHostSearch', () => {
 			disposables.forEach(d => d?.dispose());
 		});
 
+		test('session is defined when there is no cache key', async () => {
+			let session: object | undefined;
+			disposables.add(extHostSearch.registerFileSearchProvider('file', {
+				provideFileSearchResults(pattern: string, options: vscode.FileSearchProviderOptions, token: vscode.CancellationToken): Promise<URI[]> {
+					session = options.session;
+					return Promise.resolve([]);
+				}
+			}));
+			await rpcProtocol.sync();
+
+			await runFileSearch(getSimpleQuery());
+			assert.strictEqual(typeof session, 'object');
+		});
+
 		test('provider returns null', async () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
