@@ -1372,7 +1372,7 @@
 			"patterns": [
 				{
 					"begin": "\\s*+(\\/\\/)",
-					"end": "(?<=\\n)(?<!\\\\\\n)",
+					"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.c"
@@ -1388,7 +1388,7 @@
 				},
 				{
 					"begin": "\\s*+(\\/\\/)",
-					"end": "(?<=\\n)(?<!\\\\\\n)",
+					"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.c"
