@@ -477,7 +477,7 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		// A request bubble with a code block may span the row (see chat.css), less its horizontal padding
-		const requestBubblePadding = isRequestVM(this.currentCodeBlockData?.element) ? 24 + this.getBlockquoteInset() : 0;
+		const requestBubblePadding = isRequestVM(this.currentCodeBlockData?.element) ? 24 : 0;
 		width = width - editorBorder - requestBubblePadding - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
 		// !!!!
 		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
@@ -486,16 +486,6 @@ export class CodeBlockPart extends Disposable {
 		// !!!!
 		this.editor.layout({ width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
-	}
-
-	/** Horizontal insets of the blockquotes around this code block, see `.rendered-markdown blockquote` in chat.css. */
-	private getBlockquoteInset(): number {
-		const blockquotePaddingAndBorder = 10 + 16 + 5;
-		let inset = 0;
-		for (let quote = this.element.closest('blockquote'); quote; quote = quote.parentElement?.closest('blockquote') ?? null) {
-			inset += blockquotePaddingAndBorder;
-		}
-		return inset;
 	}
 
 	private getContentHeight() {

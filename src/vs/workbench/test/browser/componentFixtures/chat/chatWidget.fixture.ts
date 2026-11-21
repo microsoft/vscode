@@ -1075,22 +1075,6 @@ const ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH: IFixtureMessage[] = [
 	},
 ];
 
-// https://github.com/microsoft/vscode/issues/349335, each blockquote level narrows the code block
-const ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES: IFixtureMessage[] = [
-	{
-		user: [
-			'my colleague wrote:',
-			'',
-			'> > this command fails for me:',
-			'> >',
-			'> > ```sh',
-			'> > nvm use default; npm install && npm run watch -- --some-very-long-option-name=value',
-			'> > ```',
-		].join('\n'),
-		assistant: [{ kind: 'markdown', text: 'Run `pnpm install` instead of `npm install`.' }],
-	},
-];
-
 const STREAMING: IFixtureMessage[] = [
 	{
 		user: 'Search the workspace for TODO comments',
@@ -3120,9 +3104,6 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 		'issue-349335-request-code-block-width': defineComponentFixture({
 			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH, width: 400, inputVisible: false }),
-		}),
-		'issue-349335-request-code-block-in-blockquotes': defineComponentFixture({
-			render: ctx => renderChatWidget(ctx, { messages: ISSUE_349335_REQUEST_CODE_BLOCK_IN_BLOCKQUOTES, width: 400, inputVisible: false }),
 		}),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
