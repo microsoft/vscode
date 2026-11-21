@@ -627,6 +627,180 @@ export namespace Color {
 				return `hsla(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%, ${color.hsla.a.toFixed(2)})`;
 			}
 
+			// ---- OKLab / OKLCh helpers ----
+			// Based on Björn Ottosson's OKLab: https://bottosson.github.io/posts/oklab/
+			// The picker roundtrips through sRGB, so these helpers operate on the
+			// RGBA the Color already carries and produce CSS Color Level 4 output.
+
+			function _srgbToLinear(c: number): number {
+				// c is in [0, 1]
+				return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+			}
+
+			function _linearToSrgb(c: number): number {
+				// c is in [0, 1]
+				return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+			}
+
+			interface IOKLab { L: number; a: number; b: number; alpha: number }
+			interface IOKLCh { L: number; C: number; h: number; alpha: number }
+
+			function _rgbaToOKLab(rgba: RGBA): IOKLab {
+				const r = _srgbToLinear(rgba.r / 255);
+				const g = _srgbToLinear(rgba.g / 255);
+				const b = _srgbToLinear(rgba.b / 255);
+
+				const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+				const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+				const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+
+				const l_ = Math.cbrt(l);
+				const m_ = Math.cbrt(m);
+				const s_ = Math.cbrt(s);
+
+				return {
+					L: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+					a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+					b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+					alpha: rgba.a
+				};
+			}
+
+			function _okLabToRGBA(lab: IOKLab): RGBA {
+				const l_ = lab.L + 0.3963377774 * lab.a + 0.2158037573 * lab.b;
+				const m_ = lab.L - 0.1055613458 * lab.a - 0.0638541728 * lab.b;
+				const s_ = lab.L - 0.0894841775 * lab.a - 1.2914855480 * lab.b;
+
+				const l = l_ * l_ * l_;
+				const m = m_ * m_ * m_;
+				const s = s_ * s_ * s_;
+
+				const rLin = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+				const gLin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+				const bLin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+
+				// Clamp to gamut; CSS Color 4 itself would keep OOG values, but the picker's
+				// backing model is sRGB, so we fit-to-sRGB here (simple clip).
+				const r = Math.max(0, Math.min(1, _linearToSrgb(rLin)));
+				const g = Math.max(0, Math.min(1, _linearToSrgb(gLin)));
+				const b = Math.max(0, Math.min(1, _linearToSrgb(bLin)));
+
+				return new RGBA(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), lab.alpha);
+			}
+
+			function _okLabToOKLCh(lab: IOKLab): IOKLCh {
+				const C = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
+				let h = Math.atan2(lab.b, lab.a) * 180 / Math.PI;
+				if (h < 0) { h += 360; }
+				// Powerless hue when chroma is essentially zero
+				if (C < 1e-4) { h = 0; }
+				return { L: lab.L, C, h, alpha: lab.alpha };
+			}
+
+			function _okLChToOKLab(lch: IOKLCh): IOKLab {
+				const rad = lch.h * Math.PI / 180;
+				return {
+					L: lch.L,
+					a: lch.C * Math.cos(rad),
+					b: lch.C * Math.sin(rad),
+					alpha: lch.alpha
+				};
+			}
+
+			function _trim(n: number): string {
+				// Trim to 4 significant decimals and drop trailing zeros.
+				return parseFloat(n.toFixed(4)).toString();
+			}
+
+			/**
+			 * Formats the color as oklab(L a b) or oklab(L a b / alpha).
+			 * Follows CSS Color Level 4 syntax: Lightness is a percentage, a and b are
+			 * unitless numbers.
+			 */
+			export function formatOKLab(color: Color): string {
+				const lab = _rgbaToOKLab(color.rgba);
+				const L = _trim(lab.L * 100) + '%';
+				const a = _trim(lab.a);
+				const b = _trim(lab.b);
+				if (lab.alpha === 1) {
+					return `oklab(${L} ${a} ${b})`;
+				}
+				return `oklab(${L} ${a} ${b} / ${+(lab.alpha.toFixed(2))})`;
+			}
+
+			/**
+			 * Formats the color as oklch(L C H) or oklch(L C H / alpha).
+			 * Follows CSS Color Level 4 syntax: Lightness is a percentage, Chroma is a
+			 * unitless number, Hue is in degrees.
+			 */
+			export function formatOKLCh(color: Color): string {
+				const lch = _okLabToOKLCh(_rgbaToOKLab(color.rgba));
+				const L = _trim(lch.L * 100) + '%';
+				const C = _trim(lch.C);
+				const h = _trim(lch.h);
+				if (lch.alpha === 1) {
+					return `oklch(${L} ${C} ${h})`;
+				}
+				return `oklch(${L} ${C} ${h} / ${+(lch.alpha.toFixed(2))})`;
+			}
+
+			/**
+			 * Parses an OKLab lightness token. Accepts percentage (0%–100%) or a unitless
+			 * number (0–1 per CSS Color 4, also accepts 0–100 for leniency).
+			 */
+			function _parseOKLightness(token: string): number {
+				const trimmed = token.trim();
+				if (trimmed.endsWith('%')) {
+					return parseFloat(trimmed.slice(0, -1)) / 100;
+				}
+				// Per CSS Color 4, unitless L in oklab/oklch is 0–1.
+				return parseFloat(trimmed);
+			}
+
+			function _parseOKAlpha(token: string | undefined): number {
+				if (token === undefined) { return 1; }
+				const trimmed = token.trim();
+				if (trimmed.endsWith('%')) {
+					return parseFloat(trimmed.slice(0, -1)) / 100;
+				}
+				return parseFloat(trimmed);
+			}
+
+			/**
+			 * Parses an oklab() CSS Color Level 4 function.
+			 * Examples: oklab(50% 0.1 -0.05), oklab(0.5 0.1 -0.05 / 0.8).
+			 */
+			export function parseOKLab(css: string): Color | null {
+				const match = css.match(/^oklab\(\s*([+-]?(?:\d+\.?\d*|\.\d+)%?)\s+([+-]?(?:\d+\.?\d*|\.\d+)%?)\s+([+-]?(?:\d+\.?\d*|\.\d+)%?)\s*(?:\/\s*([+-]?(?:\d+\.?\d*|\.\d+)%?)\s*)?\)$/i);
+				if (!match) { return null; }
+				const L = _parseOKLightness(match[1]);
+				// Per spec, a and b may be percentages where 100% == 0.4 (scale factor).
+				const aRaw = match[2].trim();
+				const bRaw = match[3].trim();
+				const a = aRaw.endsWith('%') ? parseFloat(aRaw.slice(0, -1)) / 100 * 0.4 : parseFloat(aRaw);
+				const b = bRaw.endsWith('%') ? parseFloat(bRaw.slice(0, -1)) / 100 * 0.4 : parseFloat(bRaw);
+				const alpha = _parseOKAlpha(match[4]);
+				if ([L, a, b, alpha].some(n => Number.isNaN(n))) { return null; }
+				return new Color(_okLabToRGBA({ L, a, b, alpha }));
+			}
+
+			/**
+			 * Parses an oklch() CSS Color Level 4 function.
+			 * Examples: oklch(50% 0.2 120), oklch(0.5 0.2 120deg / 0.8).
+			 */
+			export function parseOKLCh(css: string): Color | null {
+				const match = css.match(/^oklch\(\s*([+-]?(?:\d+\.?\d*|\.\d+)%?)\s+([+-]?(?:\d+\.?\d*|\.\d+)%?)\s+([+-]?(?:\d+\.?\d*|\.\d+))(?:deg)?\s*(?:\/\s*([+-]?(?:\d+\.?\d*|\.\d+)%?)\s*)?\)$/i);
+				if (!match) { return null; }
+				const L = _parseOKLightness(match[1]);
+				// Per spec, C may be percentage where 100% == 0.4 (scale factor).
+				const cRaw = match[2].trim();
+				const C = cRaw.endsWith('%') ? parseFloat(cRaw.slice(0, -1)) / 100 * 0.4 : parseFloat(cRaw);
+				const h = parseFloat(match[3]);
+				const alpha = _parseOKAlpha(match[4]);
+				if ([L, C, h, alpha].some(n => Number.isNaN(n))) { return null; }
+				return new Color(_okLabToRGBA(_okLChToOKLab({ L, C, h, alpha })));
+			}
+
 			function _toTwoDigitHex(n: number): string {
 				const r = n.toString(16);
 				return r.length !== 2 ? '0' + r : r;
@@ -694,6 +868,12 @@ export namespace Color {
 					const g = parseInt(color.groups?.g ?? '0');
 					const b = parseInt(color.groups?.b ?? '0');
 					return new Color(new RGBA(r, g, b));
+				}
+				if (css.startsWith('oklab(')) {
+					return parseOKLab(css);
+				}
+				if (css.startsWith('oklch(')) {
+					return parseOKLCh(css);
 				}
 				// TODO: Support more formats as needed
 				return parseNamedKeyword(css);
