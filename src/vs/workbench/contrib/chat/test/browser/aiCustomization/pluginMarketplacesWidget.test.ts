@@ -236,11 +236,27 @@ suite('PluginMarketplacesWidget', () => {
 	test('ignores stale loads after a harness change and displays load errors with retry', async () => {
 		const pending = new DeferredPromise<readonly ICustomizationMarketplaceInfo[]>();
 		let list: () => Promise<readonly ICustomizationMarketplaceInfo[]> = async () => [marketplace('initial')];
-		const fixture = await createFixture({ provider: { list: () => list() } });
+		const removes: string[] = [];
+		const fixture = await createFixture({
+			provider: {
+				list: () => list(),
+				remove: async (_resource, name) => { removes.push(name); return { removed: true }; },
+			},
+		});
+		const staleRemove = fixture.menu().find(action => action.id === 'remove')!;
 		list = () => pending.p;
 		const stale = fixture.widget.refresh();
 		list = async () => [marketplace('current')];
 		fixture.harness.activeSessionResource.set(URI.parse('test:/new-session'), undefined);
+		const cleared = {
+			names: [...fixture.widget.element.querySelectorAll('.marketplace-list-item-name')].map(element => element.textContent),
+			message: fixture.widget.element.querySelector<HTMLElement>('.marketplaces-message')?.textContent,
+		};
+		await staleRemove.run();
+		assert.deepStrictEqual({ cleared, removes }, {
+			cleared: { names: [], message: 'Loading marketplaces...' },
+			removes: [],
+		});
 		await fixture.widget.refresh();
 		await pending.complete([marketplace('stale')]);
 		await stale;
@@ -248,13 +264,19 @@ suite('PluginMarketplacesWidget', () => {
 		list = async () => { throw new Error('Cannot list'); };
 		await fixture.widget.refresh();
 		const error = fixture.widget.element.querySelector<HTMLElement>('.marketplaces-message')!;
-		const failed = { visible: error.style.display !== 'none', text: error.textContent };
+		const retry = fixture.widget.element.querySelector<HTMLElement>('.marketplaces-message + .monaco-button')!;
+		fixture.search('does not match');
+		const failed = { visible: error.style.display !== 'none', text: error.textContent, retryVisible: retry.style.display !== 'none' };
+		fixture.search('');
+		const clearedError = { visible: error.style.display !== 'none', text: error.textContent, retryVisible: retry.style.display !== 'none' };
 		list = async () => [marketplace('retried')];
 		await fixture.widget.refresh();
-		assert.deepStrictEqual({ current, failed, retried: fixture.widget.getAccessibilityContent() }, {
+		assert.deepStrictEqual({ current, failed, clearedError, retried: fixture.widget.getAccessibilityContent(), retryHidden: retry.style.display === 'none' }, {
 			current: 'Marketplaces\n\ncurrent. owner/current',
-			failed: { visible: true, text: 'Failed to load marketplaces: Cannot list' },
+			failed: { visible: true, text: 'Failed to load marketplaces: Cannot list', retryVisible: true },
+			clearedError: { visible: true, text: 'Failed to load marketplaces: Cannot list', retryVisible: true },
 			retried: 'Marketplaces\n\nretried. owner/retried',
+			retryHidden: true,
 		});
 	});
 

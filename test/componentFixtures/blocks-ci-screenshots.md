@@ -6,6 +6,9 @@
 #### baseUI/KeyboardFocusedToggle/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/dfbb0ce3586e7a15bdb7354ff70df81563ed19b5b857c71d7a02e11ef7ad13fd)
 
+#### chat/aiCustomizations/aiCustomizationManagementEditor/PluginMarketplaces/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/625949c7000f4c1d67c061ff464254ac460451d377b4f205dadf93a26efc17b4)
+
 #### chat/chatCustomizationsHover/Default/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ee82e7855b504c48ca9487cc06428fa0144b134c8a21f96f25ba1c0c34da7382)
 

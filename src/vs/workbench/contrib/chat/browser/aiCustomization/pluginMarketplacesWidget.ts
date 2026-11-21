@@ -16,6 +16,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -55,6 +56,7 @@ interface IMarketplaceEntry {
 	readonly description: string;
 	readonly removable: boolean;
 	readonly available: boolean;
+	readonly targetGeneration: number;
 	readonly reference?: IMarketplaceReference;
 	readonly provider?: ICustomizationMarketplaceManagementProvider;
 	readonly sessionResource: URI;
@@ -83,6 +85,9 @@ export class PluginMarketplacesWidget extends Disposable {
 	private entries: readonly IMarketplaceEntry[] = [];
 	private visible = false;
 	private generation = 0;
+	private targetGeneration = 0;
+	private loading = false;
+	private loadError: string | undefined;
 	private height = 0;
 	private width = 0;
 	private readonly pending = new Set<string>();
@@ -236,8 +241,14 @@ export class PluginMarketplacesWidget extends Disposable {
 		this._register(this.marketplaceService.onDidChangeMarketplaces(() => { void this.refresh(); }));
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
-			this.harnessService.activeSessionResource.read(reader);
-			const provider = this.harnessService.getActiveDescriptor().marketplaceManagementProvider;
+			const sessionResource = this.harnessService.activeSessionResource.read(reader);
+			this.targetGeneration++;
+			this.generation++;
+			this.entries = [];
+			this.loadError = undefined;
+			this.loading = this.visible;
+			this.render();
+			const provider = this.harnessService.getDescriptorForSession(sessionResource)?.marketplaceManagementProvider;
 			if (provider) {
 				reader.store.add(provider.onDidChange(() => { void this.refresh(); }));
 				reader.store.add(provider.onDidChangeMarketplaces(() => { void this.refresh(); }));
@@ -294,6 +305,10 @@ export class PluginMarketplacesWidget extends Disposable {
 			return;
 		}
 		const generation = ++this.generation;
+		if (!this.entries.length && !this.loadError) {
+			this.loading = true;
+			this.render();
+		}
 		const sessionResource = this.harnessService.activeSessionResource.get();
 		const descriptor = this.harnessService.getDescriptorForSession(sessionResource);
 		const provider = descriptor?.marketplaceManagementProvider;
@@ -305,7 +320,7 @@ export class PluginMarketplacesWidget extends Disposable {
 				entries = marketplaces.map(marketplace => ({
 					type: 'marketplace', id: marketplace.name, name: marketplace.name, source: marketplace.source,
 					description: this.describeProviderMarketplace(marketplace),
-					removable: !marketplace.managed && !marketplace.isDefault, available: marketplace.available,
+					removable: !marketplace.managed && !marketplace.isDefault, available: marketplace.available, targetGeneration: this.targetGeneration,
 					provider, sessionResource,
 				}));
 			} else {
@@ -317,7 +332,7 @@ export class PluginMarketplacesWidget extends Disposable {
 					return {
 						type: 'marketplace', id: reference.canonicalId, name: reference.displayLabel, source: reference.rawValue,
 						description: [defaults.has(reference.canonicalId) ? localize('marketplaces.default', "Default") : '', managed.has(reference.canonicalId) ? localize('marketplaces.managed', "Managed by Organization") : '', !available ? localize('marketplaces.disabled', "Disabled by Organization") : ''].filter(Boolean).join(', '),
-						removable: !managed.has(reference.canonicalId), available, reference, sessionResource,
+						removable: !managed.has(reference.canonicalId), available, targetGeneration: this.targetGeneration, reference, sessionResource,
 					};
 				});
 			}
@@ -325,15 +340,15 @@ export class PluginMarketplacesWidget extends Disposable {
 				return;
 			}
 			this.entries = entries.filter(entry => isPluginMarketplaceAvailableInDiscover(this.configurationService, entry.reference ?? entry.source, githubFeedAvailable));
+			this.loading = false;
+			this.loadError = undefined;
 			this.render();
 		} catch (error) {
 			if (generation === this.generation && this.visible) {
 				this.entries = [];
+				this.loading = false;
+				this.loadError = localize('marketplaces.loadFailed', "Failed to load marketplaces: {0}", getErrorMessage(error));
 				this.render();
-				this.message.textContent = localize('marketplaces.loadFailed', "Failed to load marketplaces: {0}", getErrorMessage(error));
-				this.message.style.display = '';
-				this.retry.element.style.display = '';
-				this.layout(this.height, this.width);
 			}
 		}
 	}
@@ -352,21 +367,24 @@ export class PluginMarketplacesWidget extends Disposable {
 	}
 
 	private render(): void {
-		this.retry.element.style.display = 'none';
 		const entries = this.filteredEntries();
 		const previousGroup = this.tree.getNode(null).children[0]?.element;
 		const collapsed = previousGroup ? this.tree.isCollapsed(previousGroup) : false;
 		const group: ICustomizationGroupHeaderEntry = { type: 'group-header', id: 'user', label: localize('marketplaces.user', "User"), icon: Codicon.account, count: entries.length, isFirst: true, description: localize('marketplaces.userDescription', "Plugin marketplaces available to your user."), collapsed };
 		this.tree.setChildren(null, entries.length ? [{ element: group, collapsible: true, collapsed, children: entries.map(element => ({ element })) }] : []);
-		this.message.textContent = entries.length ? '' : this.search.value ? localize('marketplaces.noMatches', "No matching marketplaces.") : localize('marketplaces.empty', "No plugin marketplaces configured.");
-		this.message.style.display = entries.length ? 'none' : '';
+		this.retry.element.style.display = this.loadError ? '' : 'none';
+		this.message.textContent = this.loadError
+			?? (entries.length ? '' : this.loading
+				? localize('marketplaces.loading', "Loading marketplaces...")
+				: this.search.value ? localize('marketplaces.noMatches', "No matching marketplaces.") : localize('marketplaces.empty', "No plugin marketplaces configured."));
+		this.message.style.display = this.loadError || this.loading || !entries.length ? '' : 'none';
 		this.layout(this.height, this.width);
 	}
 
 	private getActions(entry: IMarketplaceEntry, store: DisposableStore): IAction[] {
 		const enabled = !this.pending.has(entry.id);
 		const actions: IAction[] = [
-			store.add(new Action('browse', localize('marketplaces.browse', "Browse"), undefined, enabled && entry.available, () => this.run(() => this.browse(entry)))),
+			store.add(new Action('browse', localize('marketplaces.browse', "Browse"), undefined, enabled && entry.available, () => this.runForEntry(entry, () => this.browse(entry)))),
 			store.add(new Action('refresh', localize('marketplaces.refresh', "Refresh Marketplace"), undefined, enabled && entry.available, () => this.runEntry(entry, async () => {
 				if (entry.provider) {
 					const failures = (await entry.provider.refresh(entry.sessionResource, entry.name)).filter(result => !result.success);
@@ -387,7 +405,7 @@ export class PluginMarketplacesWidget extends Disposable {
 			}))),
 		];
 		if (entry.reference) {
-			actions.push(store.add(new Action('openFolder', localize('marketplaces.openFolder', "Open Folder"), undefined, enabled, () => this.run(async () => {
+			actions.push(store.add(new Action('openFolder', localize('marketplaces.openFolder', "Open Folder"), undefined, enabled, () => this.runForEntry(entry, async () => {
 				const uri = this.repositoryService.getRepositoryUri(entry.reference!);
 				if (await this.fileService.exists(uri)) {
 					await this.commandService.executeCommand('revealFileInOS', uri);
@@ -403,6 +421,9 @@ export class PluginMarketplacesWidget extends Disposable {
 	}
 
 	private async browse(entry: IMarketplaceEntry): Promise<void> {
+		if (!this.isCurrentEntry(entry)) {
+			return;
+		}
 		await this.commandService.executeCommand(AICustomizationManagementCommands.OpenMarketplace, {
 			section: AICustomizationManagementSection.Plugins, searchQuery: '',
 			sourceId: entry.provider ? getProviderMarketplaceSourceId(entry.name) : getPluginCustomizationMarketplaceNavigationSourceId(this.configurationService, entry.reference!, isAgentFinderPublicFeedAvailable(this.marketplaceService, !!this.harnessService.getActiveDescriptor().marketplaceSearchProvider)),
@@ -434,7 +455,7 @@ export class PluginMarketplacesWidget extends Disposable {
 	}
 
 	private async runEntry(entry: IMarketplaceEntry, action: () => Promise<void>): Promise<void> {
-		if (this.pending.has(entry.id)) {
+		if (!this.isCurrentEntry(entry) || this.pending.has(entry.id)) {
 			return;
 		}
 		this.pending.add(entry.id);
@@ -445,6 +466,18 @@ export class PluginMarketplacesWidget extends Disposable {
 			this.pending.delete(entry.id);
 			await this.refresh();
 		}
+	}
+
+	private async runForEntry(entry: IMarketplaceEntry, action: () => Promise<void>): Promise<void> {
+		if (this.isCurrentEntry(entry)) {
+			await this.run(action);
+		}
+	}
+
+	private isCurrentEntry(entry: IMarketplaceEntry): boolean {
+		return entry.targetGeneration === this.targetGeneration
+			&& isEqual(entry.sessionResource, this.harnessService.activeSessionResource.get())
+			&& entry.provider === this.harnessService.getDescriptorForSession(entry.sessionResource)?.marketplaceManagementProvider;
 	}
 
 	private async run(action: () => Promise<void>): Promise<void> {
