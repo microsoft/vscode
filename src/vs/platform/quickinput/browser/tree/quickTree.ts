@@ -221,9 +221,19 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 			const sortByLabel = this._sortByLabel.read(reader);
 			this.ui.tree.sortByLabel = sortByLabel;
 		});
+		let hasTreeData = false;
 		this.registerVisibleAutorun((reader) => {
 			const itemTree = this._itemTree.read(reader);
 			this.ui.tree.setTreeData(itemTree);
+			if (hasTreeData) {
+				// Replacing the items fires no checkbox event, so update the header here.
+				this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length);
+				const checkAllState = getParentNodeState([...this.ui.tree.tree.getNode().children]);
+				if (this.ui.checkAll.checked !== checkAllState) {
+					this.ui.checkAll.checked = checkAllState;
+				}
+			}
+			hasTreeData = true;
 		});
 	}
 
