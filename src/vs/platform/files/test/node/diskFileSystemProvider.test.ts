@@ -6,20 +6,27 @@
 import assert from 'assert';
 import { execFile, spawn } from 'child_process';
 import { once } from 'events';
-import { promises } from 'fs';
+import { constants, promises } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { stub } from 'sinon';
-import { FileAccess } from '../../../../base/common/network.js';
+import { timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { consumeStream } from '../../../../base/common/stream.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { BufferReader, BufferWriter, deserialize, serialize } from '../../../../base/parts/ipc/common/ipc.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../common/files.js';
 import { Event } from '../../../../base/common/event.js';
 import { DefaultURITransformer, IURITransformer } from '../../../../base/common/uriIpc.js';
 import { DiskFileSystemProviderClient } from '../../common/diskFileSystemProviderClient.js';
+import { FileService } from '../../common/fileService.js';
 import { AbstractDiskFileSystemProviderChannel } from '../../node/diskFileSystemProviderServer.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -53,6 +60,26 @@ suite('DiskFileSystemProvider', function () {
 	teardown(async () => {
 		await promises.rm(testDir, { recursive: true, force: true });
 	});
+
+	function readWithProvider(method: string, resource: URI, token = CancellationToken.None): Promise<Uint8Array | undefined> {
+		return method === 'readFile' ?
+			provider.readFile(resource, undefined, token) :
+			consumeStream(provider.readFileStream(resource, {}, token), chunks => VSBuffer.concat(chunks.map(chunk => VSBuffer.wrap(chunk))).buffer);
+	}
+
+	function createIpcClient(): DiskFileSystemProviderClient {
+		const server = store.add(new TestDiskFileSystemProviderChannel(provider, new NullLogService()));
+
+		return store.add(new DiskFileSystemProviderClient({
+			call: (command, args, token) => server.call(undefined, command, args, token),
+			// Events go through the same serialization as over real IPC
+			listen: <T>(event: string, args?: unknown[]) => event !== 'readFileStream' ? Event.None : Event.map(server.listen<unknown>(undefined, event, args ?? []), payload => {
+				const writer = new BufferWriter();
+				serialize(writer, payload);
+				return deserialize(new BufferReader(writer.buffer)) as T;
+			}),
+		}, {}));
+	}
 
 	test('readFile reads regular files', async () => {
 		const filePath = join(testDir, 'file.txt');
@@ -159,16 +186,16 @@ suite('DiskFileSystemProvider', function () {
 		});
 	}
 
-	for (const method of ['open', 'readFile', 'readFileStream']) {
-		(isWindows ? test.skip : test)(`${method} rejects named pipes without a writer`, async function () {
+	for (const method of ['open', 'readFile', 'readFileStream', 'writeFile']) {
+		(isWindows ? test.skip : test)(`${method} rejects named pipes without a ${method === 'writeFile' ? 'reader' : 'writer'}`, async function () {
 			this.timeout(10000);
 
 			const fifoPath = join(testDir, 'named-pipe');
 			await execFileAsync('mkfifo', [fifoPath]);
 
-			// Isolate blocking reads so a regression cannot leave the test runner's worker pool stuck.
+			// Isolate blocking reads and writes so a regression cannot leave the test runner's worker pool stuck.
 			await execFileAsync(process.execPath, [
-				FileAccess.asFileUri('vs/platform/files/test/node/fixtures/readNamedPipe.js').fsPath,
+				FileAccess.asFileUri('vs/platform/files/test/node/fixtures/unconnectedNamedPipe.js').fsPath,
 				method,
 				fifoPath
 			], {
@@ -183,6 +210,130 @@ suite('DiskFileSystemProvider', function () {
 		await assert.rejects(
 			provider.readFile(URI.file('/dev/null')),
 			error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.Unavailable
+		);
+	});
+
+	for (const method of ['readFile', 'readFileStream']) {
+		(isWindows ? test.skip : test)(`${method} reads named pipes once their writer provides data`, async () => {
+			const fifoPath = join(testDir, 'named-pipe');
+			await execFileAsync('mkfifo', [fifoPath]);
+
+			// A reader that never reads lets the writer open the pipe without blocking
+			const idleReader = await promises.open(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
+			const writer = await promises.open(fifoPath, constants.O_WRONLY | constants.O_NONBLOCK);
+			try {
+				const contents = readWithProvider(method, URI.file(fifoPath));
+
+				// Give the provider time to find the pipe empty before writing
+				await timeout(50);
+				await writer.write('A=1\n');
+				await writer.close();
+
+				assert.strictEqual(Buffer.from((await contents) ?? []).toString(), 'A=1\n');
+			} finally {
+				await writer.close();
+				await idleReader.close();
+			}
+		});
+	}
+
+	for (const method of ['readFile', 'readFileStream']) {
+		for (const closeBeforeRead of [true, false]) {
+			(isWindows ? test.skip : test)(`${method} rejects named pipes whose writer closes without data ${closeBeforeRead ? 'before' : 'after'} the first read`, async () => {
+				const fifoPath = join(testDir, 'named-pipe');
+				await execFileAsync('mkfifo', [fifoPath]);
+
+				// A reader that never reads lets the writer open the pipe without blocking
+				const idleReader = await promises.open(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
+				const writer = await promises.open(fifoPath, constants.O_WRONLY | constants.O_NONBLOCK);
+				try {
+					if (closeBeforeRead) {
+						await writer.close();
+					}
+
+					const contents = readWithProvider(method, URI.file(fifoPath));
+
+					if (!closeBeforeRead) {
+						// Give the provider time to find the pipe empty before closing
+						await timeout(50);
+						await writer.close();
+					}
+
+					await assert.rejects(contents, error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.Unavailable);
+				} finally {
+					await writer.close();
+					await idleReader.close();
+				}
+			});
+		}
+	}
+
+	const cancellableReads: [string, (resource: URI, token: CancellationToken) => Promise<unknown>][] = [
+		['readFile through the file service', (resource, token) => {
+			const fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.file, createIpcClient()));
+
+			return fileService.readFile(resource, undefined, token);
+		}],
+		['readFileStream', (resource, token) => readWithProvider('readFileStream', resource, token)],
+	];
+
+	for (const [name, read] of cancellableReads) {
+		(isWindows ? test.skip : test)(`${name} stops waiting for a named pipe when cancelled`, async () => {
+			const fifoPath = join(testDir, 'named-pipe');
+			await execFileAsync('mkfifo', [fifoPath]);
+
+			// A writer that never writes keeps reads waiting
+			const idleReader = await promises.open(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
+			const idleWriter = await promises.open(fifoPath, constants.O_WRONLY | constants.O_NONBLOCK);
+			const cts = new CancellationTokenSource();
+			try {
+				const contents = read(URI.file(fifoPath), cts.token);
+
+				await timeout(50);
+				cts.cancel();
+				await assert.rejects(contents, error => isCancellationError(error));
+
+				// Without the idle reader, writing only fails once the provider closed its end of the pipe
+				await idleReader.close();
+				await assert.rejects(idleWriter.write('A=1\n'), { code: 'EPIPE' });
+			} finally {
+				cts.dispose();
+				await idleWriter.close();
+				await idleReader.close();
+			}
+		});
+	}
+
+	(isWindows ? test.skip : test)('writeFile writes to named pipes while their reader catches up', async () => {
+		const fifoPath = join(testDir, 'named-pipe');
+		await execFileAsync('mkfifo', [fifoPath]);
+
+		// More than fits into the pipe, so writing has to wait for the reader
+		const content = 'A=1\n'.repeat(64 * 1024);
+
+		// A reader that never reads lets the provider open the pipe right away
+		const idleReader = await promises.open(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
+		try {
+			const reader = spawn('cat', [fifoPath]);
+			const chunks: Buffer[] = [];
+			reader.stdout.on('data', chunk => chunks.push(chunk));
+
+			await provider.writeFile(URI.file(fifoPath), VSBuffer.fromString(content).buffer, { create: false, overwrite: true, unlock: false, atomic: false });
+			await once(reader, 'close');
+
+			assert.strictEqual(Buffer.concat(chunks).toString(), content);
+		} finally {
+			await idleReader.close();
+		}
+	});
+
+	(isWindows ? test.skip : test)('readFileStream errors keep their message across IPC', async () => {
+		const client = createIpcClient();
+
+		await assert.rejects(
+			consumeStream(client.readFileStream(URI.file('/dev/null'), {}, CancellationToken.None), () => undefined),
+			error => error instanceof Error && error.message === 'File is not a regular file' && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.Unavailable
 		);
 	});
 

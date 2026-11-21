@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -821,7 +821,68 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	}
 
+	test('restores completion notifications with the mapped child chats', async () => {
+		const chats = new Map([
+			['task-a', 'ahp-chat:/11111111-1111-5111-8111-111111111111'],
+			['task-b', 'ahp-chat:/22222222-2222-5222-8222-222222222222'],
+		]);
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Review' } },
+			{ type: 'system.notification', data: { content: 'Finished', kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'review', status: 'failed' } } },
+			{ type: 'subagent.started', agentId: 'agent-a', data: { toolCallId: 'task-a', agentName: 'review', agentDisplayName: 'First', agentDescription: '' } },
+			{ type: 'subagent.completed', agentId: 'agent-b', data: { toolCallId: 'task-b', agentName: 'review', agentDisplayName: 'Second' } },
+			{ type: 'system.notification', data: { content: 'Finished', kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'review' } } },
+		]), { resolveSubagentChatUri: toolCallId => chats.get(toolCallId)! });
+		assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [part.content] : [])), [
+			'[Second](ahp-chat:/22222222-2222-5222-8222-222222222222) failed',
+			'[First](ahp-chat:/11111111-1111-5111-8111-111111111111) is complete',
+		]);
+	});
+
 	for (const hasExecutionEvents of [true, false]) {
+		test(`restores linked read recipients (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const parameters = { agent_id: 'renderer-agent', wait: false };
+			const chat = 'ahp-chat:/11111111-1111-5111-8111-111111111111';
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Read the review.' } },
+				{ type: 'assistant.message', data: { messageId: 'read-request', content: '', toolRequests: [{ toolCallId: 'tc-read', name: 'read_agent', arguments: parameters }] } },
+				...(hasExecutionEvents ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'read_agent', arguments: parameters } }] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true } },
+				{ type: 'subagent.started', agentId: 'renderer-agent', data: { toolCallId: 'renderer-task', agentName: 'code-review', agentDisplayName: 'Renderer reviewer', agentDescription: '' } },
+			]), { resolveSubagentChatUri: () => chat });
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolCallId === 'tc-read' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage, input: part.toolCall.toolInput }]
+				: [])), [{
+					invocation: { markdown: `Read agent [Renderer reviewer](${chat})` },
+					completed: { markdown: `Read agent [Renderer reviewer](${chat})` },
+					input: JSON.stringify(parameters, null, 2),
+				}]);
+		});
+
+		test(`restores linked write recipients (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const parameters = { agent_ids: ['renderer-agent', 'history-agent'], message: 'Follow up' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Continue the review.' } },
+				{ type: 'assistant.message', data: { messageId: 'write-request', content: '', toolRequests: [{ toolCallId: 'tc-write', name: 'write_agent', arguments: parameters }] } },
+				...(hasExecutionEvents ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-write', toolName: 'write_agent', arguments: parameters } }] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-write', success: true } },
+				{ type: 'subagent.started', agentId: 'renderer-agent', data: { toolCallId: 'renderer-task', agentName: 'code-review', agentDisplayName: 'Renderer reviewer', agentDescription: '' } },
+				{ type: 'subagent.completed', agentId: 'history-agent', data: { toolCallId: 'history-task', agentName: 'code-review', agentDisplayName: 'History reviewer' } },
+			];
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
+				resolveSubagentChatUri: toolCallId => `ahp-chat:/opaque/${toolCallId}`,
+			});
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolCallId === 'tc-write' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage, input: part.toolCall.toolInput }]
+				: [])), [{
+					invocation: { markdown: 'Write to agents [Renderer reviewer](ahp-chat:/opaque/renderer-task), [History reviewer](ahp-chat:/opaque/history-task)' },
+					completed: { markdown: 'Write to agents [Renderer reviewer](ahp-chat:/opaque/renderer-task), [History reviewer](ahp-chat:/opaque/history-task)' },
+					input: JSON.stringify(parameters, null, 2),
+				}]);
+		});
+
 		test(`restores write recipients from background completion notifications (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
 			const parameters = { agent_ids: ['renderer-agent', 'history-agent'], message: 'Follow up' };
 			const events: ISessionEvent[] = [
@@ -1468,6 +1529,25 @@ suite('mapSessionEvents — history replay', () => {
 				pastTenseMessage: displayName,
 				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
 			});
+		});
+	}
+
+	for (const source of ['toolRequest', 'execution_start'] as const) {
+		test(`restores the MCP server display name from ${source}`, async () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			const toolName = `${serverName}-slack_read_thread`;
+			const mcp = { mcpServerName: serverName, mcpServerDisplayName: 'Slack', mcpToolName: 'slack_read_thread' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'Read the thread' } },
+				{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-mcp', name: toolName, ...(source === 'toolRequest' ? mcp : {}) }] } },
+				...(source === 'execution_start' ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-mcp', toolName, ...mcp } } satisfies ISessionEvent] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-mcp', success: true, result: { content: 'Thread' } } },
+			];
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(readToolCallMeta(part.toolCall), { mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack', mcpToolName: 'slack_read_thread' });
 		});
 	}
 

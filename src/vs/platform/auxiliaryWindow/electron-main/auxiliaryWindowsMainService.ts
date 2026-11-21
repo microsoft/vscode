@@ -143,6 +143,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-transparent':
 					overrides.transparent = true;
 					break;
+				case 'window-no-shadow':
+					overrides.noShadow = true;
+					break;
 				case 'window-not-resizable':
 					overrides.notResizable = true;
 					break;

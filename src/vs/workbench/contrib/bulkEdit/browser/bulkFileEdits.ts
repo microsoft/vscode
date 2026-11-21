@@ -18,6 +18,7 @@ import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditSe
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 
 interface IFileOperation {
 	uris: URI[];
@@ -327,6 +328,16 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 	}
 }
 
+/**
+ * All deletes of an operation are validated before any of them runs. Deleting a folder
+ * after its contents (for example a non-recursive delete of a folder that has just been
+ * emptied) therefore needs its own operation so that it is validated after the deletes
+ * it depends on.
+ */
+function isDeleteOfAncestor(edit: RenameEdit | CopyEdit | DeleteEdit | CreateEdit, group: readonly (RenameEdit | CopyEdit | DeleteEdit | CreateEdit)[]): boolean {
+	return edit.type === 'delete' && group.some(other => other.type === 'delete' && extUriBiasedIgnorePathCase.isEqualOrParent(other.oldUri, edit.oldUri));
+}
+
 export class BulkFileEdits {
 
 	constructor(
@@ -369,7 +380,7 @@ export class BulkFileEdits {
 		for (let i = 1; i < edits.length; i++) {
 			const edit = edits[i];
 			const lastGroup = groups.at(-1);
-			if (lastGroup?.[0].type === edit.type) {
+			if (lastGroup?.[0].type === edit.type && !isDeleteOfAncestor(edit, lastGroup)) {
 				lastGroup.push(edit);
 			} else {
 				groups.push([edit]);

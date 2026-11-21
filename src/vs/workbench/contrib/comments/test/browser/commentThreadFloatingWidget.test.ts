@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -211,6 +211,22 @@ suite('Comment thread floating widget', () => {
 		});
 	});
 
+	suite('getDefaultFloatingWidgetWidth', () => {
+		test('starts a new comment wider than other widgets when the editor has room for it', () => {
+			assert.deepStrictEqual({
+				existingComment: getDefaultFloatingWidgetWidth(1000, 1000, false),
+				newComment: getDefaultFloatingWidgetWidth(1000, 1000, true),
+				newCommentInWideEditor: getDefaultFloatingWidgetWidth(2000, 2000, true),
+				newCommentInNarrowEditor: getDefaultFloatingWidgetWidth(500, 500, true),
+			}, {
+				existingComment: 400,
+				newComment: 500,
+				newCommentInWideEditor: 640,
+				newCommentInNarrowEditor: 320,
+			});
+		});
+	});
+
 	suite('getWidthBesideCode', () => {
 		test('is as wide as preferred, or as wide as there is room for after the end of the code', () => {
 			const code = { top: 500, left: 60, width: 300, height: 20 };
@@ -329,19 +345,21 @@ suite('Comment thread floating widget', () => {
 			return model;
 		}
 
-		test('can be as wide as the editor, and is shown as wide as its content fills, unless something is being written', () => {
+		test('can be as wide as the editor, and is shown as wide as its content fills but not too narrow, unless something is being written', () => {
 			const model = createModel();
 			assert.deepStrictEqual({
 				narrowContent: model.getWidthRange({ minimum: 100, natural: 180 }),
 				wideContent: model.getWidthRange({ minimum: 300, natural: 700 }),
 				defaultForNarrowContent: model.getDefaultWidth({ minimum: 100, natural: 180 }, 400, false),
+				defaultForNarrowContentInNarrowEditor: model.getDefaultWidth({ minimum: 100, natural: 180 }, 280, false),
 				defaultForWideContent: model.getDefaultWidth({ minimum: 300, natural: 700 }, 400, false),
 				defaultWhileEditing: model.getDefaultWidth({ minimum: 100, natural: 180 }, 400, true),
 				defaultWiderThanEditor: model.getDefaultWidth({ minimum: 300, natural: 1400 }, 1200, false),
 			}, {
 				narrowContent: { min: 240, max: 1000 },
 				wideContent: { min: 300, max: 1000 },
-				defaultForNarrowContent: 240,
+				defaultForNarrowContent: 320,
+				defaultForNarrowContentInNarrowEditor: 280,
 				defaultForWideContent: 400,
 				defaultWhileEditing: 400,
 				defaultWiderThanEditor: 1000,

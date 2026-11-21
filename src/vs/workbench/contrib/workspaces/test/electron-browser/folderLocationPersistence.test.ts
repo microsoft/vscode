@@ -49,6 +49,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		const returns: URI[] = [];
 		const prompts: { readonly choices: string[]; run(): Promise<void>; closed(): boolean }[] = [];
 		const onDidChangeProviders = ds.add(new Emitter<void>());
+		const onDidChangeLocations = ds.add(new Emitter<void>());
 		const onDidChangeWorkbenchState = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly folder: unknown; readonly reason: 'user' | 'programmatic' }>());
@@ -63,6 +64,7 @@ suite('FolderLocationPersistenceContribution', () => {
 
 		const locationService = {
 			onDidChangeProviders: onDidChangeProviders.event,
+			onDidChangeLocations: onDidChangeLocations.event,
 			onDidChangeLocation: onDidChangeCurrentLocation.event,
 			isAtAlternateLocation: () => !multiRoot && !extUri.isEqual(folderUri, primary),
 			getLocation: () => currentLocation,
@@ -94,6 +96,8 @@ suite('FolderLocationPersistenceContribution', () => {
 		return {
 			persistedCalls, notifications, notificationIds, errors, returns, prompts, locationService, contribution,
 			registerProvider() { providerAvailable = true; onDidChangeProviders.fire(); },
+			/** As a registered provider learns of the location, such as once the sessions it knows of load. */
+			learnLocation() { providerAvailable = true; onDidChangeLocations.fire(); },
 			fireProvidersChanged() { onDidChangeProviders.fire(); },
 			current: () => currentLocation,
 			setCurrent(location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ folder: getWorkspace().folders[0], reason: 'programmatic' }); },
@@ -144,6 +148,17 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ current: fixture.current()?.label, notifications: fixture.notifications, returns: fixture.returns },
 			{ current: 'Alternate', notifications: [], returns: [] });
 	});
+
+	test('a registered provider learning of the location before the deadline confirms it, without offering to return', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT / 2);
+		fixture.learnLocation();
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT);
+
+		assert.deepStrictEqual(
+			{ current: fixture.current()?.label, persisted: fixture.persistedCalls, prompts: fixture.prompts.length, notifications: fixture.notifications },
+			{ current: 'Alternate', persisted: [persisted], prompts: 0, notifications: [] });
+	}));
 
 	test('a fresh open at the primary persists nothing and does not notify', async () => {
 		const fixture = createFixture({ folderUri: primary });

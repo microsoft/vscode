@@ -301,6 +301,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override readonly onDidRemoveWidget = Event.None;
 				override readonly onDidBackgroundSession = Event.None;
 				override readonly onDidChangeFocusedWidget = Event.None;
+				override readonly onDidChangeWidgetVisibility = Event.None;
 				override readonly onDidChangeFocusedSession = Event.None;
 				override getAllWidgets() { return widgetHolder.current ? [widgetHolder.current] : []; }
 				override getWidgetByInputUri() { return undefined; }
@@ -741,10 +742,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
+	const listContainer = dom.$('.interactive-list');
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = disposableStore.add(new Emitter<never>()).event;
 		override readonly viewModel = viewModel;
 		override readonly domNode = session;
+		override readonly transcriptDomNode = listContainer;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
@@ -762,7 +765,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	options.decorateInputPart?.(inputPart, instantiationService);
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
-	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';
@@ -1531,7 +1533,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		const activityLabelSelector = '.chat-tool-chain:not(.chat-used-context-collapsed) .progress-container p, .chat-tool-chain.chat-used-context-collapsed > .chat-used-context-label .monaco-button-mdlabel, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p';
 		if (options.activityRowSpacing) {
 			const labels = [...value.querySelectorAll<HTMLElement>(`${activityLabelSelector}, :scope > .chat-markdown-part > p`)];
-			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index], label));
+			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index].closest('.chat-persistent-reasoning') ?? labels[index], label));
 			if (labelGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
 				throw new Error(`Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap; measured ${labelGaps.join(', ')}`);
 			}

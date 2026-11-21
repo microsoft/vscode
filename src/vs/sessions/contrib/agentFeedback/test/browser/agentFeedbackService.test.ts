@@ -1275,13 +1275,13 @@ suite('whenChatWidgetForSession', () => {
 		const host = createWidgetHost();
 		host.load();
 
-		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 0), host.widget);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, { timeoutMs: 0 }), host.widget);
 	});
 
 	test('resolves once a widget loads the session', async () => {
 		const host = createWidgetHost();
 
-		const pending = whenChatWidgetForSession(host.service, session, 5000);
+		const pending = whenChatWidgetForSession(host.service, session, { timeoutMs: 5000 });
 		await timeout(0);
 		host.load();
 
@@ -1291,7 +1291,7 @@ suite('whenChatWidgetForSession', () => {
 	test('resolves undefined when no widget loads the session in time', async () => {
 		const host = createWidgetHost();
 
-		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 1), undefined);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, { timeoutMs: 1 }), undefined);
 	});
 
 	test('resolves when a widget that already has the session is added later', async () => {
@@ -1305,7 +1305,7 @@ suite('whenChatWidgetForSession', () => {
 			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined { return widgets[0]; }
 		};
 
-		const pending = whenChatWidgetForSession(service, session, 5000);
+		const pending = whenChatWidgetForSession(service, session, { timeoutMs: 5000 });
 		await timeout(0);
 		widgets = [widget];
 		onDidAddWidget.fire(widget);

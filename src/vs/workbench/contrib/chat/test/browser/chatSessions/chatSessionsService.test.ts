@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionOptionsMap, ChatSessionRefreshReason, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
@@ -42,7 +43,7 @@ import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agen
 import { AgentHostInputCompletions } from '../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
-import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { LocalAgentHostActivationContribution } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
 
@@ -487,6 +488,8 @@ suite('ChatSessionsService - policy history activation', () => {
 		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 			override registerSessionResource(resource: URI): URI { return resource.with({ scheme: `agent-host-${provider}` }); }
 		}());
+		// As the window starts: what waits for a local agent host's provider before the service resolves its chats
+		store.add(instantiationService.createInstance(LocalAgentHostActivationContribution));
 		const service = store.add(instantiationService.createInstance(ChatSessionsService));
 		return { service, subscription, sessionType: `agent-host-${provider}`, contentProvider: instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider) };
 	}
@@ -727,6 +730,99 @@ suite('ChatSessionsService - in-progress lifecycle', () => {
 		}, {
 			registeredProviders: [sessionType],
 			inProgress: [],
+		});
+	});
+
+	test('coalesces a burst of item changes into one notification and one re-read', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+			const sessionType = 'test-provider';
+			const items: IChatSessionItem[] = Array.from({ length: 50 }, (_, i) => ({
+				resource: URI.from({ scheme: sessionType, path: `/session-${i}` }),
+				label: `Session ${i}`,
+				status: i === 0 ? ChatSessionStatus.InProgress : ChatSessionStatus.Completed,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			}));
+			let itemReads = 0;
+			const controller: IChatSessionItemController = {
+				onDidChangeChatSessionItems: changed.event,
+				get items() {
+					itemReads++;
+					return items;
+				},
+				async refresh(): Promise<void> { },
+			};
+			const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+			const service = store.add(instantiationService.createInstance(ChatSessionsService));
+			store.add(service.registerChatSessionItemController(sessionType, controller));
+
+			const notified: IChatSessionItemsDelta[] = [];
+			store.add(service.onDidChangeSessionItems(e => notified.push(e)));
+
+			for (let i = 0; i < 100; i++) {
+				changed.fire({ addedOrUpdated: [items[i % items.length]] });
+			}
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				notifications: notified.length,
+				updatedResources: notified.flatMap(e => e.addedOrUpdated ?? []).length,
+				itemReads,
+				inProgress: service.getInProgress(),
+			}, {
+				notifications: 1,
+				updatedResources: 50,
+				itemReads: 1,
+				inProgress: [{ chatSessionType: sessionType, count: 1 }],
+			});
+		});
+	});
+
+	test('merges conflicting deltas for the same resource within one interval', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+			const sessionType = 'test-provider';
+			const makeItem = (name: string): IChatSessionItem => ({
+				resource: URI.from({ scheme: sessionType, path: `/${name}` }),
+				label: name,
+				status: ChatSessionStatus.Completed,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			});
+			const readded = makeItem('readded');
+			const removed = makeItem('removed');
+			let itemReads = 0;
+			const controller: IChatSessionItemController = {
+				onDidChangeChatSessionItems: changed.event,
+				get items() {
+					itemReads++;
+					return [];
+				},
+				async refresh(): Promise<void> { },
+			};
+			const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+			const service = store.add(instantiationService.createInstance(ChatSessionsService));
+			store.add(service.registerChatSessionItemController(sessionType, controller));
+
+			const notified: IChatSessionItemsDelta[] = [];
+			store.add(service.onDidChangeSessionItems(e => notified.push(e)));
+			const readsBefore = itemReads;
+
+			changed.fire({ removed: [readded.resource] });
+			changed.fire({ addedOrUpdated: [readded] });
+			changed.fire({ addedOrUpdated: [removed] });
+			changed.fire({ removed: [removed.resource] });
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				deltas: notified.map(e => ({
+					addedOrUpdated: e.addedOrUpdated?.map(i => i.label),
+					removed: e.removed?.map(r => r.path),
+				})),
+				itemReads: itemReads - readsBefore,
+			}, {
+				deltas: [{ addedOrUpdated: ['readded'], removed: ['/removed'] }],
+				itemReads: 1,
+			});
 		});
 	});
 });
@@ -1713,6 +1809,29 @@ suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
 			{ afterRegister, afterChange, afterDispose, afterChangePostDispose },
 			{ afterRegister: 1, afterChange: 2, afterDispose: 3, afterChangePostDispose: 3 },
 		);
+	});
+
+	test('creation availability changes preserve the registered type and stop notifying after disposal', () => {
+		const changed = store.add(new Emitter<void>());
+		let hidden = false;
+		const availability: (boolean | undefined)[] = [];
+		const registration = store.add(service.registerChatSessionContribution({
+			type: 'dyn', name: 'dyn', displayName: 'dyn', description: '',
+			get hideFromSessionTypePicker() { return hidden; },
+			onDidChangeAvailability: changed.event,
+		}));
+		store.add(service.onDidChangeAvailability(() => {
+			availability.push(service.getChatSessionContribution('dyn')?.hideFromSessionTypePicker);
+		}));
+
+		hidden = true;
+		changed.fire();
+		hidden = false;
+		changed.fire();
+		registration.dispose();
+		changed.fire();
+
+		assert.deepStrictEqual(availability, [true, false, undefined]);
 	});
 });
 

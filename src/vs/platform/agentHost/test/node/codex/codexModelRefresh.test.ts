@@ -38,6 +38,7 @@ import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAg
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
@@ -66,6 +67,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(ISessionDataService, createNullSessionDataService());
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);

@@ -21,6 +21,7 @@ export const enum CustomizationMigrationCategoryId {
 	PluginMarketplaces = 'pluginMarketplaces',
 	ChatParticipants = 'chatParticipants',
 	ToolSets = 'toolSets',
+	Hooks = 'hooks',
 }
 
 export const customizationMigrationGuidance = [
@@ -44,6 +45,7 @@ export const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.PromptFiles,
 	CustomizationMigrationCategoryId.UserData,
 	CustomizationMigrationCategoryId.ConfiguredLocations,
+	CustomizationMigrationCategoryId.Hooks,
 	CustomizationMigrationCategoryId.McpServers,
 	CustomizationMigrationCategoryId.PluginMarketplaces,
 ] as const;
@@ -76,6 +78,11 @@ export interface ICustomizationMigrationCategory {
 	readonly cardActionAriaLabel: string;
 	readonly noFilesMigratedMessage: string;
 	readonly preMigrationConsequences?: string;
+	/**
+	 * Whether the category can only be migrated with the agent. Its items have no Migrate action;
+	 * they are included when the user selects Migrate with Agent.
+	 */
+	readonly agentOnly?: boolean;
 	isCandidate?(customization: MigratableConfiguration): boolean;
 	getCandidateLabel(customization: CustomizationMigrationCandidate): string;
 	getCandidateWarnings?(customization: CustomizationMigrationCandidate, harnessLabel: string): readonly string[];
@@ -566,6 +573,65 @@ const pluginMarketplacesMigrationCategory: ICustomizationMigrationCategory = {
 	},
 };
 
+/**
+ * Hook files in the deprecated Local hook format. Hooks are migrated only with the agent:
+ * the hook file and the scripts it runs change together, and the agent checks the result.
+ */
+const hooksMigrationCategory: ICustomizationMigrationCategory = {
+	id: CustomizationMigrationCategoryId.Hooks,
+	migrationType: CustomizationMigrationType.Hooks,
+	sourceTypes: [PromptsType.hook],
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
+	agentOnly: true,
+	shortcutLabel: localize('hookMigrationShortcutLabel', "Migrate Hooks"),
+	shortcutTooltip: localize('hookMigrationShortcutTooltip', "Review hooks in the deprecated Local hook format"),
+	cardLabel: localize('hookMigrationCardLabel', "Migrate Local-Format Hooks"),
+	cardActionLabel: localize('hookMigrationCardAction', "Review..."),
+	cardActionAriaLabel: localize('hookMigrationCardActionAriaLabel', "Review hooks in the deprecated Local hook format"),
+	noFilesMigratedMessage: localize('hookMigrationNoFilesMigrated', "No hooks were migrated."),
+
+	getCandidateLabel: getFileCandidateLabel,
+
+	getShortcutAriaLabel(count) {
+		return count === 1
+			? localize('hookMigrationShortcutAriaLabelSingle', "Hooks, 1 hook file uses the deprecated Local hook format")
+			: localize('hookMigrationShortcutAriaLabelWithCount', "Hooks, {0} hook files use the deprecated Local hook format", count);
+	},
+
+	getCardDescription(customizations, harnessLabel) {
+		return customizations.length === 1
+			? localize('hookMigrationCardDescriptionSingle', "Found 1 hook file in the deprecated Local hook format. Its hooks may not work in {0}. Migrate it with the agent, which updates the hook file and its scripts and asks you to review the changes.", harnessLabel)
+			: localize('hookMigrationCardDescription', "Found {0} hook files in the deprecated Local hook format. Their hooks may not work in {1}. Migrate them with the agent, which updates each hook file and its scripts and asks you to review the changes.", customizations.length, harnessLabel);
+	},
+
+	// Hooks have no direct migration. These are required by the interface and are not shown.
+	getConfirmation() {
+		return {
+			message: localize('hookMigrationConfirmMessage', "Migrate hooks with the agent?"),
+			detail: localize('hookMigrationConfirmDetail', "Hooks are migrated with the agent, which updates each hook file and its scripts together."),
+			primaryButton: localize('hookMigrationConfirmButton', "Migrate with Agent"),
+		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('hookMigrationProgressSingle', "Migrating 1 hook file...")
+			: localize('hookMigrationProgress', "Migrating {0} hook files...", count);
+	},
+
+	getMigratedMessage(migratedCount) {
+		return migratedCount === 1
+			? localize('hookMigrationCompletedSingle', "Migrated 1 hook file.")
+			: localize('hookMigrationCompleted', "Migrated {0} hook files.", migratedCount);
+	},
+
+	getFailedMessage(failedFileNames, hiddenFileCount) {
+		return hiddenFileCount > 0
+			? localize('hookMigrationFilesFailedWithRemainder', "Failed to migrate {0} hook files: {1}, and {2} more.", failedFileNames.length + hiddenFileCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('hookMigrationFilesFailed', "Failed to migrate {0} hook files: {1}.", failedFileNames.length, failedFileNames.join(', '));
+	},
+};
+
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
 	const inputWarnings = server.environmentVariables?.length
 		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
@@ -604,6 +670,7 @@ export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigratio
 	promptFilesMigrationCategory,
 	userDataMigrationCategory,
 	configuredLocationsMigrationCategory,
+	hooksMigrationCategory,
 	mcpServersMigrationCategory,
 	pluginMarketplacesMigrationCategory,
 ];

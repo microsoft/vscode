@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableLongTimeout } from '../../../base/common/async.js';
-import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 
 /** Clock, timer and jitter abstraction for deterministic request scheduling. */
 export interface IRequestScheduler {
@@ -20,28 +22,20 @@ export const systemRequestScheduler: IRequestScheduler = {
 	jitter: maximum => Math.floor(Math.random() * (Math.max(0, maximum) + 1)),
 };
 
-export function schedulerDelay(scheduler: IRequestScheduler, delay: number, signal: AbortSignal): Promise<void> {
-	if (signal.aborted) {
-		return Promise.reject(signal.reason);
+export function schedulerDelay(scheduler: IRequestScheduler, delay: number, token: CancellationToken): Promise<void> {
+	if (token.isCancellationRequested) {
+		return Promise.reject(new CancellationError());
 	}
 	return new Promise<void>((resolve, reject) => {
-		const scheduled: { value?: IDisposable } = {};
-		let completedSynchronously = false;
-		const onAbort = () => {
-			scheduled.value?.dispose();
-			abortListener.dispose();
-			reject(signal.reason);
-		};
-		const abortListener = toDisposable(() => signal.removeEventListener('abort', onAbort));
-		signal.addEventListener('abort', onAbort, { once: true });
-		scheduled.value = scheduler.schedule(() => {
-			completedSynchronously = true;
-			scheduled.value?.dispose();
-			abortListener.dispose();
+		const lifetime = new DisposableStore();
+		const timer = lifetime.add(new MutableDisposable());
+		lifetime.add(token.onCancellationRequested(() => {
+			lifetime.dispose();
+			reject(new CancellationError());
+		}));
+		timer.value = scheduler.schedule(() => {
+			lifetime.dispose();
 			resolve();
 		}, Math.max(0, delay));
-		if (completedSynchronously) {
-			scheduled.value.dispose();
-		}
 	});
 }

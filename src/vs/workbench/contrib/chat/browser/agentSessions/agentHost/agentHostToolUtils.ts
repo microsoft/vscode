@@ -33,16 +33,24 @@ export function toolDataToDefinition(tool: IToolData, referenceName?: string): T
 	return withAgentToolFullReferenceName(withAgentToolPreferences(definition, tool.agentHostPreferences), referenceName);
 }
 
-export function getAgentFileToolReferenceName(tool: IToolData, toolsService: ILanguageModelToolsService): string {
-	const referenceName = tool.toolReferenceName ?? tool.displayName;
-	if (tool.source.type !== 'internal') {
-		return toolsService.getFullReferenceName(tool);
-	}
-	if (browserToolReferenceNames.has(referenceName)) {
-		return `browser/${referenceName}`;
-	}
-	if (notebookToolReferenceNames.has(referenceName)) {
-		return `notebook/${referenceName}`;
-	}
-	return `vscode/${referenceName}`;
+/**
+ * Creates a function that returns the names agent files use to reference tools. The names of non-internal tools come
+ * from one snapshot of the tools service's full reference names, taken when the first of them is needed.
+ */
+export function createAgentFileToolReferenceNameResolver(toolsService: ILanguageModelToolsService): (tool: IToolData) => string {
+	let getFullReferenceName: ((tool: IToolData) => string) | undefined;
+	return tool => {
+		const referenceName = tool.toolReferenceName ?? tool.displayName;
+		if (tool.source.type !== 'internal') {
+			getFullReferenceName ??= toolsService.createFullReferenceNameResolver();
+			return getFullReferenceName(tool);
+		}
+		if (browserToolReferenceNames.has(referenceName)) {
+			return `browser/${referenceName}`;
+		}
+		if (notebookToolReferenceNames.has(referenceName)) {
+			return `notebook/${referenceName}`;
+		}
+		return `vscode/${referenceName}`;
+	};
 }

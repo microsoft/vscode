@@ -26,6 +26,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { devContainerEnvironmentImage, IDevContainerEnvironmentSource } from '../../common/devContainerEnvironments.js';
+import { IPreparedDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
@@ -1671,6 +1673,20 @@ suite('Dev Container Agent Host Main Service', () => {
 			command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(NullTelemetryService.sessionId)} `)
 		));
 		assert.ok(service.relayCommand?.includes(`agent relay ${shellEscape('spawned-instance')}`));
+	});
+
+	test('closing the relays of an environment that another client deletes tells their clients', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override async _prepareEnvironment(_connectionId: string, source: IDevContainerEnvironmentSource, _token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerEnvironment> {
+				onContainerStarted('container');
+				return { containerId: 'container', remoteWorkspaceFolder: `/workspaces/${source.environmentId}`, cliArgs: [] };
+			}
+		}());
+		const closed: string[] = [];
+		store.add(service.onDidRelayClose(connectionId => closed.push(connectionId)));
+		await service.connect({ connectionId: 'other-window', name: 'Dev Container', environmentId: 'environment', image: devContainerEnvironmentImage });
+		await service.removeContainer({ environmentId: 'environment' });
+		assert.deepStrictEqual({ closed, relayDisposed: service.relay.disposed }, { closed: ['other-window'], relayDisposed: true });
 	});
 
 	test('stops and removes the container after disconnecting its relay', async () => {

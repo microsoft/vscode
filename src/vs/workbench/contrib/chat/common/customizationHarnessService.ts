@@ -122,6 +122,8 @@ export interface ICustomizationMarketplaceInfo {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the user's GitHub Team provides this marketplace. */
+	readonly team?: boolean;
 }
 
 export interface ICustomizationMarketplaceRemoveResult {
@@ -303,12 +305,14 @@ export interface ICustomizationItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
-	/** Whether this customization is currently enabled. */
+	/** Whether this customization is active, independent of whether its enablement can be changed. */
 	readonly enabled?: boolean;
 	/** Host-published reason for a disabled customization. */
 	readonly disabledReason?: CustomizationDisabledReason;
 	/** Set when the user's organization manages this customization. */
 	readonly organizationControl?: ICustomizationOrganizationControl;
+	/** Set when the user's GitHub Team provides this customization. Provenance only; it doesn't restrict enablement. */
+	readonly teamProvided?: boolean;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/**
@@ -446,6 +450,12 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Provide messages about the customizations of the given type as a whole, such as
+	 * files that failed to load, shown above the section's list rather than as items.
+	 */
+	provideSectionNotices?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSectionNotice[] | undefined>;
+
+	/**
 	 * Returns the readiness of the most recent source-folder discovery for this session.
 	 * Providers that do not expose this treat a completed empty result as authoritative.
 	 */
@@ -458,6 +468,17 @@ export interface ICustomizationItemProvider {
 }
 
 export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
+
+/**
+ * A message about a section's customizations as a whole, such as files that failed to load.
+ */
+export interface ICustomizationSectionNotice {
+	readonly severity: 'warning' | 'error';
+	/** Short summary, such as "Some hook files could not be loaded". */
+	readonly title: string;
+	/** Details, one per line. */
+	readonly message: string;
+}
 
 /**
  * A directory where new customization files of a given type can be created.

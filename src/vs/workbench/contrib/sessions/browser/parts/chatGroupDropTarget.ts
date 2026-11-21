@@ -13,7 +13,7 @@ import { activeContrastBorder } from '../../../../../platform/theme/common/color
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { IDraggedSessionChat } from '../dnd.js';
-import { InputDropTargetHints, isInputDropTarget } from '../../../../browser/dnd.js';
+import { InputDropTargetHints, isInputDropTarget, isPassThroughToInputDrag, PASS_THROUGH_MODIFIER_LABEL, registerPassThroughDropTarget } from '../../../../browser/dnd.js';
 
 /** Zone of a target group where a dragged chat can be dropped. */
 export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';
@@ -89,7 +89,7 @@ class ChatGroupDropOverlay extends Themable {
 		this._overlay = $('.chat-group-drop-overlay-indicator');
 		container.appendChild(this._overlay);
 
-		this._inputHints = this._register(new InputDropTargetHints(this._targetElement, container));
+		this._inputHints = this._register(new InputDropTargetHints(this._targetElement, container, PASS_THROUGH_MODIFIER_LABEL));
 		this._inputHints.update(event);
 
 		this._registerListeners(container);
@@ -111,9 +111,9 @@ class ChatGroupDropOverlay extends Themable {
 	private _registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragOver: e => {
-				// An input that takes the drag takes it once the drag moves over it: the overlay, which covers the input
-				// until then, goes away.
-				if (isHTMLElement(e.target) && isInputDropTarget(e.target, e, this._targetElement)) {
+				// An input that takes the drag takes it once the drag moves over it, and so does the chat around it while the
+				// key that lets drags through is held: the overlay, which covers them until then, goes away.
+				if ((isHTMLElement(e.target) && isInputDropTarget(e.target, e, this._targetElement)) || isPassThroughToInputDrag(e, this._targetElement)) {
 					this.dispose();
 					return;
 				}
@@ -281,6 +281,9 @@ export class ChatGroupDropTarget extends Themable {
 	}
 
 	private _registerListeners(): void {
+		// While the key is held, the drags let through reach the chats under the overlays, which attach them, as in a chat editor
+		this._register(registerPassThroughDropTarget(this._container, e => isPassThroughToInputDrag(e, this._container)));
+
 		this._register(addDisposableListener(this._container, EventType.DRAG_ENTER, e => this._onDragEnter(e)));
 		this._register(addDisposableListener(this._container, EventType.DRAG_LEAVE, () => this._onDragLeave()));
 		for (const target of [this._container, getWindow(this._container)]) {
@@ -290,8 +293,9 @@ export class ChatGroupDropTarget extends Themable {
 
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
-		// An input under the drag that takes it, such as a chat input that attaches the dragged chat, takes it here.
-		if (isHTMLElement(event.target) && isInputDropTarget(event.target, event)) {
+		// An input under the drag that takes it, such as a chat input that attaches the dragged chat, takes it here, and so
+		// does the chat around such an input while the key that lets drags through is held.
+		if ((isHTMLElement(event.target) && isInputDropTarget(event.target, event)) || isPassThroughToInputDrag(event, this._container)) {
 			this._disposeOverlay();
 			this._updateContainer(false);
 			return;

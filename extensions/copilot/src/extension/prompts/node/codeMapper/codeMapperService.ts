@@ -33,8 +33,6 @@ import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
 import { CodeMapper, CodeMapperOutcomeTelemetry, ICodeMapperDocument, ICodeMapperRequestInput, processFullRewriteNewNotebook } from './codeMapper';
 
 export type CodeBlock = { readonly code: string; readonly resource: vscode.Uri; readonly markdownBeforeBlock?: string };
-export type ResourceTextEdits = { readonly target: vscode.Uri; readonly edits: TextEdit | TextEdit[] };
-
 export interface ICodeMapperTelemetryInfo {
 	readonly isAgent?: boolean;
 	readonly chatRequestId?: string;

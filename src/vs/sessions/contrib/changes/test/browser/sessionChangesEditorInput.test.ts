@@ -9,6 +9,10 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
+import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { EditorProgressIndicator } from '../../../../../workbench/services/progress/browser/progressIndicator.js';
+import { IEditorGroupView } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -554,6 +558,7 @@ suite('SessionChangesEditorInput', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 		}());
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());
@@ -630,6 +635,9 @@ suite('SessionChangesEditorInput', () => {
 		};
 		const parent = append(mainWindow.document.body, $('.editor-instance'));
 		disposables.add(toDisposable(() => parent.remove()));
+		const groupProgressBar = disposables.add(new ProgressBar(append(mainWindow.document.body, $('.editor-group-progress'))));
+		disposables.add(toDisposable(() => groupProgressBar.getContainer().remove()));
+		instantiationService.stub(IEditorProgressService, disposables.add(new EditorProgressIndicator(groupProgressBar, upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: Event.None }))));
 		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		editor.create(parent);
 		editor.setVisible(true);
@@ -653,7 +661,7 @@ suite('SessionChangesEditorInput', () => {
 		/** {@link state} once the progress would show, with whether it does. */
 		const presentation = async () => {
 			await timeout(250);
-			return { progress: isShown(parent.querySelector<HTMLElement>('.session-changes-editor-progress .monaco-progress-container.active')), ...state() };
+			return { progress: groupProgressBar.getContainer().classList.contains('active') && !parent.querySelector('.monaco-progress-container'), ...state() };
 		};
 		/** Lets the multi-diff of `name` resolve the documents of its changes, then show the diffs of `count` of them. */
 		const resolveDocuments = (name: string, resolving: boolean, count = 0) => transaction(tx => {

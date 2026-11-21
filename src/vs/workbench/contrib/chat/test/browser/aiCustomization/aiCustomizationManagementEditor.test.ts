@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -39,6 +39,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { NotificationTelemetryId, type NotificationTelemetry } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { IProgressService, Progress, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { CustomizationInstallationConfigurationService, ICustomizationInstallationConfigurationService } from '../../../browser/agentSessions/agentHost/customizationInstallationConfigurationService.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
@@ -772,6 +773,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
+		mcpInstallPage: MutableDisposable<never>;
+		mcpInstallPresenter: MutableDisposable<never>;
+		installationConfigurationService: ICustomizationInstallationConfigurationService;
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void; setManualReviewReason(reason: string | undefined): void } | undefined;
 		mcpListWidget: { setMcpServerMigrationCandidates(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): void } | undefined;
@@ -994,6 +998,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorMigrationDetailWarning = document.createElement('section');
 		editor.editorPreviewDisposables = new DisposableStore();
 		editor.editorDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
+		editor.mcpInstallPage = editor.editorPreviewDisposables.add(new MutableDisposable());
+		editor.mcpInstallPresenter = editor.editorPreviewDisposables.add(new MutableDisposable());
+		editor.installationConfigurationService = new CustomizationInstallationConfigurationService();
 		editor.customizationMigrationRefreshSequence = 0;
 		editor.customizationMigrationRefreshDelayer = editor.editorPreviewDisposables.add(new Delayer<void>(0));
 		editor.customizationMigrationRequest = editor.editorPreviewDisposables.add(new DisposableStore());
@@ -3433,7 +3440,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sameTokens: migrationTokens.every(token => folderTokens.includes(token)),
 			applied,
 		}, {
-			firstCancelled: true, migrationRequests: 10, folderRequests: 2, sameTokens: true, applied: [[candidate]],
+			firstCancelled: true, migrationRequests: 12, folderRequests: 2, sameTokens: true, applied: [[candidate]],
 		});
 	}));
 

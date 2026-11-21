@@ -14,7 +14,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -340,7 +340,7 @@ export interface ICommonNativeHostService {
 	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents
 	 * window is not brought to the front: the Agents Launcher shows and focuses its own window.
 	 */
-	showAgentsLauncher(): Promise<void>;
+	showAgentsLauncher(options?: IAgentsLauncherOptions): Promise<void>;
 
 	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
 	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
@@ -364,7 +364,8 @@ export interface ICommonNativeHostService {
 	 */
 	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
-	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
+	/** The point of the cursor, and the bounds and work area of the display nearest to it, which leaves out its menu bar and dock. */
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle; readonly workArea: IRectangle }>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;
 	maximizeWindow(options?: INativeHostOptions): Promise<void>;
@@ -379,6 +380,11 @@ export interface ICommonNativeHostService {
 	hideWindow(options?: INativeHostOptions): Promise<void>;
 	/** Sets the opacity of a window, from 0 (transparent) to 1 (opaque). Unsupported on Linux. */
 	setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void>;
+	/**
+	 * Lets mouse events through a window to what is below it, or stops. While it does, the window still receives mouse moves on
+	 * macOS and Windows, so that it can stop as the pointer moves over its content. Unsupported on Linux.
+	 */
+	setWindowIgnoreMouseEvents(ignore: boolean, options?: INativeHostOptions): Promise<void>;
 
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;

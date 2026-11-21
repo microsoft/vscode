@@ -16,6 +16,8 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatNativeComponentsRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, isDevContainerHandoffEnabled } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 /** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
@@ -100,6 +102,9 @@ export class AgenticPromptsService extends PromptsService {
 				return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
 					&& !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 			}
+			if (s.name === 'dev-container-handoff') {
+				return isDevContainerHandoffEnabled(this.configurationService);
+			}
 			return s.name !== 'generate-chat-background' || this.configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true;
 		}).map(s => ({
 			uri: s.uri,
@@ -131,6 +136,10 @@ export class AgenticPromptsService extends PromptsService {
 				|| event.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
 				|| event.affectsConfiguration(ChatConfiguration.NativeComponentsEnabled)
 				|| event.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)
+				|| event.affectsConfiguration(DevContainerHandoffEnabledSettingId)
+				|| event.affectsConfiguration(DevContainerEnvironmentsEnabledSettingId)
+				|| event.affectsConfiguration(DevContainerAgentHostEnabledSettingId)
+				|| event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)
 				|| event.affectsConfiguration(ChatAIDisabledSettingId)), () => PromptsType.skill);
 	}
 }

@@ -103,14 +103,14 @@ suite('Agent Host Provider Integration — Copilot extension environment consent
 			canvases: [{ id: name, displayName: name, description: 'Reads a sensitive environment variable.' }],
 		}), 'utf8');
 		await writeFile(join(extensionDirectory, 'extension.mjs'), `
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 await joinSession({
 	requestedEnvironmentVariables: [${JSON.stringify(variable)}],
-	canvases: declaration.canvases.map(canvas => createCanvas({
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
 		...canvas,
 		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}?env=\${process.env[${JSON.stringify(variable)}] === ${JSON.stringify(extensionEnvironmentSentinels[variable])} ? 'visible' : 'hidden'}\` }),
-	})),
+	})) },
 });
 `, 'utf8');
 	}

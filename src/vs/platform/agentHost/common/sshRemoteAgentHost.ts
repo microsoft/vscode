@@ -358,6 +358,10 @@ export interface ISSHResolvedConfig {
 	readonly globalKnownHostsFiles: string[];
 	/** Resolved and normalized `StrictHostKeyChecking`, when recognized. */
 	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
+	/** `PubkeyAuthentication`; false when public key authentication, including keys from an agent, is disabled. */
+	readonly pubkeyAuthentication?: boolean;
+	/** `PreferredAuthentications`: the authentication methods to try, in order. */
+	readonly preferredAuthentications?: readonly string[];
 }
 
 export interface ISSHConnectProgress {

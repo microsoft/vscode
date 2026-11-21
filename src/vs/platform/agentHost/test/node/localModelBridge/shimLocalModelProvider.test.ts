@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotRequestContext } from '@github/copilot-sdk';
+import type { CopilotRequestContext } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { createHash } from 'crypto';
 import * as fs from 'fs';

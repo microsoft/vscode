@@ -11,7 +11,8 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, constObservable } from '../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable } from '../../../../base/common/observable.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,13 +28,13 @@ import { InQuickInputContextKey } from '../../../../platform/quickinput/browser/
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { AGENTS_LAUNCHER_IPC_CHANNEL, IRectangle } from '../../../../platform/window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, IAgentsLauncherOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { AGENTS_LAUNCHER_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, AGENTS_LAUNCHER_COMMAND_METADATA } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { AbstractChatView, INewSessionDraftHost } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
@@ -41,11 +42,12 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createSessionHostServices, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ChatWindowComposerBackgroundSends, ChatWindowComposerModel, createChatWindowComposerResource } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
-import { AgentsLauncherPresenter, computeAgentsLauncherBounds, DismissalCheck, dismissWhenAllowed, followOrdinarySend } from './agentsLauncher.js';
+import { AgentsLauncherClickThrough, AgentsLauncherPresenter, computeAgentsLauncherLayout, DismissalCheck, dismissWhenAllowed, followOrdinarySend, IAgentsLauncherLayout } from './agentsLauncher.js';
 
 const AGENTS_LAUNCHER_INITIAL_HEIGHT = 180;
 const AGENTS_LAUNCHER_BLUR_HIDE_DELAY = 150;
@@ -62,12 +64,12 @@ export const IAgentsLauncherService = createDecorator<IAgentsLauncherService>('a
 export interface IAgentsLauncherService {
 	readonly _serviceBrand: undefined;
 	readonly isVisible: IObservable<boolean>;
-	/** Shows and focuses the Agents Launcher. */
-	show(): Promise<void>;
+	/** Shows and focuses the Agents Launcher, with its composer aimed as `options` ask. */
+	show(options?: IAgentsLauncherOptions): Promise<void>;
 	/** Hides the Agents Launcher while preserving its draft. */
 	hide(): Promise<void>;
-	/** Shows or hides the Agents Launcher. */
-	toggle(): Promise<void>;
+	/** Hides the Agents Launcher, or shows it as {@link show} does. */
+	toggle(options?: IAgentsLauncherOptions): Promise<void>;
 	/** Starts the composer's session in the background and keeps the Agents Launcher open, with a status that can open the session. */
 	sendInBackground(): Promise<void>;
 }
@@ -78,9 +80,19 @@ function isContextViewVisible(contextViewService: IContextViewService, targetWin
 	return element.style.display !== 'none' && (!targetWindow || dom.getWindow(element) === targetWindow);
 }
 
+/** The display the Agents Launcher shows on, and its work area, which leaves out its menu bar and dock. */
+interface IAgentsLauncherDisplay {
+	readonly bounds: IRectangle;
+	readonly workArea: IRectangle;
+}
+
 /** Returns whether two window bounds are identical. */
 function equalBounds(first: IRectangle | undefined, second: IRectangle): boolean {
 	return !!first && first.x === second.x && first.y === second.y && first.width === second.width && first.height === second.height;
+}
+
+function containsPoint(bounds: IRectangle, point: IPoint): boolean {
+	return point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height;
 }
 
 /** Resolves once `targetWindow` has rendered a frame since the call, or after a timeout should it render none. */
@@ -99,8 +111,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		prepare: () => this._prepareToShow(),
 		setOpacity: (targetWindowId, opacity) => this._nativeHostService.setWindowOpacity(opacity, { targetWindowId }),
 		position: async targetWindowId => {
-			if (this._lastBounds) {
-				await this._nativeHostService.positionWindow(this._lastBounds, { targetWindowId });
+			if (this._lastLayout) {
+				await this._nativeHostService.positionWindow(this._lastLayout.window, { targetWindowId });
 			}
 		},
 		show: targetWindowId => {
@@ -116,6 +128,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		},
 		hide: async targetWindowId => {
 			this._logService.trace(`[AgentsLauncher] Hiding window=${targetWindowId}`);
+			// Where the pointer was is no longer known once hidden.
+			this._clickThrough?.resetPointer(undefined);
 			await this._nativeHostService.hideWindow({ targetWindowId });
 			// Only once hidden, so that the composer does not change on screen, and unless shown again meanwhile. It stays
 			// rendered, but is a foreground chat only while the Agents Launcher is visible.
@@ -130,7 +144,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _blurHide = this._register(new MutableDisposable());
 	private readonly _focusRequest = this._register(new MutableDisposable());
-	/** Opens the session of the last send that leaves the Agents Launcher, once it has started. */
+	/** Opens the session of the last send that leaves the Agents Launcher, once its message was sent. */
 	private readonly _pendingOpen = this._register(new MutableDisposable());
 	private readonly _backgroundSends: ChatWindowComposerBackgroundSends;
 	private readonly _composer: ChatWindowComposerModel;
@@ -141,9 +155,15 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	/** The element in the Agents Launcher's window that the composer renders into. */
 	private _surface: HTMLElement | undefined;
 	private _view: AbstractChatView | undefined;
-	private _display: IRectangle | undefined;
-	private _lastBounds: IRectangle | undefined;
+	private _clickThrough: AgentsLauncherClickThrough | undefined;
+	private _display: IAgentsLauncherDisplay | undefined;
+	private _lastLayout: IAgentsLauncherLayout | undefined;
 	private _contentHeight = AGENTS_LAUNCHER_INITIAL_HEIGHT;
+	/**
+	 * Whether the Agents Launcher's window is transparent around its card, with room for the composer's popups, and lets clicks
+	 * through there. Decided as a window is created, see {@link _canBeTransparent}.
+	 */
+	private _transparent = false;
 
 	constructor(
 		@IAuxiliaryWindowService private readonly _auxiliaryWindowService: IAuxiliaryWindowService,
@@ -178,14 +198,16 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			input: composer.input,
 			requestedTarget: composer.requestedTarget,
 			setRequestedTarget: (target, reason) => composer.setRequestedTarget(target, reason),
+			onDidRetarget: composer.onDidRetarget,
 			openStartedSession: session => composer.openStartedSession(session),
 			trackBackgroundSend: send => {
 				const tracking = composer.trackBackgroundSend(send);
-				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenStarted(send.session));
+				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenShown(send.session));
 			},
 		};
 
 		this._register(this._nativeHostService.onDidBlurMainOrAuxiliaryWindow(windowId => this._onWindowBlur(windowId)));
+		this._register(this._nativeHostService.onDidChangeDisplay(() => void this._onDidChangeDisplay().catch(error => this._logService.error('[AgentsLauncher] Failed to lay out for the displays', error))));
 		this._register(this._nativeHostService.onDidFocusMainOrAuxiliaryWindow(windowId => {
 			if (windowId === this._window?.window.vscodeWindowId) {
 				this._blurHide.clear();
@@ -205,8 +227,26 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Shows, positions, and focuses the Agents Launcher. */
-	show(): Promise<void> {
+	show(options?: IAgentsLauncherOptions): Promise<void> {
+		if (options?.workspace === '') {
+			this._requestNoWorkspace();
+		} else if (options?.workspace !== undefined) {
+			this._logService.warn(`[AgentsLauncher] Ignoring unsupported workspace '${options.workspace}': only '' (no workspace) is supported`);
+		}
 		return this._presenter.show();
+	}
+
+	/**
+	 * Aims the composer at a chat without a workspace, keeping what was typed, and the requested agent, model and custom
+	 * agent where that agent has chats without one, as picking Chat in its workspace picker does. A draft without one stays.
+	 */
+	private _requestNoWorkspace(): void {
+		if (this._composer.session.get()?.isQuickChat?.get()) {
+			return;
+		}
+		const target = this._composer.requestedTarget.get();
+		const keepsAgent = !!target?.providerId && this._sessionsManagementService.isQuickChatTargetAvailable({ providerId: target.providerId, sessionTypeId: target.sessionTypeId });
+		this._composer.requestTarget(keepsAgent ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId, modelId: target.modelId, modeId: target.modeId } : {});
 	}
 
 	/** Lays out the composer for a show, creating its window should there be none: resolves to the window to show, if any. */
@@ -216,10 +256,18 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			return undefined;
 		}
 
-		const { display } = await this._nativeHostService.getCursorScreenPoint();
-		this._display = display;
+		const { display: bounds, workArea } = await this._nativeHostService.getCursorScreenPoint();
+		const transparent = await this._canBeTransparent();
+		if (this._window && this._transparent !== transparent) {
+			// GPU compositing changed since the window was created: this show continues with a new one.
+			this._destroyWindow(`Transparency changed to ${transparent}`, true);
+		}
+		if (!this._window && !this._windowCreation) {
+			this._transparent = transparent;
+		}
+		const display = this._display = { bounds, workArea };
 		// Created at the zoom level of the Agents window.
-		const auxiliaryWindow = await this._ensureWindow(computeAgentsLauncherBounds(display, this._contentHeight, getZoomFactor(mainWindow)));
+		const auxiliaryWindow = await this._ensureWindow(this._computeLayout(display, getZoomFactor(mainWindow)));
 		if (!this._isEnabled()) {
 			this._destroyWindow('Chat disabled while opening');
 			return undefined;
@@ -238,16 +286,100 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		if (inputContent && this._surface) {
 			this._contentHeight = this._measureContentHeight(this._surface, inputContent);
 		}
-		const bounds = computeAgentsLauncherBounds(display, this._contentHeight, getZoomFactor(auxiliaryWindow.window));
-		this._lastBounds = bounds;
-		this._layoutView(auxiliaryWindow, view, bounds);
+		const layout = this._computeLayout(display, getZoomFactor(auxiliaryWindow.window));
+		this._lastLayout = layout;
+		this._layoutView(auxiliaryWindow, view, layout);
+		const clickThrough = this._clickThrough;
+		if (clickThrough) {
+			// Where the pointer is now, rather than as the show began, before which the window may have been created. Until it moves,
+			// clicks go through should it rest outside what the launcher renders.
+			const version = clickThrough.pointerVersion;
+			const { point } = await this._nativeHostService.getCursorScreenPoint();
+			if (auxiliaryWindow !== this._window) {
+				return undefined;
+			}
+			clickThrough.resetPointer(this._pointerInWindow(auxiliaryWindow, layout.window, point), version);
+		}
 		return auxiliaryWindow.window.vscodeWindowId;
 	}
 
-	/** Lays the composer out for window `bounds`, which are in the display's coordinates rather than the window's CSS pixels. */
-	private _layoutView(auxiliaryWindow: IAuxiliaryWindow, view: AbstractChatView, bounds: IRectangle): void {
+	/** Where `point`, in the display's coordinates, is in the window laid out at `bounds`, in its CSS pixels, should it be over it. */
+	private _pointerInWindow(auxiliaryWindow: IAuxiliaryWindow, bounds: IRectangle, point: IPoint): { readonly x: number; readonly y: number } | undefined {
+		if (!containsPoint(bounds, point)) {
+			return undefined;
+		}
 		const zoomFactor = getZoomFactor(auxiliaryWindow.window);
-		view.layout(bounds.width / zoomFactor, bounds.height / zoomFactor, 0, 0);
+		return { x: (point.x - bounds.x) / zoomFactor, y: (point.y - bounds.y) / zoomFactor };
+	}
+
+	/** Tells the click-through where a pointer at rest now is in the window, whose zoom or bounds changed beneath it. */
+	private async _relocatePointer(auxiliaryWindow: IAuxiliaryWindow): Promise<void> {
+		const clickThrough = this._clickThrough;
+		if (!clickThrough || !this._presenter.visible.get()) {
+			return;
+		}
+		const version = clickThrough.pointerVersion;
+		const { point } = await this._nativeHostService.getCursorScreenPoint();
+		const layout = this._lastLayout;
+		if (auxiliaryWindow === this._window && layout && this._presenter.visible.get()) {
+			clickThrough.relocatePointer(this._pointerInWindow(auxiliaryWindow, layout.window, point), version);
+		}
+	}
+
+	/** Lays a shown transparent window out again for the displays as they now are, as it keeps the size it was laid out for. */
+	private async _onDidChangeDisplay(): Promise<void> {
+		const auxiliaryWindow = this._window;
+		const surface = this._surface;
+		const inputContent = this._view?.inputContentElement;
+		// A hidden window is laid out again as it shows, and an opaque one is only the card.
+		if (!auxiliaryWindow || !surface || !inputContent || !this._presenter.visible.get() || !this._transparent) {
+			return;
+		}
+		const { display: bounds, workArea } = await this._nativeHostService.getCursorScreenPoint();
+		if (auxiliaryWindow === this._window && this._presenter.visible.get()) {
+			this._display = { bounds, workArea };
+			// Positioned again even should its layout not change, as the system may have moved or resized it.
+			this._lastLayout = undefined;
+			await this._resizeToContent(auxiliaryWindow, surface, inputContent);
+		}
+	}
+
+	private _computeLayout(display: IAgentsLauncherDisplay, zoomFactor: number): IAgentsLauncherLayout {
+		return computeAgentsLauncherLayout(display.bounds, display.workArea, this._contentHeight, zoomFactor, this._transparent);
+	}
+
+	/**
+	 * Whether the Agents Launcher's window can be transparent. Not on Linux, where transparency depends on the compositor and a window
+	 * that lets clicks through receives no mouse moves to stop. On Windows, only with GPU compositing: without it, Chromium draws a
+	 * transparent window with `UpdateLayeredWindow`, which fails once the opacity it fades in with has been set with
+	 * `SetLayeredWindowAttributes`, so that the window stops updating (electron/electron#32555).
+	 */
+	private async _canBeTransparent(): Promise<boolean> {
+		if (isMacintosh) {
+			return true;
+		}
+		if (!isWindows) {
+			return false;
+		}
+		try {
+			return await this._nativeHostService.isGPUCompositingEnabled();
+		} catch (error) {
+			this._logService.warn('[AgentsLauncher] Failed to read whether GPU compositing is enabled', error);
+			return false;
+		}
+	}
+
+	/** Lays the composer out for `layout`, which is in the display's coordinates rather than the window's CSS pixels. */
+	private _layoutView(auxiliaryWindow: IAuxiliaryWindow, view: AbstractChatView, layout: IAgentsLauncherLayout): void {
+		const zoomFactor = getZoomFactor(auxiliaryWindow.window);
+		const { window, card } = layout;
+		if (this._transparent && this._surface) {
+			this._surface.style.left = `${(card.x - window.x) / zoomFactor}px`;
+			this._surface.style.top = `${(card.y - window.y) / zoomFactor}px`;
+			this._surface.style.width = `${card.width / zoomFactor}px`;
+			this._surface.style.height = `${card.height / zoomFactor}px`;
+		}
+		view.layout(card.width / zoomFactor, card.height / zoomFactor, 0, 0);
 	}
 
 	private _focusComposer(): void {
@@ -268,8 +400,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Toggles the Agents Launcher while retaining the same composer and draft slot. */
-	toggle(): Promise<void> {
-		return this._presenter.visible.get() ? this.hide() : this.show();
+	toggle(options?: IAgentsLauncherOptions): Promise<void> {
+		return this._presenter.visible.get() ? this.hide() : this.show(options);
 	}
 
 	async sendInBackground(): Promise<void> {
@@ -288,21 +420,21 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/** Resolves to the Agents Launcher's window, which concurrent shows create once. */
-	private _ensureWindow(bounds: IRectangle): Promise<IAuxiliaryWindow> {
+	private _ensureWindow(layout: IAgentsLauncherLayout): Promise<IAuxiliaryWindow> {
 		if (this._window) {
 			return Promise.resolve(this._window);
 		}
-		this._windowCreation ??= this._createWindow(bounds).finally(() => {
+		this._windowCreation ??= this._createWindow(layout).finally(() => {
 			this._windowCreation = undefined;
 		});
 		return this._windowCreation;
 	}
 
-	private async _createWindow(bounds: IRectangle): Promise<IAuxiliaryWindow> {
-		this._logService.trace('[AgentsLauncher] Creating auxiliary window');
+	private async _createWindow(layout: IAgentsLauncherLayout): Promise<IAuxiliaryWindow> {
+		this._logService.trace(`[AgentsLauncher] Creating auxiliary window transparent=${this._transparent}`);
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1E1E1E';
 		const auxiliaryWindow = await this._auxiliaryWindowService.open({
-			bounds,
+			bounds: layout.window,
 			frameless: true,
 			alwaysOnTop: true,
 			panel: true,
@@ -311,7 +443,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			disableFullscreen: true,
 			disableMaximize: true,
 			nativeTitlebar: false,
-			backgroundColor,
+			// A transparent window is not resized but laid out, as resizing can break its transparency, and the card draws its own shadow.
+			...(this._transparent ? { transparent: true, notResizable: true, noShadow: true } : { backgroundColor }),
 		});
 		await auxiliaryWindow.whenStylesHaveLoaded;
 
@@ -319,7 +452,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._auxiliaryWindow.value = auxiliaryWindow;
 		this._window = auxiliaryWindow;
 		try {
-			this._renderComposer(auxiliaryWindow, bounds);
+			this._renderComposer(auxiliaryWindow, layout);
 		} catch (error) {
 			// Never leave an empty floating window behind.
 			this._destroyWindow('Failed to render the composer');
@@ -328,13 +461,18 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		return auxiliaryWindow;
 	}
 
-	private _renderComposer(auxiliaryWindow: IAuxiliaryWindow, bounds: IRectangle): void {
+	private _renderComposer(auxiliaryWindow: IAuxiliaryWindow, layout: IAgentsLauncherLayout): void {
 		const title = localize('agentsLauncher.title', "Agents Launcher");
 		auxiliaryWindow.window.document.title = title;
 		// An element of its own rather than the window's container, whose classes follow those of the Agents window's container.
 		const surface = dom.append(auxiliaryWindow.container, dom.$('.agents-launcher', { role: 'dialog', 'aria-label': title }));
 		this._windowDisposables.add(toDisposable(() => surface.remove()));
 		this._surface = surface;
+		if (this._transparent) {
+			// An attribute rather than a class, which would follow those of the Agents window's container too.
+			auxiliaryWindow.container.setAttribute('data-agents-launcher-transparent', '');
+			this._trackClickThrough(auxiliaryWindow, surface);
+		}
 
 		const scopedContextKeyService = this._windowDisposables.add(this._contextKeyService.createScoped(auxiliaryWindow.container));
 		const focusContext = AgentsLauncherFocusContext.bindTo(scopedContextKeyService);
@@ -353,6 +491,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			contextKeyService: scopedContextKeyService,
 		});
 		this._windowDisposables.add(this._sessionHostService.registerHost(host));
+		// The composer's controls are scoped to its draft, such as its repository pickers, rather than to the Agents window's active session.
+		this._windowDisposables.add(autorun(reader => setHostSessionContextKeys(host.session.read(reader), host.chat.read(reader), undefined, scopedContextKeyService, reader)));
 		const scopedInstantiationService = this._windowDisposables.add(this._instantiationService.createChild(createSessionHostServices(scopedContextKeyService, host)));
 		const view = this._windowDisposables.add(this._chatViewFactory.createNewChatView(false, {
 			backgroundSend: true,
@@ -368,9 +508,19 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		surface.appendChild(view.element);
 		view.setActive(true);
 		view.setVisible(true);
-		this._layoutView(auxiliaryWindow, view, bounds);
+		this._layoutView(auxiliaryWindow, view, layout);
 
-		this._windowDisposables.add(auxiliaryWindow.onDidLayout(dimension => view.layout(dimension.width, dimension.height, 0, 0)));
+		this._windowDisposables.add(auxiliaryWindow.onDidLayout(dimension => {
+			if (this._transparent) {
+				// A transparent window keeps the size it was laid out for, which it cannot be resized from and is laid out again for as
+				// displays change: a change of its zoom changes the CSS pixels of the card, and of the pointer in it.
+				this._layoutView(auxiliaryWindow, view, this._lastLayout ?? layout);
+				void this._relocatePointer(auxiliaryWindow).catch(error => this._logService.error('[AgentsLauncher] Failed to locate the pointer', error));
+			} else {
+				// The window is the card, at the size the user or the system resized it to.
+				view.layout(dimension.width, dimension.height, 0, 0);
+			}
+		}));
 		// A keyboard submit acts on the chat widget focused last, which a widget of the main window can become while this
 		// composer keeps the keyboard focus. Reclaim it before the keybinding service, which listens on the window, resolves
 		// the key. Only for keys typed into the input, which focusing the input then leaves focused rather than moving focus.
@@ -399,26 +549,56 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		}
 	}
 
+	/** Lets clicks through the transparent window where it renders nothing. */
+	private _trackClickThrough(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement): void {
+		const targetWindowId = auxiliaryWindow.window.vscodeWindowId;
+		const clickThrough = this._clickThrough = this._windowDisposables.add(new AgentsLauncherClickThrough(
+			auxiliaryWindow.container,
+			surface,
+			ignore => void this._nativeHostService.setWindowIgnoreMouseEvents(ignore, { targetWindowId }).catch(error => this._logService.error('[AgentsLauncher] Failed to let clicks through', error)),
+			// Hides the launcher as a click that goes through does. With a popup open, the click closes only the popup, which loses focus to it.
+			() => {
+				if (!this._hasOwnedPopupOpen()) {
+					void this.hide().catch(error => this._logService.error('[AgentsLauncher] Failed to hide after a click outside', error));
+				}
+			},
+		));
+		this._windowDisposables.add(toDisposable(() => {
+			if (this._clickThrough === clickThrough) {
+				this._clickThrough = undefined;
+			}
+		}));
+	}
+
 	private async _resizeToContent(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, inputContent: HTMLElement): Promise<void> {
 		// A hidden window is sized again as it shows.
 		if (auxiliaryWindow !== this._window || !this._display || !this._presenter.visible.get()) {
 			return;
 		}
 		this._contentHeight = this._measureContentHeight(surface, inputContent);
-		const bounds = computeAgentsLauncherBounds(this._display, this._contentHeight, getZoomFactor(auxiliaryWindow.window));
-		if (equalBounds(this._lastBounds, bounds)) {
+		const layout = this._computeLayout(this._display, getZoomFactor(auxiliaryWindow.window));
+		const previous = this._lastLayout;
+		if (previous && equalBounds(previous.window, layout.window) && equalBounds(previous.card, layout.card)) {
 			return;
 		}
-		this._lastBounds = bounds;
-		await this._nativeHostService.positionWindow(bounds, { targetWindowId: auxiliaryWindow.window.vscodeWindowId });
-		if (this._view) {
-			this._layoutView(auxiliaryWindow, this._view, bounds);
+		this._lastLayout = layout;
+		// A transparent window has room for the card to grow in, so that typing resizes the card only.
+		const moved = !equalBounds(previous?.window, layout.window);
+		if (moved) {
+			await this._nativeHostService.positionWindow(layout.window, { targetWindowId: auxiliaryWindow.window.vscodeWindowId });
 		}
-		this._logService.trace(`[AgentsLauncher] Resized bounds=${bounds.x},${bounds.y},${bounds.width},${bounds.height}`);
+		if (this._view) {
+			this._layoutView(auxiliaryWindow, this._view, layout);
+		}
+		if (moved) {
+			await this._relocatePointer(auxiliaryWindow);
+		}
+		const { card } = layout;
+		this._logService.trace(`[AgentsLauncher] Resized card=${card.x},${card.y},${card.width},${card.height}`);
 	}
 
 	/**
-	 * The height in CSS pixels the window needs to fit the composer with the insets the stylesheet gives it: above it as
+	 * The height in CSS pixels the card needs to fit the composer with the insets the stylesheet gives it: above it as
 	 * laid out, below it the view's bottom padding and the surface's border.
 	 */
 	private _measureContentHeight(surface: HTMLElement, inputContent: HTMLElement): number {
@@ -459,22 +639,27 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/**
-	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as it
-	 * has started. A failure is reported there, and the prompt goes back into the Agents Launcher's composer. Disposing the result,
-	 * as the composer does for a send it does not dispatch, stays in the Agents Launcher.
+	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as its
+	 * message was sent, which is usually well before it has started ({@link followOrdinarySend}). A failure is reported there,
+	 * and the prompt goes back into the Agents Launcher's composer. Disposing the result, as the composer does for a send it does
+	 * not dispatch, stays in the Agents Launcher; a newer send's open replaces it.
 	 */
-	private _openWhenStarted(draft: ISession): IDisposable {
+	private _openWhenShown(draft: ISession): IDisposable {
 		const pending = followOrdinarySend(this._sessionsManagementService, this._composer.slot, draft, {
-			leave: () => {
-				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once it has started`);
-				void (async () => {
+			leave: async () => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once its message was sent`);
+				try {
 					await this.hide();
 					await this._nativeHostService.focusWindow({ mode: FocusMode.Force, targetWindowId: mainWindow.vscodeWindowId });
-				})().catch(error => this._logService.error('[AgentsLauncher] Failed to show the Agents window', error));
+				} catch (error) {
+					// The session still opens: the Agents window shows it once it is in front.
+					this._logService.error('[AgentsLauncher] Failed to show the Agents window', error);
+				}
 			},
 			open: session => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${session.sessionId} status=${session.status.get()}`);
 				void this._sessionsService.openSession(session.resource, { source: 'chat', forceMainChat: true })
-					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the started session', error));
+					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the sent session', error));
 			},
 		});
 		this._pendingOpen.value = pending;
@@ -494,7 +679,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._surface = undefined;
 		this._view = undefined;
 		this._display = undefined;
-		this._lastBounds = undefined;
+		this._lastLayout = undefined;
 		this._presenter.reset();
 		this._blurHide.clear();
 		this._focusRequest.clear();
@@ -502,7 +687,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._auxiliaryWindow.clear();
 	}
 
-	private _destroyWindow(reason: string): void {
+	/** Closes the Agents Launcher's window. `keepShowing` for a show that creates another one, which the presenter goes on to show. */
+	private _destroyWindow(reason: string, keepShowing = false): void {
 		const auxiliaryWindow = this._window;
 		if (!auxiliaryWindow) {
 			return;
@@ -512,8 +698,10 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._surface = undefined;
 		this._view = undefined;
 		this._display = undefined;
-		this._lastBounds = undefined;
-		this._presenter.reset();
+		this._lastLayout = undefined;
+		if (!keepShowing) {
+			this._presenter.reset();
+		}
 		this._blurHide.clear();
 		this._focusRequest.clear();
 		this._windowDisposables.clear();
@@ -536,8 +724,8 @@ class AgentsLauncherContribution extends Disposable implements IWorkbenchContrib
 		@ILogService logService: ILogService,
 	) {
 		super();
-		const handleToggle = () => {
-			void agentsLauncherService.toggle().catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
+		const handleToggle = (_event: unknown, ...argsRaw: unknown[]) => {
+			void agentsLauncherService.toggle(argsRaw[0] as IAgentsLauncherOptions | undefined).catch(error => logService.error('[AgentsLauncher] Failed to handle IPC toggle', error));
 		};
 		ipcRenderer.on(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle);
 		this._register(toDisposable(() => ipcRenderer.removeListener(AGENTS_LAUNCHER_IPC_CHANNEL, handleToggle)));
@@ -555,11 +743,12 @@ registerAction2(class ShowAgentsLauncherAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
+			metadata: AGENTS_LAUNCHER_COMMAND_METADATA,
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IAgentsLauncherService).toggle();
+	override run(accessor: ServicesAccessor, options?: IAgentsLauncherOptions): Promise<void> {
+		return accessor.get(IAgentsLauncherService).toggle(options);
 	}
 });
 
