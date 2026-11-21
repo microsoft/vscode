@@ -742,12 +742,13 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 }
 
-class UserKeybindings extends Disposable {
+export class UserKeybindings extends Disposable {
 
 	private _rawKeybindings: Object[] = [];
 	private _keybindings: IUserKeybindingItem[] = [];
 	get keybindings(): IUserKeybindingItem[] { return this._keybindings; }
 
+	private reloadVersion = 0;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	private readonly watchDisposables = this._register(new DisposableStore());
@@ -807,7 +808,11 @@ class UserKeybindings extends Disposable {
 	}
 
 	private async reload(): Promise<boolean> {
+		const reloadVersion = ++this.reloadVersion;
 		const newKeybindings = await this.readUserKeybindings();
+		if (reloadVersion !== this.reloadVersion) {
+			return false;
+		}
 		if (objects.equals(this._rawKeybindings, newKeybindings)) {
 			// no change
 			return false;
