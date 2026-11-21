@@ -168,6 +168,7 @@ function preseedStorage(userDataDir) {
 		'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);',
 		'INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
 		'INSERT INTO ItemTable (key, value) VALUES (\'chat.tools.global.autoApprove.optIn\', \'true\');',
+		'INSERT INTO ItemTable (key, value) VALUES (\'chat.userSelectedSessionType\', \'local\');',
 	].join(' ');
 	execFileSync('sqlite3', [dbPath, sql]);
 }
@@ -290,6 +291,10 @@ function writeSettings(userDataDir, mockServer, overrides) {
 		// Auto-approve all tool invocations (YOLO mode) so tool call
 		// scenarios don't block on confirmation dialogs.
 		'chat.tools.global.autoApprove': true,
+		// Keep the benchmark on the local Copilot harness so simulated turns
+		// reach the mock server instead of trying to authenticate the Agent Host.
+		'chat.defaultToCopilotHarness': false,
+		'chat.editor.preferCopilotHarness': false,
 		...overrides,
 	}, null, '\t'));
 }
