@@ -745,7 +745,7 @@ export class ArrayQueue<T> {
 	}
 
 	get length(): number {
-		return this.lastIdx - this.firstIdx + 1;
+		return Math.max(0, this.lastIdx - this.firstIdx + 1);
 	}
 
 	/**
@@ -798,18 +798,28 @@ export class ArrayQueue<T> {
 	}
 
 	dequeue(): T | undefined {
+		if (this.length === 0) {
+			return undefined;
+		}
 		const result = this.items[this.firstIdx];
 		this.firstIdx++;
 		return result;
 	}
 
 	removeLast(): T | undefined {
+		if (this.length === 0) {
+			return undefined;
+		}
 		const result = this.items[this.lastIdx];
 		this.lastIdx--;
 		return result;
 	}
 
 	takeCount(count: number): T[] {
+		if (count <= 0 || this.length === 0) {
+			return [];
+		}
+		count = Math.min(count, this.length);
 		const result = this.items.slice(this.firstIdx, this.firstIdx + count);
 		this.firstIdx += count;
 		return result;
