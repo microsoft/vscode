@@ -207,7 +207,14 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 			}
 
 			const selection = getContextMenuAutoSelectItem(delegate, actions);
-			const positioningItem = typeof selection === 'number' ? entryIndexes[selection] : selection ? 0 : undefined;
+			let positioningItem: number | undefined;
+			if (typeof selection === 'number') {
+				positioningItem = entryIndexes[selection];
+			} else if (selection) {
+				// Like the custom menu, `true` positions the first enabled action, skipping separators and group titles
+				const firstEnabled = menu.findIndex(item => item.type !== 'separator' && item.enabled !== false);
+				positioningItem = firstEnabled >= 0 ? firstEnabled : undefined;
+			}
 			this.menuPopup(menu, { x, y, positioningItem }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
@@ -216,8 +223,8 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 
 	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, targetWindow: Window, submenuIds = new Set<string>(), entryIndexes?: number[]): IContextMenuItem[] {
 		const items: IContextMenuItem[] = [];
-		// Native menus have no group headers on all platforms, so a group's title becomes a disabled item
-		// at the start of the group. It is the label of the separator before the group, or else the group
+		// A group's title becomes a header at the start of the group: a section header on macOS 14 and later,
+		// and a disabled item elsewhere. It is the label of the separator before the group, or else the group
 		// title of its first action.
 		let separatorLabel: string | undefined;
 		let isGroupStart = true;
@@ -234,7 +241,7 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				isGroupStart = false;
 				const title = separatorLabel || getMenuActionGroupTitle(entry);
 				if (title) {
-					items.push({ label: unmnemonicLabel(stripIcons(title)).trim(), enabled: false });
+					items.push({ label: unmnemonicLabel(stripIcons(title)).trim(), type: 'header', enabled: false });
 				}
 			}
 
