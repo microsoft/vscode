@@ -13,7 +13,7 @@ import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IA
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
 import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/agentHostChatProviders.js';
-import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
+import { type AgentSelection, SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
@@ -101,7 +101,7 @@ class SessionActionLimiter {
 	}
 }
 
-const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession]);
+const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession, SessionServerToolName.ForkSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
 export type CreateSessionRelationship = typeof createSessionRelationshipValues[number];
 
@@ -323,6 +323,15 @@ const sendMessageInputSchema: ToolDefinition['inputSchema'] = {
 
 const sessionContextDetailValues = ['summary', 'digest', 'full'] as const;
 
+const forkSessionInputSchema: ToolDefinition['inputSchema'] = {
+	type: 'object',
+	properties: {
+		session: { type: 'string', description: 'The session or nested session to fork: an `agent-host-session://` link or a session URI from `list_sessions`. A link carrying a chat id forks that nested session. Omit to fork the chat this tool runs in.' },
+		prompt: { type: 'string', description: 'Optional message to start the fork with. Omit to create the fork without starting a turn.' },
+		title: { type: 'string', maxLength: 200, description: 'Optional short title for the fork.' },
+	},
+};
+
 const getSessionContextInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
@@ -419,6 +428,14 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Permanently delete a session (identified by a session URI from `list_sessions`), including its stored data. This cannot be undone. Refuses to delete the current session.',
 		inputSchema: deleteSessionInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
+		deferLoading: true,
+	},
+	{
+		name: SessionServerToolName.ForkSession,
+		title: 'Fork Session',
+		description: 'Fork a session or nested session into a new nested session of the same session, as the user\'s Fork action does. The fork copies the conversation up to its last completed turn (this chat\'s running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. To start new or delegated work without the conversation history, use `create_session` instead.',
+		inputSchema: forkSessionInputSchema,
+		annotations: { readOnlyHint: false },
 		deferLoading: true,
 	},
 ];
@@ -524,8 +541,10 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
 	/** Restores the target session and chat before deciding whether a message must be queued. */
 	readonly restoreChat: (session: URI, chat: URI, credentials?: IAgentHostCredentialSource) => Promise<void>;
-	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
-	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, agent?: AgentSelection) => Promise<void>;
+	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider; fork?: { readonly source: URI; readonly turnId: string } }, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	/** Whether the session's agent can fork its chats (`multipleChats.fork`), so `fork_session` is offered. */
+	readonly supportsChatForks: (session: URI, chat?: URI) => boolean;
 	/**
 	 * The agents a new chat of `session` may use (`create_session`'s `harness`): `undefined` unless chats of one session
 	 * may use different agents (`multipleChatProviders.enabled`) and the session's agent supports multiple chats.
@@ -809,7 +828,7 @@ function normalizeProjectSessionTitle(title: string): string {
 	return humanized.replace(/\s+/g, ' ').trim();
 }
 
-export function validateRenameTitle(title: string, toolName: SessionServerToolName.CreateSession | SessionServerToolName.CreateChat | SessionServerToolName.RenameChat): void {
+export function validateRenameTitle(title: string, toolName: SessionServerToolName.CreateSession | SessionServerToolName.CreateChat | SessionServerToolName.RenameChat | SessionServerToolName.ForkSession): void {
 	if (!title.trim()) {
 		throw new Error(`Invalid ${toolName} input: title must contain non-whitespace characters.`);
 	}
@@ -1655,6 +1674,106 @@ export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, 
 /** Builds the model-facing `create_chat` result. */
 export function formatCreateChatResult(result: ICreateChatResult): string {
 	return `Chat created (${result.openLink}).`;
+}
+
+interface IForkSessionArgs {
+	readonly session?: unknown;
+	readonly prompt?: unknown;
+	readonly title?: unknown;
+}
+
+interface IResolvedForkSessionArgs {
+	readonly session: URI;
+	/** The chat to fork: a nested session, a session's main session, or the calling chat. */
+	readonly chat: URI;
+	readonly prompt?: string;
+	readonly title?: string;
+}
+
+interface IForkSessionResult {
+	readonly session: string;
+	readonly chat: string;
+	/** Clickable {@link AGENT_HOST_SESSION_LINK_SCHEME} URI that opens the fork. */
+	readonly openLink: string;
+	readonly started: boolean;
+}
+
+/**
+ * Validates `fork_session` arguments and resolves the chat to fork: the chat a link names, matched against its
+ * session's recorded chats, or the calling chat, whose session is its recorded owner.
+ */
+async function getForkSessionArgs(rawArgs: unknown, listSessions: () => Promise<readonly IAgentSessionMetadata[]>, currentChannel: ProtocolURI | undefined, getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): Promise<IResolvedForkSessionArgs> {
+	const args = (rawArgs ?? {}) as IForkSessionArgs;
+	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.ForkSession);
+	const prompt = getOptionalString(args.prompt, 'prompt', SessionServerToolName.ForkSession);
+	const title = getOptionalString(args.title, 'title', SessionServerToolName.ForkSession);
+	if (title !== undefined) {
+		validateRenameTitle(title, SessionServerToolName.ForkSession);
+	}
+	const options = { ...(prompt !== undefined ? { prompt } : {}), ...(title !== undefined ? { title } : {}) };
+	if (sessionInput === undefined) {
+		const owner = currentChannel !== undefined && isAhpChatChannel(currentChannel) ? getChatOwner(currentChannel) : undefined;
+		if (owner === undefined) {
+			throw new Error(`Invalid ${SessionServerToolName.ForkSession} input: session is required when this tool does not run in a chat.`);
+		}
+		return { session: URI.parse(owner), chat: URI.parse(currentChannel!), ...options };
+	}
+	const sessions = await listSessions();
+	const session = resolveKnownSession(sessionInput, sessions);
+	if (!session) {
+		throw new Error(`Invalid ${SessionServerToolName.ForkSession} input: session must be an \`agent-host-session://\` link or the URI of a known session (see list_sessions).`);
+	}
+	const chatId = parseOpenSessionLinkChatId(sessionInput);
+	const chat = chatId !== undefined ? resolveLinkedChat(sessions, session, chatId) : resolveDefaultChat(sessions, session, getDefaultChat);
+	if (!chat) {
+		throw new Error(`Invalid ${SessionServerToolName.ForkSession} input: ${chatId !== undefined ? 'the link\'s chat id must name a nested session of that session (see list_sessions).' : 'the session has no main session.'}`);
+	}
+	return { session, chat, ...options };
+}
+
+/**
+ * Forks a chat as the user's Fork action does: a new chat of the same session, created through the host's
+ * `createChat` fork path at the source's last completed turn, with the model of its running turn, else of its last completed turn.
+ */
+async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI, sourceTurnId?: string): Promise<IForkSessionResult> {
+	const args = await getForkSessionArgs(rawArgs, () => accessor.listSessions(), currentChannel, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
+	if (!accessor.supportsChatForks(args.session, args.chat)) {
+		throw new Error('Cannot fork: the agent of this session does not support forking.');
+	}
+	const snapshot = await accessor.getChatContext(args.session, args.chat.toString());
+	if (!snapshot) {
+		throw new Error('Cannot fork: the session could not be opened.');
+	}
+	// A running turn is not forkable history, as in the UI: the fork ends at the last completed turn.
+	const lastTurn = snapshot.turns.at(-1);
+	if (!lastTurn) {
+		throw new Error('Cannot fork: the session has no completed turns yet.');
+	}
+	const { model, agent } = snapshot.activeTurn?.message ?? lastTurn.message;
+	const source = currentChatUri(currentChannel);
+	const credentials = source ? accessor.getCredentialSource(source) : undefined;
+	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
+	await accessor.createChat(args.session, chat, {
+		fork: { source: args.chat, turnId: lastTurn.id },
+		...(model !== undefined ? { model } : {}),
+		...(args.title !== undefined ? { title: args.title } : {}),
+	}, credentials);
+	if (args.prompt !== undefined) {
+		const currentSession = currentSessionUri(accessor, currentChannel);
+		await accessor.startPrompt(args.session, chat, args.prompt, {
+			sourceSession: currentSession.toString(),
+			...(source !== undefined ? { sourceChat: source.toString() } : {}),
+			...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
+		}, credentials, agent);
+	}
+	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, getAgentHostChatId(chat)), started: args.prompt !== undefined };
+}
+
+/** Builds the model-facing `fork_session` result. */
+function formatForkSessionResult(result: IForkSessionResult): string {
+	return result.started
+		? `Forked into a new nested session and started it with the prompt (${result.openLink}).`
+		: `Forked into a new nested session (${result.openLink}).`;
 }
 
 interface IRenameChatArgs {
@@ -2515,6 +2634,14 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 				invocationMessage: localize('toolInvoke.deleteSession', "Deleting session"),
 				pastTenseMessage: localize('toolComplete.deleteSession', "Deleted session"),
 			};
+		case SessionServerToolName.ForkSession: {
+			const self = (args as IForkSessionArgs | undefined)?.session === undefined;
+			return {
+				displayName: localize('toolName.forkSession', "Fork Session"),
+				invocationMessage: self ? localize('toolInvoke.forkSession.self', "Forking this chat") : localize('toolInvoke.forkSession', "Forking session"),
+				pastTenseMessage: self ? localize('toolComplete.forkSession.self', "Forked this chat") : localize('toolComplete.forkSession', "Forked session"),
+			};
+		}
 		default:
 			return undefined;
 	}
@@ -2603,6 +2730,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			};
 		},
 		isEnabledForSession(toolName: string, sessionUri: ProtocolURI): boolean {
+			if (toolName === SessionServerToolName.ForkSession) {
+				return accessor?.supportsChatForks(URI.parse(sessionUri)) === true;
+			}
 			return toolName !== SessionServerToolName.SetWorkspace || accessor?.canConvertWorkspace(URI.parse(sessionUri)) === true;
 		},
 		canRequireConfirmation(toolName: string): boolean {
@@ -2680,6 +2810,16 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return applyGetSessionContextTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.DeleteSession:
 					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(accessor, currentChannel));
+				case SessionServerToolName.ForkSession: {
+					const sourceSession = currentSessionUri(accessor, currentChannel).toString();
+					const limitMessage = enforceAgentOrchestrationLimits ? createdChats.describeLimit('create more chats', sourceSession) : undefined;
+					if (limitMessage) {
+						throw new Error(limitMessage);
+					}
+					const result = await applyForkSessionTool(accessor, rawArgs, currentChannel, context.turnId);
+					createdChats.record(sourceSession);
+					return formatForkSessionResult(result);
+				}
 				default:
 					throw new Error(`Unknown session server tool: ${toolName}`);
 			}

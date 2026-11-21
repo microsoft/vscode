@@ -66,7 +66,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentCh
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { IRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../common/meta/agentRemoteSessionMeta.js';
-import type { SessionOrigin } from '../common/state/protocol/channels-session/state.js';
+import type { AgentSelection, SessionOrigin } from '../common/state/protocol/channels-session/state.js';
 import { getLegacySessionInitiator, parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentConfigurationService } from './agentConfigurationService.js';
 import { agentModelConfigurationReportKey } from '../common/agentModelConfiguration.js';
@@ -2376,17 +2376,20 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				await this._restoreSessionChat(session, chat, 'Message delivery', credentials);
 			},
-			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
+			startPrompt: (session, chat, prompt, delegation, credentials, agent) => this._startSessionPrompt(session, chat, prompt, delegation, credentials, agent),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
-			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined)
+			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined || options?.fork !== undefined)
 				? {
 					...(options.provider !== undefined ? { provider: options.provider } : {}),
 					...(options.title !== undefined ? { title: options.title } : {}),
 					...(options.model !== undefined ? { model: options.model } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
+					...(options.fork !== undefined ? { fork: { source: options.fork.source, turnId: options.fork.turnId } } : {}),
 				}
 				: undefined, credentials),
+			supportsChatForks: (session, chat) => ((chat !== undefined && this.multipleChatProvidersEnabled ? this._providerService.getProviderForChat(session, chat) : undefined)
+				?? this._providerService.getProviderForSession(session))?.getDescriptor().capabilities?.multipleChats?.fork === true,
 			prepareChatWorkingDirectory: async (session, directory, options) => {
 				await this._requireNonScratchChatFolder(session, directory, 'createChat');
 				return this.prepareChatWorkingDirectory(session, directory, options);
@@ -2907,11 +2910,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
-	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource): Promise<void> {
+	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, agent?: AgentSelection): Promise<void> {
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.Agent },
+			...(agent ? { agent } : {}),
 			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
 		};
 		await this._startSessionMessage(chat, message, credentials);

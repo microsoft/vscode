@@ -1294,6 +1294,27 @@
       }
     },
     {
+      "name": "fork_session",
+      "description": "Fork a session or nested session into a new nested session of the same session, as the user's Fork action does. The fork copies the conversation up to its last completed turn (this chat's running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. To start new or delegated work without the conversation history, use `create_session` instead.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "string",
+            "description": "The session or nested session to fork: an `agent-host-session://` link or a session URI from `list_sessions`. A link carrying a chat id forks that nested session. Omit to fork the chat this tool runs in."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Optional message to start the fork with. Omit to create the fork without starting a turn."
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional short title for the fork.\n\n{maxLength: 200}"
+          }
+        }
+      }
+    },
+    {
       "name": "isolate_session",
       "description": "Move only the current chat to a new Git worktree when the user wants to continue this task without changing its current checkout. This preserves the chat and its history; it does not create a separate task or move other chats, even those sharing the same folder. The session workspace will include the new worktree. The original folder is unchanged, and uncommitted edits are not copied except configured worktree include-files. Requires a chat working in one local Git folder. Follow the tool confirmation flow. Make this the final tool call and end the turn after it succeeds; the host then moves this chat and continues its task automatically. Do not poll or repeat the request.",
       "input_schema": {

@@ -193,6 +193,9 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>();
 /** Captures whose providers can issue recorded parent and subagent turns concurrently. */
 const PROJECTED_REQUEST_MATCHING_CAPTURES = new Set<string>([
 	'copilotcli:retained background subagent completes repeated follow-up turns',
+	'copilotcli:server tool: fork_session forks the calling chat with its history and runs the prompt',
+	'claude:server tool: fork_session forks the calling chat with its history and runs the prompt',
+	'codex:server tool: fork_session forks the calling chat with its history and runs the prompt',
 ]);
 
 const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
