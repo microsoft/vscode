@@ -506,7 +506,7 @@ suite('SessionCustomizationDiscovery', () => {
 		configurationService.updateRootConfig({ [AgentHostHooksEnabledConfigKey]: false });
 		const client = hookDiscoveryClient(async () => ({
 			hooks: [
-				{ id: 'repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, definitionFileUri: inMemoryPathToUri('/workspace/.github/hooks/a.json').fsPath, enabled: true },
+				{ id: 'repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, definitionFileUri: URI.file('/workspace/.github/hooks/a.json').toString(), enabled: true },
 				{ id: 'user', hookType: 'sessionStart', origin: 'user', enabled: true },
 				{ id: 'policy', hookType: 'sessionStart', origin: 'policy', enabled: true },
 			], warnings: [], errors: [],
