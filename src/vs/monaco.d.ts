@@ -4544,6 +4544,10 @@ declare namespace monaco.editor {
 		 * Set to 0 to have an unlimited length.
 		 */
 		maximumLength?: number;
+		/**
+		 * Maximum number of inlay hints per editor.
+		 */
+		maxHintsCount?: number;
 	}
 
 	/**
