@@ -9,9 +9,11 @@ import { IHoverWidget, IManagedHover } from '../../../../../base/browser/ui/hove
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -29,6 +31,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -43,18 +46,20 @@ import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, Sessio
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, AGENTS_LAUNCHER_COMMAND_METADATA, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../../../platform/chat/common/chatSettings.js';
+import { observeAgentsWindowTitleBarIconExposure } from '../../../../../platform/chat/browser/agentsWindowTitleBarIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../common/attachments/chatDraft.js';
@@ -71,6 +76,7 @@ const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWi
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
 const COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
+const openInAgentsWindowIcon = registerIcon('open-in-agents-window', Codicon.agent, localize('openInAgentsWindowIcon', "Icon for the Open in Agents Window button in the title bar."));
 
 function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
 	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
@@ -79,13 +85,25 @@ function ensureAgentModeEnabled(configurationService: IConfigurationService): vo
 }
 
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getActiveWorkspaceFolder(accessor.get(IWorkspaceContextService), () => accessor.get(IEditorService));
+}
+
+/** The window's only folder, or in a multi-root workspace the folder of the active editor. */
+export function getActiveWorkspaceFolder(workspaceContextService: IWorkspaceContextService, editorService: () => IEditorService): URI | undefined {
 	const folders = workspaceContextService.getWorkspace().folders;
 	if (folders.length <= 1) {
 		return folders[0]?.uri;
 	}
-	const resource = EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const resource = EditorResourceAccessor.getOriginalUri(editorService().activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	return resource ? workspaceContextService.getWorkspaceFolder(resource)?.uri : undefined;
+}
+
+/**
+ * A remote window's own agent host runs on its remote machine. For a session of that agent host, names the machine
+ * so the Agents Window can open the session there, and passes the window's folder, which it opens where it can't.
+ */
+export function getRemoteSessionHandoff(sessionResource: URI, remoteAuthority: string | undefined, folderUri: URI | undefined): Pick<IOpenAgentsWindowOptions, 'folderUri' | 'revealRemoteAuthority'> | undefined {
+	return remoteAuthority && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? { folderUri: folderUri?.toJSON(), revealRemoteAuthority: remoteAuthority } : undefined;
 }
 
 function isChatWidget(widget: IChatWidget | undefined): widget is IChatWidget {
@@ -263,6 +281,24 @@ export class ResetCopilotHarnessIntroductionAction extends Action2 {
 	}
 }
 
+export class AgentsLauncherAction extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_LAUNCHER_COMMAND_ID,
+			title: localize2('agentsLauncher', "Show Agents Launcher"),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled),
+			f1: true,
+			metadata: AGENTS_LAUNCHER_COMMAND_METADATA,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options?: IAgentsLauncherOptions): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
+		await accessor.get(INativeHostService).showAgentsLauncher(options);
+	}
+}
+
 export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -371,13 +407,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
-		// A remote window's own agent host runs on its remote machine. Where the Agents Window can't open that host's
-		// sessions, it falls back to the window's folder.
-		const remoteAuthority = sessionResource && hasRealSession && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? accessor.get(IWorkbenchEnvironmentService).remoteAuthority : undefined;
+		const remote = sessionResource && hasRealSession ? getRemoteSessionHandoff(sessionResource, accessor.get(IWorkbenchEnvironmentService).remoteAuthority, folderUri) : undefined;
 		await nativeHostService.openAgentsWindow({
-			folderUri: remoteAuthority || (!hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file)) ? folderUri?.toJSON() : undefined,
+			folderUri: remote ? remote.folderUri : !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
-			revealRemoteAuthority: remoteAuthority,
+			revealRemoteAuthority: remote?.revealRemoteAuthority,
 			source,
 			...draftOptions,
 		});
@@ -438,6 +472,9 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 			if (e.affectsConfiguration(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
 				this.updateLabel();
 			}
+			if (e.affectsConfiguration(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING)) {
+				this.updateIcon();
+			}
 		}));
 	}
 
@@ -489,8 +526,10 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
 		this.hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, ''));
 
-		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon'));
-		icon.setAttribute('aria-hidden', 'true');
+		this.iconElement = append(container, $('span.open-in-agents-titlebar-widget-icon'));
+		this.updateIcon();
+		this._register(observeAgentsWindowTitleBarIconExposure(this.iconElement, this.configurationService, this.telemetryService));
+		this.iconElement.setAttribute('aria-hidden', 'true');
 
 		this.labelElement = append(container, $('span.open-in-agents-titlebar-widget-label'));
 		this.updateLabel();
@@ -506,6 +545,22 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 				this.assignmentService,
 				this.logService,
 			);
+		}
+	}
+
+	private iconElement: HTMLElement | undefined;
+
+	private updateIcon(): void {
+		if (!this.iconElement) {
+			return;
+		}
+		const useCodicons = this.configurationService.getValue<boolean>(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING) === true;
+		this.element?.classList.toggle('codicon-icons', useCodicons);
+		const classNames = ThemeIcon.asClassNameArray(openInAgentsWindowIcon);
+		if (useCodicons) {
+			this.iconElement.classList.add(...classNames);
+		} else {
+			this.iconElement.classList.remove(...classNames);
 		}
 	}
 

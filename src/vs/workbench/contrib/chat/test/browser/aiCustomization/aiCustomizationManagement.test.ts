@@ -25,9 +25,15 @@ suite('aiCustomizationManagement', () => {
 					input: upcastPartial<IChatWidget['input']>({ pendingDelegationTarget }),
 					viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: origin }),
 				}),
-			}, 'unrelated-harness', fallback, sessionType => URI.from({ scheme: sessionType, path: '/draft' })).sessionResource?.toString(),
+			}, 'unrelated-harness', fallback, sessionType => URI.from({ scheme: sessionType, path: '/draft' })),
 		);
-		assert.deepStrictEqual(results, [origin.toString(), 'agent-host-claude:/draft']);
+		assert.deepStrictEqual(results.map(result => ({
+			resource: result.sessionResource?.toString(),
+			explicit: result.hasExplicitSessionResource,
+		})), [
+			{ resource: origin.toString(), explicit: true },
+			{ resource: 'agent-host-claude:/draft', explicit: true },
+		]);
 	});
 
 	test('resolves the originating chat title context before fallback session state', () => {
@@ -69,17 +75,18 @@ suite('aiCustomizationManagement', () => {
 			section: result.section,
 			revealUri: result.revealUri?.toString(),
 			sessionResource: result.sessionResource?.toString(),
+			hasExplicitSessionResource: result.hasExplicitSessionResource,
 			migration: result.migration,
 			migrationCategory: result.migrationCategory,
 			migrationFlowId: result.migrationHint?.migrationFlowId,
 		}));
 
 		assert.deepStrictEqual(results, [
-			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
-			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session', migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles, migrationFlowId: 'migration-flow-id' },
-			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session', migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
-			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session', migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
-			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', migration: true, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', hasExplicitSessionResource: true, migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: AICustomizationManagementSection.Skills, revealUri: revealUri.toString(), sessionResource: 'agent-host-copilot:/new-session', hasExplicitSessionResource: false, migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles, migrationFlowId: 'migration-flow-id' },
+			{ section: AICustomizationManagementSection.Instructions, revealUri: undefined, sessionResource: 'agent-host-claude:/new-session', hasExplicitSessionResource: false, migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'local:/fallback-session', hasExplicitSessionResource: false, migration: undefined, migrationCategory: undefined, migrationFlowId: undefined },
+			{ section: undefined, revealUri: undefined, sessionResource: 'agent-host-copilot:/title-session', hasExplicitSessionResource: true, migration: true, migrationCategory: undefined, migrationFlowId: undefined },
 		]);
 	});
 });

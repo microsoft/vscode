@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@microsoft/copilot-sdk';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';

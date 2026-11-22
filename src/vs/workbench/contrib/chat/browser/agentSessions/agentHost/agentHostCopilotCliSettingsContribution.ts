@@ -13,7 +13,7 @@ import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSc
 import { isWebFetchRule, urlApprovalsToWebFetchRules } from '../../../../../../platform/agentHost/common/permissionRules.js';
 import { isShellRule, terminalRulesToShellPermissions } from '../../../../../../platform/agentHost/common/terminalPermissionRules.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotCliModelCapabilityOverrides, type CopilotMemoryMode, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { IConfigurationService, isConfigured } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -92,6 +92,15 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotStabilityOrderedPromptEnabledSettingId),
 			},
 			{
+				key: CopilotCliConfigKey.SecurityReviewSecretDetection,
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._configurationService.getValue<boolean>(CopilotSecurityReviewSecretDetectionEnabledSettingId) === true,
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, CopilotSecurityReviewSecretDetectionEnabledSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
+			},
+			{
 				key: CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled,
 				computeValue: () => this._isDefaultControlled(AgentHostCopilotProgressUpdatesPromptSettingId),
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotProgressUpdatesPromptSettingId),
@@ -159,6 +168,16 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 					this._pushOnSettingChange(store, push, AgentHostCopilotLocalMemoryEnabledSettingId);
 					store.add(this._defaultAccountService.onDidChangePolicyData(push));
 				},
+			},
+			{
+				key: CopilotCliConfigKey.MemoryModeDefaultControlled,
+				computeValue: () => this._isDefaultControlled(AgentHostCopilotMemoryModeSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotMemoryModeSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.MemoryMode,
+				computeValue: () => this._configurationService.getValue<CopilotMemoryMode>(AgentHostCopilotMemoryModeSettingId) === 'user-prompt' ? 'user-prompt' : 'system-prompt',
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotMemoryModeSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.AutoModeTierOverride,

@@ -11,8 +11,12 @@ export function stripSSHComment(s: string): string {
 	return idx !== -1 ? s.substring(0, idx).trim() : s;
 }
 
+/** GitHub's SSH endpoints only serve Git operations and cannot host shell connections. */
+const gitOnlySSHHosts = new Set(['github.com', 'ssh.github.com']);
+
 /**
- * Extract Host aliases from SSH config content (without following Includes).
+ * Extract connectable Host aliases from SSH config content (without following Includes).
+ * Patterns and GitHub's Git-only endpoints are skipped.
  */
 export function parseSSHConfigHostEntries(content: string): string[] {
 	const hosts: string[] = [];
@@ -25,13 +29,55 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 		if (hostMatch) {
 			const hostValue = stripSSHComment(hostMatch[1]);
 			for (const h of hostValue.split(/\s+/)) {
-				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
+				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!') && !gitOnlySSHHosts.has(h.toLowerCase())) {
 					hosts.push(h);
 				}
 			}
 		}
 	}
 	return hosts;
+}
+
+/** Parses Include arguments with OpenSSH quoting, escapes and comments; undefined indicates invalid quotes or an empty path. */
+export function parseSSHConfigIncludePaths(value: string): string[] | undefined {
+	const paths: string[] = [];
+	let index = 0;
+	while (index < value.length) {
+		while (value[index] === ' ' || value[index] === '\t') {
+			index++;
+		}
+		if (index === value.length || value[index] === '#') {
+			break;
+		}
+
+		let path = '';
+		let quote: '"' | '\'' | undefined;
+		while (index < value.length) {
+			const char = value[index++];
+			if (char === '\\') {
+				const next = value[index];
+				if (next === '"' || next === '\'' || next === '\\' || (!quote && next === ' ')) {
+					path += next;
+					index++;
+				} else {
+					path += char;
+				}
+			} else if (!quote && (char === ' ' || char === '\t')) {
+				break;
+			} else if (!quote && (char === '"' || char === '\'')) {
+				quote = char;
+			} else if (char === quote) {
+				quote = undefined;
+			} else {
+				path += char;
+			}
+		}
+		if (quote || !path) {
+			return undefined;
+		}
+		paths.push(path);
+	}
+	return paths;
 }
 
 /** Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
@@ -74,6 +120,8 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		: strictHostKeyCheckingValue === 'false'
 			? 'no'
 			: strictHostKeyCheckingValue;
+	const pubkeyAuthentication = map.get('pubkeyauthentication')?.toLowerCase();
+	const preferredAuthentications = map.get('preferredauthentications')?.toLowerCase().split(',').map(method => method.trim()).filter(method => !!method);
 
 	return {
 		hostname: map.get('hostname') ?? '',
@@ -89,5 +137,8 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		strictHostKeyChecking: strictHostKeyChecking && isSSHStrictHostKeyChecking(strictHostKeyChecking)
 			? strictHostKeyChecking
 			: undefined,
+		// `ssh -G` prints false on current OpenSSH and no on older versions.
+		...(pubkeyAuthentication === 'false' || pubkeyAuthentication === 'no' ? { pubkeyAuthentication: false } : {}),
+		...(preferredAuthentications?.length ? { preferredAuthentications } : {}),
 	};
 }

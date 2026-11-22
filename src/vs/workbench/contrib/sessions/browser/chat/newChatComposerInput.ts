@@ -14,6 +14,7 @@ import { IChatInputPickerResponsiveLayoutItem } from '../../../chat/browser/widg
 import { IModelPickerComparison } from '../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
+import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
 import { IComposerInputSnapshot } from '../../common/newChatDraftState.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../../common/newChatContextIds.js';
@@ -50,6 +51,19 @@ export function hasSendableNewChatContent(query: string, attachments: readonly I
 
 /** The new-session composer's prompt placeholder. */
 export const NEW_SESSION_PROMPT_PLACEHOLDER = localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea");
+
+/** Mounts the composer in reading order before any focusable widgets are rendered. */
+export function createNewChatComposerLayout(parent: HTMLElement, controlsAboveInput: boolean, notices?: HTMLElement) {
+	const input = dom.$('.new-chat-input-container.sessions-shared-chat-input');
+	const controls = dom.$('.new-chat-bottom-container.sessions-shared-chat-input-controls');
+	const surfaces = notices ? [notices] : [];
+	if (controlsAboveInput) {
+		parent.append(...surfaces, controls, input);
+	} else {
+		parent.append(input, controls, ...surfaces);
+	}
+	return { input, controls };
+}
 
 /**
  * The labeled pickers in `container`, for responsive layouts that compact them
@@ -111,7 +125,12 @@ export interface IComposerRepositoryControls extends IDisposable {
 
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
+	readonly separateSessionControls?: boolean;
+	readonly selectEnvironment?: (providerId: string) => Promise<void>;
 	readonly inputEditorOptions?: IChatViewOptions['inputEditorOptions'];
+	/** A host-owned composition can save instead of sending; undefined keeps the normal send path. */
+	readonly submitOverride?: (anchor?: HTMLElement) => Promise<boolean | undefined>;
+	readonly shouldPersistInput?: () => boolean;
 	readonly session: IObservable<ISession | undefined>;
 	/**
 	 * The chat the input binds to. Defaults to the session's active chat, such as a new session's
@@ -129,6 +148,12 @@ export interface INewChatComposerInputOptions {
 	 * composer restores from it, writes every change to it and brackets each send with an attempt.
 	 */
 	readonly inputSnapshot?: IComposerInputSnapshot;
+	readonly getSavedDraftId?: () => string | undefined;
+	readonly onDidChangeDraft?: (draft: IChatDraft) => void;
+	readonly onWillSendDraft?: (draft: IChatDraft) => void;
+	readonly onDidSendDraft?: (accepted: boolean) => void;
+	readonly canSchedule?: IObservable<boolean>;
+	readonly scheduleRequest?: (anchor: HTMLElement | undefined) => Promise<(() => void) | undefined>;
 	/** Keep an in-place composer's read-only editor focusable while confirming and sending. */
 	readonly preserveInputFocusOnSend?: boolean;
 	/**
@@ -138,6 +163,8 @@ export interface INewChatComposerInputOptions {
 	readonly confirmSend?: (query: string) => Promise<boolean>;
 	readonly inputVisible?: IObservable<boolean>;
 	readonly hostVisible?: IObservable<boolean>;
+	/** Shows the chat widget only while {@link inputVisible} and {@link hostVisible} are both `true`. */
+	readonly hideChatWidgetWhileHidden?: boolean;
 	readonly canSendRequest: IObservable<boolean>;
 	readonly canSubmitWithoutSession?: IObservable<boolean>;
 	readonly hasAdditionalSendContent?: IObservable<boolean>;
@@ -154,6 +181,7 @@ export interface INewChatComposerInputOptions {
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
+	readonly sendButtonLabelOnly?: IObservable<boolean>;
 	readonly modelPickerComparison?: IModelPickerComparison;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly petHostPreferred?: IObservable<boolean>;

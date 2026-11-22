@@ -9,6 +9,7 @@ import type { IAgentModelInfo } from './agent.js';
 import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
 import { ContextSizeConfigKey } from './agentModelConfiguration.js';
 import { readAgentModelNoticesMeta } from './agentModelNotices.js';
+import { isAgentModelExperimental, type IAgentModelRouterRoute } from './meta/agentModelMeta.js';
 import { isCopilotHydraFusionModelId } from './copilotCliConfig.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from './reasoningEffort.js';
 import { PolicyState } from './state/protocol/channels-root/state.js';
@@ -33,38 +34,25 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  *     context-size: long
  * ```
  *
- * A router can also be written as `playbooks`: routes with a name, each with a `main` model. One
- * playbook is chosen from a chat's first message and kept for that chat. Playbooks are told apart
- * by name, so two of them may use the same model:
+ * A `model` can also name a family without a version, such as `opus` or `sol`. It is the newest
+ * released model of that family the account can use, so a router keeps up with new models.
+ * Experimental models are only used by their exact id.
+ *
+ * A route can have a `name`, and `guidance` for the chat's main agent: how the user wants that
+ * kind of work done, which can name skills and custom agents to use. Routes with a name are told
+ * apart by it, so two of them may use the same model. Routing never reads a route's `guidance`;
+ * `modelRouterGuidance.ts` does. The router's own `guidance` is for the routing decision.
  *
  * ```yaml
- * playbooks:
- *   feature:
+ * routes:
+ *   - name: feature
+ *     model: claude-opus-5.5
  *     when: Building something new or changing behavior across files.
- *     main: claude-opus-5.5
- *   quick:
+ *     guidance: Plan first. Have the reviewer agent check the change before you finish.
+ *   - name: quick
+ *     model: claude-opus-5.5
  *     when: Questions, lookups and small edits.
- *     main: claude-haiku-5.5
- * ```
- *
- * A playbook can also bring agents: `uses` lists `roles` its main agent can start as subagents,
- * each on its own model, and `guidance` says how the user wants the work done. Routing never reads
- * these; `modelRouterAgents.ts` does.
- *
- * ```yaml
- * roles:
- *   reviewer:
- *     description: Reviews a change for bugs and missed cases.
- *     model: gpt-5.5
- *   tester:
- *     agent: Test Writer
- *     model: claude-sonnet-5
- * playbooks:
- *   feature:
- *     when: Building something new or changing behavior across files.
- *     main: claude-opus-5.5
- *     uses: [reviewer, tester]
- *     guidance: Plan first. Have the reviewer check the change before you finish.
+ *     effort: low
  * ```
  *
  * Only a documented subset of YAML is accepted (block maps and lists, flow lists of values,
@@ -85,9 +73,8 @@ export const MODEL_ROUTER_FOLDER = 'model-routers';
 /** The only file-format version this build reads. */
 export const MODEL_ROUTER_VERSION = 1;
 
+/** One route is enough when it has `guidance`: a single way of working is still worth writing down. */
 export const MODEL_ROUTER_MIN_ROUTES = 2;
-/** A router written as playbooks can have one: a single way of working is still worth naming. */
-const MODEL_ROUTER_MIN_PLAYBOOKS = 1;
 /** The most options a decision model is asked to choose between: rounded probabilities stay trustworthy up to here. */
 export const MODEL_ROUTER_MAX_ROUTES = 10;
 export const MODEL_ROUTER_MAX_FILE_BYTES = 32 * 1024;
@@ -115,24 +102,10 @@ export interface IModelRouterRoute {
 	readonly effort?: ModelRouterEffortLevel;
 	/** The context window for this route, overriding the router's. */
 	readonly contextSize?: ModelRouterContextSize;
-	/** The playbook's name, when the route was written as one. A playbook is identified by it, a plain route by its model. */
+	/** A route with a name is identified by it, one without by its model. */
 	readonly name?: string;
-	/** The roles the playbook's main agent can start as subagents, by name. */
-	readonly uses?: readonly string[];
-	/** How the user wants the work done, given to the playbook's main agent. */
+	/** How the user wants the work done, given to the main agent of a chat on this route. */
 	readonly mainAgentGuidance?: string;
-}
-
-/** An agent a playbook's main agent can start as a subagent. */
-export interface IModelRouterRole {
-	readonly name: string;
-	/** What the agent is for: shown to the main agent, and the agent's own instructions unless it reuses a custom agent. */
-	readonly description: string;
-	/** A custom agent the role reuses, by its authored name. Its file supplies the instructions and tools. */
-	readonly agent?: string;
-	/** Model ids in preference order; empty leaves the agent on its custom agent's model, else the chat's. */
-	readonly models: readonly string[];
-	readonly effort?: ModelRouterEffortLevel;
 }
 
 export interface IModelRouter {
@@ -147,8 +120,6 @@ export interface IModelRouter {
 	/** Sent with every routing decision; empty when the file has none. */
 	readonly guidance: string;
 	readonly routes: readonly IModelRouterRoute[];
-	/** The agents playbooks can use. The routing engine never reads them. */
-	readonly roles?: readonly IModelRouterRole[];
 }
 
 export const enum ModelRouterDiagnosticSeverity {
@@ -179,16 +150,17 @@ interface IRange {
 	readonly endOffset: number;
 }
 
-const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes', 'playbooks', 'roles']);
+const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes']);
 /** Keys the format reserves for later versions; a router using them still loads. */
 const reservedTopLevelKeys = new Set(['subagents', 'phases', 'mid-turn']);
-const routeKeys = new Set(['model', 'when', 'examples', 'effort', 'context-size']);
-const playbookKeys = new Set(['main', 'when', 'examples', 'effort', 'context-size', 'uses', 'guidance']);
-const roleKeys = new Set(['description', 'agent', 'model', 'effort']);
-/** The most guidance a playbook gives its main agent: it is part of every request of the chat. */
-const MAX_PLAYBOOK_GUIDANCE_CHARS = 4000;
-/** The most roles one playbook can use. */
-const MAX_PLAYBOOK_ROLES = 8;
+const routeKeys = new Set(['name', 'model', 'when', 'examples', 'effort', 'context-size', 'guidance']);
+/** Keys of the preview format, which wrote named routes as `playbooks` with `roles`. */
+const removedTopLevelKeys = new Map([
+	['playbooks', 'Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
+	['roles', '`roles` are no longer read. To have a custom agent used, name it in a route\'s `guidance`.'],
+]);
+/** The most guidance a route gives its main agent: it is part of every request of the chat. */
+const MAX_ROUTE_GUIDANCE_CHARS = 4000;
 const effortLevels: ReadonlySet<string> = new Set(reasoningEffortLevels);
 
 /** The router name a file name implies: `daily-driver.model-router.yaml` → `daily-driver`. */
@@ -290,7 +262,11 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 
 	const values = new Map(root.properties.map(property => [property.key.value, property]));
 	for (const property of root.properties) {
-		if (reservedTopLevelKeys.has(property.key.value)) {
+		const removed = removedTopLevelKeys.get(property.key.value);
+		if (removed) {
+			// `playbooks` held the routes, so a file that still has them can't be used; `roles` only added to them.
+			(property.key.value === 'playbooks' ? report.error : report.warning)(removed, property.key);
+		} else if (reservedTopLevelKeys.has(property.key.value)) {
 			report.warning(`\`${property.key.value}\` is reserved for a later version and is ignored.`, property.key);
 		} else if (!topLevelKeys.has(property.key.value)) {
 			report.warning(`Unknown key \`${property.key.value}\` is ignored.`, property.key);
@@ -354,57 +330,48 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 
 	const routes: IModelRouterRoute[] = [];
 	const routesProperty = values.get('routes');
-	const playbooksProperty = values.get('playbooks');
-	let entries: readonly IRouteEntry[] = [];
-	if (playbooksProperty) {
-		if (routesProperty) {
-			report.error('Write the router as `playbooks` or as `routes`, not both.', routesProperty.key);
+	if (!routesProperty || routesProperty.value.type !== 'sequence') {
+		// A file still written as `playbooks` was told how to rewrite it above.
+		if (!values.has('playbooks')) {
+			report.error('Add `routes`: a list of models, each with `model` and `when`.', routesProperty?.value);
 		}
-		if (switching === 'auto') {
-			report.error('A playbook is chosen once and kept for the chat, so `switching: auto` can\'t be used with `playbooks`.', switchingProperty?.value);
-		}
-		if (playbooksProperty.value.type !== 'map') {
-			report.error('`playbooks` is a map of names, each with `main` and `when`.', playbooksProperty.value);
-		} else {
-			const properties = playbooksProperty.value.properties;
-			if (properties.length < MODEL_ROUTER_MIN_PLAYBOOKS || properties.length > MODEL_ROUTER_MAX_ROUTES) {
-				report.error(`A router has ${MODEL_ROUTER_MIN_PLAYBOOKS} to ${MODEL_ROUTER_MAX_ROUTES} playbooks; this one has ${properties.length}.`, playbooksProperty.value);
-			}
-			entries = properties.map(property => ({ item: property.value, label: `Playbook \`${property.key.value}\``, playbook: property.key }));
-		}
-	} else if (!routesProperty || routesProperty.value.type !== 'sequence') {
-		report.error('Add `routes`: a list of models, each with `model` and `when`.', routesProperty?.value);
 	} else {
 		const items = routesProperty.value.items;
-		if (items.length < MODEL_ROUTER_MIN_ROUTES || items.length > MODEL_ROUTER_MAX_ROUTES) {
+		const seenModels = new Map<string, number>();
+		const seenNames = new Map<string, number>();
+		items.forEach((item, index) => {
+			const route = parseRoute(item, index, report);
+			if (!route) {
+				return;
+			}
+			const label = modelRouterRouteLabel(route, index);
+			if (effort === 'off' && route.effort) {
+				report.warning(`${label}'s \`effort\` is ignored because the router's \`effort\` is \`off\`.`, item);
+			}
+			if (route.name) {
+				const previous = seenNames.get(route.name);
+				if (previous !== undefined) {
+					report.error(`The name \`${route.name}\` is already route ${previous + 1}'s; each name belongs to one route.`, item);
+				}
+				seenNames.set(route.name, index);
+			} else {
+				// A route without a name is identified by its model, so each model belongs to one such route.
+				for (const model of route.models) {
+					const key = normalizeModelReference(model);
+					const previous = seenModels.get(key);
+					if (previous !== undefined) {
+						report.error(`\`${model}\` is already in route ${previous + 1}; each model belongs to one route, unless the routes have a \`name\`.`, item);
+					}
+					seenModels.set(key, index);
+				}
+			}
+			routes.push(route);
+		});
+		const guided = routes.some(route => route.mainAgentGuidance);
+		if (items.length > MODEL_ROUTER_MAX_ROUTES || items.length < (guided ? 1 : MODEL_ROUTER_MIN_ROUTES)) {
 			report.error(`A router has ${MODEL_ROUTER_MIN_ROUTES} to ${MODEL_ROUTER_MAX_ROUTES} routes; this one has ${items.length}.`, routesProperty.value);
 		}
-		entries = items.map((item, index) => ({ item, label: `Route ${index + 1}` }));
 	}
-	const roles = parseRoles(values.get('roles')?.value, report);
-	if (roles.length && !playbooksProperty) {
-		report.warning('`roles` are used by playbooks, and this router has none, so they are ignored.', values.get('roles')?.key);
-	}
-	const seenModels = new Map<string, number>();
-	entries.forEach((entry, index) => {
-		const route = parseRoute(entry, roles, report);
-		if (!route) {
-			return;
-		}
-		if (effort === 'off' && route.effort) {
-			report.warning(`${entry.label}'s \`effort\` is ignored because the router's \`effort\` is \`off\`.`, entry.item);
-		}
-		// A plain route is identified by its model, so each model belongs to one route. Playbooks have names.
-		for (const model of entry.playbook ? [] : route.models) {
-			const key = normalizeModelReference(model);
-			const previous = seenModels.get(key);
-			if (previous !== undefined) {
-				report.error(`\`${model}\` is already in route ${previous + 1}; each model belongs to one route.`, entry.item);
-			}
-			seenModels.set(key, index);
-		}
-		routes.push(route);
-	});
 
 	if (modelRouterDecisionTextBytes(guidance ?? '', routes) > MODEL_ROUTER_MAX_DECISION_TEXT_BYTES) {
 		report.error(`The guidance, \`when\` and examples together are too long: at most ${MODEL_ROUTER_MAX_DECISION_TEXT_BYTES / 1024} KiB is sent with each decision.`);
@@ -418,7 +385,6 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 			name, description, effort, switching, guidance, routes,
 			...(displayName ? { displayName } : {}),
 			...(contextSize ? { contextSize } : {}),
-			...(roles.length && playbooksProperty ? { roles } : {}),
 		},
 		diagnostics,
 		name,
@@ -443,36 +409,36 @@ function hasError(diagnostics: readonly IModelRouterDiagnostic[]): boolean {
 	return diagnostics.some(diagnostic => diagnostic.severity === ModelRouterDiagnosticSeverity.Error);
 }
 
-/** A route as written: an item of `routes`, or a named entry of `playbooks`. */
-interface IRouteEntry {
-	readonly item: YamlNode;
-	readonly label: string;
-	/** The playbook's name, for an entry of `playbooks`. */
-	readonly playbook?: YamlScalarNode;
+/** How messages name a route: by its name, else by its place in the list. */
+export function modelRouterRouteLabel(route: Pick<IModelRouterRoute, 'name'>, index: number): string {
+	return route.name ? `Route \`${route.name}\`` : `Route ${index + 1}`;
 }
 
-function parseRoute({ item, label, playbook }: IRouteEntry, roles: readonly IModelRouterRole[], report: IReporter): IModelRouterRoute | undefined {
-	const modelKey = playbook ? 'main' : 'model';
-	if (playbook && !NAME_PATTERN.test(playbook.value)) {
-		report.error('Playbook names are lowercase letters, digits and single hyphens, like `bug-fix`.', playbook);
-		return undefined;
-	}
+function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRouterRoute | undefined {
+	const position = `Route ${index + 1}`;
 	if (item.type !== 'map') {
-		report.error(`${label} needs \`${modelKey}\` and \`when\`.`, item);
+		report.error(`${position} needs \`model\` and \`when\`.`, item);
 		return undefined;
 	}
 	const values = new Map(item.properties.map(property => [property.key.value, property]));
-	const keys = playbook ? playbookKeys : routeKeys;
 	for (const property of item.properties) {
-		if (!keys.has(property.key.value)) {
-			report.warning(`Unknown key \`${property.key.value}\` in ${label.toLowerCase()} is ignored.`, property.key);
+		if (!routeKeys.has(property.key.value)) {
+			report.warning(`Unknown key \`${property.key.value}\` in ${position.toLowerCase()} is ignored.`, property.key);
 		}
 	}
 
-	const modelProperty = values.get(modelKey);
+	const nameProperty = values.get('name');
+	const name = nameProperty ? scalar(nameProperty.value) : undefined;
+	if (nameProperty && (!name || !NAME_PATTERN.test(name))) {
+		report.error(`${position}'s \`name\` is lowercase letters, digits and single hyphens, like \`bug-fix\`.`, nameProperty.value);
+		return undefined;
+	}
+	const label = modelRouterRouteLabel({ name }, index);
+
+	const modelProperty = values.get('model');
 	const models = modelProperty ? scalarList(modelProperty.value) : undefined;
 	if (!models?.length || models.some(model => !isModelReference(model))) {
-		report.error(`${label} needs \`${modelKey}\`: a model id like \`claude-haiku-5.5\` or \`anthropic/claude-haiku-4-5\`, or a list of them in preference order.`, modelProperty?.value ?? item);
+		report.error(`${label} needs \`model\`: a model id like \`claude-haiku-5.5\` or \`anthropic/claude-haiku-4-5\`, or a list of them in preference order.`, modelProperty?.value ?? item);
 		return undefined;
 	}
 
@@ -499,83 +465,17 @@ function parseRoute({ item, label, playbook }: IRouteEntry, roles: readonly IMod
 
 	const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
 	const contextSize = parseContextSize(values.get('context-size')?.value, `${label}'s \`context-size\``, report);
-	if (!playbook) {
-		return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}) };
-	}
 
-	const usesProperty = values.get('uses');
-	const uses = usesProperty ? scalarList(usesProperty.value) : [];
-	if (!uses) {
-		report.error(`${label}'s \`uses\` is a list of role names.`, usesProperty?.value);
-		return undefined;
-	}
-	for (const name of uses) {
-		if (!roles.some(role => role.name === name)) {
-			report.error(`${label} uses \`${name}\`, which is not in \`roles\`.`, usesProperty?.value);
-		}
-	}
-	if (new Set(uses).size !== uses.length) {
-		report.error(`${label}'s \`uses\` names a role more than once.`, usesProperty?.value);
-	}
-	if (uses.length > MAX_PLAYBOOK_ROLES) {
-		report.error(`${label} uses ${uses.length} roles; a playbook can use at most ${MAX_PLAYBOOK_ROLES}.`, usesProperty?.value);
-	}
 	const guidanceProperty = values.get('guidance');
 	const mainAgentGuidance = guidanceProperty ? scalar(guidanceProperty.value)?.trim() : '';
 	if (mainAgentGuidance === undefined) {
 		report.error(`${label}'s \`guidance\` is text.`, guidanceProperty?.value);
 		return undefined;
 	}
-	if (mainAgentGuidance.length > MAX_PLAYBOOK_GUIDANCE_CHARS) {
-		report.error(`${label}'s \`guidance\` is too long: at most ${MAX_PLAYBOOK_GUIDANCE_CHARS} characters.`, guidanceProperty?.value);
+	if (mainAgentGuidance.length > MAX_ROUTE_GUIDANCE_CHARS) {
+		report.error(`${label}'s \`guidance\` is too long: at most ${MAX_ROUTE_GUIDANCE_CHARS} characters.`, guidanceProperty?.value);
 	}
-	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), name: playbook.value, ...(uses.length ? { uses } : {}), ...(mainAgentGuidance ? { mainAgentGuidance } : {}) };
-}
-
-function parseRoles(node: YamlNode | undefined, report: IReporter): IModelRouterRole[] {
-	if (!node) {
-		return [];
-	}
-	if (node.type !== 'map') {
-		report.error('`roles` is a map of names, each with a `description` or an `agent` to reuse.', node);
-		return [];
-	}
-	const roles: IModelRouterRole[] = [];
-	for (const property of node.properties) {
-		const name = property.key.value;
-		const label = `Role \`${name}\``;
-		if (!NAME_PATTERN.test(name)) {
-			report.error('Role names are lowercase letters, digits and single hyphens, like `reviewer`.', property.key);
-			continue;
-		}
-		if (property.value.type !== 'map') {
-			report.error(`${label} needs a \`description\`, or an \`agent\` to reuse.`, property.value);
-			continue;
-		}
-		const values = new Map(property.value.properties.map(child => [child.key.value, child]));
-		for (const child of property.value.properties) {
-			if (!roleKeys.has(child.key.value)) {
-				report.warning(`Unknown key \`${child.key.value}\` in role \`${name}\` is ignored.`, child.key);
-			}
-		}
-		const descriptionProperty = values.get('description');
-		const description = descriptionProperty ? scalar(descriptionProperty.value)?.trim() : '';
-		const agentProperty = values.get('agent');
-		const agent = agentProperty ? scalar(agentProperty.value)?.trim() : '';
-		if (description === undefined || agent === undefined || (!description && !agent)) {
-			report.error(`${label} needs a \`description\`, or an \`agent\` to reuse.`, descriptionProperty?.value ?? agentProperty?.value ?? property.value);
-			continue;
-		}
-		const modelProperty = values.get('model');
-		const models = modelProperty ? scalarList(modelProperty.value) : [];
-		if (!models || models.some(model => !isModelReference(model))) {
-			report.error(`${label}'s \`model\` is a model id, or a list of them in preference order.`, modelProperty?.value);
-			continue;
-		}
-		const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
-		roles.push({ name, description, ...(agent ? { agent } : {}), models, ...(effort ? { effort } : {}) });
-	}
-	return roles;
+	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(name ? { name } : {}), ...(mainAgentGuidance ? { mainAgentGuidance } : {}) };
 }
 
 function parseEffort(node: YamlNode | undefined, keywords: readonly string[], fallback: string | undefined, label: string, report: IReporter): string | undefined {
@@ -785,15 +685,159 @@ function modelMatchesReference(model: IAgentModelInfo, reference: string): boole
 
 export type ModelReferenceMatch =
 	| { readonly kind: 'model'; readonly model: IAgentModelInfo }
-	| { readonly kind: 'ambiguous'; readonly models: readonly IAgentModelInfo[] };
+	/** `families` are the family names to write instead, when the reference names more than one family. */
+	| { readonly kind: 'ambiguous'; readonly models: readonly IAgentModelInfo[]; readonly families?: readonly string[] }
+	/** The reference names a family that has only experimental models, which a family never picks. `models` are its newest. */
+	| { readonly kind: 'experimental'; readonly models: readonly IAgentModelInfo[] };
 
-/** The one model `reference` names, or every candidate when it names more than one. */
+/**
+ * The one model `reference` names, or every candidate when it names more than one. A reference
+ * that is no model's id can name a family, such as `opus`: see {@link matchModelFamily}.
+ */
 export function matchModelReference(models: readonly IAgentModelInfo[], reference: string): ModelReferenceMatch | undefined {
 	const matches = models.filter(model => modelMatchesReference(model, reference));
 	if (matches.length === 0) {
-		return undefined;
+		return matchModelFamily(models, reference);
 	}
 	return matches.length === 1 ? { kind: 'model', model: matches[0] } : { kind: 'ambiguous', models: matches };
+}
+
+interface IModelIdParts {
+	readonly words: readonly string[];
+	readonly version: readonly number[];
+	/** The date of a dated snapshot, such as 20250805 or 2025, 8, 7. */
+	readonly date: readonly number[];
+}
+
+/**
+ * A model id's words, version and snapshot date: `gpt-5.1-mini` is `gpt`, `mini` and 5, 1.
+ * A number can follow a word and be followed by one letter: `llama3` is `llama` and 3, and
+ * `gpt-4o` is `gpt` and 4.
+ */
+function modelIdParts(id: string): IModelIdParts {
+	const words: string[] = [];
+	const version: number[] = [];
+	const date: number[] = [];
+	for (const part of id.toLowerCase().split(/[-._:]+/)) {
+		const { word, number } = /^(?<word>[a-z]*)(?<number>\d+)[a-z]?$/.exec(part)?.groups ?? {};
+		if (number === undefined) {
+			if (part) {
+				words.push(part);
+			}
+			continue;
+		}
+		if (word && word !== 'v') {
+			words.push(word);
+		}
+		if (date.length > 0 || number.length >= 4) {
+			// A year or a whole date, and what follows it, says when a snapshot was made, not which version it is.
+			// A date written together is its year, month and day, as one written apart.
+			date.push(...(number.length === 8 ? [number.slice(0, 4), number.slice(4, 6), number.slice(6)] : [number]).map(Number));
+		} else {
+			version.push(Number(number));
+		}
+	}
+	return { words, version, date };
+}
+
+function compareNumbers(a: readonly number[], b: readonly number[]): number {
+	for (let i = 0; i < Math.max(a.length, b.length); i++) {
+		const difference = (a[i] ?? -1) - (b[i] ?? -1);
+		if (difference !== 0) {
+			return difference;
+		}
+	}
+	return 0;
+}
+
+/** Which of two models of a family is newer: by version, then an id without a date, which is the provider's alias for its newest snapshot, then by date. */
+function compareNewness(a: IModelIdParts, b: IModelIdParts): number {
+	return compareNumbers(a.version, b.version)
+		|| Number(a.date.length === 0) - Number(b.date.length === 0)
+		|| compareNumbers(a.date, b.date);
+}
+
+/**
+ * The newest model of the family `reference` names. A family is a model id without its version:
+ * `opus` or `claude-opus` for `claude-opus-5.5`, `gpt-mini` for `gpt-5-mini`. A model belongs
+ * when its id has every word of the reference; the models with the fewest other words are the
+ * family, so `gpt` is not `gpt-5-mini`.
+ *
+ * The family is decided before looking at which of its models can be used: a family with none
+ * is unavailable, never replaced by a variant of it. Within the family, experimental models
+ * never count, since a router would otherwise move to an internal or early-access model the day
+ * it appears, and models that policy turned off are passed over while another can be used.
+ *
+ * For a model on the user's own key the family is the last segment, `<vendor>/<group>/<family>`.
+ * What comes before it is written in full or without the group, as for an exact id, and the
+ * same family in two groups is two families.
+ */
+function matchModelFamily(models: readonly IAgentModelInfo[], reference: string): ModelReferenceMatch | undefined {
+	const { vendor, id } = splitModelReference(reference);
+	const lastSlash = id.lastIndexOf('/');
+	const family = id.slice(lastSlash + 1);
+	const wantedPath = lastSlash < 0 ? '' : normalizeModelId(id.slice(0, lastSlash));
+	const wanted = modelIdParts(family);
+	// A digit names a version, as in `claude-opus-5` or `gpt-4o`, and a version asks for that model.
+	if (/\d/.test(family) || wanted.words.length === 0 || (vendor === COPILOT_VENDOR && lastSlash >= 0)) {
+		return undefined;
+	}
+	const candidates = models.flatMap(model => {
+		const byok = readAgentModelByokIdentifier(model);
+		let modelId = model.id;
+		let path = '';
+		if (vendor !== COPILOT_VENDOR) {
+			// `<vendor>/<group>/<id>` or `<vendor>/<id>`, where the id can have a path of its own.
+			const slash = byok?.indexOf('/') ?? -1;
+			if (!byok || slash < 0 || byok.slice(0, slash).toLowerCase() !== vendor) {
+				return [];
+			}
+			const rest = byok.slice(slash + 1);
+			const last = rest.lastIndexOf('/');
+			path = last < 0 ? '' : rest.slice(0, last);
+			const groupSlash = path.indexOf('/');
+			const pathWithoutGroup = groupSlash < 0 ? '' : path.slice(groupSlash + 1);
+			if (normalizeModelId(path) !== wantedPath && normalizeModelId(pathWithoutGroup) !== wantedPath) {
+				return [];
+			}
+			modelId = rest.slice(last + 1);
+		} else if (byok) {
+			return [];
+		}
+		const parts = modelIdParts(modelId);
+		return wanted.words.every(word => parts.words.includes(word)) ? [{ model, path, ...parts }] : [];
+	});
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	const newestOf = (family: typeof candidates) => {
+		const newest = family.reduce((best, candidate) => compareNewness(candidate, best) > 0 ? candidate : best);
+		return family.filter(candidate => compareNewness(candidate, newest) === 0).map(candidate => candidate.model);
+	};
+	const fewestWords = Math.min(...candidates.map(candidate => candidate.words.length));
+	const closest = candidates.filter(candidate => candidate.words.length === fewestWords);
+	const families = new Map<string, typeof closest>();
+	for (const candidate of closest) {
+		const name = `${vendor === COPILOT_VENDOR ? '' : `${vendor}/`}${candidate.path ? `${candidate.path}/` : ''}${candidate.words.join('-')}`;
+		families.set(name, [...families.get(name) ?? [], candidate]);
+	}
+	if (families.size > 1) {
+		return { kind: 'ambiguous', models: [...families.values()].flatMap(newestOf), families: [...families.keys()] };
+	}
+	const released = closest.filter(candidate => !isAgentModelExperimental(candidate.model));
+	if (released.length === 0) {
+		return { kind: 'experimental', models: newestOf(closest) };
+	}
+	// With every released model turned off, the newest is returned for the caller to report.
+	const usable = released.filter(candidate => candidate.model.policyState !== PolicyState.Disabled);
+	const newest = newestOf(usable.length > 0 ? usable : released);
+	return newest.length === 1 ? { kind: 'model', model: newest[0] } : { kind: 'ambiguous', models: newest };
+}
+
+/** Whether `reference` is one of the entries of the `model` of a route, or of one merged into it, however its version is written. */
+export function routeListsModel(route: IResolvedModelRoute, reference: string): boolean {
+	const wanted = normalizeModelReference(reference);
+	return [route.route, ...route.merged ?? []].some(({ models }) => models.some(model => normalizeModelReference(model) === wanted));
 }
 
 /** Efforts a model accepts, from its config schema, in the canonical low-to-high order. */
@@ -807,6 +851,12 @@ export function supportedModelEfforts(model: IAgentModelInfo | undefined): reado
 export function modelContextSizes(model: IAgentModelInfo | undefined): readonly number[] {
 	const values = model?.configSchema?.properties[ContextSizeConfigKey]?.enum ?? [];
 	return values.filter((value): value is number => typeof value === 'number' && value > 0).sort((a, b) => a - b);
+}
+
+/** The context window, in tokens, that a `context-size` selects on a model: its largest for `long`, when it has more than one, and its smallest for `default`. */
+export function modelContextSizeTokens(model: IAgentModelInfo | undefined, size: ModelRouterContextSize): number | undefined {
+	const sizes = modelContextSizes(model);
+	return size === 'long' ? (sizes.length > 1 ? sizes[sizes.length - 1] : undefined) : sizes[0];
 }
 
 /** The context window, in tokens, a model runs on when nothing selects one. For some models that is the larger window. */
@@ -834,6 +884,8 @@ export interface IResolvedModelRoute {
 	readonly contextSize?: ModelRouterContextSize;
 	/** The model's retirement notice, when the service has announced one. */
 	readonly retiring?: string;
+	/** Later routes without a name that landed on the same model. They are not routes of their own, and a chat that was on one is on this route. */
+	readonly merged?: readonly IModelRouterRoute[];
 }
 
 export interface IModelRouterResolution {
@@ -857,16 +909,23 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	const routable = models.filter(isRoutableModel);
 	const routes: IResolvedModelRoute[] = [];
 	const used = new Set<string>();
+	const merged = new Map<string, IModelRouterRoute[]>();
 	router.routes.forEach((route, index) => {
-		const label = route.name ? `Playbook \`${route.name}\`` : `Route ${index + 1}`;
+		const label = modelRouterRouteLabel(route, index);
 		let match: { model: IAgentModelInfo; reference: string } | undefined;
 		for (const reference of route.models) {
 			const result = matchModelReference(routable, reference);
 			if (!result) {
 				continue;
 			}
+			if (result.kind === 'experimental') {
+				warning(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				continue;
+			}
 			if (result.kind === 'ambiguous') {
-				warning(`${label}: \`${reference}\` matches more than one model; use one of ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				warning(result.families
+					? `${label}: \`${reference}\` matches more than one model family; use one of ${result.families.map(family => `\`${family}\``).join(', ')}.`
+					: `${label}: \`${reference}\` matches more than one model; use one of ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
 				continue;
 			}
 			if (result.model.policyState === PolicyState.Disabled) {
@@ -880,13 +939,18 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 			warning(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`);
 			return;
 		}
-		// A plain route is its model, so a second one that lands on the same model has nothing to add. Playbooks are told apart by name.
-		if (!route.name) {
-			if (used.has(match.model.id)) {
-				return;
+		// A route without a name is its model, so a second one that lands on the same model has nothing to add.
+		const key = route.name ?? match.model.id;
+		if (used.has(key)) {
+			// A name can also be a model's id, and a pick could then mean either route.
+			if (route.name || routes.some(other => other.route.name === key)) {
+				warning(`${label} is skipped: \`${key}\` is the name of one route and the model of another.`);
+			} else {
+				merged.set(key, [...merged.get(key) ?? [], route]);
 			}
-			used.add(match.model.id);
+			return;
 		}
+		used.add(key);
 		if (match.reference !== route.models[0]) {
 			warning(`${label} uses \`${match.reference}\` because \`${route.models[0]}\` is not available.`);
 		}
@@ -910,16 +974,35 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 		}
 		const retiring = readAgentModelNoticesMeta(match.model).warningText?.model_pending_deprecation;
 		if (retiring) {
-			warning(`${label}: ${match.model.name} is being retired. ${retiring} Add a newer model to its \`${route.name ? 'main' : 'model'}\` list.`);
+			warning(`${label}: ${match.model.name} is being retired. ${retiring} Add a newer model to its \`model\` list.`);
 		}
 		routes.push({ route, model: match.model, reference: match.reference, supportedEfforts, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(retiring ? { retiring } : {}) });
 	});
 	if (router.contextSize === 'long' && routes.length > 0 && !routes.some(route => route.contextSize)) {
 		warning('None of this router\'s models has a larger context size, so `context-size: long` is ignored.');
 	}
-	// A router written with one playbook never had anything to route between.
+	// A router written with one route never had anything to route between.
 	if (routes.length < MODEL_ROUTER_MIN_ROUTES && router.routes.length >= MODEL_ROUTER_MIN_ROUTES) {
 		warning(`Only ${routes.length} of this router's models ${routes.length === 1 ? 'is' : 'are'} available, so there is nothing to route between.`);
 	}
-	return { routes, diagnostics };
+	return { routes: merged.size === 0 ? routes : routes.map(route => route.route.name || !merged.has(route.model.id) ? route : { ...route, merged: merged.get(route.model.id) }), diagnostics };
+}
+
+/**
+ * The routes of a router that this account can use, in the router's order, as its row in the
+ * model picker describes them. A chat starts on the first when none clearly fits.
+ */
+export function summarizeModelRouterRoutes(router: IModelRouter, models: readonly IAgentModelInfo[]): IAgentModelRouterRoute[] {
+	const { routes } = resolveModelRouter(router, models);
+	// Effort is chosen along with the route, so a router with one usable route never chooses it.
+	const choosesEffort = router.effort === 'auto' && routes.length > 1;
+	return routes.map(({ route, model, effort, supportedEfforts, contextSize }) => {
+		const contextTokens = contextSize ? modelContextSizeTokens(model, contextSize) : undefined;
+		return {
+			...(route.name ? { name: route.name } : {}),
+			model: model.name,
+			...(effort ? { effort } : choosesEffort && supportedEfforts.length ? { effort: 'auto' } : {}),
+			...(contextTokens ? { contextTokens } : {}),
+		};
+	});
 }

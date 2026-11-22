@@ -7,7 +7,7 @@ import assert from 'assert';
 import path from 'path';
 import { suite, test } from 'node:test';
 import { pathToFileURL } from 'url';
-import { getChangedFiles, getChangedFilesScope, getEslintScope, getHygieneScope, parseNameStatus, typeAwareLintFolders, type IChangedFile } from '../changedFiles.ts';
+import { getChangedFiles, getChangedFilesScope, getLintScope, getHygieneScope, parseNameStatus, typeAwareLintFolders, type IChangedFile } from '../changedFiles.ts';
 
 const repositoryRoot = path.join(import.meta.dirname, '../../..');
 
@@ -45,7 +45,7 @@ suite('changedFiles', () => {
 	suite('ESLint', () => {
 
 		test('lints the changed files that the full lint covers', () => {
-			assert.deepStrictEqual(getEslintScope([
+			assert.deepStrictEqual(getLintScope([
 				...modified(
 					'src/vs/base/common/strings.ts',
 					'src/vs/base/common/arrays.ts',
@@ -80,7 +80,7 @@ suite('changedFiles', () => {
 				modified('extensions/copilot/package.json'),
 				modified('build/lib/i18n.resources.json'),
 				modified('src/vs/base/common/arrays.ts', 'build/filters.ts'),
-			].map(changes => getEslintScope(changes, noFiles)), [
+			].map(changes => getLintScope(changes, noFiles)), [
 				{ kind: 'full', reason: 'eslint.config.js changed' },
 				{ kind: 'full', reason: 'extensions/git/eslint.config.mjs changed' },
 				{ kind: 'full', reason: '.eslint-ignore changed' },
@@ -103,9 +103,9 @@ suite('changedFiles', () => {
 			};
 			assert.deepStrictEqual({
 				scopes: [
-					getEslintScope(modified('src/vs/base/common/arrays.ts', 'extensions/simple-browser/src/extension.ts'), listFiles),
-					getEslintScope(deleted('src/vscode-dts/vscode.proposed.externalUriOpener.d.ts'), listFiles),
-					getEslintScope(modified('extensions/package.json'), listFiles),
+					getLintScope(modified('src/vs/base/common/arrays.ts', 'extensions/simple-browser/src/extension.ts'), listFiles),
+					getLintScope(deleted('src/vscode-dts/vscode.proposed.externalUriOpener.d.ts'), listFiles),
+					getLintScope(modified('extensions/package.json'), listFiles),
 				],
 				listed,
 			}, {
@@ -127,10 +127,12 @@ suite('changedFiles', () => {
 		});
 
 		test('knows every extension that eslint.config.js lints with type information', async () => {
-			const { default: config } = await import(pathToFileURL(path.join(repositoryRoot, 'eslint.config.js')).href) as { default: { files?: string[]; languageOptions?: { parserOptions?: { project?: string | string[]; projectService?: unknown } } }[] };
+			const { default: config } = await import(pathToFileURL(path.join(repositoryRoot, 'eslint.config.js')).href) as { default: { files?: string[]; rules?: Record<string, unknown> }[] };
+			// The rules of eslint.config.js that need type information
+			const typeAwareRules = ['@typescript-eslint/prefer-optional-chain', '@typescript-eslint/prefer-readonly'];
 			const typeAwarePaths = config
-				.filter(entry => entry.languageOptions?.parserOptions?.project || entry.languageOptions?.parserOptions?.projectService)
-				.flatMap(entry => [...(entry.files ?? ['**']), ...[entry.languageOptions?.parserOptions?.project ?? []].flat()]);
+				.filter(entry => typeAwareRules.some(rule => entry.rules?.[rule] !== undefined && entry.rules[rule] !== 'off'))
+				.flatMap(entry => entry.files ?? ['**']);
 			assert.deepStrictEqual({
 				found: typeAwarePaths.length > 0,
 				uncovered: typeAwarePaths.filter(p => !typeAwareLintFolders.some(folder => p.startsWith(folder))),

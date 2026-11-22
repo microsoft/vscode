@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'vitest';
-import { AdoRepoId, getAdoRepoIdFromFetchUrl, getGithubRepoIdFromFetchUrl, GithubRepoId, normalizeFetchUrl, parseRemoteUrl, toGithubWebUrl } from '../../common/gitService';
+import { AdoRepoId, getAdoRepoIdFromFetchUrl, getGithubRepoIdFromFetchUrl, GithubRepoId, normalizeFetchUrl, parseRemoteUrl } from '../../common/gitService';
 
 function assertGitIdEquals(a: GithubRepoId | undefined, b: { org: string; repo: string; host?: string } | undefined, message?: string) {
 	assert.strictEqual(a?.org, b?.org, message);
@@ -347,28 +347,6 @@ suite('GithubRepoId', () => {
 	test('type should be github', () => {
 		const id = new GithubRepoId('owner', 'repo');
 		assert.strictEqual(id.type, 'github');
-	});
-});
-
-suite('toGithubWebUrl', () => {
-	test('should return github.com URL for default host', () => {
-		const id = new GithubRepoId('owner', 'repo');
-		assert.strictEqual(toGithubWebUrl(id), 'https://github.com/owner/repo');
-	});
-
-	test('should return GHE URL for custom host', () => {
-		const id = new GithubRepoId('owner', 'repo', 'myco.ghe.com');
-		assert.strictEqual(toGithubWebUrl(id), 'https://myco.ghe.com/owner/repo');
-	});
-
-	test('should preserve case in org and repo', () => {
-		const id = new GithubRepoId('MyOrg', 'MyRepo', 'myco.ghe.com');
-		assert.strictEqual(toGithubWebUrl(id), 'https://myco.ghe.com/MyOrg/MyRepo');
-	});
-
-	test('should handle deeply nested GHE subdomain', () => {
-		const id = new GithubRepoId('org', 'repo', 'dept.company.ghe.com');
-		assert.strictEqual(toGithubWebUrl(id), 'https://dept.company.ghe.com/org/repo');
 	});
 });
 

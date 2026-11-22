@@ -35,8 +35,6 @@ export interface IAgentPromptCtor {
 	new(...args: any[]): IAgentPrompt;
 }
 
-export type AgentPromptClass = IAgentPromptCtor & (new (...args: any[]) => IAgentPrompt);
-
 type PromptWithMatcher = IAgentPromptCtor & {
 	matchesModel: (endpoint: IChatEndpoint) => Promise<boolean> | boolean;
 };

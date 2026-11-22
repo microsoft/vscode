@@ -202,10 +202,9 @@
 	opacity: 0.6;
 }
 
-/* Marks extensions that contribute things the Agents window doesn't support. Not dimmed with disabled rows, as it matters most before enabling them. Outranks the workbench's generic codicon size and color. */
-.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-warning.codicon {
+/* Marks extensions that contribute things the Agents window doesn't support, next to their switch or Install button. Not dimmed with disabled rows, as it matters most before enabling them. Outranks the workbench's generic codicon size and color. */
+.agents-window-extensions .agents-window-extension-row > .agents-window-extension-warning.codicon {
 	flex-shrink: 0;
-	align-self: center;
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
@@ -301,8 +300,10 @@
 	border-end-start-radius: 0;
 }
 
+/* The Extensions view's actions leave room for their focus outline above the Install button, so the separator lines up with the button's bottom edge rather than the action's middle. */
 .agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
 	box-sizing: border-box;
+	align-self: flex-end;
 	height: var(--vscode-spacing-size240);
 }
 

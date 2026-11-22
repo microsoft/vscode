@@ -5,7 +5,6 @@
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-// eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -18,6 +17,7 @@ import { renderMobileSessionToolbar } from './mobileSessionToolbar.js';
 export class MobileSessionsListPresentation implements ISessionsListPresentation {
 	declare readonly _serviceBrand: undefined;
 	readonly sectionRowHeight = 44;
+	readonly titleOnlyQuickChatRowHeight = 52;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 /**
  * Disallows the use of the `in` operator in TypeScript code, except within
@@ -17,21 +15,21 @@ import { TSESTree } from '@typescript-eslint/utils';
  * Exception: Type predicate functions are allowed to use the `in` operator
  * since they are the standard way to perform runtime type checking.
  */
-export default new class NoInOperator implements eslint.Rule.RuleModule {
+export default new class NoInOperator implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			noInOperator: 'The "in" operator should not be used. Use type discriminator properties and classes instead or the `hasKey`-utility.',
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
-		function checkInOperator(inNode: ESTree.BinaryExpression) {
-			const node = inNode as TSESTree.BinaryExpression;
+		function checkInOperator(node: ESTree.BinaryExpression) {
 			// Check if we're inside a type predicate function
-			const ancestors = context.sourceCode.getAncestors(node as ESTree.Node);
+			// `getAncestors` returns AST nodes, typed as the base `Node`
+			const ancestors = context.sourceCode.getAncestors(node) as ESTree.Node[];
 
 			for (const ancestor of ancestors) {
 				if (ancestor.type === 'FunctionDeclaration' ||
@@ -40,7 +38,7 @@ export default new class NoInOperator implements eslint.Rule.RuleModule {
 
 					// Check if this function has a type predicate return type
 					// Type predicates have the form: `arg is SomeType`
-					if ((ancestor as { returnType?: any }).returnType?.typeAnnotation?.type === 'TSTypePredicate') {
+					if (ancestor.returnType?.typeAnnotation?.type === 'TSTypePredicate') {
 						// This is a type predicate function, allow the "in" operator
 						return;
 					}

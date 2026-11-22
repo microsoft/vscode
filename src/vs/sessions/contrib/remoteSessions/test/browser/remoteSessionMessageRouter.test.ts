@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -33,7 +33,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, Com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { messageToRequestOrigin } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -52,6 +52,7 @@ import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
 import { IRemoteSessionChatService, RemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 class TestSubscription<T> implements IAgentSubscription<T> {
@@ -209,7 +210,7 @@ suite('RemoteSessionMessageRouter', () => {
 			}
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 		const sessions = ['agent-host-copilot', 'remote-first-copilot', 'remote-second-copilot'].map((scheme, index) => {
 			const resource = URI.from({ scheme, path: '/same-id' });
 			const chats = ['', 'original-chat', 'other-chat'].map(fragment => upcastPartial<IChat>({
@@ -935,12 +936,12 @@ suite('RemoteSessionMessageRouter', () => {
 		const text = confirmation.value.replace(/\\/g, '');
 		assert.deepStrictEqual({
 			name: data.toolReferenceName, runsInWorkspace: data.runsInWorkspace, requestsApproval: data.canRequestPreApproval,
-			keys: data.when?.keys().sort(), confirmedHost: text.includes('agenthost-first'),
+			keys: [...new Set(data.when?.keys())].sort(), confirmedHost: text.includes('agenthost-first'),
 			confirmedChat: text.includes('original-chat'), trusted: confirmation.isTrusted,
 			dispatches: first.dispatched.length,
 		}, {
 			name: 'send_remote_message', runsInWorkspace: false, requestsApproval: true,
-			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
+			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`, `config.${DevContainerHandoffEnabledSettingId}`].sort(),
 			confirmedHost: true, confirmedChat: true, trusted: false, dispatches: 0,
 		});
 		const result = await tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);

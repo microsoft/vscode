@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
+
 /**
  * Command identifiers for session-view actions that are invoked from more than
  * one layer. Kept in `vs/sessions/common` so both the action registration under
@@ -30,6 +32,10 @@ export const ARCHIVE_SESSION_GROUP_COMMAND_ID = 'sessionsView.markAllInGroupAsDo
 
 /** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
+
+export const ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID = 'sessionsViewPane.inboxAcknowledge';
+export const RESUME_INBOX_SESSION_COMMAND_ID = 'sessionsViewPane.inboxResume';
+export const HOLD_INBOX_SESSION_COMMAND_ID = 'sessionsViewPane.inboxHold';
 
 /**
  * Deletes a custom group and its subgroups, offering to undo it from the Sessions
@@ -59,6 +65,8 @@ export {
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 export const CLOSE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.close';
+/** Closes a chat of the chat part of an editor window. Registered in `agentsChatPartActions.ts`. */
+export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
 export const TOGGLE_PIN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.togglePin';
 export const TOGGLE_PIN_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.togglePinChat';
 
@@ -81,6 +89,10 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
+/** Describes {@link OPEN_REMOTES_EDITOR_COMMAND_ID} wherever a menu offers it, e.g. the antenna menu and the Environment picker. */
+export function getManageRemoteEnvironmentsDescription(): string {
+	return localize('manageRemoteEnvironmentsDescription', "Add, connect, and manage remote environments");
+}
 /** Turns this computer's remote connections on or off from the Agents window. */
 export const TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
 

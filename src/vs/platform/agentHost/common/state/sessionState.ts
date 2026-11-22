@@ -70,7 +70,7 @@ import {
 
 // Re-export everything from the protocol state module
 export {
-	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
+	ChangesetFileStatus, ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
 	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
@@ -265,9 +265,15 @@ export interface IModelRoutedInfo {
 	readonly router: string;
 	/** The router's display name, when its file gives one. */
 	readonly routerLabel?: string;
-	/** The playbook the router chose, when its file is written as playbooks. */
-	readonly playbook?: string;
+	/** The chosen route's name, when it has one. A chat stays on a named route by this name. */
+	readonly routeName?: string;
 	readonly chosenModel: string;
+	/**
+	 * The entry of the route's `model` that matched, when it is not the chosen model's id: a family
+	 * such as `opus`, or a model on the user's own key. A chat stays on a route without a name by it,
+	 * so the route can move to a newer model.
+	 */
+	readonly routeReference?: string;
 	/** The user's note on the chosen model, when it decided the pick. */
 	readonly preference?: string;
 	/** The thinking effort the router chose for this turn. */
@@ -1325,6 +1331,8 @@ export interface ISessionGitState {
 	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
+	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	readonly baseBranchFullName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
 	/**
@@ -1531,6 +1539,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		branchName?: string;
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
+		baseBranchFullName?: string;
 		upstreamBranchName?: string;
 		defaultBranchName?: string;
 		defaultRemoteBranchName?: string;
@@ -1547,6 +1556,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
+	if (typeof raw['baseBranchFullName'] === 'string') { result.baseBranchFullName = raw['baseBranchFullName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
 	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
 	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }

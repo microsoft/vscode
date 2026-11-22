@@ -16,10 +16,6 @@ export class CodeContextTracker {
 
 	constructor(private readonly charLimit: number) { }
 
-	public get totalChars(): number {
-		return this._totalChars;
-	}
-
 	public addLine(line: string): void {
 		this._totalChars += line.length + 1;
 	}

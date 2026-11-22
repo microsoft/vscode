@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
 import { resolve } from 'path';
-import tseslint from 'typescript-eslint';
 import rule, { createLayeringChecker } from '../code-layering.ts';
 
 RuleTester.describe = suite;
@@ -32,7 +31,7 @@ suite('createLayeringChecker', () => {
 	});
 });
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-layering', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-layering', rule, {
 	valid: [
 		{ filename: commonFile, options, code: `import { x } from '../../vscodeTypes';` },
 		{ filename: commonFile, options, code: `const x = import('../common/x');` },

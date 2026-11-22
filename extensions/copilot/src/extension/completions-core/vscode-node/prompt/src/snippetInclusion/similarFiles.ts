@@ -35,15 +35,6 @@ export const defaultSimilarFilesOptions: SimilarFilesOptions = {
 	useSubsetMatching: false,
 };
 
-export const conservativeFilesOptions: SimilarFilesOptions = {
-	snippetLength: 10,
-	threshold: 0.3,
-	maxTopSnippets: 1,
-	maxCharPerFile: DEFAULT_MAX_CHARACTERS_PER_FILE,
-	maxNumberOfFiles: DEFAULT_MAX_NUMBER_OF_FILES,
-	maxSnippetsPerFile: 1,
-};
-
 export const nullSimilarFilesOptions: SimilarFilesOptions = {
 	snippetLength: 0,
 	threshold: 1,

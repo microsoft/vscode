@@ -15,7 +15,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, fileUrlToRemoteUri } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -65,6 +65,7 @@ export class BrowserAutoReloadWatcher extends Disposable {
 		input: BrowserEditorInput,
 		enabled: boolean,
 		private readonly _fileService: IFileService,
+		private readonly _browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 		this._enabled = enabled;
@@ -108,10 +109,12 @@ export class BrowserAutoReloadWatcher extends Disposable {
 			return;
 		}
 
-		const uri = getFileUri(model.url);
-		if (!uri) {
+		const fileUri = getFileUri(model.url);
+		if (!fileUri) {
 			return;
 		}
+		// Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI.
+		const uri = model.network ? fileUrlToRemoteUri(model.network, this._browserViewWorkbenchService.getNetworkFileSystem(model.network).scheme, fileUri) : fileUri;
 
 		const store = new DisposableStore();
 		const scheduler = store.add(new RunOnceScheduler(() => {
@@ -191,7 +194,7 @@ export class BrowserAutoReloadService extends Disposable implements IBrowserAuto
 
 		for (const [browserId, input] of browserViews) {
 			if (!this._watchers.has(browserId)) {
-				const watcher = new BrowserAutoReloadWatcher(input, this.isEnabled(browserId), this._fileService);
+				const watcher = new BrowserAutoReloadWatcher(input, this.isEnabled(browserId), this._fileService, this._browserViewWorkbenchService);
 				this._watchers.set(browserId, { input, watcher });
 			}
 		}
