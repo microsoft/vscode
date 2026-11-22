@@ -14,6 +14,8 @@ export interface EditorViewConfig {
 	lineHeight: number;
 	fontLigatures?: boolean;
 	monospaceWidth?: number;
+	/** Newer than 0.0.1, which ignores it. */
+	glyphCache?: 'runs' | 'characters';
 	tabSize?: number;
 	indentSize?: number;
 	indentGuides?: boolean;

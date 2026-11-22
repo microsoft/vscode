@@ -10,6 +10,7 @@ import { markAsSingleton } from '../../../base/common/lifecycle.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../platform/product/common/product.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
@@ -113,6 +114,18 @@ const editorConfiguration: IConfigurationNode = {
 			default: false,
 			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
 			tags: ['experimental'],
+		},
+		'editor.experimental.editorViewGlyphCache': {
+			type: 'string',
+			enum: ['runs', 'characters'],
+			default: 'runs',
+			enumDescriptions: [
+				nls.localize('editor.experimental.editorViewGlyphCache.runs', "Rasterize each token's text as one image."),
+				nls.localize('editor.experimental.editorViewGlyphCache.characters', "Rasterize each character of ASCII text in a monospace font once per subpixel position, and place it in its cell."),
+			],
+			markdownDescription: nls.localize('editor.experimental.editorViewGlyphCache', "Controls how the renderer of `#editor.experimentalGpuAcceleration#` `editorView` caches text."),
+			tags: ['experimental'],
+			included: product.hasEditorView === true,
 		},
 		'editor.experimental.treeSitterTelemetry': {
 			type: 'boolean',

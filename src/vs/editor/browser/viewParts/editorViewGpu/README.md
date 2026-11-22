@@ -93,6 +93,16 @@ typing in a long document costs what it does in a short one. Large documents
 remain subject to normal editor and available-memory limits, not silent
 truncation.
 
+## Glyph cache experiment
+
+`editor.experimental.editorViewGlyphCache` (`runs` by default) is sent as the
+renderer's `glyphCache` and applies as soon as it changes. With `characters`,
+ASCII text in a verified monospace font (and line numbers) is drawn one
+character per cell from rasters cached per character and subpixel position,
+instead of one raster per token run. It exists to measure that trade-off
+(rasterization while typing and scrolling against pixel fidelity to the DOM)
+and goes away once one mode is chosen.
+
 ## Guide ownership
 
 The GPU owns both indentation and bracket-pair guides through the shared

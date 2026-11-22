@@ -35,6 +35,7 @@ import type { IContentDecorationLineRange, IContentDecorationRangeRequest } from
 import type { IEditorViewLineWidthProvider } from '../viewLines/viewLines.js';
 import type { IViewLineHitTestProvider } from '../../controller/mouseHandler.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorViewBracketGuideColors, toEditorViewBracketGuide } from './editorViewGuides.js';
 import { EditorViewMinimapPainter } from './editorViewMinimap.js';
 import { EditorViewOverviewRulerPainter } from './editorViewOverviewRuler.js';
@@ -193,6 +194,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Last vertical layout sent to the renderer: `[paddingTop, beforeLine0, height0, ...]`. */
 	private _verticalLayout: number[] = [0];
 	private _foldingControlsHovered = false;
+	/** `editor.experimental.editorViewGlyphCache`, an experiment; see the README. */
+	private _glyphCache: 'runs' | 'characters';
 	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
 	private _sentGutterLabels: (string | undefined)[] = [];
 	/** 1-based view lines in {@link _decorationWindow} with a `lineNumberClassName` decoration. */
@@ -236,6 +239,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	/** Flat-blink half-period, matching `ViewCursors.BLINK_INTERVAL`. */
 	private static readonly BLINK_INTERVAL = 500;
+	private static readonly GLYPH_CACHE_SETTING = 'editor.experimental.editorViewGlyphCache';
 	/** Editor root class while the renderer paints; see editorViewGpu.css. */
 	public static readonly READY_CLASS_NAME = 'editor-view-gpu';
 	/** Editor root class while the renderer paints folding controls; see folding.css. */
@@ -258,10 +262,19 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		context: ViewContext,
 		editorRoot: HTMLElement,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(context);
 		this._editorRoot = editorRoot;
 		this._decorationResolver = new EditorViewDecorationResolver(editorRoot);
+		const readGlyphCache = () => configurationService.getValue(EditorViewGpu.GLYPH_CACHE_SETTING) === 'characters' ? 'characters' : 'runs';
+		this._glyphCache = readGlyphCache();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(EditorViewGpu.GLYPH_CACHE_SETTING)) {
+				this._glyphCache = readGlyphCache();
+				this._present();
+			}
+		}));
 		this._register(addDisposableListener(editorRoot, EventType.MOUSE_OVER, e => {
 			if (this._isMarginTarget(e.target)) {
 				this._setFoldingControlsHovered(true);
@@ -447,6 +460,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			lineHeight: fontInfo.lineHeight,
 			fontLigatures,
 			monospaceWidth: !fontLigatures && hasVerifiedAsciiCellWidth ? fontInfo.spaceWidth : undefined,
+			glyphCache: this._glyphCache,
 			// Match the DOM editor's geometry so text/line-numbers land at the
 			// same x offset: reserve exactly the editor's content-left as the
 			// gutter, and expand tabs by the model's tab size.
