@@ -18,7 +18,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
-import { CopilotComputerUsePlugin, getComputerUseHelperAppPath, IComputerUsePluginRelease, installComputerUsePluginArchive, pickIcnsPng, readMacAppIcon } from '../../node/copilot/copilotComputerUsePlugin.js';
+import { ComputerUsePluginInstallError, CopilotComputerUsePlugin, getComputerUseHelperAppPath, IComputerUsePluginRelease, installComputerUsePluginArchive, pickIcnsPng, readMacAppIcon } from '../../node/copilot/copilotComputerUsePlugin.js';
 
 suite('CopilotComputerUsePlugin', () => {
 
@@ -49,7 +49,7 @@ suite('CopilotComputerUsePlugin', () => {
 		await fs.promises.rm(tmpDir, { recursive: true, force: true });
 	});
 
-	function createPlugin(sha256: string | undefined, requests: string[], createStream: () => IRequestContext['stream'] = () => bufferToStream(VSBuffer.wrap(archive))): CopilotComputerUsePlugin {
+	function createPlugin(sha256: string | undefined, requests: string[], createStream: () => IRequestContext['stream'] = () => bufferToStream(VSBuffer.wrap(archive)), response: { readonly statusCode?: number; readonly error?: Error } = {}): CopilotComputerUsePlugin {
 		const release: IComputerUsePluginRelease = {
 			version: '1.2.3',
 			sha256: sha256 ? { [target]: sha256 } : {},
@@ -58,7 +58,10 @@ suite('CopilotComputerUsePlugin', () => {
 		const requestService = new class extends mock<IRequestService>() {
 			override async request(options: IRequestOptions): Promise<IRequestContext> {
 				requests.push(options.url ?? '');
-				return { res: { headers: {}, statusCode: 200 }, stream: createStream() };
+				if (response.error) {
+					throw response.error;
+				}
+				return { res: { headers: {}, statusCode: response.statusCode ?? 200 }, stream: createStream() };
 			}
 		};
 		const environmentService = new class extends mock<INativeEnvironmentService>() {
@@ -213,6 +216,29 @@ suite('CopilotComputerUsePlugin', () => {
 			secondMismatch: true,
 			requestCount: 2,
 			installed: false,
+		});
+	});
+
+	test('says why a download or install failed', async () => {
+		const sha256 = createHash('sha256').update(archive).digest('hex');
+		const failure = async (plugin: () => CopilotComputerUsePlugin) => {
+			const error = await plugin().resolve(CancellationToken.None).then(() => undefined, err => err);
+			return error instanceof ComputerUsePluginInstallError ? { failure: error.failure, statusCode: error.statusCode } : String(error);
+		};
+		assert.deepStrictEqual({
+			network: await failure(() => createPlugin(sha256, [], undefined, { error: new Error('getaddrinfo ENOTFOUND example.test') })),
+			http: await failure(() => createPlugin(sha256, [], undefined, { statusCode: 404 })),
+			checksum: await failure(() => createPlugin('0'.repeat(64), [])),
+			install: await failure(() => {
+				// The cache can't be created under a file.
+				fs.writeFileSync(join(tmpDir, 'user-data'), '');
+				return createPlugin(sha256, []);
+			}),
+		}, {
+			network: { failure: 'network', statusCode: undefined },
+			http: { failure: 'http', statusCode: 404 },
+			checksum: { failure: 'checksum', statusCode: undefined },
+			install: { failure: 'install', statusCode: undefined },
 		});
 	});
 

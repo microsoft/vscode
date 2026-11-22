@@ -5,17 +5,28 @@
 
 import { escapeMarkdownSyntaxTokens } from '../../../base/common/htmlContent.js';
 import { localize } from '../../../nls.js';
-import { ArtifactAutomationConfiguration, isArtifactOptionEnabled } from './artifactIntegration.js';
+import { ArtifactActor, ArtifactAutomationConfiguration, isArtifactOptionEnabled } from './artifactIntegration.js';
 import { ArtifactIntegrationState } from './artifactIntegrationStore.js';
 import { isRecord } from './artifactIntegrationValidation.js';
 import { ArtifactAutomationEnabledRules, ArtifactAutomationNotice, ArtifactAutomationNoticeChange } from './artifactRuntime.js';
 
 const noticeKinds: ReadonlySet<unknown> = new Set<ArtifactAutomationNoticeChange['kind']>(['enabled', 'changed', 'disabled']);
 
+/** Names that notices show for who made a change and for the kind of artifact it applies to. */
+export interface IArtifactAutomationNoticeLabels {
+	/** Names the agent of a chat, such as Copilot. */
+	getAgentName?(chat: string): string | undefined;
+	/** A short name for the kind of artifact an integration supports, such as "PR". */
+	getArtifactKind?(integrationId: string): string | undefined;
+}
+
 /** Describes each committed automation change of an artifact's binding in one notice. */
-export function getArtifactAutomationNotices(previous: ArtifactIntegrationState, current: ArtifactIntegrationState): readonly ArtifactAutomationNotice[] {
+export function getArtifactAutomationNotices(previous: ArtifactIntegrationState, current: ArtifactIntegrationState, labels: IArtifactAutomationNoticeLabels = {}): readonly ArtifactAutomationNotice[] {
 	const notices: ArtifactAutomationNotice[] = [];
 	const previousBindings = new Map(previous.bindings.map(binding => [binding.id, binding]));
+	const agentName = (actor: ArtifactActor | undefined) => actor?.kind === 'agent'
+		? labels.getAgentName?.(actor.chat) ?? localize('artifactAutomationUnknownAgent', "The agent")
+		: undefined;
 	for (const binding of current.bindings) {
 		// Bindings are stored on their first change, so a new one had every option off before it.
 		const before: Pick<ArtifactAutomationConfiguration, 'revision' | 'values'> = previousBindings.get(binding.id)?.configuration ?? { revision: -1, values: {} };
@@ -34,6 +45,7 @@ export function getArtifactAutomationNotices(previous: ArtifactIntegrationState,
 				continue;
 			}
 			const details: string[] = [];
+			let agent: string | undefined;
 			if (enabled) {
 				details.push(option.description);
 				const choice = option.kind === 'enum' ? option.choices.find(choice => choice.value === value) : undefined;
@@ -43,20 +55,33 @@ export function getArtifactAutomationNotices(previous: ArtifactIntegrationState,
 						details.push(choice.description);
 					}
 				}
-				if (binding.configuration.grants?.[option.id]?.kind === 'agent') {
+				const grant = binding.configuration.grants?.[option.id];
+				agent = agentName(grant);
+				// The title names the agent; only a confirmation by the person adds to it.
+				if (grant?.kind === 'agent' && !grant.autoApproved) {
 					details.push(localize('artifactAutomationAgentGrant', "Requested by the agent and confirmed by you."));
 				}
 			} else {
+				// The integration turned the rule off when it recorded a reason; otherwise a person or an agent did.
 				const disablement = binding.configuration.disablements[option.id];
 				if (disablement) {
 					details.push(disablement.reason);
+				} else {
+					agent = agentName(binding.configuration.disabledBy?.[option.id]);
 				}
 			}
-			changes.push({ integrationId: binding.integrationId, optionId: option.id, label: option.label, kind: enabled ? wasEnabled ? 'changed' : 'enabled' : 'disabled', details });
+			changes.push({ integrationId: binding.integrationId, optionId: option.id, label: option.label, kind: enabled ? wasEnabled ? 'changed' : 'enabled' : 'disabled', details, ...(agent ? { agent } : {}) });
 		}
 		if (changes.length) {
-			const enabledRules = [{ integrationId: binding.integrationId, labels: binding.options.filter(option => isArtifactOptionEnabled(option, binding.configuration.values[option.id])).map(option => option.label) }];
-			notices.push({ session: binding.session, artifact: binding.artifact, changes, enabledRules, ...formatArtifactAutomationNotice(binding.artifact.label, changes, enabledRules) });
+			// Every integration of the artifact, so that the summary only says Autopilot is off when no rule of the artifact remains on.
+			const enabledRules = current.bindings
+				.filter(candidate => candidate.session === binding.session && candidate.artifact.id === binding.artifact.id)
+				.map(candidate => ({ integrationId: candidate.integrationId, labels: candidate.options.filter(option => isArtifactOptionEnabled(option, candidate.configuration.values[option.id])).map(option => option.label) }));
+			const artifactKind = labels.getArtifactKind?.(binding.integrationId);
+			notices.push({
+				session: binding.session, artifact: binding.artifact, changes, enabledRules, ...(artifactKind ? { artifactKind } : {}),
+				...formatArtifactAutomationNotice(binding.artifact.label, changes, enabledRules, artifactKind),
+			});
 		}
 	}
 	return notices;
@@ -65,19 +90,51 @@ export function getArtifactAutomationNotices(previous: ArtifactIntegrationState,
 /**
  * Renders a notice as a one-line summary followed by the details that are
  * shown when it is expanded. Several changes are summarized by their count.
+ * The summary names the agent only when it made every change, and bolds what changed.
  */
-export function formatArtifactAutomationNotice(artifactLabel: string, changes: readonly ArtifactAutomationNoticeChange[], enabledRules: readonly ArtifactAutomationEnabledRules[]): Pick<ArtifactAutomationNotice, 'kind' | 'content'> {
+export function formatArtifactAutomationNotice(artifactLabel: string, changes: readonly ArtifactAutomationNoticeChange[], enabledRules: readonly ArtifactAutomationEnabledRules[], artifactKind?: string): Pick<ArtifactAutomationNotice, 'kind' | 'content'> {
 	const blocks: string[] = [];
+	// The summaries mark up their own text, so only the text they insert is escaped.
+	const artifact = escapeMarkdownSyntaxTokens(artifactKind ? localize('artifactAutomationNoticeArtifact', "{0}: {1}", artifactKind, artifactLabel) : artifactLabel);
+	const agentName = changes.every(change => change.agent !== undefined && change.agent === changes[0].agent) ? changes[0].agent : undefined;
+	const agent = agentName && escapeMarkdownSyntaxTokens(agentName);
+	// Opens the expanded details by saying how Autopilot acts, whenever the notice leaves a rule on.
+	const intro = changes.some(change => change.kind !== 'disabled')
+		? [localize('artifactAutomationNoticeIntro', "Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.")]
+		: [];
 	if (changes.length === 1) {
 		const [change] = changes;
-		const title = change.kind === 'enabled'
-			? localize('artifactAutomationEnabledNotice', "{0} enabled for {1}", change.label, artifactLabel)
-			: change.kind === 'changed'
-				? localize('artifactAutomationChangedNotice', "{0} updated for {1}", change.label, artifactLabel)
-				: localize('artifactAutomationDisabledNotice', "{0} disabled for {1}", change.label, artifactLabel);
-		blocks.push(...[title, ...change.details].map(escapeMarkdownSyntaxTokens));
+		const label = escapeMarkdownSyntaxTokens(change.label);
+		blocks.push(agent
+			? change.kind === 'enabled'
+				? localize('artifactAutomationAgentEnabledNotice', "{0} **enabled {1}** for {2}", agent, label, artifact)
+				: change.kind === 'changed'
+					? localize('artifactAutomationAgentChangedNotice', "{0} **updated {1}** for {2}", agent, label, artifact)
+					: localize('artifactAutomationAgentDisabledNotice', "{0} **disabled {1}** for {2}", agent, label, artifact)
+			: change.kind === 'enabled'
+				? localize('artifactAutomationEnabledNotice', "**{0} enabled** for {1}", label, artifact)
+				: change.kind === 'changed'
+					? localize('artifactAutomationChangedNotice', "**{0} updated** for {1}", label, artifact)
+					: localize('artifactAutomationDisabledNotice', "**{0} disabled** for {1}", label, artifact));
+		blocks.push(...[...intro, ...change.details].map(escapeMarkdownSyntaxTokens));
 	} else {
-		blocks.push(escapeMarkdownSyntaxTokens(localize('artifactAutomationUpdatedNotice', "Autopilot updated for {0} ({1} rules)", artifactLabel, changes.length)));
+		const enabledCount = enabledRules.reduce((count, rules) => count + rules.labels.length, 0);
+		// `enabledRules` covers every integration of the artifact, so every enabled rule being newly enabled means that
+		// Autopilot was off before, and no enabled rule after disabling several means that it is off now.
+		const summary = changes.every(change => change.kind === 'enabled') && enabledCount === changes.length ? 'enabled'
+			: changes.every(change => change.kind === 'disabled') && enabledCount === 0 ? 'disabled' : 'updated';
+		blocks.push(agent
+			? summary === 'enabled'
+				? localize('artifactAutomationAgentEnabledRulesNotice', "{0} **enabled Autopilot** for {1} ({2} rules)", agent, artifact, changes.length)
+				: summary === 'disabled'
+					? localize('artifactAutomationAgentDisabledRulesNotice', "{0} **disabled Autopilot** for {1} ({2} rules)", agent, artifact, changes.length)
+					: localize('artifactAutomationAgentUpdatedNotice', "{0} **updated Autopilot** for {1} ({2} rules)", agent, artifact, changes.length)
+			: summary === 'enabled'
+				? localize('artifactAutomationEnabledRulesNotice', "**Autopilot enabled** for {0} ({1} rules)", artifact, changes.length)
+				: summary === 'disabled'
+					? localize('artifactAutomationDisabledRulesNotice', "**Autopilot disabled** for {0} ({1} rules)", artifact, changes.length)
+					: localize('artifactAutomationUpdatedNotice', "**Autopilot updated** for {0} ({1} rules)", artifact, changes.length));
+		blocks.push(...intro.map(escapeMarkdownSyntaxTokens));
 		blocks.push(changes.map(change => {
 			const title = change.kind === 'enabled'
 				? localize('artifactAutomationRuleEnabled', "{0} enabled", change.label)
@@ -90,16 +147,10 @@ export function formatArtifactAutomationNotice(artifactLabel: string, changes: r
 		}).join('\n'));
 	}
 	if (changes.some(change => change.kind === 'disabled')) {
-		blocks.push(escapeMarkdownSyntaxTokens(changes.length === 1
-			? localize('artifactAutomationStoppedNotice', "No new automatic runs will start for this rule. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.")
-			: localize('artifactAutomationStoppedRulesNotice', "No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.")));
 		const remaining = enabledRules.flatMap(rules => rules.labels);
-		blocks.push(escapeMarkdownSyntaxTokens(remaining.length
-			? localize('artifactAutomationRemainingNotice', "Still enabled: {0}.", remaining.join(', '))
-			: enabledRules.length > 1
-				// Only the integrations of these changes are known, not every integration of the artifact.
-				? localize('artifactAutomationNoneRemainingForIntegrationsNotice', "No automation rules remain enabled for these artifact integrations.")
-				: localize('artifactAutomationNoneRemainingNotice', "No automation rules remain enabled for this artifact integration.")));
+		if (remaining.length) {
+			blocks.push(escapeMarkdownSyntaxTokens(localize('artifactAutomationRemainingNotice', "Still enabled: {0}.", remaining.join(', '))));
+		}
 	}
 	const kind = changes.every(change => change.kind === changes[0].kind) ? changes[0].kind : 'changed';
 	return { kind, content: blocks.join('\n\n') };
@@ -147,6 +198,7 @@ export function isArtifactAutomationNoticeChanges(value: unknown): value is read
 	return Array.isArray(value) && value.length > 0 && value.length <= 100 && value.every((change, index) => isRecord(change)
 		&& isNoticeText(change.integrationId) && isNoticeText(change.optionId) && isNoticeText(change.label) && noticeKinds.has(change.kind)
 		&& Array.isArray(change.details) && change.details.length <= 20 && change.details.every(isNoticeText)
+		&& (change.agent === undefined || isNoticeText(change.agent))
 		&& value.findIndex(candidate => isRecord(candidate) && candidate.integrationId === change.integrationId && candidate.optionId === change.optionId) === index);
 }
 

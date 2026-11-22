@@ -33,16 +33,30 @@ function threadHasComments(comments: ReadonlyArray<languages.Comment> | undefine
 	return !!comments && comments.length > 0;
 }
 
+/**
+ * Overrides how the action that collapses the comment thread is presented.
+ */
+export interface ICommentThreadCollapseActionPresentation {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
 export class CommentThreadHeader<T = IRange> extends Disposable {
 	private _headElement: HTMLElement;
+	private _titleElement!: HTMLElement;
 	private _headingLabel!: HTMLElement;
+	private _actionsContainer!: HTMLElement;
 	private _actionbarWidget!: ActionBar;
 	private _collapseAction!: Action;
 	private _contextMenuActionRunner: ActionRunner | undefined;
 
+	get domNode(): HTMLElement {
+		return this._headElement;
+	}
+
 	constructor(
 		container: HTMLElement,
-		private _delegate: { collapse: () => void },
+		private _delegate: { collapse: () => void; collapseAction?: ICommentThreadCollapseActionPresentation },
 		private _commentMenus: CommentMenus,
 		private _commentThread: languages.CommentThread<T>,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -57,25 +71,26 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	}
 
 	protected _fillHead(): void {
-		const titleElement = dom.append(this._headElement, dom.$('.review-title'));
+		this._titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
-		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
+		this._headingLabel = dom.append(this._titleElement, dom.$('span.filename'));
 		this.createThreadLabel();
 
-		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
-		this._actionbarWidget = new ActionBar(actionsContainer, {
+		this._actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
+		this._actionbarWidget = new ActionBar(this._actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this._instantiationService)
 		});
 
 		this._register(this._actionbarWidget);
 
-		const collapseClass = threadHasComments(this._commentThread.comments) ? COLLAPSE_ACTION_CLASS : DELETE_ACTION_CLASS;
-		this._collapseAction = new Action(CommentCommandId.Hide, nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse());
+		const collapseActionClass = this._delegate.collapseAction ? 'expand-review-action ' + ThemeIcon.asClassName(this._delegate.collapseAction.icon) : COLLAPSE_ACTION_CLASS;
+		const collapseClass = threadHasComments(this._commentThread.comments) ? collapseActionClass : DELETE_ACTION_CLASS;
+		this._collapseAction = new Action(CommentCommandId.Hide, this._delegate.collapseAction?.label ?? nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse());
 		if (!threadHasComments(this._commentThread.comments)) {
 			const commentsChanged: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 			commentsChanged.value = this._commentThread.onDidChangeComments(() => {
 				if (threadHasComments(this._commentThread.comments)) {
-					this._collapseAction.class = COLLAPSE_ACTION_CLASS;
+					this._collapseAction.class = collapseActionClass;
 					commentsChanged.clear();
 				}
 			});
@@ -129,6 +144,19 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	updateHeight(headHeight: number) {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
+	}
+
+	/**
+	 * Measures the width the header needs to show all of its actions, and the width that also shows its whole title.
+	 */
+	measureWidths(): { minimum: number; natural: number } {
+		const targetWindow = dom.getWindow(this._headElement);
+		const titleStyle = targetWindow.getComputedStyle(this._titleElement);
+		const actionsStyle = targetWindow.getComputedStyle(this._actionsContainer);
+		const minimum = (parseFloat(titleStyle.marginLeft) || 0) + (parseFloat(titleStyle.marginRight) || 0)
+			+ (parseFloat(actionsStyle.paddingLeft) || 0) + this._actionbarWidget.domNode.offsetWidth + (parseFloat(actionsStyle.paddingRight) || 0);
+		// The title is cut off with an ellipsis when it doesn't fit.
+		return { minimum, natural: minimum + this._titleElement.scrollWidth };
 	}
 
 	private onContextMenu(e: MouseEvent) {

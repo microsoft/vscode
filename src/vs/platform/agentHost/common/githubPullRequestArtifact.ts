@@ -10,7 +10,7 @@ import { localize } from '../../../nls.js';
 import { ArtifactAutomationOption } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { FragmentState, PullRequestCheck, PullRequestReviewThread, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
-import { classifyRequiredPullRequestChecks, getPullRequestCheckState, PullRequestCheckState, toUnreportedCheckSuiteCheck } from '../../github/common/pullRequestRequiredChecks.js';
+import { classifyRequiredPullRequestChecks, getPullRequestCheckState, PullRequestCheckState, toMissingRequiredCheck, toUnreportedCheckSuiteCheck } from '../../github/common/pullRequestRequiredChecks.js';
 import { deriveGitHubEndpoints } from '../../github/common/githubEndpoints.js';
 
 export const gitHubPullRequestArtifactIntegrationId = 'github.pullRequest';
@@ -21,27 +21,27 @@ export const gitHubPullRequestArtifactOptions: readonly ArtifactAutomationOption
 	{
 		id: 'addressReviews', kind: 'boolean', defaultValue: false, actionIds: ['addressReviews'], maxAttempts: 3,
 		label: localize('prArtifact.autoReviews', "Automatically Address Reviews"),
-		description: localize('prArtifact.autoReviews.description', "Address unresolved review threads from repository collaborators and Copilot, then commit and push the repairs."),
+		description: localize('prArtifact.autoReviews.description', "When collaborators or Copilot leave review comments, the agent addresses them and pushes the changes."),
 	},
 	{
 		id: 'fixCI', kind: 'boolean', defaultValue: false, actionIds: ['fixCI'], maxAttempts: 3,
 		label: localize('prArtifact.autoCI', "Automatically Fix CI"),
-		description: localize('prArtifact.autoCI.description', "Repair failing required checks, including the jobs a required check waits for, then commit and push the repairs. When the base branch requires no checks, every check counts."),
+		description: localize('prArtifact.autoCI.description', "When required checks fail, the agent fixes the failures and pushes the changes."),
 	},
 	{
 		id: 'resolveConflicts', kind: 'boolean', defaultValue: false, actionIds: ['resolveConflicts'], maxAttempts: 3,
 		label: localize('prArtifact.autoConflicts', "Automatically Update Branch"),
-		description: localize('prArtifact.autoConflicts.description', "Resolve merge conflicts or update a behind branch, then commit and push the changes."),
+		description: localize('prArtifact.autoConflicts.description', "When the branch has merge conflicts or falls behind, the agent updates it and pushes the changes."),
 	},
 	{
 		id: 'markReady', kind: 'boolean', defaultValue: false, actionIds: ['markReady'], maxAttempts: 1,
 		label: localize('prArtifact.autoReady', "Automatically Mark Ready"),
-		description: localize('prArtifact.autoReady.description', "Mark the draft ready when required checks pass and no qualifying unresolved review threads remain. The check-exclusion setting applies only to this action."),
+		description: localize('prArtifact.autoReady.description', "When required checks pass and review comments are resolved, the draft is marked ready for review."),
 	},
 	{
 		id: 'merge', kind: 'enum', defaultValue: 'never', disabledValue: 'never', actionIds: ['merge'], maxAttempts: 1,
 		label: localize('prArtifact.autoMerge', "Merge Automatically When Ready"),
-		description: localize('prArtifact.autoMerge.description', "Merge when every required check passes, qualifying review threads are resolved, and GitHub permits it."),
+		description: localize('prArtifact.autoMerge.description', "When required checks pass, review comments are resolved, and GitHub allows it, the pull request is merged. This is separate from GitHub's native auto-merge."),
 		choices: [
 			{ value: 'never', label: localize('prArtifact.mergeOff', "Off") },
 			{ value: 'always', label: localize('prArtifact.mergeAlways', "Always") },
@@ -92,7 +92,13 @@ export function getPullRequestArtifactChecks(snapshot: PullRequestSnapshot): rea
 	return checks ? [
 		...checks.checks,
 		...checks.expectedSuites.filter(suite => !suite.checkRunsReported).map(toUnreportedCheckSuiteCheck),
+		...getPullRequestArtifactMissingRequiredChecks(snapshot).map(toMissingRequiredCheck),
 	] : [];
+}
+
+/** The required checks that have not reported on the pull request's head at all, which GitHub waits for before it permits merging. */
+export function getPullRequestArtifactMissingRequiredChecks(snapshot: PullRequestSnapshot): readonly string[] {
+	return snapshot.checks.value ? classifyRequiredPullRequestChecks(snapshot.checks.value).missing : [];
 }
 
 export function getPullRequestArtifactCheckState(check: PullRequestCheck): PullRequestCheckState {

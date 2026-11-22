@@ -6,25 +6,27 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IReference, ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGitHubCredentials } from '../../../../../platform/github/common/githubCredentialService.js';
+import { FragmentState, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubIssue } from '../../../../../platform/github/common/githubQueryService.js';
 import { GitHubQueryService } from '../../../../../platform/github/common/githubQueryServiceImpl.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { GitHubTransport } from '../../../../../platform/github/common/githubTransport.js';
 import { IGitHubEndpointProvider } from '../../../../../platform/github/common/githubTypes.js';
-import { FragmentState, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { getChatPillLocationHover } from '../../../../browser/chatPills.js';
-import { createGitHubResourceDetailsHover, getGitHubResourceDetailsPresentation, GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../browser/githubResourceDetails.js';
-import { createIssueResourceHover, createPullRequestResourceHover, IGitHubIssueHoverModel, IGitHubPullRequestHoverModel } from '../../browser/githubResourceHover.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { GitHubResourceDetailsResolver, createGitHubResourceDetailsHover, getGitHubResourceDetailsPresentation, parseGitHubReferenceTarget } from '../../browser/githubResourceDetails.js';
+import { IGitHubIssueHoverModel, IGitHubPullRequestHoverModel, createIssueResourceHover, createPullRequestResourceHover } from '../../browser/githubResourceHover.js';
+
 
 suite('GitHubResourceDetails', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -114,7 +116,7 @@ suite('GitHubResourceDetails', () => {
 		let refresh = async (_fragment: string, _number: number) => { };
 		const client = upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
-				getCredential: async signal => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+				getCredential: async cancellationToken => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, cancellationToken }),
 			}),
 			query: upcastPartial<IGitHubClient['query']>({
 				subscribeIssue: (ref, options) => {
@@ -195,7 +197,7 @@ suite('GitHubResourceDetails', () => {
 		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
 		const issue: IGitHubIssueHoverModel = { title: 'Live title', body: '', state: 'open', author: { login: 'author' } };
 		const cases = [
-			{ state: 'open', stateReason: undefined, icon: 'issue-opened', color: 'charts.green' },
+			{ state: 'open', stateReason: undefined, icon: 'issues', color: 'charts.green' },
 			{ state: 'closed', stateReason: 'completed', icon: 'issue-closed', color: 'charts.purple' },
 			{ state: 'closed', stateReason: 'not_planned', icon: 'issue-closed', color: 'descriptionForeground' },
 			{ state: 'closed', stateReason: 'duplicate', icon: 'issue-closed', color: 'descriptionForeground' },
@@ -313,7 +315,7 @@ suite('GitHubResourceDetails', () => {
 		const account = { host: 'api.github.com', accountId: 'test' };
 		const credentials = upcastPartial<IGitHubCredentials>({
 			onDidInvalidate: Event.None,
-			getCredential: async signal => ({ account, token: 'token', generation: 1, signal }),
+			getCredential: async cancellationToken => ({ account, token: 'token', generation: 1, cancellationToken }),
 			handleRequestError: () => { },
 		});
 		const release = new DeferredPromise<Response>();
@@ -346,9 +348,9 @@ suite('GitHubResourceDetails', () => {
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: async () => new ImmortalReference(client),
 		}), new NullLogService()));
-		const busy = transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/busy', priority: 'background' }, new AbortController().signal);
+		const busy = transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/busy', priority: 'background' }, CancellationToken.None);
 		await started.p;
-		const visible = transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/visible', priority: 'visible' }, new AbortController().signal);
+		const visible = transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/visible', priority: 'visible' }, CancellationToken.None);
 		const target = { owner: 'microsoft', repo: 'vscode', number: 4 };
 		const background = resolver.prefetchIssue(target);
 		await timeout(0);
@@ -588,8 +590,8 @@ suite('GitHubResourceDetails', () => {
 		const warnings: string[] = [];
 		const client = upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
-				getCredential: async signal => ({
-					account: { host: 'github.enterprise.example', accountId: 'enterprise' }, token: 'token', generation: 1, signal,
+				getCredential: async cancellationToken => ({
+					account: { host: 'github.enterprise.example', accountId: 'enterprise' }, token: 'token', generation: 1, cancellationToken,
 				}),
 			}),
 			query: upcastPartial<IGitHubClient['query']>({
@@ -623,7 +625,7 @@ suite('GitHubResourceDetails', () => {
 				const warnings: string[] = [];
 				const client = upcastPartial<IGitHubClient>({
 					credentials: upcastPartial<IGitHubClient['credentials']>({
-						getCredential: async signal => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+						getCredential: async cancellationToken => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, cancellationToken }),
 					}),
 					pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 						subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
@@ -722,11 +724,11 @@ suite('GitHubResourceDetails', () => {
 		const client = upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				onDidInvalidate: Event.None,
-				getCredential: async (signal: AbortSignal) => ({
+				getCredential: async (cancellationToken: CancellationToken) => ({
 					account: { host: 'api.github.com', accountId: 'test' },
 					token: 'token',
 					generation: 1,
-					signal,
+					cancellationToken,
 				}),
 			}),
 			query: upcastPartial<IGitHubClient['query']>({
@@ -897,11 +899,11 @@ suite('GitHubResourceDetails', () => {
 			const client = upcastPartial<IGitHubClient>({
 				credentials: upcastPartial<IGitHubClient['credentials']>({
 					onDidInvalidate: Event.None,
-					getCredential: async (signal: AbortSignal) => ({
+					getCredential: async (cancellationToken: CancellationToken) => ({
 						account: { host: 'api.github.com', accountId: 'test' },
 						token: 'token',
 						generation: 1,
-						signal,
+						cancellationToken,
 					}),
 				}),
 				pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
@@ -973,20 +975,20 @@ suite('GitHubResourceDetails', () => {
 	test('does not resurrect an evicted prefetch when its hover is waiting', async () => {
 		const acquired = new DeferredPromise<IReference<IGitHubClient>>();
 		let acquisitions = 0;
-		let acquisitionSignal: AbortSignal | undefined;
+		let acquisitionSignal: CancellationToken | undefined;
 		const refreshCancellation: boolean[] = [];
 		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
-			acquireDefaultAccountClient: signal => { acquisitions++; acquisitionSignal = signal; return acquired.p; },
+			acquireDefaultAccountClient: cancellationToken => { acquisitions++; acquisitionSignal = cancellationToken; return acquired.p; },
 		}), new NullLogService()));
 		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
 		const prefetched = resolver.prefetchPullRequest(target);
 		const hover = resolver.resolvePullRequest(target);
 		resolver.retain([]);
-		const abortedOnEviction = acquisitionSignal?.aborted;
+		const abortedOnEviction = acquisitionSignal?.isCancellationRequested;
 		acquired.complete(new ImmortalReference(upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
-				getCredential: async signal => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+				getCredential: async cancellationToken => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, cancellationToken }),
 			}),
 			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 				subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
@@ -1029,11 +1031,11 @@ suite('GitHubResourceDetails', () => {
 		const client = upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				onDidInvalidate: Event.None,
-				getCredential: async (signal: AbortSignal) => ({
+				getCredential: async (cancellationToken: CancellationToken) => ({
 					account: { host: 'api.github.com', accountId: 'test' },
 					token: 'token',
 					generation: 1,
-					signal,
+					cancellationToken,
 				}),
 			}),
 			query: upcastPartial<IGitHubClient['query']>({

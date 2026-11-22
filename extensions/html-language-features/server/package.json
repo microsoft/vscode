@@ -18,7 +18,8 @@
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "24.x",
+    "glob": "^5.0.13"
   },
   "scripts": {
     "compile": "pnpm exec gulp compile-extension:html-language-features-server",

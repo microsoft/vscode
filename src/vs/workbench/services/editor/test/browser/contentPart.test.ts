@@ -314,6 +314,25 @@ suite('Content Part', () => {
 		});
 	});
 
+	test('a group moving to another part is announced while it still has its editors, which the move then closes; a move within the part is not', async () => {
+		const parts = await createServices();
+
+		const part = parts.createEditorPart({ container: createContainer() });
+		const other = parts.createEditorPart({ container: createContainer() });
+		disposables.add({ dispose: () => { part.close(); other.close(); } });
+		const moved = part.activeGroup;
+		await moved.openEditor(createInput('/content/moved1.txt'), { pinned: true });
+		await moved.openEditor(createInput('/content/moved2.txt'), { pinned: true });
+		const split = part.addGroup(moved, GroupDirection.RIGHT);
+		const announced: number[] = [];
+		disposables.add(part.onWillMoveGroupOut(group => announced.push(group.count)));
+
+		parts.moveGroup(split.id, moved.id, GroupDirection.LEFT);
+		parts.moveGroup(moved.id, other.activeGroup.id, GroupDirection.RIGHT);
+
+		assert.deepStrictEqual({ announced, left: moved.count, arrived: other.groups.reduce((count, group) => count + group.count, 0) }, { announced: [2], left: 0, arrived: 2 });
+	});
+
 	test('every group of a part created with state is announced, and the state is applied', async () => {
 		const parts = await createServices();
 		const first = parts.createEditorPart({ container: createContainer() });

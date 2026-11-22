@@ -25,7 +25,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
+import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsCompactMenuSettingId, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../services/policies/common/organizationSupport.js';
 
 export interface IRemoteConnectionsActionViewItemOptions {
 	/** Adds a separate menu entry after the connection methods, e.g. to manage remote environments. */
@@ -51,6 +56,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private readonly _primaryAction: ToggleRemoteConnectionsActionViewItem;
 	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
 	private readonly _sharing: RemoteConnectionsSharing;
+	/** The support URL behind the policy footer of the last opened menu, if it showed that footer. */
+	private _policyFooterSupportUrl: { readonly url: string | undefined } | undefined;
 
 	constructor(
 		action: IAction,
@@ -58,11 +65,15 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		private readonly _options: IRemoteConnectionsActionViewItemOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(undefined, action);
 
 		this._primaryAction = this._register(instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action));
-		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => { await this.action.run(this._context); }));
+		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => this.action.run(this._context), this._isChatInput ? 'chatInput' : 'titleBar'));
 		const dropdownAction = this._register(new Action('remoteConnections.selectMethod', localize('remoteConnections.label', "Remote Connections")));
 		this._dropdown = this._register(instantiationService.createInstance(RemoteConnectionsDropdownActionViewItem,
 			dropdownAction,
@@ -72,6 +83,12 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			},
 		));
 		this._register(this._primaryAction.onDidChangeState(() => this._updateDropdownState()));
+		// The policy footer's link is resolved when the menu opens, so it closes rather than going stale.
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this._policyFooterSupportUrl && getManagedSupportUrl(this._managedSettingsService) !== this._policyFooterSupportUrl.url) {
+				this._dropdown.hide();
+			}
+		}));
 	}
 
 	override set actionRunner(actionRunner: IActionRunner) {
@@ -141,27 +158,42 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const options: IActionListOptions = {
 			minWidth: 300,
 			maxWidth: 320,
-			wrapDetails: true,
+			wrapDetails: !this._isCompactMenu(),
 			...this._getNameHeader(),
 			widgetClassName: 'remote-connections-picker',
 			hideDefaultKeybindingTooltip: true,
 		};
 		if (this._sharing.gitHubEnvironmentsAvailability !== 'policyDisabled') {
+			this._policyFooterSupportUrl = undefined;
 			return options;
 		}
-		const label = localize('remoteConnections.viewSetting', "View Setting");
+		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+		this._policyFooterSupportUrl = { url: supportUrl };
+		const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View Setting");
 		return {
 			...options,
-			footerText: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
-			footerAction: toAction({
-				id: 'remoteConnections.viewSetting',
-				label,
-				tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
-				run: async () => {
-					this._dropdown.hide();
-					await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
-				},
-			}),
+			footerText: supportUrl
+				? localize('remoteConnections.policyFooterWithSupport', "GitHub Environments is disabled by your organization. {0}", label)
+				: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+			footerAction: supportUrl
+				? toAction({
+					id: 'remoteConnections.organizationSupport',
+					label,
+					tooltip: getOrganizationSupportActionTooltip(supportUrl),
+					run: async () => {
+						this._dropdown.hide();
+						await openOrganizationSupport(this._openerService, supportUrl);
+					},
+				})
+				: toAction({
+					id: 'remoteConnections.viewSetting',
+					label,
+					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+					run: async () => {
+						this._dropdown.hide();
+						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
+					},
+				}),
 		};
 	}
 
@@ -202,9 +234,21 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		await this._sharing.rename();
 	}
 
+	private _isCompactMenu(): boolean {
+		return this._configurationService.getValue<boolean>(RemoteConnectionsCompactMenuSettingId) === true;
+	}
+
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
+		// The menu is opening, in every experiment arm, before the arms render it differently.
+		logSettingExperimentTrigger(this._telemetryService, RemoteConnectionsCompactMenuSettingId);
+		const compact = this._isCompactMenu();
+		// The compact menu moves each method's explanation from a second line to a hover and the accessible description.
+		const explain = (explanation: string): Pick<IActionWidgetDropdownAction, 'detail' | 'hover' | 'ariaDescription'> => compact
+			? { hover: { content: explanation }, ariaDescription: explanation }
+			: { detail: explanation };
 		const environments = this._sharing.gitHubEnvironmentsAvailability;
-		const active = this._sharing.activeMethod;
+		// Checks the method chosen last, also in another surface, while choices are being applied.
+		const active = this._sharing.pendingMethod ?? this._sharing.activeMethod;
 		const methods: IActionWidgetDropdownAction[] = [
 			{
 				...toAction({
@@ -213,33 +257,37 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: active === 'off',
 					run: () => this._selectConnectionMethod('off'),
 				}),
-				labelIcon: Codicon.circleSlash,
-				detail: getOffDetail(),
+				labelIcon: compact ? undefined : Codicon.circleSlash,
+				...explain(getOffDetail()),
 			},
 		];
 		if (environments !== 'unavailable') {
 			methods.push({
 				...toAction({
 					id: 'remoteConnections.githubEnvironment',
-					label: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
+					label: compact
+						? localize('remoteConnections.githubEnvironmentMethod', "GitHub Environment")
+						: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
 					enabled: environments === 'enabled',
 					checked: active === 'githubEnvironment',
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : Codicon.github,
-				detail: getGitHubEnvironmentsDetail(environments),
+				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : compact ? undefined : Codicon.github,
+				...explain(getGitHubEnvironmentsDetail(environments)),
 				badge: localize('remoteConnections.preview', "Preview"),
 			});
 		}
 		methods.push({
 			...toAction({
 				id: 'remoteConnections.devTunnel',
-				label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
+				label: compact
+					? localize('remoteConnections.devTunnelMethod', "Dev Tunnel")
+					: localize('remoteConnections.devTunnel', "Dev Tunnels"),
 				checked: active === 'devTunnel',
 				run: () => this._selectConnectionMethod('devTunnel'),
 			}),
-			labelIcon: Codicon.radioTower,
-			detail: getDevTunnelsDetail(),
+			labelIcon: compact ? undefined : Codicon.radioTower,
+			...explain(getDevTunnelsDetail()),
 		});
 		const management = this._options.getManagementAction?.();
 		if (management) {
@@ -251,12 +299,15 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				...toAction({
 					id: management.id,
 					label: management.label,
+					tooltip: management.tooltip,
 					enabled: management.enabled,
 					run: () => management.run(),
 				}),
+				...(compact
+					? { hover: management.tooltip ? { content: management.tooltip } : undefined, ariaDescription: management.tooltip || undefined }
+					: { labelIcon: Codicon.settingsGear }),
 				// Keeps the label aligned with the checkable connection methods.
 				icon: Codicon.blank,
-				labelIcon: Codicon.settingsGear,
 				category: { label: 'management', order: 1 },
 			});
 		}

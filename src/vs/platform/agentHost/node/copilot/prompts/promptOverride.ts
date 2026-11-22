@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Tool } from '@github/copilot-sdk';
+import type { Tool } from '@microsoft/copilot-sdk';
 import { URI } from '../../../../../base/common/uri.js';
 import { parse as parseYaml, type YamlMapNode, type YamlNode, type YamlParseError } from '../../../../../base/common/yaml.js';
 import type { IFileService } from '../../../../files/common/files.js';

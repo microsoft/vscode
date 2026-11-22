@@ -12,15 +12,15 @@ import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { GitHubPullRequestState } from '../common/types.js';
-import { getSessionGitHubReferences } from '../common/sessionGitHubReferences.js';
-import { getPullRequestKey } from '../common/utils.js';
-import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
-import { GitHubService, IGitHubService, isGitHubReferenceSupported } from './githubService.js';
-import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
+import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { GitHubService, IGitHubService, isGitHubReferenceSupported } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 import './pullRequestActions.js';
@@ -72,13 +72,14 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
 				return undefined;
 			}
@@ -266,11 +267,11 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		const shouldPollObs = derived(this, pollReader => {
 			const prDetails = model.pullRequest.read(pollReader);
 			const isMerged = prDetails?.state === GitHubPullRequestState.Merged;
-			return !isMerged || this._isActiveSession(session, pollReader);
+			return !isMerged || this._isShown(session, pollReader);
 		});
 		reader.store.add(autorun(pollReader => {
 			if (!shouldPollObs.read(pollReader)) {
-				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} PR ${owner}/${repo}#${prNumber} is merged and not active; not polling`);
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} PR ${owner}/${repo}#${prNumber} is merged and not shown; not polling`);
 				return;
 			}
 
@@ -279,9 +280,9 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		}));
 
 		// Poll CI checks for every open PR so reference hovers can surface the
-		// current status. A background/inactive draft's icon is not shown, so
-		// only refresh it once here and keep polling only while its session is
-		// active; a non-draft (or the active session's draft) polls fully.
+		// current status. The icon of a draft whose session no host shows is not
+		// visible, so only refresh it once here and keep polling only while a host
+		// shows its session; a non-draft (or a shown session's draft) polls fully.
 		// Review threads only refine non-draft PR icons.
 		reader.store.add(autorun(statusReader => {
 			const prDetails = model.pullRequest.read(statusReader);
@@ -295,12 +296,12 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			ciModelRef.object.refresh(false, { priority: 'background' });
 
 			if (prDetails.isDraft) {
-				const shouldPollDraftCiObs = derived(this, pollReader => this._isActiveSession(session, pollReader));
+				const shouldPollDraftCiObs = derived(this, pollReader => this._isShown(session, pollReader));
 				statusReader.store.add(autorun(pollReader => {
 					if (!shouldPollDraftCiObs.read(pollReader)) {
 						return;
 					}
-					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} activated; refreshing and polling draft CI for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
+					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} shown; refreshing and polling draft CI for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
 					ciModelRef.object.refresh(false, { priority: 'visible' });
 					pollReader.store.add(ciModelRef.object.startPolling());
 				}));
@@ -320,13 +321,9 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	}
 
-	private _isActiveSession(session: ISession, reader: IReader): boolean {
-		const activeSession = this._sessionsService.activeSession.read(reader);
-		if (!activeSession || activeSession.isArchived.read(reader)) {
-			return false;
-		}
-
-		return isEqual(activeSession.resource, session.resource);
+	/** Whether any host, in any window, shows the session. */
+	private _isShown(session: ISession, reader: IReader): boolean {
+		return !session.isArchived.read(reader) && this._sessionHostService.isShown(session.resource, reader);
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -16,6 +17,7 @@ import { ManagedSettingsFreshnessState } from '../../../../platform/policy/commo
 import { autorun } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IManagedSettingsUpdateService } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 export class SessionsPolicyBlockedContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,6 +33,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IManagedSettingsUpdateService private readonly managedSettingsUpdateService: IManagedSettingsUpdateService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 
@@ -46,6 +49,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		}));
 
 		this._register(this.gateService.onDidChangeGateInfo(() => this.update()));
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.update()));
 	}
 
 	private update(): void {
@@ -55,6 +59,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			return;
 		}
 		const gateInfo = this.gateService.gateInfo;
+		const supportUrl = getManagedSupportUrl(this.managedSettingsService);
 
 		// The gate forces chat.agent.enabled = false via restrictedValue when stably
 		// Restricted. Suppress AgentDisabled in that case so users see the gate-specific
@@ -64,7 +69,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 		const agentEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (agentEnabled === false && !gateForcesAgentDisabled) {
-			this.showOverlay({ reason: SessionsBlockedReason.AgentDisabled });
+			this.showOverlay({ reason: SessionsBlockedReason.AgentDisabled, supportUrl });
 			return;
 		}
 
@@ -82,7 +87,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			} else if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh) {
 				const freshness = gateInfo.managedSettingsFreshness;
 				this.showOverlay(freshness?.state === ManagedSettingsFreshnessState.Blocked
-					? { reason: SessionsBlockedReason.ManagedSettingsRefresh, freshness }
+					? { reason: SessionsBlockedReason.ManagedSettingsRefresh, freshness, supportUrl }
 					: { reason: SessionsBlockedReason.Loading });
 			} else {
 				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
@@ -90,6 +95,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 					reason: SessionsBlockedReason.AccountPolicyGate,
 					approvedOrganizations: gateInfo.approvedOrganizations,
 					accountName,
+					supportUrl,
 				});
 			}
 			return;
@@ -103,14 +109,21 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		if (equals(this.currentOptions, options)) {
 			return;
 		}
-		const shouldFocus = options.reason !== SessionsBlockedReason.UpdateRequired || !this.overlayRef.value || this.overlayRef.value.hasFocus();
+		const previous = this.overlayRef.value;
+		const focusAction = previous?.getFocusedAction();
+		// Leave focus in a dialog or quick pick the overlay opened, such as link protection.
+		const activeElement = getActiveElement();
+		const focusInFollowUp = isHTMLElement(activeElement) && !!activeElement.closest('.monaco-dialog-modal-block, .quick-input-widget');
+		const shouldFocus = options.reason === SessionsBlockedReason.UpdateRequired
+			? !previous || previous.hasFocus()
+			: !focusInFollowUp;
 		this.overlayRef.clear();
 		this.currentOptions = options;
 
 		this.overlayRef.value = this.instantiationService.createInstance(
 			SessionsPolicyBlockedOverlay,
 			this.layoutService.mainContainer,
-			{ ...options, shouldFocus },
+			{ ...options, shouldFocus, focusAction },
 		);
 	}
 }

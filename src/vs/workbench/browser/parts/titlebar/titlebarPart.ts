@@ -433,7 +433,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	/**
 	 * Installs, uninstalls or recreates the custom menu bar so that it matches the
 	 * current configuration. The title bar owns the menu bar when it is not compact,
-	 * and also when it is compact but the activity bar is at the top or bottom (see
+	 * and also when it is compact but the activity bar is at the top, bottom or hidden (see
 	 * {@link isCompactMenuInTitlebar}). The compact mode of a menu bar is fixed at
 	 * creation, so the control is recreated when it changes.
 	 */
@@ -1026,7 +1026,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		if (this.customMenubar.value) {
 			this.customMenubar.value.toggleFocus();
 		} else {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement | null)?.focus();
 		}
 	}

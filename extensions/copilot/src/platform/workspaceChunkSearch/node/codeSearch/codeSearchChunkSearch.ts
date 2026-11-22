@@ -29,6 +29,7 @@ import { ConfigKey, ConfigTarget, IConfigurationService } from '../../../configu
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 import { RelativePattern } from '../../../filesystem/common/fileTypes';
 import { IGitService, ResolvedRepoRemoteInfo } from '../../../git/common/gitService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change } from '../../../git/vscode/git';
 import { logExecTime, LogExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';
@@ -44,7 +45,8 @@ import { IWorkspaceFileIndex } from '../workspaceFileIndex';
 import { AdoCodeSearchRepo, BuildIndexTriggerReason, CodeSearchRepo, CodeSearchRepoStatus, GithubCodeSearchRepo, TriggerIndexingError, TriggerRemoteIndexingError } from './codeSearchRepo';
 import { ExternalIngestClient } from './externalIngestClient';
 import { ExternalIngestIndex, ExternalIngestStatus } from './externalIngestIndex';
-import { CodeSearchRepoTracker, RepoInfo, TrackedRepoStatus } from './repoTracker';
+import { LocalDiffEmbeddingsSearch } from './localDiffEmbeddingsSearch';
+import { CodeSearchRepoTracker, RepoInfo, TrackedRepoState, TrackedRepoStatus } from './repoTracker';
 import { CodeSearchDiff, CodeSearchWorkspaceDiffTracker } from './workspaceDiff';
 
 export interface RepoEntry {
@@ -138,6 +140,8 @@ export class CodeSearchChunkSearch extends Disposable {
 
 	private _externalIngestIndexStateListener: IDisposable | undefined;
 
+	private readonly _localDiffSearch: Lazy<LocalDiffEmbeddingsSearch>;
+
 	constructor(
 		private readonly _embeddingType: EmbeddingType,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -157,12 +161,14 @@ export class CodeSearchChunkSearch extends Disposable {
 		super();
 
 		this._repoTracker = this._register(instantiationService.createInstance(CodeSearchRepoTracker));
+		this._localDiffSearch = new Lazy(() => instantiationService.createInstance(LocalDiffEmbeddingsSearch, this._embeddingType));
 		this._externalIngestIndex = new Lazy(() => {
 			const client = instantiationService.createInstance(ExternalIngestClient);
 			return this._register(instantiationService.createInstance(ExternalIngestIndex, client, this.getExternalIngestRoots()));
 		});
 
 		this._register(this._repoTracker.onDidAddOrUpdateRepo(info => {
+			this.updateExternalIngestRoots();
 			if (info.status === TrackedRepoStatus.Resolved && info.resolvedRemoteInfo) {
 				return this.openGitRepo(info.repo, info.resolvedRemoteInfo);
 			}
@@ -232,6 +238,11 @@ export class CodeSearchChunkSearch extends Disposable {
 			this._onDidChangeIndexState.fire();
 		}));
 
+		// Whether external ingest applies depends on which workspace folders are outside GitHub repos
+		this._register(this._workspaceService.onDidChangeWorkspaceFolders(() => {
+			void this.ensureExternalIngestInitialized().finally(() => this._onDidChangeIndexState.fire());
+		}));
+
 		if (this.isCodeSearchEnabled()) {
 			this.initialize();
 		}
@@ -262,6 +273,13 @@ export class CodeSearchChunkSearch extends Disposable {
 						return;
 					}
 
+					// Some repos resolve while the tracker is constructed, before we subscribe to its events
+					await Promise.all(this._repoTracker.getAllTrackedRepos().map(info => {
+						if (info.status === TrackedRepoStatus.Resolved && info.resolvedRemoteInfo) {
+							return this.openGitRepo(info.repo, info.resolvedRemoteInfo);
+						}
+					}));
+
 					// And make sure they have done their initial checks.
 					// After this the repos may still be left polling github but we've done at least one check
 					await Promise.all(Array.from(this._codeSearchRepos.values(), info => info.repo.initialize()));
@@ -279,10 +297,34 @@ export class CodeSearchChunkSearch extends Disposable {
 		await this._initializePromise;
 	}
 
+	/**
+	 * Roots that external ingest must not index: every GitHub repo, whatever its remote index status,
+	 * and any other repo that code search has already indexed.
+	 */
 	private getExternalIngestRoots(): URI[] {
-		return Array.from(this._codeSearchRepos.values())
-			.filter(entry => entry.repo.status === CodeSearchRepoStatus.Ready)
-			.map(entry => entry.repo.repoInfo.rootUri);
+		return [
+			...this.getGitHubRepoRoots(),
+			...Array.from(this._codeSearchRepos.values())
+				.filter(entry => entry.repo.status === CodeSearchRepoStatus.Ready && entry.repo.remoteInfo?.repoId.type !== 'github')
+				.map(entry => entry.repo.repoInfo.rootUri),
+		];
+	}
+
+	private getGitHubRepoRoots(): URI[] {
+		return this._repoTracker.getAllTrackedRepos().flatMap(repo =>
+			repo.status === TrackedRepoStatus.Resolved && repo.resolvedRemoteInfo?.repoId.type === 'github' ? [repo.repo.rootUri] : []);
+	}
+
+	/**
+	 * External ingest and its policy only apply to workspace content that has no GitHub remote.
+	 */
+	private hasContentOutsideGitHubRepos(): boolean {
+		const gitHubRoots = this.getGitHubRepoRoots();
+		return this._workspaceService.getWorkspaceFolders().some(folder => !gitHubRoots.some(root => isEqualOrParent(folder, root)));
+	}
+
+	private shouldUseExternalIngest(): boolean {
+		return !!this.isExternalIngestEnabled() && this.hasContentOutsideGitHubRepos();
 	}
 
 	private updateExternalIngestRoots(): void {
@@ -290,7 +332,7 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	private async ensureExternalIngestInitialized(): Promise<void> {
-		if (!this.isExternalIngestEnabled()) {
+		if (!this.shouldUseExternalIngest()) {
 			return;
 		}
 
@@ -316,7 +358,7 @@ export class CodeSearchChunkSearch extends Disposable {
 			return false;
 		}
 
-		const hasExternalIngest = !!this.isExternalIngestEnabled();
+		const hasExternalIngest = this.shouldUseExternalIngest();
 
 		// Track where indexed repos are located related to the workspace
 		const indexedRepoLocation = {
@@ -457,6 +499,10 @@ export class CodeSearchChunkSearch extends Disposable {
 					return Result.error<AvailableFailureMetadata>({ unavailableReason: 'Diff not available', repoStatuses });
 				}
 				case 'tooLarge': {
+					// The remote index can still answer; searchWorkspace warns that local changes aren't included
+					if (indexedRepos.length) {
+						return Result.ok({ indexedRepos, notYetIndexedRepos, repoStatuses });
+					}
 					return Result.error<AvailableFailureMetadata>({ unavailableReason: 'Diff too large', repoStatuses });
 				}
 			}
@@ -470,7 +516,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		return this._configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.WorkspaceEnableCodeSearch, this._experimentationService);
 	}
 
-	public isExternalIngestEnabled(): boolean | 'force' {
+	public isExternalIngestEnabled(): boolean {
 		if (!this.canExternalIngestBeEnabled()) {
 			return false;
 		}
@@ -490,6 +536,18 @@ export class CodeSearchChunkSearch extends Disposable {
 		return this.isExternalIngestEnabled() ? ExternalIngestEnablement.Enabled : ExternalIngestEnablement.DisabledBySetting;
 	}
 
+	/**
+	 * Whether to offer enabling external ingest. Workspaces whose content is all in GitHub repos never need it.
+	 */
+	public async shouldOfferToEnableExternalIngest(): Promise<boolean> {
+		if (this.getExternalIngestEnablement() !== ExternalIngestEnablement.DisabledBySetting) {
+			return false;
+		}
+
+		await this.initialize();
+		return this.hasContentOutsideGitHubRepos();
+	}
+
 	public async enableExternalIngest(): Promise<boolean> {
 		if (!this.canExternalIngestBeEnabled()) {
 			return false;
@@ -503,12 +561,11 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	public getRemoteIndexState(hasPromptedForExternalIngest: boolean): CodeSearchRemoteIndexState {
-		const externalIngestEnablement = this.getExternalIngestEnablement();
 		if (!this.isCodeSearchEnabled() && !this.isExternalIngestEnabled()) {
 			return {
 				status: 'disabled',
 				repos: [],
-				externalIngestEnablement,
+				externalIngestEnablement: this.getExternalIngestEnablement(),
 				hasPromptedForExternalIngest,
 			};
 		}
@@ -516,43 +573,29 @@ export class CodeSearchChunkSearch extends Disposable {
 		// Kick of request but do not wait for it to finish
 		this.initialize();
 
-		// Get external ingest state if enabled
-		const externalIngestState = this.isExternalIngestEnabled() && this._externalIngestIndex.hasValue
-			? this._externalIngestIndex.value.getState()
-			: undefined;
-
 		if (this.isInitializing()) {
 			return {
 				status: 'initializing',
 				repos: [],
-				externalIngestEnablement,
 				hasPromptedForExternalIngest,
-				externalIngestState,
 			};
 		}
 
-		if (this.isExternalIngestEnabled() === 'force') {
-			return {
-				status: 'loaded',
-				repos: [],
-				externalIngestEnablement,
-				hasPromptedForExternalIngest,
-				externalIngestState,
-			};
-		}
+		// External ingest and its policy only apply to content without a GitHub remote, so they must not affect the status of GitHub repos
+		const externalIngest: Pick<CodeSearchRemoteIndexState, 'externalIngestEnablement' | 'externalIngestState'> = this.hasContentOutsideGitHubRepos()
+			? {
+				externalIngestEnablement: this.getExternalIngestEnablement(),
+				externalIngestState: this.isExternalIngestEnabled() && this._externalIngestIndex.hasValue ? this._externalIngestIndex.value.getState() : undefined,
+			}
+			: {};
 
 		const trackedRepos = this._repoTracker.getAllTrackedRepos();
-		if (trackedRepos) {
-			const resolving = trackedRepos.some(repo => repo.status === TrackedRepoStatus.Resolving);
-			if (resolving) {
-				return {
-					status: 'initializing',
-					repos: [],
-					externalIngestEnablement,
-					hasPromptedForExternalIngest,
-					externalIngestState,
-				};
-			}
+		if (trackedRepos.some(repo => repo.status === TrackedRepoStatus.Resolving)) {
+			return {
+				status: 'initializing',
+				repos: [],
+				hasPromptedForExternalIngest,
+			};
 		}
 
 		const resolvedRepos = Array.from(this._codeSearchRepos.values(), entry => entry.repo)
@@ -563,9 +606,8 @@ export class CodeSearchChunkSearch extends Disposable {
 		return {
 			status: 'loaded',
 			repos,
-			externalIngestEnablement,
 			hasPromptedForExternalIngest,
-			externalIngestState,
+			...externalIngest,
 		};
 	}
 
@@ -643,9 +685,11 @@ export class CodeSearchChunkSearch extends Disposable {
 			const indexedRepos = allRepos.filter(repo => repo.status === CodeSearchRepoStatus.Ready);
 
 			const diffArray = await raceCancellationError(this.getLocalDiff(), token);
-			const diffFilePattern = Array.isArray(diffArray) ? diffArray.map(uri => new RelativePattern(uri, '*')) : undefined;
+			const localDiffFiles = Array.isArray(diffArray) ? this.getLocallySearchableDiffFiles(diffArray) : diffArray;
+			const diffFilePattern = Array.isArray(localDiffFiles) ? localDiffFiles.map(uri => new RelativePattern(uri, '*')) : undefined;
 
 			const localSearchCts = new CancellationTokenSource(token);
+			const externalIngestCts = new CancellationTokenSource(token);
 
 			// Kick off remote and local searches in parallel
 			const innerTelemetryInfo = telemetryInfo.addCaller('CodeSearchChunkSearch::searchWorkspace');
@@ -664,14 +708,21 @@ export class CodeSearchChunkSearch extends Disposable {
 				})
 				: Promise.resolve<SemanticCodeSearchResult>({ chunks: [], outOfSync: false });
 
-			const localSearchOperation = raceTimeout(this.searchLocalDiff(diffArray, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
+			const localSearchOperation = raceTimeout(this.searchLocalDiff(localDiffFiles, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
 				localSearchCts.cancel();
+			});
+
+			// External ingest only covers content without a GitHub remote, so it is searched alongside code search.
+			// A slow ingest must not hold back code search results.
+			const externalIngestOperation = raceTimeout(this.searchExternalIngest(sizing, query, innerTelemetryInfo, externalIngestCts.token), this.localDiffSearchTimeout, () => {
+				externalIngestCts.cancel();
 			});
 
 			let codeSearchResults: SemanticCodeSearchResult | undefined;
 			let localResults: DiffSearchResult | undefined;
+			let externalIngestResults: readonly FileChunkAndScore[] | undefined;
 			try {
-				codeSearchResults = await raceCancellationError(codeSearchOperation, token);
+				[codeSearchResults, externalIngestResults] = await raceCancellationError(Promise.all([codeSearchOperation, externalIngestOperation]), token);
 				if (codeSearchResults) {
 					localResults = await raceCancellationError(localSearchOperation, token);
 				} else {
@@ -680,6 +731,7 @@ export class CodeSearchChunkSearch extends Disposable {
 				}
 			} finally {
 				localSearchCts.dispose(true);
+				externalIngestCts.dispose(true);
 			}
 
 			/* __GDPR__
@@ -691,7 +743,8 @@ export class CodeSearchChunkSearch extends Disposable {
 					"diffSearchStrategy": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Search strategy for the diff" },
 					"chunkCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of returned chunks just from code search" },
 					"locallyChangedFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of files that are different than the code search index" },
-					"codeSearchOutOfSync": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Tracks if the local commit we think code search has indexed matches what code search actually has indexed" }
+					"codeSearchOutOfSync": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Tracks if the local commit we think code search has indexed matches what code search actually has indexed" },
+					"externalIngestChunkCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of returned chunks from external ingest" }
 				}
 			*/
 			this._telemetryService.sendMSFTTelemetryEvent('codeSearchChunkSearch.search.success', {
@@ -702,16 +755,17 @@ export class CodeSearchChunkSearch extends Disposable {
 				chunkCount: codeSearchResults?.chunks.length ?? 0,
 				locallyChangedFileCount: diffArray.length,
 				codeSearchOutOfSync: codeSearchResults?.outOfSync ? 1 : 0,
+				externalIngestChunkCount: externalIngestResults?.length ?? 0,
 			});
 
-			this._logService.trace(`CodeSearchChunkSearch.searchWorkspace: codeSearchResults: ${codeSearchResults?.chunks.length}, localResults: ${localResults?.chunks.length}`);
+			this._logService.trace(`CodeSearchChunkSearch.searchWorkspace: codeSearchResults: ${codeSearchResults?.chunks.length}, localResults: ${localResults?.chunks.length}, externalIngestResults: ${externalIngestResults?.length}`);
 
-			// If neither code search nor local diff search returned results, bail
-			if (!codeSearchResults && !localResults) {
+			// If no search returned results, bail
+			if (!codeSearchResults && !localResults && !externalIngestResults) {
 				return;
 			}
 
-			// Merge results from code search and local diff search
+			// Merge results from code search, local diff search, and external ingest
 			const mergedChunks: readonly FileChunkAndScore[] = [
 				// Code search results (excluding diffed files if we have local results)
 				...(codeSearchResults?.chunks ?? [])
@@ -720,6 +774,10 @@ export class CodeSearchChunkSearch extends Disposable {
 				// Local diff results
 				...(localResults?.chunks ?? [])
 					.filter(x => shouldInclude(x.chunk.file, diffFilePattern ? { include: diffFilePattern } : undefined)),
+
+				// External ingest results (excluding diffed files if we have local results)
+				...(externalIngestResults ?? [])
+					.filter(x => !localResults || shouldInclude(x.chunk.file, diffFilePattern ? { exclude: diffFilePattern } : undefined)),
 			];
 
 			const outChunks = mergedChunks
@@ -727,7 +785,7 @@ export class CodeSearchChunkSearch extends Disposable {
 
 			return {
 				chunks: outChunks,
-				alerts: !localResults
+				alerts: indexedRepos.length && !localResults
 					? [new ChatResponseWarningPart(l10n.t('Still updating workspace index. Falling back to using the latest remote code index only. Response may be less accurate.'))]
 					: undefined
 			};
@@ -770,29 +828,64 @@ export class CodeSearchChunkSearch extends Disposable {
 		return diffArray;
 	}
 
-	private async searchLocalDiff(diffArray: LocalDiffResult, sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {
-		const innerTelemetryInfo = telemetryInfo.addCaller('CodeSearchChunkSearch::searchLocalDiff');
+	/**
+	 * Changed files without a GitHub remote are only sent for semantic search when external ingest is enabled.
+	 */
+	private getLocallySearchableDiffFiles(files: readonly URI[]): readonly URI[] {
+		if (this.isExternalIngestEnabled()) {
+			return files;
+		}
 
-		if (!this.isExternalIngestEnabled()) {
+		return files.filter(uri => this.isInGitHubRepo(uri));
+	}
+
+	/**
+	 * Whether the most specific tracked repo containing {@linkcode uri} has a GitHub remote.
+	 */
+	private isInGitHubRepo(uri: URI): boolean {
+		let owner: TrackedRepoState | undefined;
+		for (const repo of this._repoTracker.getAllTrackedRepos()) {
+			if (isEqualOrParent(uri, repo.repo.rootUri) && (!owner || isEqualOrParent(repo.repo.rootUri, owner.repo.rootUri))) {
+				owner = repo;
+			}
+		}
+		return owner?.status === TrackedRepoStatus.Resolved && owner.resolvedRemoteInfo?.repoId.type === 'github';
+	}
+
+	private async searchLocalDiff(diffArray: LocalDiffResult, sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {
+		if (!Array.isArray(diffArray)) {
 			return undefined;
 		}
 
-		if (Array.isArray(diffArray)) {
-			// Force it to search the local diff too so we can override stale code-search results.
-			await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
-		}
-
-		const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
-		if (externalResult) {
-			if (!Array.isArray(diffArray)) {
-				return { chunks: externalResult, strategyId: 'externalIngest' };
+		try {
+			const chunks = await this._localDiffSearch.value.search(diffArray, query, sizing.maxResultCountHint, options, telemetryInfo.addCaller('CodeSearchChunkSearch::searchLocalDiff'), token);
+			return chunks ? { chunks, strategyId: 'localEmbeddings' } : undefined;
+		} catch (e) {
+			if (isCancellationError(e)) {
+				throw e;
 			}
-
-			const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
-			const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));
-			return { chunks: filtered, strategyId: 'externalIngest' };
+			this._logService.warn(`Local diff search failed: ${e}`);
+			return undefined;
 		}
-		return undefined;
+	}
+
+	private async searchExternalIngest(sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkAndScore[] | undefined> {
+		// Repos that are still resolving may turn out to be GitHub repos, which external ingest must not index
+		await raceCancellationError(this._repoTracker.initialize(), token);
+		if (!this.shouldUseExternalIngest()) {
+			return undefined;
+		}
+
+		try {
+			await raceCancellationError(this.ensureExternalIngestInitialized(), token);
+			return await this._externalIngestIndex.value.search(sizing, query, telemetryInfo.addCaller('CodeSearchChunkSearch::searchExternalIngest'), token);
+		} catch (e) {
+			if (isCancellationError(e)) {
+				throw e;
+			}
+			this._logService.warn(`External ingest search failed: ${e}`);
+			return undefined;
+		}
 	}
 
 	@LogExecTime(self => self._logService, 'CodeSearchChunkSearch::doCodeSearch', function (execTime, status) {
@@ -871,17 +964,9 @@ export class CodeSearchChunkSearch extends Disposable {
 
 		if (remoteInfo.repoId.type === 'github') {
 			this.updateRepoEntry(repo, this._instantiationService.createInstance(GithubCodeSearchRepo, repo, remoteInfo.repoId, remoteInfo));
-			// Update external ingest roots since this repo is now covered by code search
-			if (this.isExternalIngestEnabled() === true) {
-				this.updateExternalIngestRoots();
-			}
 			return;
 		} else if (remoteInfo.repoId.type === 'ado') {
 			this.updateRepoEntry(repo, this._instantiationService.createInstance(AdoCodeSearchRepo, repo, remoteInfo.repoId, remoteInfo));
-			// Update external ingest roots since this repo is now covered by code search
-			if (this.isExternalIngestEnabled() === true) {
-				this.updateExternalIngestRoots();
-			}
 			return;
 		}
 
@@ -900,6 +985,7 @@ export class CodeSearchChunkSearch extends Disposable {
 
 		const disposables = new DisposableStore();
 		disposables.add(newEntry.onDidChangeStatus(() => {
+			this.updateExternalIngestRoots();
 			this._onDidChangeIndexState.fire();
 		}));
 
@@ -935,20 +1021,25 @@ export class CodeSearchChunkSearch extends Disposable {
 
 		await this.initialize();
 
-		// Update external ingest index if enabled
-		const externalIndexEnabled = this.isExternalIngestEnabled();
-		if (externalIndexEnabled) {
-			const result = await raceCancellationError(this._externalIngestIndex.value.doIngest(telemetryInfo, onProgress, token), token);
-			if (result.isError()) {
-				return Result.error(result.err);
-			}
-
-			// If we are forcing external ingest only, we don't care about code search repo states
-			if (externalIndexEnabled === 'force') {
-				return Result.ok(true);
-			}
+		// External ingest covers content without a GitHub remote. It must not block remote indexing of GitHub repos.
+		await this._repoTracker.initialize();
+		const [remoteResult, externalIngestResult] = await raceCancellationError(Promise.all([
+			this.triggerRemoteIndexingOfRepos(triggerReason, telemetryInfo, token),
+			this.shouldUseExternalIngest() ? this._externalIngestIndex.value.doIngest(telemetryInfo, onProgress, token) : undefined,
+		]), token);
+		if (!externalIngestResult) {
+			return remoteResult;
 		}
 
+		if (externalIngestResult.isError()) {
+			return externalIngestResult;
+		}
+
+		// With no repos to index remotely, only external ingest matters
+		return remoteResult.isError() && remoteResult.err === TriggerRemoteIndexingError.notIndexable ? externalIngestResult : remoteResult;
+	}
+
+	private async triggerRemoteIndexingOfRepos(triggerReason: BuildIndexTriggerReason, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
 		this._logService.trace(`RepoTracker.TriggerRemoteIndexing(${triggerReason}).Repos: ${JSON.stringify(Array.from(this._codeSearchRepos.values(), entry => ({
 			rootUri: entry.repo.repoInfo.rootUri.toString(),
 			status: entry.repo.status,
@@ -965,11 +1056,7 @@ export class CodeSearchChunkSearch extends Disposable {
 
 		const allRepos = Array.from(this._codeSearchRepos.values(), entry => entry.repo);
 		if (!allRepos.length || allRepos.every(repo => repo.status === CodeSearchRepoStatus.NotResolvable)) {
-			if (externalIndexEnabled) {
-				return Result.ok(true);
-			} else {
-				return Result.error(TriggerRemoteIndexingError.notIndexable);
-			}
+			return Result.error(TriggerRemoteIndexingError.notIndexable);
 		}
 
 		if (allRepos.every(repo => repo.status === CodeSearchRepoStatus.Resolving)) {

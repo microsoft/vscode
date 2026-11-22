@@ -26,9 +26,4 @@ export const templateLanguageLimitations: { [extension: string]: string[] } = {
 	'.php': ['.blade'],
 };
 
-export type LanguageInfo = {
-	extensions: string[];
-	filenames?: string[];
-};
-
 export const knownFileExtensions = Object.keys(knownLanguages).flatMap(language => knownLanguages[language].extensions);

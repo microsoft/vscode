@@ -24,6 +24,7 @@ import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titleba
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { canShowApplicationMenu } from '../../browser/parts/applicationMenu.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
 import { INativeWorkbenchEnvironmentService } from '../../../workbench/services/environment/electron-browser/environmentService.js';
@@ -87,6 +88,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
 			this.windowControlsContainer
 		) {
+			this.rootContainer.classList.add('custom-window-controls');
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -233,6 +235,10 @@ class MainNativeTitlebarPart extends NativeTitlebarPart {
 	) {
 		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService, environmentService);
 	}
+
+	protected override get showsApplicationMenu(): boolean {
+		return canShowApplicationMenu(this.configurationService);
+	}
 }
 
 class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxiliaryTitlebarPart {
@@ -272,7 +278,7 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 export class NativeTitleService extends TitleService {
 
 	protected override createMainTitlebarPart(): MainNativeTitlebarPart {
-		return this.instantiationService.createInstance(MainNativeTitlebarPart);
+		return this.mainWindowInstantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {

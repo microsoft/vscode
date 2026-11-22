@@ -5,8 +5,8 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ensureSessionWorktreesTrusted } from '../../../../workbench/services/sessions/browser/worktreeTrust.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -15,9 +15,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
-import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -25,13 +26,14 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	private queue = this._register(new Queue<void>());
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 		@IHistoryService private readonly historyService: IHistoryService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(event => {
@@ -40,8 +42,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			}
 		}));
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			const activeChat = activeSession?.activeChat.read(reader);
+			const activeChat = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
 			const workspace = activeChat?.workspace.read(reader);
 			this.queue.queue(() => this.updateWorkspaceFolders(workspace));
 		}));
@@ -51,7 +52,10 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
 		// worktree session mounts without tripping the untrusted-folder backstop.
 		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
-		const activeSessionFolders = this.getWorkspaceFolderData(workspace);
+		const sessionFolders = this.getWorkspaceFolderData(workspace);
+		// A folder this window can't read, such as the web address of a session's repository, is no folder to mount.
+		const readable = await Promise.all(sessionFolders.map(folder => this.fileService.canHandleResource(folder.uri)));
+		const activeSessionFolders = sessionFolders.filter((_, index) => readable[index]);
 		const currentFolders = this.workspaceContextService.getWorkspace().folders;
 
 		// Never mount untrusted folders: mounting one would flip the whole Agents
@@ -61,14 +65,14 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		const mountable = await Promise.all(activeSessionFolders.map(folder => this.isFolderMountable(workspace, folder.uri)));
 		if (mountable.some(isMountable => !isMountable)) {
 			if (currentFolders.length > 0) {
-				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), true);
+				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true });
 			}
 			return;
 		}
 
 		if (activeSessionFolders.length === 0) {
 			if (currentFolders.length > 0) {
-				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), true);
+				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), { donotNotifyError: true, force: true });
 			}
 			return;
 		}
@@ -86,7 +90,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return;
 		}
 
-		await this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, true);
+		await this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, { donotNotifyError: true, force: true });
 	}
 
 	private getWorkspaceFolderData(workspace: ISessionWorkspace | undefined): IWorkspaceFolderCreationData[] {

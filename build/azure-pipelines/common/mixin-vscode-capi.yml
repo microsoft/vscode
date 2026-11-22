@@ -8,6 +8,28 @@ steps:
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-capi
 
+  # microsoft/vscode-capi has no .gitattributes, so Git checks out its files with CRLF line endings on Windows. The
+  # Copilot mixin (see ../copilot/builtin-steps.yml) compares its LICENSE with a string that has LF line endings, and
+  # copies its Copilot license into the extension, so check them out with LF line endings, as on Linux and macOS.
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+
+      function Invoke-CheckedCommand([scriptblock] $Command) {
+        & $Command
+        if ($LASTEXITCODE -ne 0) {
+          $commandText = $Command.ToString().Trim()
+          throw "Command failed with exit code ${LASTEXITCODE}: ${commandText}"
+        }
+      }
+
+      $CapiPath = Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi'
+      Invoke-CheckedCommand { git -C $CapiPath config core.autocrlf false }
+      # Remove the files from the index, so that the reset writes all of them again.
+      Invoke-CheckedCommand { git -C $CapiPath rm --cached -r --quiet . }
+      Invoke-CheckedCommand { git -C $CapiPath reset --hard --quiet }
+    condition: and(succeeded(), eq(variables['Agent.OS'], 'Windows_NT'))
+    displayName: Check out vscode-capi with LF line endings
+
   # npm ci starts from a clean node_modules, so it is safe to retry; transient registry errors
   # here (ENOTFOUND, ECONNRESET, E503, ETIMEDOUT) failed 8 main CI builds in 90 days.
   - pwsh: |

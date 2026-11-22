@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { PaginatedApiRequest, collectPages, nextPagePath } from '../client/pagination.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../client/request.js';
-import { collectPages, nextPagePath, PaginatedApiRequest } from '../client/pagination.js';
-import { parse } from '../client/schema.js';
+import { SchemaError, parse } from '../client/schema.js';
 import { normalizeReadApiBaseUri } from '../githubEndpoints.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
 import { RequestError, RequestErrorKind } from '../types.js';
 import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, User } from './missionControl.js';
-import { parseMissionControlErrorCode, MissionControlErrorMetadata } from './missionControlError.js';
+import { MissionControlErrorMetadata, parseMissionControlErrorCode } from './missionControlError.js';
 
 /** An approved Mission Control API endpoint and its request-header configuration. */
 export interface ApiEndpoint {
@@ -20,7 +21,7 @@ export interface ApiEndpoint {
 	readonly apiBaseUri: string;
 	/** Approved feed gateway; the Copilot-hosted task proxy does not serve feed negotiation. */
 	readonly feedApiBaseUri?: string;
-	/** Approved credential gateway; the task proxy does not serve identity-token exchanges. */
+	/** Approved credential gateway for identity-token exchanges and token sealing. */
 	readonly identityApiBaseUri?: string;
 	/** The integration identity supplied by the hosting application. */
 	readonly integrationId: string;
@@ -52,6 +53,8 @@ export class ApiRequestError extends GitHubRequestError implements ApiError {
 		/** Set when the dispatched mutation may already have been accepted. */
 		readonly outcome?: 'indeterminate',
 		metadata?: MissionControlErrorMetadata,
+		/** A task explicitly reported by a failed create operation; not inferred from the request. */
+		readonly createdTaskId?: string,
 	) {
 		const code = metadata?.code ?? response?.error_code ?? (response && hasKey(response, { code: true }) ? response.code : undefined);
 		super(`API request failed (HTTP ${statusCode})${code ? ` code=${code}` : ''}${requestId ? ` requestId=${requestId}` : ''}`,
@@ -83,27 +86,42 @@ export class MissionControlClient {
 
 	constructor(private readonly _provider?: IApiRequestProvider) { }
 
-	async requestPages<T>(request: PaginatedApiRequest, signal: AbortSignal, parser: (response: ApiResponse) => T, merge: (pages: readonly T[]) => T): Promise<T> {
+	async requestPages<T extends PaginatedResponse<unknown>>(request: PaginatedApiRequest, cancellationToken: CancellationToken, parser: (response: ApiResponse) => T, merge: (pages: readonly T[]) => T): Promise<T> {
 		const { maxPages, pageLimitBehavior, ...options } = request.options ?? {};
 		if (maxPages === undefined) {
-			const data = await this.request({ ...request, options }, signal, parser);
-			signal.throwIfAborted();
+			const data = await this.request({ ...request, options }, cancellationToken, parser);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return data;
 		}
+		let serverDate: string | undefined;
+		let serverTimeMs: number | undefined;
+		let retryAfterSeconds: number | undefined;
 		const response = await collectPages(
 			request.path,
-			path => this.request({ ...request, path: path ?? request.path, options }, signal, response => ({ ...response, data: parser(response) })),
+			path => this.request({ ...request, path: path ?? request.path, options }, cancellationToken, response => {
+				const date = response.metadata?.serverDate;
+				const dateMs = date === undefined ? Number.NaN : Date.parse(date);
+				if (Number.isFinite(dateMs) && (serverTimeMs === undefined || dateMs < serverTimeMs)) {
+					serverDate = date;
+					serverTimeMs = dateMs;
+				}
+				const retryAfter = response.metadata?.retryAfterSeconds;
+				if (retryAfter !== undefined) {
+					retryAfterSeconds = Math.max(retryAfterSeconds ?? 0, retryAfter);
+				}
+				return { ...response, data: parser(response) };
+			}),
 			page => nextPagePath(page.metadata),
 			pages => ({ ...pages[pages.length - 1], data: merge(pages.map(page => page.data)) }),
-			signal,
+			cancellationToken,
 			{ maxPages, pageLimitBehavior },
 		);
-		return response.data;
+		return { ...response.data, serverDate, ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}) };
 	}
 
 	/** Executes a Mission Control request and returns the result of the response parser. */
-	async request<T>(request: ApiRequest, signal: AbortSignal, parser: (response: ApiResponse<unknown>) => T): Promise<T> {
-		signal.throwIfAborted();
+	async request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser: (response: ApiResponse<unknown>) => T): Promise<T> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const provider = this._provider;
 		if (!provider) {
 			throw new GitHubRequestError('No approved Mission Control API endpoint is configured for this client', 'validation');
@@ -114,17 +132,17 @@ export class MissionControlClient {
 			accept: request.accept ?? 'application/json',
 		};
 		const response = request.responseBody === 'none'
-			? await provider.request({ ...operation, responseBody: 'none' }, signal)
-			: await provider.request({ ...operation, responseBody: 'text' }, signal, parse.string);
+			? await provider.request({ ...operation, responseBody: 'none' }, cancellationToken)
+			: await provider.request({ ...operation, responseBody: 'text' }, cancellationToken, parse.string);
 		try {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const data = request.responseBody === 'text' || typeof response.data !== 'string'
 				? response.data
 				: parseResponseJson<unknown>(response.data, () => new GitHubRequestError('API response was not valid JSON', 'malformedResponse', response.status));
 			return parser({ ...response, data });
 		} catch (error) {
-			if (missionControlRequestPolicy(operation).mutation) {
-				throw new MutationUncertainError(error instanceof RequestError ? error.kind : 'unknown', error instanceof RequestError ? error.statusCode : undefined);
+			if (missionControlRequestPolicy(operation).mutation && !(error instanceof MutationUncertainError)) {
+				throw new MutationUncertainError(error instanceof SchemaError ? 'schema' : error instanceof RequestError ? error.kind : 'unknown', response.status);
 			}
 			throw error;
 		}
@@ -209,5 +227,10 @@ function normalizeEndpoint(endpoint: ApiEndpoint): ApiEndpoint {
 
 /** Combines page data with pagination and server-time metadata. */
 export function paginated<T>(response: ApiResponse<unknown>, data: T): PaginatedResponse<T> {
-	return { data, nextLink: response.metadata?.nextLink, serverDate: response.metadata?.serverDate };
+	return {
+		data,
+		nextLink: response.metadata?.nextLink,
+		serverDate: response.metadata?.serverDate,
+		...(response.metadata?.retryAfterSeconds !== undefined ? { retryAfterSeconds: response.metadata.retryAfterSeconds } : {}),
+	};
 }

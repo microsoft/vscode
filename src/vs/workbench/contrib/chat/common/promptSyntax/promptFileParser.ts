@@ -95,6 +95,13 @@ export namespace PromptHeaderAttributes {
 	export const deferredToolLoading = 'deferred-tool-loading';
 	export const strictToolsList = 'strict-tools-list';
 	export const includeCustomInstructions = 'include-custom-instructions';
+	/** Map of VS Code-only agent options ({@link VSCodeAgentAttributes}), kept under one key so other harnesses can ignore them. */
+	export const vscode = 'vscode';
+}
+
+/** Keys of the `vscode:` map in an agent file. */
+export namespace VSCodeAgentAttributes {
+	export const welcomeMessage = 'welcome-message';
 }
 
 export class PromptHeader {
@@ -207,6 +214,12 @@ export class PromptHeader {
 
 	public get argumentHint(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.argumentHint);
+	}
+
+	public get welcomeMessage(): string | undefined {
+		const options = this.getAttribute(PromptHeaderAttributes.vscode)?.value;
+		const value = options?.type === 'map' ? options.properties.find(property => property.key.value === VSCodeAgentAttributes.welcomeMessage)?.value : undefined;
+		return value?.type === 'scalar' && value.value.trim() ? value.value : undefined;
 	}
 
 	public get target(): string | undefined {
@@ -628,7 +641,18 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 			const quote = char;
 			pos++; // Skip opening quote
 
-			while (pos < input.length && input[pos] !== quote) {
+			while (pos < input.length) {
+				if (input[pos] === quote) {
+					if (quote === '\'' && input[pos + 1] === quote) {
+						value += quote;
+						pos += 2;
+						continue;
+					}
+					break;
+				}
+				if (quote === '"' && input[pos] === '\\' && (input[pos + 1] === quote || input[pos + 1] === '\\')) {
+					pos++;
+				}
 				value += input[pos];
 				pos++;
 			}

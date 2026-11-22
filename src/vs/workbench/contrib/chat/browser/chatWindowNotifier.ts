@@ -19,7 +19,7 @@ import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatMode
 import { observeChatModelIsIdle } from '../common/model/chatModelIdle.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
-import { ChatNotificationKind, getChatNotificationDedupeKey } from '../common/chatNotification.js';
+import { ChatNotificationKind, getChatNotificationDedupeKey, getChatNotificationResource } from '../common/chatNotification.js';
 import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -99,7 +99,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 			// Only notify on transition from false -> true
 			if (!previousNeedsInput && currentNeedsInput && newValue) {
-				this._notifyIfNeeded(model.sessionResource, newValue);
+				this._notifyIfNeeded(model, newValue);
 			} else if (previousNeedsInput && !currentNeedsInput) {
 				// Clear any active notification for this session when input is no longer needed
 				this._clearNotification(model.sessionResource);
@@ -117,7 +117,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		return store;
 	}
 
-	private async _notifyIfNeeded(sessionResource: URI, info: IChatRequestNeedsInputInfo): Promise<void> {
+	private async _notifyIfNeeded(model: IChatModel, info: IChatRequestNeedsInputInfo): Promise<void> {
+		const sessionResource = model.sessionResource;
 		// Check configuration
 		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnConfirmation);
 		if (mode === ChatNotificationMode.Off) {
@@ -125,7 +126,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 
 		// Find the widget to determine the target window
-		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(getChatNotificationResource(model));
 		const targetWindow = widget ? dom.getWindow(widget.domNode) : mainWindow;
 		await this._delayForBackgroundWindow(widget?.visible === true);
 		if (!this._chatService.getSession(sessionResource)?.requestNeedsInput.get()) {
@@ -163,7 +164,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 				title: this._sanitizeOSToastText(notificationTitle),
 				body: this._getNotificationBody(sessionResource, info, isQuestionCarousel),
 				actions: [actionLabel],
-				dedupeKey: getChatNotificationDedupeKey(sessionResource, ChatNotificationKind.NeedsInput),
+				dedupeKey: getChatNotificationDedupeKey(getChatNotificationResource(model), ChatNotificationKind.NeedsInput),
 			}, cts.token);
 
 			if (result.actionIndex === 0 && !isQuestionCarousel && this._confirmAllow(sessionResource)) {
@@ -173,7 +174,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 
-				const widget = await this._chatWidgetService.openSession(sessionResource);
+				const widget = await this._chatWidgetService.openSession(getChatNotificationResource(model));
 				widget?.focusInput();
 			}
 		} finally {
@@ -189,7 +190,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		if (mode === ChatNotificationMode.Off) {
 			return;
 		}
-		const widget = this._chatWidgetService.getWidgetBySessionResource(model.sessionResource);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(getChatNotificationResource(model));
 		const targetWindow = widget ? dom.getWindow(widget.domNode) : mainWindow;
 		await this._delayForBackgroundWindow(widget?.visible === true);
 		if (!isIdle.get() || model.requestNeedsInput.get()) {
@@ -211,11 +212,11 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 				title: this._sanitizeOSToastText(title),
 				body: localize('chat.idleNotificationDetail', "Session finished."),
 				actions: [localize('openChatAction', "Open Session")],
-				dedupeKey: getChatNotificationDedupeKey(model.sessionResource, ChatNotificationKind.Idle),
+				dedupeKey: getChatNotificationDedupeKey(getChatNotificationResource(model), ChatNotificationKind.Idle),
 			}, cts.token);
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				const openedWidget = await this._chatWidgetService.openSession(model.sessionResource);
+				const openedWidget = await this._chatWidgetService.openSession(getChatNotificationResource(model));
 				openedWidget?.focusInput();
 			}
 		} finally {

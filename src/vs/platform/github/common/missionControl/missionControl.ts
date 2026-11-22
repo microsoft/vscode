@@ -20,14 +20,16 @@ export interface User {
 /** The class of compute backing an environment. */
 export type EnvironmentKind = 'managed-actions' | 'managed-sandbox' | 'managed-cca' | 'user-local' | 'user-codespace';
 
-/** Results with continuation and server-time metadata from the last collected page. */
+/** Results with the last continuation and conservative server-time and polling metadata. */
 export interface PaginatedResponse<T> {
 	/** The requested page, or the collected pages when maxPages is supplied. */
 	readonly data: T;
 	/** The URL from Link rel="next", omitted when no next page is advertised. */
 	readonly nextLink?: string;
-	/** The server's HTTP Date value, when available. */
+	/** The server's HTTP Date value; the earliest valid value when collecting pages. */
 	readonly serverDate?: string;
+	/** Server-directed polling delay in seconds; the greatest supplied value when collecting pages. */
+	readonly retryAfterSeconds?: number;
 }
 
 /** W3C trace context for a provisioning or wake activation. */
@@ -92,4 +94,6 @@ export interface ApiError extends Error, MissionControlErrorMetadata {
 	readonly requestId?: string;
 	/** The delay in seconds indicated by Retry-After, when available. */
 	readonly retryAfterSeconds?: number;
+	/** A task explicitly reported by a failed create operation, when available. */
+	readonly createdTaskId?: string;
 }

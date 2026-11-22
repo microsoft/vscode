@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -18,10 +18,10 @@ import { AnonymousClient } from '../anonymous/anonymousClient.js';
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../client/request.js';
 import { withGitHubCredentialDeadline } from '../githubCredentialService.js';
 import { GitHubAuthorizationContext, GitHubRequestError } from '../githubTypes.js';
-import { ApiRequestMessage, ApiRequestTarget, ClientResponse, IGitHubCredentialBroker, ISharedProcessGitHubService, parseAuthorization, parseBodyText, parseRequestEnvelope } from './ipc.js';
-import { deserializeGitHubError, parseApiResponse, parseClientResponse, serializeGitHubError } from './serialization.js';
 import { MutationUncertainError, missionControlRequestPolicy } from '../missionControl/missionControlClient.js';
 import { RequestError } from '../types.js';
+import { ApiRequestMessage, ApiRequestTarget, ClientResponse, IGitHubCredentialBroker, ISharedProcessGitHubService, parseAuthorization, parseBodyText, parseRequestEnvelope } from './ipc.js';
+import { deserializeGitHubError, parseApiResponse, parseClientResponse, serializeGitHubError } from './serialization.js';
 
 /** GitHub IPC channel client implementation. */
 export class GitHubChannelClient implements ISharedProcessGitHubService {
@@ -32,48 +32,43 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async acquireAnonymousClient(signal: AbortSignal): Promise<IGitHubAnonymousClient> {
-		return this.acquire(undefined, signal);
+	async acquireAnonymousClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient> {
+		return this.acquire(undefined, cancellationToken);
 	}
 
-	async acquireClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
-		signal.throwIfAborted();
-		return this.acquire(parseAuthorization(authorization), signal);
+	async acquireClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		return this.acquire(parseAuthorization(authorization), cancellationToken);
 	}
 
-	private acquire(authorization: undefined, signal: AbortSignal): Promise<IGitHubAnonymousClient>;
-	private acquire(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient>;
-	private async acquire(authorization: GitHubAuthorizationContext | undefined, signal: AbortSignal): Promise<IGitHubAnonymousClient | IGitHubAccountClient> {
-		signal.throwIfAborted();
+	private acquire(authorization: undefined, cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient>;
+	private acquire(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<IGitHubAccountClient>;
+	private async acquire(authorization: GitHubAuthorizationContext | undefined, cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient | IGitHubAccountClient> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const clientId = generateUuid();
-		const lifetime = new DisposableStore();
 		let acquired = false;
 		try {
-			const token = CancellationToken.fromAbortSignal(signal, lifetime);
 			const resolved = authorization
-				? parseClientResponse(await raceCancellationError(this.channel.call('acquireClient', { clientId, authorization }, token), token), parseAuthorization)
-				: await raceCancellationError(this.channel.call<void>('acquireAnonymousClient', { clientId }, token), token);
-			signal.throwIfAborted();
+				? parseClientResponse(await raceCancellationError(this.channel.call('acquireClient', { clientId, authorization }, cancellationToken), cancellationToken), parseAuthorization)
+				: await raceCancellationError(this.channel.call<void>('acquireAnonymousClient', { clientId }, cancellationToken), cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 
-			const controller = new AbortController();
-			const provider = new RemoteApiRequestProvider(this.channel, clientId, 'rest', controller.signal);
-			const graphql = new RemoteApiRequestProvider(this.channel, clientId, 'graphql', controller.signal);
-			const rawContent = new RemoteApiRequestProvider(this.channel, clientId, 'rawContent', controller.signal);
-			const lease = toDisposable(() => {
-				controller.abort(new CancellationError());
-				this.releaseClient(clientId);
-			});
+			const lease = new DisposableStore();
+			const clientToken = cancelOnDispose(lease);
+			lease.add(toDisposable(() => this.releaseClient(clientId)));
+			const provider = new RemoteApiRequestProvider(this.channel, clientId, 'rest', clientToken);
+			const graphql = new RemoteApiRequestProvider(this.channel, clientId, 'graphql', clientToken);
+			const rawContent = new RemoteApiRequestProvider(this.channel, clientId, 'rawContent', clientToken);
 			const client = resolved ? new AccountClient(resolved, {
 				rest: provider, graphql, rawContent,
-				missionControl: new RemoteApiRequestProvider(this.channel, clientId, 'missionControl', controller.signal),
-				connectors: new RemoteApiRequestProvider(this.channel, clientId, 'connectors', controller.signal),
+				missionControl: new RemoteApiRequestProvider(this.channel, clientId, 'missionControl', clientToken),
+				connectors: new RemoteApiRequestProvider(this.channel, clientId, 'connectors', clientToken),
 				onDidInvalidate: this.channel.listen('onDidInvalidate', { clientId }),
 				onDidChangeCredentials: this.channel.listen('onDidChangeCredentials', { clientId }),
 			}, lease) : new AnonymousClient(provider, rawContent, lease);
 			acquired = true;
 			return client;
 		} finally {
-			lifetime.dispose();
 			if (!acquired) {
 				this.releaseClient(clientId);
 			}
@@ -91,22 +86,21 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 
 /** Serves credentials only on the acquiring renderer's reverse channel. */
 export class GitHubCredentialsChannel extends Disposable implements IServerChannel<string> {
-	private readonly lifetime = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(private readonly broker: IGitHubCredentialBroker) {
 		super();
-		this._register(toDisposable(() => this.lifetime.abort(new CancellationError())));
 	}
 
 	async call<T>(_ctx: string, command: string, arg?: unknown, cancellationToken: CancellationToken = CancellationToken.None): Promise<T> {
 		const lifetime = new DisposableStore();
 		try {
 			const authorization = parseAuthorization(arg);
-			const signal = AbortSignal.any([CancellationToken.toAbortSignal(cancellationToken, lifetime), this.lifetime.signal]);
-			const value = await withGitHubCredentialDeadline(signal, async signal => {
+			const combinedToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			const value = await withGitHubCredentialDeadline(combinedToken, async cancellationToken => {
 				switch (command) {
-					case 'resolveClient': return this.broker.resolveClient(authorization, signal);
-					case 'getToken': return this.broker.getToken(authorization, signal);
+					case 'resolveClient': return this.broker.resolveClient(authorization, cancellationToken);
+					case 'getToken': return this.broker.getToken(authorization, cancellationToken);
 				}
 				throw new Error(`Unknown command: ${command}`);
 			});
@@ -136,28 +130,28 @@ export class RemoteApiRequestProvider extends BufferedApiRequestProvider {
 		private readonly channel: IChannel,
 		private readonly clientId: string,
 		private readonly target: ApiRequestTarget,
-		clientSignal: AbortSignal,
+		clientToken: CancellationToken,
 	) {
-		super(clientSignal);
+		super(clientToken);
 	}
 
-	protected override checkResponseCancellation(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): void {
-		if (signal.aborted && this.tracksOutcome && missionControlRequestPolicy(request).mutation) {
+	protected override checkResponseCancellation(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken): void {
+		if (cancellationToken.isCancellationRequested && this.tracksOutcome && missionControlRequestPolicy(request).mutation) {
 			throw new MutationUncertainError('unknown');
 		}
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 	}
 
 	private get tracksOutcome(): boolean {
 		return this.target === 'missionControl';
 	}
 
-	protected async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
+	protected async execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>> {
 		const lifetime = new DisposableStore();
 		let sent = false;
 		let received = false;
 		try {
-			const token = CancellationToken.fromAbortSignal(signal, lifetime);
+			const token = cancellationToken;
 			const requestId = this.tracksOutcome ? generateUuid() : undefined;
 			const message: ApiRequestMessage = [parseRequestEnvelope({ clientId: this.clientId, target: this.target, request, requestId }), parseBodyText(bodyText)];
 			if (requestId) {
@@ -175,7 +169,7 @@ export class RemoteApiRequestProvider extends BufferedApiRequestProvider {
 			if (metadata.type === 'error') {
 				throw deserializeGitHubError(metadata.error, responseText);
 			}
-			this.checkResponseCancellation(request, signal);
+			this.checkResponseCancellation(request, cancellationToken);
 			return { data: responseText, status: metadata.status, ...(metadata.metadata ? { metadata: metadata.metadata } : {}) };
 		} catch (error) {
 			if (this.tracksOutcome && sent && !received && missionControlRequestPolicy(request).mutation) {

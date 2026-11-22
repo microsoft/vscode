@@ -587,42 +587,48 @@ suite('ExtHostMcp', () => {
 				assert.deepStrictEqual(requests, []);
 			});
 
-			test('reports a rejected legacy SSE endpoint and disposes its transport', async () => {
-				const destination = 'fixture:/test-mcp-destination';
-				const completed = new DeferredPromise<void>();
-				const { handle, requests, states, signals } = createHandle({
-					onState: state => {
-						if (state.state === McpConnectionState.Kind.Error) {
-							void completed.complete();
-						}
-					},
-					respond: (url, init) => {
-						if (url === destination) {
-							void completed.complete();
-							return createMockResponse({ status: 202 });
-						}
-						if (init.method === 'POST') {
-							return createMockResponse({ status: 404 });
-						}
-						return {
-							...createMockResponse({ headers: { 'Content-Type': 'text/event-stream' } }),
-							body: new ReadableStream<Uint8Array>({
-								start(controller) {
-									controller.enqueue(new TextEncoder().encode(`event: endpoint\ndata: ${destination}\n\n`));
-									controller.close();
-								}
-							}),
-						};
-					},
+			for (const destination of [
+				'unix:/var/run/docker.sock?remote=https%3A%2F%2Fattacker.example%2FDockerfile#/build',
+				'pipe:/docker_engine?remote=https%3A%2F%2Fattacker.example%2FDockerfile#/build',
+				'fixture:/test-mcp-destination',
+			]) {
+				const scheme = URI.parse(destination).scheme;
+				test(`reports a rejected legacy SSE ${scheme} endpoint and disposes its transport`, async () => {
+					const completed = new DeferredPromise<void>();
+					const { handle, requests, states, signals } = createHandle({
+						onState: state => {
+							if (state.state === McpConnectionState.Kind.Error) {
+								void completed.complete();
+							}
+						},
+						respond: (url, init) => {
+							if (url === destination) {
+								void completed.complete();
+								return createMockResponse({ status: 202 });
+							}
+							if (init.method === 'POST') {
+								return createMockResponse({ status: 404 });
+							}
+							return {
+								...createMockResponse({ headers: { 'Content-Type': 'text/event-stream' } }),
+								body: new ReadableStream<Uint8Array>({
+									start(controller) {
+										controller.enqueue(new TextEncoder().encode(`event: endpoint\ndata: ${destination}\n\n`));
+										controller.close();
+									}
+								}),
+							};
+						},
+					});
+					await handle.send('test-message');
+					await completed.p;
+					const state = states.at(-1);
+					assert.ok(state?.state === McpConnectionState.Kind.Error);
+					assert.match(state.message, /non-http\(s\).*not allowed/);
+					assert.deepStrictEqual(requests.map(request => request.url), [TEST_MCP_URL, TEST_MCP_URL]);
+					assert.ok(signals.length > 0 && signals.every(signal => signal.aborted));
 				});
-				await handle.send('test-message');
-				await completed.p;
-				const state = states.at(-1);
-				assert.ok(state?.state === McpConnectionState.Kind.Error);
-				assert.match(state.message, /non-http\(s\).*not allowed/);
-				assert.deepStrictEqual(requests.map(request => request.url), [TEST_MCP_URL, TEST_MCP_URL]);
-				assert.ok(signals.length > 0 && signals.every(signal => signal.aborted));
-			});
+			}
 		});
 	});
 

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { execFileSync } from 'child_process';
+import { writeFileSync } from 'fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
@@ -27,14 +28,19 @@ import { buildDefaultChatUri, ChatOriginKind, MessageKind, ToolResultContentType
 import { AgentHostAuthenticationScope } from '../../../node/agentHostAuthenticationScope.js';
 import { getAppNodeModulesUri } from '../../../node/appNodeModules.js';
 import { resolveCopilotRuntimePaths } from '../../../node/copilot/copilotRuntimePaths.js';
+import { preserveAgentHostE2ELogs } from '../e2e/harness/agentHostE2EDiagnostics.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createLocalEndpointCopilotAgent } from './copilotAgentIntegrationTestHarness.js';
-import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt } from './copilotCredentialTestUtils.js';
+import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt, replaceCredentialEnvironment } from './copilotCredentialTestUtils.js';
 
 interface ModelRequest {
 	messages: { role: string; content?: string; tool_call_id?: string }[];
 	tools: { type: string; name?: string; function?: { name: string }; custom?: { name: string } }[];
+}
+
+interface ModelCatalog {
+	data: { id: string; supported_endpoints: string[] }[];
 }
 
 interface ModelTraffic {
@@ -53,7 +59,10 @@ suite('Copilot Agent credential sponsorship', function () {
 	this.timeout(120_000);
 
 	const resource = 'https://api.github.com';
+	const modelId = 'gpt-5.3-codex';
 	const metadata = [{ resource }];
+	// Trace runtime logs stay in the isolated home, which only a failed test keeps (see preserveFailureDiagnostics).
+	const rootConfiguration = { [AgentHostMcpConnectorsEnabledConfigKey]: true, [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' };
 	let server: Server;
 	let directory: string;
 	let endpoint: string;
@@ -63,7 +72,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	let modelTraffic: ModelTraffic[];
 	let connectorTokens: string[];
 	let unexpectedRequests: string[];
-	let originalEnvironment: Map<string, string | undefined>;
+	let restoreEnvironment: (() => void) | undefined;
 	const signals: AgentSignal[] = [];
 
 	function onProgress(signal: AgentSignal): void {
@@ -74,18 +83,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	}
 
 	setup(async () => {
-		originalEnvironment = new Map(Object.entries(process.env).filter(([key]) =>
-			/(?:AUTH|TOKEN|_KEY|SECRET|PASSWORD)|^(?:GIT_CONFIG_|COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|AWS_|AZURE_|VSCODE_AGENT_HOST_CAPI_)|^(?:HTTPS?_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)));
-		for (const key of new Set([...originalEnvironment.keys(), ...Object.keys(credentialEnvironmentSentinels)])) {
-			const hasOriginal = isWindows
-				? [...originalEnvironment.keys()].some(original => original.toUpperCase() === key.toUpperCase())
-				: originalEnvironment.has(key);
-			if (!hasOriginal) {
-				originalEnvironment.set(key, undefined);
-			}
-			delete process.env[key];
-		}
-		Object.assign(process.env, credentialEnvironmentSentinels);
+		restoreEnvironment = replaceCredentialEnvironment(credentialEnvironmentSentinels);
 		store = new DisposableStore();
 		githubTokens = [];
 		modelTraffic = [];
@@ -184,7 +182,7 @@ suite('Copilot Agent credential sponsorship', function () {
 				];
 				const calls = modelTraffic.filter(traffic => traffic.probe === probe).length;
 				const operation = probe === 'A-DELEGATED' && calls === 1
-					? { name: 'task', arguments: { name: 'fixture-child', agent_type: 'explore', model: 'gpt-4o', description: 'Read-only fixture child', prompt: 'CREDENTIAL_PROBE:A-CHILD. Reply briefly without using tools.' } }
+					? { name: 'task', arguments: { name: 'fixture-child', agent_type: 'explore', model: modelId, description: 'Read-only fixture child', prompt: 'CREDENTIAL_PROBE:A-CHILD. Reply briefly without using tools.' } }
 					: probe.includes('-') ? undefined : operations[calls - 1];
 				if (operation && !tools.includes(operation.name)) {
 					unexpectedRequests.push(`Unavailable coding tool: ${probe}:${operation.name}`);
@@ -210,7 +208,16 @@ suite('Copilot Agent credential sponsorship', function () {
 						githubTokens.push(authorization);
 					}
 					response.writeHead(stub.status, stub.headers);
-					response.end(stub.body.replaceAll('${capi}', endpoint));
+					let stubBody = stub.body.replaceAll('${capi}', endpoint);
+					if (request.method === 'GET' && (path === '/models' || path === '/meta')) {
+						const catalog: ModelCatalog | { models: ModelCatalog } = JSON.parse(stubBody);
+						const model = (hasKey(catalog, { models: true }) ? catalog.models : catalog).data.find(model => model.id === modelId);
+						assert.ok(model);
+						// Keep the coding model's freeform tools while using this fixture's Chat Completions transport.
+						model.supported_endpoints = ['/chat/completions'];
+						stubBody = JSON.stringify(catalog);
+					}
+					response.end(stubBody);
 				} else {
 					unexpectedRequests.push(`${request.method} ${path}`);
 					response.writeHead(500, { 'x-should-retry': 'false' });
@@ -222,11 +229,12 @@ suite('Copilot Agent credential sponsorship', function () {
 		const address = server.address();
 		assert.ok(address && typeof address !== 'string');
 		endpoint = `http://127.0.0.1:${address.port}`;
-		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, rootConfiguration);
 		store.add(agent.onDidChatProgress(onProgress));
 	});
 
-	teardown(async () => {
+	teardown(async function () {
+		const failedTest = this.currentTest?.state === 'failed' ? this.currentTest.fullTitle() : undefined;
 		try {
 			try {
 				await agent?.shutdown();
@@ -237,22 +245,33 @@ suite('Copilot Agent credential sponsorship', function () {
 					await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 				}
 				if (directory) {
-					await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+					try {
+						if (failedTest) {
+							preserveFailureDiagnostics(failedTest);
+						}
+					} finally {
+						await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+					}
 				}
 			}
 		} finally {
-			for (const key of Object.keys(credentialEnvironmentSentinels)) {
-				delete process.env[key];
-			}
-			for (const [key, value] of originalEnvironment ?? []) {
-				if (value === undefined) {
-					delete process.env[key];
-				} else {
-					process.env[key] = value;
-				}
-			}
+			restoreEnvironment?.();
+			restoreEnvironment = undefined;
 		}
 	});
+
+	/**
+	 * Keeps what a failure needs once the isolated home is removed: the runtime logs, and which
+	 * prompt context each model request had, in order, so a context missing only on a chat's first turn shows as such.
+	 */
+	function preserveFailureDiagnostics(title: string): void {
+		// One directory per test, since setup resets the recorded traffic and several tests can fail in one run.
+		const testDirectory = title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 80);
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`, testDirectory);
+		preserveAgentHostE2ELogs(directory, directory, destination, title);
+		writeFileSync(join(destination, 'prompt-contexts.json'), JSON.stringify(modelTraffic.map(({ probe, instructions, environment, ancestorInstructions, workspaceSkill }) =>
+		({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
+	}
 
 	async function createScope(token: string): Promise<AgentHostAuthenticationScope> {
 		const scope = store.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: resource, userId: '1' }));
@@ -283,7 +302,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		await writeFile(join(skill, 'SKILL.md'), '---\nname: sponsorship-workspace-skill\ndescription: Synthetic workspace discovery proof\n---\nSynthetic skill for credential parity tests.\n');
 		const chatContext = context(name, scope);
 		const created = await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
-			deferBacking: true, model: { id: 'gpt-4o' }, workingDirectories: [URI.file(workspace)],
+			deferBacking: true, model: { id: modelId }, workingDirectories: [URI.file(workspace)],
 			config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 		});
 		assert.ok(created);
@@ -326,7 +345,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		})}`);
 		await agent.chats.releaseChat(chat, original);
 		await agent.shutdown();
-		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, rootConfiguration);
 		store.add(agent.onDidChatProgress(onProgress));
 		const observing = {
 			...original,
@@ -358,7 +377,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			canvases,
 			traffic: { github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length },
 			clients: agent.clients.slice(beforeRead.clients).map(entry => ({
-				mode: entry.options.mode, token: entry.options.gitHubToken, stops: entry.client.stopCount, errors: entry.client.stopErrorCount,
+				mode: entry.options.mode, token: entry.options.github?.token, stops: entry.client.stopCount, errors: entry.client.stopErrorCount,
 			})),
 			unexpectedRequests,
 		}, {
@@ -473,23 +492,23 @@ suite('Copilot Agent credential sponsorship', function () {
 			created: await readFile(join(directory, name, 'created.txt'), 'utf8'),
 			shellExecuted: modelTraffic.filter(traffic => traffic.probe === name).some(traffic => traffic.results.some(result => result.includes('SHELL_EXECUTION_PROOF'))),
 		})));
-		const storageClients = agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.gitHubToken === undefined);
+		const storageClients = agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.github?.token === undefined);
 		const promptContexts = ['A', 'B', 'L'].map(probe => {
 			const request = modelTraffic.find(traffic => traffic.probe === probe)!;
 			return { instructions: request.instructions, environment: request.environment, ancestorInstructions: request.ancestorInstructions, workspaceSkill: request.workspaceSkill };
 		});
 		assert.deepStrictEqual({
 			tokensByProbe, toolsByProbe, files, toolCompletions: completions.length, toolOutcomes, promptContexts,
-			storage: storageClients.map(entry => ({ token: entry.options.gitHubToken, mode: entry.options.mode, stops: entry.client.stopCount, errors: entry.client.stopErrorCount })),
-			stoppedScoped: agent.clients.filter(entry => entry.options.gitHubToken !== undefined).map(entry => entry.client.stopCount),
-			scopedProductEnvironment: agent.clients.filter(entry => entry.options.gitHubToken !== undefined || entry.options.mode === 'empty').map(entry =>
-				Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, entry.options.env?.[key] === undefined]))),
-			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.gitHubToken === undefined).map(entry => entry.options.gitHubToken))],
-			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.gitHubToken === undefined).map(entry => entry.options.env?.COPILOT_SDK_AUTH_TOKEN))],
+			storage: storageClients.map(entry => ({ token: entry.options.github?.token, mode: entry.options.mode, stops: entry.client.stopCount, errors: entry.client.stopErrorCount })),
+			stoppedScoped: agent.clients.filter(entry => entry.options.github?.token !== undefined).map(entry => entry.client.stopCount),
+			scopedProductEnvironment: agent.clients.filter(entry => entry.options.github?.token !== undefined || entry.options.mode === 'empty').map(entry =>
+				Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, entry.options.runtime?.env?.[key] === undefined]))),
+			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.github?.token === undefined).map(entry => entry.options.github?.token))],
+			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.github?.token === undefined).map(entry => entry.options.runtime?.env?.COPILOT_SDK_AUTH_TOKEN))],
 			connectorTokenKinds: [...new Set(connectorTokens)].sort(),
 			unexpectedRequests,
 			githubTokenKinds: [...new Set(githubTokens)].sort(),
-			scopedRuntimeTokens: agent.clients.filter(entry => entry.options.gitHubToken !== undefined).map(entry => entry.options.gitHubToken).sort(),
+			scopedRuntimeTokens: agent.clients.filter(entry => entry.options.github?.token !== undefined).map(entry => entry.options.github?.token).sort(),
 		}, {
 			tokensByProbe: { A: ['A'], B: ['B'], L: ['L'], 'A-ROTATED': ['AR'], 'B-UNCHANGED': ['B'], 'L-UNCHANGED': ['L'], 'A-CONFIG': ['AR'], 'B-CONFIG': ['B'], 'L-CONFIG': ['L'], 'L-AFTER-DISPOSAL': ['L'] },
 			toolsByProbe: { A: [...codingTools], B: [...codingTools], L: [...codingTools] },

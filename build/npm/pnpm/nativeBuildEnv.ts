@@ -122,8 +122,8 @@ export interface NativeBuildOptions {
  * doesn't set removed (so that they aren't inherited from another root). `undefined` means "unset".
  *
  * `npm_config_node_gyp` is not set: install scripts build with the node-gyp bundled with pnpm, as
- * they built with the one bundled with npm, which ignores the variable. The node-gyp of
- * `build/npm/gyp` only installs the Electron and Node.js headers (see preinstall.ts).
+ * they built with the one bundled with npm, which ignores the variable. The preinstall installs the
+ * Electron and Node.js headers with the same node-gyp (see preinstall.ts).
  */
 export function getNativeBuildEnv(rootDir: string, options: NativeBuildOptions = {}, platform: string = process.platform, arch: string = process.arch, nodeVersion: string = process.versions.node): Record<string, string | undefined> {
 	const config = readNativeBuildConfig(rootDir);

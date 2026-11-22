@@ -11,7 +11,7 @@ import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
-import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
+import { CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG, createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -54,25 +54,100 @@ const AGENT_HOST_MODEL = 'gpt-5.3-codex';
 const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement';
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
+const DEV_CONTAINER_HANDOFF_SCENARIO_ID = 'smoke-dev-container-handoff';
+const DEV_CONTAINER_HANDOFF_REPLY = 'MOCKED_DEV_CONTAINER_HANDOFF_RESPONSE';
+const DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID = 'smoke-dev-container-handoff-child';
+/** Docker label of the volumes of Dev Container environments, see `devContainerEnvironmentLabel`. */
+const DEV_CONTAINER_ENVIRONMENT_LABEL = 'vscode.agents.environment';
+
+/** Points the Agent Host in a container at the mock server, which the container reaches through `vscode-smoke.test`. */
+function devContainerMockEnvironment(port: number): Record<string, string> {
+	const mockServerUrl = `http://vscode-smoke.test:${port}`;
+	return {
+		COPILOT_API_URL: mockServerUrl,
+		COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
+		GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+		VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
+		VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
+	};
+}
 
 function prepareDevContainerWorkspace(workspacePath: string, port: number, options: ApplicationOptions): void {
 	const configDirectory = path.join(workspacePath, '.devcontainer');
-	const mockServerUrl = `http://vscode-smoke.test:${port}`;
 	fs.mkdirSync(configDirectory, { recursive: true });
 	fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
 		name: 'Agents Window Smoke',
 		image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
 		remoteUser: 'vscode',
 		runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
-		containerEnv: {
-			COPILOT_API_URL: mockServerUrl,
-			COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
-			GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
-			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
-			VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
-		},
+		containerEnv: devContainerMockEnvironment(port),
 		postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 	}, null, 2));
+}
+
+/**
+ * Scripts an agent that creates a Dev Container with `create_dev_container`, then starts a session in it with
+ * `create_remote_session`, passing the host and workspace from the first tool's result.
+ */
+function devContainerHandoffScenario(): unknown {
+	return {
+		type: 'multi-turn',
+		turns: [
+			{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^create_dev_container$/, arguments: {} }] },
+			{
+				kind: 'tool-calls',
+				toolCalls: [{
+					toolNamePattern: /^create_remote_session$/,
+					arguments: (request: readonly unknown[]) => {
+						const created = readCreatedDevContainer(request);
+						return {
+							prompt: `continue the task in the container [scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`,
+							title: 'Continue in Dev Container',
+							hostId: created.hostId,
+							workspace: { uri: created.workspace, isolation: 'folder' },
+						};
+					},
+				}],
+			},
+			{ kind: 'content', chunks: [{ content: DEV_CONTAINER_HANDOFF_REPLY, delayMs: 0 }] },
+		],
+	};
+}
+
+/** Reads `hostId` and `workspace` of the latest `create_dev_container` result, which can be nested in escaped JSON. */
+function readCreatedDevContainer(request: readonly unknown[]): { readonly hostId: string; readonly workspace: string } {
+	const text = JSON.stringify(request);
+	const read = (key: string) => [...text.matchAll(new RegExp(`\\\\*"${key}\\\\*"\\s*:\\s*\\\\*"([^"\\\\]+)`, 'g'))].at(-1)?.[1];
+	const hostId = read('hostId');
+	const workspace = read('workspace');
+	if (!hostId || !workspace) {
+		throw new Error('The request has no create_dev_container result');
+	}
+	return { hostId, workspace };
+}
+
+function listLabeledContainers(label: string): string[] {
+	return cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=${label}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Removes the Dev Container environments whose containers have the label, with all volumes labeled with their
+ * environment, so environments that others create on the same Docker host in the meantime are kept.
+ */
+function removeLabeledDevContainerEnvironments(label: string): void {
+	const containerIds = listLabeledContainers(label);
+	if (!containerIds.length) {
+		return;
+	}
+	const volumes = containerIds.map(id => cp.execFileSync('docker', ['inspect', '--format', '{{index .Config.Labels "vsc.devcontainer.volume.name"}}', id], { encoding: 'utf8' }).trim()).filter(Boolean);
+	const environmentIds = volumes.map(volume => cp.execFileSync('docker', ['volume', 'inspect', '--format', `{{index .Labels "${DEV_CONTAINER_ENVIRONMENT_LABEL}"}}`, volume], { encoding: 'utf8' }).trim()).filter(Boolean);
+	cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+	for (const environmentId of environmentIds) {
+		const environmentVolumes = cp.execFileSync('docker', ['volume', 'ls', '-q', '--filter', `label=${DEV_CONTAINER_ENVIRONMENT_LABEL}=${environmentId}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+		if (environmentVolumes.length) {
+			cp.execFileSync('docker', ['volume', 'rm', '--force', ...environmentVolumes], { stdio: 'pipe' });
+		}
+	}
 }
 
 function removeDevContainerConfiguration(workspacePath: string): void {
@@ -178,6 +253,13 @@ export function setup(logger: Logger, quality: Quality) {
 						'Expected authenticated prompt validation without creating a worktree'
 					);
 				}
+				if (process.env.VSCODE_SMOKE_TEST_HTTP_PROXY) {
+					const agentHostLogPath = path.join(agentHost.logsPath, 'agenthost.log');
+					assert.ok(
+						CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(await waitForLogContent(() => readFileIfExists(agentHostLogPath), CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG)),
+						`Expected the Agent Host to answer the Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting in ${agentHostLogPath}`
+					);
+				}
 				await app.workbench.agentsWindow.startNewSession();
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost replacement) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -270,7 +352,7 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.retrySessionPreparation();
 				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
-				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
+				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 5 * 60 * 1000);
 				await app.workbench.agentsWindow.verifyInputEnabledAfterPreparation();
 				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
 				assert.ok(
@@ -311,6 +393,72 @@ export function setup(logger: Logger, quality: Quality) {
 			} catch (error) {
 				logger.log(`Agents Window (Dev Container AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container AgentHost)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container handoff)', () => {
+		installDockerPrerequisite(logger, process.platform === 'linux');
+
+		// Identifies the containers of this run, so cleanup leaves environments that others create on the same Docker host.
+		const runLabel = `vscode.smoke.devContainerHandoff=${randomUUID()}`;
+		const handoff = setupAgentHostSuite(logger, {
+			serverLabel: 'Dev Container handoff AgentHost',
+			mockServerHost: '0.0.0.0',
+			captureRequests: true,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(DEV_CONTAINER_HANDOFF_SCENARIO_ID, devContainerHandoffScenario());
+				registerScenario(DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
+			},
+			settings: {
+				'chat.agentHost.devContainer.enabled': true,
+				'chat.agentHost.devContainer.environments.enabled': true,
+				'chat.agentHost.devContainer.handoff.enabled': true,
+				'chat.remoteAgentHostsEnabled': true,
+				// The Agent Host in the container resolves proxies through this client. The mock CAPI host only
+				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
+				'http.useLocalProxyConfiguration': false,
+			},
+			// Environment containers have no devcontainer.json of the workspace to point them at the mock server, or to
+			// install a CLI when the update server has none for the commit of the build under test.
+			extraEnv: options => ({
+				VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({
+					containerEnv: devContainerMockEnvironment(handoff.mockServer.port),
+					runArgs: ['--add-host=vscode-smoke.test:host-gateway', `--label=${runLabel}`],
+					postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
+				}),
+			}),
+			// Runs once the app exited, and before the mock server closes, which waits for the containers' connections.
+			cleanupWorkspace: () => removeLabeledDevContainerEnvironments(runLabel),
+		});
+
+		it('Continues a task in a new Dev Container session', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+
+			try {
+				const requestsBefore = handoff.mockServer.getRequests().length;
+				await warmUpAgentHostModel(app, logger, 'Agents Window (Dev Container handoff)');
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`continue in a Dev Container [scenario:${DEV_CONTAINER_HANDOFF_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.waitForActiveSessionView();
+				// The tool's progress message opens the log of the container it creates.
+				await app.workbench.agentsWindow.showDevContainerLogFromLink('sessions.devContainer.showEnvironmentLog');
+				// Approves creating the container and then the session, which the scripted agent requests.
+				await app.workbench.agentsWindow.waitForAssistantText(DEV_CONTAINER_HANDOFF_REPLY, 8 * 60 * 1000, { acceptToolConfirmations: true });
+				// Only the Agent Host in the container reaches the mock server through vscode-smoke.test.
+				await waitForPromptRequest(handoff.mockServer, requestsBefore, `[scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`, 2 * 60 * 1000);
+				const created = listLabeledContainers(runLabel);
+				assert.strictEqual(created.length, 1, `Expected one new Dev Container environment container, found: ${created.join(', ')}`);
+				const rendererLogs = await waitForLogContent(
+					() => readRendererLogs(handoff.logsPath),
+					/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,
+					30_000,
+				);
+				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+			} catch (error) {
+				logger.log(`Agents Window (Dev Container handoff) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container handoff)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
 			}
 		});
@@ -383,7 +531,7 @@ export function setup(logger: Logger, quality: Quality) {
 					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
 					await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 					await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
-					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+					await app.workbench.agentsWindow.waitForAssistantText(reply, 5 * 60 * 1000);
 					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');
 					await assertRemoteDevContainerRouting(context.logsPath, transport, workspacePath, reply);
 					await fixture.verifyMockServerRouting?.();
@@ -431,6 +579,7 @@ export function setup(logger: Logger, quality: Quality) {
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
 			settings: {
 				'chat.remoteAgentHostsEnabled': true,
+				'chat.agentHost.githubEnvironments.enabled': true,
 			},
 		});
 
@@ -450,7 +599,7 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
 				await fixture.verifyMockServerRouting?.();
-				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY');
+				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY', 'Kerberos');
 			} catch (error) {
 				logger.log(`Agents Window (WSL Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				if (fixture.dumpConnectionDiagnostics) {
@@ -464,43 +613,215 @@ export function setup(logger: Logger, quality: Quality) {
 				throw error;
 			}
 		});
+
+		// Sharing itself needs a GitHub account; this verifies that a WSL AgentHost of the client's build reports a
+		// GitHub Environment status, which offers the Share action.
+		it('Offers to share a WSL AgentHost as a GitHub Environment', async function () {
+			this.timeout(5 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			if (!fixture.hostMatchesClientCommit) {
+				logger.log('Skipping the GitHub Environment share action: the WSL AgentHost is of another commit than the client');
+				this.skip();
+			}
+			try {
+				await app.workbench.agentsWindow.waitForRemoteAction(fixture.name, 'Share as GitHub Environment', 2 * 60 * 1000);
+			} catch (error) {
+				logger.log(`Agents Window (WSL GitHub Environment) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL GitHub Environment)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
 	});
 
 	// The same environment, with an editor window connected to a VS Code server in WSL, which spawns the Agent Host.
 	(wslKerberosProxyScheme ? describe : describe.skip)('Editor Window (WSL remote AgentHost, Kerberos proxy)', () => {
-		const scenario = 'smoke-wsl-remote-kerberos-proxy-agent-host';
-		const reply = 'WSL_REMOTE_KERBEROS_PROXY_RESPONSE';
+		setupWslRemoteEditorProxySuite(logger, 'Kerberos', 'Uses the Windows proxy, Kerberos ticket and certificates from the AgentHost of a WSL remote');
+	});
+
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic, which provisions a WSL proxy
+	// with Basic authentication and the Windows CA, and passes the proxy URL, credentials included, for the http.proxy
+	// setting.
+	const wslBasicProxy = process.platform === 'win32' && process.env.VSCODE_SMOKE_TEST_WSL_BASIC_PROXY === '1' && !!process.env.VSCODE_SMOKE_TEST_HTTP_PROXY;
+	if (!wslBasicProxy) {
+		logger.log('Skipping the WSL remote AgentHost Basic proxy suite: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic on Windows');
+	}
+	(wslBasicProxy ? describe : describe.skip)('Editor Window (WSL remote AgentHost, Basic proxy)', () => {
+		setupWslRemoteEditorProxySuite(logger, 'Basic', 'Uses the http.proxy setting with its credentials, and the Windows certificates, from the AgentHost of a WSL remote');
+	});
+
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac, which provisions a WSL
+	// proxy with Basic authentication and a Windows PAC script that selects it, and passes the credentials to type into
+	// the proxy login dialog. No setting or environment variable carries them, except for the stale password of the
+	// http.proxy setting of one suite. Each other test then changes the proxy password and logs in again with the new
+	// one, after the proxy rejected the old one the Copilot runtime still had.
+	const basicPacProxyScheme = process.platform === 'win32' ? process.env.VSCODE_SMOKE_TEST_BASIC_PAC_PROXY : undefined;
+	if (!basicPacProxyScheme) {
+		logger.log('Skipping the AgentHost Basic PAC proxy suites: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac on Windows');
+	}
+	const basicPacProxyCredentials = { username: process.env.VSCODE_SMOKE_TEST_PROXY_USER ?? '', password: process.env.VSCODE_SMOKE_TEST_PROXY_PASSWORD ?? '' };
+	(basicPacProxyScheme ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy)', () => {
+		const scenario = 'smoke-local-basic-pac-proxy-agent-host';
+		const reply = 'LOCAL_BASIC_PAC_PROXY_RESPONSE';
+		const newPasswordReply = 'LOCAL_BASIC_PAC_PROXY_NEW_PASSWORD_RESPONSE';
 		const context = setupAgentHostSuite(logger, {
-			serverLabel: 'WSL remote Kerberos proxy AgentHost',
+			serverLabel: 'Local Basic PAC proxy AgentHost',
 			mockServerHost: '0.0.0.0',
-			remoteTransport: 'wsl',
-			wslClientProxy: 'server',
-			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			proxyLoginCredentials: basicPacProxyCredentials,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
+				registerScenario(`${scenario}-new-password`, new ScenarioBuilder().emit(newPasswordReply).build());
+			},
 			settings: {},
 		});
 
-		it('Uses the Windows proxy, Kerberos ticket and certificates from the AgentHost of a WSL remote', async function () {
+		it('Asks for the credentials of the PAC proxy of a local AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const requestTag = `[proxy-request:${randomUUID()}]`;
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				const requestsBefore = context.mockServer.getRequests().length;
+				const prompt = `hello through the PAC proxy [scenario:${scenario}] ${requestTag}`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				assertProxyLoginDialogs(await logins.stop(), 1);
+				await assertProxyPasswordChangeAsksAgain(app, context.mockServer, {
+					scenario: `${scenario}-new-password`,
+					firstPrompt: prompt,
+					firstReply: reply,
+					reply: newPasswordReply,
+					readAgentHostLog: () => readFileIfExists(path.join(context.logsPath, 'agenthost.log')),
+				});
+			} catch (error) {
+				logger.log(`Agents Window (local Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			} finally {
+				await logins.stop();
+			}
+		});
+	});
+
+	// The http.proxy setting names the proxy with a stale password: after the proxy rejects it, the login dialog asks
+	// for the current one. Requests of the app itself use the setting too, so in a product build the dialog may open
+	// for one of those first; the Agent Host then gets the credentials typed into it without another dialog.
+	const basicPacProxyUrl = basicPacProxyScheme && process.env.VSCODE_SMOKE_TEST_PROXY_URL ? new URL(process.env.VSCODE_SMOKE_TEST_PROXY_URL) : undefined;
+	const staleHttpProxy = basicPacProxyUrl && `${basicPacProxyUrl.protocol}//${encodeURIComponent(basicPacProxyCredentials.username)}:stale-${randomUUID()}@${basicPacProxyUrl.host}`;
+	(staleHttpProxy ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy, stale http.proxy credentials)', () => {
+		const scenario = 'smoke-local-basic-pac-proxy-stale-credentials-agent-host';
+		const reply = 'LOCAL_BASIC_PAC_PROXY_STALE_CREDENTIALS_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'Local Basic PAC proxy AgentHost with stale http.proxy credentials',
+			mockServerHost: '0.0.0.0',
+			proxyLoginCredentials: basicPacProxyCredentials,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
+			},
+			settings: {
+				'http.proxy': staleHttpProxy,
+			},
+		});
+
+		it('Asks for the credentials of the proxy of a local AgentHost after it rejects those of the http.proxy setting', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const agentHostLogPath = path.join(context.logsPath, 'agenthost.log');
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				const requestTag = `[proxy-request:${randomUUID()}]`;
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello with stale http.proxy credentials [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				const rejectedLogLine = /\[Copilot\] The proxy \S+ rejected the credentials of the http\.proxy setting, asking a client for credentials/;
+				const log = await waitForLogContent(() => readFileIfExists(agentHostLogPath), log => CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(log) && rejectedLogLine.test(log), 30_000);
+				assert.ok(CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(log), `Expected the Agent Host to answer the Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting in ${agentHostLogPath}`);
+				assert.ok(rejectedLogLine.test(log), `Expected the Agent Host to ask a client for credentials after the proxy rejected those of the http.proxy setting in ${agentHostLogPath}`);
+				const details = await logins.stop();
+				assertProxyLoginDialogs(details, 1);
+			} catch (error) {
+				logger.log(`Agents Window (local Basic PAC proxy, stale http.proxy credentials) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy, stale http.proxy credentials)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			} finally {
+				await logins.stop();
+			}
+		});
+	});
+
+	(basicPacProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Basic PAC proxy)', () => {
+		const scenario = 'smoke-wsl-basic-pac-proxy-agent-host';
+		const reply = 'WSL_BASIC_PAC_PROXY_RESPONSE';
+		const newPasswordReply = 'WSL_BASIC_PAC_PROXY_NEW_PASSWORD_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL Basic PAC proxy AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: 'agentHost',
+			proxyLoginCredentials: basicPacProxyCredentials,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
+				registerScenario(`${scenario}-new-password`, new ScenarioBuilder().emit(newPasswordReply).build());
+			},
+			settings: {
+				'chat.remoteAgentHostsEnabled': true,
+			},
+		});
+
+		it('Asks for the credentials of the Windows PAC proxy of a WSL AgentHost', async function () {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
 			const fixture = context.remoteFixture;
-			assert.ok(fixture, 'Expected the WSL server fixture');
+			assert.ok(fixture, 'Expected the WSL connection fixture');
 			const requestTag = `[proxy-request:${randomUUID()}]`;
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
 			try {
-				await openAgentHostChatEditor(app, 3 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
+				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
 				const requestsBefore = context.mockServer.getRequests().length;
-				await app.workbench.chat.sendEditorMessage(`hello through the Windows proxy [scenario:${scenario}] ${requestTag}`);
-				await app.workbench.chat.waitForEditorResponseText(reply, 2 * 60 * 1000);
+				const prompt = `hello through the Windows PAC proxy [scenario:${scenario}] ${requestTag}`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				assertProxyLoginDialogs(await logins.stop(), 1);
 				await fixture.verifyMockServerRouting?.();
+				await assertClientNetworkServed(context.logsPath, 'wsl', basicPacProxyScheme === 'https' ? 'HTTPS' : 'PROXY', { basicUsername: basicPacProxyCredentials.username });
+				const readAgentHostLog = fixture.readAgentHostLog;
+				assert.ok(readAgentHostLog, 'Expected the WSL fixture to read the AgentHost log');
+				await assertProxyPasswordChangeAsksAgain(app, context.mockServer, {
+					scenario: `${scenario}-new-password`,
+					firstPrompt: prompt,
+					firstReply: reply,
+					reply: newPasswordReply,
+					readAgentHostLog,
+				});
 			} catch (error) {
-				logger.log(`Editor Window (WSL remote Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				try {
-					await fixture.dumpConnectionDiagnostics?.('remote editor window');
-				} catch (diagnosticError) {
-					logger.log(`Editor Window (WSL remote Kerberos proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+				logger.log(`Agents Window (WSL Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				if (fixture.dumpConnectionDiagnostics) {
+					try {
+						await fixture.dumpConnectionDiagnostics(await app.workbench.agentsWindow.getRemoteConnectionDiagnostics());
+					} catch (diagnosticError) {
+						logger.log(`Agents Window (WSL Basic PAC proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+					}
 				}
-				await dumpFailureDiagnostics(app, logger, 'Editor Window (WSL remote Kerberos proxy)');
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
+			} finally {
+				await logins.stop();
 			}
 		});
 	});
@@ -696,17 +1017,29 @@ export function setup(logger: Logger, quality: Quality) {
 			// fail fast here (from source) instead of timing out at spawn time.
 			if (process.env.VSCODE_DEV === '1') {
 				const repoRoot = path.resolve(process.cwd(), '..', '..');
-				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
-				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-				let codexBinaryFound = false;
+				// A flat node_modules has the platform package next to `@openai/codex`. pnpm's
+				// isolated layout only has it next to the real folder of `@openai/codex`, where
+				// the agent host also looks (see resolveCodexBinaryPath).
+				const scopeDir = path.join(repoRoot, 'node_modules', '@openai');
+				const scopeDirs = [scopeDir];
 				try {
-					const vendorDir = path.join(platformPkgDir, 'vendor');
-					codexBinaryFound = fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+					scopeDirs.push(path.dirname(fs.realpathSync(path.join(scopeDir, 'codex'))));
 				} catch {
-					// vendor dir (or the whole platform package) is missing → treated as not found
+					// `@openai/codex` is missing → only the flat location is checked
 				}
+				const platformPkgDirs = [...new Set(scopeDirs)].map(dir => path.join(dir, `codex-${process.platform}-${process.arch}`));
+				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+				const codexBinaryFound = platformPkgDirs.some(platformPkgDir => {
+					try {
+						const vendorDir = path.join(platformPkgDir, 'vendor');
+						return fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+					} catch {
+						// vendor dir (or the whole platform package) is missing → treated as not found
+						return false;
+					}
+				});
 				if (!codexBinaryFound) {
-					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDir}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
+					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDirs.join(' and ')}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
 				}
 			}
 
@@ -815,6 +1148,8 @@ interface IAgentHostSuiteContext {
 	readonly mockServer: MockLlmServer;
 	readonly logsPath: string;
 	readonly remoteFixture?: IRemoteDevContainerFixture;
+	/** Fills the proxy login dialogs from the start of the app, when the suite passes `proxyLoginCredentials`. */
+	readonly proxyLogins?: { stop(): Promise<string[]> };
 }
 
 /**
@@ -836,9 +1171,19 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly wslClientProxy?: 'agentHost' | 'server';
 	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
+	/** Records the mock server's requests, so a test can wait for a prompt with `waitForPromptRequest`. */
+	readonly captureRequests?: boolean;
+	/** More environment variables of the app, computed once the mock server has started. */
+	readonly extraEnv?: (options: ApplicationOptions) => Record<string, string | undefined>;
+	/**
+	 * Credentials to fill the proxy login dialogs with from the start of the app: requests of the app itself can open
+	 * one before the first window is ready, which keyboard input to it would otherwise cancel.
+	 */
+	readonly proxyLoginCredentials?: { readonly username: string; readonly password: string };
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
 	let logsPath: string;
+	let proxyLogins: ReturnType<Application['workbench']['agentsWindow']['fillProxyAuthenticationDialogs']> | undefined;
 	let workspacePath: string | undefined;
 	let remoteFixture: IRemoteDevContainerFixture | undefined;
 	let remoteFixtureSetup: Promise<IRemoteDevContainerFixture> | undefined;
@@ -853,7 +1198,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
 		mockServer = await startServer(0, {
-			...mockServerStartOptions((msg: string) => logger.log(msg), !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
+			...mockServerStartOptions((msg: string) => logger.log(msg), config.captureRequests || !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
 			host: config.mockServerHost,
 		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
@@ -917,6 +1262,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// instead of api.github.com, which would 401 with the fake token.
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 				VSCODE_SMOKE_TEST_TUNNEL_TOKEN: undefined,
+				...config.extraEnv?.(opts),
 				...remoteFixture?.extraEnv,
 			},
 		}));
@@ -932,11 +1278,17 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
+				// A proxy with credentials, which the Agent Host answers the Copilot runtime's Basic challenges with.
+				...(process.env.VSCODE_SMOKE_TEST_HTTP_PROXY ? {
+					'http.proxy': process.env.VSCODE_SMOKE_TEST_HTTP_PROXY,
+				} : {}),
 				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? {
 					'sessions.useWorktree': false,
 				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
+				// The extension-host Copilot CLI provider is being retired; run as after its removal.
+				'github.copilot.chat.cli.legacyProvider.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.
@@ -959,6 +1311,13 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}
 
 		await (this.app as Application).start();
+		if (config.proxyLoginCredentials) {
+			proxyLogins = (this.app as Application).workbench.agentsWindow.fillProxyAuthenticationDialogs(config.proxyLoginCredentials.username, config.proxyLoginCredentials.password);
+		}
+	});
+
+	after(async function () {
+		await proxyLogins?.stop();
 	});
 
 	installAppAfterHandler(undefined, async () => {
@@ -990,6 +1349,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}
 		const app = this.app as Application;
 		cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+		await proxyLogins?.whenIdle();
 		const windowsBefore = app.code.driver.getAllWindows().length;
 		await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
 		await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
@@ -1005,7 +1365,52 @@ function setupAgentHostSuite(logger: Logger, config: {
 		get mockServer() { return mockServer; },
 		get logsPath() { return logsPath; },
 		get remoteFixture() { return remoteFixture; },
+		get proxyLogins() { return proxyLogins; },
 	};
+}
+
+/**
+ * Registers the test of an editor window connected to a VS Code server in WSL, whose Agent Host reaches the mock server
+ * only through the Windows client's proxy, authenticated with `auth`. With `Basic`, the credentials come from the
+ * http.proxy setting, which the Agent Host answers the Copilot runtime's Basic challenges with.
+ */
+function setupWslRemoteEditorProxySuite(logger: Logger, auth: 'Kerberos' | 'Basic', title: string): void {
+	const scenario = `smoke-wsl-remote-${auth.toLowerCase()}-proxy-agent-host`;
+	const reply = `WSL_REMOTE_${auth.toUpperCase()}_PROXY_RESPONSE`;
+	const label = `Editor Window (WSL remote ${auth} proxy)`;
+	const context = setupAgentHostSuite(logger, {
+		serverLabel: `WSL remote ${auth} proxy AgentHost`,
+		mockServerHost: '0.0.0.0',
+		remoteTransport: 'wsl',
+		wslClientProxy: 'server',
+		registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+		settings: {},
+	});
+
+	it(title, async function () {
+		this.timeout(10 * 60 * 1000);
+		const app = this.app as Application;
+		const fixture = context.remoteFixture;
+		assert.ok(fixture, 'Expected the WSL server fixture');
+		const requestTag = `[proxy-request:${randomUUID()}]`;
+		try {
+			await openAgentHostChatEditor(app, 3 * 60 * 1000);
+			const requestsBefore = context.mockServer.getRequests().length;
+			await app.workbench.chat.sendEditorMessage(`hello through the ${auth} proxy [scenario:${scenario}] ${requestTag}`);
+			await app.workbench.chat.waitForEditorResponseText(reply, 2 * 60 * 1000);
+			await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+			await fixture.verifyMockServerRouting?.({ credentialedProxy: auth === 'Basic' });
+		} catch (error) {
+			logger.log(`${label} FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+			try {
+				await fixture.dumpConnectionDiagnostics?.('remote editor window');
+			} catch (diagnosticError) {
+				logger.log(`${label} connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+			}
+			await dumpFailureDiagnostics(app, logger, label);
+			throw error;
+		}
+	});
 }
 
 /**
@@ -1027,8 +1432,8 @@ async function openAgentHostChatEditor(app: Application, timeoutMs: number): Pro
 	}
 }
 
-async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
-	const deadline = Date.now() + 30_000;
+async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string, timeoutMs = 30_000): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (mockServer.getRequests().slice(requestsBefore).some(request =>
 			request.path === '/responses' &&
@@ -1039,6 +1444,62 @@ async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: n
 		await new Promise(resolve => setTimeout(resolve, 100));
 	}
 	throw new Error(`Timed out waiting for the Copilot model request with ${requestTag}`);
+}
+
+/**
+ * Changes the password of the Basic PAC proxy, then sends a follow-up prompt to the session of `firstPrompt`, logging in
+ * to the proxy login dialogs with the new password. The Copilot runtime still has the old password, so the proxy rejects
+ * it and the runtime asks the Agent Host for credentials again with `previousRejected`, for which the client asks for
+ * new credentials instead of returning the ones it remembers. Restores the password afterwards.
+ */
+async function assertProxyPasswordChangeAsksAgain(app: Application, mockServer: MockLlmServer, options: {
+	readonly scenario: string;
+	readonly firstPrompt: string;
+	readonly firstReply: string;
+	readonly reply: string;
+	readonly readAgentHostLog: () => string | Promise<string>;
+}): Promise<void> {
+	const { VSCODE_SMOKE_TEST_WSL_DISTRO: distro, VSCODE_SMOKE_TEST_PROXY_USER: username, VSCODE_SMOKE_TEST_PROXY_PASSWORD: password, VSCODE_SMOKE_TEST_PROXY_NEW_PASSWORD: newPassword, VSCODE_SMOKE_TEST_PROXY_HTPASSWD: passwordFile } = process.env;
+	assert.ok(distro && username && password && newPassword && passwordFile, 'Expected the proxy credentials and password file from run-agents-window-wsl-kerberos-proxy.ps1');
+	const setProxyPassword = async (value: string) => {
+		cp.execFileSync(path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'wsl.exe'), ['--distribution', distro, '--exec', 'bash', '-c', 'echo "$1:$(openssl passwd -1 "$2")" > "$3"', 'bash', username, value, passwordFile], { stdio: 'pipe', windowsHide: true, timeout: 60_000 });
+		// Squid's password helper reloads the file when its modification time in seconds changes, and Squid checks the
+		// credentials it cached again after a second.
+		await new Promise(resolve => setTimeout(resolve, 1_500));
+	};
+	const rejectedLogLine = /\[Copilot\] The Copilot runtime asks for Basic credentials for the proxy \S+, after the proxy rejected earlier ones/g;
+	const rejectedCount = (log: string) => log.match(rejectedLogLine)?.length ?? 0;
+	const rejectedBefore = rejectedCount(await options.readAgentHostLog());
+
+	await setProxyPassword(newPassword);
+	const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(username, newPassword);
+	try {
+		// The session title falls back to the first prompt shortened to about 40 characters, so match its text before the tags.
+		const rowMatch = [options.firstPrompt.split(' [')[0], options.firstReply];
+		await app.workbench.agentsWindow.activateSessionByLabel(rowMatch, options.firstReply, 60_000);
+		const requestTag = `[proxy-request:${randomUUID()}]`;
+		const requestsBefore = mockServer.getRequests().length;
+		// The Copilot runtime keeps its connection through the proxy open, so close it to make the runtime connect again.
+		mockServer.closeConnections();
+		await app.workbench.agentsWindow.sendFollowUpMessage(`hello again through the PAC proxy [scenario:${options.scenario}] ${requestTag}`, 600, options.firstReply, rowMatch);
+		await app.workbench.agentsWindow.waitForAssistantText(options.reply, 2 * 60 * 1000);
+		await waitForPromptRequest(mockServer, requestsBefore, requestTag);
+		const log = await waitForLogContent(options.readAgentHostLog, log => rejectedCount(log) > rejectedBefore, 30_000);
+		assert.ok(rejectedCount(log) > rejectedBefore, 'Expected the Copilot runtime to ask the Agent Host for credentials again after the proxy rejected the old password');
+		const details = await logins.stop();
+		assertProxyLoginDialogs(details, 1);
+	} finally {
+		await logins.stop();
+		await setProxyPassword(password);
+	}
+}
+
+/**
+ * Asserts that `details`, those of the proxy login dialogs filled, are of exactly `count` login dialogs for the proxy:
+ * clients share the credentials entered in one, and the main process shows one at a time.
+ */
+function assertProxyLoginDialogs(details: readonly string[], count: number): void {
+	assert.deepStrictEqual(details.map(detail => detail.replace(/^The proxy localhost:\d+ /, 'The proxy localhost:<port> ')), Array.from({ length: count }, () => 'The proxy localhost:<port> requires a username and password.'));
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {
@@ -1065,16 +1526,17 @@ async function assertRemoteDevContainerRouting(logsPath: string, transport: Remo
 }
 
 /**
- * Asserts that the client answered the Agent Host's proxy, Kerberos and certificate requests on `transport`, resolving
- * the proxy to a PAC entry of `proxyType`. The AHP transcript redacts Kerberos tokens and certificates, so a redacted
- * value shows that the client returned one.
+ * Asserts that the client answered the Agent Host's proxy, authentication and certificate requests on `transport`,
+ * resolving the proxy to a PAC entry of `proxyType`, and returning a Kerberos token or the Basic credentials of
+ * `basicUsername`. The AHP transcript redacts Kerberos tokens, passwords and certificates, so a redacted value shows
+ * that the client returned one.
  */
-async function assertClientNetworkServed(logsPath: string, transport: RemoteDevContainerTransport, proxyType: 'PROXY' | 'HTTPS'): Promise<void> {
+async function assertClientNetworkServed(logsPath: string, transport: RemoteDevContainerTransport, proxyType: 'PROXY' | 'HTTPS', auth: 'Kerberos' | { readonly basicUsername: string }): Promise<void> {
 	interface IFrame {
 		readonly _ahpLog?: { readonly transport?: string; readonly dir?: string };
 		readonly id?: number | string;
 		readonly method?: string;
-		readonly result?: { readonly proxy?: string; readonly authorization?: string; readonly certificates?: unknown };
+		readonly result?: { readonly proxy?: string; readonly authorization?: string; readonly username?: string; readonly password?: string; readonly certificates?: unknown };
 	}
 	const parseFrames = (content: string): IFrame[] => content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
 	const results = (frames: IFrame[], method: string) => {
@@ -1083,7 +1545,9 @@ async function assertClientNetworkServed(logsPath: string, transport: RemoteDevC
 	};
 	const checks = {
 		proxy: (frames: IFrame[]) => results(frames, 'vscode/resolveProxy').some(result => result.proxy?.startsWith(`${proxyType} localhost:`)),
-		kerberos: (frames: IFrame[]) => results(frames, 'vscode/lookupProxyKerberosAuthorization').some(result => result.authorization === '<redacted>'),
+		auth: auth === 'Kerberos'
+			? (frames: IFrame[]) => results(frames, 'vscode/lookupProxyKerberosAuthorization').some(result => result.authorization === '<redacted>')
+			: (frames: IFrame[]) => results(frames, 'vscode/lookupProxyBasicAuthorization').some(result => result.username === auth.basicUsername && result.password === '<redacted>'),
 		certificates: (frames: IFrame[]) => results(frames, 'vscode/loadCertificates').some(result => result.certificates === '<redacted>'),
 	};
 	const frames = parseFrames(await waitForLogContent(
@@ -1093,8 +1557,8 @@ async function assertClientNetworkServed(logsPath: string, transport: RemoteDevC
 	));
 	assert.deepStrictEqual(
 		Object.fromEntries(Object.entries(checks).map(([name, check]) => [name, check(frames)])),
-		{ proxy: true, kerberos: true, certificates: true },
-		`Expected the client to resolve the ${proxyType} proxy, return a Kerberos token and return certificates for the ${transport} Agent Host`,
+		{ proxy: true, auth: true, certificates: true },
+		`Expected the client to resolve the ${proxyType} proxy, return ${auth === 'Kerberos' ? 'a Kerberos token' : 'Basic credentials'} and return certificates for the ${transport} Agent Host`,
 	);
 }
 
@@ -1104,13 +1568,13 @@ async function assertClientNetworkServed(logsPath: string, transport: RemoteDevC
  * suites are written through async queues (e.g. AhpJsonlLogger), so an entry
  * may not be on disk yet even after the assistant reply has rendered.
  */
-async function waitForLogContent(readContent: () => string, matcher: RegExp | string | ((content: string) => boolean), timeoutMs = 5_000): Promise<string> {
+async function waitForLogContent(readContent: () => string | Promise<string>, matcher: RegExp | string | ((content: string) => boolean), timeoutMs = 5_000): Promise<string> {
 	const matches = (content: string) => typeof matcher === 'function' ? matcher(content) : typeof matcher === 'string' ? content.includes(matcher) : matcher.test(content);
 	const deadline = Date.now() + timeoutMs;
-	let content = readContent();
+	let content = await readContent();
 	while (!matches(content) && Date.now() < deadline) {
 		await new Promise(resolve => setTimeout(resolve, 100));
-		content = readContent();
+		content = await readContent();
 	}
 	return content;
 }

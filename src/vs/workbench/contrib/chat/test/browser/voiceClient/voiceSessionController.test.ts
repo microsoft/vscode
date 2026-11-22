@@ -53,6 +53,7 @@ import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 class TestConfigurationService extends BaseTestConfigurationService {
 	constructor(configuration: Record<string, unknown> = {}) {
@@ -460,7 +461,7 @@ function agentSessionEntry(id: string, label: string | undefined, status: AgentS
 	};
 }
 
-function sentChatSendResult(id: string): ChatSendResult {
+function sentChatSendResult(id: string, newSessionResource?: URI): ChatSendResult {
 	const response = {
 		id,
 		requestId: `request-${id}`,
@@ -471,6 +472,7 @@ function sentChatSendResult(id: string): ChatSendResult {
 	} as unknown as IChatResponseModel;
 	return {
 		kind: 'sent',
+		newSessionResource,
 		data: {
 			agent: {} as never,
 			responseCreatedPromise: Promise.resolve(response),
@@ -891,6 +893,7 @@ suite('VoiceSessionController', () => {
 		chatWidgetService: IChatWidgetService = new TestChatWidgetService(),
 		toolDispatchService: IVoiceToolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
 			override setDelegate(): void { }
+			override async createChatSession(): Promise<IChatModelReference> { return chatService.startNewLocalSession(ChatAgentLocation.Chat); }
 			override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
 		}(),
 	): VoiceSessionController {
@@ -6575,7 +6578,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
-		controller.newSessionAsTarget();
+		await controller.newSessionAsTarget();
 
 		assert.deepStrictEqual({
 			connected: controller.isConnected.get(),
@@ -6624,9 +6627,7 @@ suite('VoiceSessionController', () => {
 		const chatService = new RefCountingChatService();
 		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
 
-		controller.newSessionAsTarget();
-		await Promise.resolve();
-		await Promise.resolve();
+		await controller.newSessionAsTarget();
 		controller.setTargetSession(URI.parse('chat-session://existing/1'));
 
 		assert.deepStrictEqual({
@@ -6643,9 +6644,7 @@ suite('VoiceSessionController', () => {
 		const chatService = new RefCountingChatService();
 		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
 
-		controller.newSessionAsTarget();
-		await Promise.resolve();
-		await Promise.resolve();
+		await controller.newSessionAsTarget();
 		controller.disconnect();
 
 		assert.deepStrictEqual({
@@ -6657,7 +6656,292 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	for (const newSession of [true, false]) {
+		test(`${newSession ? 'New Session' : 'no-existing-session fallback'} aligns the displayed conversation with the resolved voice target`, async () => {
+			store.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', () => undefined));
+			const resource = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-voice`);
+			let shown: URI | undefined;
+			const commandService = new class extends TestCommandService {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+					if (id === '_chat.voice.getCurrentSession') {
+						return shown?.toString() as T;
+					}
+					if (id === '_chat.voice.switchToSession') {
+						shown = URI.parse(args[0] as string);
+						return true as T;
+					}
+					return super.executeCommand<T>(id, ...args);
+				}
+			}();
+			const chatService = new NewSessionChatService();
+			const controller = createController(new TestVoiceClientService(), undefined, commandService, undefined, undefined, undefined, chatService);
+			const dispatchService = Reflect.get(controller, 'voiceToolDispatchService') as IVoiceToolDispatchService;
+			sinon.stub(dispatchService, 'createChatSession').resolves({ object: upcastPartial<IChatModel>({ sessionResource: resource }), dispose: () => { } });
+			if (newSession) {
+				await controller.newSessionAsTarget();
+			} else {
+				await controller['_sendTranscriptionToChat']('Hello');
+			}
+			assert.deepStrictEqual({
+				target: controller.targetSession.get()?.toString(), shown: shown?.toString(), local: chatService.created, sent: chatService.sent,
+			}, {
+				target: resource.toString(), shown: resource.toString(), local: [], sent: newSession ? [] : [{ resource: resource.toString(), message: 'Hello' }],
+			});
+		});
+	}
+
+	for (const outcome of ['sent', 'queued', 'rejected', 'refused', 'error', 'retargeted', 'retargeted-during-switch', 'disconnected'] as const) {
+		test(`first direct voice submission adopts its materialized conversation (${outcome})`, async () => {
+			store.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', () => undefined));
+			store.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', () => undefined));
+			const draft = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-voice`);
+			const materialized = URI.parse(`${SessionType.AgentHostCopilot}:/materialized-voice`);
+			const other = URI.parse(`${SessionType.AgentHostCopilot}:/other`);
+			const started = new DeferredPromise<void>();
+			const sent = new DeferredPromise<ChatSendResult>();
+			const calls: string[] = [];
+			let shown: URI | undefined;
+			const commandService = new class extends TestCommandService {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+					if (id === '_chat.voice.getCurrentSession') {
+						return shown?.toString() as T;
+					}
+					if (id === '_chat.voice.switchToSession') {
+						const resource = URI.parse(args[0] as string);
+						calls.push(`show:${resource}`);
+						if (resource.toString() === materialized.toString()) {
+							if (outcome === 'error') {
+								throw new Error('materialized switch failed');
+							}
+							if (outcome === 'refused') {
+								return false as T;
+							}
+							if (outcome === 'retargeted-during-switch') {
+								shown = other;
+								controller.setTargetSession(other);
+								return true as T;
+							}
+						}
+						shown = resource;
+						controller.setTargetSession(resource);
+						return true as T;
+					}
+					return super.executeCommand<T>(id, ...args);
+				}
+			}();
+			const chatService = new NewSessionChatService();
+			sinon.stub(chatService, 'sendRequest').callsFake(async (resource): Promise<ChatSendResult> => {
+				calls.push(`send:${resource}`);
+				started.complete();
+				return outcome === 'queued' ? { kind: 'queued', deferred: sent.p } : sent.p;
+			});
+			const controller = createController(new TestVoiceClientService(), undefined, commandService, undefined, undefined, undefined, chatService);
+			const dispatchService = Reflect.get(controller, 'voiceToolDispatchService') as IVoiceToolDispatchService;
+			sinon.stub(dispatchService, 'createChatSession').resolves({
+				object: upcastPartial<IChatModel>({ sessionResource: draft }), dispose: () => { },
+			});
+			const submitting = controller['_sendTranscriptionToChat']('Hello').then(accepted => ({ accepted }), err => ({ error: err instanceof Error ? err.message : String(err) }));
+			await started.p;
+			if (outcome === 'retargeted') {
+				shown = other;
+				controller.setTargetSession(other);
+			} else if (outcome === 'disconnected') {
+				controller.disconnect();
+			}
+			await sent.complete(outcome === 'rejected' ? { kind: 'rejected', reason: 'read-only', newSessionResource: materialized } : sentChatSendResult('materialized', materialized));
+			const failedSwitch = outcome === 'refused' || outcome === 'error';
+			const stale = outcome === 'retargeted' || outcome === 'disconnected';
+			const retargeted = outcome === 'retargeted' || outcome === 'retargeted-during-switch';
+			assert.deepStrictEqual({
+				result: await submitting, target: controller.targetSession.get()?.toString(), shown: shown?.toString(), calls,
+			}, {
+				result: failedSwitch ? { error: outcome === 'error' ? 'materialized switch failed' : 'Unable to show the new voice conversation.' } : { accepted: !stale && !retargeted && outcome !== 'rejected' },
+				target: outcome === 'disconnected' ? undefined : (retargeted ? other : failedSwitch ? draft : materialized).toString(),
+				shown: (retargeted ? other : stale || failedSwitch ? draft : materialized).toString(),
+				calls: [`show:${draft}`, `send:${draft}`, ...(!stale ? [`show:${materialized}`] : [])],
+			});
+		});
+	}
+
+	for (const outcome of ['adopted', 'retargeted', 'disconnected'] as const) {
+		test(`headless direct voice submission retains only its owned materialized model (${outcome})`, async () => {
+			const draft = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-voice`);
+			const materialized = URI.parse(`${SessionType.AgentHostCopilot}:/materialized-voice`);
+			const other = URI.parse(`${SessionType.AgentHostCopilot}:/other`);
+			const started = new DeferredPromise<void>();
+			const acquired = new DeferredPromise<IChatModelReference>();
+			const released = { draft: 0, materialized: 0 };
+			const chatService = new NewSessionChatService();
+			sinon.stub(chatService, 'sendRequest').resolves(sentChatSendResult('materialized', materialized));
+			sinon.stub(chatService, 'acquireOrLoadSession').callsFake(async () => {
+				started.complete();
+				return acquired.p;
+			});
+			const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+			const dispatchService = Reflect.get(controller, 'voiceToolDispatchService') as IVoiceToolDispatchService;
+			sinon.stub(dispatchService, 'createChatSession').resolves({
+				object: upcastPartial<IChatModel>({ sessionResource: draft }), dispose: () => released.draft++,
+			});
+			await controller.newSessionAsTarget();
+			const submitting = controller['_sendVoiceRequest'](draft, 'Hello');
+			await started.p;
+			if (outcome === 'retargeted') {
+				controller.setTargetSession(other);
+			} else if (outcome === 'disconnected') {
+				controller.disconnect();
+			}
+			await acquired.complete({
+				object: upcastPartial<IChatModel>({ sessionResource: materialized }), dispose: () => released.materialized++,
+			});
+			const delivered = !!await submitting;
+			const state = { delivered, target: controller.targetSession.get()?.toString(), released: { ...released } };
+			controller.disconnect();
+			assert.deepStrictEqual({ state, released }, {
+				state: {
+					delivered: outcome === 'adopted', target: outcome === 'disconnected' ? undefined : (outcome === 'retargeted' ? other : materialized).toString(),
+					released: { draft: 1, materialized: outcome === 'adopted' ? 0 : 1 },
+				},
+				released: { draft: 1, materialized: 1 },
+			});
+		});
+	}
+
+	test('a failed materialized model acquisition releases the hidden draft send reference', async () => {
+		const draft = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-voice`);
+		const materialized = URI.parse(`${SessionType.AgentHostCopilot}:/materialized-voice`);
+		let released = 0;
+		const chatService = new NewSessionChatService();
+		sinon.stub(chatService, 'sendRequest').resolves(sentChatSendResult('materialized', materialized));
+		sinon.stub(chatService, 'acquireOrLoadSession').callsFake(async resource => {
+			if (resource.toString() === materialized.toString()) {
+				throw new Error('materialized model unavailable');
+			}
+			return { object: upcastPartial<IChatModel>({ sessionResource: draft }), dispose: () => released++ };
+		});
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		controller.setTargetSession(draft);
+		const error = await controller['_sendTranscriptionToChat']('Hello').catch(err => err instanceof Error ? err.message : String(err));
+		assert.deepStrictEqual({ error, released, target: controller.targetSession.get()?.toString() }, {
+			error: 'materialized model unavailable', released: 1, target: draft.toString(),
+		});
+	});
+
+	for (const binding of ['focused', 'external']) {
+		test(`newSessionAsTarget accepts synchronous ${binding} host adoption of its own resource`, async () => {
+			store.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', () => undefined));
+			const voiceClientService = new TestVoiceClientService();
+			const chatService = new NewSessionChatService();
+			const commandService = new class extends TestCommandService {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+					if (id === '_chat.voice.switchToSession') {
+						const resource = URI.parse(args[0] as string);
+						if (binding === 'focused') {
+							const widgets = Reflect.get(controller, 'chatWidgetService') as TestChatWidgetService;
+							widgets.focus(resource);
+							controller['_onFocusedSessionChanged']();
+						} else {
+							controller.setActiveSessionShown(resource);
+						}
+						return true as T;
+					}
+					return super.executeCommand<T>(id, ...args);
+				}
+			}();
+			const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+			await controller.connect(mainWindow);
+			(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+			if (binding === 'external') {
+				controller.setActiveSessionShown(URI.parse('chat-session:/previous'));
+			}
+			const created = await controller.newSessionAsTarget();
+			const notifications = Reflect.get(controller, 'notificationService') as VoiceTestNotificationService;
+			assert.deepStrictEqual({
+				created, target: controller.targetSession.get()?.toString(), notifications: notifications.notifications,
+			}, { created: true, target: chatService.created[0].toString(), notifications: [] });
+		});
+	}
+
+	test('a different target chosen during host switching still cancels new-session preparation', async () => {
+		store.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', () => undefined));
+		const switching = new DeferredPromise<void>();
+		const switched = new DeferredPromise<boolean>();
+		const commandService = new class extends TestCommandService {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+				if (id === '_chat.voice.switchToSession') {
+					switching.complete();
+					return await switched.p as T;
+				}
+				return super.executeCommand<T>(id, ...args);
+			}
+		}();
+		const chatService = new RefCountingChatService();
+		const controller = createController(new TestVoiceClientService(), undefined, commandService, undefined, undefined, undefined, chatService);
+		const creating = controller.newSessionAsTarget();
+		await switching.p;
+		const other = URI.parse('chat-session:/other');
+		controller.setTargetSession(other);
+		await switched.complete(true);
+		assert.deepStrictEqual({
+			created: await creating, target: controller.targetSession.get()?.toString(), live: [...chatService.live],
+		}, { created: false, target: other.toString(), live: [] });
+	});
+
+	for (const failure of ['refused', 'error']) {
+		test(`newSessionAsTarget preserves the previous target and reports a ${failure} switch`, async () => {
+			const switchError = new Error('host switch failed');
+			const commandService = new class extends TestCommandService {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+					if (id === '_chat.voice.switchToSession') {
+						if (failure === 'error') {
+							throw switchError;
+						}
+						return false as T;
+					}
+					return super.executeCommand<T>(id, ...args);
+				}
+			}();
+			const chatService = new RefCountingChatService();
+			const controller = createController(new TestVoiceClientService(), undefined, commandService, undefined, undefined, undefined, chatService);
+			await controller.newSessionAsTarget();
+			const shown = controller.targetSession.get();
+			const previous = shown!.toString();
+			store.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', () => undefined));
+			const log = sinon.spy(Reflect.get(controller, 'logService') as NullLogService, 'error');
+			const created = await controller.newSessionAsTarget();
+			const notifications = Reflect.get(controller, 'notificationService') as VoiceTestNotificationService;
+			const reportedError = log.firstCall.args[1];
+			assert.deepStrictEqual({
+				created, target: controller.targetSession.get()?.toString(), shown: shown?.toString(),
+				live: [...chatService.live], retained: chatService.refCount(previous),
+				error: reportedError instanceof Error ? reportedError.message : reportedError, notifications: notifications.notifications.map(notification => notification.message),
+			}, {
+				created: false, target: previous, shown: previous, live: [previous], retained: 1,
+				error: failure === 'error' ? switchError.message : 'Unable to show the new voice conversation.',
+				notifications: ['Unable to start a new voice conversation. Try again.'],
+			});
+		});
+	}
+
+	test('a late new-session acquisition cannot replace a subsequently chosen target', async () => {
+		const acquired = new DeferredPromise<IChatModelReference>();
+		const controller = createController(new TestVoiceClientService());
+		const dispatchService = Reflect.get(controller, 'voiceToolDispatchService') as IVoiceToolDispatchService;
+		sinon.stub(dispatchService, 'createChatSession').returns(acquired.p);
+		let released = 0;
+		const creating = controller.newSessionAsTarget();
+		const existing = URI.parse('vscode-chat:/existing');
+		controller.setTargetSession(existing);
+		await acquired.complete({
+			object: upcastPartial<IChatModel>({ sessionResource: URI.parse(`${SessionType.AgentHostCopilot}:/new`) }),
+			dispose: () => released++,
+		});
+		assert.deepStrictEqual({ created: await creating, target: controller.targetSession.get()?.toString(), released }, {
+			created: false, target: existing.toString(), released: 1,
+		});
+	});
+
 	test('send_to_chat with new_session releases the reference once a pane adopts the session', async () => {
+		store.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', () => undefined));
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new AdoptingCommandService();
 		const chatService = new RefCountingChatService();

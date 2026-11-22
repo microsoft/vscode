@@ -55,6 +55,12 @@ export interface IInlineAttachmentAnchor {
 	 * of the pill's reference, and is unset for the prompt that is persisted.
 	 */
 	readonly promptText?: string;
+	/**
+	 * Whether the prompt says the pill's text exactly where the pill is, rather
+	 * than separated from adjacent text by spaces, as for a link, which needs no
+	 * parsing as a token of its own and may be enclosed in other text.
+	 */
+	readonly verbatim?: boolean;
 }
 
 /**
@@ -93,8 +99,9 @@ interface IProjectedAnchor {
 /**
  * Projects a chat input with inline attachment pills onto the prompt it
  * represents. A pill's text is separated from adjacent text with a space so it
- * parses as its own token. An {@link INLINE_ATTACHMENT_ANCHOR} without a pill
- * is dropped from the prompt.
+ * parses as its own token, unless the pill is {@link IInlineAttachmentAnchor.verbatim verbatim},
+ * while adjacent pills are always separated from each other. An
+ * {@link INLINE_ATTACHMENT_ANCHOR} without a pill is dropped from the prompt.
  *
  * @returns `undefined` when the input contains no anchor, in which case the
  * input already is the prompt.
@@ -114,6 +121,8 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 	const projected: IProjectedAnchor[] = [];
 	let text = '';
 	let copiedUntil = 0;
+	// Where the text of the previous pill ends in the prompt.
+	let previousEnd = -1;
 	for (let offset = input.indexOf(INLINE_ATTACHMENT_ANCHOR); offset !== -1; offset = input.indexOf(INLINE_ATTACHMENT_ANCHOR, offset + 1)) {
 		text += input.slice(copiedUntil, offset);
 		copiedUntil = offset + 1;
@@ -125,11 +134,13 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 			continue;
 		}
 
-		const leading = text.length > 0 && !isWhitespace(text.charAt(text.length - 1)) ? ' ' : '';
+		// A pill right after another one is separated from it, whose trailing space a pill leaves to the next one.
+		const leading = text.length > 0 && !isWhitespace(text.charAt(text.length - 1)) && (!anchor.verbatim || promptOffset === previousEnd) ? ' ' : '';
 		const next = nextPromptCharacter(input, offset + 1, anchorsByOffset);
-		const trailing = next !== undefined && next !== INLINE_ATTACHMENT_ANCHOR && !isWhitespace(next) ? ' ' : '';
+		const trailing = !anchor.verbatim && next !== undefined && next !== INLINE_ATTACHMENT_ANCHOR && !isWhitespace(next) ? ' ' : '';
 		const replacement = leading + anchor.text + trailing;
 		text += replacement;
+		previousEnd = text.length;
 		projected.push({ inputOffset: offset, promptOffset, replacement, textStart: promptOffset + leading.length, anchor });
 	}
 	text += input.slice(copiedUntil);
@@ -538,31 +549,63 @@ function getMarkdownLinkEnd(text: string, offset: number, endExclusive: number):
  * spans, in which a mention renders as its text rather than as a pill.
  */
 export function getMarkdownCodeRanges(text: string): OffsetRange[] {
+	return getMarkdownTokenRanges(text, token => token.type === 'code' || token.type === 'codespan');
+}
+
+/**
+ * The ranges of the Markdown tokens of `text` for which `include` holds,
+ * including those within lists, block quotes and table cells. The tokens
+ * within an included token are not visited. With `includeUntokenized`, the
+ * block text that the lexer leaves out of its tokens, such as link reference
+ * definitions, is included as well.
+ */
+export function getMarkdownTokenRanges(text: string, include: (token: marked.Token) => boolean, includeUntokenized = false): OffsetRange[] {
 	// The lexer normalizes line breaks, so its offsets are mapped back to those of the text.
 	const normalized = text.replace(/\r\n?/g, '\n');
 	const ranges: OffsetRange[] = [];
-	const visit = (tokens: readonly marked.Token[], within: OffsetRange) => {
+	const keepUntokenized = (range: OffsetRange) => {
+		if (includeUntokenized && /\S/.test(normalized.slice(range.start, range.endExclusive))) {
+			ranges.push(range);
+		}
+	};
+	const visit = (tokens: readonly marked.Token[], within: OffsetRange, inTable: boolean, isBlock = false): number => {
 		let cursor = within.start;
 		for (const token of tokens) {
-			const range = token.raw ? findTokenText(normalized, token.raw, new OffsetRange(cursor, within.endExclusive)) : undefined;
+			const searched = new OffsetRange(cursor, within.endExclusive);
+			// Table cells unescape their pipes, so their source is searched for with the pipes escaped again.
+			const range = token.raw ? findTokenText(normalized, token.raw, searched) ?? (inTable ? findTokenText(normalized, token.raw.split('|').join('\\|'), searched) : undefined) : undefined;
 			if (!range) {
 				continue;
 			}
+			if (isBlock) {
+				keepUntokenized(new OffsetRange(cursor, range.start));
+			}
 			cursor = range.endExclusive;
-			if (token.type === 'code' || token.type === 'codespan') {
+			if (include(token)) {
 				ranges.push(range);
 				continue;
 			}
 			const children = (token as marked.Tokens.Generic).tokens;
 			if (Array.isArray(children)) {
-				visit(children, range);
+				visit(children, range, inTable, token.type === 'blockquote' || token.type === 'list_item');
 			}
 			if (token.type === 'list') {
-				visit((token as marked.Tokens.List).items, range);
+				visit((token as marked.Tokens.List).items, range, inTable);
+			}
+			if (token.type === 'table') {
+				const table = token as marked.Tokens.Table;
+				let cellCursor = range.start;
+				for (const cell of [...table.header, ...table.rows.flat()]) {
+					cellCursor = visit(cell.tokens, new OffsetRange(cellCursor, range.endExclusive), true);
+				}
 			}
 		}
+		if (isBlock) {
+			keepUntokenized(new OffsetRange(cursor, within.endExclusive));
+		}
+		return cursor;
 	};
-	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length));
+	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length), false, true);
 	if (normalized.length === text.length) {
 		return ranges;
 	}

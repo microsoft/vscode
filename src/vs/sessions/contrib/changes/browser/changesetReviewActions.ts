@@ -9,13 +9,12 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
-import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
-import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
-import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, getFileActionEditorPane, SessionChangesEditor } from './sessionChangesEditor.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { findChangesEditorFileChange, getChangesEditorFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesEditorLabels.js';
+import { SessionChangesFileResourceContext } from '../../../../workbench/contrib/sessionChanges/browser/changesMultiDiffSourceResolver.js';
+import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext, mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { CHANGESET_REVIEW_ACTION_ID, getFileActionEditorPane, SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 
 export class ChangesetReviewAction extends Action2 {
 	constructor() {
@@ -48,11 +47,12 @@ export class ChangesetReviewAction extends Action2 {
 
 		const changesViewService = accessor.get(IChangesViewService);
 		// The editor passes its own session; the file toolbar and keybindings fall back to the active one.
-		const session = resolveSessionActionTarget(accessor, args[1]);
+		const target = resolveSessionCommandTarget(accessor, [args[1]]);
+		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
+		const changes = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
 		if (changes.changesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}
@@ -77,7 +77,7 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		// Set the review state
-		changesViewService.setChangesetFilesReviewState([fileResource], review, session);
+		changesViewService.setChangesetFilesReviewState([fileResource], review, session, target.chat);
 	}
 }
 

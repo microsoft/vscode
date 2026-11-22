@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable no-restricted-globals */
-/* eslint-disable no-restricted-syntax */
+/* eslint-disable eslint-js/no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
 import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewPreloadLocalizedStrings, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
@@ -33,6 +33,8 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
  */
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
+	let dialogProbeToken: string | undefined;
+	const nativeConfirm = window.confirm;
 
 	// #######################################################################
 	// ###                                                                 ###
@@ -262,6 +264,14 @@ function init() {
 
 	const mainWorldHelpers = {
 		getElement,
+		prompt(message = '', defaultValue = ''): string | null {
+			dialogProbeToken ??= ipcRenderer.sendSync('vscode:browserView:dialogProbe');
+			// Let Blink apply modal eligibility, including inherited and CSP sandbox restrictions.
+			if (!nativeConfirm(dialogProbeToken)) {
+				return null;
+			}
+			return ipcRenderer.sendSync('vscode:browserView:prompt', String(message), String(defaultValue));
+		},
 		/** Opaque token exposed for CDP-side frame matching. */
 		getFrameToken(): string { return frameToken; }
 	};
@@ -274,6 +284,12 @@ function init() {
 		// Expose helpers on `window.__vscode_helpers` in the page's main world
 		// for CDP `Runtime.evaluate` (which runs against the main world) to use.
 		contextBridge.exposeInMainWorld('__vscode_helpers', mainWorldHelpers);
+		// Electron replaces the native prompt with a throwing stub, so no native dialog event is available.
+		contextBridge.executeInMainWorld({
+			func: () => {
+				window.prompt = (window as typeof window & { __vscode_helpers: typeof mainWorldHelpers }).__vscode_helpers.prompt;
+			},
+		});
 	} catch (error) {
 		console.error(error);
 	}
@@ -413,6 +429,7 @@ class ElementPicker {
 	private readonly _comments = new Map<string, ElementComment>();
 	private readonly _pendingComments = new Map<string, PendingElementComment>();
 	private readonly _scheduledCommentPins = new Map<string, ScheduledCommentPin>();
+	private readonly _cursorStylesheet = new CSSStyleSheet();
 
 	// Interaction state (reset on stop)
 	private _dragStart: { x: number; y: number } | undefined;
@@ -420,7 +437,6 @@ class ElementPicker {
 	private _highlightTarget: Element | undefined;
 	private _externalHighlightTarget: Element | undefined;
 	private _focusedTarget: Element | undefined;
-	private _cursorStylesheet: HTMLStyleElement | undefined;
 	private _dismissedCommentOnPointerDown = false;
 	private _commentTarget: Element | undefined;
 	private _commentAnchor: { x: number; y: number } | undefined;
@@ -445,7 +461,7 @@ class ElementPicker {
 		shadowHost.setAttribute('data-vscode-pick-host', '');
 		shadowHost.style.cssText = 'position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647; pointer-events: none;';
 		const root = shadowHost.attachShadow({ mode: 'closed' });
-		root.appendChild(ElementPicker._buildStyle());
+		root.adoptedStyleSheets = [ElementPicker._buildStyle()];
 		this._shadowHost = shadowHost;
 
 		const svgNamespace = 'http://www.w3.org/2000/svg';
@@ -647,10 +663,8 @@ class ElementPicker {
 		// Inject a stylesheet into the page to override all cursors while element selection is active,
 		// so the cursor always appears as a normal pointer even when over e.g. links.
 		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
-		const cursorStyle = document.createElement('style');
-		cursorStyle.textContent = ElementPicker._CURSOR_DEFAULT;
-		document.head.appendChild(cursorStyle);
-		this._cursorStylesheet = cursorStyle;
+		this._cursorStylesheet.replaceSync(ElementPicker._CURSOR_DEFAULT);
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, this._cursorStylesheet];
 
 		// Register high-frequency listeners only while selection is active.
 		window.addEventListener('pointermove', this._onPointerMove, true);
@@ -694,8 +708,7 @@ class ElementPicker {
 		this._closeCommentComposer();
 		this._overlay.style.display = 'none';
 
-		this._cursorStylesheet?.remove();
-		this._cursorStylesheet = undefined;
+		document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== this._cursorStylesheet);
 
 		// Remove high-frequency listeners.
 		window.removeEventListener('pointermove', this._onPointerMove, true);
@@ -913,9 +926,7 @@ class ElementPicker {
 		}
 		this._dragStart = { x: e.clientX, y: e.clientY };
 		this._dragStartTarget = this._pickElementAt(e.clientX, e.clientY);
-		if (this._cursorStylesheet) {
-			this._cursorStylesheet.textContent = ElementPicker._CURSOR_CROSSHAIR;
-		}
+		this._cursorStylesheet.replaceSync(ElementPicker._CURSOR_CROSSHAIR);
 		e.preventDefault();
 		e.stopPropagation();
 	};
@@ -947,9 +958,7 @@ class ElementPicker {
 		const dy = Math.abs(e.clientY - this._dragStart.y);
 		const start = this._dragStart;
 		this._dragStart = undefined;
-		if (this._cursorStylesheet) {
-			this._cursorStylesheet.textContent = ElementPicker._CURSOR_DEFAULT;
-		}
+		this._cursorStylesheet.replaceSync(ElementPicker._CURSOR_DEFAULT);
 
 		if (dx < ElementPicker._DRAG_THRESHOLD_PX && dy < ElementPicker._DRAG_THRESHOLD_PX) {
 			// Click → pick the element under the pointer.
@@ -1782,16 +1791,12 @@ class ElementPicker {
 	// --- Static helpers ---
 
 	/**
-	 * Inject the shadow-root stylesheet. Custom properties on the host
-	 * element drive the colors so the workbench can theme them.
-	 *
-	 * We deliberately do **not** use a `*` selector with `all: initial` —
-	 * that would also reset `<style>`'s default `display: none`, causing
-	 * the literal CSS source to render as page text.
+	 * Construct the shadow-root stylesheet independently of the page's CSP.
+	 * Custom properties on the host element drive the workbench theme colors.
 	 */
-	private static _buildStyle(): HTMLStyleElement {
-		const style = document.createElement('style');
-		style.textContent = `
+	private static _buildStyle(): CSSStyleSheet {
+		const sheet = new CSSStyleSheet();
+		sheet.replaceSync(`
 			:host {
 				all: initial;
 				font-family: var(--pick-font, system-ui, -apple-system, sans-serif);
@@ -2061,8 +2066,8 @@ class ElementPicker {
 				background: transparent;
 				z-index: 2;
 			}
-		`;
-		return style;
+		`);
+		return sheet;
 	}
 
 	private static _applyTheme(host: HTMLElement, theme: IBrowserViewTheme | undefined): void {
@@ -2096,9 +2101,9 @@ class AreaPicker {
 
 	private readonly _shadowHost: HTMLDivElement;
 	private readonly _dragbox: HTMLDivElement;
+	private readonly _cursorStylesheet = new CSSStyleSheet();
 
 	private _dragStart: { x: number; y: number } | undefined;
-	private _cursorStylesheet: HTMLStyleElement | undefined;
 
 	constructor(
 		private readonly _onPicked: (rect: IBrowserViewRect) => void,
@@ -2108,7 +2113,7 @@ class AreaPicker {
 		shadowHost.setAttribute('data-vscode-area-pick-host', '');
 		shadowHost.style.cssText = 'position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647; pointer-events: none;';
 		const root = shadowHost.attachShadow({ mode: 'closed' });
-		root.appendChild(AreaPicker._buildStyle());
+		root.adoptedStyleSheets = [AreaPicker._buildStyle()];
 		this._shadowHost = shadowHost;
 
 		// A fixed full-viewport layer below the dragbox so the page underneath
@@ -2135,11 +2140,8 @@ class AreaPicker {
 		this._selectionActive = true;
 
 		// Force a crosshair cursor across the whole page while picking.
-		const cursorStyle = document.createElement('style');
-		cursorStyle.setAttribute('data-vscode-area-pick-cursor', '');
-		cursorStyle.textContent = AreaPicker._CURSOR_CROSSHAIR;
-		document.head.appendChild(cursorStyle);
-		this._cursorStylesheet = cursorStyle;
+		this._cursorStylesheet.replaceSync(AreaPicker._CURSOR_CROSSHAIR);
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, this._cursorStylesheet];
 
 		window.addEventListener('pointermove', this._onPointerMove, true);
 		window.addEventListener('pointerdown', this._onPointerDown, true);
@@ -2167,8 +2169,7 @@ class AreaPicker {
 		this._selectionActive = false;
 		this._shadowHost.remove();
 
-		this._cursorStylesheet?.remove();
-		this._cursorStylesheet = undefined;
+		document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== this._cursorStylesheet);
 
 		window.removeEventListener('pointermove', this._onPointerMove, true);
 		window.removeEventListener('pointerdown', this._onPointerDown, true);
@@ -2280,9 +2281,9 @@ class AreaPicker {
 		}
 	};
 
-	private static _buildStyle(): HTMLStyleElement {
-		const style = document.createElement('style');
-		style.textContent = `
+	private static _buildStyle(): CSSStyleSheet {
+		const sheet = new CSSStyleSheet();
+		sheet.replaceSync(`
 			:host {
 				all: initial;
 				pointer-events: none !important;
@@ -2303,8 +2304,8 @@ class AreaPicker {
 				z-index: 2;
 				pointer-events: auto;
 			}
-		`;
-		return style;
+		`);
+		return sheet;
 	}
 }
 

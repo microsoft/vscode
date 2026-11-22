@@ -44,6 +44,7 @@ export function applyArtifactAutomationSelection(
 	const nextGenerations = { ...configuration.generations };
 	const nextEnabledAt = { ...configuration.enabledAt };
 	const nextGrants = { ...configuration.grants };
+	const nextDisabledBy = { ...configuration.disabledBy };
 	const nextDisablements = { ...configuration.disablements };
 	const nextConsent = { ...consent };
 	for (const [optionId, value] of Object.entries(values)) {
@@ -52,10 +53,16 @@ export function applyArtifactAutomationSelection(
 			throw new Error(`Unknown artifact automation option: ${optionId}`);
 		}
 		const signature = signatures[optionId];
-		if (isArtifactOptionEnabled(option, value) && (value !== configuration.values[optionId] || consent[optionId] !== signature)) {
+		const enabled = isArtifactOptionEnabled(option, value);
+		if (enabled && (value !== configuration.values[optionId] || consent[optionId] !== signature)) {
 			nextGenerations[optionId] = (nextGenerations[optionId] ?? 0) + 1;
 			nextEnabledAt[optionId] = enabledAt;
 			nextGrants[optionId] = actor;
+		}
+		if (enabled) {
+			delete nextDisabledBy[optionId];
+		} else if (isArtifactOptionEnabled(option, configuration.values[optionId])) {
+			nextDisabledBy[optionId] = actor;
 		}
 		nextValues[optionId] = value;
 		if (signature) {
@@ -70,6 +77,7 @@ export function applyArtifactAutomationSelection(
 			generations: nextGenerations,
 			enabledAt: nextEnabledAt,
 			grants: nextGrants,
+			...(Object.keys(nextDisabledBy).length ? { disabledBy: nextDisabledBy } : {}),
 			disablements: nextDisablements,
 		},
 		consent: nextConsent,
@@ -112,6 +120,7 @@ export function reconcileArtifactAutomationOptions(
 			generations,
 			enabledAt: configuration.enabledAt,
 			grants: configuration.grants,
+			...(configuration.disabledBy ? { disabledBy: configuration.disabledBy } : {}),
 			disablements,
 		} : configuration,
 	};
@@ -130,10 +139,14 @@ export function disableArtifactAutomation(
 	};
 }
 
-/** Whether an option can be turned on now. Turning an option off is always allowed. */
+/**
+ * Whether an option can be turned on now. Turning an option off is always allowed. While the resource refreshes, such as
+ * after every Autopilot change, its last known availability applies: automation only acts on current state.
+ */
 export function canEnableArtifactAutomationOption(contribution: Pick<ArtifactContributionSnapshot, 'view'>, option: ArtifactAutomationOption): boolean {
 	const available = contribution.view.automationAvailability.find(candidate => candidate.id === option.id);
-	return contribution.view.availability.kind === 'available' && available?.available === true && available.enablement?.enabled !== false
+	const availability = contribution.view.availability.kind;
+	return (availability === 'available' || availability === 'stale') && available?.available === true && available.enablement?.enabled !== false
 		&& (option.kind !== 'enum' || option.choices.some(choice => choice.value !== option.disabledValue));
 }
 

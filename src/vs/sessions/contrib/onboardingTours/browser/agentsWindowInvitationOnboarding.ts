@@ -22,11 +22,12 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { NewSessionOnboardingHandoffContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindowContextKeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { getSessionOnboardingTargetId } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createAgentsWindowInvitationTour, IAgentsWindowInvitationTourCopy } from './tours/agentsWindowInvitationTour.js';
 
 /** Reserves onboarding during an invitation handoff, then reveals its row without replaying setup. */
@@ -39,6 +40,7 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -95,10 +97,10 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 				return;
 			}
 			const isCurrentSession = () => {
-				const activeSession = this._sessionsService.activeSession.get();
+				const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 				return this._sessionsService.navigationRequest.get() === navigationRequest && (revealSession
 					? isEqual(activeSession?.resource, session.resource)
-					: !activeSession?.isCreated.get());
+					: !isSessionCreated(activeSession));
 			};
 			if (!isCurrentSession()) {
 				return;
@@ -121,7 +123,7 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 				this._chatEntitlementService.sentimentObs.read(reader);
 				this._chatEntitlementService.entitlementObs.read(reader);
 				this._sessionsService.navigationRequest.read(reader);
-				this._sessionsService.activeSession.read(reader)?.isCreated.read(reader);
+				isSessionCreated(this._focusedSessionHostService.focusedHost.read(reader).session.read(reader), reader);
 				// Target activation is reported after the owning control starts navigation.
 				queueMicrotask(() => {
 					if (!store.isDisposed && (!this._canShow() || !activatedNewSession && !isCurrentSession())) {

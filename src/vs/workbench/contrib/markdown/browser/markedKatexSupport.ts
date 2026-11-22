@@ -156,7 +156,7 @@ export class MarkedKatexSupport {
 
 	public static ensureKatexStyles(window: CodeWindow) {
 		const doc = window.document;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		if (!doc.querySelector('link.katex')) {
 			const katexStyle = document.createElement('link');
 			katexStyle.classList.add('katex');

@@ -9,13 +9,17 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { registerOverlayAnchor } from '../../../../base/browser/overlayLayoutElement.js';
 import type { CodeWindow } from '../../../../base/browser/window.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IBrowserViewKeyDownEvent } from '../../../../platform/browserView/common/browserView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IBrowserViewModel } from '../common/browserView.js';
+import { BrowserDimOverlaySettingId, IBrowserViewModel } from '../common/browserView.js';
 import { BrowserOverlayManager, BrowserOverlayType } from './overlayManager.js';
+import { BrowserDialogs } from './browserDialogs.js';
 
 const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
@@ -30,12 +34,14 @@ export class WebContentsViewHost extends Disposable {
 	private _container: HTMLElement | undefined;
 	private _model: IBrowserViewModel | undefined;
 	private _editorVisible = false;
-	private _overlayObscured = false;
+	/** The types of the overlays that overlap the page. */
+	private _overlayTypes: ReadonlySet<BrowserOverlayType> = new Set();
 	private _hiddenAsAnchor = false;
 
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
 	private readonly _overlayPauseElement = $('.browser-overlay-paused');
 	private readonly _overlayManager: BrowserOverlayManager;
+	private readonly _dialogs: BrowserDialogs;
 	private readonly _modelStore = this._register(new DisposableStore());
 	private readonly _screenshotHandle = this._register(new MutableDisposable());
 	private _focusTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -44,13 +50,32 @@ export class WebContentsViewHost extends Disposable {
 	get screenshotElement(): HTMLElement { return this._placeholderScreenshot; }
 	get pauseElement(): HTMLElement { return this._overlayPauseElement; }
 
+	/** Whether overlays overlap the page, which hides it behind its placeholder. */
+	private get _obscured(): boolean {
+		return this._overlayTypes.size > 0;
+	}
+
+	/** Whether only the screenshot tool's overlay overlaps the page, which hides it without pausing it. */
+	private get _screenshotToolOnly(): boolean {
+		return this._overlayTypes.size === 1 && this._overlayTypes.has(BrowserOverlayType.ScreenshotTool);
+	}
+
 	constructor(
 		private readonly targetWindow: CodeWindow,
 		private readonly ensureBrowserFocus: () => void,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._dialogs = this._register(instantiationService.createInstance(BrowserDialogs));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserDimOverlaySettingId)) {
+				this._refresh();
+			}
+		}));
 
 		this._overlayManager = this._register(new BrowserOverlayManager(targetWindow));
 		const message = $('.browser-overlay-paused-message');
@@ -93,6 +118,7 @@ export class WebContentsViewHost extends Disposable {
 		if (this._editorVisible !== visible) {
 			this._editorVisible = visible;
 			this._refresh(false, immediate);
+			this._dialogs.setVisible(visible);
 		} else if (!visible && immediate) {
 			// A hide requested earlier in this frame still waits for that frame, so hide now.
 			this._refresh(false, true);
@@ -135,6 +161,7 @@ export class WebContentsViewHost extends Disposable {
 			return;
 		}
 		this._model = model;
+		this._dialogs.setModel(model);
 		this._setBackgroundImage(model.screenshot);
 		this._modelStore.add(model.onDidChangeVisibility(() => void this._captureScreenshot()));
 		this._modelStore.add(model.onDidKeyCommand(event => void this._handleKeyEvent(event)));
@@ -152,6 +179,7 @@ export class WebContentsViewHost extends Disposable {
 			void model.setVisible(false).catch(error => this.logService.error('Failed to hide detached browser view', error));
 		}
 		this._model = undefined;
+		this._dialogs.setModel(undefined);
 		this._modelStore.clear();
 		this._screenshotHandle.clear();
 		this._cancelFocusTimeout();
@@ -166,7 +194,7 @@ export class WebContentsViewHost extends Disposable {
 
 	private _shouldShowPage(): boolean {
 		return this._editorVisible
-			&& !this._overlayObscured
+			&& !this._obscured
 			&& !this._hiddenAsAnchor
 			&& !!this._model?.url
 			&& !this._model.error;
@@ -182,8 +210,10 @@ export class WebContentsViewHost extends Disposable {
 		}
 		const placeholderActive = !!this._model?.url && !this._model.error;
 		this._placeholderScreenshot.style.display = placeholderActive ? '' : 'none';
-		const pauseActive = !!this._model?.url && this._editorVisible && this._overlayObscured;
-		this._overlayPauseElement.classList.toggle('visible', pauseActive);
+		const pauseActive = !!this._model?.url && this._editorVisible && this._obscured && !this._screenshotToolOnly;
+		// Notifications always dim the page and show the banner; the setting covers other overlays.
+		const dim = pauseActive && (this._overlayTypes.has(BrowserOverlayType.Notification) || this.configurationService.getValue<boolean>(BrowserDimOverlaySettingId) !== false);
+		this._overlayPauseElement.classList.toggle('visible', dim);
 		if (!this._model) {
 			return;
 		}
@@ -218,11 +248,10 @@ export class WebContentsViewHost extends Disposable {
 		if (!this._container) {
 			return;
 		}
-		const overlays = this._overlayManager.getOverlappingOverlays(this._container);
-		const obscured = overlays.length > 0;
-		this._overlayPauseElement.classList.toggle('show-message', overlays.some(overlay => overlay.type === BrowserOverlayType.Notification));
-		if (obscured !== this._overlayObscured) {
-			this._overlayObscured = obscured;
+		const types = new Set(this._overlayManager.getOverlappingOverlays(this._container).map(overlay => overlay.type));
+		this._overlayPauseElement.classList.toggle('show-message', types.has(BrowserOverlayType.Notification));
+		if (!equalSets(types, this._overlayTypes)) {
+			this._overlayTypes = types;
 			this._refresh();
 		}
 	}
@@ -235,7 +264,7 @@ export class WebContentsViewHost extends Disposable {
 			return;
 		}
 		try {
-			const screenshot = await model.captureScreenshot({ quality: 80 });
+			const screenshot = await model.captureScreenshot({ quality: 80, includeDevTools: true });
 			if (this._model === model && sequence === this._screenshotSequence && !model.error) {
 				this._setBackgroundImage(screenshot);
 			}

@@ -141,21 +141,56 @@ export class CopilotChatDiscovery extends Disposable {
 		for (const { id, resource, reason } of changes.added) {
 			if (!this._hostSessions.has(id)) {
 				this._candidates.set(id, new CopilotSessionDiscoveryCandidate(id, resource, reason,
+					reason === 'directoryAdded' || (!this._initialScan && !changes.reset),
 					() => this._schedule(), this._fileService, this._logService));
 				this._logService.trace(`[CopilotDiscovery] Candidate ${id}: enrolled=${reason}`);
 			}
 		}
-		const probes = new Set<CopilotSessionDiscoveryCandidate>();
+		const priority = new Set<CopilotSessionDiscoveryCandidate>();
 		for (const [id, candidate] of this._candidates) {
 			if (candidate.deleted || this._hostSessions.has(id)) {
 				this._removeCandidate(id);
-			} else if (!candidate.watching && this._watchCount < CopilotChatDiscovery.candidateLimit) {
+			} else if (candidate.recent && priority.size < CopilotChatDiscovery.candidateLimit / 2) {
+				priority.add(candidate);
+			}
+		}
+		const watched = new Set(priority);
+		for (const candidate of this._candidates.values()) {
+			if (watched.size >= CopilotChatDiscovery.candidateLimit) {
+				break;
+			}
+			if (candidate.watching) {
+				watched.add(candidate);
+			}
+		}
+		for (const candidate of this._candidates.values()) {
+			if (watched.size >= CopilotChatDiscovery.candidateLimit) {
+				break;
+			}
+			watched.add(candidate);
+		}
+		for (const candidate of this._candidates.values()) {
+			if (candidate.watching && !watched.has(candidate)) {
+				candidate.unwatch();
+				this._watchCount--;
+			}
+		}
+		const probes = new Set<CopilotSessionDiscoveryCandidate>();
+		for (const candidate of watched) {
+			if (!candidate.watching) {
 				candidate.watch();
 				this._watchCount++;
 				probes.add(candidate);
 			}
 		}
 		if (maintenance) {
+			// Reserve part of the probe budget for recent arrivals, including watcher arming gaps.
+			for (const candidate of priority) {
+				if (probes.size >= CopilotChatDiscovery.candidateLimit) {
+					break;
+				}
+				probes.add(candidate);
+			}
 			for (const candidate of this._candidates.values()) {
 				if (probes.size >= CopilotChatDiscovery.candidateLimit) {
 					break;
@@ -210,17 +245,32 @@ export class CopilotChatDiscovery extends Disposable {
 	private async _scanCandidates(candidates: ReadonlyMap<string, ICandidateSnapshot>): Promise<void> {
 		const generation = this._directories.generation;
 		const creationGeneration = this._creationGeneration;
-		const isCurrent = (id: string) => !this._store.isDisposed && generation === this._directories.generation
-			&& creationGeneration === this._creationGeneration && this._directories.isCurrent(id)
-			&& candidates.get(id)?.revision === this._candidates.get(id)?.revision;
+		const isUnchangedDirectory = (id: string) => !this._store.isDisposed && generation === this._directories.generation
+			&& creationGeneration === this._creationGeneration && this._directories.isCurrent(id);
+		const isCurrent = (id: string) => isUnchangedDirectory(id) && candidates.get(id)?.revision === this._candidates.get(id)?.revision;
 		const unwatchedReads = new Set<string>();
 		const waitingForChange = new Set<string>();
+		// Windows reports last-access updates as changes, so a scan reading a watched session's files
+		// would otherwise invalidate itself. Accept a newer revision whose readiness fingerprint still
+		// matches the one this scan started from: none of the files the scan reads has changed.
+		const reconfirm = async (id: string): Promise<boolean> => {
+			const snapshot = candidates.get(id);
+			if (isCurrent(id) || !snapshot || snapshot.fingerprint === undefined || unwatchedReads.has(id)
+				|| this._candidates.get(id) !== snapshot.candidate || !isUnchangedDirectory(id)) {
+				return isCurrent(id);
+			}
+			const revision = snapshot.candidate.revision;
+			if (await snapshot.candidate.probe(this._probes) && snapshot.candidate.revision === revision && snapshot.candidate.fingerprint === snapshot.fingerprint) {
+				snapshot.revision = revision;
+			}
+			return isCurrent(id);
+		};
 		const scan: ICopilotChatDiscoveryScan = {
 			id: ++this._scanId,
 			sessionIds: this._initialScan ? undefined : new Set(candidates.keys()),
 			isCurrent,
 			prepare: async id => {
-				if (!isCurrent(id)) {
+				if (!await reconfirm(id)) {
 					return false;
 				}
 				const snapshot = candidates.get(id);
@@ -231,14 +281,14 @@ export class CopilotChatDiscovery extends Disposable {
 					snapshot.revision = snapshot.candidate.revision;
 					unwatchedReads.add(id);
 				}
-				return isCurrent(id);
+				return reconfirm(id);
 			},
 			validate: async id => {
 				const snapshot = candidates.get(id);
 				if (snapshot && unwatchedReads.has(id) && !await snapshot.candidate.probe(this._probes)) {
 					return false;
 				}
-				return isCurrent(id);
+				return reconfirm(id);
 			},
 			waitForChange: id => waitingForChange.add(id),
 			describe: id => {
@@ -257,6 +307,10 @@ export class CopilotChatDiscovery extends Disposable {
 			completed = await this._scan(scan);
 		} catch (error) {
 			this._logService.warn(`[CopilotDiscovery] Scan ${scan.id} failed`, error);
+		}
+		if (completed) {
+			// Reading a resolved session's files can report a change after it was published.
+			await Promise.all([...completed].map(reconfirm));
 		}
 		const elapsedMs = Math.round(timer.elapsed());
 		if (this._store.isDisposed) {

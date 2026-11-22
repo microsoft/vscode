@@ -6,8 +6,8 @@
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, ITransaction, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { IWindowCanvasDescriptor, IWindowCanvasOpenRequest, IWindowCanvasService } from '../../browser/windowCanvasService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IWindowCanvasDescriptor, IWindowCanvasOpenRequest, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 export class TestWindowCanvasService extends mock<IWindowCanvasService>() {
 	override readonly canvases = observableValue<readonly IWindowCanvasDescriptor[]>(this, []);

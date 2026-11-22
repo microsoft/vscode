@@ -80,9 +80,9 @@ import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
-import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { terminalStrings } from '../common/terminalStrings.js';
+import { getTerminalAccessibleTitle, terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -2110,7 +2110,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Any of the above setting changes could have changed the dimensions of the
 			// terminal, re-evaluate now.
-			this._initDimensions();
+			if (this._lastLayoutDimensions && this._lastLayoutDimensions.width > 0 && this._lastLayoutDimensions.height > 0) {
+				// Use the last layout, the container can have a temporary size while its view is laid out
+				this._evaluateColsAndRows(this._lastLayoutDimensions.width, this._lastLayoutDimensions.height);
+			}
 			cols = this.cols;
 			rows = this.rows;
 
@@ -2160,8 +2163,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
-			if (title && title.length > 0) {
-				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
+			const accessibleTitle = getTerminalAccessibleTitle(title ?? '', this._shellLaunchConfig.hostLabel);
+			if (accessibleTitle) {
+				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, accessibleTitle));
 			} else {
 				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
 			}
@@ -2337,13 +2341,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-				interface ILineWithInternals extends IBufferLine {
-					_line: {
-						isWrapped: boolean;
-					};
-				}
-				const line = this.xterm.raw.buffer.active.getLine(i);
-				(line as ILineWithInternals)._line.isWrapped = false;
+				this.xterm.setBufferLineWrapped(i, false);
 			}
 		}
 	}
@@ -2747,6 +2745,7 @@ interface ITerminalLabelTemplateProperties {
 	workspaceFolderName?: string | null | undefined;
 	workspaceFolder?: string | null | undefined;
 	local?: string | null | undefined;
+	host?: string | null | undefined;
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
 	progress?: string | null | undefined;
@@ -2827,6 +2826,7 @@ export class TerminalLabelComputer extends Disposable {
 			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
 			local: type === 'Local' ? terminalStrings.typeLocal : undefined,
+			host: instance.shellLaunchConfig.hostLabel,
 			process: instance.processName,
 			sequence: instance.sequence,
 			task: type === 'Task' ? terminalStrings.typeTask : undefined,

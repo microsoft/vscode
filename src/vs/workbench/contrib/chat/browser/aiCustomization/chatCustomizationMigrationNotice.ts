@@ -7,12 +7,13 @@ import './media/chatCustomizationMigrationNotice.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -24,6 +25,8 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -40,6 +43,7 @@ export interface IChatCustomizationMigrationNoticeContext {
 /** Controls migration discovery behavior for a notice host. */
 export interface IChatCustomizationMigrationNoticeOptions {
 	readonly skipDiscoveryWhenDismissed?: boolean;
+	readonly discoveryEnabled?: IObservable<boolean>;
 }
 
 const CUSTOMIZATION_MIGRATION_NOTICE_DISMISSED_STORAGE_KEY_PREFIX = 'chat.customizationMigrationNotice.dismissed.';
@@ -69,6 +73,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this.element = dom.append(container, dom.$('.chat-customization-migration-notice', {
@@ -117,6 +122,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		)), { icon: true, label: false });
 
 		const categories = homepageMigrationCategories.map(getCustomizationMigrationCategory);
+		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
 		const configurationChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration,
 			event => categories.some(category => event.affectsConfiguration(category.enablementSetting))));
 		const customizationsChanged = observableSignalFromEvent(this, migrationService.onDidChangeCustomizations);
@@ -136,7 +142,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			this.currentContext = currentContext;
 			const nextContextKey = currentContext
 				? [
-					currentContext.sessionResource.toString(),
+					getChatSessionType(currentContext.sessionResource),
 					currentContext.workspace ? uriIdentityService.extUri.getComparisonKey(currentContext.workspace) : 'noWorkspace',
 					currentContext.projectRoot ? uriIdentityService.extUri.getComparisonKey(currentContext.projectRoot) : 'noProject',
 				].join('\n')
@@ -145,7 +151,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 				this.contextKey = nextContextKey;
 				this.migrationHint.set(undefined, undefined);
 			}
-			if (!currentContext || chatEntitlementService.sentimentObs.read(reader).hidden) {
+			if (phoneLayout.read(reader) || !currentContext || chatEntitlementService.sentimentObs.read(reader).hidden) {
 				this.migrationHint.set(undefined, undefined);
 				return;
 			}
@@ -164,7 +170,11 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 				this.migrationHint.set(undefined, undefined);
 				return;
 			}
-			void this.refresh(currentContext, cancelOnDispose(reader.store));
+			if (options?.discoveryEnabled?.read(reader) === false) {
+				return;
+			}
+			const token = cancelOnDispose(reader.store);
+			reader.store.add(disposableTimeout(() => void this.refresh(currentContext, token), 0));
 		}));
 		this._register(autorun(reader => {
 			const hint = this.migrationHint.read(reader);

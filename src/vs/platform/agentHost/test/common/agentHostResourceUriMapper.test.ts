@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createEditorRemoteAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme, toAgentHostUri } from '../../common/agentHostUri.js';
 import { agentHostConnectionKinds, createStrictAgentHostResourceUriMapper } from './testAgentHostResourceUriMappers.js';
 
 suite('Agent Host resource URI mappers', () => {
@@ -42,6 +42,20 @@ suite('Agent Host resource URI mappers', () => {
 		const own = host.with({ scheme: Schemas.vscodeRemote, authority: 'SSH-REMOTE+TEST' });
 		const other = own.with({ authority: 'ssh-remote+other' });
 		assert.deepStrictEqual([mapper.toAgentHost(own).toString(), mapper.toAgentHost(other).toString()], [host.toString(), other.toString()]);
+	});
+
+	test('keeps a registered local window scheme unwrapped only for the local host', () => {
+		const virtual = URI.parse('vscode-vfs://github/microsoft/vscode/a.ts');
+		const schemes = () => [toAgentHostUri(virtual, LOCAL_AGENT_HOST_AUTHORITY).scheme, toAgentHostUri(virtual, 'remote-test').scheme];
+		const before = schemes();
+		const registration = registerLocalAgentHostWindowScheme('vscode-vfs');
+		const registered = schemes();
+		registration.dispose();
+		assert.deepStrictEqual({ before, registered, after: schemes() }, {
+			before: [AGENT_HOST_SCHEME, AGENT_HOST_SCHEME],
+			registered: ['vscode-vfs', AGENT_HOST_SCHEME],
+			after: [AGENT_HOST_SCHEME, AGENT_HOST_SCHEME],
+		});
 	});
 
 	test('strict mapper rejects wrong-space inputs in both directions', () => {

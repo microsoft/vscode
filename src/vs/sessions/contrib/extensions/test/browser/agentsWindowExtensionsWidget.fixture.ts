@@ -20,10 +20,11 @@ import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtens
 import { IExtensionManifestPropertiesService } from '../../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentsWindowExtensionsWidget } from '../../browser/agentsWindowExtensionsWidget.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../browser/agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 interface IFixtureExtension {
 	readonly name: string;
@@ -86,6 +87,7 @@ interface IFixtureMarketplaceExtension {
 	readonly preRelease?: boolean;
 	/** Why the extension can't be installed, such as a policy. */
 	readonly installBlocker?: string;
+	readonly contributes?: Record<string, unknown>;
 }
 
 const fixtureMarketplaceExtensions: readonly IFixtureMarketplaceExtension[] = [
@@ -93,9 +95,11 @@ const fixtureMarketplaceExtensions: readonly IFixtureMarketplaceExtension[] = [
 	{ name: 'black-formatter', displayName: 'Black Formatter', publisher: 'Microsoft', description: 'Formatting support for Python files using the Black formatter.', installCount: 9_200_000, rating: 4.4, verified: true, installing: true },
 	{ name: 'python-snippets', displayName: 'Python Snippets', publisher: 'cstrap', description: 'Python snippets collections', installCount: 4_800, rating: 3, verified: false },
 	{ name: 'python-indent', displayName: 'Python Indent', publisher: 'Kevin Rose', description: 'Correct Python indentation.', installCount: 6_100_000, rating: 4.5, verified: false, installBlocker: 'This extension can\'t be installed because your organization doesn\'t allow it.' },
+	{ name: 'debugpy', displayName: 'Python Debugger', publisher: 'Microsoft', description: 'Python Debugger extension using debugpy.', installCount: 95_000_000, rating: 4, verified: true, contributes: { debuggers: [{}] } },
 ];
 
 function toMarketplaceExtension(extension: IFixtureMarketplaceExtension): IExtension {
+	const manifest: IExtensionManifest = { name: extension.name, publisher: 'fixture', version: '1.0.0', engines: { vscode: '*' }, contributes: extension.contributes as IExtensionManifest['contributes'] };
 	return new class extends mock<IExtension>() {
 		override readonly identifier = { id: `fixture.${extension.name}` };
 		override readonly name = extension.name;
@@ -112,6 +116,7 @@ function toMarketplaceExtension(extension: IFixtureMarketplaceExtension): IExten
 		override readonly ratingCount = 100;
 		override readonly url = 'https://example.com';
 		override readonly iconUrl = undefined;
+		override async getManifest() { return manifest; }
 	}();
 }
 
@@ -177,7 +182,11 @@ function renderWidget(ctx: ComponentFixtureContext, options: { readonly extensio
 		},
 	});
 
-	const widget = ctx.disposableStore.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, host));
+	// The editor group of the Agent Customizations editor, which the extension pages that the section shows need.
+	const group = new class extends mock<IEditorGroup>() {
+		override readonly windowId = DOM.getWindow(host).vscodeWindowId;
+	}();
+	const widget = ctx.disposableStore.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, host, group));
 	widget.setVisible(true);
 	if (options.searchQuery) {
 		widget.setSearchQuery(options.searchQuery);
@@ -188,16 +197,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	AgentsWindowExtensions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'The GitLens and Python rows show a small warning icon right after the publisher name. No other row shows a warning icon, and the warning icon is not dimmed on the disabled GitLens row.',
-			'The Python row shows a small secondary Restart Extensions button just before its switch, matching the Restart Extensions button next to the Extensions title. No other row shows a Restart Extensions button.',
+			'The GitLens and Python rows show a small warning icon just before their switch. No other row shows a warning icon, and the warning icon is not dimmed on the disabled GitLens row.',
+			'The Python row shows a small secondary Restart Extensions button before its warning icon and switch, matching the Restart Extensions button next to the Extensions title. No other row shows a Restart Extensions button.',
 			'Every row ends with a borderless "..." More Actions icon button after its switch, vertically centered and the same height as the Restart Extensions button. It is not dimmed on disabled rows.',
-			'Every row except Prettier shows a compact install count and star rating after the publisher name, before any warning icon, like the Marketplace rows do. Prettier shows neither and has no extra gap after its publisher name.',
+			'Every row except Prettier shows a compact install count and star rating after the publisher name, like the Marketplace rows do. Prettier shows neither and has no extra gap after its publisher name.',
 		],
 		render: ctx => renderWidget(ctx, { extensions: fixtureExtensions }),
 	}),
 	AgentsWindowExtensionsSuggested: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['In the AI Features group, GitLens shows the tags Tools, MCP Servers, and Skills, and Python shows a single Tools tag, each after the publisher and warning icon. Rows in the Supported and Other Extensions groups show no tags.'],
+		expectedVisualDescriptions: ['In the AI Features group, GitLens shows the tags Tools, MCP Servers, and Skills, and Python shows a single Tools tag, each after the publisher name. Rows in the Supported and Other Extensions groups show no tags.'],
 		render: ctx => renderWidget(ctx, { extensions: fixtureExtensions, showSuggestions: true }),
 	}),
 	AgentsWindowExtensionsNarrow: defineComponentFixture({
@@ -212,10 +221,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	AgentsWindowExtensionsMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'Searching for "python" lists the installed Python extension in Other Extensions, followed by a Marketplace group with Pylance, Black Formatter, Python Snippets, and Python Indent in that order.',
-			'Each Marketplace row shows the extension icon, name, publisher, compact install count and star rating, and description. Pylance and Black Formatter show a verified publisher badge before the publisher name; the others do not.',
-			'Pylance shows a prominent Install Pre-Release button with a dropdown arrow on the right. Python Snippets shows a prominent Install button without one. Both are the same height as the Restart Extensions button on the Python row. Black Formatter shows an Installing label instead.',
-			'Python Indent shows a small warning icon after its rating, and its Install button is disabled.',
+			'Searching for "python" lists the installed Python extension in Other Extensions, followed by a Marketplace group with Pylance, Black Formatter, Python Snippets, Python Indent, and Python Debugger in that order.',
+			'Each Marketplace row shows the extension icon, name, publisher, compact install count and star rating, and description. Pylance, Black Formatter, and Python Debugger show a verified publisher badge before the publisher name; the others do not.',
+			'Pylance shows a prominent Install Pre-Release button with a dropdown arrow on the right. Python Snippets and Python Debugger show a prominent Install button without one. They are the same height as the Restart Extensions button on the Python row. Black Formatter shows an Installing label instead.',
+			'Python Indent shows a small warning icon just before its Install button, which is disabled.',
+			'Python Debugger shows the same small warning icon just before its Install button as the installed Python row shows just before its switch. No other Marketplace row except Python Indent shows a warning icon.',
+			'In every row, the extension name, publisher name, install count, and rating sit on one shared text baseline, including Pylance, Black Formatter, and Python Debugger, whose verified publisher badge is vertically centered on the publisher name.',
 		],
 		render: async ctx => {
 			renderWidget(ctx, { extensions: fixtureExtensions, searchQuery: 'python', marketplaceExtensions: fixtureMarketplaceExtensions });

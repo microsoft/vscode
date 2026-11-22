@@ -47,8 +47,6 @@ export interface IReplayedSession {
 	 * History without either retains the legacy `<session>/chat` fallback.
 	 */
 	readonly defaultChat: string;
-	/** Whether the default chat has recorded chat-channel actions rather than only a synthesized state. */
-	readonly hasRecordedDefaultChat?: boolean;
 	/** Timestamp of the last persisted event, ISO 8601. */
 	readonly modifiedAt: string;
 }
@@ -314,12 +312,11 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		&& [...mentioned].every(reachesCandidate)
 		? candidate : undefined;
 	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
-	const hasRecordedDefaultChat = chats.has(defaultChat);
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
 	}
 
-	return { session, state, chats, defaultChat, hasRecordedDefaultChat, modifiedAt: entry.modifiedAt };
+	return { session, state, chats, defaultChat, modifiedAt: entry.modifiedAt };
 }
 
 /**

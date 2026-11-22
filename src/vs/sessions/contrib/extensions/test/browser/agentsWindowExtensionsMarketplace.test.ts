@@ -132,11 +132,11 @@ suite('Installing from the Agents window', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
-	 * Installs an extension with the Extensions view's Install button, which opens the extension in the Extensions editor
-	 * unless `opensExtensionEditor` is turned off, like the Agents window does. Installing it fails with `installError` the
-	 * first time, and each prompt is answered with its first button.
+	 * Installs an extension with the Extensions view's Install button, in the Agents window or in an editor window, which opens
+	 * the extension in the Extensions editor. Installing it fails with `installError` the first time, and each prompt is answered
+	 * with its first button.
 	 */
-	async function install(extension: IExtension, opensExtensionEditor: boolean, installError?: Error) {
+	async function install(extension: IExtension, agentsWindow: boolean, installError?: Error) {
 		const opened: string[] = [];
 		const installed: string[] = [];
 		const prompts: string[][] = [];
@@ -148,7 +148,7 @@ suite('Installing from the Agents window', () => {
 			override async install(extension: IExtension | URI | string, options?: InstallExtensionOptions) {
 				assert.ok(typeof extension !== 'string' && !URI.isUri(extension));
 				const failed = !!installError && installed.length === 0;
-				installed.push(`${extension.identifier.id}${options?.installPreReleaseVersion ? ' (pre-release)' : ''}${options?.donotVerifySignature ? ' (unverified)' : ''}${failed ? ' failed' : ''}`);
+				installed.push(`${extension.identifier.id}${options?.installPreReleaseVersion ? ' (pre-release)' : ''}${options?.donotVerifySignature ? ' (unverified)' : ''}${options?.enable ? ' (enable)' : ''}${failed ? ' failed' : ''}`);
 				if (failed) {
 					throw installError;
 				}
@@ -190,7 +190,9 @@ suite('Installing from the Agents window', () => {
 		instantiationService.stub(IWorkbenchIssueService, new class extends mock<IWorkbenchIssueService>() { });
 
 		const action = disposables.add(instantiationService.createInstance(InstallDropdownAction));
-		action.opensExtensionEditor = opensExtensionEditor;
+		// Like the Agents window, which has no Extensions editor and disables extensions that don't support it by default.
+		action.opensExtensionEditor = !agentsWindow;
+		action.enablesExtension = agentsWindow;
 		action.extension = extension;
 		await timeout(0);
 		const button = { label: action.label, enabled: action.enabled };
@@ -199,23 +201,23 @@ suite('Installing from the Agents window', () => {
 		return { button, opened, installed, prompts };
 	}
 
-	test('installs the version that an extension has when pre-releases are preferred, and only opens the Extensions editor where it exists', async () => {
+	test('installs the version that an extension has when pre-releases are preferred, only opens the Extensions editor where it exists, and enables it in the Agents window', async () => {
 		// Has no pre-release version, and is deprecated.
 		const extension = aGalleryExtension('pub.old', { deprecationInfo: { disallowInstall: false, extension: { id: 'pub.new', displayName: 'New' } } });
 
-		assert.deepStrictEqual({ editor: await install(extension, true), agentsWindow: await install(extension, false) }, {
+		assert.deepStrictEqual({ editor: await install(extension, false), agentsWindow: await install(extension, true) }, {
 			editor: { button: { label: 'Install', enabled: true }, opened: ['pub.old'], installed: ['pub.old'], prompts: [['Install Anyway', '&&Open New']] },
-			agentsWindow: { button: { label: 'Install', enabled: true }, opened: [], installed: ['pub.old'], prompts: [['Install Anyway']] },
+			agentsWindow: { button: { label: 'Install', enabled: true }, opened: [], installed: ['pub.old (enable)'], prompts: [['Install Anyway']] },
 		});
 	});
 
-	test('installs again when users choose to after installing fails, and only opens the Extensions editor where it exists', async () => {
+	test('installs again when users choose to after installing fails, like it installed the first time', async () => {
 		const extension = aGalleryExtension('pub.unsigned');
 		const notSigned = () => new ExtensionManagementError('The extension is not signed.', ExtensionManagementErrorCode.PackageNotSigned);
 
-		assert.deepStrictEqual({ editor: await install(extension, true, notSigned()), agentsWindow: await install(extension, false, notSigned()) }, {
+		assert.deepStrictEqual({ editor: await install(extension, false, notSigned()), agentsWindow: await install(extension, true, notSigned()) }, {
 			editor: { button: { label: 'Install', enabled: true }, opened: ['pub.unsigned', 'pub.unsigned'], installed: ['pub.unsigned failed', 'pub.unsigned (unverified)'], prompts: [['Install Anyway']] },
-			agentsWindow: { button: { label: 'Install', enabled: true }, opened: [], installed: ['pub.unsigned failed', 'pub.unsigned (unverified)'], prompts: [['Install Anyway']] },
+			agentsWindow: { button: { label: 'Install', enabled: true }, opened: [], installed: ['pub.unsigned (enable) failed', 'pub.unsigned (unverified) (enable)'], prompts: [['Install Anyway']] },
 		});
 	});
 });

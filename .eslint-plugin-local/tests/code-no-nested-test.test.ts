@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
-import tseslint from 'typescript-eslint';
 import rule from '../code-no-nested-test.ts';
 
 RuleTester.describe = suite;
@@ -13,7 +12,7 @@ RuleTester.it = test;
 
 const nested = (name: string) => [{ messageId: 'nested', data: { name } }];
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-nested-test', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-no-nested-test', rule, {
 	valid: [
 		`suite('a', () => { test('b', () => {}); test('c', () => {}); });`,
 		`suite('a', () => { suite('b', () => { test('c', () => {}); }); });`,

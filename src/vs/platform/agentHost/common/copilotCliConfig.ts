@@ -39,12 +39,17 @@ export const enum CopilotCliConfigKey {
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
 	RuntimePath = 'runtimePath',
+	/** Copilot runtime policy helper executable. An empty path disables it. */
+	PolicyHelper = 'policyHelper',
+	/** Requested M365 account-choice rollout value, not the startup-effective account/service mode. */
+	M365Enabled = 'm365Enabled',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	SearchSubagentGrepNudge = 'searchSubagentGrepNudge',
 	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
 	SearchSubagentModel = 'searchSubagentModel',
 	/** Offer the runtime's built-in Explore agent. On by default. */
@@ -63,16 +68,18 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Run the runtime's purpose-built secret detection model in `/security-review`. Off by default. */
+	SecurityReviewSecretDetection = 'securityReviewSecretDetection',
 	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
 	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
 	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
 	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
-	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
-	ToolSearchEnabled = 'toolSearchEnabled',
-	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
-	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
+	/** Where Copilot SDK sessions place retrieved memories: the system prompt (default) or generated user-role messages. */
+	MemoryMode = 'memoryMode',
+	/** Whether the workbench memory mode value is controlled by its configuration default. */
+	MemoryModeDefaultControlled = 'memoryModeDefaultControlled',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
@@ -89,6 +96,8 @@ export const enum CopilotCliConfigKey {
 	LocalModelAccountGate = 'localModelAccountGate',
 	/** Whether Copilot adds its `Co-authored-by` trailer to the commits it creates. On by default. */
 	IncludeCoAuthoredBy = 'includeCoAuthoredBy',
+	/** Ask in chat for the answers that `sudo -A`, `ssh`, and `git` prompts in agent shell commands need. Off by default. */
+	ShellAuthentication = 'shellAuthentication',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -104,9 +113,26 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 
 export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
 
+export const AgentHostCopilotPolicyHelperSettingId = 'chat.agentHost.copilot.policyHelper';
+
+/** Policy helper executable for the Copilot runtime, subject to device and server policy precedence. */
+export interface ICopilotPolicyHelperConfig {
+	readonly path: string;
+	readonly args?: readonly string[];
+}
+
+/** Normalizes policy helper arguments and treats invalid or empty paths as unset. */
+export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPolicyHelperConfig | undefined {
+	if (!copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value) || !value.path.trim()) {
+		return undefined;
+	}
+	return { path: value.path, args: value.args ?? [] };
+}
+
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+export const CopilotSearchSubagentGrepNudgeSettingId = 'chat.copilot.searchSubagent.grepNudge.enabled';
 /** Selects the image model offered to Copilot agents, or turns image generation off. */
 export const CopilotImageGenerationModelSettingId = 'chat.copilot.imageGeneration.model';
 /** Legacy boolean setting, migrated to {@link CopilotImageGenerationModelSettingId}. */
@@ -129,11 +155,9 @@ export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Promp
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
+export const CopilotSecurityReviewSecretDetectionEnabledSettingId = 'chat.copilot.securityReview.secretDetection.enabled';
+
 export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
-
-export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
-
-export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 /**
  * Root config key that hosts before Auto's tiers always came from the Copilot service read to launch the runtime
@@ -143,6 +167,11 @@ export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
 
 export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
+export const AgentHostCopilotMemoryModeSettingId = 'chat.copilot.memory.mode';
+
+export const copilotMemoryModeValues = ['system-prompt', 'user-prompt'] as const;
+export type CopilotMemoryMode = typeof copilotMemoryModeValues[number];
+
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
@@ -150,6 +179,8 @@ export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoMod
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const AgentHostCopilotIncludeCoAuthoredBySettingId = 'chat.agentHost.copilot.includeCoAuthoredBy';
+
+export const AgentHostCopilotShellAuthenticationEnabledSettingId = 'chat.agentHost.copilot.shellAuthentication.enabled';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
@@ -160,11 +191,6 @@ export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 30_000;
 /** Floors valid skill character budgets and returns the default for invalid values. */
 export function normalizeSkillCharBudget(value: number | undefined): number {
 	return value !== undefined && Number.isFinite(value) && value >= 1 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
-}
-
-/** Floors valid tool-search thresholds and returns the default for invalid values. */
-export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
-	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
 }
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
@@ -260,6 +286,31 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.copilotRuntimePath.description', "Absolute path to a local Copilot runtime executable. Empty uses the bundled runtime."),
 		default: '',
 	}),
+	[CopilotCliConfigKey.PolicyHelper]: schemaProperty<ICopilotPolicyHelperConfig>({
+		type: 'object',
+		title: localize('agentHost.config.copilotPolicyHelper.title', "Copilot Policy Helper"),
+		description: localize('agentHost.config.copilotPolicyHelper.description', "Policy helper executable for the Copilot runtime. Device and server policies take precedence. An empty path disables it. Changes restart the runtime after active turns and subagents finish."),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.config.copilotPolicyHelper.path.title', "Path"),
+				description: localize('agentHost.config.copilotPolicyHelper.path.description', "Absolute path to the policy helper executable."),
+			},
+			args: {
+				type: 'array',
+				items: { type: 'string', title: localize('agentHost.config.copilotPolicyHelper.args.item.title', "Argument") },
+				title: localize('agentHost.config.copilotPolicyHelper.args.title', "Arguments"),
+				description: localize('agentHost.config.copilotPolicyHelper.args.description', "Arguments passed to the policy helper executable."),
+			},
+		},
+		required: ['path'],
+	}),
+	[CopilotCliConfigKey.M365Enabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.m365Enabled.title', "Microsoft 365 Copilot"),
+		description: localize('agentHost.config.m365Enabled.description', "Requested enablement of Microsoft 365 Copilot access and account choice for Copilot Agent Host sessions. Requires restarting VS Code; changing this value must not switch an active account or service."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
@@ -276,6 +327,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.SearchSubagentGrepNudge]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.searchSubagentGrepNudge.title', "Search Subagent Grep Nudge"),
+		description: localize('agentHost.config.searchSubagentGrepNudge.description', "During the first two user messages, defer at most one grep search per message to suggest the available search subagent. Further grep calls proceed through normal permissions. Does not affect searches inside subagents."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({
@@ -332,6 +389,12 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.SecurityReviewSecretDetection]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.securityReviewSecretDetection.title', "Security Review Secret Detection"),
+		description: localize('agentHost.config.securityReviewSecretDetection.description', "When enabled, /security-review in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.progressUpdatesPrompt.title', "Progress Updates Prompt"),
@@ -344,22 +407,27 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
-		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
-		default: true,
-	}),
-	[CopilotCliConfigKey.ToolSearchDeferThreshold]: schemaProperty<number>({
-		type: 'number',
-		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
-		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
-		default: 1,
-	}),
 	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
 		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.MemoryMode]: schemaProperty<CopilotMemoryMode>({
+		type: 'string',
+		title: localize('agentHost.config.memoryMode.title', "Copilot Memory Placement"),
+		description: localize('agentHost.config.memoryMode.description', "Where Copilot SDK sessions place retrieved Copilot Memory: in the system prompt, or in generated user messages."),
+		enum: [...copilotMemoryModeValues],
+		enumLabels: [
+			localize('agentHost.config.memoryMode.systemPrompt', "System Prompt"),
+			localize('agentHost.config.memoryMode.userPrompt', "User Prompt"),
+		],
+		default: 'system-prompt',
+	}),
+	[CopilotCliConfigKey.MemoryModeDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.memoryModeDefaultControlled.title', "Copilot Memory Placement Default Control"),
+		description: localize('agentHost.config.memoryModeDefaultControlled.description', "Whether the workbench Copilot Memory placement setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({
@@ -454,6 +522,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.includeCoAuthoredBy.title', "Include Co-authored-by Trailer"),
 		description: localize('agentHost.config.includeCoAuthoredBy.description', "When enabled, Copilot SDK sessions add a `Co-authored-by` trailer to the commits they create. Applied when a session starts or resumes."),
 		default: true,
+	}),
+	[CopilotCliConfigKey.ShellAuthentication]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.shellAuthentication.title', "Shell Authentication Prompts"),
+		description: localize('agentHost.config.shellAuthentication.description', "When enabled, Copilot SDK sessions ask in chat for the passwords, passphrases, and confirmations that `sudo -A`, `ssh`, and `git` request, and send the answer only to that program. Applied when a session starts or resumes."),
+		default: false,
 	}),
 });
 

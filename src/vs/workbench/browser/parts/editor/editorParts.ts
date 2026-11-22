@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, IResolvedEditorWorkingSet, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { ISerializedNode } from '../../../../base/browser/ui/grid/gridview.js';
+import { EditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { deepClone } from '../../../../base/common/objects.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
+import { AuxiliaryEditorPart, AuxiliaryEditorPartImpl, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
 import { ContentPart } from './contentPart.js';
 import { PART_GRID_CLASS } from './partGridClass.js';
@@ -21,10 +25,10 @@ import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -33,6 +37,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 import { EditorPartModalVisibleContext } from '../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IEditorTransferVeto, showEditorTransferVeto } from './editorTransferVeto.js';
 
 function isInPartGrid(element: Element | null): boolean {
 	return !!element?.closest(`.${PART_GRID_CLASS}`);
@@ -44,7 +50,7 @@ interface IEditorPartsUIState {
 	// main state is managed by the main part
 }
 
-interface IAuxiliaryEditorPartState extends IAuxiliaryWindowOpenOptions {
+interface IAuxiliaryEditorPartState extends IAuxiliaryEditorPartOpenOptions {
 	readonly state: IEditorPartUIState;
 }
 
@@ -85,7 +91,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		@IThemeService themeService: IThemeService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -423,7 +430,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	/**
 	 * Focus moving out of a part to elsewhere in the grid of the parts of a
 	 * window, such as its title row, changes the active group of the window
-	 * to its main part: announce it as for focus moving into a part.
+	 * to its main part: announce it as for focus moving into a part. Focus
+	 * arriving in a window outside its parts, from another window, changes
+	 * the active group to that of the window: announce that too.
 	 */
 	private registerWindowFocusListener(windowId: number): void {
 		const targetWindow = getWindowById(windowId)?.window;
@@ -435,24 +444,31 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private lastActiveGroup: IEditorGroupView | undefined;
 
 	private onDidFocusInWindow(document: Document, e: FocusEvent): void {
-		const documentParts = this.parts.filter(part => part.element?.ownerDocument === document && (part as IEditorPart) !== this.modalEditorPart);
-		if (documentParts.length < 2 || !isHTMLElement(e.target)) {
-			return; // only windows with several parts
+		if (!isHTMLElement(e.target)) {
+			return;
 		}
 
 		const target = e.target;
+		const documentParts = this.parts.filter(part => part.element?.ownerDocument === document && (part as IEditorPart) !== this.modalEditorPart);
 		if (documentParts.some(part => { const container = part.getContainer(); return !!container && isAncestor(target, container); })) {
 			return; // focus moving into a part is announced by the part
 		}
 
-		if (!isInPartGrid(target)) {
-			return; // focus in an overlay, such as a quick input, keeps the active part
+		const activeGroup = this.activeGroup;
+		if (activeGroup === this.lastActiveGroup) {
+			return;
 		}
 
-		const activeGroup = this.activeGroup;
-		if (activeGroup !== this.lastActiveGroup) {
-			this._onDidActiveGroupChange.fire(activeGroup);
+		// Focus arriving from another window, such as by a click outside the editors of
+		// this window, changes the active group wherever it lands. Within a window,
+		// only focus in the grid of its parts does, and focus in an overlay, such as
+		// a quick input, keeps the active part.
+		const fromOtherWindow = !!this.lastActiveGroup && activeGroup.windowId !== this.lastActiveGroup.windowId;
+		if (!fromOtherWindow && (documentParts.length < 2 || !isInPartGrid(target))) {
+			return;
 		}
+
+		this._onDidActiveGroupChange.fire(activeGroup);
 	}
 
 	private doUpdateMostRecentActive(part: EditorPart, makeMostRecentlyActive?: boolean): void {
@@ -673,7 +689,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				.filter(({ auxiliaryWindow }) => auxiliaryWindow !== undefined)
 				.map(({ part, auxiliaryWindow }) => ({
 					state: part.createState(),
-					...auxiliaryWindow!.createState()
+					...auxiliaryWindow!.createState(),
+					...(part instanceof AuxiliaryEditorPartImpl && part.compactAllowsSplit ? { compactAllowsSplit: true } : {})
 				})),
 			mru: this.mostRecentActiveParts.filter(part => !part.isTransient).map(part => this.persistableParts.indexOf(part))
 		};
@@ -721,7 +738,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState | 'empty'): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState | 'empty', options?: { preserveFocus?: boolean }): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
@@ -737,7 +754,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				await group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
-			const closed = (part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close(options); // will move remaining editors to main part
 			if (!closed) {
 				return false; // this indicates that closing was vetoed
 			}
@@ -781,6 +798,73 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		return this.editorWorkingSets.map(workingSet => ({ id: workingSet.id, name: workingSet.name }));
 	}
 
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined {
+		const state = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
+		if (!state) {
+			return undefined;
+		}
+
+		const editors: EditorInput[] = [];
+		let activeEditor: EditorInput | undefined;
+		let complete = true;
+		const canonicalOf = (editor: EditorInput): EditorInput => {
+			const existing = editors.find(candidate => candidate.matches(editor));
+			if (existing) {
+				if (existing !== editor) {
+					this.disposeUnshownEditors([editor]);
+				}
+				return existing;
+			}
+			editors.push(editor);
+			return editor;
+		};
+		const collect = (node: ISerializedNode): void => {
+			if (node.type === 'branch') {
+				node.data.forEach(collect);
+				return;
+			}
+
+			if (!isSerializedEditorGroupModel(node.data)) {
+				return;
+			}
+			const model = this.instantiationService.createInstance(EditorGroupModel, deepClone(node.data));
+			try {
+				const groupEditors = model.getEditors(EditorsOrder.SEQUENTIAL);
+				complete &&= groupEditors.length === node.data.editors.length;
+				const groupActiveEditor = model.activeEditor ?? undefined;
+				for (const editor of groupEditors) {
+					const canonical = canonicalOf(editor);
+					if (node.data.id === state.main.activeGroup && editor === groupActiveEditor) {
+						activeEditor = canonical;
+					}
+				}
+			} finally {
+				model.dispose();
+			}
+		};
+		try {
+			collect(state.main.serializedGrid.root);
+		} catch (error) {
+			this.disposeUnshownEditors(editors);
+			throw error;
+		}
+
+		if (!complete) {
+			this.disposeUnshownEditors(editors);
+			return undefined;
+		}
+
+		return { editors, activeEditor, dispose: () => this.disposeUnshownEditors(editors) };
+	}
+
+	private disposeUnshownEditors(editors: readonly EditorInput[]): void {
+		for (const editor of editors) {
+			if (!this.groups.some(group => group.contains(editor, { strictEquals: true }))) {
+				editor.dispose();
+			}
+		}
+	}
+
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void {
 		const index = this.indexOfWorkingSet(workingSet);
 		if (typeof index === 'number') {
@@ -790,7 +874,26 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
+	private applyingWorkingSets = 0;
+	get isApplyingWorkingSet(): boolean { return this.applyingWorkingSets > 0; }
+
+	private readonly _onDidChangeApplyingWorkingSet = this._register(new Emitter<boolean>());
+	readonly onDidChangeApplyingWorkingSet = this._onDidChangeApplyingWorkingSet.event;
+
 	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
+		if (this.applyingWorkingSets++ === 0) {
+			this._onDidChangeApplyingWorkingSet.fire(true);
+		}
+		try {
+			return await this.doApplyWorkingSet(workingSet, options);
+		} finally {
+			if (--this.applyingWorkingSets === 0) {
+				this._onDidChangeApplyingWorkingSet.fire(false);
+			}
+		}
+	}
+
+	private async doApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 		let workingSetState: IEditorWorkingSetState | 'empty' | undefined;
 		if (workingSet === 'empty') {
 			workingSetState = 'empty';
@@ -802,22 +905,39 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return false;
 		}
 
+		// Applying removes the editors in place, so focus that is inside of an editor
+		// part would be lost: it is recovered afterwards if it ended up lost or still in an editor.
+		const isEditorFocus = () => this.parts.some(part => {
+			const container = part.getContainer();
+			return !part.isTransient && !!container && isAncestorOfActiveElement(container);
+		});
+
 		// Apply state: begin with auxiliary windows first because it helps to keep
 		// editors around that need confirmation by moving them into the main part.
 		// Also, in rare cases, the auxiliary part may not be able to apply the state
 		// for certain editors that cannot move to the main part.
-		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary);
+		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary, options);
 		if (!applied) {
 			return false;
 		}
 		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
 		// Restore Focus unless instructed otherwise
-		if (!options?.preserveFocus) {
+		{
 			const mostRecentActivePart = this.mostRecentActiveParts.find(part => !part.isTransient); // parts owned by someone else are not part of working sets
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
-				mostRecentActivePart.activeGroup.focus();
+
+				// The editors of the new state open without being awaited: focus can only reach
+				// the active editor once it is there.
+				await mostRecentActivePart.activeGroup.whenRestored;
+
+				// With preserved focus, only recover focus that is lost or still in an editor
+				// part: the user may have moved it elsewhere while the state was applied.
+				const activeElement = getActiveElement();
+				if (!options?.preserveFocus || !activeElement || activeElement === activeElement.ownerDocument.body || isEditorFocus()) {
+					mostRecentActivePart.activeGroup.focus();
+				}
 			}
 		}
 
@@ -876,6 +996,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	get sideGroup(): IEditorSideGroup {
 		return this.activePart.sideGroup;
+	}
+
+	get supportsSplitting(): boolean {
+		return this.activePart.supportsSplitting;
 	}
 
 	get groups(): IEditorGroupView[] {
@@ -1089,6 +1213,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				globalContextKey.reset();
 			}
 		}
+	}
+
+	showTransferVeto(veto: IEditorTransferVeto): void {
+		showEditorTransferVeto(this.dialogService, veto);
 	}
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {

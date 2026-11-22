@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { env } from '../../../base/common/process.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IRequestService } from '../../request/common/request.js';
@@ -137,7 +138,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				loadCertificates: () => this._requestService.loadCertificates(),
 			},
 			// WSL shares the Windows network, so its agent host may use this client's proxy configuration and tickets.
-			clientProxy: this._instantiationService.createInstance(AgentHostClientProxy, () => true),
+			clientProxy: this._instantiationService.createInstance(AgentHostClientProxy, () => true, env),
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);
@@ -469,6 +470,10 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 
 	async listRunningDistros(): Promise<string[]> {
 		return this._mainService.listRunningDistros();
+	}
+
+	async terminateDistro(distro: string): Promise<void> {
+		return this._mainService.terminateDistro(distro);
 	}
 
 	async connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection> {

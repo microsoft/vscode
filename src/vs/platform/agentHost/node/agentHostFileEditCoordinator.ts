@@ -6,10 +6,11 @@
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { ISessionDatabase } from '../common/sessionDataService.js';
 import type { URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getFileEditResourceKey } from './fileEditPath.js';
 
 export const IAgentHostFileEditCoordinator = createDecorator<IAgentHostFileEditCoordinator>('agentHostFileEditCoordinator');
 
@@ -64,6 +65,12 @@ export function describeDiscardedFileEdits(edits: IDiscardedFileEdits): string {
  */
 export interface IAgentHostFileEditCoordinator {
 	readonly _serviceBrand: undefined;
+
+	/** Fires after a captured edit is committed, identifying the conversation that owns its turn. */
+	readonly onDidStoreFileEdit: Event<{ readonly chat: URI; readonly turnId: string }>;
+
+	/** Persists a captured edit and notifies observers of the committed change. */
+	storeFileEdit(chat: URI, database: ISessionDatabase, edit: Parameters<ISessionDatabase['storeFileEdit']>[0]): Promise<void>;
 
 	/** Fires when changes that an agent made to a file were discarded, so the agent can be told. */
 	readonly onDidDiscardFileEdits: Event<IDiscardedFileEdits>;
@@ -121,14 +128,22 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	private readonly _files = new Map<string, IFileState>();
 	private readonly _coordinatedProviders = new Map<string, number>();
 
+	private readonly _onDidStoreFileEdit = this._register(new Emitter<{ readonly chat: URI; readonly turnId: string }>());
+	readonly onDidStoreFileEdit = this._onDidStoreFileEdit.event;
+
 	private readonly _onDidDiscardFileEdits = this._register(new Emitter<IDiscardedFileEdits>());
 	readonly onDidDiscardFileEdits = this._onDidDiscardFileEdits.event;
 
 	private readonly _onDidChangeEditing = this._register(new Emitter<URI>());
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
+	async storeFileEdit(chat: URI, database: ISessionDatabase, edit: Parameters<ISessionDatabase['storeFileEdit']>[0]): Promise<void> {
+		await database.storeFileEdit(edit);
+		this._onDidStoreFileEdit.fire({ chat, turnId: edit.turnId });
+	}
+
 	isEditing(resource: URI): boolean {
-		return (this._files.get(extUriBiasedIgnorePathCase.getComparisonKey(resource))?.edits ?? 0) > 0;
+		return (this._files.get(getFileEditResourceKey(resource))?.edits ?? 0) > 0;
 	}
 
 	registerCoordinatedProvider(provider: string): IDisposable {
@@ -153,7 +168,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	async beginEdit(resource: URI): Promise<IDisposable> {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = getFileEditResourceKey(resource);
 		// A change of the file that runs or waits goes first; one that comes later waits for this edit.
 		for (let exclusive = this._files.get(key)?.exclusive; exclusive; exclusive = this._files.get(key)?.exclusive) {
 			await exclusive.catch(() => { });
@@ -162,7 +177,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	markEditing(resource: URI): IDisposable {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = getFileEditResourceKey(resource);
 		const state = this._getState(key);
 		state.edits++;
 		if (state.edits === 1) {
@@ -187,7 +202,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	async runExclusive<T>(resource: URI, task: () => Promise<T>, timeoutMs = DEFAULT_EDITS_TIMEOUT_MS): Promise<T> {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = getFileEditResourceKey(resource);
 		const state = this._getState(key);
 		const previous = state.exclusive;
 		const run = (async () => {

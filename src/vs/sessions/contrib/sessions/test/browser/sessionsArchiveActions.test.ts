@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,20 +22,23 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionComparisonService } from '../../../../services/sessions/browser/sessionComparisonService.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
-import { SessionsView } from '../../browser/views/sessionsView.js';
-import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
+import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionComparisonService } from '../../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - Bulk archive undo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -66,14 +70,18 @@ suite('Sessions - Bulk archive undo', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const managementService = new class extends mock<ISessionsManagementService>() {
+			override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidArchiveSession = sessionArchived.event;
 			override readonly onDidDeleteSession = Event.None;
+			override readonly onDidDeleteChat = Event.None;
 			override readonly onWillSendRequest = Event.None;
 			override readonly onDidReplaceSession = Event.None;
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidAcceptNewSessionRequest = Event.None;
+			override readonly onDidEndNewSessionRequest = Event.None;
 			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
 			override getInFlightNewSessionRequests() { return []; }
@@ -87,6 +95,9 @@ suite('Sessions - Bulk archive undo', () => {
 				archived.push(session.sessionId);
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
 				sessionArchived.fire(session);
+			}
+			override archiveSessions(targets: readonly ISession[]) {
+				return Promise.allSettled(targets.map(session => this.archiveSession(session)));
 			}
 			override async unarchiveSession(session: ISession) {
 				if (session.sessionId === state.failRestore) {
@@ -124,6 +135,7 @@ suite('Sessions - Bulk archive undo', () => {
 			upcastPartial<IChatService>({ getSession: () => undefined }), new NullTelemetryServiceShape(),
 		));
 		instantiationService.stub(ISessionComparisonService, comparisonService);
+		instantiationService.stub(ISessionAttentionService, upcastPartial<ISessionAttentionService>({ sessionAttention: constObservable(new Map()) }));
 		const listModel = store.add(instantiationService.createInstance(SessionsListModelService));
 		const membership = () => sessions
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
@@ -145,7 +157,7 @@ suite('Sessions - Bulk archive undo', () => {
 			const context = kind === 'group'
 				? upcastPartial<ISessionGroupItem>({
 					group, sessions: ownSessions, subtreeSessions: targets,
-					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '' } : undefined,
+					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '', configuration: '' } : undefined,
 				})
 				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
 			return instantiationService.invokeFunction(accessor => action.run(accessor, context));
@@ -379,6 +391,83 @@ suite('Sessions - Bulk archive undo', () => {
 		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['first'] });
 	});
 
+	test('a lone cancellation remains identifiable and successful archives stay undoable', async () => {
+		const harness = setup();
+		const cancellation = new CancellationError();
+		const archiveSession = harness.managementService.archiveSession;
+		harness.managementService.archiveSession = async session => {
+			if (session.sessionId === 'second') {
+				throw cancellation;
+			}
+			await archiveSession(session);
+		};
+
+		const error = await harness.run().catch(error => {
+			if (!(error instanceof Error)) {
+				throw error;
+			}
+			return error;
+		});
+		await harness.state.undo();
+
+		assert.deepStrictEqual({
+			isCancellation: isCancellationError(error),
+			sameError: error === cancellation,
+			message: harness.state.message,
+			restored: harness.restored,
+		}, {
+			isCancellation: true, sameError: true,
+			message: '1 marked done', restored: ['first'],
+		});
+	});
+
+	test('multiple archive failures retain their causes with a concise summary', async () => {
+		const harness = setup();
+		const failure = new Error('archive failed');
+		harness.managementService.archiveSession = async () => { throw failure; };
+
+		const error = await harness.run().then(() => assert.fail('Expected archive failures'), error => {
+			if (!(error instanceof AggregateError)) {
+				throw error;
+			}
+			return error;
+		});
+
+		assert.deepStrictEqual({
+			name: error.name,
+			message: error.message,
+			causes: error.errors,
+			notices: harness.state.notices,
+		}, {
+			name: 'AggregateError',
+			message: 'archive failed (2 errors in total)',
+			causes: [failure, failure],
+			notices: 0,
+		});
+	});
+
+	test('a failed archive waits for a later success before reporting and offering Undo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const harness = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		harness.state.failArchive = 'first';
+		const archiveSession = harness.managementService.archiveSession;
+		harness.managementService.archiveSession = async session => {
+			if (session.sessionId === 'second') {
+				await timeout(10);
+			}
+			await archiveSession(session);
+		};
+
+		await assert.rejects(harness.run('group'), /archive failed/);
+		const afterArchive = { archived: [...harness.archived], message: harness.state.message, notices: harness.state.notices };
+		await harness.state.undo();
+
+		assert.deepStrictEqual({ afterArchive, restored: harness.restored, group: harness.groupsService.getGroup(harness.group.id)?.name }, {
+			afterArchive: { archived: ['second'], message: '1 marked done', notices: 1 },
+			restored: ['second'],
+			group: 'Group',
+		});
+	}));
+
 	test('undo can retry a partial restore failure without restoring successful sessions twice', async () => {
 		const test = setup();
 		await test.run();
@@ -453,6 +542,8 @@ suite('Sessions - Delete group undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidAcceptNewSessionRequest = Event.None;
+			override readonly onDidEndNewSessionRequest = Event.None;
 			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions; }
 			override getInFlightNewSessionRequests() { return []; }

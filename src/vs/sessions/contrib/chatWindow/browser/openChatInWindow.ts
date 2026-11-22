@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
@@ -15,13 +14,16 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { editorWorkingSetOwnerIncludes, ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext } from '../common/chatWindows.js';
 
 export const OPEN_CHAT_IN_WINDOW_COMMAND_ID = 'sessions.chatWindow.openChat';
 export const OPEN_SESSION_IN_WINDOW_COMMAND_ID = 'sessions.openInChatWindow';
@@ -37,10 +39,22 @@ const InMainWindowContext = IsAuxiliaryWindowContext.toNegated();
 /** In a chat window: a window of the Agents window with layout modes. */
 const InChatWindowContext = ContextKeyExpr.and(IsSessionsWindowContext, IsAuxiliaryWindowContext, LayoutModeContext)!;
 
+for (const [menu, command, precondition, when] of [
+	[Menus.SessionItemOpenIn, OPEN_SESSION_IN_WINDOW_COMMAND_ID, ContextKeyExpr.and(ChatWindowsEnabledContext, SessionItemIsMultiSelectionContext.negate()), ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext)],
+	[Menus.SessionChatItemOpenIn, OPEN_CHAT_IN_WINDOW_COMMAND_ID, ChatWindowsEnabledContext, ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, ContextKeyExpr.has('sessionChatItem.isUntitled').negate())],
+] as const) {
+	MenuRegistry.appendMenuItem(menu, {
+		command: { id: command, title: localize2('newWindow', "New Window"), precondition },
+		group: 'navigation',
+		order: 2,
+		when,
+	});
+}
+
 /**
  * Moves the chat `session` shows in the main window, or its main chat, to a chat window of its own: the main window then
- * shows the session it showed before, or a new session. The chat takes the editors it has open in the main window along,
- * to the main part beside it, but only while the main window shows that chat.
+ * shows the session it showed before, or a new session. The chat takes the editors its session has open in the main window
+ * along, to the main part beside it, whichever of the session's chats the main window shows.
  */
 export async function openChatInWindow(accessor: ServicesAccessor, session: ISession, chat?: URI, options?: IChatWindowOpenOptions): Promise<void> {
 	const chatWindowService = accessor.get(IChatWindowService);
@@ -48,22 +62,34 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 	const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-	const chatResource = chat ?? shown?.activeChat.get().resource;
-	// The main window's editors are the chat's while the main window is laid out for it and shows it as its active chat.
-	const mainActive = sessionsService.mainWindowActiveSession.get();
-	const ownsEditors = mainActive?.sessionId === session.sessionId
-		&& (!chatResource || isEqual(mainActive.activeChat.get().resource, chatResource));
+	// The session's own slot, not a detached pane of one of its chats.
+	const shown = sessionsService.slotPanes.get().find(pane => pane.session.get()?.sessionId === session.sessionId);
+	const chatResource = chat ?? shown?.chat.get()?.resource;
+	const workingSetService = accessor.get(ISessionEditorWorkingSetService);
+	const workingSetOwner = workingSetService.restoreState.get().owner;
+	const ownsEditors = getMainWindowHost(accessor.get(ISessionHostService)).session.get()?.sessionId === session.sessionId
+		&& (!workingSetOwner || editorWorkingSetOwnerIncludes(workingSetOwner, session.resource, chatResource ?? session.resource));
 	// The editors moving out empty the main window's editor part: that is not the user closing them, so the main window
 	// keeps its side pane as it is, for the session it shows next, as when it switches sessions.
 	const suppression = ownsEditors ? layoutService.suppressEditorPartAutoVisibility() : undefined;
+	// A session another pane shows has its editors saved, not open in the main window.
+	const stashed = ownsEditors ? undefined : workingSetService.takeEditorsFor(session, chatResource ?? session.resource);
 	try {
-		await chatWindowService.open(chatResource ?? session.resource, {
+		const window = await chatWindowService.open(chatResource ?? session.resource, {
 			...options,
-			editors: { ...options?.editors, moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [] },
+			exactChat: !!chat,
+			editors: {
+				...options?.editors,
+				moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [],
+				...(stashed && { editors: stashed.editors, activeEditor: stashed.activeEditor }),
+			},
 		});
+		if (window && stashed?.editors.every(editor => window.mainPart.groups.some(group => group.contains(editor)))) {
+			stashed.accept();
+		}
 	} finally {
 		suppression?.dispose();
+		stashed?.dispose();
 	}
 }
 
@@ -73,20 +99,14 @@ registerAction2(class OpenSessionInChatWindowAction extends Action2 {
 			id: OPEN_SESSION_IN_WINDOW_COMMAND_ID,
 			title: localize2('openSessionInNewWindow', "Open in New Window"),
 			icon: Codicon.openInWindow,
-			precondition: ChatWindowsEnabledContext,
-			menu: [{
-				id: Menus.SessionItemContextMenu,
-				// Right after Open to the Side.
-				group: '0_pin',
-				order: 1.5,
-				when: ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, SessionItemIsMultiSelectionContext.negate()),
-			}, ...SessionHeaderMenus.map(id => ({
+			precondition: ContextKeyExpr.and(ChatWindowsEnabledContext, SessionItemIsMultiSelectionContext.negate()),
+			menu: SessionHeaderMenus.map(id => ({
 				id,
 				// Before Close.
 				group: 'secondary/4_pin',
 				order: 14,
 				when: ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, SessionIsCreatedContext, InMainWindowContext),
-			}))],
+			})),
 		});
 	}
 
@@ -105,12 +125,6 @@ registerAction2(class OpenChatInChatWindowAction extends Action2 {
 			title: localize2('openChatInNewWindow', "Open in New Window"),
 			icon: Codicon.openInWindow,
 			precondition: ChatWindowsEnabledContext,
-			menu: [{
-				id: Menus.SessionChatItemContext,
-				group: '0_window',
-				order: 1,
-				when: ContextKeyExpr.and(ChatWindowsEnabledContext, IsSessionsWindowContext, ContextKeyExpr.has('sessionChatItem.isUntitled').negate()),
-			}],
 		});
 	}
 
@@ -134,9 +148,10 @@ registerAction2(class OpenActiveChatInChatWindowAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const session = accessor.get(ISessionsService).mainWindowActiveSession.get();
-		if (session) {
-			await openChatInWindow(accessor, session);
+		// The chat of the focused host: the main window's, as the command is enabled there only.
+		const target = resolveSessionCommandTarget(accessor, []);
+		if (target?.session) {
+			await openChatInWindow(accessor, target.session, target.chat?.resource);
 		}
 	}
 });
@@ -148,7 +163,8 @@ registerAction2(class MoveChatToMainWindowAction extends Action2 {
 			title: localize2('moveChatToMainWindow', "Move to Main Window"),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InChatWindowContext),
+			// Not while the window holds a new session that has not been sent, which cannot leave it; run anyway, it says why.
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InChatWindowContext, ChatWindowHasUnsentComposerContext.negate()),
 			menu: SessionHeaderMenus.map(id => ({
 				id,
 				// Before Close.

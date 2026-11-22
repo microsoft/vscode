@@ -92,9 +92,11 @@ function measureTable(table: ITableScrollable): ITableMeasurement {
  */
 export function wrapTablesWithScrollable(domNode: HTMLElement, layoutParticipants: Lazy<Set<() => void>>): DisposableStore {
 	const store = new DisposableStore();
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	for (const table of domNode.querySelectorAll('table')) {
-		if (!dom.isHTMLElement(table)) {
+		// A table inside one of this Markdown's code blocks belongs to the part that rendered the block.
+		// That part lays the table out itself and can be reused by the next render, which must not wrap it again.
+		if (!dom.isHTMLElement(table) || domNode.contains(table.closest('[data-code]'))) {
 			continue;
 		}
 

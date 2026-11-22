@@ -41,7 +41,7 @@ import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol
 import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
 import { IFileService } from '../../../files/common/files.js';
-import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { MISSION_CONTROL_AHP_LOG_ID, MissionControlUseLocalCredentialsConfigKey } from '../../common/missionControlEnvironment.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -51,6 +51,8 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { MissionControlSessionPublisher } from '../../node/missionControl/missionControlSessionPublisher.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { captureCredentialSource } from '../../common/agentHostCredentials.js';
+import { AgentHostCompletions, CompletionTriggerCharacter, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
+import { CompletionItemKind } from '../../common/state/protocol/commands.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -93,6 +95,10 @@ suite('Mission Control host integration', () => {
 		const rootValues: Record<string, unknown> = {};
 		instantiation.stub(IAgentConfigurationService, new class extends mock<IAgentConfigurationService>() {
 			override readonly onDidRootConfigChange = rootConfigChanged.event;
+			override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
+				Object.assign(rootValues, patch);
+				rootConfigChanged.fire();
+			}
 			override getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
 				schema: ISchema<D>, key: K,
 			): SchemaValue<D[K]> | undefined {
@@ -123,6 +129,7 @@ suite('Mission Control host integration', () => {
 			override readonly onDidChange = Event.None;
 			override getApiBaseUri(): string { return 'https://api.github.com'; }
 			override getCopilotResource() { return { resource: 'https://api.github.com', scopes_supported: ['read:user'] }; }
+			override getRepoResource() { return { resource: 'https://api.github.com/repos', scopes_supported: ['repo'] }; }
 		}());
 		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
@@ -135,10 +142,16 @@ suite('Mission Control host integration', () => {
 			override dispose(): void { }
 		}());
 		instantiation.stub(ILogService, new NullLogService());
+		const completions = store.add(instantiation.createInstance(AgentHostCompletions));
+		instantiation.stub(IAgentHostCompletions, completions);
 		const credentialValidations: string[] = [];
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService(), async (_url, init) => {
 			credentialValidations.push(new Headers(init?.headers).get('Authorization') ?? '');
 			return Response.json({ id: 123, type: 'User' });
+		}, {
+			isEnabled: () => rootValues[MissionControlUseLocalCredentialsConfigKey] === true,
+			getResources: () => [{ resource: 'https://api.github.com', scopes_supported: ['read:user'] }, { resource: 'https://api.github.com/repos', scopes_supported: ['repo'] }],
+			onDidChange: rootConfigChanged.event,
 		}));
 		instantiation.stub(IAgentHostAuthenticationService, authentication);
 		instantiation.stub(IFileService, new class extends mock<IFileService>() { }());
@@ -156,7 +169,7 @@ suite('Mission Control host integration', () => {
 				return toDisposable(() => handler.dispose());
 			},
 		}));
-		return { host, counts, events, rootValues, rootConfigChanged, authentication, credentialValidations };
+		return { host, counts, events, rootValues, rootConfigChanged, authentication, credentialValidations, completions };
 	}
 
 	suite('bounded publish telemetry', () => {
@@ -567,7 +580,7 @@ suite('Mission Control host integration', () => {
 	}
 
 	for (const useLocalCredentials of [false, true]) {
-		test(`uses ${useLocalCredentials ? 'local' : 'client'} Copilot credentials without replacing repository credentials`, async () => {
+		test(`uses ${useLocalCredentials ? 'local' : 'client'} credentials for both Copilot and repositories`, async () => {
 			const instantiation = store.add(new TestInstantiationService());
 			const creations = sinon.spy(instantiation, 'createInstance');
 			store.add(toDisposable(() => creations.restore()));
@@ -577,13 +590,17 @@ suite('Mission Control host integration', () => {
 			const { authentication, credentialValidations } = createHost(instantiation);
 			const resource = 'https://api.github.com';
 			const repository = `${resource}/repos`;
+			const mcp = 'https://mcp.example.test';
 			const provider = new class extends mock<IAgent>() {
-				override getProtectedResources() { return [{ resource }]; }
+				override getProtectedResources() { return [{ resource }, { resource: repository }]; }
 				override async authenticate() { return true; }
 			}();
 			await authentication.authenticate({ resource, token: 'desktop-token', scopes: ['read:user'] }, [provider]);
+			await authentication.authenticate({ resource: repository, token: 'desktop-repository-token', scopes: ['repo'] }, [provider]);
 			const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
-			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => [], undefined, useLocalCredentials));
+			assert.ok(environment.configureExecutionAuthentication);
+			environment.configureExecutionAuthentication(useLocalCredentials);
+			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => []));
 			const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
 			const principal = { apiOrigin: resource, userId: '123' };
 			const resolveCredentials = config.resolveRelayCredentials;
@@ -594,29 +611,34 @@ suite('Mission Control host integration', () => {
 				resolveCredentials ? target => resolveCredentials(principal, target) : undefined,
 			));
 			await scope.authenticate({ resource, token: 'ios-token', scopes: ['mobile-scope'] }, [resource, repository]);
+			const repositoryWithoutClientAuthentication = scope.getCredential({ resource: repository })?.token;
 			await scope.authenticate({ resource: repository, token: 'ios-repository-token' }, [resource, repository]);
+			await scope.authenticate({ resource: mcp, token: 'mcp-token' }, [mcp]);
 			const captured = captureCredentialSource(scope, [{ resource }]);
 			assert.deepStrictEqual({
 				scoped: config.scopedRelayCredentials,
 				delegated: !!config.resolveRelayCredentials,
 				copilot: captured.getCredential({ resource })?.token,
 				repository: scope.getCredential({ resource: repository })?.token,
+				repositoryWithoutClientAuthentication,
 				validations: credentialValidations,
 				desktop: authentication.getAuthToken({ resource, scopes: ['read:user'] }),
+				mcp: scope.getCredential({ resource: mcp })?.token,
 			}, {
 				scoped: true,
 				delegated: useLocalCredentials,
 				copilot: useLocalCredentials ? 'desktop-token' : 'ios-token',
-				repository: 'ios-repository-token',
-				validations: useLocalCredentials ? ['Bearer desktop-token'] : [],
+				repository: useLocalCredentials ? 'desktop-repository-token' : 'ios-repository-token',
+				repositoryWithoutClientAuthentication: useLocalCredentials ? 'desktop-repository-token' : undefined,
+				validations: [],
 				desktop: 'desktop-token',
+				mcp: 'mcp-token',
 			});
 			if (useLocalCredentials) {
 				assert.ok(resolveCredentials);
-				await assert.rejects(resolveCredentials({ ...principal, userId: '456' }, resource), { code: AhpErrorCodes.AuthRequired });
+				const differentRecordedOwner = await resolveCredentials({ ...principal, userId: '456' }, resource);
+				assert.strictEqual(differentRecordedOwner?.getCredential({ resource })?.token, 'desktop-token');
 				await authentication.authenticate({ resource, token: 'rotated-desktop-token', scopes: ['read:user'] }, [provider]);
-				assert.strictEqual(scope.getCredential({ resource }), undefined);
-				await scope.authenticate({ resource, token: 'ios-token' }, [resource]);
 				const rotated = captureCredentialSource(scope, [{ resource }]);
 				assert.strictEqual(rotated.getCredential({ resource })?.token, 'rotated-desktop-token');
 				await authentication.authenticate({ resource, token: '', scopes: ['read:user'] }, [provider]);
@@ -630,14 +652,19 @@ suite('Mission Control host integration', () => {
 		});
 	}
 
-	test('does not advertise or forward host-wide diagnostic logs on Mission Control ingress', () => {
+	test('advertises registered completions, terminal commands and host extensions without forwarding the host diagnostic log stream', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const creations = sinon.spy(instantiation, 'createInstance');
 		store.add(toDisposable(() => creations.restore()));
 		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() {
 			override dispose(): void { }
 		}());
-		createHost(instantiation);
+		const { completions } = createHost(instantiation);
+		store.add(completions.registerProvider({
+			kinds: new Set([CompletionItemKind.UserMessage]),
+			triggerCharacters: [CompletionTriggerCharacter.Slash, CompletionTriggerCharacter.File],
+			async provideCompletionItems() { return []; },
+		}));
 		const environmentCreation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
 		assert.ok(environmentCreation);
 		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
@@ -651,13 +678,15 @@ suite('Mission Control host integration', () => {
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
+			completionTriggerCharacters: config.completionTriggerCharacters,
+			terminalCommandPrefix: config.terminalCommandPrefix,
 			ahpLogDirectory: config.ahpLogDirectory?.toString(),
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
 			sessionList: config.sessionListAdapter === toMissionControlSessionList,
 			externalVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, true) }),
 			adoptedVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, false) }),
 			internalVisible: config.sessionSummaryFilter?.(summary),
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
+		}, { hostManagement: true, diagnosticLogs: undefined, modelProviders: ['copilotcli'], completionTriggerCharacters: ['/', '@'], terminalCommandPrefix: '!', ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
