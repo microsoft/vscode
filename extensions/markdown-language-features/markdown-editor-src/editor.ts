@@ -267,6 +267,10 @@ class Editor extends Disposable {
 					await this.#rename?.start();
 					return;
 				}
+				if (commandId === 'markdown.editor.pasteAsText') {
+					await this.#imagePaste?.pasteAsText();
+					return;
+				}
 				const command = commands.find(command => command.id === commandId);
 				if (command) {
 					this.#controller?.executeCommand(command);
@@ -283,7 +287,7 @@ class Editor extends Disposable {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
 			},
 		}));
-		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
+		this.#createView(host, initialState);
 		this.#send('ready', this.#host.ready({
 			documentVersion: initialState.documentVersion,
 			editEpoch: this.#editEpoch,
@@ -363,7 +367,7 @@ class Editor extends Disposable {
 		this.#connection.close();
 	}
 
-	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
+	#createView(host: HTMLElement, { content, highlightActiveBlock, forwardPasteAsTextKeybinding }: InitialState): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
@@ -429,7 +433,7 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch, forwardPasteAsTextKeybinding)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -690,6 +694,7 @@ function isInitialState(value: unknown): value is InitialState {
 		&& Number.isInteger(candidate.editEpoch)
 		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
+		&& typeof candidate.forwardPasteAsTextKeybinding === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.renderWhitespace === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
