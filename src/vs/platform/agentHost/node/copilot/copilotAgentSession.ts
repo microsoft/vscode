@@ -5439,7 +5439,33 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async listCanvases(): Promise<AgentCanvasDefinitionSnapshot> {
+	/**
+	 * Lists the canvases once the runtime's extensions have settled, waiting at most `timeoutMs` for them, and then lists
+	 * the canvases registered so far. Nothing asks a draft that has not started to list its canvases again, so an
+	 * unsettled snapshot, which an extension that never finishes starting would cause, would leave its caller with none.
+	 */
+	async listSettledCanvases(timeoutMs: number): Promise<AgentCanvasDefinitionSnapshot> {
+		const deadline = Date.now() + timeoutMs;
+		while (true) {
+			const changed = Event.toPromise(Event.any(Event.signal(this._wrapper.onExtensionsLoaded), Event.signal(this._wrapper.onCanvasRegistryChanged)));
+			try {
+				const remaining = deadline - Date.now();
+				const snapshot = await this.listCanvases({ includeStarting: remaining <= 0 });
+				if (snapshot !== undefined || this._store.isDisposed) {
+					return snapshot;
+				}
+				await raceTimeout(changed, Math.max(0, deadline - Date.now()));
+			} finally {
+				changed.cancel();
+			}
+		}
+	}
+
+	/**
+	 * Lists the canvases the runtime registered. While an extension is starting the snapshot is unsettled, `undefined`,
+	 * unless `includeStarting` asks for the canvases registered so far.
+	 */
+	async listCanvases(options?: { readonly includeStarting?: boolean }): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
@@ -5452,11 +5478,14 @@ export class CopilotAgentSession extends Disposable {
 			this.publishCanvases();
 			return undefined;
 		}
-		if (extensions.extensions.some(extension => extension.status === 'starting')) {
+		const starting = extensions.extensions.some(extension => extension.status === 'starting');
+		if (starting && !options?.includeStarting) {
 			this._markCanvasRegistryUnsettled();
 			return undefined;
 		}
-		this._publishSettledCanvasRegistry();
+		if (!starting) {
+			this._publishSettledCanvasRegistry();
+		}
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
 		const definitions = await Promise.all(result.canvases.map(async canvas => {
 			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);

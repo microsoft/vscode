@@ -430,9 +430,13 @@ export function resolveCopilotMcpServerInfo(definition: IMcpServerDefinition, pl
 	};
 }
 
+/** A canvas operation that runs in a chat's queue. */
+type CopilotCanvasChatOperation = 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases';
+
 /**
  * In-memory chat reservation created by {@link IAgentChats.createChat} and
- * consumed by {@link CopilotAgent._materializeProvisional} on first send.
+ * consumed by {@link CopilotAgent._materializeProvisional} on first send, or
+ * when a workspace-less chat opens its first canvas.
  * It retains pre-send model/agent updates without creating on-disk state.
  */
 interface IProvisionalSession {
@@ -532,6 +536,9 @@ interface ICopilotEarlyLaunch extends IDisposable {
  * but is never sent. Composing extends it, and warms an expired draft again.
  */
 const COPILOT_EARLY_LAUNCH_TTL_MS = 5 * 60_000;
+
+/** How long listing a draft's canvases waits for the extensions its runtime starts to settle before listing the ones registered so far. */
+const COPILOT_DRAFT_CANVASES_SETTLE_TIMEOUT_MS = 3_000;
 const MAX_RELEASED_CANVAS_CONTINUITIES = 32;
 
 interface IReleasedCanvasContinuity {
@@ -3556,7 +3563,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async listSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot> {
-		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext, 'listSessionCanvases');
+		if (this._provisionalSessions.get(context.provisionalKey)?.chat.toString() === context.chatKey) {
+			return this._listDraftCanvases(chat, resolveAgentChatContext(operationContext, context.resource));
+		}
 		// The chat is not running, so keep its previous inventory instead of starting the runtime just to populate the canvas menu.
 		// Released continuity must wait for the returning client's current customizations before providers are resumed.
 		if (!context.target && (context.credentials || this._releasedCanvasContinuity(context))) {
@@ -3604,8 +3614,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
 		// Consent goes straight to the live runtime: the chat queue can hold an operation that waits for the extension load it gates.
-		const target = this._resolveSessionCanvasChatContext(session, chat, operationContext).target;
-		const live = target && isEqual(target.ownerSessionUri, session) ? target : undefined;
+		// A draft has no such operation, and must start before it asks, so that the user's answer reaches an initialized chat.
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext, answer ? undefined : 'openSessionCanvas');
+		const draft = this._provisionalSessions.get(context.provisionalKey)?.chat.toString() === context.chatKey;
+		const live = !draft && context.target && isEqual(context.target.ownerSessionUri, session) ? context.target : undefined;
 		if (answer?.kind === 'consent') {
 			// Only the runtime that asked can take the answer; resuming a runtime for it would start an open of its own.
 			if (!live) {
@@ -3675,11 +3687,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases'): Promise<CopilotAgentSession> {
-		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: CopilotCanvasChatOperation): Promise<CopilotAgentSession> {
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext, operation);
 		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
-			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-			const target = current.target ?? await this._ensureResolvedChatSession(current);
+			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext, operation);
+			const draft = this._provisionalSessions.get(current.provisionalKey)?.chat.toString() === current.chatKey;
+			if (draft) {
+				// A workspace-less draft starts as its first send would. Its pre-warmed runtime is live but not claimed yet.
+				await this._activeClients.get(current.ownerSession)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
+			}
+			const target = (draft ? undefined : current.target) ?? await this._ensureResolvedChatSession(current);
 			// Opening a canvas relaunches an idle runtime that does not run canvases yet. A busy one, including one whose
 			// background subagents outlive its turn and would stop with it, reports canvases disabled until its next turn.
 			if (!target || operation !== 'openSessionCanvas' || !this._requiresCanvasRuntimeRefresh(target) || target.hasActiveSubagents) {
@@ -3700,19 +3717,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return liveSession;
 	}
 
+	/**
+	 * Lists the canvases a workspace-less draft can open, so a session can start with one of them. The draft's runtime
+	 * is launched early, as a pre-warmed chat's is, so nothing is persisted or listed unless a canvas is then opened in it,
+	 * which claims that runtime.
+	 */
+	private async _listDraftCanvases(chat: URI, context: IAgentChatContext): Promise<AgentCanvasDefinitionSnapshot> {
+		const target = await this._warmChat(chat, context) ? this._resolveChatContext(chat, context).target : undefined;
+		if (!target) {
+			throw new Error(localize('copilot.draftCanvasesUnavailable', "The canvases could not be listed because the chat did not start."));
+		}
+		return target.listSettledCanvases(COPILOT_DRAFT_CANVASES_SETTLE_TIMEOUT_MS);
+	}
+
 	/** Whether a live session runs canvases differently from a session launched with the current configuration. */
 	private _requiresCanvasRuntimeRefresh(entry: CopilotAgentSession): boolean {
 		return entry.canvasRuntimeEnabled !== isCopilotCanvasRuntimeEnabled(this._configurationService, entry.isEphemeral);
 	}
 
-	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext): IResolvedCopilotChatContext {
+	/**
+	 * A workspace-less draft chat can list its canvases and open one, which starts it, so a canvas can be its first
+	 * content. Any other operation, or a draft with a workspace, whose first send creates its worktree, requires a chat
+	 * that has already started.
+	 */
+	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation?: CopilotCanvasChatOperation): IResolvedCopilotChatContext {
 		const context = this._resolveChatContext(chat, operationContext);
 		const recordedScope = this._chatOwners.get(context.chatKey)?.get();
 		if (!isEqual(context.ownerSession, session) || !recordedScope || !isEqual(recordedScope, session)) {
 			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
 		}
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
-		if (provisional && isEqual(provisional.chat, chat)) {
+		if (provisional && isEqual(provisional.chat, chat) && !((operation === 'openSessionCanvas' || operation === 'listSessionCanvases') && provisional.workspaceless)) {
 			throw new Error('Canvas operation requires an initialized Copilot chat.');
 		}
 		return context;
@@ -8108,7 +8143,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Materializes a provisional chat on its first send: launches its SDK
+	 * Materializes a provisional chat on its first send, or when a
+	 * workspace-less chat opens its first canvas: launches its SDK
 	 * session, or uses the one launched before the send ({@link _warmChat})
 	 * when it still matches, then persists and announces it. The caller holds
 	 * the chat's queue.
@@ -8232,8 +8268,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Persists and announces a launched provisional chat: the half of
-	 * materialization that only the first send may run, because it is what
-	 * makes the session durable and listable.
+	 * materialization that only the first send, or the first canvas a
+	 * workspace-less chat opens, may run, because it is what makes the session
+	 * durable and listable.
 	 */
 	private async _completeProvisionalMaterialization(provisional: IProvisionalSession, launch: ICopilotProvisionalLaunch, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined): Promise<CopilotAgentSession> {
 		const { sessionId, sdkSessionId, chat } = provisional;
