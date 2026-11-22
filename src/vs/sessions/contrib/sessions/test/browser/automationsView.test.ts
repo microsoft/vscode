@@ -2947,6 +2947,8 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		const history: IAutomationRun[] = createHistoryRuns(sessionsManagementService, 12);
 		const localStatus: ISettableObservable<SessionStatus> = observableValue('localAutomationStatus', SessionStatus.NeedsInput);
+		history[10] = { ...history[10], externalResource: URI.parse('https://github.com/owner/repo/tasks/hydrated') };
+		sessionsManagementService.addSession(history[10].sessionResource!, 'History 10', localStatus);
 		sessionsManagementService.addSession(history[11].sessionResource!, 'History 11', localStatus);
 		const cloud: IAutomationRun = run({
 			id: 'cloud-prompt', status: 'running', needsInput: true, sessionResource: undefined,
@@ -2967,10 +2969,32 @@ suite('AutomationsCardsWidget', () => {
 		const cloudOnly: ReturnType<typeof snapshot> = snapshot();
 		automationService.setRuns([...history, { ...cloud, status: 'completed', needsInput: false }]);
 		assert.deepStrictEqual({ waiting, cloudOnly, afterCompletion: snapshot().heading }, {
-			waiting: { heading: 'Needs Attention', titles: ['History 11', 'Daily review'] },
+			waiting: { heading: 'Needs Attention', titles: ['History 10', 'History 11', 'Daily review'] },
 			cloudOnly: { heading: 'Needs Attention', titles: ['Daily review'] },
 			afterCompletion: 'Today',
 		});
+	});
+
+	test('automation history leaves Needs Attention when local progress supersedes a stale cloud prompt', (): void => {
+		const { automationService, widget, chatModels } = setup();
+		automationService.setAutomations([automation()]);
+		const needsInput: ISettableObservable<{ title: string } | undefined> = observableValue<{ title: string } | undefined>('cloudApproval', { title: 'Approval needed' });
+		const running: ISettableObservable<boolean> = observableValue('cloudRunning', false);
+		chatModels.set([upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: running, requestNeedsInput: needsInput,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp: Date.now() })),
+			onDidChange: Event.None, getRequests: () => [],
+		})], undefined);
+		automationService.setRuns([run({
+			status: 'running', needsInput: true, externalResource: URI.parse('https://github.com/owner/repo/tasks/resuming'),
+		})]);
+		const heading = (): string | null | undefined => widget.element.querySelector('.automations-history-group-header')?.textContent;
+		const waiting: ReturnType<typeof heading> = heading();
+		needsInput.set(undefined, undefined);
+		running.set(true, undefined);
+		assert.deepStrictEqual({
+			waiting, resumed: heading(), inProgress: !!widget.element.querySelector('.session-item.in-progress'),
+		}, { waiting: 'Needs Attention', resumed: 'Today', inProgress: true });
 	});
 
 	test('automation prompt regrouping preserves keyboard focus on an existing external run', (): void => {

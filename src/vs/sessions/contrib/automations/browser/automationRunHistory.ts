@@ -393,7 +393,7 @@ export class AutomationHistorySection extends Disposable {
 		this.container.style.display = '';
 		this.ensureHeader();
 
-		const groups = groupRunsByAttentionAndDate(displayedRuns, historySessions, reader);
+		const groups = groupRunsByAttentionAndDate(displayedRuns, sessions, this.chatModels.read(reader), reader);
 		const activeKeys = new Set(groups.map(group => group.key));
 		// Move existing cloud rows before disposing their former date group.
 		for (const group of groups) {
@@ -1137,7 +1137,7 @@ function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefine
 	return completed && !!session && !session.isRead.read(reader);
 }
 
-function groupRunsByAttentionAndDate(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>, reader: IReader): { key: string; label: string; runs: IAutomationRun[] }[] {
+function groupRunsByAttentionAndDate(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>, models: readonly IChatModel[], reader: IReader): { key: string; label: string; runs: IAutomationRun[] }[] {
 	const now = new Date();
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 	const yesterday = new Date(today);
@@ -1148,7 +1148,7 @@ function groupRunsByAttentionAndDate(runs: readonly IAutomationRun[], sessions: 
 	const groups: Map<string, { key: string; label: string; order: number; runs: IAutomationRun[] }> = new Map();
 
 	for (const run of runs) {
-		const needsInput: boolean = !!run.needsInput || sessions.get(run.id)?.status.read(reader) === SessionStatus.NeedsInput;
+		const needsInput: boolean = sessions.get(run.id)?.status.read(reader) === SessionStatus.NeedsInput || !!automationRunWithLocalProgress(run, models, reader).needsInput;
 		let bucket: { key: string; label: string; order: number };
 		if (needsInput) {
 			bucket = { key: 'needs-input', label: localize('automationRunsNeedsAttention', "Needs Attention"), order: -1 };
