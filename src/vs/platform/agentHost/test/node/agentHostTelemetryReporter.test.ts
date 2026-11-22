@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as zlib from 'zlib';
+import { createHash } from 'crypto';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -14,7 +15,7 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
+import { SessionInputRequestKind, type Message, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter, toTelemetryModel, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
@@ -851,7 +852,7 @@ suite('AgentHostTelemetryReporter', () => {
 				isSubagentSession: false,
 				chatSessionId: AgentSession.id(session),
 				requestId: 'turn-3',
-				toolId: 'my-mcp-tool',
+				toolId: createHash('sha256').update('my-mcp-tool').digest('hex'),
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
 				confirmKind: 'denied',
@@ -866,6 +867,57 @@ suite('AgentHostTelemetryReporter', () => {
 				requestUnsandboxedExecution: undefined,
 			},
 		}]);
+	});
+
+	test('normalizes tool names at every standard telemetry boundary regardless of reported provenance', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const cases = [
+			{ toolId: 'bash', toolSourceKind: 'agentHost', expected: 'bash' },
+			{ toolId: 'Read', toolSourceKind: 'agentHost', expected: 'Read' },
+			{ toolId: 'shell', toolSourceKind: 'agentHost', expected: 'shell' },
+			{ toolId: 'list_sessions', toolSourceKind: 'agentHost', expected: 'list_sessions' },
+			...['mcp', 'client', 'agentHost', 'unknown'].flatMap(toolSourceKind =>
+				['private-server-lookup', 'mcp__private__Read', 'bash-private', 'invented_tool', 'a'.repeat(64)].map(toolId => ({
+					toolId, toolSourceKind, expected: createHash('sha256').update(toolId).digest('hex'),
+				}))),
+		];
+		for (const { toolId, toolSourceKind, expected } of cases) {
+			const common = { provider: 'copilotcli', session, owner: session, toolId, toolSourceKind };
+			reporter.toolInvoked({
+				...common, turnId: 'turn', toolCallId: 'call', result: 'success', resultSizeInCharacters: 0,
+				mcpSourceKind: undefined, model: undefined, modelTelemetryKind: undefined, errorCode: undefined,
+			});
+			reporter.toolApproval({
+				...common, turnId: 'turn', confirmKind: 'confirmationNotNeeded',
+				confirmationNotNeededReason: undefined, requestUnsandboxedExecution: undefined,
+			});
+			const stalled = {
+				...common, toolCallId: 'call', blockerKind: SessionInputRequestKind.ToolConfirmation,
+				executorClientConnectionState: undefined,
+			} as const;
+			reporter.toolCallStalled({ ...stalled, stalledTimeMs: 1 });
+			reporter.stalledToolCallCompleted({ ...stalled, result: 'success', totalTimeMs: 2, timeAfterStallMs: 1 });
+			reporter.turnHung({
+				...common, turnId: 'turn', messageOriginKind: undefined, hangReason: 'runningTool', hadAnyProgress: true,
+				lastActivityKind: 'none', currentStage: 'provider', providerDiagnosticState: 'unsupported', providerDiagnosticSnapshot: undefined,
+				initiatorClientConnectionState: 'unknown', blockedOn: undefined, inFlightToolCallCount: 1,
+				quietTimeMs: 1, turnElapsedMs: 2, model: undefined, modelTelemetryKind: undefined,
+				modelSelectionKind: 'default', permissionLevel: undefined,
+			});
+			assert.deepStrictEqual({
+				original: common.toolId,
+				events: service.standardEvents.splice(0).map(event => ({
+					eventName: event.eventName, toolId: event.data?.toolId, toolSourceKind: event.data?.toolSourceKind,
+				})),
+			}, {
+				original: toolId,
+				events: [
+					'languageModelToolInvoked', 'agentHost.toolInvoked', 'chat.toolApproval',
+					'agentHost.toolCallStalled', 'agentHost.stalledToolCallCompleted', 'agentHost.turnHung',
+				].map(eventName => ({ eventName, toolId: expected, toolSourceKind })),
+			});
+		}
 	});
 
 	test('turnHung emits bounded last activity categories', () => {

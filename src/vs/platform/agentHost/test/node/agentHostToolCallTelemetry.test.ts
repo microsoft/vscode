@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createHash } from 'crypto';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -459,7 +460,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			data: {
 				result: 'userCancelled',
 				chatSessionId: sessionKey,
-				toolId: 'lookup',
+				toolId: createHash('sha256').update('lookup').digest('hex'),
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
 				mcpSourceKind: 'managed',
@@ -476,7 +477,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			agentSessionId: 'session-1',
 			chatSessionId: getTelemetryChatSessionId(defaultChatUri),
 			isSubagentSession: false,
-			toolId: 'lookup',
+			toolId: createHash('sha256').update('lookup').digest('hex'),
 			toolExtensionId: undefined,
 			toolSourceKind: 'mcp',
 			mcpSourceKind: 'managed',
@@ -553,12 +554,12 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			mcpSourceKind: event.data.mcpSourceKind,
 		}));
 		const expected = [
-			{ toolId: 'user', mcpSourceKind: 'user' },
-			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
-			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
-			{ toolId: 'managed', mcpSourceKind: 'managed' },
-			{ toolId: 'account', mcpSourceKind: 'account' },
-			{ toolId: 'unknown', mcpSourceKind: undefined },
+			{ toolId: createHash('sha256').update('user').digest('hex'), mcpSourceKind: 'user' },
+			{ toolId: createHash('sha256').update('workspace').digest('hex'), mcpSourceKind: 'workspace' },
+			{ toolId: createHash('sha256').update('builtin').digest('hex'), mcpSourceKind: 'builtin' },
+			{ toolId: createHash('sha256').update('managed').digest('hex'), mcpSourceKind: 'managed' },
+			{ toolId: createHash('sha256').update('account').digest('hex'), mcpSourceKind: 'account' },
+			{ toolId: createHash('sha256').update('unknown').digest('hex'), mcpSourceKind: undefined },
 		];
 		assert.deepStrictEqual({
 			languageModelToolInvoked: summarize(toolEvents()),
@@ -583,7 +584,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			data: {
 				result: 'success',
 				chatSessionId: sessionKey,
-				toolId: 'run_tests',
+				toolId: createHash('sha256').update('run_tests').digest('hex'),
 				toolExtensionId: undefined,
 				toolSourceKind: 'client',
 				toolCallId: 'tc-client',
@@ -611,7 +612,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		assert.deepStrictEqual(toolEvents()[0].data, {
 			result: 'success',
 			chatSessionId: sessionKey,
-			toolId: 'read_file',
+			toolId: createHash('sha256').update('read_file').digest('hex'),
 			toolExtensionId: undefined,
 			toolSourceKind: 'agentHost',
 			toolCallId: 'tc-model',
@@ -829,7 +830,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolConfirmation,
 				toolCallId: 'tc-confirm',
-				toolId: 'write',
+				toolId: createHash('sha256').update('write').digest('hex'),
 				toolSourceKind: 'agentHost',
 				executorClientConnectionState: undefined,
 				stalledTimeMs: true,
@@ -861,7 +862,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,
 				toolCallId: 'tc-client-stall',
-				toolId: 'run_tests',
+				toolId: createHash('sha256').update('run_tests').digest('hex'),
 				toolSourceKind: 'client',
 				executorClientConnectionState: 'unknown',
 				stalledTimeMs: true,
@@ -922,7 +923,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,
 				toolCallId: 'tc-recovered',
-				toolId: 'run_tests',
+				toolId: createHash('sha256').update('run_tests').digest('hex'),
 				toolSourceKind: 'client',
 				executorClientConnectionState: 'connected',
 				result: 'success',
