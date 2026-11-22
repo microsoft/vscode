@@ -196,8 +196,12 @@ class AttachFileToChatAction extends AttachResourceAction {
 	}
 
 	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
+		const commandService = accessor.get(ICommandService);
 		const files = this._getResources(accessor, ...args);
 		if (!files.length) {
+			// Nothing to attach, such as when no file is open: let the user pick instead
+			const context: IChatExecuteActionContext = { widget };
+			await commandService.executeCommand(CHAT_ATTACH_CONTEXT_ACTION_ID, context);
 			return;
 		}
 		if (widget) {
