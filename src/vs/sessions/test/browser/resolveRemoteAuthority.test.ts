@@ -258,14 +258,14 @@ suite('resolveRemoteAuthority', () => {
 			local: resolve(),
 			ssh: resolve('ssh-remote+build'),
 			tunnel: resolve('tunnel+build'),
-			// Dev Containers accepts no WSL parent authority; Docker Desktop shares its engine with WSL.
+			// Dev Containers cannot address a WSL distribution's Docker engine for a volume.
 			wsl: resolve('wsl+Ubuntu'),
 			unknownVolume: resolve(undefined, false),
 		}, {
 			local: { scheme: 'vscode-remote', config, parentAuthority: undefined, path: '/workspaces/ubuntu-2' },
 			ssh: { scheme: 'vscode-remote', config, parentAuthority: 'ssh-remote+build', path: '/workspaces/ubuntu-2' },
 			tunnel: { scheme: 'vscode-remote', config, parentAuthority: 'tunnel+build', path: '/workspaces/ubuntu-2' },
-			wsl: { scheme: 'vscode-remote', config, parentAuthority: undefined, path: '/workspaces/ubuntu-2' },
+			wsl: undefined,
 			unknownVolume: undefined,
 		});
 	});
