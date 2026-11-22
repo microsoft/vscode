@@ -245,6 +245,22 @@ suite('AgentHostModePicker', () => {
 		}
 	});
 
+	test('Allow all shortcut renews its layout marker when rendered in another container', () => {
+		const { picker, trigger } = setup();
+		const oldSlot = trigger.parentElement!;
+		const container = dom.append(document.body, dom.$('div'));
+		store.add({ dispose: () => container.remove() });
+		const newSlot = picker.render(container).parentElement!;
+		assert.deepStrictEqual({
+			oldMarker: oldSlot.classList.contains('chat-input-picker-with-shortcut'),
+			oldShortcut: !!oldSlot.querySelector('.chat-input-permission-shortcut'),
+			newMarker: newSlot.classList.contains('chat-input-picker-with-shortcut'),
+			newShortcut: !!newSlot.querySelector('.chat-input-permission-shortcut'),
+		}, { oldMarker: false, oldShortcut: false, newMarker: true, newShortcut: true });
+		picker.dispose();
+		assert.strictEqual(newSlot.classList.contains('chat-input-picker-with-shortcut'), false);
+	});
+
 	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
 		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
 		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');

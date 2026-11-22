@@ -444,6 +444,12 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		}));
 	}
 
+	override render(container: HTMLElement): HTMLElement {
+		this._allowAllButton = undefined;
+		this._shortcutDisposables.clear();
+		return super.render(container);
+	}
+
 	protected override _renderTriggerLabel(trigger: HTMLElement, label: string, icon: ThemeIcon | undefined): void {
 		const slot: HTMLElement | null = trigger.parentElement;
 		if (slot && !this._allowAllButton) {
@@ -459,9 +465,6 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			});
 		}
 		if (this._allowAllButton) {
-			if (slot && this._allowAllButton.element.parentElement !== slot) {
-				slot.appendChild(this._allowAllButton.element);
-			}
 			const item: IActionListItem<IAction> | undefined = this._permissionPicker.getActionListItems(() => true)
 				.find(item => item.item?.id === `permissionPicker.${ChatPermissionLevel.AutoApprove}`);
 			this._allowAllButton.element.style.display = this._permissionDelegate.isModePickerCombined.get() && item ? '' : 'none';
