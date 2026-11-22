@@ -1480,18 +1480,20 @@ export class ListView<T> implements IListView<T> {
 	 * The browser copies from the DOM right after this event, so every selected row must exist until then.
 	 */
 	private onCopy(): void {
-		this.setFullSelectionRendered(true);
 		this.fullSelectionRenderTimeout.value = disposableTimeout(() => this.setFullSelectionRendered(false));
+		this.setFullSelectionRendered(true);
 	}
 
 	/**
 	 * Reads the selection with every row rendered, since `Selection.toString()` misses rows that are not in the DOM.
 	 */
 	getUserSelectionText(): string {
-		this.setFullSelectionRendered(true);
-		const text = getDocument(this.domNode).getSelection()?.toString() ?? '';
-		this.setFullSelectionRendered(false);
-		return text;
+		try {
+			this.setFullSelectionRendered(true);
+			return getDocument(this.domNode).getSelection()?.toString() ?? '';
+		} finally {
+			this.setFullSelectionRendered(false);
+		}
 	}
 
 	private createSelectionMovementStore(doc: Document): IDisposable {

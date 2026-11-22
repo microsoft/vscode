@@ -1185,7 +1185,7 @@ suite('ListView', function () {
 	suite('user selection virtualization', () => {
 		const rowHeight = 20;
 
-		function createSelectableList(rowCount: number) {
+		function createSelectableList(rowCount: number, onRender?: (value: number) => void) {
 			const element = document.createElement('div');
 			document.body.appendChild(element);
 			const delegate: IListVirtualDelegate<number> = {
@@ -1199,7 +1199,10 @@ suite('ListView', function () {
 					container.style.userSelect = 'text';
 					return container;
 				},
-				renderElement(value, _index, container) { container.textContent = String(value); },
+				renderElement(value, _index, container) {
+					onRender?.(value);
+					container.textContent = String(value);
+				},
 				disposeTemplate() { }
 			};
 			const listView = store.add(new ListView<number>(element, delegate, [renderer], { userSelection: true }));
@@ -1295,6 +1298,23 @@ suite('ListView', function () {
 				selectedText: range(27).join(''),
 				rendered: [0, 10, 11, 12, 26]
 			});
+		});
+
+		test('releases selected rows when rendering them throws', () => {
+			let failingValue: number | undefined;
+			const { listView, selectRows, renderedIndexes } = createSelectableList(30, value => {
+				if (value === failingValue) {
+					throw new Error('render failed');
+				}
+			});
+			selectRows(0, 26);
+			listView.setScrollTop(10 * rowHeight);
+
+			failingValue = 5;
+			assert.throws(() => listView.getUserSelectionText(), /render failed/);
+			failingValue = undefined;
+
+			assert.deepStrictEqual(renderedIndexes(), [0, 10, 11, 12, 26]);
 		});
 
 		test('keeps the selection edges when opening the context menu', () => {
