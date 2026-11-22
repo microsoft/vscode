@@ -2056,7 +2056,7 @@ suite('RemotesWidget', () => {
 		const strict: ISandboxProfile = { id: 'strict', name: 'Strict', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: false } };
 		writeSandboxProfiles(storageService, [strict]);
 		const picker = (id: string) => parent.querySelector<HTMLSelectElement>(`[data-remote-id="${id}"] select`)!;
-		const state = (id: string) => ({ disabled: picker(id).disabled, options: Array.from(picker(id).options, option => option.text), selected: picker(id).options[picker(id).selectedIndex]?.text });
+		const state = (id: string) => ({ disabled: picker(id).disabled, dimmed: picker(id).closest('.remotes-sandbox-profile-picker')!.classList.contains('disabled'), title: picker(id).title, options: Array.from(picker(id).options, option => option.text), selected: picker(id).options[picker(id).selectedIndex]?.text });
 		const listed = state('tunnel:laptop');
 		picker('tunnel:laptop').selectedIndex = 1;
 		picker('tunnel:laptop').dispatchEvent(new Event('change'));
@@ -2068,11 +2068,11 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({
 			listed, assigned, cleared: laptop.values[AgentHostSandboxConfigKey.SandboxProfile], disconnected, unsupported: state('ssh:build'), connections: model.connectionChanges,
 		}, {
-			listed: { disabled: false, options: ['Default', 'Strict'], selected: 'Default' },
+			listed: { disabled: false, dimmed: false, title: '', options: ['Default', 'Strict'], selected: 'Default' },
 			assigned: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
 			cleared: {},
-			disconnected: { disabled: true, options: ['Default'], selected: 'Default' },
-			unsupported: { disabled: true, options: ['Default'], selected: 'Default' },
+			disconnected: { disabled: true, dimmed: true, title: '', options: ['Default'], selected: 'Default' },
+			unsupported: { disabled: true, dimmed: true, title: '', options: ['Default'], selected: 'Default' },
 			connections: [],
 		});
 	});

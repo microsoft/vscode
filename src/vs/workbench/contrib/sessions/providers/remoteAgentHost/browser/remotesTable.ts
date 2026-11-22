@@ -87,7 +87,7 @@ type RemoteCellTemplate = {
 } & (
 		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
-		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; options: readonly SandboxProfileOption[] }
+		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; readonly picker: HTMLElement; options: readonly SandboxProfileOption[] }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
@@ -369,10 +369,11 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		let template: RemoteCellTemplate;
 		switch (this.column) {
 			case 'sandboxProfile': {
-				const select = disposables.add(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { useCustomDrawn: true }));
+				const select = disposables.add(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { useCustomDrawn: true, hideSelectedOptionHover: true }));
 				// The select box draws its chevron at the right edge of the element it renders into, so give it its own sized container.
-				select.render(dom.append(container, dom.$('.remotes-sandbox-profile-picker')));
-				template = { ...base, column: 'sandboxProfile', select, options: [] };
+				const picker = dom.append(container, dom.$('.remotes-sandbox-profile-picker'));
+				select.render(picker);
+				template = { ...base, column: 'sandboxProfile', select, picker, options: [] };
 				disposables.add(select.onDidSelect(({ index }) => {
 					if (template.row?.entry.type === 'remote' && template.column === 'sandboxProfile') {
 						this.onDidSelectSandboxProfile(template.row.entry.remote.id, template.options[index]);
@@ -536,6 +537,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					const { id, name } = entry.remote;
 					const hostWatch = template.elementDisposables.add(new MutableDisposable<DisposableStore>());
 					let connection: IAgentConnection | undefined;
+					let tooltip = '';
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.picker, () => ({ content: tooltip, style: HoverStyle.Pointer }), { groupId: this.hoverGroupId }));
 					const refresh = () => {
 						const current = this.connections.getConnectionByAddress(id);
 						if (current !== connection) {
@@ -568,6 +571,14 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						template.options = options;
 						template.select.setOptions(items, selected);
 						template.select.setEnabled(supported);
+						template.picker.classList.toggle('disabled', !supported);
+						tooltip = supported
+							? localize('remotes.sandboxProfileTooltip', "Sandbox profile for new sessions on {0}: {1}", name, items[selected]?.text ?? '')
+							: connection
+								? localize('remotes.sandboxProfileUnsupportedTooltip', "The server on {0} doesn't support sandbox profiles yet. It needs a newer server version.", name)
+								: assigned
+									? localize('remotes.sandboxProfileLastKnownTooltip', "Last known sandbox profile: {0}. Connect to {1} to refresh or change it.", assigned.name, name)
+									: localize('remotes.sandboxProfileUnavailableTooltip', "Connect to {0} to choose a sandbox profile.", name);
 						template.select.setAriaLabel(supported
 							? localize('remotes.selectSandboxProfile', "Sandbox profile for {0}", name)
 							: connection

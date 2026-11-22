@@ -937,6 +937,15 @@
 	min-width: 0;
 }
 
+.remotes-widget .remotes-sandbox-profile-picker.disabled {
+	opacity: 0.6;
+}
+
+/* A disabled select swallows pointer events; let the picker receive them so its hover explains why. */
+.remotes-widget .remotes-sandbox-profile-picker.disabled .monaco-select-box {
+	pointer-events: none;
+}
+
 .remotes-widget .remotes-sandboxProfile-column .monaco-select-box {
 	width: 100%;
 	height: 22px;
