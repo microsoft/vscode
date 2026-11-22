@@ -7,6 +7,7 @@ import { Limiter } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -74,7 +75,7 @@ export class SendInstructionToChatsAction extends Action2 {
 		const progressService = accessor.get(IProgressService);
 		const preselected = context
 			? Array.isArray(context) ? context.map(session => session.mainChat.get())
-				: 'chat' in context ? [context.chat] : [context.mainChat.get()]
+				: hasKey(context, { session: true, chat: true }) ? [context.chat] : [context.mainChat.get()]
 			: [];
 		const targets = new Map<string, IChatTarget>();
 		for (const session of management.getSessions()) {
@@ -99,7 +100,8 @@ export class SendInstructionToChatsAction extends Action2 {
 		}
 		const selected = await quickInput.pick([...targets.values()], {
 			title: localize('selectInstructionTargets', "Select Chats for a Shared Instruction"),
-			placeHolder: localize('selectInstructionTargetsPlaceholder', "Choose agent chats or automation-run chats; busy and unavailable chats are excluded"),
+			placeHolder: localize('selectInstructionTargetsPlaceholder', "Select agent chats or automation-run chats"),
+			prompt: localize('selectInstructionTargetsPrompt', "Only idle, connected, editable chats are shown."),
 			canPickMany: true,
 			matchOnDescription: true,
 			matchOnDetail: true,
@@ -109,7 +111,7 @@ export class SendInstructionToChatsAction extends Action2 {
 		}
 		const query = await quickInput.input({
 			title: localize('sharedInstructionTitle', "Send Instruction to {0} Chats", selected.length),
-			prompt: localize('sharedInstructionPrompt', "Press Enter to submit this exact instruction to all {0} selected chats using their existing permissions. Automation schedules are not changed.", selected.length),
+			prompt: localize('sharedInstructionPrompt', "This instruction will be submitted to all {0} selected chats using their existing permissions. Automation schedules are not changed.", selected.length),
 			validateInput: async value => value.trim() ? undefined : localize('emptySharedInstruction', "Enter an instruction."),
 		});
 		if (query === undefined) {
