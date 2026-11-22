@@ -142,6 +142,7 @@ suite('SessionsList - focused row styles', () => {
 				showNavigationShortcuts: () => separateNavigation,
 				navigationContainer,
 				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled: constObservable(true),
 					entries: constObservable([plan]),
 					selected: constObservable(plan),
 					show: async () => { },

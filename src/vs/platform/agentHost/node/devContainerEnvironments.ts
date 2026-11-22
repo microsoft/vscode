@@ -8,7 +8,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
-import { devContainerEnvironmentImages, IDevContainerEnvironmentSource, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
+import { devContainerEnvironmentImages, devContainerEnvironmentVolumeTarget as volumeTarget, getDevContainerEnvironmentWorkspaceFolder, IDevContainerEnvironmentSource, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
@@ -23,8 +23,6 @@ export const devContainerVolumeLabel = 'dev.container.volume';
 /** Id labels that the Dev Containers extension gives the container of a folder in a Docker volume. */
 export const devContainerVolumeNameLabel = 'vsc.devcontainer.volume.name';
 export const devContainerVolumeFolderLabel = 'vsc.devcontainer.volume.folder';
-/** Where the volume is mounted, so its folders are under /workspaces, as for New Dev Container. */
-const volumeTarget = '/workspaces';
 /** Smoke tests point the Agent Host in an environment's container at their mock server with this JSON configuration. */
 const testConfigurationEnvironmentKey = 'VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG';
 
@@ -157,7 +155,7 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 	const volumeName = await findEnvironmentVolume(commands.docker, source.environmentId)
 		?? await createEnvironmentVolume(commands.docker, source.environmentId, source.image, existingVolumes);
 	const idLabels = getIdLabels(volumeName);
-	const workspace = `${volumeTarget}/${volumeName}`;
+	const workspace = getDevContainerEnvironmentWorkspaceFolder(volumeName);
 	const userStateMountArgs: string[] = [];
 	if (persistUserState) {
 		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
@@ -222,6 +220,12 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 		}
 	}
 	return { containerId: result.containerId, remoteWorkspaceFolder: workspace, cliArgs };
+}
+
+/** Whether the Docker engine has a volume of the environment, whose identifier is unique, so it is the engine of the environment's host. */
+export async function hasDevContainerEnvironmentVolume(environmentId: string, docker: DockerCommand): Promise<boolean> {
+	validateEnvironmentId(environmentId);
+	return (await listVolumes(docker, [`${devContainerEnvironmentLabel}=${environmentId}`])).length > 0;
 }
 
 /**
