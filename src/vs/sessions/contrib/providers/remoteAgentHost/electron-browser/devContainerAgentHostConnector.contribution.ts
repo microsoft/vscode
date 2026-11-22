@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -23,12 +24,12 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
@@ -449,6 +450,15 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		return this._mainService.isDockerAvailable();
 	}
 
+	/** Whether this computer's Docker engine has the environment's volume; a lookup that fails or stalls counts as no. */
+	private async _hasLocalEnvironmentVolume(environmentId: string, token: CancellationToken): Promise<boolean> {
+		const lookup = (this._mainService.hasEnvironmentVolume?.(environmentId) ?? Promise.resolve(false)).catch(error => {
+			this._logService.warn('[DevContainerAgentHostConnector] Failed to look up the environment volume on this computer', error);
+			return false;
+		});
+		return await raceCancellationError(raceTimeout(lookup, DevContainerEnvironmentVolumeLookupTimeoutMs), token) ?? false;
+	}
+
 	getEnvironment(workspaceUris: readonly URI[]): Promise<DevContainerEnvironment> {
 		return getDevContainerEnvironment(workspaceUris, this._fileService, this._mainService);
 	}
@@ -600,6 +610,11 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			// Dev Containers opens an environment's volume in this computer's Docker engine, which is a WSL distribution's only
+			// when it has the volume, as with Docker Desktop.
+			const volumeOnLocalDockerEngine = environment && sourceEntry?.connection.type === RemoteAgentHostEntryType.WSL
+				? await this._hasLocalEnvironmentVolume(environment.environmentId, token)
+				: undefined;
 
 			let seed = true;
 			const establish = async (): Promise<IRelayConnectionHandle> => {
@@ -668,6 +683,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				name: result.name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				volumeOnLocalDockerEngine,
 				sandboxSupported: result.sandboxSupported,
 				clientCertificates: remoteService ? undefined : {
 					isEnabled: () => result.sharesClientNetwork === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
