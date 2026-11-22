@@ -761,18 +761,66 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 			const topSessions = result.filter((r): r is IAgentSession => !isAgentSessionSection(r));
 
-			// Pinned sessions come first, then up to 3 non-pinned (NeedsInput + s1 both fit in cap)
 			assert.deepStrictEqual(topSessions.map(s => s.label), [
 				'Session pinned1',
 				'Session pinned2',
 				'Session pinned3',
 				'Session needs-input',
-				'Session s1',
 			]);
 
-			// All non-pinned fit within cap of 3, so no More section
 			const moreSection = sections.find(s => s.section === AgentSessionSection.More);
-			assert.strictEqual(moreSection, undefined);
+			assert.deepStrictEqual(moreSection?.sessions.map(s => s.label), ['Session s1']);
+		});
+
+		test('capped grouping keeps every active session visible and retains inactive history', (): void => {
+			const sessions: IAgentSession[] = [
+				createMockSession({ id: 'completed', startTime: 10 }),
+				createMockSession({ id: 'failed', status: ChatSessionStatus.Failed, startTime: 9 }),
+				createMockSession({ id: 'running', status: ChatSessionStatus.InProgress, startTime: 8 }),
+				...Array.from({ length: 4 }, (_, index: number): IAgentSession => createMockSession({
+					id: `approval-${index}`, status: ChatSessionStatus.NeedsInput, startTime: 7 - index,
+				})),
+				createMockSession({ id: 'pinned', isPinned: true, startTime: 2 }),
+				createMockSession({ id: 'archived-approval', isArchived: true, status: ChatSessionStatus.NeedsInput, startTime: 1 }),
+			];
+			const filter: IAgentSessionsFilter = createMockFilter({ groupBy: AgentSessionsGrouping.Capped });
+			const dataSource: AgentSessionsDataSource = disposables.add(new AgentSessionsDataSource(filter, new AgentSessionsSorter()));
+			const result: AgentSessionListItem[] = Array.from(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(result.map((item: AgentSessionListItem): string | { section: AgentSessionSection; sessions: string[] } | undefined => isAgentSessionSection(item) ? {
+				section: item.section, sessions: item.sessions.map((session: IAgentSession): string => session.label),
+			} : isAgentSession(item) ? item.label : undefined), [
+				'Session pinned',
+				'Session approval-0',
+				'Session approval-1',
+				'Session approval-2',
+				'Session approval-3',
+				'Session running',
+				{ section: AgentSessionSection.More, sessions: ['Session completed', 'Session failed', 'Session archived-approval'] },
+			]);
+		});
+
+		test('capped grouping updates visibility through repeated long-session state changes', (): void => {
+			const history: IAgentSession[] = Array.from({ length: 1000 }, (_, index: number): IAgentSession => createMockSession({
+				id: `history-${index}`, startTime: 2000 - index,
+			}));
+			let status: ChatSessionStatus = ChatSessionStatus.InProgress;
+			const active: IAgentSession[] = Array.from({ length: 4 }, (_, index: number): IAgentSession => ({
+				...createMockSession({ id: `active-${index}`, startTime: 4 - index }),
+				get status(): ChatSessionStatus { return status; },
+			}));
+			const filter: IAgentSessionsFilter = createMockFilter({ groupBy: AgentSessionsGrouping.Capped });
+			const dataSource: AgentSessionsDataSource = disposables.add(new AgentSessionsDataSource(filter, new AgentSessionsSorter()));
+			const model: IAgentSessionsModel = createMockModel([...history, ...active]);
+			for (let turn: number = 0; turn < 100; turn++) {
+				status = turn === 99 ? ChatSessionStatus.Completed : turn % 2 === 0 ? ChatSessionStatus.InProgress : ChatSessionStatus.NeedsInput;
+				const result: AgentSessionListItem[] = Array.from(dataSource.getChildren(model));
+				const visible: string[] = result.filter(isAgentSession).map((session: IAgentSession): string => session.label);
+				const historyCount: number = getSectionsFromResult(result).reduce((count: number, section: IAgentSessionSection): number => count + section.sessions.length, 0);
+				assert.deepStrictEqual({ visible, historyCount }, turn === 99
+					? { visible: ['Session history-0', 'Session history-1', 'Session history-2'], historyCount: 1001 }
+					: { visible: ['Session active-0', 'Session active-1', 'Session active-2', 'Session active-3'], historyCount: 1000 });
+			}
 		});
 	});
 

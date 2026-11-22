@@ -1427,24 +1427,24 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	private groupSessionsCapped(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
-		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
-		const nonArchivedSessions = sortedSessions.slice(0, nonArchivedCount);
-		const archivedSessions = sortedSessions.slice(nonArchivedCount);
+		const nonArchivedSessions: IAgentSession[] = sortedSessions.filter((session: IAgentSession): boolean => !session.isArchived());
+		const archivedSessions: IAgentSession[] = sortedSessions.filter((session: IAgentSession): boolean => session.isArchived());
 
 		// All pinned sessions are always visible
-		const pinnedSessions = nonArchivedSessions.filter(session => session.isPinned());
-		const unpinnedSessions = nonArchivedSessions.filter(session => !session.isPinned());
+		const pinnedSessions: IAgentSession[] = nonArchivedSessions.filter((session: IAgentSession): boolean => session.isPinned());
+		const unpinnedSessions: IAgentSession[] = nonArchivedSessions.filter((session: IAgentSession): boolean => !session.isPinned());
 
-		// Take up to N non-pinned sessions from the sorted order (preserves NeedsInput prioritization)
-		const topUnpinned = unpinnedSessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
-		const remainingUnpinned = unpinnedSessions.slice(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+		const activeSessions: IAgentSession[] = unpinnedSessions.filter((session: IAgentSession): boolean => isSessionInProgressStatus(session.status));
+		const inactiveSessions: IAgentSession[] = unpinnedSessions.filter((session: IAgentSession): boolean => !isSessionInProgressStatus(session.status));
+		const hasActiveSessions: boolean = nonArchivedSessions.some((session: IAgentSession): boolean => isSessionInProgressStatus(session.status));
+		const recentSessions: IAgentSession[] = hasActiveSessions ? [] : inactiveSessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+		const remainingSessions: IAgentSession[] = inactiveSessions.slice(recentSessions.length);
 
-		// Add pinned first, then top N non-pinned
-		result.push(...pinnedSessions, ...topUnpinned);
+		// Never hide running sessions or pending approvals behind collapsed history.
+		result.push(...pinnedSessions, ...activeSessions, ...recentSessions);
 
-		// Add "More" section for the rest (remaining unpinned + archived)
-		const othersSessions = [...remainingUnpinned, ...archivedSessions];
+		// Keep inactive and archived history accessible in the collapsed More section.
+		const othersSessions: IAgentSession[] = [...remainingSessions, ...archivedSessions];
 		if (othersSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.More,
