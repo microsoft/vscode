@@ -107,6 +107,14 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		const editors = this.listCodeEditors();
 		for (const editor of editors) {
 
+			const domNode = editor.getDomNode();
+			if (!domNode || !domNode.isConnected) {
+				// A detached editor must never win focus-based command resolution,
+				// even if its internal focus state is stale.
+				// https://github.com/microsoft/vscode/issues/349616
+				continue;
+			}
+
 			if (editor.hasTextFocus()) {
 				// bingo!
 				return editor;
