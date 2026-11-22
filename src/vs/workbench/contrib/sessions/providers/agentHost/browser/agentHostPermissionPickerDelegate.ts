@@ -68,6 +68,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	];
 
 	readonly getSandboxToggleProvider = (): string | undefined => this._session.get()?.sessionType;
+	readonly getPermissionTarget = (): string | undefined => this._chat.get()?.resource.toString();
 
 	readonly isSandboxToggleApplicable = (): boolean => this.sandboxToggleSettingId.get() !== undefined;
 

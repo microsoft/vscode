@@ -4723,6 +4723,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return picker;
 					} else if (action.id === OpenPermissionPickerAction.ID && action instanceof MenuItemAction) {
 						const delegate: IPermissionPickerDelegate = {
+							getPermissionTarget: () => this.getCurrentSessionResource()?.toString(),
 							currentPermissionLevel: this._currentPermissionLevel,
 							setPermissionLevel: (level: ChatPermissionLevel) => {
 								this.setPermissionLevel(level);

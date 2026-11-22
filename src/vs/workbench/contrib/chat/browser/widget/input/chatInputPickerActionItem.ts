@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatInputPicker.css';
-import { $, addDisposableListener, EventType, getActiveWindow, getWindow, reset } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, reset } from '../../../../../../base/browser/dom.js';
+import { GestureEvent } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
@@ -18,6 +21,7 @@ import { IActionListOptions } from '../../../../../../platform/actionWidget/brow
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatExecuteActionContext } from '../../actions/chatExecuteActions.js';
 
 export interface IChatInputPickerOptions {
@@ -83,6 +87,17 @@ export function trackChatInputPickerFocus(container: HTMLElement): IDisposable {
 	store.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, () => container.classList.remove('pointer-focus'), true));
 	store.add(toDisposable(() => container.classList.remove('chat-input-picker-focus-scope', 'pointer-focus')));
 	return store;
+}
+
+export function renderChatInputPickerShortcut(container: HTMLElement, label: string, store: DisposableStore, run: () => Promise<void>): Button {
+	const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
+	button.element.classList.add('chat-input-permission-shortcut');
+	button.label = label;
+	store.add(button.onDidClick((event: MouseEvent | GestureEvent): void => {
+		EventHelper.stop(event, true);
+		void run().catch(onUnexpectedError);
+	}));
+	return button;
 }
 
 /**

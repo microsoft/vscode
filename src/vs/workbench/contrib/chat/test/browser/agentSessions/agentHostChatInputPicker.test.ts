@@ -397,6 +397,23 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}, { cloud: [OpenAgentHostModePickerAction.ID, OpenAgentHostAutoApprovePickerAction.ID], sessions: [], disabled: [], local: [] });
 	});
 
+	test('Allow all shortcut uses native session config in separate and combined pickers', async () => {
+		for (const combined of [false, true]) {
+			resetShownWarnings();
+			const rig = setupCloudDraft(combined);
+			await rig.sandboxReady();
+			const container: HTMLElement = combined ? rig.modeContainer : rig.permissionContainer;
+			const button: HTMLElement = container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
+			assert.strictEqual(button.style.display, '');
+			button.click();
+			await rig.sandboxReady();
+			assert.deepStrictEqual({
+				approvalMode: rig.chatSessionsService.getSessionOption(rig.resource, 'approvalMode'),
+				dropdowns: rig.actionWidget.showCount,
+			}, { approvalMode: 'allow-all', dropdowns: 0 });
+		}
+	});
+
 	test('the folder chip of worktree support shows for a local agent host chat in a local single-folder window, not for a remote agent host chat', () => {
 		const worktreeItem = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
 			.find(item => item.command.id === OpenAgentHostFolderPickerAction.ID && item.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));

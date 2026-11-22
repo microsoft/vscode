@@ -8,6 +8,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Delayer, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -59,7 +60,7 @@ import { IChatSessionsService, SessionType } from '../../../common/chatSessionsS
 import { disableGlobalAutoApproveForPermissionSelection, getOrganizationDefaultApprovalLevel, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
+import { renderChatInputPickerShortcut, withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -442,6 +443,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	private _container: HTMLElement | undefined;
 	private _trigger: HTMLElement | undefined;
+	private _allowAllButton: Button | undefined;
 	private _pickerVisible = false;
 	private _generic = false;
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
@@ -499,6 +501,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._register(toDisposable(() => {
 			this._container = undefined;
 			this._trigger = undefined;
+			this._allowAllButton = undefined;
 			this._splitTrigger.clear();
 			this._cancelInitialResolve();
 		}));
@@ -557,6 +560,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
+				this._refreshTrigger();
 			}
 			const sandboxSettingId = this._getSandboxSettingId();
 			if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)
@@ -832,6 +836,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 		this._trigger = undefined;
+		this._allowAllButton = undefined;
 		this._splitTrigger.clear();
 		this._renderDisposables.clear();
 		dom.clearNode(this._container);
@@ -874,6 +879,23 @@ export class AgentHostChatInputPicker extends Disposable {
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger).catch(onUnexpectedError), !!this._getModePickerPermissions());
 		this._trigger = trigger;
+		if (!this._generic && (this._property === SessionConfigKey.AutoApprove || this._getModePickerPermissions())) {
+			this._allowAllButton = renderChatInputPickerShortcut(slot, getApprovalLevelLabel(ChatPermissionLevel.AutoApprove), this._renderDisposables, async (): Promise<void> => {
+				const context: IConfigPickerContext | undefined = this._readContext(SessionConfigKey.AutoApprove);
+				if (!context || !this._canEdit(context)) {
+					throw new CancellationError();
+				}
+				const items: IActionListItem<IConfigPickerItem>[] = await this._getActionItems(SessionConfigKey.AutoApprove, context.schema, context.value);
+				if (!this._isCurrentTarget(context)) {
+					throw new CancellationError();
+				}
+				const item: IActionListItem<IConfigPickerItem> | undefined = items.find(item => item.item?.value === ChatPermissionLevel.AutoApprove);
+				if (!item?.item || item.disabled) {
+					throw new Error(localize('agentHostChatInputPicker.allowAllUnavailable', "Allow all is unavailable for this session."));
+				}
+				await this._selectItem(SessionConfigKey.AutoApprove, context, item.item);
+			});
+		}
 		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => {
 			const current = this._readContext();
 			return {
@@ -908,6 +930,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, resolving: boolean): void {
+		this._refreshAllowAllButton();
 		const previous = this._splitTrigger.value;
 		this._splitTrigger.clear();
 		trigger.parentElement?.classList.toggle('resolving', resolving);
@@ -962,6 +985,29 @@ export class AgentHostChatInputPicker extends Disposable {
 		const isStartedSession = !!sessionResource && !isUntitledChatSession(sessionResource);
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly, this._isChatConfigResolving(ctx));
+	}
+
+	private _refreshAllowAllButton(): void {
+		const button: Button | undefined = this._allowAllButton;
+		const context: IConfigPickerContext | undefined = this._readContext(SessionConfigKey.AutoApprove);
+		if (!button) {
+			return;
+		}
+		button.enabled = false;
+		if (!context) {
+			button.element.style.display = 'none';
+			return;
+		}
+		void this._getActionItems(SessionConfigKey.AutoApprove, context.schema, context.value).then((items: IActionListItem<IConfigPickerItem>[]): void => {
+			const current: IConfigPickerContext | undefined = this._readContext(SessionConfigKey.AutoApprove);
+			if (this._allowAllButton !== button || !current || !this._isCurrentTarget(context)) {
+				return;
+			}
+			const item: IActionListItem<IConfigPickerItem> | undefined = items.find(item => item.item?.value === ChatPermissionLevel.AutoApprove);
+			button.element.style.display = item ? '' : 'none';
+			button.enabled = !!item && !item.disabled && this._canEdit(current) && current.value !== ChatPermissionLevel.AutoApprove;
+			button.element.title = item?.ariaDescription ?? localize('agentHostChatInputPicker.allowAllSession', "Allow all tools in this session");
+		}).catch(onUnexpectedError);
 	}
 
 	private _isSandboxed(): boolean {

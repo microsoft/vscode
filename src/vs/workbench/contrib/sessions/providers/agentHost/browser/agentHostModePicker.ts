@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
@@ -37,7 +38,8 @@ import { getAgentHostModeIcon } from './agentHostModeIcon.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerTrigger, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { renderChatInputPickerShortcut } from '../../../../chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 
 export interface IAgentHostSessionEnumPickerItem {
@@ -390,6 +392,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 
 	private readonly _splitTrigger = this._register(new MutableDisposable<IModePickerTrigger>());
+	private readonly _shortcutDisposables = this._register(new DisposableStore());
+	private _allowAllButton: Button | undefined;
 	private readonly _permissionDelegate: AgentHostPermissionPickerDelegate;
 	private readonly _permissionPicker: PermissionPicker;
 	protected readonly _property = SessionConfigKey.Mode;
@@ -415,6 +419,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			source.chat.read(reader);
 			this._permissionDelegate.isModePickerCombined.read(reader);
 			this._permissionDelegate.currentPermissionLevel.read(reader);
+			this._permissionDelegate.unavailableLevels.read(reader);
 			this._permissionDelegate.isResolving.read(reader);
 			this._permissionDelegate.sandboxToggleSettingId.read(reader);
 			this._permissionDelegate.managedSandboxEnforced.read(reader);
@@ -431,6 +436,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
+				this._updateTrigger();
 			}
 			if (this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
 				this._updateTrigger();
@@ -439,6 +445,29 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _renderTriggerLabel(trigger: HTMLElement, label: string, icon: ThemeIcon | undefined): void {
+		const slot: HTMLElement | null = trigger.parentElement;
+		if (slot && !this._allowAllButton) {
+			this._allowAllButton = renderChatInputPickerShortcut(slot, localize('agentHostModePicker.allowAll', "Allow all"), this._shortcutDisposables, async (): Promise<void> => {
+				const session: ISession | undefined = this._session.get();
+				const chat: IChat | undefined = this._chat.get();
+				const action: IAction | undefined = this._permissionPicker.getActionListItems(() => this._session.get() === session && this._chat.get() === chat)
+					.find(item => item.item?.id === `permissionPicker.${ChatPermissionLevel.AutoApprove}`)?.item;
+				if (!action?.enabled) {
+					throw new Error(localize('agentHostModePicker.allowAllUnavailable', "Allow all is unavailable for this session."));
+				}
+				await action.run();
+			});
+		}
+		if (this._allowAllButton) {
+			if (slot && this._allowAllButton.element.parentElement !== slot) {
+				slot.appendChild(this._allowAllButton.element);
+			}
+			const item: IActionListItem<IAction> | undefined = this._permissionPicker.getActionListItems()
+				.find(item => item.item?.id === `permissionPicker.${ChatPermissionLevel.AutoApprove}`);
+			this._allowAllButton.element.style.display = this._permissionDelegate.isModePickerCombined.get() && item ? '' : 'none';
+			this._allowAllButton.enabled = !!item?.item?.enabled && !item.item.checked && !this._permissionDelegate.isResolving.get();
+			this._allowAllButton.element.title = item?.ariaDescription ?? localize('agentHostModePicker.allowAllSession', "Allow all tools in this session");
+		}
 		const previous = this._splitTrigger.value;
 		this._splitTrigger.clear();
 		if (this._permissionDelegate.isModePickerCombined.get()) {

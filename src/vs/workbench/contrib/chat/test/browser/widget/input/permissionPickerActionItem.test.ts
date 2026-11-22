@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { stub } from 'sinon';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -17,6 +18,7 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -26,9 +28,11 @@ import { ChatConfiguration, ChatPermissionLevel } from '../../../../common/const
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { PermissionPickerActionItem } from '../../../../browser/widget/input/permissionPickerActionItem.js';
 import { IUnavailablePermissionLevel } from '../../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { resetShownWarnings } from '../../../../common/chatPermissionWarnings.js';
 
 suite('PermissionPickerActionItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => resetShownWarnings());
 
 	function setup(enabled: boolean, supported: boolean | undefined, managed = false) {
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', enabled);
@@ -166,6 +170,8 @@ suite('PermissionPickerActionItem', () => {
 	function setupPolicy(options: { readonly availableLevels?: readonly ChatPermissionLevel[]; readonly unavailableLevels?: readonly IUnavailablePermissionLevel[]; readonly legacyRestricted?: boolean }) {
 		const unavailableLevels = observableValue<readonly IUnavailablePermissionLevel[]>('unavailableLevels', options.unavailableLevels ?? []);
 		const writes: ChatPermissionLevel[] = [];
+		const target = { value: 'session-1' };
+		const dialog = new TestDialogService(undefined, { result: true });
 		let items: readonly IActionListItem<IActionWidgetDropdownAction>[] = [];
 		let hides = 0;
 		const widgetService = new class extends mock<IActionWidgetService>() {
@@ -186,6 +192,7 @@ suite('PermissionPickerActionItem', () => {
 		const picker = store.add(new PermissionPickerActionItem(
 			action,
 			{
+				getPermissionTarget: () => target.value,
 				currentPermissionLevel: constObservable(ChatPermissionLevel.Default),
 				setPermissionLevel: level => { writes.push(level); },
 				get availableLevels() { return options.availableLevels?.filter(level => !unavailableLevels.get().some(entry => entry.level === level)); },
@@ -197,12 +204,13 @@ suite('PermissionPickerActionItem', () => {
 			new MockContextKeyService(),
 			NullTelemetryService,
 			configuration,
-			new class extends mock<IDialogService>() { }(),
+			dialog,
 			new class extends mock<IOpenerService>() { }(),
 			store.add(new InMemoryStorageService()),
 			{ ...NullHoverService },
 		));
-		picker.render(document.createElement('div'));
+		const container = document.createElement('div');
+		picker.render(container);
 		const read = () => items.filter(item => item.item?.id.startsWith('chat.permissions.') && !['chat.permissions.sandbox', 'chat.permissions.learnMore'].includes(item.item.id)).map(item => ({
 			label: item.label,
 			badge: item.badge,
@@ -210,8 +218,50 @@ suite('PermissionPickerActionItem', () => {
 			description: typeof item.description === 'object' ? item.description.value : item.description,
 			ariaDescription: item.ariaDescription,
 		}));
-		return { picker, unavailableLevels, writes, read, items: () => items, hides: () => hides };
+		return { picker, container, dialog, target, unavailableLevels, writes, read, items: () => items, hides: () => hides };
 	}
+
+	test('Allow all shortcut uses the permission warning without opening the dropdown', async () => {
+		const fixture = setupPolicy({});
+		const warning = stub(fixture.dialog, 'prompt').resolves({ result: true });
+		store.add({ dispose: () => warning.restore() });
+		const button = fixture.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
+		assert.strictEqual(button.textContent, 'Allow all');
+		button.click();
+		await timeout(0);
+		assert.deepStrictEqual({ warnings: warning.callCount, writes: fixture.writes, dropdown: fixture.items().length }, {
+			warnings: 1, writes: [ChatPermissionLevel.AutoApprove], dropdown: 0,
+		});
+	});
+
+	test('Allow all shortcut respects cancellation and revalidates the session and host after the warning', async () => {
+		for (const outcome of ['cancel', 'session-switch', 'unavailable'] as const) {
+			resetShownWarnings();
+			const fixture = setupPolicy({ availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove] });
+			const warning = stub(fixture.dialog, 'prompt').callsFake(async () => {
+				if (outcome === 'session-switch') {
+					fixture.target.value = 'session-2';
+				} else if (outcome === 'unavailable') {
+					fixture.unavailableLevels.set([{ level: ChatPermissionLevel.AutoApprove, byPolicy: true }], undefined);
+				}
+				return { result: outcome !== 'cancel' };
+			});
+			store.add({ dispose: () => warning.restore() });
+			fixture.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!.click();
+			await timeout(0);
+			assert.deepStrictEqual(fixture.writes, [], outcome);
+		}
+	});
+
+	test('Allow all shortcut reflects host availability and stays hidden for unsupported levels', () => {
+		const fixture = setupPolicy({ availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove], unavailableLevels: [{ level: ChatPermissionLevel.AutoApprove, byPolicy: true }] });
+		const button = fixture.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
+		assert.strictEqual(button.ariaDisabled, 'true');
+		fixture.unavailableLevels.set([], undefined);
+		assert.strictEqual(button.ariaDisabled, 'false');
+		const unsupported = setupPolicy({ availableLevels: [ChatPermissionLevel.Default] });
+		assert.strictEqual(unsupported.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!.style.display, 'none');
+	});
 
 	const policy = {
 		badge: undefined,

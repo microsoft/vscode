@@ -230,6 +230,19 @@ suite('AgentHostModePicker', () => {
 		});
 	});
 
+	test('Allow all shortcut preserves confirmation and session-scoped config in the combined picker', async () => {
+		for (const confirmed of [false, true]) {
+			resetShownWarnings();
+			const rig = setup(true, confirmed);
+			const button: HTMLElement = rig.trigger.parentElement!.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
+			assert.strictEqual(button.style.display, '');
+			button.click();
+			await timeout(0);
+			assert.deepStrictEqual(rig.writes, confirmed ? [{ session: 'test-session', property: 'autoApprove', value: 'autoApprove' }] : []);
+			assert.strictEqual(rig.actionWidget.isVisible, false);
+		}
+	});
+
 	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
 		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
 		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');

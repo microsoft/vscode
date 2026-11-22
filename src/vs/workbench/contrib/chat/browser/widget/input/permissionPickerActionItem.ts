@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -25,7 +26,7 @@ import { MenuItemAction } from '../../../../../../platform/actions/common/action
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { ChatInputPickerActionViewItem, IChatInputPickerOptions, renderChatInputPickerShortcut } from './chatInputPickerActionItem.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -43,6 +44,8 @@ export interface IExtensionPermissionState {
 }
 
 export interface IPermissionPickerDelegate {
+	/** Keeps an asynchronous warning scoped to the chat that opened it. */
+	readonly getPermissionTarget?: () => string | undefined;
 	readonly isPolicyRestricted?: () => boolean;
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly setPermissionLevel: (level: ChatPermissionLevel) => void;
@@ -165,6 +168,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private _hoverElement: HTMLElement | undefined;
 	private readonly _hover = this._register(new MutableDisposable<IDisposable>());
 	private _sandboxTogglePresentation: IActionListItemInlineToggle | undefined;
+	private readonly _shortcutDisposables = this._register(new DisposableStore());
+	private _allowAllButton: Button | undefined;
+	private readonly _actionProvider: IActionWidgetDropdownActionProvider;
 
 	constructor(
 		action: MenuItemAction,
@@ -189,7 +195,11 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			const legacyPolicy = isAutoApprovePolicyRestricted();
 			return legacyPolicy || withheld ? getPermissionLevelUnavailablePresentation(legacyPolicy || withheld?.byPolicy === true) : undefined;
 		};
-		const isUnavailable = (level: ChatPermissionLevel) => !!getUnavailablePresentation(level);
+		const isUnavailable = (level: ChatPermissionLevel): boolean => !!getUnavailablePresentation(level)
+			|| delegate.isResolving?.get() === true
+			|| delegate.isApplicable?.get() === false
+			|| !!delegate.getExtensionPermissions?.()?.items.length
+			|| !getOfferedPermissionLevels(delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS, delegate.unavailableLevels?.get()).includes(level);
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead
@@ -270,6 +280,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							content: hover,
 						},
 						run: async () => {
+							const target: string | undefined = delegate.getPermissionTarget?.();
 							if (isUnavailable(level)) {
 								return;
 							}
@@ -280,7 +291,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							})) {
 								return;
 							}
-							if (isUnavailable(level)) {
+							if (isUnavailable(level) || target !== delegate.getPermissionTarget?.()) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
@@ -327,10 +338,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
 			listOptions: { minWidth: 255, detailItemHeight: 44, ...pickerOptions.listOptions },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		this._actionProvider = actionProvider;
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this.hide();
+				this.refresh();
 			}
 			const settingId = this.getSandboxToggleSettingId();
 			const affectsSandboxToggle = (settingId !== undefined && e.affectsConfiguration(settingId))
@@ -348,6 +361,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			if (!equalsUnavailablePermissionLevels(levels, unavailableLevels)) {
 				unavailableLevels = levels;
 				this.hide();
+				this.refresh();
 			}
 		}));
 		let sandboxSettingId: string | undefined;
@@ -474,7 +488,36 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			this._hoverElement = element;
 			this._hover.value = this.hoverService.setupDelayedHover(element, () => ({ content: this._currentTooltip }));
 		}
+		this.updateAllowAllButton();
 		return null;
+	}
+
+	override render(container: HTMLElement): void {
+		this._allowAllButton = undefined;
+		this._shortcutDisposables.clear();
+		super.render(container);
+		this._allowAllButton = renderChatInputPickerShortcut(container, getPermissionLevelMeta(ChatPermissionLevel.AutoApprove).label, this._shortcutDisposables, async (): Promise<void> => {
+			const action: IActionWidgetDropdownAction | undefined = this.getAllowAllAction();
+			if (action?.enabled && !action.checked && this.delegate.isResolving?.get() !== true) {
+				await action.run();
+			}
+		});
+		this.updateAllowAllButton();
+	}
+
+	private getAllowAllAction(): IActionWidgetDropdownAction | undefined {
+		return this._actionProvider.getActions().find(action => action.id === getPermissionLevelMeta(ChatPermissionLevel.AutoApprove).id);
+	}
+
+	private updateAllowAllButton(): void {
+		const button: Button | undefined = this._allowAllButton;
+		if (!button) {
+			return;
+		}
+		const action: IActionWidgetDropdownAction | undefined = this.getAllowAllAction();
+		button.element.style.display = action && !this.pickerOptions.compact.get() ? '' : 'none';
+		button.enabled = !!action?.enabled && !action.checked && this.delegate.isResolving?.get() !== true && this.delegate.isApplicable?.get() !== false;
+		button.element.title = action?.ariaDescription ?? localize('permissions.allowAll.session', "Allow all tools in this session");
 	}
 
 	public refresh(): void {
