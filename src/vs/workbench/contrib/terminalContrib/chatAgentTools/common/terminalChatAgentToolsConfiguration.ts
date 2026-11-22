@@ -287,6 +287,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxProfilesEnabled]: {
+		included: false,
 		type: 'boolean',
 		default: false,
 		tags: ['experimental', 'chatPermissions'],
