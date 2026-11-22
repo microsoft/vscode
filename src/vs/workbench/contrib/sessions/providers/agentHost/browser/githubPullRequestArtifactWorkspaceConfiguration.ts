@@ -13,7 +13,7 @@ import { gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorksp
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { FOLDER_SETTINGS_PATH } from '../../../../../services/configuration/common/configuration.js';
 import { ArtifactWorkspaceConfigurationSynchronizer } from './agentHostArtifactIntegrations.js';
@@ -26,6 +26,9 @@ type WorkspaceSettings = { readonly chat: string; readonly workingDirectory: str
  * that floods the session's channel.
  */
 export const gitHubPullRequestArtifactWorkspaceSettingsPublishDelay = 250;
+
+/** How long to wait before reading a folder's settings again after they could not be read. */
+export const gitHubPullRequestArtifactFolderSettingsRetryDelay = 10_000;
 
 /**
  * Mirrors the workspace value of {@link gitHubPullRequestMarkReadyIgnoredChecksSetting} into the session configuration
@@ -48,11 +51,22 @@ export class GitHubPullRequestArtifactWorkspaceConfiguration {
 		const reading = observableValue('readingFolderSettings', false);
 		const settingsKey = gitHubPullRequestArtifactWorkspaceSettingsKey(artifactId);
 		const resync = observableSignal(store);
-		const folder = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => workspace.read(reader)?.resource);
-		// A configuration change also covers edits to the folder's settings while this window has the folder open.
+		const retry = observableSignal(store);
+		const retryRead = store.add(new RunOnceScheduler(() => retry.trigger(undefined), gitHubPullRequestArtifactFolderSettingsRetryDelay));
+		const settingsFile = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
+			const folder = workspace.read(reader)?.resource;
+			return folder && joinPath(folder, FOLDER_SETTINGS_PATH);
+		});
+		// Configuration change events only cover edits to the folder's settings while this window has the folder open.
+		const settingsFileChanged = derived(reader => {
+			const resource = settingsFile.read(reader);
+			return resource && observableSignalFromEvent(this, reader.store.add(this.fileService.createWatcher(resource, { recursive: false, excludes: [] })).onDidChange);
+		});
 		const folderIgnoredChecks = derived(reader => {
 			settingsChanged.read(reader);
-			const resource = folder.read(reader);
+			retry.read(reader);
+			settingsFileChanged.read(reader)?.read(reader);
+			const resource = settingsFile.read(reader);
 			return resource && new ObservablePromise(this.readFolderIgnoredChecks(resource));
 		});
 		const publish = store.add(new RunOnceScheduler(() => {
@@ -95,17 +109,23 @@ export class GitHubPullRequestArtifactWorkspaceConfiguration {
 				lastConnection = connection;
 				lastValue = undefined;
 			}
-			const folderValue = context && folderIgnoredChecks.read(reader)?.promiseResult.read(reader);
+			const read = context && folderIgnoredChecks.read(reader)?.promiseResult.read(reader);
+			const folderSettings = read?.data;
 			// Both change together, so that a released writer, which is kept while either is set, never sees both cleared in between.
 			transaction(tx => {
-				reading.set(!!context && !folderValue, tx);
-				if (context && !folderValue) {
-					// A value derived without the folder's settings could replace the folder's value on the host.
+				reading.set(!!context && !read, tx);
+				if (context && !folderSettings) {
+					// A value derived without the folder's settings could replace the folder's value on the host, so
+					// nothing is published until they are read, including again after a failed read.
 					pending.set(undefined, tx);
 					publish.cancel();
+					if (read && !retryRead.isScheduled()) {
+						retryRead.schedule();
+					}
 					return;
 				}
-				const ignoredChecks = folderValue && (folderValue.data ?? configurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting).workspaceValue);
+				retryRead.cancel();
+				const ignoredChecks = folderSettings && (folderSettings.ignoredChecks ?? configurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting).workspaceValue);
 				const value: WorkspaceSettings = context && ignoredChecks !== undefined ? { chat: context.chat, workingDirectory: context.workingDirectory, ignoredChecks } : null;
 				const current = pending.read(undefined);
 				if (structuralEquals(value, lastValue)) {
@@ -122,21 +142,29 @@ export class GitHubPullRequestArtifactWorkspaceConfiguration {
 	};
 
 	/**
-	 * The setting's value in a folder's own settings file. A window only loads the settings of the folders it has
-	 * open: the Agents window opens only the focused chat's folders, and an editor window rarely opens a session's
-	 * worktree, while the host keeps automating the artifact in either case.
+	 * The setting's value in a folder's settings file, or `undefined` when the file exists but could not be read. A
+	 * window only loads the settings of the folders it has open: the Agents window opens only the focused chat's
+	 * folders, and an editor window rarely opens a session's worktree, while the host keeps automating the artifact in
+	 * either case.
 	 */
-	private async readFolderIgnoredChecks(folder: URI): Promise<unknown> {
-		const resource = joinPath(folder, FOLDER_SETTINGS_PATH);
+	private async readFolderIgnoredChecks(resource: URI): Promise<{ readonly ignoredChecks: unknown } | undefined> {
+		// A window that cannot access the folder at all has no folder value, as when it has not opened the folder.
+		if (!await this.fileService.canHandleResource(resource)) {
+			return { ignoredChecks: undefined };
+		}
 		let content: string;
 		try {
 			content = (await this.fileService.readFile(resource)).value.toString();
 		} catch (error) {
-			this.logService.trace(`[GitHubPullRequestArtifact] No folder settings at ${resource.toString()}`, error);
+			const result = toFileOperationResult(error);
+			if (result === FileOperationResult.FILE_NOT_FOUND || result === FileOperationResult.FILE_NOT_DIRECTORY) {
+				return { ignoredChecks: undefined };
+			}
+			this.logService.warn(`[GitHubPullRequestArtifact] Could not read ${resource.toString()}`, error);
 			return undefined;
 		}
 		const parser = new ConfigurationModelParser(resource.toString(), this.logService);
 		parser.parse(content);
-		return parser.configurationModel.getValue(gitHubPullRequestMarkReadyIgnoredChecksSetting);
+		return { ignoredChecks: parser.configurationModel.getValue(gitHubPullRequestMarkReadyIgnoredChecksSetting) };
 	}
 }

@@ -36,7 +36,7 @@ import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue }
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileService, IFileSystemWatcher } from '../../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../chat/browser/actions/chatActions.js';
@@ -45,7 +45,7 @@ import { IChatEntitlementService } from '../../../../../../services/chat/common/
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { AgentHostArtifactIntegrations, createHostFacingArtifactAccess, IArtifactWorkspaceConfigurationContext, mapArtifactModelChats } from '../../browser/agentHostArtifactIntegrations.js';
-import { GitHubPullRequestArtifactWorkspaceConfiguration, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
+import { GitHubPullRequestArtifactWorkspaceConfiguration, gitHubPullRequestArtifactFolderSettingsRetryDelay, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
 import { createClientArtifactRuntime } from '../../../../browser/clientArtifactRuntime.js';
 
 suite('Agent Host artifact chat mapping', () => {
@@ -526,9 +526,17 @@ suite('Agent Host artifact workspace settings', () => {
 		}({ [ArtifactIntegrationsSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
-		const fileService = store.add(new FileService(new NullLogService()));
+		const settingsFileChanges = store.add(new Emitter<FileChangesEvent>());
+		let readError: Error | undefined;
+		const fileService = store.add(new class extends FileService {
+			// The in-memory provider reports no correlated changes, so the test reports changes to the settings file.
+			override createWatcher(): IFileSystemWatcher { return { onDidChange: settingsFileChanges.event, dispose: () => { } }; }
+			override readFile(...args: Parameters<FileService['readFile']>) { return readError ? Promise.reject(readError) : super.readFile(...args); }
+		}(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
-		await fileService.writeFile(URI.file('/repo/.vscode/settings.json'), VSBuffer.fromString(JSON.stringify({ [gitHubPullRequestMarkReadyIgnoredChecksSetting]: ['Folder *'] })));
+		const settingsFile = URI.file('/repo/.vscode/settings.json');
+		const writeFolderSettings = (ignoredChecks: readonly string[]) => fileService.writeFile(settingsFile, VSBuffer.fromString(JSON.stringify({ [gitHubPullRequestMarkReadyIgnoredChecksSetting]: ignoredChecks })));
+		await writeFolderSettings(['Folder *']);
 		instantiation.stub(IFileService, fileService);
 		instantiation.stub(IArtifactIntegrationRegistry, store.add(new ArtifactIntegrationRegistry()));
 		instantiation.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
@@ -574,6 +582,9 @@ suite('Agent Host artifact workspace settings', () => {
 		return {
 			integrations, connected, actions, patches,
 			setInspected: (value: IConfigurationValue<readonly string[]>) => { inspected = value; },
+			writeFolderSettings,
+			changeSettingsFile: () => settingsFileChanges.fire(new FileChangesEvent([{ resource: settingsFile, type: FileChangeType.UPDATED }], false)),
+			failReads: (error: Error | undefined) => { readError = error; },
 			workspace: (workingDirectory: string) => observableValue<IArtifactWorkspaceConfigurationContext | undefined>('workspace', { chat: 'chat', workingDirectory, resource: URI.file('/repo') }),
 			patch: (workingDirectory: string | null, ignoredChecks = ['Folder *']) => ({ channel: 'session', config: { [key]: workingDirectory === null ? null : { chat: 'chat', workingDirectory, ignoredChecks } } }),
 			replaceSessionConfig: (channel: string) => actions.fire({ channel, serverSeq: 1, origin: undefined, action: { type: ActionType.SessionConfigChanged, config: {}, replace: true } }),
@@ -611,6 +622,30 @@ suite('Agent Host artifact workspace settings', () => {
 		workspace.set({ chat: 'chat', workingDirectory: 'file:///worktree', resource: URI.file('/worktree') }, undefined);
 		await f.settle();
 		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///worktree', ['Workspace *'])]);
+	}));
+
+	test('republishes the working directory\'s settings when its settings file changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///repo')));
+		await f.settle();
+		await f.writeFolderSettings(['Edited *']);
+		f.changeSettingsFile();
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo', ['Edited *'])]);
+	}));
+
+	test('publishes no fallback while the working directory\'s settings cannot be read, and reads them again later', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///repo')));
+		await f.settle();
+		f.failReads(new FileOperationError('Permission denied', FileOperationResult.FILE_PERMISSION_DENIED));
+		f.changeSettingsFile();
+		await f.settle();
+		f.failReads(undefined);
+		await f.writeFolderSettings(['Edited *']);
+		await timeout(gitHubPullRequestArtifactFolderSettingsRetryDelay);
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo', ['Edited *'])]);
 	}));
 
 	test('publishes one context for all live references to an artifact, from the most recently acquired one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
