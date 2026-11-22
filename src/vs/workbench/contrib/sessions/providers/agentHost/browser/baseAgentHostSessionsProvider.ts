@@ -51,7 +51,7 @@ import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../.
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, mergeChatConfigChain, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateChatConfigWrite, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, readChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId, toAgentHostChatHarness } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
@@ -5104,7 +5104,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			this._sensitiveEditLocationsBySession.clear();
 			for (const cached of this._sessionCache.values()) {
-				this._syncSensitiveEditLocations(cached);
+				this._syncSensitiveEditLocations(cached, 'replace');
 			}
 		}));
 		this._register(this._baseConfigurationService.onDidChangeConfiguration(event => {
@@ -6352,7 +6352,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 	}
 
-	private _syncSensitiveEditLocations(session: AgentHostSessionAdapter): void {
+	/**
+	 * Asserts this client's sensitive-edit locations on the session. Other clients of the session can compute different
+	 * locations from their settings: `ensure` only adds this client's missing locations to theirs, so clients that disagree
+	 * settle on their union instead of overwriting each other. `replace` sets exactly this client's locations, to drop
+	 * those it no longer protects; other clients add theirs back once.
+	 */
+	private _syncSensitiveEditLocations(session: AgentHostSessionAdapter, mode: 'ensure' | 'replace'): void {
 		const connection = this.connection;
 		const config = this._runningSessionConfigs.get(session.sessionId);
 		if (!connection || !config?.schema.properties[SessionConfigKey.SensitiveEditLocations]) {
@@ -6368,8 +6374,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			computed = { folders, locations: this._getSensitiveEditLocations(workspace) };
 			this._sensitiveEditLocationsBySession.set(session.sessionId, computed);
 		}
-		const desired = computed.locations;
 		const current = config.values[SessionConfigKey.SensitiveEditLocations];
+		const desired = mode === 'replace' ? computed.locations : mergeChatSensitiveEditLocations(readChatSensitiveEditLocations(current), computed.locations);
 		if (equals(current, desired) || (current === undefined && desired.length === 0)) {
 			return;
 		}
@@ -9242,7 +9248,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${chatId}' not found`);
 		}
-		this._syncSensitiveEditLocations(cached);
+		this._syncSensitiveEditLocations(cached, 'ensure');
 
 		const { query, attachedContext } = options;
 		const sessionType = chatResource.scheme;
@@ -10308,7 +10314,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const rawId = this._sessionKeyFromChatId(sessionId);
 			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 			if (cached) {
-				this._syncSensitiveEditLocations(cached);
+				this._syncSensitiveEditLocations(cached, 'ensure');
 			}
 			return;
 		}
@@ -10318,7 +10324,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached) {
-			this._syncSensitiveEditLocations(cached);
+			this._syncSensitiveEditLocations(cached, existing ? 'ensure' : 'replace');
 		}
 	}
 
