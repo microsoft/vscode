@@ -109,3 +109,6 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	 */
 	hasEnvironmentVolume?(environmentId: string): Promise<boolean>;
 }
+
+/** How long {@link IDevContainerAgentHostMainService.hasEnvironmentVolume} may take before a stalled Docker engine counts as not having the volume. */
+export const DevContainerEnvironmentVolumeLookupTimeoutMs = 10_000;

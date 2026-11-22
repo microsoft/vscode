@@ -33,7 +33,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
@@ -1293,12 +1293,18 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		if (!await this.isDockerAvailable()) {
 			return false;
 		}
+		// A stalled Docker engine must not keep the caller's connection waiting.
+		const tokenSource = new CancellationTokenSource();
+		const timer = setTimeout(() => tokenSource.cancel(), DevContainerEnvironmentVolumeLookupTimeoutMs);
 		try {
-			return await hasDevContainerEnvironmentVolume(environmentId, args => this._runDocker(args));
+			return await hasDevContainerEnvironmentVolume(environmentId, args => this._runDocker(args, tokenSource.token));
 		} catch (error) {
-			// For example, the Docker engine is not running.
+			// For example, the Docker engine is not running or did not answer in time.
 			this._logService.trace(`${LOG_PREFIX} Could not list the volumes of environment ${environmentId}`, error);
 			return false;
+		} finally {
+			clearTimeout(timer);
+			tokenSource.dispose();
 		}
 	}
 
