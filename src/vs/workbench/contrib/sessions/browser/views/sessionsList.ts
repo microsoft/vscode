@@ -163,8 +163,10 @@ const $ = DOM.$;
 const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
-/** Prefixes the navigation rows of canvases pinned to the sidebar. */
+/** Prefixes the rows of canvases pinned to the sidebar, which the Canvases section lists. */
 const PINNED_CANVAS_SECTION_PREFIX = 'pinnedCanvas:';
+/** The section that lists pinned canvases and starts sessions with a new canvas. Its type keys its header actions. */
+export const CANVASES_SECTION_ID = 'canvases';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 /** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
 const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
@@ -200,6 +202,8 @@ export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions
 export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
 /** Controls whether the rows within a section are indented to show their hierarchy below the section header. */
 export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
+/** Whether pinned canvases are listed in a Canvases section, which can also start a session with a new canvas. */
+export const SESSIONS_LIST_CANVASES_SECTION_SETTING = 'sessions.list.canvasesSection';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemInboxStateContext = new RawContextKey<string>('sessionItem.inboxState', '');
@@ -445,6 +449,17 @@ function getSessionRowIsRead(session: ISession, reader: IReader | undefined, der
 		: session.isRead.read(reader);
 }
 
+function getSessionRowUpdatedAt(session: ISession, mainChat: IChat, reader: IReader, grouping: SessionsGrouping | undefined, showMetadataWhileActive = false): Date | undefined {
+	if (showMetadataWhileActive) {
+		return session.updatedAt.read(reader);
+	}
+	if (mainChat.status.read(reader) === SessionStatus.InProgress) {
+		return undefined;
+	}
+	// Inbox orders whole sessions, including activity outside the main chat.
+	return (grouping === SessionsGrouping.Inbox ? session.updatedAt : mainChat.updatedAt).read(reader);
+}
+
 function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
 	return isActiveSessionStatus(session.status.read(reader));
 }
@@ -476,6 +491,8 @@ function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] 
 			return Codicon.commentDiscussion;
 		case 'pinned':
 			return Codicon.pinned;
+		case CANVASES_SECTION_ID:
+			return Codicon.preview;
 		case 'drafts':
 			return Codicon.edit;
 		case 'scheduled':
@@ -820,13 +837,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _isComparisonAttempt: (session: ISession) => boolean = () => false,
 		private readonly _sectionRowHeight?: number,
 		private readonly _isInbox: () => boolean = () => false,
+		private readonly _titleOnlyQuickChatRowHeight?: number,
 	) { }
 
 	private withInsetRowSpacing(height: number): number {
 		return height + (this._useInsetRowSpacing ? INSET_ROW_GAP : 0);
 	}
 
-	getHeight(element: SessionListItem): number {
+	getHeight(element: SessionListItem, reader?: IReader): number {
 		if (isPendingSessionItem(element)) {
 			return this.withInsetRowSpacing(this._isPhone() ? SessionsTreeDelegate.ITEM_HEIGHT_PHONE
 				: this._isCompact() ? SessionsTreeDelegate.ITEM_HEIGHT_COMPACT
@@ -856,36 +874,42 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return SessionsTreeDelegate.PLACEHOLDER_HEIGHT;
 		}
 
+		const session = element;
+		let extraHeight = 0;
+		let approval: IAgentSessionApprovalInfo | undefined;
+		if (this._approvalModel) {
+			// In the main tree only the main chat's approval renders on the session
+			// row (nested/side chats surface theirs on their own rows); flat lists
+			// with no chat rows aggregate an approval from any of the session's chats.
+			approval = getSessionRowApproval(this._approvalModel, session, reader, this._aggregateChatApprovals);
+			if (approval) {
+				extraHeight += SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines);
+			}
+		}
+		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
+			extraHeight += SessionsTreeDelegate.INPUT_NEEDED_ROW_HEIGHT;
+		}
+		if (this._ciFixModel?.getCIFix(session).read(reader)) {
+			extraHeight += SessionItemRenderer.CI_ROW_HEIGHT;
+		}
+
 		let height: number;
 		if (this._isPhone()) {
+			if (this._titleOnlyQuickChatRowHeight !== undefined && extraHeight === 0
+				&& this._useCompactQuickChatRows && isQuickChatSession(session) && !this._isComparisonAttempt(session)) {
+				return this._titleOnlyQuickChatRowHeight;
+			}
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
-		} else if (this._isComparisonAttempt(element as ISession)) {
+		} else if (this._isComparisonAttempt(session)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPARISON_ATTEMPT;
-		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
+		} else if (this._useCompactQuickChatRows && isQuickChatSession(session)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 		} else if (this._isCompact()) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPACT;
 		} else {
 			height = this._isInbox() ? 44 : SessionsTreeDelegate.ITEM_HEIGHT;
 		}
-		const session = element as ISession;
-		let approval: IAgentSessionApprovalInfo | undefined;
-		if (this._approvalModel) {
-			// In the main tree only the main chat's approval renders on the session
-			// row (nested/side chats surface theirs on their own rows); flat lists
-			// with no chat rows aggregate an approval from any of the session's chats.
-			approval = getSessionRowApproval(this._approvalModel, session, undefined, this._aggregateChatApprovals);
-			if (approval) {
-				height += SessionItemRenderer.getApprovalRowHeight(approval, this._approvalRowMaxLines);
-			}
-		}
-		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
-			height += SessionsTreeDelegate.INPUT_NEEDED_ROW_HEIGHT;
-		}
-		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
-			height += SessionItemRenderer.CI_ROW_HEIGHT;
-		}
-		return this.withInsetRowSpacing(height);
+		return this.withInsetRowSpacing(height + extraHeight);
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
@@ -2296,7 +2320,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.mainWindowShown, reader)
 				: getSessionDiffStats(element, reader);
 			const mainChat = element.mainChat.read(reader);
-			const timeDate = this.options.showMetadataWhileActive?.(element) ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const timeDate = getSessionRowUpdatedAt(element, mainChat, reader, this.options.grouping(), this.options.showMetadataWhileActive?.(element));
 
 			const parts: HTMLElement[] = [];
 			if (
@@ -3157,7 +3181,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: element.hover }));
 		}
 		template.countLabel.style.display = '';
-		if (this.hideSectionCount && !element.pendingItems && !sessionInboxSections.some(id => id === element.id) || shortcut) {
+		if (this.hideSectionCount && !element.pendingItems && !sessionInboxSections.some(id => id === element.id) || shortcut || element.id === CANVASES_SECTION_ID) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else {
@@ -3773,7 +3797,7 @@ class SessionsAccessibilityProvider {
 			if (pinnedCanvas) {
 				return derived(this, reader => getPinnedCanvasDescription(pinnedCanvas, reader));
 			}
-			if (isShortcutSection(element.id)) {
+			if (isShortcutSection(element.id) || element.id === CANVASES_SECTION_ID) {
 				return element.label;
 			}
 			return this.getSectionAriaLabel(element.hover ? localize('sessionSectionWithHoverAria', "{0}, {1}", element.label, element.hover) : element.label, element.sessions);
@@ -3811,7 +3835,7 @@ class SessionsAccessibilityProvider {
 			const title = this.options?.getComparisonAttemptLabel?.(element) ?? element.title.read(reader);
 			const mainChat = element.mainChat.read(reader);
 			const showMetadataWhileActive = this.options?.showMetadataWhileActive?.(element);
-			const updatedAt = showMetadataWhileActive ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const updatedAt = getSessionRowUpdatedAt(element, mainChat, reader, this.options?.grouping?.(), showMetadataWhileActive);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = updatedAt ? localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemQuickChatWithoutTimeAria', "{0}, chat", title);
@@ -4579,6 +4603,7 @@ interface ISessionsListControlOptions {
 	readonly scheduledSessionResources?: IObservable<ReadonlySet<string>>;
 	readonly scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
 	readonly sectionRowHeight?: number;
+	readonly titleOnlyQuickChatRowHeight?: number;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
@@ -5038,6 +5063,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		const primaryContainer = DOM.append(this.listContainer, $('.sessions-list-primary'));
+		const searchMessage = DOM.append(primaryContainer, $('.sessions-list-search-empty', { role: 'status' }));
 		const treeDisposables = this._register(new DisposableStore());
 		const listContextKeyService = this._register(contextKeyService.createScoped(this.listContainer));
 		const treeInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, listContextKeyService])));
@@ -5084,6 +5110,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (e.affectsConfiguration(SESSIONS_LIST_INDENT_ITEMS_SETTING)) {
 				this.updateIndentItems();
+			}
+			if (e.affectsConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING)) {
+				this.update();
 			}
 		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
@@ -5297,9 +5326,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// observe the workbench's value rather than shadowing it with a fresh
 		// scoped default of `false`. The reactive height refresh below listens
 		// on the same scoped service for changes.
+		const isPhone = () => !!IsPhoneLayoutContext.getValue(contextKeyService);
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
-			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
+			isPhone,
 			() => this.isCompact(),
 			session => getSessionRowStatus(session, undefined, true, this.collapsedSessionIds.get().has(session.sessionId)),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
@@ -5310,6 +5340,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			session => this.getComparisonAttemptLabel(session) !== undefined,
 			this.options.sectionRowHeight,
 			() => this.isInboxLayout(),
+			this.options.titleOnlyQuickChatRowHeight,
 		);
 		this._delegate = delegate;
 
@@ -5353,6 +5384,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pinnedCanvases = this.options.pinnedCanvases;
 		if (pinnedCanvases) {
 			this._register(runOnChange(pinnedCanvases.entries, () => this.update()));
+			this._register(runOnChange(pinnedCanvases.enabled, () => this.update()));
 		}
 		const scoped = this.options.scoped;
 		if (scoped) {
@@ -5512,6 +5544,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// Showing no chats of a session that has some makes its row stand for the whole session.
 			didFilter: () => this.syncCollapsedSessionIds(),
 			getResults: () => this.getSearchResults(),
+			renderInlineMessage: message => {
+				const inline = isPhone();
+				const text = inline ? message : '';
+				// Don't announce the same empty state again when the tree refreshes.
+				if (searchMessage.textContent !== text) {
+					searchMessage.textContent = text;
+				}
+				return inline;
+			},
 		}, {
 			findWidgetContainer: this.options.findWidgetContainer,
 			styles: defaultFindWidgetStyles,
@@ -6589,14 +6630,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.showCustomizations?.() ?? showNavigationShortcuts) {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
 		}
-		// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
-		const pinnedCanvasSections = this.getPinnedCanvasSections();
-		if (showNavigationShortcuts) {
-			navigationSections.push(...pinnedCanvasSections);
+		if (this.showsCanvasesSection()) {
+			// The Canvases section follows the navigation shortcuts in either layout.
+			this.setNavigationSections(navigationSections);
+			const canvasesSection = this.getCanvasesSection(resolveCollapsed);
+			if (canvasesSection) {
+				children.push(canvasesSection);
+			}
 		} else {
-			children.push(...pinnedCanvasSections.map(section => renderSection(section)));
+			// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
+			const pinnedCanvasSections = this.getPinnedCanvasSections();
+			if (showNavigationShortcuts) {
+				navigationSections.push(...pinnedCanvasSections);
+			} else {
+				children.push(...pinnedCanvasSections.map(section => renderSection(section)));
+			}
+			this.setNavigationSections(navigationSections);
 		}
-		this.setNavigationSections(navigationSections);
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {
@@ -7052,9 +7102,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private reconcileChatRowHeights(): void {
 		const chatItems: ISessionChatItem[] = [];
+		const quickChats: ISession[] = [];
+		const trackQuickChatHeights = this.options.titleOnlyQuickChatRowHeight !== undefined && IsPhoneLayoutContext.getValue(this.contextKeyService);
 		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionChatItem(node.element)) {
 				chatItems.push(node.element);
+			} else if (trackQuickChatHeights && node.element && isSessionItem(node.element) && isQuickChatSession(node.element)) {
+				quickChats.push(node.element);
 			}
 			for (const child of node.children) {
 				collect(child);
@@ -7062,12 +7116,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 		collect(this.tree.getNode());
 
-		if (chatItems.length === 0) {
+		if (chatItems.length === 0 && quickChats.length === 0) {
 			this.chatRowHeightReconcile.clear();
 			return;
 		}
 
 		this.chatRowHeightReconcile.value = autorun(reader => {
+			for (const session of quickChats) {
+				if (this.tree.hasElement(session)) {
+					this.tree.updateElementHeight(session, this._delegate.getHeight(session, reader));
+				}
+			}
 			for (const chatItem of chatItems) {
 				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
 				if (this.tree.hasElement(chatItem) && this.tree.getRelativeTop(chatItem) !== null) {
@@ -8986,7 +9045,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
-	/** Lists pinned canvases after Automations while chat is enabled; the service hides them while canvases are disabled. */
+	private showsCanvasesSection(): boolean {
+		return this.configurationService.getValue<boolean>(SESSIONS_LIST_CANVASES_SECTION_SETTING) === true;
+	}
+
+	/** The pinned canvas rows, each a section of its own. Hidden while chat is disabled; the service hides them while canvases are disabled. */
 	private getPinnedCanvasSections(): ISessionSection[] {
 		const pinnedCanvases = this.options.pinnedCanvases;
 		if (!pinnedCanvases || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
@@ -8998,6 +9061,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sessions: [],
 			pinnedCanvas: entry,
 		}));
+	}
+
+	/**
+	 * The Canvases section, which lists the canvases pinned to the sidebar and offers to start a session with a new canvas.
+	 * It shows while chat and canvases are enabled.
+	 */
+	private getCanvasesSection(resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> | undefined {
+		const pinnedCanvases = this.options.pinnedCanvases;
+		if (!pinnedCanvases?.enabled.get() || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
+			return undefined;
+		}
+		const element: ISessionSection = { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
+		const pins: IObjectTreeElement<SessionListItem>[] = this.getPinnedCanvasSections().map(element => ({ element }));
+		return {
+			element,
+			collapsible: true,
+			collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
+			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases yet") } }],
+		};
 	}
 
 	private showPinnedCanvasContextMenu(entry: IPinnedCanvas, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
@@ -9749,6 +9831,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * done chat listed in the Done section, don't step in.
 	 */
 	private getRowGroupDepth(element: ISession | ISessionChatItem | ISessionShowMore | ISessionPlaceholder | ISessionSection): number {
+		// A pinned canvas steps in under the Canvases header, as a subgroup does under its group.
+		if (isSessionSection(element) && element.pinnedCanvas && this.showsCanvasesSection()) {
+			return 1;
+		}
 		let groupId: string | undefined;
 		let sectionId: string | undefined;
 		if (isSessionSection(element)) {

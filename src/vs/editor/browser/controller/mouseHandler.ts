@@ -23,6 +23,7 @@ import { NavigationCommandRevealType } from '../coreCommands.js';
 import { MouseWheelClassifier } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { TopBottomDragScrolling, LeftRightDragScrolling } from './dragScrolling.js';
 import { TextDirection } from '../../common/model.js';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../base/browser/ui/mouseCursor/mouseCursor.js';
 
 export interface IViewLineHitTestProvider {
 	getLineWidth(lineNumber: number): number | undefined;
@@ -31,6 +32,7 @@ export interface IViewLineHitTestProvider {
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
+	marginDomNode: HTMLElement;
 	linesContentDomNode: HTMLElement;
 	viewLinesDomNode: HTMLElement;
 	viewLineHitTestProvider: IViewLineHitTestProvider | undefined;
@@ -286,9 +288,14 @@ export class MouseHandler extends ViewEventHandler {
 			return;
 		}
 
+		const target = this._createMouseTarget(e, true);
+		// Show the text cursor where a click in the margin places the cursor (see `MouseTargetFactory._hitTestMargin`)
+		const options = this._context.configuration.options;
+		const isContentInMargin = target.type === MouseTargetType.CONTENT_EMPTY && e.relativePos.x < options.get(EditorOption.layoutInfo).contentLeft;
+		this.viewHelper.marginDomNode.classList.toggle(MOUSE_CURSOR_TEXT_CSS_CLASS_NAME, isContentInMargin && options.get(EditorOption.mouseStyle) === 'text');
 		this.viewController.emitMouseMove({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			target
 		});
 	}
 
@@ -297,6 +304,7 @@ export class MouseHandler extends ViewEventHandler {
 			this._mouseLeaveMonitor.dispose();
 			this._mouseLeaveMonitor = null;
 		}
+		this.viewHelper.marginDomNode.classList.remove(MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,

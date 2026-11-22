@@ -29,7 +29,7 @@ import { NullHoverService } from '../../../../../../../platform/hover/test/brows
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
-import { DefaultChatAttachmentWidget, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ImageAttachmentWidget, PasteAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../../browser/widget/input/editor/chatPasteProviders.js';
 import { GitHubResourceDetailsResolver, LazyGitHubResourceState } from '../../../../../github/browser/githubResourceDetails.js';
 import { IGitHubIssueHoverModel } from '../../../../../github/browser/githubResourceHover.js';
@@ -41,8 +41,10 @@ import { IContextMenuService } from '../../../../../../../platform/contextview/b
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IWebWorkerService } from '../../../../../../../platform/webWorker/browser/webWorkerService.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
-import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry, toPasteVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
+import '../../../../browser/widget/media/chat.css';
+import '../../../../browser/widget/input/editor/media/chatInlineAttachments.css';
 
 suite('ChatAttachmentsContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -317,6 +319,41 @@ suite('ChatAttachmentsContentPart', () => {
 			}, { freshContent: true, invalidated: 1, hidden: true });
 		});
 
+	});
+
+	test('a GitHub attachment that is shortened to fit shortens its repository and keeps its number', () => {
+		const fixture = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => fixture.remove()));
+		const container = dom.append(dom.append(dom.append(fixture, dom.$('.monaco-editor')), dom.$('.chat-inline-attachment')), dom.$('.chat-attached-context'));
+		const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const options = { shouldFocusClearButton: false, supportsDeletion: true };
+		const link = 'https://github.com/microsoft/vscode-internalbacklog-of-a-repository-with-a-long-name/issues/10823';
+		const pasted = getGitHubIssueOrPullRequestAttachments(link)[0];
+		// An issue attached with the Issue/PR picker of the Agents window, rather than by pasting its link.
+		const picked = toPasteVariableEntry(pasted.name, `GitHub context: ${link}`, { id: pasted.id, icon: pasted.icon });
+		const widgets = [
+			disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget, undefined, undefined, pasted, undefined, undefined, options, container, labels)),
+			disposables.add(instantiationService.createInstance(PasteAttachmentWidget, picked, undefined, options, container, labels)),
+		];
+
+		const shortened = {
+			label: 'microsoft/vscode-internalbacklog-of-a-repository-with-a-long-name#10823',
+			number: '#10823',
+			repositoryIsShortened: true,
+			numberIsShortened: false,
+			numberIsInPill: true,
+		};
+		assert.deepStrictEqual(widgets.map(widget => {
+			const repository = widget.element.querySelector<HTMLElement>('.monaco-highlighted-label');
+			const number = widget.element.querySelector<HTMLElement>('.monaco-icon-suffix-container');
+			return {
+				label: widget.label.element.textContent?.trim(),
+				number: number?.textContent,
+				repositoryIsShortened: !!repository && repository.scrollWidth > repository.clientWidth,
+				numberIsShortened: !!number && number.scrollWidth > number.clientWidth,
+				numberIsInPill: !!number && number.getBoundingClientRect().right <= widget.element.getBoundingClientRect().right,
+			};
+		}), [shortened, shortened]);
 	});
 
 	function createFileEntry(name: string, uri?: URI): IChatRequestVariableEntry {
@@ -626,7 +663,7 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		});
 
-		test('should warn about Copilot Fusion image support without marking images omitted', () => {
+		test('should not warn about images attached to Copilot Fusion', () => {
 			setModels([{ identifier: 'copilot/auto', id: 'copilot/auto', vendor: 'copilot', vision: false }]);
 			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
 			const imageHoverContents = captureImageHovers();
@@ -641,20 +678,18 @@ suite('ChatAttachmentsContentPart', () => {
 				omittedState: image.omittedState,
 				ariaLabel: attachment?.ariaLabel,
 				isWarning: attachment?.classList.contains('warning'),
-				isAutoWarning: attachment?.classList.contains('auto-image-warning'),
 				hasWarningIcon: !!attachment?.querySelector('.codicon-warning'),
 				hoverText: imageHoverContents.map(content => content.textContent),
 			}, {
 				omittedState: undefined,
-				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Copilot Fusion.',
+				ariaLabel: 'Attached image, image.png',
 				isWarning: false,
-				isAutoWarning: true,
 				hasWarningIcon: false,
-				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
+				hoverText: [instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))],
 			});
 		});
 
-		test('should show the Copilot Fusion warning instead of a stale omission when editing', () => {
+		test('should not show a stale omission for Copilot Fusion when editing', () => {
 			const fusionModel = {
 				identifier: 'agent-host-copilotcli/auto',
 				metadata: {
@@ -689,15 +724,13 @@ suite('ChatAttachmentsContentPart', () => {
 			assert.deepStrictEqual({
 				ariaLabel: widget.element.ariaLabel,
 				isWarning: widget.element.classList.contains('warning'),
-				isAutoWarning: widget.element.classList.contains('auto-image-warning'),
 				hasWarningIcon: !!widget.element.querySelector('.codicon-warning-compact'),
 				hoverText: imageHoverContents.map(content => content.textContent),
 			}, {
-				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Copilot Fusion. (Delete)',
+				ariaLabel: 'Attached image, image.png (Delete)',
 				isWarning: false,
-				isAutoWarning: true,
 				hasWarningIcon: false,
-				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
+				hoverText: [instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))],
 			});
 		});
 

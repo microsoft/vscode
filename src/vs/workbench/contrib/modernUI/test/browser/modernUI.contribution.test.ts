@@ -10,7 +10,8 @@ import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/ac
 import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
-import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DEFAULT_PANE_HEADER_SIZE, Pane, setGlobalPaneHeaderSize } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -29,7 +30,7 @@ import { activeContrastBorder, editorBackground, Extensions as ColorRegistryExte
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
-import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestEnvironmentService, TestLayoutService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -54,6 +55,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../../browser/parts/notifications/notificationsViewer.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class ModernUITestPane extends Pane {
@@ -257,7 +259,7 @@ suite('ModernUIContribution', () => {
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
 		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
-		store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
+		store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService, store.add(new TestLifecycleService())));
 		const pane = store.add(new ModernUITestPane());
 		const paneView = document.createElement('div');
 		paneView.classList.add('monaco-pane-view');
@@ -383,7 +385,7 @@ suite('ModernUIContribution', () => {
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
 		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
-		const contribution = store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
+		const contribution = store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService, store.add(new TestLifecycleService())));
 		const auxiliaryContainer = document.createElement('div');
 		const getState = () => ({
 			connected: layoutService.containers.map(container => container.classList.contains('modern-ui-connected-editor-tabs')),
@@ -428,6 +430,37 @@ suite('ModernUIContribution', () => {
 			changedWhileDisabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3, auxiliaryLayoutCount: 3 },
 			reenabled: { connected: [false, false], modernTabs: [true, true], layoutCount: 4, auxiliaryLayoutCount: 4 },
 			disposed: { connected: [false, false], modernTabs: [false, false], layoutCount: 5, auxiliaryLayoutCount: 5 },
+		});
+	});
+
+	test('leaves its classes and sizes in place when disposed as the window closes', () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: true,
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Compact,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const layoutService = new ModernUITestLayoutService();
+		store.add(layoutService.onDidAddContainerEmitter);
+		const lifecycleService = store.add(new TestLifecycleService());
+		const contribution = new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService(), lifecycleService);
+		// What the contribution leaves behind would otherwise apply to the tests that follow
+		store.add(toDisposable(() => {
+			setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+			setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
+		}));
+		let notificationRowHeightChanges = 0;
+		store.add(onDidChangeNotificationRowHeight(() => notificationRowHeightChanges++));
+
+		lifecycleService.willShutdown = true;
+		contribution.dispose();
+
+		assert.deepStrictEqual({
+			classes: [...layoutService.mainContainer.classList].filter(className => className.startsWith('modern-ui')),
+			notificationRowHeightChanges,
+		}, {
+			classes: ['modern-ui', 'modern-ui-compact', 'modern-ui-tabs', 'modern-ui-notifications-dialogs'],
+			notificationRowHeightChanges: 0,
 		});
 	});
 
@@ -761,7 +794,7 @@ suite('ModernUIContribution', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		store.add(new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService()));
+		store.add(new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService(), store.add(new TestLifecycleService())));
 
 		layoutService.mainContainer.classList.add('monaco-workbench');
 		const paneView = appendElement(layoutService.mainContainer, 'monaco-pane-view');

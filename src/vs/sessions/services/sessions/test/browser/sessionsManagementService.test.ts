@@ -53,10 +53,10 @@ import { ICopilotHomeService } from '../../../../../platform/environment/common/
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService, TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, type ISessionsProviderCanvasDraft, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -8065,6 +8065,86 @@ suite('SessionsManagementService', () => {
 			onSessionCreated: async () => { throw new Error('Preparation failed'); },
 		}), /Preparation failed/);
 		assert.deepStrictEqual(calls, ['delete']);
+	});
+
+	test('a canvas draft lists its canvases and resolves to the canvas the new session publishes, observing it until released, without touching the composer draft', async () => {
+		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', undefined);
+		let observers = 0;
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///canvas-chat'), canvases, observeCanvases: () => { observers++; return toDisposable(() => observers--); } };
+		const activeSession = stubSession({ sessionId: 'active', providerId: 'test' });
+		const canvasSession = stubSession({ sessionId: 'canvas-session', providerId: 'test', chats: constObservable([chat]), mainChat: constObservable(chat) });
+		const opened: string[] = [];
+		const plan: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: '', requiresInput: false };
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createCanvasDraft(): ISessionsProviderCanvasDraft {
+				return {
+					canvases: Promise.resolve([plan]),
+					open: async (canvas, instanceId) => {
+						opened.push(`${canvas.canvasId}:${instanceId}`);
+						return canvasSession;
+					},
+					dispose: () => opened.push('disposed'),
+				};
+			}
+		}(activeSession);
+		const { service } = createSessionsManagementService(activeSession, disposables, provider);
+
+		const draft = service.createCanvasDraft();
+		const listed = (await draft.canvases)?.map(canvas => canvas.canvasId);
+		const reference = draft.open(plan);
+		await timeout(0);
+		const observersWhileOpening = observers;
+		canvases.set([{ resource: URI.parse('ahp-canvas:/other'), instanceId: 'other', title: 'Other', source: undefined }], undefined);
+		canvases.set([
+			{ resource: URI.parse('ahp-canvas:/other'), instanceId: 'other', title: 'Other', source: undefined },
+			{ resource: URI.parse('ahp-canvas:/plan'), instanceId: 'agent-plan-plan', title: 'Agent Plan', source: undefined },
+		], undefined);
+		const result = await reference;
+		const observersWhileHeld = observers;
+		const canvasReference = result?.object;
+		result?.dispose();
+		draft.dispose();
+
+		assert.deepStrictEqual({
+			listed,
+			opened,
+			observersWhileOpening,
+			observersWhileHeld,
+			observersAfterRelease: observers,
+			reference: canvasReference && { providerId: canvasReference.providerId, session: canvasReference.session.toString(), chat: canvasReference.chat.toString(), canvas: canvasReference.canvas.toString() },
+			newSession: service.newSession.get(),
+		}, {
+			listed: ['plan'],
+			opened: ['plan:agent-plan-plan', 'disposed'],
+			observersWhileOpening: 1,
+			observersWhileHeld: 1,
+			observersAfterRelease: 0,
+			reference: { providerId: 'test', session: canvasSession.resource.toString(), chat: chat.resource.toString(), canvas: 'ahp-canvas:/plan' },
+			newSession: undefined,
+		});
+	});
+
+	test('a canvas draft stops waiting for its canvas and releases its observation when the service is disposed', async () => {
+		let observers = 0;
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///canvas-chat'), canvases: observableValue<readonly ISessionCanvas[] | undefined>('canvases', undefined), observeCanvases: () => { observers++; return toDisposable(() => observers--); } };
+		const activeSession = stubSession({ sessionId: 'active', providerId: 'test' });
+		const canvasSession = stubSession({ sessionId: 'canvas-session', providerId: 'test', chats: constObservable([chat]), mainChat: constObservable(chat) });
+		const plan: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: '', requiresInput: false };
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createCanvasDraft(): ISessionsProviderCanvasDraft {
+				return { canvases: Promise.resolve([plan]), open: async () => canvasSession, dispose: () => { } };
+			}
+		}(activeSession);
+		const { service } = createSessionsManagementService(activeSession, disposables, provider);
+
+		const reference = service.createCanvasDraft().open(plan);
+		await timeout(0);
+		const observersWhileOpening = observers;
+		(service as SessionsManagementService).dispose();
+
+		assert.deepStrictEqual({ observersWhileOpening, reference: await reference, observersAfterDispose: observers }, { observersWhileOpening: 1, reference: undefined, observersAfterDispose: 0 });
 	});
 
 	test('createAndSendQuickChatRequest cancels commit detection and disposes the provisional draft', async () => {

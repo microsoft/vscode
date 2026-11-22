@@ -14,7 +14,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -340,7 +340,7 @@ export interface ICommonNativeHostService {
 	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents
 	 * window is not brought to the front: the Agents Launcher shows and focuses its own window.
 	 */
-	showAgentsLauncher(): Promise<void>;
+	showAgentsLauncher(options?: IAgentsLauncherOptions): Promise<void>;
 
 	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
 	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
