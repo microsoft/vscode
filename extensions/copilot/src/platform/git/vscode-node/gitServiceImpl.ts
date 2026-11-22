@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import { Uri } from 'vscode';
 import { BatchedProcessor } from '../../../util/common/async';
 import { coalesce } from '../../../util/vs/base/common/arrays';
-import { raceTimeout, Sequencer } from '../../../util/vs/base/common/async';
+import { Limiter, raceTimeout, Sequencer } from '../../../util/vs/base/common/async';
 import { CachedFunction } from '../../../util/vs/base/common/cache';
 import { CancellationToken, cancelOnDispose } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -24,6 +24,7 @@ import { ILogService } from '../../log/common/logService';
 import { IGitExtensionService } from '../common/gitExtensionService';
 import { getOrderedRemoteUrlsFromContext, IGitService, RepoContext } from '../common/gitService';
 import { parseGitRemotes } from '../common/utils';
+import { mayBeInRepository } from '../node/repositoryDetection';
 import { API, APIState, Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
 
 const execFileAsync = promisify(execFile);
@@ -43,6 +44,9 @@ const NO_REPOSITORY_TTL_MS = 5 * 60 * 1000;
 
 /** Bounds how many folders outside any repository are remembered at once. */
 const MAX_NO_REPOSITORY_FOLDERS = 10_000;
+
+/** How many repository root lookups may run at once. Each one can start a git process. */
+const MAX_CONCURRENT_REPOSITORY_ROOT_LOOKUPS = 5;
 
 export class GitServiceImpl extends Disposable implements IGitService {
 
@@ -66,6 +70,8 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	private readonly _repositoryRootLookups = new Map<string, Promise<Uri | null>>();
 	// Bumped whenever a repository opens, which retires answers from lookups already in flight.
 	private _repositoryRootGeneration = 0;
+	// Never disposed, because a disposed limiter drops its queued work and those callers wait forever.
+	private readonly _repositoryRootLimiter = new Limiter<Uri | null>(MAX_CONCURRENT_REPOSITORY_ROOT_LOOKUPS);
 
 	constructor(
 		@IGitExtensionService private readonly gitExtensionService: IGitExtensionService,
@@ -330,14 +336,16 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		}
 	}
 
-	private async lookUpRepositoryRoot(gitAPI: API, folder: Uri, key: string): Promise<Uri | null> {
-		const generation = this._repositoryRootGeneration;
-		const repositoryRoot = await gitAPI.getRepositoryRoot(folder);
-		// A repository opened while the lookup ran may contain the folder, so its answer is stale.
-		if (!repositoryRoot && generation === this._repositoryRootGeneration) {
-			this._foldersOutsideRepository.set(key, Date.now() + NO_REPOSITORY_TTL_MS);
-		}
-		return repositoryRoot;
+	private lookUpRepositoryRoot(gitAPI: API, folder: Uri, key: string): Promise<Uri | null> {
+		return this._repositoryRootLimiter.queue(async () => {
+			const generation = this._repositoryRootGeneration;
+			const repositoryRoot = await mayBeInRepository(folder) ? await gitAPI.getRepositoryRoot(folder) : null;
+			// A repository opened while the lookup ran may contain the folder, so its answer is stale.
+			if (!repositoryRoot && generation === this._repositoryRootGeneration) {
+				this._foldersOutsideRepository.set(key, Date.now() + NO_REPOSITORY_TTL_MS);
+			}
+			return repositoryRoot;
+		});
 	}
 
 	private forgetFoldersOutsideRepository(): void {
