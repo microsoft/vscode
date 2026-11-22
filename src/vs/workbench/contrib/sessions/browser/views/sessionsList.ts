@@ -163,8 +163,10 @@ const $ = DOM.$;
 const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
-/** Prefixes the navigation rows of canvases pinned to the sidebar. */
+/** Prefixes the rows of canvases pinned to the sidebar, which the Canvases section lists. */
 const PINNED_CANVAS_SECTION_PREFIX = 'pinnedCanvas:';
+/** The section that lists pinned canvases and starts sessions with a new canvas. Its type keys its header actions. */
+export const CANVASES_SECTION_ID = 'canvases';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
 /** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
 const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
@@ -200,6 +202,8 @@ export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions
 export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
 /** Controls whether the rows within a section are indented to show their hierarchy below the section header. */
 export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
+/** Whether pinned canvases are listed in a Canvases section, which can also start a session with a new canvas. */
+export const SESSIONS_LIST_CANVASES_SECTION_SETTING = 'sessions.list.canvasesSection';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemInboxStateContext = new RawContextKey<string>('sessionItem.inboxState', '');
@@ -487,6 +491,8 @@ function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] 
 			return Codicon.commentDiscussion;
 		case 'pinned':
 			return Codicon.pinned;
+		case CANVASES_SECTION_ID:
+			return Codicon.preview;
 		case 'drafts':
 			return Codicon.edit;
 		case 'scheduled':
@@ -3175,7 +3181,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: element.hover }));
 		}
 		template.countLabel.style.display = '';
-		if (this.hideSectionCount && !element.pendingItems && !sessionInboxSections.some(id => id === element.id) || shortcut) {
+		if (this.hideSectionCount && !element.pendingItems && !sessionInboxSections.some(id => id === element.id) || shortcut || element.id === CANVASES_SECTION_ID) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else {
@@ -3791,7 +3797,7 @@ class SessionsAccessibilityProvider {
 			if (pinnedCanvas) {
 				return derived(this, reader => getPinnedCanvasDescription(pinnedCanvas, reader));
 			}
-			if (isShortcutSection(element.id)) {
+			if (isShortcutSection(element.id) || element.id === CANVASES_SECTION_ID) {
 				return element.label;
 			}
 			return this.getSectionAriaLabel(element.hover ? localize('sessionSectionWithHoverAria', "{0}, {1}", element.label, element.hover) : element.label, element.sessions);
@@ -5105,6 +5111,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (e.affectsConfiguration(SESSIONS_LIST_INDENT_ITEMS_SETTING)) {
 				this.updateIndentItems();
 			}
+			if (e.affectsConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING)) {
+				this.update();
+			}
 		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
@@ -5375,6 +5384,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pinnedCanvases = this.options.pinnedCanvases;
 		if (pinnedCanvases) {
 			this._register(runOnChange(pinnedCanvases.entries, () => this.update()));
+			this._register(runOnChange(pinnedCanvases.enabled, () => this.update()));
 		}
 		const scoped = this.options.scoped;
 		if (scoped) {
@@ -6620,14 +6630,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.showCustomizations?.() ?? showNavigationShortcuts) {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
 		}
-		// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
-		const pinnedCanvasSections = this.getPinnedCanvasSections();
-		if (showNavigationShortcuts) {
-			navigationSections.push(...pinnedCanvasSections);
+		if (this.showsCanvasesSection()) {
+			// The Canvases section follows the navigation shortcuts in either layout.
+			this.setNavigationSections(navigationSections);
+			const canvasesSection = this.getCanvasesSection(resolveCollapsed);
+			if (canvasesSection) {
+				children.push(canvasesSection);
+			}
 		} else {
-			children.push(...pinnedCanvasSections.map(section => renderSection(section)));
+			// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
+			const pinnedCanvasSections = this.getPinnedCanvasSections();
+			if (showNavigationShortcuts) {
+				navigationSections.push(...pinnedCanvasSections);
+			} else {
+				children.push(...pinnedCanvasSections.map(section => renderSection(section)));
+			}
+			this.setNavigationSections(navigationSections);
 		}
-		this.setNavigationSections(navigationSections);
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {
@@ -9026,7 +9045,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
-	/** Lists pinned canvases after Automations while chat is enabled; the service hides them while canvases are disabled. */
+	private showsCanvasesSection(): boolean {
+		return this.configurationService.getValue<boolean>(SESSIONS_LIST_CANVASES_SECTION_SETTING) === true;
+	}
+
+	/** The pinned canvas rows, each a section of its own. Hidden while chat is disabled; the service hides them while canvases are disabled. */
 	private getPinnedCanvasSections(): ISessionSection[] {
 		const pinnedCanvases = this.options.pinnedCanvases;
 		if (!pinnedCanvases || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
@@ -9038,6 +9061,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sessions: [],
 			pinnedCanvas: entry,
 		}));
+	}
+
+	/**
+	 * The Canvases section, which lists the canvases pinned to the sidebar and offers to start a session with a new canvas.
+	 * It shows while chat and canvases are enabled.
+	 */
+	private getCanvasesSection(resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> | undefined {
+		const pinnedCanvases = this.options.pinnedCanvases;
+		if (!pinnedCanvases?.enabled.get() || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
+			return undefined;
+		}
+		const element: ISessionSection = { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
+		const pins: IObjectTreeElement<SessionListItem>[] = this.getPinnedCanvasSections().map(element => ({ element }));
+		return {
+			element,
+			collapsible: true,
+			collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
+			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases yet") } }],
+		};
 	}
 
 	private showPinnedCanvasContextMenu(entry: IPinnedCanvas, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
@@ -9789,6 +9831,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * done chat listed in the Done section, don't step in.
 	 */
 	private getRowGroupDepth(element: ISession | ISessionChatItem | ISessionShowMore | ISessionPlaceholder | ISessionSection): number {
+		// A pinned canvas steps in under the Canvases header, as a subgroup does under its group.
+		if (isSessionSection(element) && element.pinnedCanvas && this.showsCanvasesSection()) {
+			return 1;
+		}
 		let groupId: string | undefined;
 		let sectionId: string | undefined;
 		if (isSessionSection(element)) {

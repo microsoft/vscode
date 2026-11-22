@@ -24,6 +24,7 @@ import { CopilotSlashCommandCompletionProvider } from '../../node/copilot/copilo
 import { MockAgent } from './mockAgent.js';
 import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { withRuntimePluginEnablement, type IRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
@@ -550,6 +551,38 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const result = await run(provider, '/');
 
 		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
+	});
+
+	test('offers skills of runtime plugins waiting for session start when the user intends them enabled', async () => {
+		function runtimePlugin(name: string, runtime: Partial<IRuntimePluginEnablement>, load: PluginCustomization['load'] = { kind: CustomizationLoadStatus.Loading }): PluginCustomization {
+			return {
+				...plugin(name, [skill(`${name}-skill`)], runtime.effectiveEnabled === true),
+				load,
+				_meta: withRuntimePluginEnablement(undefined, { provider: 'mock', plugin: `${name}@marketplace`, globalEnabled: true, repositorySupported: true, ...runtime }),
+			};
+		}
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			runtimePlugin('pending', {}),
+			runtimePlugin('pending-globally-disabled', { globalEnabled: false }),
+			runtimePlugin('pending-repository-enabled', { globalEnabled: false, repositoryEnabled: true }),
+			runtimePlugin('pending-repository-disabled', { repositoryEnabled: false }),
+			runtimePlugin('pending-repository-inherited', { repositoryEnabled: null }),
+			runtimePlugin('pending-managed-disabled', { managedDesiredEnabled: false }),
+			runtimePlugin('inventory-unavailable', {}, { kind: CustomizationLoadStatus.Error, message: 'unavailable' }),
+			runtimePlugin('settled-disabled', { effectiveEnabled: false }, { kind: CustomizationLoadStatus.Loaded }),
+			runtimePlugin('settled-enabled', { effectiveEnabled: true }, { kind: CustomizationLoadStatus.Loaded }),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/pending:pending-skill ',
+			'/pending-repository-enabled:pending-repository-enabled-skill ',
+			'/pending-repository-inherited:pending-repository-inherited-skill ',
+			'/settled-enabled:settled-enabled-skill ',
+		]);
 	});
 
 	test('returns an empty list when the agent has no session customizations hook', async () => {

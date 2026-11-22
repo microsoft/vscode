@@ -203,12 +203,13 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				group: id === SessionSectionToolbarMenuId ? 'navigation' : '1_state',
 				order: id === SessionSectionToolbarMenuId ? 1 : 2,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
-				// Also not on Automations.
+				// Also not on Automations or Canvases.
 				when: ContextKeyExpr.and(
 					InboxModeContext.negate(),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'canvases'),
 				),
 			}))
 		});
