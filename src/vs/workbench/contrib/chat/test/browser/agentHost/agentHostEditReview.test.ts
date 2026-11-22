@@ -7,6 +7,7 @@ import assert from 'assert';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { ISequence, LcsDiff } from '../../../../../../base/common/diff/diff.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -53,14 +54,23 @@ import { IWorkingCopyService, WorkingCopyService } from '../../../../../services
 import { TestFileEditorInput, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
-import { INotebookService } from '../../../../notebook/common/notebookService.js';
+import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
+import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
+import { CellEditType, CellKind, CellUri, ICellDto2, INotebookDiffResult, IResolvedNotebookEditorModel, NotebookData, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService, IUntitledNotebookResource } from '../../../../notebook/common/notebookEditorModelResolverService.js';
+import { INotebookExecutionStateService } from '../../../../notebook/common/notebookExecutionStateService.js';
+import { INotebookLoggingService } from '../../../../notebook/common/notebookLoggingService.js';
+import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from '../../../../notebook/common/notebookService.js';
+import { INotebookEditorWorkerService } from '../../../../notebook/common/services/notebookWorkerService.js';
 import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
 import { AgentHostCheckpointReview } from '../../../browser/agentSessions/agentHost/agentHostCheckpointReview.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditingModifiedDocumentEntry } from '../../../browser/chatEditing/chatEditingModifiedDocumentEntry.js';
+import { ChatEditingModifiedNotebookEntry } from '../../../browser/chatEditing/chatEditingModifiedNotebookEntry.js';
+import { ChatEditingNotebookFileSystemProvider } from '../../../browser/chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 import { IChatService, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
-import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 
 function createOperations(status = ChangesetOperationStatus.Idle): ChangesetOperation[] {
 	return [AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID].map(id => ({
@@ -70,6 +80,26 @@ function createOperations(status = ChangesetOperationStatus.Idle): ChangesetOper
 		status,
 	}));
 }
+
+function createCell(source: string): ICellDto2 {
+	return { source, language: 'python', mime: undefined, cellKind: CellKind.Code, outputs: [], metadata: {} };
+}
+
+/** An ipynb file as the ipynb extension writes it, with code cells whose sources have the given lines. */
+function ipynb(...sources: string[][]): string {
+	const cells = sources.map(source => ({ cell_type: 'code', execution_count: null, metadata: {}, outputs: [], source }));
+	return JSON.stringify({ cells, metadata: {}, nbformat: 4, nbformat_minor: 5 }, undefined, 1) + '\n';
+}
+
+/** Notebook files of the tests, which list the source of their cells, or are ipynb files. */
+const notebookSerializer = new class extends mock<INotebookSerializer>() {
+	override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
+	override async dataToNotebook(data: VSBuffer): Promise<NotebookData> {
+		const content: string[] | { cells: { source: string[] }[] } = data.byteLength ? JSON.parse(data.toString()) : [];
+		const sources = Array.isArray(content) ? content : content.cells.map(cell => cell.source.join(''));
+		return { metadata: {}, cells: sources.map(createCell) };
+	}
+}();
 
 /** The agent host of the reviewed session, whose Working Set the test sets. */
 class TestAgentHost extends mock<IAgentConnection>() {
@@ -168,6 +198,18 @@ suite('AgentHostEditReview', () => {
 	let failingReloads: ResourceSet;
 	/** Document encodings other than UTF-8. */
 	let encodings: ResourceMap<string>;
+	/** The notebooks that are open, by their file or by the content they compare with. */
+	let notebooks: ResourceMap<IResolvedNotebookEditorModel>;
+	/** Notebooks with unsaved changes. */
+	let dirtyNotebooks: ResourceSet;
+	/** The unsaved content of notebooks that were backed up, which they are restored with. */
+	let notebookBackups: ResourceMap<string>;
+	/** The notebooks that the notebook resolver knows to have unsaved changes: those that told it since they were resolved. */
+	let reportedDirtyNotebooks: ResourceSet;
+	let notebookResolver: INotebookEditorModelResolverService;
+	let onDidChangeNotebookDirty: Emitter<IResolvedNotebookEditorModel>;
+	let onWillAddNotebook: Emitter<NotebookTextModel>;
+	let onDidReportError: Emitter<void>;
 	/** How long diffs take. */
 	let diffDelay: number;
 	let diffGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
@@ -249,6 +291,81 @@ suite('AgentHostEditReview', () => {
 
 	function getEntry(path: string): ChatEditingModifiedDocumentEntry {
 		return review.getEntry(URI.file(path)) as ChatEditingModifiedDocumentEntry;
+	}
+
+	function getNotebookEntry(path: string): ChatEditingModifiedNotebookEntry {
+		return review.getEntry(URI.file(path)) as ChatEditingModifiedNotebookEntry;
+	}
+
+	/** How the cells of a reviewed notebook changed, once the review shows its `count` changes. */
+	async function getCellChanges(entry: ChatEditingModifiedNotebookEntry, count: number): Promise<string[]> {
+		await waitForState(entry.changesCount.map(changes => changes === count ? true : undefined));
+		return entry.cellsDiffInfo.get().map(cell => cell.type);
+	}
+
+	function getNotebook(path: string): IResolvedNotebookEditorModel {
+		const notebook = notebooks.get(URI.file(path));
+		assert.ok(notebook);
+		return notebook;
+	}
+
+	function getCells(path: string): string[] {
+		return getNotebook(path).notebook.cells.map(cell => cell.getValue());
+	}
+
+	/** The notebook gets unsaved changes, or they are saved or reverted. */
+	function setNotebookDirty(resource: URI, isDirty: boolean): void {
+		if (dirtyNotebooks.has(resource) === isDirty) {
+			return;
+		}
+		if (isDirty) {
+			dirtyNotebooks.add(resource);
+		} else {
+			dirtyNotebooks.delete(resource);
+		}
+		const notebook = notebooks.get(resource);
+		if (notebook) {
+			if (isDirty) {
+				reportedDirtyNotebooks.add(resource);
+			} else {
+				reportedDirtyNotebooks.delete(resource);
+			}
+			onDidChangeNotebookDirty.fire(notebook);
+		}
+	}
+
+	/** A notebook extension gives the cells of a loaded notebook ids, as the ipynb extension does, which leaves it with unsaved changes. */
+	function extensionAddsCellIds(path: string): void {
+		const { notebook, resource } = getNotebook(path);
+		notebook.applyEdits(notebook.cells.map((_cell, index) => ({ editType: CellEditType.Metadata, index, metadata: { id: `cell-${index}` } })), true, undefined, () => undefined, undefined, false);
+		setNotebookDirty(resource, true);
+	}
+
+	/** The user gives a cell a tag, which is metadata of the cell like the id that an extension gives it. */
+	function userTagsCell(path: string, index: number): void {
+		const { notebook, resource } = getNotebook(path);
+		notebook.applyEdits([{ editType: CellEditType.Metadata, index, metadata: { ...notebook.cells[index].metadata, metadata: { tags: ['mine'] } } }], true, undefined, () => undefined, undefined, false);
+		setNotebookDirty(resource, true);
+	}
+
+	function userReplacesCell(path: string, index: number, source: string): void {
+		const { notebook, resource } = getNotebook(path);
+		notebook.applyEdits([{ editType: CellEditType.Replace, index, count: 1, cells: [createCell(source)] }], true, undefined, () => undefined, undefined, false);
+		setNotebookDirty(resource, true);
+	}
+
+	/** The user runs a cell, whose output the notebook then holds unsaved. */
+	function userRunsCell(path: string, index: number): void {
+		const { notebook, resource } = getNotebook(path);
+		notebook.applyEdits([{ editType: CellEditType.Output, index, outputs: [{ outputId: 'output', outputs: [{ mime: 'text/plain', data: VSBuffer.fromString('1') }] }], append: false }], true, undefined, () => undefined, undefined, false);
+		setNotebookDirty(resource, true);
+	}
+
+	/** Waits until the review reports a file that it can't follow. */
+	async function waitForError(): Promise<void> {
+		if (errors.length === 0) {
+			await Event.toPromise(onDidReportError.event);
+		}
 	}
 
 	/** The lines of the changes the editor shows, once its diff caught up with the document. */
@@ -340,7 +457,13 @@ suite('AgentHostEditReview', () => {
 			override notifyUserAction() { }
 		}());
 		instantiation.stub(INotebookService, new class extends mock<INotebookService>() {
+			override readonly onWillAddNotebookDocument = Event.None;
+			override readonly onDidRemoveNotebookDocument = Event.None;
+			override getNotebookTextModels() { return []; }
 			override hasSupportedNotebooks() { return false; }
+		}());
+		instantiation.stub(INotebookEditorModelResolverService, new class extends mock<INotebookEditorModelResolverService>() {
+			override readonly onDidChangeDirty = Event.None;
 		}());
 		const warning = store.add(new Emitter<string>());
 		instantiation.stub(INotificationService, new class extends mock<INotificationService>() {
@@ -376,6 +499,13 @@ suite('AgentHostEditReview', () => {
 		failingSaves = new ResourceSet();
 		failingReloads = new ResourceSet();
 		encodings = new ResourceMap<string>();
+		notebooks = new ResourceMap<IResolvedNotebookEditorModel>();
+		dirtyNotebooks = new ResourceSet();
+		notebookBackups = new ResourceMap<string>();
+		reportedDirtyNotebooks = new ResourceSet();
+		onDidChangeNotebookDirty = store.add(new Emitter<IResolvedNotebookEditorModel>());
+		onWillAddNotebook = store.add(new Emitter<NotebookTextModel>());
+		onDidReportError = store.add(new Emitter<void>());
 		diffDelay = 0;
 		diffGate = undefined;
 		stringDiffGate = undefined;
@@ -406,6 +536,13 @@ suite('AgentHostEditReview', () => {
 		}());
 		collection.set(ITextModelService, new class extends mock<ITextModelService>() {
 			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				const cellUri = CellUri.parse(resource);
+				if (cellUri && !modelService.getModel(resource)) {
+					// A cell's document holds its source, which its notebook then follows.
+					const cell = notebooks.get(cellUri.notebook)?.notebook.cells.find(candidate => candidate.handle === cellUri.handle);
+					assert.ok(cell);
+					store.add(modelService.createModel(cell.getValue(), null, resource));
+				}
 				// The review's own baseline models exist; files must exist on disk.
 				if (!disk.has(resource) && !models.has(resource) && !modelService.getModel(resource)) {
 					throw new Error(`File not found: ${resource}`);
@@ -479,7 +616,7 @@ suite('AgentHostEditReview', () => {
 				return disk.has(resource);
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
-				const content = recorded.get(resource);
+				const content = recorded.get(resource) ?? disk.get(resource);
 				if (content === undefined) {
 					throw new Error(`Not recorded: ${resource}`);
 				}
@@ -500,15 +637,110 @@ suite('AgentHostEditReview', () => {
 		collection.set(INotificationService, new class extends mock<INotificationService>() {
 			override warn(message: string) {
 				errors.push(message);
+				onDidReportError.fire();
 			}
 			override error(message: string) {
 				errors.push(message);
+				onDidReportError.fire();
 			}
 		}());
 		collection.set(INotebookService, new class extends mock<INotebookService>() {
+			override readonly onWillAddNotebookDocument = onWillAddNotebook.event;
+			override readonly onDidRemoveNotebookDocument = Event.None;
+			override getNotebookTextModels(): Iterable<NotebookTextModel> {
+				return [...notebooks.values()].map(model => model.notebook);
+			}
 			override hasSupportedNotebooks(resource: URI): boolean {
 				return resource.path.endsWith('.ipynb');
 			}
+			override async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
+				return upcastPartial<SimpleNotebookProviderInfo>({ viewType, serializer: notebookSerializer });
+			}
+		}());
+		const baselineNotebookFiles = new ChatEditingNotebookFileSystemProvider(new class extends mock<IChatEditingService>() { }());
+		notebookResolver = new class extends mock<INotebookEditorModelResolverService>() {
+			override readonly onDidChangeDirty = onDidChangeNotebookDirty.event;
+			override isDirty(resource: URI): boolean {
+				return reportedDirtyNotebooks.has(resource);
+			}
+			override async resolve(resource: URI | IUntitledNotebookResource): Promise<IReference<IResolvedNotebookEditorModel>> {
+				if (!URI.isUri(resource)) {
+					throw new Error('Not a notebook file');
+				}
+				const uri = resource;
+				// A notebook file is read from disk, and the notebook it compares with from the content registered for it.
+				const read = async () => {
+					const content = uri.scheme === Schemas.file ? disk.get(uri) : VSBuffer.wrap(await baselineNotebookFiles.readFile(uri)).toString();
+					if (content === undefined) {
+						throw new Error(`File not found: ${uri}`);
+					}
+					return notebookSerializer.dataToNotebook(VSBuffer.fromString(content));
+				};
+				const existing = notebooks.get(uri);
+				if (existing) {
+					return { object: existing, dispose: () => { } };
+				}
+				const backup = notebookBackups.get(uri);
+				const data = backup === undefined ? await read() : await notebookSerializer.dataToNotebook(VSBuffer.fromString(backup));
+				const notebook = store.add(instantiationService.createInstance(NotebookTextModel, 'jupyter-notebook', uri, data.cells, data.metadata, notebookSerializer.options));
+				onWillAddNotebook.fire(notebook);
+				if (backup !== undefined) {
+					// Like a notebook's working copy, it has its unsaved changes once it is resolved, without the resolver being told.
+					dirtyNotebooks.add(uri);
+				}
+				const reload = async () => {
+					const data = await read();
+					notebook.reset(data.cells, data.metadata, notebookSerializer.options);
+				};
+				const model = new class extends mock<IResolvedNotebookEditorModel>() {
+					override readonly resource = uri;
+					override readonly viewType = notebook.viewType;
+					override readonly notebook = notebook;
+					override isDirty(): boolean {
+						return dirtyNotebooks.has(uri);
+					}
+					override async load(): Promise<IResolvedNotebookEditorModel> {
+						// Like a notebook's working copy, loading its file keeps unsaved changes.
+						if (!dirtyNotebooks.has(uri)) {
+							await reload();
+						}
+						return this;
+					}
+					override async revert(): Promise<void> {
+						// Like a notebook's working copy, its unsaved changes are gone before it loads its file.
+						setNotebookDirty(uri, false);
+						await reload();
+					}
+					override async save(): Promise<boolean> {
+						saves.push(uri.path);
+						disk.set(uri, JSON.stringify(notebook.cells.map(cell => cell.getValue())));
+						setNotebookDirty(uri, false);
+						return true;
+					}
+				}();
+				notebooks.set(uri, model);
+				return { object: model, dispose: () => { } };
+			}
+		}();
+		collection.set(INotebookEditorModelResolverService, notebookResolver);
+		collection.set(INotebookEditorWorkerService, new class extends mock<INotebookEditorWorkerService>() {
+			override async computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult> {
+				const cells = (resource: URI): ISequence => ({ getElements: () => Int32Array.from(notebooks.get(resource)!.notebook.cells, cell => cell.getHashValue()) });
+				return { cellsDiff: new LcsDiff(cells(original), cells(modified)).ComputeDiff(false), metadataChanged: false };
+			}
+		}());
+		collection.set(INotebookExecutionStateService, new class extends mock<INotebookExecutionStateService>() {
+			override getCellExecutionsForNotebook() { return []; }
+		}());
+		collection.set(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
+			override info(): void { }
+			override warn(): void { }
+			override debug(): void { }
+			override trace(): void { }
+			override error(_category: string, output: string): void { errors.push(output); }
+		}());
+		collection.set(INotebookEditorService, new class extends mock<INotebookEditorService>() {
+			override retrieveExistingWidgetFromURI() { return undefined; }
 		}());
 		collection.set(IEditorService, editorService);
 		collection.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
@@ -1237,13 +1469,245 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
-	test('does not review notebooks, or files that are not UTF-8 text', async () => {
-		hostWrites('/notebook.ipynb', '{ "cells": [1] }\n');
+	test('reviews a notebook by its cells, and keeps or undoes its changes as a whole', async () => {
+		hostWrites('/kept.ipynb', '["a","B","c"]');
+		hostWrites('/undone.ipynb', '["x"]');
+		host.setWorkingSet([
+			workingSetFile('/kept.ipynb', '["a","b"]', '["a","B","c"]'),
+			workingSetFile('/undone.ipynb', '["x","y"]', '["x"]'),
+		]);
+		await waitForEntries('/kept.ipynb', '/undone.ipynb');
+		const kept = getNotebookEntry('/kept.ipynb');
+		const undone = getNotebookEntry('/undone.ipynb');
+		const cells = { kept: await getCellChanges(kept, 2), undone: await getCellChanges(undone, 1) };
+
+		await review.accept(kept.modifiedURI);
+		await review.reject(undone.modifiedURI);
+
+		assert.deepStrictEqual({ cells, invoked: host.invoked, saves, states: [kept.state.get(), undone.state.get()], errors }, {
+			cells: { kept: ['unchanged', 'modified', 'insert'], undone: ['unchanged', 'delete'] },
+			invoked: ['keep /kept.ipynb', 'undo /undone.ipynb'],
+			saves: [],
+			states: [ModifiedFileEntryState.Accepted, ModifiedFileEntryState.Rejected],
+			errors: [],
+		});
+	});
+
+	test('keeps or undoes the change of a notebook cell by the lines of its file that hold it', async () => {
+		const removed = [ipynb(['a\n', 'b\n', 'c'], ['x'], ['y']), ipynb(['A\n', 'b\n', 'c'], ['y'])] as const;
+		const added = [ipynb(['a'], ['b']), ipynb(['a'], ['new'], ['b'])] as const;
+		hostWrites('/removed.ipynb', removed[1]);
+		hostWrites('/added.ipynb', added[1]);
+		// The agent host publishes the changes anew after each operation, which the review then shows.
+		let version = 0;
+		const publish = () => {
+			version++;
+			host.setWorkingSet([workingSetFile('/removed.ipynb', ...removed, `v${version}`), workingSetFile('/added.ipynb', ...added, `v${version}`)]);
+		};
+		publish();
+		await waitForEntries('/removed.ipynb', '/added.ipynb');
+		const getChanges = async () => [await getCellChanges(getNotebookEntry('/removed.ipynb'), 2), await getCellChanges(getNotebookEntry('/added.ipynb'), 1)];
+		const cells = await getChanges();
+		host.afterOperation = publish;
+		const decide = async (path: string, type: 'modified' | 'insert' | 'delete', decision: 'keep' | 'undo') => {
+			const cell = getNotebookEntry(path).cellsDiffInfo.get().find(candidate => candidate.type === type);
+			assert.ok(cell);
+			const decided = await cell[decision](cell.diff.get().changes[0]);
+			await getChanges();
+			return decided;
+		};
+
+		const decided = [await decide('/removed.ipynb', 'modified', 'keep'), await decide('/removed.ipynb', 'delete', 'undo'), await decide('/added.ipynb', 'insert', 'keep')];
+
+		assert.deepStrictEqual({ cells, canDecideCells: getNotebookEntry('/added.ipynb').canDecideCells, decided, invoked: host.invoked, errors }, {
+			cells: [['modified', 'delete', 'unchanged'], ['unchanged', 'insert', 'unchanged']],
+			canDecideCells: true,
+			decided: [true, true, true],
+			invoked: ['keep /removed.ipynb after 8-9 @v1', 'undo /removed.ipynb before 13-22 @v2', 'keep /added.ipynb after 11-20 @v3'],
+			errors: [],
+		});
+	});
+
+	test('does not keep or undo a change of a notebook cell that its file holds along with other changes', async () => {
+		// The agent host keeps or undoes cells that were added one after the other together.
+		const current = ipynb(['a'], ['b'], ['c']);
+		hostWrites('/added.ipynb', current);
+		hostWrites('/created.ipynb', current);
+		host.setWorkingSet([workingSetFile('/added.ipynb', ipynb(['a']), current), workingSetFile('/created.ipynb', undefined, current)]);
+		await waitForEntries('/added.ipynb', '/created.ipynb');
+		const added = getNotebookEntry('/added.ipynb');
+		const created = getNotebookEntry('/created.ipynb');
+		await getCellChanges(added, 2);
+
+		const cell = added.cellsDiffInfo.get()[1];
+		const kept = await cell.keep(cell.diff.get().changes[0]);
+
+		assert.deepStrictEqual({ kept, canDecideCells: [added.canDecideCells, created.canDecideCells], invoked: host.invoked, errors }, {
+			kept: false,
+			canDecideCells: [true, false],
+			invoked: [],
+			errors: ['Could not keep the changes to \'added.ipynb\': The notebook\'s file holds this change together with other changes, so it can\'t be kept or undone on its own. Keep or undo the whole file instead.'],
+		});
+	});
+
+	test('follows and undoes a notebook whose cells an extension gave ids, without saving them', async () => {
+		hostWrites('/a.ipynb', '["a","B"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a","b"]', '["a","B"]')]);
+		await waitForEntries('/a.ipynb');
+		const entry = getNotebookEntry('/a.ipynb');
+		const first = await getCellChanges(entry, 1);
+
+		// The ids keep the notebook from reloading the file that the agent writes next.
+		extensionAddsCellIds('/a.ipynb');
+		hostWrites('/a.ipynb', '["a","B","c"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a","b"]', '["a","B","c"]')]);
+		const second = await getCellChanges(entry, 2);
+
+		extensionAddsCellIds('/a.ipynb');
+		host.afterOperation = () => {
+			hostWrites('/a.ipynb', '["a","b"]');
+			host.setWorkingSet([]);
+		};
+		await review.reject(entry.modifiedURI);
+
+		assert.deepStrictEqual({ first, second, invoked: host.invoked, saves, cells: getCells('/a.ipynb'), isDirty: getNotebook('/a.ipynb').isDirty(), errors }, {
+			first: ['unchanged', 'modified'],
+			second: ['unchanged', 'modified', 'insert'],
+			invoked: ['undo /a.ipynb'],
+			saves: [],
+			cells: ['a', 'b'],
+			isDirty: false,
+			errors: [],
+		});
+	});
+
+	test('loads the file of a notebook whose changes were undone without the review', async () => {
+		hostWrites('/undone.ipynb', '["a","B"]');
+		hostWrites('/kept.ipynb', '["a","B"]');
+		hostWrites('/mine.ipynb', '["a","B"]');
+		host.setWorkingSet(['/undone.ipynb', '/kept.ipynb', '/mine.ipynb'].map(path => workingSetFile(path, '["a","b"]', '["a","B"]')));
+		await waitForEntries('/undone.ipynb', '/kept.ipynb', '/mine.ipynb');
+		// Their ids keep the notebooks from reloading their files on their own.
+		extensionAddsCellIds('/undone.ipynb');
+		extensionAddsCellIds('/kept.ipynb');
+		userReplacesCell('/mine.ipynb', 0, 'mine');
+
+		// The working set above the chat input undoes or keeps the changes with the agent host itself.
+		hostWritesWithoutReload('/undone.ipynb', '["a","b"]');
+		hostWritesWithoutReload('/mine.ipynb', '["a","b"]');
+		host.setWorkingSet([]);
+		await waitForEntries();
+
+		const state = (path: string) => ({ cells: getCells(path), isDirty: getNotebook(path).isDirty() });
+		assert.deepStrictEqual({ undone: state('/undone.ipynb'), kept: state('/kept.ipynb'), mine: state('/mine.ipynb'), invoked: host.invoked, saves, errors }, {
+			undone: { cells: ['a', 'b'], isDirty: false },
+			// A notebook that holds what its file holds isn't reloaded, and the user's unsaved changes aren't dropped.
+			kept: { cells: ['a', 'B'], isDirty: true },
+			mine: { cells: ['mine', 'B'], isDirty: true },
+			invoked: [],
+			saves: [],
+			errors: [],
+		});
+	});
+
+	test('does not drop the unsaved changes that a notebook was restored with', async () => {
+		hostWrites('/a.ipynb', '["a"]');
+		// The window reloaded with unsaved changes to the notebook, which the notebook then opens with.
+		notebookBackups.set(URI.file('/a.ipynb'), '["mine"]');
+		store.add(await notebookResolver.resolve(URI.file('/a.ipynb')));
+		hostWrites('/a.ipynb', '["a","b"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a"]', '["a","b"]')]);
+		const entry = await review.resolveEntry(URI.file('/a.ipynb'));
+
+		assert.deepStrictEqual({ reviewed: !!entry, cells: getCells('/a.ipynb'), isDirty: getNotebook('/a.ipynb').isDirty(), errors }, {
+			reviewed: false,
+			cells: ['mine'],
+			isDirty: true,
+			errors: ['Could not update editor review for \'a.ipynb\': The notebook has unsaved changes. Your text has been preserved. Resolve the file\'s changes and save or revert it to resume editor review.'],
+		});
+	});
+
+	test('does not drop the unsaved changes that the user made to the metadata of cells', async () => {
+		hostWrites('/a.ipynb', '["a","B"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a","b"]', '["a","B"]')]);
+		await waitForEntries('/a.ipynb');
+		extensionAddsCellIds('/a.ipynb');
+		userTagsCell('/a.ipynb', 0);
+
+		// The agent writes the notebook again.
+		hostWrites('/a.ipynb', '["a","B","c"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a","b"]', '["a","B","c"]')]);
+		const entry = await review.resolveEntry(URI.file('/a.ipynb'));
+
+		assert.deepStrictEqual({ reviewed: !!entry, cells: getCells('/a.ipynb'), metadata: getNotebook('/a.ipynb').notebook.cells[0].metadata }, {
+			reviewed: false,
+			cells: ['a', 'B'],
+			metadata: { id: 'cell-0', metadata: { tags: ['mine'] } },
+		});
+	});
+
+	test('does not show the changes that the user saved to a notebook as the agent\'s', async () => {
+		hostWrites('/a.ipynb', '["a","B","c"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a","b","c"]', '["a","B","c"]', 'v1')]);
+		await waitForEntries('/a.ipynb');
+		const entry = getNotebookEntry('/a.ipynb');
+		const shown = await getCellChanges(entry, 1);
+
+		// The user adds a cell at the end and removes the first one, both next to cells that the agent left as they were, and saves the notebook.
+		const { notebook, resource } = getNotebook('/a.ipynb');
+		notebook.applyEdits([{ editType: CellEditType.Replace, index: 3, count: 0, cells: [createCell('new')] }], true, undefined, () => undefined, undefined, false);
+		notebook.applyEdits([{ editType: CellEditType.Replace, index: 0, count: 1, cells: [] }], true, undefined, () => undefined, undefined, false);
+		setNotebookDirty(resource, true);
+		await getNotebook('/a.ipynb').save();
+		// The agent host publishes the changes anew, as after it kept the changes of another file.
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a","b","c"]', '["a","B","c"]', 'v2')]);
+		await review.resolveEntry(resource);
+		await waitForState(entry.changesCount.map(count => count > 0 ? true : undefined));
+
+		assert.deepStrictEqual({ shown, cells: entry.cellsDiffInfo.get().map(cell => cell.type), canDecideCells: entry.canDecideCells, errors }, {
+			shown: ['unchanged', 'modified', 'unchanged'],
+			cells: ['modified', 'unchanged', 'unchanged'],
+			// The notebook isn't the one whose lines the session recorded, so its changes are kept or undone as a whole.
+			canDecideCells: false,
+			errors: [],
+		});
+	});
+
+	test('suspends the review of a notebook with unsaved changes of the user, and saves them before undoing', async () => {
+		hostWrites('/a.ipynb', '["a"]');
+		store.add(await notebookResolver.resolve(URI.file('/a.ipynb')));
+		userReplacesCell('/a.ipynb', 0, 'mine');
+		hostWrites('/a.ipynb', '["a","b"]');
+		host.setWorkingSet([workingSetFile('/a.ipynb', '["a"]', '["a","b"]')]);
+		await waitForError();
+		const unsaved = { entries: review.entries.get().length, cells: getCells('/a.ipynb'), errors: [...errors] };
+
+		// The user reverts the notebook, which then loads what the agent wrote.
+		await getNotebook('/a.ipynb').revert();
+		await waitForEntries('/a.ipynb');
+		const entry = getNotebookEntry('/a.ipynb');
+		const cells = await getCellChanges(entry, 1);
+		userRunsCell('/a.ipynb', 0);
+		host.afterOperation = () => host.setWorkingSet([]);
+		await review.reject(entry.modifiedURI);
+
+		assert.deepStrictEqual({ unsaved, cells, saves, invoked: host.invoked }, {
+			unsaved: {
+				entries: 0,
+				cells: ['mine'],
+				errors: ['Could not update editor review for \'a.ipynb\': The notebook has unsaved changes. Your text has been preserved. Resolve the file\'s changes and save or revert it to resume editor review.'],
+			},
+			cells: ['unchanged', 'insert'],
+			saves: ['/a.ipynb'],
+			invoked: ['undo /a.ipynb'],
+		});
+	});
+
+	test('does not review files that are not UTF-8 text', async () => {
 		hostWrites('/latin1.ts', 'after\n');
 		hostWrites('/was-latin1.ts', 'after\n');
 		encodings.set(URI.file('/latin1.ts'), 'windows1252');
 		host.setWorkingSet([
-			workingSetFile('/notebook.ipynb', '{ "cells": [] }\n', '{ "cells": [1] }\n'),
 			workingSetFile('/latin1.ts', 'before\n', 'after\n'),
 			workingSetFile('/was-latin1.ts', 'caf\uFFFD\n', 'after\n'),
 		]);

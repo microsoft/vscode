@@ -249,6 +249,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					...change.diff.read(r),
 					modifiedModel,
 					originalModel,
+					decidedTogether: !_entry.canDecideCells,
 					keep: change.keep,
 					undo: change.undo
 				} satisfies IDocumentDiff2;
@@ -307,7 +308,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				this.insertedCellDecorator?.apply(changes);
 				this.modifiedCellDecorator?.apply(modifiedChanges);
 				this.deletedCellDecorator?.apply(changes, originalModel);
-				this.overlayToolbarDecorator?.decorate(changes.filter(c => c.type === 'insert' || c.type === 'modified'));
+				this.overlayToolbarDecorator?.decorate(_entry.canDecideCells ? changes.filter(c => c.type === 'insert' || c.type === 'modified') : []);
 			}
 		}));
 	}
@@ -339,7 +340,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			this._store.delete(this.deletedCellDecorator);
 			this.deletedCellDecorator.dispose();
 		}
-		this.deletedCellDecorator = this._register(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, {
+		this.deletedCellDecorator = this._register(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, !this._entry.canDecideCells ? undefined : {
 			className: 'chat-diff-change-content-widget',
 			telemetrySource: 'chatEditingNotebookHunk',
 			menuId: MenuId.ChatEditingEditorHunk,
@@ -627,6 +628,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	async acceptNearestChange(hunk: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		if (!this._entry.canDecideCells) {
+			return;
+		}
 		if (hunk) {
 			await hunk.accept();
 		} else {
@@ -645,6 +649,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	async rejectNearestChange(hunk: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		if (!this._entry.canDecideCells) {
+			return;
+		}
 		if (hunk) {
 			await hunk.reject();
 		} else {
@@ -758,6 +765,9 @@ function areDocumentDiff2Equal(diff1: IDocumentDiff2, diff2: IDocumentDiff2): bo
 		return false;
 	}
 	if (diff1.modifiedModel !== diff2.modifiedModel) {
+		return false;
+	}
+	if (diff1.decidedTogether !== diff2.decidedTogether) {
 		return false;
 	}
 	if (diff1.keep !== diff2.keep) {

@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError, raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { LcsDiff } from '../../../../../../base/common/diff/diff.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { filter, equals as objectEquals } from '../../../../../../base/common/objects.js';
 import { stripUTF8BOM } from '../../../../../../base/common/strings.js';
-import { isDefined } from '../../../../../../base/common/types.js';
+import { isDefined, isEmptyObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { StringEdit } from '../../../../../../editor/common/core/edits/stringEdit.js';
 import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
@@ -32,6 +35,7 @@ import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../pl
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChangesetFileStatus, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getChangesetFileStatus } from '../../../../../../platform/agentHost/common/agentHostProtocolTransition.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -41,12 +45,23 @@ import { EditorsOrder, IEditorIdentifier, isDiffEditorInput, SaveReason } from '
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { UTF8, UTF8_with_bom } from '../../../../../services/textfile/common/encoding.js';
 import { isTextFileEditorModel, ITextFileService, TextFileReconcileResult } from '../../../../../services/textfile/common/textfiles.js';
+import { SnapshotContext } from '../../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
+import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
+import { ICellOutput, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, NotebookCellsChangeType, NotebookData, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService } from '../../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
+import { AbstractChatEditingModifiedFileEntry } from '../../chatEditing/chatEditingModifiedFileEntry.js';
+import { ChatEditingModifiedNotebookEntry } from '../../chatEditing/chatEditingModifiedNotebookEntry.js';
+import { createSnapshot } from '../../chatEditing/notebook/chatEditingModifiedNotebookSnapshot.js';
+import { ICellDiffInfo } from '../../chatEditing/notebook/notebookCellChanges.js';
+import { hasNotebookFileSources, INotebookFileLines, locateNotebookFileChange, NotebookFileChangeFailure, readNotebookFile } from './agentHostNotebookFileChanges.js';
 import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { AgentHostCheckpointReview, IAgentHostCheckpointReviewSource } from './agentHostCheckpointReview.js';
@@ -56,6 +71,9 @@ const DIFF_TIMEOUT_MS = 1000;
 
 /** How long an operation waits for the Working Set to finish updating. */
 const WORKING_SET_READY_TIMEOUT_MS = 30_000;
+
+/** The notebooks of ipynb files, the lines of which hold their cells. */
+const JUPYTER_NOTEBOOK_VIEW_TYPE = 'jupyter-notebook';
 
 class EditReviewSynchronizationError extends Error { }
 class EditReviewSupersededError extends EditReviewSynchronizationError { }
@@ -85,10 +103,80 @@ interface IWorkingSet {
 	readonly channel: URI;
 }
 
+/** A change of a reviewed notebook that is kept or undone on its own. */
+type NotebookCellChange =
+	/** The hunk `change` of the source of the cell `cell`, or all of its hunks. */
+	| { readonly kind: 'modified'; readonly cell: NotebookCellTextModel; readonly change: DetailedLineRangeMapping | undefined }
+	/** The added cell `cell`. */
+	| { readonly kind: 'insert'; readonly cell: NotebookCellTextModel }
+	/** The removed cell `cell`, of the notebook that the reviewed one is compared with. */
+	| { readonly kind: 'delete'; readonly cell: NotebookCellTextModel };
+
+/** A change of a review entry that is kept or undone on its own: a hunk of a document, or a change of a notebook. */
+type ReviewChange = DetailedLineRangeMapping | NotebookCellChange;
+
 /** Keeps and undoes the changes of review entries with the agent host. */
 interface IWorkingSetOperations {
-	keep(entry: AgentHostEditReviewEntry, change?: DetailedLineRangeMapping): Promise<boolean>;
-	undo(entry: AgentHostEditReviewEntry, change?: DetailedLineRangeMapping): Promise<boolean>;
+	keep(entry: ReviewEntry, change?: ReviewChange): Promise<boolean>;
+	undo(entry: ReviewEntry, change?: ReviewChange): Promise<boolean>;
+}
+
+/**
+ * Whether an agent's edit tool call is writing the file of a review entry.
+ * As while local chat edits stream into a file, the editor is read-only,
+ * the changes can't be kept or undone, and changes of the document, as
+ * when it reloads what the agent wrote, are the agent's meanwhile. The
+ * agent host reports which file is written, not which chat response
+ * writes it.
+ */
+class AgentEditState {
+
+	private _editing = false;
+	private _reloads = 0;
+
+	constructor(
+		private readonly _entry: Pick<AbstractChatEditingModifiedFileEntry, 'startExternalEdit' | 'stopExternalEdit'>,
+		private readonly _isCurrentlyBeingModifiedBy: ISettableObservable<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined>,
+		private readonly _waitsForLastEdits: ISettableObservable<boolean>,
+	) { }
+
+	get editing(): boolean {
+		return this._editing;
+	}
+
+	/** Marks the file as being written by an agent's edit tool call, or not. */
+	setEditing(editing: boolean): void {
+		this._editing = editing;
+		this._updateExternalEdit();
+		if (!!this._isCurrentlyBeingModifiedBy.get() === editing) {
+			return;
+		}
+		transaction(tx => {
+			this._isCurrentlyBeingModifiedBy.set(editing ? { responseModel: undefined, undoStopId: undefined } : undefined, tx);
+			this._waitsForLastEdits.set(editing, tx);
+		});
+	}
+
+	/** Runs `task`, which reloads what the agent wrote into the document, with the document's changes counting as the agent's. */
+	async runAsAgentEdit(task: () => Promise<void>): Promise<void> {
+		this._reloads++;
+		this._updateExternalEdit();
+		try {
+			await task();
+		} finally {
+			this._reloads--;
+			this._updateExternalEdit();
+		}
+	}
+
+	/** Local chat counts the changes of a document as an agent's while the agent edits its file on disk. */
+	private _updateExternalEdit(): void {
+		if (this._editing || this._reloads > 0) {
+			this._entry.startExternalEdit();
+		} else {
+			this._entry.stopExternalEdit();
+		}
+	}
 }
 
 /**
@@ -137,6 +225,11 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		await reset;
 	}
 
+	/** Whether the review still shows `change`, which the user's typing can replace. */
+	shows(change: ReviewChange): boolean {
+		return change instanceof DetailedLineRangeMapping && this.diffInfo.get().changes.includes(change);
+	}
+
 	/** Keeping or undoing a single change goes through the agent host as well. */
 	override get diffInfo() {
 		return super.diffInfo.map(diff => ({
@@ -175,57 +268,349 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		return completeIfCurrent(super.rejectDeferred(), () => isSameWorkingSetFile(this.file, file));
 	}
 
-	/** Whether an agent's edit tool call is writing the file, see {@link setEditing}. */
+	private readonly _agentEdit = new AgentEditState(this, this._isCurrentlyBeingModifiedByObs, this._waitsForLastEdits);
+
+	/** Whether an agent's edit tool call is writing the file, see {@link AgentEditState}. */
 	get isAgentEditing(): boolean {
-		return this._agentEditing;
+		return this._agentEdit.editing;
 	}
 
-	private _agentEditing = false;
-	private _agentReloads = 0;
-
-	/**
-	 * Marks the file as being written by an agent's edit tool call, or not.
-	 * As while local chat edits stream into a file, the editor is read-only,
-	 * the changes can't be kept or undone, and changes of the document, as
-	 * when it reloads what the agent wrote, are the agent's meanwhile. The
-	 * agent host reports which file is written, not which chat response
-	 * writes it.
-	 */
 	setEditing(editing: boolean): void {
-		this._agentEditing = editing;
-		this._updateExternalEdit();
-		if (!!this._isCurrentlyBeingModifiedByObs.get() === editing) {
-			return;
-		}
-		transaction(tx => {
-			this._isCurrentlyBeingModifiedByObs.set(editing ? { responseModel: undefined, undoStopId: undefined } : undefined, tx);
-			this._waitsForLastEdits.set(editing, tx);
-		});
+		this._agentEdit.setEditing(editing);
 	}
 
-	/** Runs `task`, which reloads what the agent wrote into the document, with the document's changes counting as the agent's. */
-	async runAsAgentEdit(task: () => Promise<void>): Promise<void> {
-		this._agentReloads++;
-		this._updateExternalEdit();
-		try {
-			await task();
-		} finally {
-			this._agentReloads--;
-			this._updateExternalEdit();
-		}
-	}
-
-	/** Local chat counts the changes of a document as an agent's while the agent edits its file on disk. */
-	private _updateExternalEdit(): void {
-		if (this._agentEditing || this._agentReloads > 0) {
-			this.startExternalEdit();
-		} else {
-			this.stopExternalEdit();
-		}
+	runAsAgentEdit(task: () => Promise<void>): Promise<void> {
+		return this._agentEdit.runAsAgentEdit(task);
 	}
 
 	private _matchLineEndings(): void {
 		this.originalModel.setEOL(this.modifiedModel.getEndOfLineSequence());
+	}
+}
+
+/**
+ * A notebook of the session's Working Set, reviewed in the notebook editor
+ * like a local chat edit: by its cells, compared with the notebook that the
+ * file's baseline holds. The agent host keeps and undoes the changes of a
+ * file or of a range of its lines, so the change of a cell is kept or undone
+ * by the lines of the notebook's file that hold it, which only an ipynb file
+ * tells, see {@link locateNotebookFileChange}. The changes of other
+ * notebooks are kept or undone as a whole.
+ */
+class AgentHostNotebookReviewEntry extends ChatEditingModifiedNotebookEntry {
+
+	private _operations: IWorkingSetOperations | undefined;
+	private _file: IWorkingSetFile | undefined;
+	/** Whether the notebook has changes that were made outside of the session, see {@link compare}. */
+	private _changedOutside = false;
+	private readonly _agentEdit = new AgentEditState(this, this._isCurrentlyBeingModifiedByObs, this._waitsForLastEdits);
+
+	/** The Working Set file this entry reviews, as last read. */
+	get file(): IWorkingSetFile {
+		if (!this._file) {
+			throw new Error('Review entry is not connected');
+		}
+		return this._file;
+	}
+
+	/**
+	 * Connects the entry to the Working Set file it reviews; called right after creating it.
+	 * `baselineContent` keeps the content of the notebook it compares with readable.
+	 */
+	connect(operations: IWorkingSetOperations, file: IWorkingSetFile, baselineContent: IDisposable): void {
+		this._operations = operations;
+		this._file = file;
+		this._register(baselineContent);
+	}
+
+	/**
+	 * A created notebook has no lines to compare with, and a notebook that was changed outside of the
+	 * session isn't the one whose lines the session recorded, so their changes are kept or undone as a whole.
+	 */
+	override get canDecideCells(): boolean {
+		return this.viewType === JUPYTER_NOTEBOOK_VIEW_TYPE && !!this._file && !this._file.diff.isCreated && !this._changedOutside;
+	}
+
+	override createModifiedCellDiffInfo(modifiedCellIndex: number, originalCellIndex: number): ICellDiffInfo {
+		const cell = this.modifiedModel.cells[modifiedCellIndex];
+		return this._decideWithAgentHost(super.createModifiedCellDiffInfo(modifiedCellIndex, originalCellIndex), change => ({ kind: 'modified', cell, change }));
+	}
+
+	override createInsertedCellDiffInfo(modifiedCellIndex: number): ICellDiffInfo {
+		const cell = this.modifiedModel.cells[modifiedCellIndex];
+		return this._decideWithAgentHost(super.createInsertedCellDiffInfo(modifiedCellIndex), () => ({ kind: 'insert', cell }));
+	}
+
+	override createDeleteCellDiffInfo(originalCellIndex: number): ICellDiffInfo {
+		const cell = this.originalModel.cells[originalCellIndex];
+		return this._decideWithAgentHost(super.createDeleteCellDiffInfo(originalCellIndex), () => ({ kind: 'delete', cell }));
+	}
+
+	/** Keeping or undoing the changes of a cell goes through the agent host as well. */
+	private _decideWithAgentHost(cell: ICellDiffInfo, toChange: (change: DetailedLineRangeMapping | undefined) => NotebookCellChange): ICellDiffInfo {
+		const keep = (change?: DetailedLineRangeMapping) => this._operations?.keep(this, toChange(change)) ?? Promise.resolve(false);
+		const undo = (change?: DetailedLineRangeMapping) => this._operations?.undo(this, toChange(change)) ?? Promise.resolve(false);
+		// A cell's hunks are kept or undone at once in one operation: each operation updates the review, which replaces the other hunks.
+		return { ...cell, keep, undo, keepAll: () => keep(), undoAll: () => undo() };
+	}
+
+	/** Whether the review still shows `change`, which a newer version of the notebook's changes can replace. */
+	shows(change: ReviewChange): boolean {
+		return !(change instanceof DetailedLineRangeMapping) && !!this._findCellChange(change);
+	}
+
+	/**
+	 * The lines of the notebook's file that the agent host is asked to keep or undo the changes of, for `change`.
+	 * Throws if the agent host wouldn't keep or undo `change` alone.
+	 */
+	locate(change: NotebookCellChange): INotebookFileLines {
+		const shown = this._findCellChange(change);
+		const baseline = readNotebookFile(this.file.baseline);
+		const current = readNotebookFile(this.file.current);
+		// The lines of a cell tell lines of the file only while the notebooks hold what the session recorded.
+		if (!shown || !baseline || !current || !hasNotebookFileSources(this.originalModel.cells, baseline) || !hasNotebookFileSources(this.modifiedModel.cells, current)) {
+			throw createUnmatchedChangeError();
+		}
+		const located = locateNotebookFileChange(baseline, current, shown.type === 'delete'
+			? { kind: 'delete', cell: shown.originalCellIndex }
+			: shown.type === 'insert'
+				? { kind: 'insert', cell: shown.modifiedCellIndex }
+				: { kind: 'modified', cell: shown.modifiedCellIndex, originalCell: shown.originalCellIndex, hunks: change.kind === 'modified' && change.change ? [change.change] : shown.diff.get().changes });
+		if (located === NotebookFileChangeFailure.Unmatched) {
+			throw createUnmatchedChangeError();
+		}
+		if (located === NotebookFileChangeFailure.Inseparable) {
+			throw new Error(localize('agentHostEditReview.inseparable', "The notebook's file holds this change together with other changes, so it can't be kept or undone on its own. Keep or undo the whole file instead."));
+		}
+		return located;
+	}
+
+	private _findCellChange(change: NotebookCellChange): ICellDiffInfo | undefined {
+		const index = (change.kind === 'delete' ? this.originalModel : this.modifiedModel).cells.indexOf(change.cell);
+		if (index < 0) {
+			return undefined;
+		}
+		return this.cellsDiffInfo.get().find(cell => {
+			switch (change.kind) {
+				case 'delete': return cell.type === 'delete' && cell.originalCellIndex === index;
+				case 'insert': return cell.type === 'insert' && cell.modifiedCellIndex === index;
+				case 'modified': return cell.type === 'modified' && cell.modifiedCellIndex === index && (!change.change || cell.diff.get().changes.includes(change.change));
+			}
+		});
+	}
+
+	/** Whether the notebook has unsaved changes, which keep it from reloading its file. */
+	get isDirty(): boolean {
+		return this.modifiedResourceRef.object.isDirty();
+	}
+
+	/**
+	 * Whether the notebook holds `content`, apart from metadata that was added to its cells, as
+	 * notebook extensions do on their own, see {@link NotebookUnsavedChanges}.
+	 */
+	holds(content: NotebookData): boolean {
+		return holdsNotebookContent(this.modifiedResourceRef.object.notebook, content, this.transientOptions);
+	}
+
+	/** The notebook as it is. */
+	get content(): NotebookData {
+		return this.modifiedModel.createSnapshot({ context: SnapshotContext.Save, outputSizeLimit: 0, transientOptions: this.transientOptions });
+	}
+
+	/** Loads the notebook's file, which the agent wrote, dropping the notebook's unsaved changes. */
+	async loadFile(): Promise<void> {
+		// Loading replaces cells, so their changes are computed anew rather than followed.
+		this.updateCellDiffInfo([], undefined);
+		const notebook = this.modifiedResourceRef.object;
+		if (notebook.isDirty()) {
+			await notebook.revert();
+		} else {
+			await notebook.load({ forceReadFromFile: true });
+		}
+	}
+
+	/**
+	 * Compares the notebook anew with the notebook `baseline` of the version `file` of its Working Set file.
+	 * `changedOutside` tells that `baseline` includes changes that were made to the notebook outside of the session.
+	 */
+	async compare(file: IWorkingSetFile, baseline: NotebookData, changedOutside: boolean): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._file = file;
+		this._changedOutside = changedOutside;
+		this.updateCellDiffInfo([], undefined);
+		this._setOriginalContent(baseline);
+		await this.initializeModelsFromDiff();
+	}
+
+	protected override async _doAccept(): Promise<void> {
+		if (!await this._operations?.keep(this)) {
+			throw new CancellationError();
+		}
+	}
+
+	protected override async _doReject(): Promise<void> {
+		if (!await this._operations?.undo(this)) {
+			throw new CancellationError();
+		}
+	}
+
+	/** The agent host decides what is kept or undone, so a notebook back at its baseline stays undecided. */
+	protected override _settlesWithoutChanges(): boolean {
+		return false;
+	}
+
+	/** Changes the agent host didn't keep stay undecided. */
+	override acceptDeferred() {
+		const file = this.file;
+		return completeIfCurrent(super.acceptDeferred(), () => isSameWorkingSetFile(this.file, file));
+	}
+
+	/** Changes the agent host didn't undo stay undecided. */
+	override rejectDeferred() {
+		const file = this.file;
+		return completeIfCurrent(super.rejectDeferred(), () => isSameWorkingSetFile(this.file, file));
+	}
+
+	/** Whether an agent's edit tool call is writing the file, see {@link AgentEditState}. */
+	get isAgentEditing(): boolean {
+		return this._agentEdit.editing;
+	}
+
+	setEditing(editing: boolean): void {
+		this._agentEdit.setEditing(editing);
+	}
+
+	runAsAgentEdit(task: () => Promise<void>): Promise<void> {
+		return this._agentEdit.runAsAgentEdit(task);
+	}
+}
+
+/** A file of the session's Working Set under review: a text document, or a notebook. */
+type ReviewEntry = AgentHostEditReviewEntry | AgentHostNotebookReviewEntry;
+
+/**
+ * Tells which notebooks have unsaved changes that are none of the user's.
+ *
+ * The ipynb extension changes the metadata of cells on its own: it gives the cells that a notebook
+ * loads ids, as when the notebook reloads the file that an agent wrote. That leaves the notebook with
+ * unsaved changes, which keep it from reloading what the agent writes next. Unlike the user's, such
+ * changes can be dropped.
+ *
+ * Unsaved changes are the user's unless they are seen to be such changes alone: the notebook got
+ * them through one, and has changed in no other way since. A notebook that is restored with its
+ * unsaved changes, as when the window reloads, isn't seen to get them.
+ */
+class NotebookUnsavedChanges extends Disposable {
+
+	/** Notebooks whose unsaved changes are all generated ones. */
+	private readonly _generated = new ResourceSet();
+	/** The metadata of cells as last seen, which a change to it is compared with. */
+	private readonly _cellMetadata = new WeakMap<NotebookCellTextModel, NotebookCellMetadata>();
+	/**
+	 * What happened to notebooks since their changes were last told apart: whether they got unsaved
+	 * changes, and whether everything that changed them was generated.
+	 */
+	private readonly _recent = new ResourceMap<{ becameDirty: boolean; generated: boolean | undefined }>();
+	private readonly _notebooks = this._register(new DisposableMap<NotebookTextModel>());
+
+	constructor(notebookService: INotebookService, notebookResolver: INotebookEditorModelResolverService) {
+		super();
+		for (const notebook of notebookService.getNotebookTextModels()) {
+			this._follow(notebook);
+		}
+		this._register(notebookService.onWillAddNotebookDocument(notebook => this._follow(notebook)));
+		this._register(notebookService.onDidRemoveNotebookDocument(notebook => {
+			this._notebooks.deleteAndDispose(notebook);
+			this._forget(notebook.uri);
+		}));
+		this._register(notebookResolver.onDidChangeDirty(notebook => {
+			if (notebook.isDirty()) {
+				this._note(notebook.resource).becameDirty = true;
+			} else {
+				this._forget(notebook.resource);
+			}
+		}));
+	}
+
+	/** Whether the unsaved changes of the notebook `resource` are known to be none of the user's. */
+	areGenerated(resource: URI): boolean {
+		this._tellApart();
+		return this._generated.has(resource);
+	}
+
+	private _follow(notebook: NotebookTextModel): void {
+		this._seeCells(notebook);
+		this._notebooks.set(notebook, notebook.onDidChangeContent(e => {
+			let generated: boolean | undefined;
+			let cellsChanged = false;
+			for (const event of e.rawEvents) {
+				if (event.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+					const cell: NotebookCellTextModel | undefined = notebook.cells[event.index];
+					const previous = cell && this._cellMetadata.get(cell);
+					if (cell) {
+						this._cellMetadata.set(cell, event.metadata);
+					}
+					if (!event.transient) {
+						generated = generated !== false && !!previous && isGeneratedCellMetadata(notebook, previous, event.metadata);
+					}
+					continue;
+				}
+				cellsChanged ||= event.kind === NotebookCellsChangeType.ModelChange || event.kind === NotebookCellsChangeType.Move
+					|| event.kind === NotebookCellsChangeType.Initialize || event.kind === NotebookCellsChangeType.Unknown;
+				if (!event.transient) {
+					generated = false;
+				}
+			}
+			if (cellsChanged) {
+				// Cells were added or are elsewhere now, so the changes to metadata above may not have been told for the right cells.
+				this._seeCells(notebook);
+			}
+			// A change that isn't saved with the notebook leaves it without unsaved changes.
+			if (generated !== undefined) {
+				const recent = this._note(notebook.uri);
+				recent.generated = recent.generated !== false && generated;
+			}
+		}));
+	}
+
+	private _seeCells(notebook: NotebookTextModel): void {
+		for (const cell of notebook.cells) {
+			this._cellMetadata.set(cell, cell.metadata);
+		}
+	}
+
+	private _note(resource: URI): { becameDirty: boolean; generated: boolean | undefined } {
+		let recent = this._recent.get(resource);
+		if (!recent) {
+			if (this._recent.size === 0) {
+				queueMicrotask(() => this._tellApart());
+			}
+			recent = { becameDirty: false, generated: undefined };
+			this._recent.set(resource, recent);
+		}
+		return recent;
+	}
+
+	private _forget(resource: URI): void {
+		this._generated.delete(resource);
+		this._recent.delete(resource);
+	}
+
+	/**
+	 * A notebook tells that it changed and that it got unsaved changes one after the other, in either
+	 * order, so its changes are told apart once it told both.
+	 */
+	private _tellApart(): void {
+		for (const [resource, { becameDirty, generated }] of this._recent) {
+			if (generated === false) {
+				this._generated.delete(resource);
+			} else if (generated && becameDirty) {
+				this._generated.add(resource);
+			}
+		}
+		this._recent.clear();
 	}
 }
 
@@ -244,11 +629,17 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
  * works, and an operation names the version of the changes the editor showed.
  * Session, turn and branch changesets reflect an undo as soon as the host
  * records it.
+ *
+ * A notebook is reviewed in its notebook editor, by its cells, whose changes
+ * are kept or undone by the lines of the notebook's file that hold them, see
+ * {@link AgentHostNotebookReviewEntry}. Its unsaved changes can't be merged
+ * with what the agent writes, so the user's suspend its review until they are
+ * saved or reverted, see {@link NotebookUnsavedChanges}.
  */
 export class AgentHostEditReview extends Disposable implements IWorkingSetOperations {
 
-	private readonly _entries = new ResourceMap<AgentHostEditReviewEntry>();
-	private readonly _entriesObs = observableValue<readonly AgentHostEditReviewEntry[]>(this, []);
+	private readonly _entries = new ResourceMap<ReviewEntry>();
+	private readonly _entriesObs = observableValue<readonly ReviewEntry[]>(this, []);
 	readonly entries: IObservable<readonly IModifiedFileEntry[]> = derived(this, reader => this._entriesObs.read(reader).filter(entry => this._isFileVisible(entry, reader)));
 	private readonly _checkpointReview = observableValue<AgentHostCheckpointReview | undefined>(this, undefined);
 
@@ -268,7 +659,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	/** Runs operations one at a time, since each one changes the Working Set the next one checks. */
 	private readonly _operations = new Sequencer();
 	private readonly _blockedFiles = new ResourceSet();
-	private readonly _suspendedEntries = this._register(new DisposableResourceMap<AgentHostEditReviewEntry>());
+	private readonly _suspendedEntries = this._register(new DisposableResourceMap<ReviewEntry>());
+	private readonly _notebookUnsavedChanges: NotebookUnsavedChanges;
 	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
 	constructor(
@@ -287,9 +679,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@ILogService private readonly _logService: ILogService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@INotebookEditorModelResolverService private readonly _notebookResolver: INotebookEditorModelResolverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._textFileService.files.retainResolvedContent());
+		this._notebookUnsavedChanges = this._register(new NotebookUnsavedChanges(this._notebookService, this._notebookResolver));
 
 		const resolutionChanged = observableSignalFromEvent(this, Event.any<unknown>(connectionsService.onDidChangeSessionResolution, provisionalSessions.onDidChange));
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -330,9 +725,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				failed: observableFromEvent(this, Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => subscription.value instanceof Error),
 			};
 		});
-		const retryBlockedFiles = observableSignalFromEvent(this, Event.filter(Event.any(
+		const retryBlockedFiles = observableSignalFromEvent(this, Event.filter(Event.any<{ readonly resource: URI }>(
 			Event.map(this._textFileService.files.onDidSave, event => event.model),
 			this._textFileService.files.onDidRevert,
+			// A notebook can be reloaded once its unsaved changes are saved or reverted.
+			Event.filter(this._notebookResolver.onDidChangeDirty, notebook => !notebook.isDirty()),
 		), model => this._blockedFiles.has(model.resource)));
 		this._register(autorun(reader => {
 			retryBlockedFiles.read(reader);
@@ -394,7 +791,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	/** Keeps or undoes the changes of the entries of `uris`, or of every entry, resolving to whether the host did for any of them. */
-	private async _decide(uris: readonly URI[], decide: (entry: AgentHostEditReviewEntry) => Promise<void>, decided: ModifiedFileEntryState): Promise<boolean> {
+	private async _decide(uris: readonly URI[], decide: (entry: ReviewEntry) => Promise<void>, decided: ModifiedFileEntryState): Promise<boolean> {
 		const entries = this._getEntries(uris);
 		await Promise.all(entries.map(decide));
 		return entries.some(entry => entry.state.get() === decided);
@@ -408,11 +805,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		await this._editorService.openEditor(input, { pinned: true });
 	}
 
-	keep(entry: AgentHostEditReviewEntry, change?: DetailedLineRangeMapping): Promise<boolean> {
+	keep(entry: ReviewEntry, change?: ReviewChange): Promise<boolean> {
 		return this._invoke(entry, AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, change, AccessibilitySignal.editsKept, (fileName, message) => localize('agentHostEditReview.keepFailed', "Could not keep the changes to '{0}': {1}", fileName, message));
 	}
 
-	undo(entry: AgentHostEditReviewEntry, change?: DetailedLineRangeMapping): Promise<boolean> {
+	undo(entry: ReviewEntry, change?: ReviewChange): Promise<boolean> {
 		return this._invoke(entry, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, change, AccessibilitySignal.editsUndone, (fileName, message) => localize('agentHostEditReview.undoFailed', "Could not undo the changes to '{0}': {1}", fileName, message));
 	}
 
@@ -451,7 +848,10 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				const entry = this._entries.get(resource);
 				if (entry) {
 					if (entry.isAgentEditing) {
-						await entry.getDiffInfo();
+						if (entry instanceof AgentHostEditReviewEntry) {
+							// A notebook is compared anew by the time it is reloaded.
+							await entry.getDiffInfo();
+						}
 						const workingSet = this._workingSet.get();
 						const state = workingSet?.state.get();
 						const latest = workingSet && state ? this._findWorkingSetFile(state, workingSet, entry) : undefined;
@@ -480,8 +880,36 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		}
 		for (const entry of [...this._entries.values()]) {
 			if (!listed.has(entry.modifiedURI)) {
+				if (entry instanceof AgentHostNotebookReviewEntry) {
+					await this._loadDecidedNotebook(entry);
+					if (token.isCancellationRequested) {
+						return;
+					}
+				}
 				this._removeEntry(entry);
 			}
+		}
+	}
+
+	/**
+	 * Brings a notebook whose file left the Working Set up to date with its file. Its changes can be
+	 * undone without the review, as by the working set above the chat input, which changes its file.
+	 * Unsaved changes that aren't the user's keep the notebook from reloading the file then, and
+	 * saving them would bring back what was undone.
+	 */
+	private async _loadDecidedNotebook(entry: AgentHostNotebookReviewEntry): Promise<void> {
+		if (!entry.isDirty || this._hasUserChanges(entry)) {
+			// The notebook reloads its file on its own, or holds changes of the user that must not be dropped.
+			return;
+		}
+		try {
+			const file = await this._readNotebook(entry, (await this._fileService.readFile(entry.modifiedURI)).value.toString());
+			if (!entry.holds(file) && entry.isDirty && !this._hasUserChanges(entry)) {
+				await entry.runAsAgentEdit(() => entry.loadFile());
+			}
+		} catch (error) {
+			// The file is gone, as when undoing deleted a notebook that the agent created, or can't be read.
+			this._logService.warn(`[AgentHostEditReview] Could not load ${entry.modifiedURI} after its changes were decided`, error);
 		}
 	}
 
@@ -541,7 +969,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		const existing = this._entries.get(resource);
 		if (existing && isSameWorkingSetFile(existing.file, change)) {
 			if (existing.isAgentEditing) {
-				await existing.runAsAgentEdit(() => this._reloadFromDisk(resource, existing.file.current, token));
+				await existing.runAsAgentEdit(() => existing instanceof AgentHostNotebookReviewEntry
+					? this._followNotebook(existing, undefined, token)
+					: this._reloadFromDisk(resource, existing.file.current, token));
 			}
 			return;
 		}
@@ -561,14 +991,18 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		if (entry?.state.get() === ModifiedFileEntryState.Modified) {
 			// The review compares the document with what the session recorded, so it first gets the agent's last write.
 			entry.setEditing(true);
-			await entry.runAsAgentEdit(() => this._reloadFromDisk(resource, contents.current, token));
-			if (token.isCancellationRequested) {
-				return;
-			}
 			const file = { ...change, ...contents };
-			const trackedOriginal = suspended && isSameWorkingSetFile(suspended.file, file) ? suspended.originalModel : undefined;
-			const prepared = await this._prepareFile(file, entry.modifiedModel, token, trackedOriginal);
-			await entry.update(file, prepared.original, prepared.edit);
+			if (entry instanceof AgentHostNotebookReviewEntry) {
+				await entry.runAsAgentEdit(() => this._followNotebook(entry, file, token));
+			} else {
+				await entry.runAsAgentEdit(() => this._reloadFromDisk(resource, contents.current, token));
+				if (token.isCancellationRequested) {
+					return;
+				}
+				const trackedOriginal = suspended instanceof AgentHostEditReviewEntry && isSameWorkingSetFile(suspended.file, file) ? suspended.originalModel : undefined;
+				const prepared = await this._prepareFile(file, entry.modifiedModel, token, trackedOriginal);
+				await entry.update(file, prepared.original, prepared.edit);
+			}
 			if (token.isCancellationRequested || this._store.isDisposed) {
 				return;
 			}
@@ -590,6 +1024,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	private async _createEntry(resource: URI, file: IWorkingSetFile, token: CancellationToken): Promise<void> {
 		if (this._notebookService.hasSupportedNotebooks(resource)) {
 			// Notebooks are edited through their own working copies, which a text review can't follow.
+			await this._createNotebookEntry(resource, file, token);
 			return;
 		}
 		let ref: IReference<IResolvedTextEditorModel>;
@@ -629,6 +1064,122 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		entry.enableReviewModeUntilSettled();
 		this._entries.set(entry.modifiedURI, entry);
 		this._entriesObs.set([...this._entries.values()], undefined);
+	}
+
+	/** Reviews a notebook by its cells: the notebook its editor shows, compared with the notebook that the file's baseline holds. */
+	private async _createNotebookEntry(resource: URI, file: IWorkingSetFile, token: CancellationToken): Promise<void> {
+		const entry = await this._resolveNotebookEntry(resource, file, token);
+		if (!entry) {
+			return;
+		}
+		try {
+			// The notebook may have been opened before the agent wrote its file.
+			await entry.runAsAgentEdit(() => this._followNotebook(entry, undefined, token));
+		} catch (error) {
+			entry.dispose();
+			throw error;
+		}
+		if (this._store.isDisposed || token.isCancellationRequested || this._entries.has(resource)) {
+			entry.dispose();
+			return;
+		}
+		entry.setEditing(file.editing);
+		// Agent changes wait for a decision, whatever the auto-accept delay.
+		entry.enableReviewModeUntilSettled();
+		this._entries.set(entry.modifiedURI, entry);
+		this._entriesObs.set([...this._entries.values()], undefined);
+	}
+
+	private async _resolveNotebookEntry(resource: URI, file: IWorkingSetFile, token: CancellationToken): Promise<AgentHostNotebookReviewEntry | undefined> {
+		let modified: IReference<IResolvedNotebookEditorModel>;
+		try {
+			modified = await this._notebookResolver.resolve(resource);
+		} catch (error) {
+			this._logService.warn(`[AgentHostEditReview] Could not open ${resource} for review`, error);
+			return undefined;
+		}
+		const baselineContent = new DisposableStore();
+		let original: IReference<IResolvedNotebookEditorModel> | undefined;
+		let entry: AgentHostNotebookReviewEntry | undefined;
+		try {
+			const notebook = modified.object.notebook;
+			const telemetryInfo = this._getTelemetryInfo();
+			const { serializer } = await this._notebookService.withNotebookDataProvider(notebook.viewType);
+			original = await ChatEditingModifiedNotebookEntry.resolveOriginal(notebook, VSBuffer.fromString(file.baseline), telemetryInfo, this._notebookResolver, baselineContent);
+			if (this._store.isDisposed || token.isCancellationRequested) {
+				return undefined;
+			}
+			entry = this._instantiationService.createInstance(
+				AgentHostNotebookReviewEntry,
+				modified,
+				original,
+				{ collapse: () => { } },
+				serializer.options,
+				telemetryInfo,
+				file.diff.isCreated ? ChatEditKind.Created : ChatEditKind.Modified,
+				createSnapshot(original.object.notebook, serializer.options, this._configurationService),
+			);
+			entry.connect(this, file, baselineContent);
+			return entry;
+		} finally {
+			if (!entry) {
+				// The entry owns the notebooks it reviews, once created.
+				modified.dispose();
+				original?.dispose();
+				baselineContent.dispose();
+			}
+		}
+	}
+
+	/**
+	 * Brings a reviewed notebook up to date with what the agent wrote and compares it anew: with the
+	 * latest version `file` of its Working Set file when given, with the version it reviews otherwise.
+	 *
+	 * A notebook that doesn't hold what the agent wrote loads its file, which drops unsaved changes
+	 * that aren't the user's. Unlike a document's, a notebook's unsaved changes can't be merged with
+	 * what the agent wrote, so the user's suspend the review instead.
+	 */
+	private async _followNotebook(entry: AgentHostNotebookReviewEntry, file: IWorkingSetFile | undefined, token: CancellationToken): Promise<void> {
+		const latest = file ?? entry.file;
+		let unsaved = false;
+		try {
+			const [baseline, current] = await Promise.all([this._readNotebook(entry, latest.baseline), this._readNotebook(entry, latest.current)]);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			let changedOutside: NotebookData | undefined;
+			if (!entry.holds(current)) {
+				// The notebook hasn't loaded what the agent wrote: its file watcher lags behind, or unsaved changes keep it from reloading.
+				unsaved = this._hasUserChanges(entry);
+				if (!unsaved) {
+					await entry.loadFile();
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					if (!entry.holds(current)) {
+						// The file changed since the session recorded it, as when the user saved changes of their own, which aren't the session's.
+						changedOutside = withOutsideChanges(baseline, current, entry.content);
+					}
+				}
+			}
+			if (!unsaved) {
+				await entry.compare(latest, changedOutside ?? baseline, !!changedOutside);
+			}
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			throw new EditReviewSynchronizationError(toErrorMessage(error));
+		}
+		if (unsaved) {
+			throw new EditReviewSynchronizationError(localize('agentHostEditReview.unsavedNotebook', "The notebook has unsaved changes."));
+		}
+	}
+
+	/** The notebook that the content `content` of the file of `entry` holds. */
+	private async _readNotebook(entry: AgentHostNotebookReviewEntry, content: string): Promise<NotebookData> {
+		const { serializer } = await this._notebookService.withNotebookDataProvider(entry.viewType);
+		return serializer.dataToNotebook(VSBuffer.fromString(content));
 	}
 
 	private async _prepareFile(file: IWorkingSetFile, model: ITextModel, token: CancellationToken, trackedOriginal?: ITextModel): Promise<{ original: string; edit: StringEdit }> {
@@ -739,12 +1290,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 
 	/**
 	 * Asks the agent host to accept or discard the changes of `entry` in the
-	 * Working Set: the changes of the hunk `change`, or all of them, as the
-	 * editor showed them when the user decided. Failures are reported, and a
-	 * decided hunk is signaled; {@link accept} and {@link reject} signal the
-	 * files they decide on together. Resolves to whether the host did.
+	 * Working Set: the changes of `change`, or all of them, as the editor
+	 * showed them when the user decided. Failures are reported, and a decided
+	 * change is signaled; {@link accept} and {@link reject} signal the files
+	 * they decide on together. Resolves to whether the host did.
 	 */
-	private _invoke(entry: AgentHostEditReviewEntry, operationId: string, change: DetailedLineRangeMapping | undefined, decided: AccessibilitySignal, failed: (fileName: string, message: string) => string): Promise<boolean> {
+	private _invoke(entry: ReviewEntry, operationId: string, change: ReviewChange | undefined, decided: AccessibilitySignal, failed: (fileName: string, message: string) => string): Promise<boolean> {
 		// The operation waits for earlier ones and for Working Set updates, which can update the entry meanwhile.
 		const shown = entry.file;
 		return this._operations.queue(async () => {
@@ -764,7 +1315,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		});
 	}
 
-	private async _doInvoke(entry: AgentHostEditReviewEntry, shown: IWorkingSetFile, operationId: string, change: DetailedLineRangeMapping | undefined): Promise<boolean> {
+	private async _doInvoke(entry: ReviewEntry, shown: IWorkingSetFile, operationId: string, change: ReviewChange | undefined): Promise<boolean> {
 		// The Working Set updates received so far apply first, so the checks below see the latest one.
 		await this._updates.queue(async () => { });
 		if (!this._isReviewing(entry)) {
@@ -775,7 +1326,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			// The agent changed the file since the user decided, and the operation must only cover what the user saw.
 			throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
 		}
-		if (change && !entry.diffInfo.get().changes.includes(change)) {
+		if (change && !entry.shows(change)) {
 			// The user's typing replaced the change, as local chat edits ignore such a change too.
 			return false;
 		}
@@ -821,14 +1372,15 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				throw new Error(localize('agentHostEditReview.updatePending', "The decision was sent, but the updated changes could not be loaded. Check the working set before trying again."));
 			}
 			await this._updates.queue(async () => { });
-			if (this._isReviewing(entry)) {
+			if (this._isReviewing(entry) && entry instanceof AgentHostEditReviewEntry) {
+				// A notebook is compared anew by the time the review is up to date.
 				await entry.getDiffInfo();
 			}
 		}
 		return true;
 	}
 
-	private async _invokeOperation(workingSet: IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState> }, entry: AgentHostEditReviewEntry, shown: IWorkingSetFile, operationId: string, state: ChangesetState, change: DetailedLineRangeMapping | undefined): Promise<void> {
+	private async _invokeOperation(workingSet: IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState> }, entry: ReviewEntry, shown: IWorkingSetFile, operationId: string, state: ChangesetState, change: ReviewChange | undefined): Promise<void> {
 		// A created file has no lines to compare with, so its changes are kept or undone as a whole.
 		const scope = change ? ChangesetOperationScope.Range : ChangesetOperationScope.Resource;
 		const operation = state.operations?.find(candidate => candidate.id === operationId && candidate.scopes.includes(scope));
@@ -840,8 +1392,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			throw new Error(localize('agentHostEditReview.busy', "Try again once the agent has finished working."));
 		}
 		const resource = workingSet.connection.resourceUris.toAgentHost(entry.modifiedURI).toString();
-		let range: TextRange | undefined;
-		if (change) {
+		let range: { readonly side: 'before' | 'after'; readonly range: TextRange } | undefined;
+		if (change && !(change instanceof DetailedLineRangeMapping) && entry instanceof AgentHostNotebookReviewEntry) {
+			const located = entry.locate(change);
+			range = { side: located.side, range: toTextRange(located.lines) };
+		} else if (change instanceof DetailedLineRangeMapping && entry instanceof AgentHostEditReviewEntry) {
 			const modelVersion = entry.modifiedModel.getVersionId();
 			const lines = await mapLinesToCurrent(change.modified, entry.modifiedModel.getValue(), withLineEndings(shown.current, entry.modifiedModel.getEOL()), this._editorWorkerService);
 			const latest = workingSet.subscription.value;
@@ -853,50 +1408,82 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			}
 			if (!lines) {
 				// Lines that can't be matched could select another change in the session's content.
-				throw new Error(localize('agentHostEditReview.unmapped', "The change couldn't be matched with the session's changes. Keep or undo the whole file instead."));
+				throw createUnmatchedChangeError();
 			}
-			range = toTextRange(lines);
+			range = { side: 'after', range: toTextRange(lines) };
 		}
-		if (operationId === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && this._textFileService.isDirty(entry.modifiedURI)) {
-			// The agent host reverts the changes on disk, so the document's unsaved text goes there first.
-			const saved = await this._textFileService.save(entry.modifiedURI, { reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
-			if (!saved || this._textFileService.isDirty(entry.modifiedURI)) {
-				// Otherwise the host reverts what's on disk while the document keeps the changes, which a later save would restore.
-				throw new Error(localize('agentHostEditReview.notSaved', "Its unsaved changes couldn't be saved. Save the file and try again."));
-			}
-			// The agent may have changed the file while it was saved.
-			const latest = workingSet.subscription.value;
-			const latestFile = latest && !(latest instanceof Error) ? this._findWorkingSetFile(latest, workingSet, entry) : undefined;
-			if (!latestFile || !isSameWorkingSetFile(latestFile, shown)) {
-				throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
-			}
+		if (change && !range) {
+			// Without its lines, the operation would cover all changes of the file.
+			throw createUnmatchedChangeError();
 		}
-		const target = { resource, ...(shown.nonce !== undefined ? { nonce: shown.nonce } : {}) };
-		await workingSet.connection.invokeChangesetOperation({
-			channel: workingSet.channel.toString(),
-			operationId,
-			target: range
-				? { kind: ChangesetOperationTargetKind.Range, ...target, side: 'after', range }
-				: { kind: ChangesetOperationTargetKind.Resource, ...target },
-		});
+		// A notebook that loads its reverted file, kept open until then even if it leaves the review meanwhile.
+		let revertedNotebook: { readonly entry: AgentHostNotebookReviewEntry; readonly reference: IDisposable } | undefined;
+		try {
+			if (operationId === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && this._isDirty(entry)) {
+				if (entry instanceof AgentHostNotebookReviewEntry && !this._hasUserChanges(entry)) {
+					// The notebook's unsaved changes aren't the user's, and saving them would change the lines that the agent host reverts.
+					// They keep the notebook from reloading on its own, so it loads its reverted file afterwards.
+					revertedNotebook = { entry, reference: await this._notebookResolver.resolve(entry.modifiedURI) };
+				} else {
+					// The agent host reverts the changes on disk, so the document's unsaved text goes there first.
+					const saved = entry instanceof AgentHostNotebookReviewEntry
+						? await entry.save().then(() => true)
+						: !!await this._textFileService.save(entry.modifiedURI, { reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
+					if (!saved || this._isDirty(entry)) {
+						// Otherwise the host reverts what's on disk while the document keeps the changes, which a later save would restore.
+						throw new Error(localize('agentHostEditReview.notSaved', "Its unsaved changes couldn't be saved. Save the file and try again."));
+					}
+				}
+				// The agent may have changed the file meanwhile.
+				const latest = workingSet.subscription.value;
+				const latestFile = latest && !(latest instanceof Error) ? this._findWorkingSetFile(latest, workingSet, entry) : undefined;
+				if (!latestFile || !isSameWorkingSetFile(latestFile, shown)) {
+					throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
+				}
+			}
+			const target = { resource, ...(shown.nonce !== undefined ? { nonce: shown.nonce } : {}) };
+			await workingSet.connection.invokeChangesetOperation({
+				channel: workingSet.channel.toString(),
+				operationId,
+				target: range
+					? { kind: ChangesetOperationTargetKind.Range, ...target, ...range }
+					: { kind: ChangesetOperationTargetKind.Resource, ...target },
+			});
+			// Not if the user changed the notebook meanwhile.
+			if (revertedNotebook?.entry.isDirty && !this._hasUserChanges(revertedNotebook.entry)) {
+				const reverted = revertedNotebook.entry;
+				await reverted.runAsAgentEdit(() => reverted.loadFile());
+			}
+		} finally {
+			revertedNotebook?.reference.dispose();
+		}
 	}
 
-	private _findWorkingSetFile(state: ChangesetState, workingSet: IWorkingSet, entry: AgentHostEditReviewEntry): IWorkingSetFileChange | undefined {
+	private _isDirty(entry: ReviewEntry): boolean {
+		return entry instanceof AgentHostNotebookReviewEntry ? entry.isDirty : this._textFileService.isDirty(entry.modifiedURI);
+	}
+
+	/** Whether the notebook of `entry` has unsaved changes that are the user's, or may be, which must not be dropped. */
+	private _hasUserChanges(entry: AgentHostNotebookReviewEntry): boolean {
+		return entry.isDirty && !this._notebookUnsavedChanges.areGenerated(entry.modifiedURI);
+	}
+
+	private _findWorkingSetFile(state: ChangesetState, workingSet: IWorkingSet, entry: ReviewEntry): IWorkingSetFileChange | undefined {
 		return toWorkingSetFileChanges(state, workingSet)
 			.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
 	}
 
-	private _isReviewing(entry: AgentHostEditReviewEntry): boolean {
+	private _isReviewing(entry: ReviewEntry): boolean {
 		return this._entries.get(entry.modifiedURI) === entry && this._isFileVisible(entry);
 	}
 
-	private _isFileVisible(entry: AgentHostEditReviewEntry, reader?: IReader): boolean {
+	private _isFileVisible(entry: ReviewEntry, reader?: IReader): boolean {
 		const review = this._checkpointReview.read(reader);
 		const current = this._workingSet.read(reader);
 		return !review || !current || review.project(current.channel, [entry.file], reader).length > 0;
 	}
 
-	private _removeEntry(entry: AgentHostEditReviewEntry): void {
+	private _removeEntry(entry: ReviewEntry): void {
 		if (this._entries.get(entry.modifiedURI) !== entry) {
 			return;
 		}
@@ -905,7 +1492,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		this._releaseEntry(entry, true);
 	}
 
-	private _releaseEntry(entry: AgentHostEditReviewEntry, closeEditors: boolean): void {
+	private _releaseEntry(entry: ReviewEntry, closeEditors: boolean): void {
 		entry.setEditing(false);
 		const editorService = this._editorService;
 		const original = entry.originalURI;
@@ -944,7 +1531,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	 * The undecided entries of `uris`, or every undecided entry, whose changes
 	 * can be kept or undone: as in local chat, not while the agent writes the file.
 	 */
-	private _getEntries(uris: readonly URI[]): readonly AgentHostEditReviewEntry[] {
+	private _getEntries(uris: readonly URI[]): readonly ReviewEntry[] {
 		return [...this._entries.values()]
 			.filter(entry => this._isFileVisible(entry))
 			.filter(entry => uris.length === 0 || uris.some(uri => isEqual(entry.modifiedURI, uri)))
@@ -1052,6 +1639,10 @@ async function mapLinesToCurrent(lines: LineRange, live: string, current: string
 	return new LineRange(start, Math.max(start, map(lines.endLineNumberExclusive - 1)) + 1);
 }
 
+function createUnmatchedChangeError(): Error {
+	return new Error(localize('agentHostEditReview.unmapped', "The change couldn't be matched with the session's changes. Keep or undo the whole file instead."));
+}
+
 /** The zero-based range of `lines`, which ends at the start of the line after them so it doesn't cover that line. */
 function toTextRange(lines: LineRange): TextRange {
 	const start = { line: lines.startLineNumber - 1, character: 0 };
@@ -1088,6 +1679,95 @@ function toWorkingSetFileChanges(state: ChangesetState, workingSet: IWorkingSet)
 		const diff = agentHostChangesetFileToEntryDiff(file, workingSet.connection, workingSet.resourceAuthority);
 		return diff && { diff, nonce: file.nonce, editing: !!(getChangesetFileStatus(file) & ChangesetFileStatus.Editing) };
 	}).filter(isDefined);
+}
+
+/**
+ * Whether the metadata `next` of a cell of `notebook` is its metadata `previous` with only what the
+ * ipynb extension adds to the cells that a notebook loads: an id, and the properties that every cell has.
+ */
+function isGeneratedCellMetadata(notebook: NotebookTextModel, previous: NotebookCellMetadata, next: NotebookCellMetadata): boolean {
+	return notebook.viewType === JUPYTER_NOTEBOOK_VIEW_TYPE
+		&& Object.keys(previous).every(key => objectEquals(previous[key], next[key]))
+		&& Object.keys(next).every(key => Object.hasOwn(previous, key)
+			|| key === 'id'
+			|| (key === 'metadata' && isEmptyObject(next[key]))
+			|| (key === 'execution_count' && next[key] === null));
+}
+
+/**
+ * The notebook `baseline` with the changes that were made to a notebook outside of the session:
+ * those between the notebook `current` that the session recorded and the notebook `live` as it is.
+ * Compared with it, the changes of `live` are the session's alone. A change to cells that the
+ * session changed as well can't be told apart from the session's, and is left out. Returns
+ * `undefined` if `live` has the cells of `current`.
+ */
+function withOutsideChanges(baseline: NotebookData, current: NotebookData, live: NotebookData): NotebookData | undefined {
+	const diff = (original: NotebookData, modified: NotebookData) => new LcsDiff(
+		{ getElements: () => original.cells.map(cell => `${cell.cellKind}:${cell.source}`) },
+		{ getElements: () => modified.cells.map(cell => `${cell.cellKind}:${cell.source}`) },
+	).ComputeDiff(false).changes;
+	const outsideChanges = diff(current, live);
+	if (outsideChanges.length === 0) {
+		return undefined;
+	}
+	// Where the cells of `current` that the session left as they were are in `baseline`.
+	const unchanged = new Map<number, number>();
+	let baselineIndex = 0;
+	let currentIndex = 0;
+	for (const change of [...diff(baseline, current), undefined]) {
+		const end = change?.modifiedStart ?? current.cells.length;
+		while (currentIndex < end) {
+			unchanged.set(currentIndex++, baselineIndex++);
+		}
+		if (change) {
+			baselineIndex = change.originalStart + change.originalLength;
+			currentIndex = change.modifiedStart + change.modifiedLength;
+		}
+	}
+	const cells = [...baseline.cells];
+	// From the last to the first, so that the cells before a change stay where they are.
+	for (const change of outsideChanges.reverse()) {
+		let start: number | undefined;
+		if (change.originalLength > 0) {
+			// Cells were changed or removed: all of them must be cells that the session left as they were, one after the other.
+			start = unchanged.get(change.originalStart);
+			for (let i = 1; start !== undefined && i < change.originalLength; i++) {
+				if (unchanged.get(change.originalStart + i) !== start + i) {
+					start = undefined;
+				}
+			}
+		} else {
+			// Cells were added: after the cell before them, before the cell after them, or at either end of the notebook.
+			const before = unchanged.get(change.originalStart - 1);
+			start = before !== undefined ? before + 1
+				: unchanged.get(change.originalStart) ?? (change.originalStart === 0 ? 0 : change.originalStart === current.cells.length ? cells.length : undefined);
+		}
+		if (start !== undefined) {
+			cells.splice(start, change.originalLength, ...live.cells.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength));
+		}
+	}
+	return { ...baseline, cells };
+}
+
+/** Whether `notebook` holds `content`, apart from metadata that was added to its cells, see {@link AgentHostNotebookReviewEntry.holds}. */
+function holdsNotebookContent(notebook: NotebookTextModel, content: NotebookData, transientOptions: TransientOptions | undefined): boolean {
+	const persisted = (metadata: NotebookData['metadata']) => filter(metadata, key => !transientOptions?.transientDocumentMetadata[key]);
+	return notebook.cells.length === content.cells.length
+		&& objectEquals(persisted(notebook.metadata), persisted(content.metadata))
+		&& notebook.cells.every((cell, index) => {
+			const recorded = content.cells[index];
+			return cell.fastEqual(recorded, true)
+				&& Object.entries(recorded.metadata ?? {}).every(([key, value]) => objectEquals(cell.metadata[key], value))
+				&& (!!transientOptions?.transientOutputs || hasSameOutputs(cell.outputs, recorded.outputs));
+		});
+}
+
+function hasSameOutputs(outputs: readonly ICellOutput[], recorded: readonly IOutputDto[]): boolean {
+	return outputs.length === recorded.length && outputs.every((output, index) => {
+		const items = recorded[index].outputs;
+		return output.outputs.length === items.length
+			&& output.outputs.every((item, itemIndex) => item.mime === items[itemIndex].mime && item.data.equals(items[itemIndex].data));
+	});
 }
 
 /** The Working Set once it's up to date, or `undefined` if it fails or doesn't update in time. */
