@@ -161,7 +161,8 @@ export interface IConfigurationUpdateOptions {
 	/**
 	 * The settings file of the named layout to write to when the target is {@link ConfigurationTarget.LAYOUT}.
 	 * Defaults to the settings file of the layout that is active when the value is updated. The write fails
-	 * if another layout, or none, is active when the value is written.
+	 * if another layout, or none, is active when the write starts. A write that has started completes in
+	 * that layout, also if another layout becomes active meanwhile.
 	 */
 	layoutSettingsResource?: URI;
 }
