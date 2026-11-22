@@ -1148,6 +1148,10 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 				status = Status.DELETED;
 				break;
 
+			case 'T':
+				status = Status.TYPE_CHANGED;
+				break;
+
 			// Rename contains two paths, the second one is what the file is renamed/copied to.
 			case 'R': {
 				if (index >= segments.length) {
