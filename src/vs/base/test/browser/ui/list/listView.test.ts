@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { timeout } from '../../../../common/async.js';
 import { DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -1179,6 +1180,132 @@ suite('ListView', function () {
 		document.dispatchEvent(new MouseEvent('mouseup'));
 
 		assert.strictEqual(listView.domElement(0), firstRow);
+	});
+
+	suite('user selection virtualization', () => {
+		const rowHeight = 20;
+
+		function createSelectableList(rowCount: number) {
+			const element = document.createElement('div');
+			document.body.appendChild(element);
+			const delegate: IListVirtualDelegate<number> = {
+				getHeight() { return rowHeight; },
+				getTemplateId() { return 'template'; }
+			};
+			const renderer: IListRenderer<number, HTMLElement> = {
+				templateId: 'template',
+				renderTemplate(container) {
+					// Rows are unselectable by default, and `Selection.toString()` skips unselectable text.
+					container.style.userSelect = 'text';
+					return container;
+				},
+				renderElement(value, _index, container) { container.textContent = String(value); },
+				disposeTemplate() { }
+			};
+			const listView = store.add(new ListView<number>(element, delegate, [renderer], { userSelection: true }));
+			const selection = document.getSelection()!;
+			store.add(toDisposable(() => {
+				selection.removeAllRanges();
+				document.dispatchEvent(new Event('selectionchange'));
+				element.remove();
+			}));
+			listView.layout(60, 200);
+			listView.splice(0, 0, range(rowCount));
+
+			const selectRows = (anchor: number, focus: number) => {
+				listView.setScrollTop(anchor * rowHeight);
+				const anchorRow = listView.domElement(anchor)!;
+				anchorRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+				selection.setBaseAndExtent(anchorRow.firstChild!, 0, anchorRow.firstChild!, anchorRow.textContent!.length);
+				document.dispatchEvent(new Event('selectionchange'));
+
+				listView.setScrollTop(focus * rowHeight);
+				const focusRow = listView.domElement(focus)!;
+				selection.extend(focusRow.firstChild!, focusRow.textContent!.length);
+				document.dispatchEvent(new Event('selectionchange'));
+				document.dispatchEvent(new MouseEvent('mouseup'));
+			};
+			const renderedIndexes = () => [...element.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => Number(row.dataset.index));
+
+			return { listView, selection, selectRows, renderedIndexes };
+		}
+
+		test('renders only the selection edges and viewport when scrolled away', () => {
+			const { listView, selectRows, renderedIndexes } = createSelectableList(1000);
+			selectRows(0, 1);
+
+			listView.setScrollTop(500 * rowHeight);
+
+			assert.deepStrictEqual(renderedIndexes(), [0, 1, 500, 501, 502]);
+		});
+
+		test('inserts viewport rows between the selection edges in DOM order', () => {
+			const { listView, selection, selectRows, renderedIndexes } = createSelectableList(1000);
+			selectRows(0, 900);
+
+			listView.setScrollTop(500 * rowHeight);
+
+			assert.deepStrictEqual({
+				rendered: renderedIndexes(),
+				viewportRowSelected: selection.containsNode(listView.domElement(501)!)
+			}, {
+				rendered: [0, 500, 501, 502, 900],
+				viewportRowSelected: true
+			});
+		});
+
+		test('renders the whole selection for a copy, then virtualizes again', async () => {
+			const { listView, selection, selectRows, renderedIndexes } = createSelectableList(30);
+			selectRows(0, 26);
+			listView.setScrollTop(10 * rowHeight);
+
+			listView.domElement(10)!.dispatchEvent(new ClipboardEvent('copy', { bubbles: true }));
+			const copiedText = selection.toString().replace(/\s/g, '');
+			await timeout(0);
+
+			assert.deepStrictEqual({ copiedText, rendered: renderedIndexes() }, {
+				copiedText: range(27).join(''),
+				rendered: [0, 10, 11, 12, 26]
+			});
+		});
+
+		test('reads the whole selection without leaving its rows rendered', () => {
+			const { listView, selectRows, renderedIndexes } = createSelectableList(30);
+			selectRows(0, 26);
+			listView.setScrollTop(10 * rowHeight);
+
+			const selectedText = listView.getUserSelectionText().replace(/\s/g, '');
+
+			assert.deepStrictEqual({ selectedText, rendered: renderedIndexes() }, {
+				selectedText: range(27).join(''),
+				rendered: [0, 10, 11, 12, 26]
+			});
+		});
+
+		test('keeps the selection edges when opening the context menu', () => {
+			const { listView, selectRows, renderedIndexes } = createSelectableList(1000);
+			selectRows(0, 900);
+			listView.setScrollTop(500 * rowHeight);
+
+			listView.domElement(501)!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 2 }));
+
+			assert.deepStrictEqual(renderedIndexes(), [0, 500, 501, 502, 900]);
+		});
+
+		test('tracks the selection edges across splices', () => {
+			const { listView, selectRows, renderedIndexes } = createSelectableList(100);
+			selectRows(10, 11);
+			listView.setScrollTop(50 * rowHeight);
+
+			listView.splice(0, 5);
+			const afterShift = { rendered: renderedIndexes(), edgeText: listView.domElement(5)!.textContent };
+			listView.splice(5, 1);
+
+			assert.deepStrictEqual({ afterShift, afterEdgeDeleted: renderedIndexes() }, {
+				afterShift: { rendered: [5, 6, 50, 51, 52], edgeText: '10' },
+				afterEdgeDeleted: [50, 51, 52]
+			});
+		});
 	});
 
 	test('does not throw when laid out with a collapsed viewport and zero-height dynamic items', function () {

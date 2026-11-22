@@ -2974,6 +2974,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getHTMLElement();
 	}
 
+	getUserSelectionText(): string {
+		return this.view.getUserSelectionText();
+	}
+
 	get contentHeight(): number {
 		return this.view.contentHeight;
 	}

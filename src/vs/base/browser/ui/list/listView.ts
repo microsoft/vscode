@@ -282,6 +282,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	updateWidth(index: number): void;
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
 	withScrollAnchorAtBottom(fn: () => void): void;
+	getUserSelectionText(): string;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
 }
@@ -340,6 +341,8 @@ export class ListView<T> implements IListView<T> {
 	private readonly currentSelectionDisposable = this.disposables.add(new MutableDisposable<IDisposable>());
 	private readonly currentSelectionMovementDisposable = this.disposables.add(new MutableDisposable<IDisposable>());
 	private currentSelectionBounds: IRange | undefined;
+	private isFullSelectionRendered = false;
+	private readonly fullSelectionRenderTimeout = this.disposables.add(new MutableDisposable<IDisposable>());
 	private activeElement: HTMLElement | undefined;
 
 	private readonly _onDidChangeContentHeight = this.disposables.add(new Emitter<number>());
@@ -472,6 +475,7 @@ export class ListView<T> implements IListView<T> {
 				throw new Error('DND and user selection cannot be used simultaneously');
 			}
 			this.disposables.add(addDisposableListener(this.domNode, 'mousedown', e => this.onPotentialSelectionStart(e)));
+			this.disposables.add(addDisposableListener(this.domNode, 'copy', () => this.onCopy()));
 		}
 
 		this.setRowLineHeight = options.setRowLineHeight ?? DefaultOptions.setRowLineHeight;
@@ -647,6 +651,8 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private _splice(start: number, deleteCount: number, elements: readonly T[] = []): T[] {
+		this.spliceSelectionBounds(start, deleteCount, elements.length);
+
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const deleteRange = { start, end: start + deleteCount };
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
@@ -732,6 +738,7 @@ export class ListView<T> implements IListView<T> {
 				this.updateItemInDOM(this.items[i], i);
 			}
 		}
+		this.updateSelectionEdgesInDOM();
 
 		const removeRanges = Range.relativeComplement(renderedRestRange, renderRange);
 
@@ -749,6 +756,10 @@ export class ListView<T> implements IListView<T> {
 		insert: for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
+				// A retained selection edge can enter the render range with its row already in place.
+				if (item.row) {
+					continue;
+				}
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
@@ -972,6 +983,7 @@ export class ListView<T> implements IListView<T> {
 			for (let i = rangesToUpdate.start; i < rangesToUpdate.end; i++) {
 				this.updateItemInDOM(this.items[i], i);
 			}
+			this.updateSelectionEdgesInDOM();
 		}
 
 		const insertedItems: IItem<T>[] = [];
@@ -1060,7 +1072,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		if (item.stale || !item.row.domNode.parentElement) {
-			const referenceNode = this.items.at(index + 1)?.row?.domNode ?? null;
+			const referenceNode = this.getNextRenderedNode(index);
 			if (item.row.domNode.parentElement !== this.rowsContainer || item.row.domNode.nextElementSibling !== referenceNode) {
 				this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
 			}
@@ -1092,6 +1104,19 @@ export class ListView<T> implements IListView<T> {
 			item.dragStartDisposable = addDisposableListener(item.row.domNode, 'dragstart', event => this.onDragStart(item.element, uri, event));
 		}
 
+	}
+
+	/**
+	 * Looks past unrendered rows to a retained selection edge, because the native selection follows DOM order.
+	 */
+	private getNextRenderedNode(index: number): HTMLElement | null {
+		const nextRow = this.items.at(index + 1)?.row;
+		if (nextRow) {
+			return nextRow.domNode;
+		}
+
+		const nextEdge = this.selectionEdges.find(edge => edge > index);
+		return nextEdge === undefined ? null : this.items[nextEdge].row?.domNode ?? null;
 	}
 
 	private measureItemWidths(items: readonly IItem<T>[]): void {
@@ -1147,6 +1172,11 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private removeItemFromDOM(index: number, onScroll?: boolean): void {
+		// The native selection is anchored to these rows and would be lost with them.
+		if (this.selectionEdges.includes(index)) {
+			return;
+		}
+
 		const item = this.items[index];
 		item.dragStartDisposable.dispose();
 		item.checkedDisposable.dispose();
@@ -1313,7 +1343,14 @@ export class ListView<T> implements IListView<T> {
 		const doc = getDocument(this.domNode);
 		this.currentSelectionMovementDisposable.clear();
 
-		if (e.shiftKey && this.currentSelectionBounds && doc.getSelection()?.isCollapsed === false) {
+		const hasSelection = this.currentSelectionBounds && doc.getSelection()?.isCollapsed === false;
+
+		// A secondary click opens the context menu, whose Copy action needs the selection intact.
+		if (hasSelection && e.button !== 0) {
+			return;
+		}
+
+		if (hasSelection && e.shiftKey) {
 			this.currentSelectionMovementDisposable.value = this.createSelectionMovementStore(doc);
 			return;
 		}
@@ -1332,9 +1369,7 @@ export class ListView<T> implements IListView<T> {
 		// assumption that a user is using the mouse, and base our events on that.
 		selectionStore.add(toDisposable(() => {
 			this.currentSelectionMovementDisposable.clear();
-			const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-			this.currentSelectionBounds = undefined;
-			this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined);
+			this.setSelectionBounds(undefined);
 		}));
 		selectionStore.add(addDisposableListener(doc, 'selectionchange', () => {
 			const selection = doc.getSelection();
@@ -1352,9 +1387,94 @@ export class ListView<T> implements IListView<T> {
 				if (end < start) {
 					[start, end] = [end, start];
 				}
-				this.currentSelectionBounds = { start, end };
+				this.setSelectionBounds({ start, end });
 			}
 		}));
+	}
+
+	private get selectionEdges(): number[] {
+		return this.currentSelectionBounds ? [this.currentSelectionBounds.start, this.currentSelectionBounds.end] : [];
+	}
+
+	/**
+	 * Keeps only the edge rows of a selection rendered offscreen, so scrolling away from it stays virtualized.
+	 */
+	private setSelectionBounds(bounds: IRange | undefined): void {
+		this.setFullSelectionRendered(false);
+
+		const previousEdges = this.selectionEdges;
+		this.currentSelectionBounds = bounds;
+
+		const visibleRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		for (const index of previousEdges) {
+			const isVisible = index >= visibleRange.start && index < visibleRange.end;
+			if (!isVisible && this.items[index].row) {
+				this.removeItemFromDOM(index);
+			}
+		}
+	}
+
+	/**
+	 * Keeps the selection on the same rows when the list changes around it.
+	 */
+	private spliceSelectionBounds(start: number, deleteCount: number, insertCount: number): void {
+		if (!this.currentSelectionBounds) {
+			return;
+		}
+
+		this.setFullSelectionRendered(false);
+
+		const deleteEnd = start + deleteCount;
+		if (this.selectionEdges.some(edge => edge >= start && edge < deleteEnd)) {
+			this.currentSelectionDisposable.clear();
+			return;
+		}
+
+		const moveIndex = (index: number) => index >= deleteEnd ? index + insertCount - deleteCount : index;
+		this.currentSelectionBounds = {
+			start: moveIndex(this.currentSelectionBounds.start),
+			end: moveIndex(this.currentSelectionBounds.end)
+		};
+	}
+
+	/**
+	 * Edge rows sit outside the render range, so its updates would otherwise leave them at stale positions.
+	 */
+	private updateSelectionEdgesInDOM(): void {
+		for (const index of this.selectionEdges) {
+			const item = this.items[index];
+			if (item.row) {
+				this.updateItemInDOM(item, index);
+			}
+		}
+	}
+
+	private setFullSelectionRendered(rendered: boolean): void {
+		if (rendered === this.isFullSelectionRendered) {
+			return;
+		}
+
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		this.isFullSelectionRendered = rendered;
+		this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined);
+	}
+
+	/**
+	 * The browser copies from the DOM right after this event, so every selected row must exist until then.
+	 */
+	private onCopy(): void {
+		this.setFullSelectionRendered(true);
+		this.fullSelectionRenderTimeout.value = disposableTimeout(() => this.setFullSelectionRendered(false));
+	}
+
+	/**
+	 * Reads the selection with every row rendered, since `Selection.toString()` misses rows that are not in the DOM.
+	 */
+	getUserSelectionText(): string {
+		this.setFullSelectionRendered(true);
+		const text = getDocument(this.domNode).getSelection()?.toString() ?? '';
+		this.setFullSelectionRendered(false);
+		return text;
 	}
 
 	private createSelectionMovementStore(doc: Document): IDisposable {
@@ -1638,7 +1758,7 @@ export class ListView<T> implements IListView<T> {
 
 	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
 		const range = this.getVisibleRange(renderTop, renderHeight);
-		if (this.currentSelectionBounds) {
+		if (this.currentSelectionBounds && this.isFullSelectionRendered) {
 			const max = this.rangeMap.count;
 			range.start = Math.min(range.start, this.currentSelectionBounds.start, max);
 			range.end = Math.min(Math.max(range.end, this.currentSelectionBounds.end + 1), max);
@@ -1763,6 +1883,7 @@ export class ListView<T> implements IListView<T> {
 							this.updateItemInDOM(this.items[i], i);
 						}
 					}
+					this.updateSelectionEdgesInDOM();
 
 					if (anchorAtBottom) {
 						// Position the rows rendered above at the bottom. Setting the scroll position emits no scroll event to do so when

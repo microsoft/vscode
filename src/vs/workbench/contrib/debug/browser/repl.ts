@@ -518,6 +518,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
+	getSelectedText(): string | undefined {
+		return this.tree?.getUserSelectionText();
+	}
+
 	getVisibleContent(): string {
 		let text = '';
 		if (this.model && this.tree) {
@@ -1203,8 +1207,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
-		const nativeSelection = dom.getActiveWindow().getSelection();
-		const selectedText = nativeSelection?.toString();
+		const selectedText = getReplView(accessor.get(IViewsService))?.getSelectedText();
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);
 		} else if (element) {
