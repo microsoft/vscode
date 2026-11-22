@@ -32,6 +32,7 @@
     "quickPickSortByLabel",
     "scmActionButton",
     "scmArtifactProvider",
+    "scmDiffStatistics",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
     "scmProviderOptions",
@@ -3452,6 +3453,12 @@
           "type": "boolean",
           "description": "%config.confirmCommittedDelete%",
           "default": true
+        },
+        "git.diffStatistics": {
+          "type": "boolean",
+          "description": "%config.diffStatistics%",
+          "default": true,
+          "scope": "resource"
         },
         "git.countBadge": {
           "type": "string",
