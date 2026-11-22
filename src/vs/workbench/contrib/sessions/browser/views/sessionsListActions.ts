@@ -53,6 +53,7 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
 import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
+import { SendInstructionToChatsAction } from '../sessionsBroadcast.js';
 
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
@@ -906,6 +907,7 @@ export function registerSessionsListActions(): IDisposable {
 
 function createSessionsListActions(): DisposableStore {
 	const store = new DisposableStore();
+	store.add(registerAction2(SendInstructionToChatsAction));
 
 	// What marks the list's targets read or unread, which the commands of either window run
 	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, true)));
