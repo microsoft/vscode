@@ -23,7 +23,7 @@ export type AgentsWindowGraphicDesign = AgentsWindowGraphicVariant.WindowCompari
 /**
  * Picks the graphic for a variant, or `undefined` for none. {@link AgentsWindowGraphicVariant.Auto} picks
  * {@link AgentsWindowGraphicVariant.ManyWindowsToOne} when more than one editor window is open and
- * {@link AgentsWindowGraphicVariant.WindowComparison} otherwise, and shows nothing while that is unknown.
+ * {@link AgentsWindowGraphicVariant.WindowComparison} otherwise (including while window count is still pending).
  */
 export function resolveAgentsWindowGraphicDesign(variant: AgentsWindowGraphicVariant, hasMultipleEditorWindows: boolean | undefined): AgentsWindowGraphicDesign | undefined {
 	switch (variant) {
@@ -31,9 +31,6 @@ export function resolveAgentsWindowGraphicDesign(variant: AgentsWindowGraphicVar
 		case AgentsWindowGraphicVariant.ManyWindowsToOne:
 			return variant;
 		case AgentsWindowGraphicVariant.Auto:
-			if (hasMultipleEditorWindows === undefined) {
-				return undefined;
-			}
 			return hasMultipleEditorWindows ? AgentsWindowGraphicVariant.ManyWindowsToOne : AgentsWindowGraphicVariant.WindowComparison;
 		default:
 			return undefined;
