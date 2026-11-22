@@ -121,7 +121,7 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'menu NewSessions.ChatInputToolbar command workbench.action.chat.attachContext group navigation order -2 when chatIsEnabled',
 	'menu NewSessions.ChatInputToolbar command sessions.newChatComposer.initializing group navigation order 100 when chatIsEnabled && sessionsSharedChatInputComposerBusy == \'initializing\'',
 	'menu NewSessions.ChatInputToolbar command sessions.newChatComposer.sending group navigation order 100 when chatIsEnabled && sessionsSharedChatInputComposerBusy == \'sending\'',
-	'menu NewSessions.ChatInputToolbar command sessions.newChatComposer.sessionControls group navigation order 0 when chatIsEnabled',
+	'menu NewSessions.ChatInputToolbar command sessions.newChatComposer.sessionControls group navigation order 0 when chatIsEnabled && !sessionsSeparateComposerControls',
 	'menu NewSessions.ChatInputToolbar command sessions.modelPicker group navigation order 1 when chatIsEnabled && !sessionUsesCombinedConfigPicker || chatIsEnabled && !sessionsIsPhoneLayout',
 	'menu NewSessions.SessionControlMenu command sessions.agentHost.agentPicker group navigation order -1 when chatIsEnabled && !inAutomationsDialog && !sessionsIsPhoneLayout && sessionProviderId == \'local-agent-host\' || chatIsEnabled && !inAutomationsDialog && !sessionsIsPhoneLayout && sessionProviderId =~ /^agenthost-/',
 	'menu NewSessions.SessionControlMenu command sessions.agentHost.newSessionApprovePicker group navigation order 1 when chatIsEnabled && sessionProviderId == \'local-agent-host\' || chatIsEnabled && sessionProviderId =~ /^agenthost-/',

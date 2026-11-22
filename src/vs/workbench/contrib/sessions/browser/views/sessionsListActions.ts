@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Limiter } from '../../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -56,32 +55,16 @@ import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInbox
 import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
 
 /**
- * How many sessions a multi-session archive confirms with their providers at once. Providers hide a
- * session as soon as its archive starts, so the bound keeps a large selection from waiting on each
- * confirmation in turn without asking the host to restore every selected session at the same time.
+ * Throws the failures of a batch archive: a single failure as itself, so a cancellation stays
+ * identifiable, and several failures as an `AggregateError` with a concise summary.
  */
-const MAX_CONCURRENT_ARCHIVES = 4;
-
-/**
- * Archives the sessions with bounded concurrency. Every session is attempted even when another one
- * fails; the results are in the order of `sessions`.
- */
-async function archiveSessionsConcurrently(sessions: readonly ISession[], sessionsManagementService: ISessionsManagementService): Promise<PromiseSettledResult<void>[]> {
-	const limiter = new Limiter<void>(MAX_CONCURRENT_ARCHIVES);
-	try {
-		return await Promise.allSettled(sessions.map(session => limiter.queue(() => sessionsManagementService.archiveSession(session))));
-	} finally {
-		limiter.dispose();
+function throwArchiveErrors(results: readonly PromiseSettledResult<unknown>[]): void {
+	const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason);
+	if (errors.length === 1) {
+		throw errors[0];
 	}
-}
-
-/**
- * Throws the reason of the first rejected result, if any.
- */
-function throwFirstRejection(results: readonly PromiseSettledResult<unknown>[]): void {
-	const rejected = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
-	if (rejected) {
-		throw rejected.reason;
+	if (errors.length > 1) {
+		throw new AggregateError(errors, toErrorMessage(errors));
 	}
 }
 
@@ -102,13 +85,13 @@ async function archiveSessionsWithUndo(
 		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
 		.map(comparison => [comparison.groupId, comparison.id]));
 	try {
-		const results = await archiveSessionsConcurrently(candidates.map(entry => entry.session), sessionsManagementService);
-		candidates.forEach((entry, index) => {
-			if (results[index].status === 'fulfilled') {
-				archived.push(entry);
+		const results = await sessionsManagementService.archiveSessions(candidates.map(entry => entry.session));
+		for (const [index, result] of results.entries()) {
+			if (result.status === 'fulfilled') {
+				archived.push(candidates[index]);
 			}
-		});
-		throwFirstRejection(results);
+		}
+		throwArchiveErrors(results);
 	} finally {
 		// A partially completed batch must remain undoable even when another archive fails.
 		if (archived.length > 0) {
@@ -228,12 +211,13 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				group: id === SessionSectionToolbarMenuId ? 'navigation' : '1_state',
 				order: id === SessionSectionToolbarMenuId ? 1 : 2,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
-				// Also not on Automations.
+				// Also not on Automations or Canvases.
 				when: ContextKeyExpr.and(
 					InboxModeContext.negate(),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'canvases'),
 				),
 			}))
 		});
@@ -459,7 +443,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 		}
-		throwFirstRejection(await archiveSessionsConcurrently(sessions, sessionsManagementService));
+		throwArchiveErrors(await sessionsManagementService.archiveSessions(sessions));
 	}
 }
 
@@ -1530,6 +1514,8 @@ function createSessionsListActions(): DisposableStore {
 			const now = new Date();
 			const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 9).getTime();
 			const picked = await quickInput.pick([
+				{ label: localize('snoozeTenMinutes', "In 10 Minutes"), value: now.getTime() + 10 * 60 * 1000 },
+				{ label: localize('snoozeThirtyMinutes', "In 30 Minutes"), value: now.getTime() + 30 * 60 * 1000 },
 				{ label: localize('snoozeHour', "In One Hour"), value: now.getTime() + 60 * 60 * 1000 },
 				{ label: localize('snoozeTomorrow', "Tomorrow Morning"), value: morning(1) },
 				{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },

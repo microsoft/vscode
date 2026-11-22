@@ -69,7 +69,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -79,7 +79,7 @@ type RemoteCellTemplate = {
 } & (
 		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
-		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
+		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 const remoteKindIcons: Record<RemoteKind, ThemeIcon> = {
@@ -446,6 +446,11 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						this.onAction(template.row.entry, 'locationPreference');
 					}
 				}));
+				const troubleshoot = disposables.add(new Action('remotes.troubleshoot', '', ThemeIcon.asClassName(Codicon.tools), true, async () => {
+					if (template.row?.entry.type === 'remote') {
+						this.onAction(template.row.entry, 'troubleshoot');
+					}
+				}));
 				const gitHubEnvironment = disposables.add(new Action('remotes.githubEnvironment', '', ThemeIcon.asClassName(Codicon.github), true, async () => {
 					if (template.row?.entry.type === 'remote') {
 						this.onAction(template.row.entry, 'githubEnvironment');
@@ -466,7 +471,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						this.onAction(template.row.entry, 'createDevContainer');
 					}
 				}));
-				template = { ...base, column: this.column, action, connect, newSession, newSessionAction, visibility, createDevContainer, rename, copyAddress, locationPreference, gitHubEnvironment, showExtension, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
+				template = { ...base, column: this.column, action, connect, newSession, newSessionAction, visibility, createDevContainer, rename, copyAddress, locationPreference, troubleshoot, gitHubEnvironment, showExtension, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
 			}
@@ -773,6 +778,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.locationPreference.enabled = !entry.busy
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
+					template.troubleshoot.label = localize('remotes.troubleshootConnection', "Troubleshoot Connection...");
+					template.troubleshoot.tooltip = localize('remotes.troubleshootConnectionDetail', "See what's known about this connection and what to try next");
+					template.troubleshoot.enabled = !entry.busy;
 					const share = entry.remote.gitHubEnvironment;
 					template.gitHubEnvironment.label = share?.state === 'connecting' || share?.state === 'unavailable'
 						? getGitHubEnvironmentLabel(entry.remote) ?? ''
@@ -817,6 +825,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						[
 							menuAction(template.rename, 'rename'),
 							...(showLocationPreference ? [menuAction(template.locationPreference, 'locationPreference')] : []),
+							menuAction(template.troubleshoot, 'troubleshoot'),
 							...(showExtension ? [menuAction(template.showExtension, 'showExtension')] : []),
 							...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
 							...(showDelete ? [menuAction(template.delete, 'delete')] : []),

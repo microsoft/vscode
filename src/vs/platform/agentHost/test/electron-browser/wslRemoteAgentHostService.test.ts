@@ -130,6 +130,8 @@ class MockWSLMainService extends Disposable implements IWSLRemoteAgentHostMainSe
 		return this.runningDistros;
 	}
 
+	async terminateDistro(): Promise<void> { }
+
 	async connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
 		this.connectCalls.push(config);
 		const error = this.nextConnectError;

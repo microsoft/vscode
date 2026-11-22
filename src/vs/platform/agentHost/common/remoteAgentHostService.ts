@@ -21,6 +21,7 @@ import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IDevContainerRepository } from './devContainerSamples.js';
+import type { IDevContainerVolumeFolder } from './devContainerEnvironments.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 import type { PathStyle } from './state/protocol/common/commands.js';
 
@@ -265,7 +266,15 @@ export type IRemoteAgentHostDevContainerConnection = {
 		| { readonly hostPath: string; readonly repository?: never; readonly environmentId?: never }
 		| { readonly repository: IDevContainerRepository; readonly hostPath?: never; readonly environmentId?: never }
 		/** A Dev Container environment, which has no source folder or repository. */
-		| { readonly environmentId: string; readonly hostPath?: never; readonly repository?: never }
+		| {
+			readonly environmentId: string;
+			/** The volume folder that the Dev Containers extension opens the environment's container by, once known from its workspace. */
+			readonly volume?: IDevContainerVolumeFolder;
+			/** Whether this computer's Docker engine has the volume, which Dev Containers needs for an environment on a WSL host. */
+			readonly volumeOnLocalDockerEngine?: boolean;
+			readonly hostPath?: never;
+			readonly repository?: never;
+		}
 	);
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection | IRemoteAgentHostExtensionConnection;

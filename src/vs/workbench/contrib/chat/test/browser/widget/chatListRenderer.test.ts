@@ -38,7 +38,7 @@ import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHo
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -56,6 +56,8 @@ import { ISharedWebContentExtractorService } from '../../../../../../platform/we
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { buildAgentSessionLinkPresentation } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -3407,6 +3409,32 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('inline request attachments', () => {
+		test('renders a sent session link as a rich session link', () => {
+			const { instantiationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+			instantiationService.stub(ILinkPresentationService, upcastPartial<ILinkPresentationService>({
+				getLinkPresentationRule: () => ({ id: 'session', uriPattern: /^agent-host-session:/, kind: 'session' }),
+				createLinkPresentationWatcher: () => ({ presentation: constObservable(buildAgentSessionLinkPresentation('Fix tests', undefined, 'inProgress')), dispose() { } }),
+			}));
+			request.response?.complete();
+			const link = 'agent-host-session://ahp-session/fd85cb8e-8954-4f79-b66b-b66979b73ca8';
+			const text = `Review (${link}).`;
+			const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+			const sent = model.addRequest(message, { variables: [] }, 0);
+			renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+			const anchor = template.value.querySelector<HTMLAnchorElement>('.rendered-markdown a.chat-rich-link');
+			assert.deepStrictEqual({
+				href: anchor?.dataset.href ?? anchor?.getAttribute('href'),
+				title: anchor?.querySelector('.chat-rich-link-title')?.textContent,
+				authoredLabelHidden: anchor?.querySelector<HTMLElement>('.chat-rich-link-label')?.hidden,
+				requestText: sent.message.text,
+			}, {
+				href: link,
+				title: 'Fix tests',
+				authoredLabelHidden: true,
+				requestText: text,
+			});
+		});
+
 		for (const fontSize of [13, 18]) {
 			test(`aligns attachment pills and slash commands with the text of a request at chat font size ${fontSize}`, () => {
 				const { container, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
@@ -9908,7 +9936,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	test('persistent reasoning stays open while focus is inside it', async () => {
-		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'plan', value: '**Planning the change**\nRead the [renderer](https://example.com/renderer) first.' });
 		renderer.renderElement(node, 0, template);
 		const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
@@ -11420,6 +11448,43 @@ suite('ChatListRenderer', () => {
 		}, { chainReferences: 3, counts: ['+10', '-2'] });
 	});
 
+	test('a warning with a mute action shows a bell-slash button on the right that runs its command', async () => {
+		const { instantiationService, model, request, node, createRenderer } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const commands: unknown[][] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: (...args: unknown[]) => { commands.push(args); return Promise.resolve(undefined); } }));
+		const { renderer, template } = createRenderer(undefined);
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('The Session Start hook failed.'), mute: { commandId: 'test.muteWarnings', commandArgs: ['arg'], tooltip: 'Disable Test Warnings' } });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const widgets = [...template.value.querySelectorAll<HTMLElement>('.chat-notification-widget')];
+		const button = widgets[0]?.querySelector<HTMLElement>('.chat-notification-widget-action .action-label');
+		button?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			buttons: widgets.map(widget => [...widget.querySelectorAll<HTMLElement>('.chat-notification-widget-action .action-label')].map(action => ({ label: action.getAttribute('aria-label'), bellSlash: action.classList.contains('codicon-bell-slash-compact') || action.classList.contains('codicon-bell-slash'), last: widget.lastElementChild?.contains(action) }))),
+			commands,
+		}, {
+			buttons: [[{ label: 'Disable Test Warnings', bellSlash: true, last: true }], []],
+			commands: [['test.muteWarnings', 'arg']],
+		});
+	});
+
+	test('a warning marked as an error shows the error icon', () => {
+		const { model, request, node, createRenderer } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const { renderer, template } = createRenderer(undefined);
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('A hook blocked this prompt.'), isError: true });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		assert.deepStrictEqual([...template.value.querySelectorAll<HTMLElement>('.chat-notification-widget')].map(widget => ({
+			error: !!widget.querySelector('.chat-error-codicon'),
+			warning: !!widget.querySelector('.chat-warning-codicon'),
+		})), [{ error: true, warning: false }, { error: false, warning: true }]);
+	});
+
 	test('completed edit totals include diffs that were available before the chain attached', async () => {
 		const diff = {
 			originalURI: URI.file('/snapshots/before/progress.ts'), modifiedURI: URI.file('/workspace/progress.ts'),
@@ -12151,8 +12216,8 @@ suite('ChatListRenderer', () => {
 		}
 	}));
 
-	test('persistent reasoning uses a separate collapsible preview and breaks tool chains', () => {
-		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+	test('verbose reasoning breaks tool chains and stays expanded until the user collapses it', () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Verbose });
 		const appendTool = (id: string) => {
 			model.acceptResponseProgress(request, new ChatToolInvocation(
 				{ invocationMessage: id },
@@ -12170,19 +12235,19 @@ suite('ChatListRenderer', () => {
 		appendTool('search_after');
 		const button = reasoning.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
 		assert.ok(button);
-		const completedPreviewCollapsed = button.ariaExpanded === 'false';
+		const expandedAfterTool = button.ariaExpanded;
 		button.click();
 		assert.deepStrictEqual({
 			startedExpanded,
-			completedPreviewCollapsed,
-			reopened: button.ariaExpanded,
+			expandedAfterTool,
+			collapsedByUser: button.ariaExpanded,
 			reasoningText: reasoning.domNode.textContent?.includes('Check the response'),
 			order: [...template.value.children].filter(element => element.matches('.chat-tool-chain, .chat-persistent-reasoning, .chat-working-progress')).map(element => element.classList.contains('chat-tool-chain') ? 'tools' : element.classList.contains('chat-persistent-reasoning') ? 'reasoning' : 'progress'),
 			chainHeaders: template.value.querySelectorAll('.chat-tool-chain > .chat-used-context-label').length,
 			nestedReasoning: template.value.querySelectorAll('.chat-tool-chain .chat-persistent-reasoning').length,
 			innerProgress: template.value.querySelectorAll('.chat-thinking-spinner-item').length,
 		}, {
-			startedExpanded: true, completedPreviewCollapsed: true, reopened: 'true', reasoningText: true,
+			startedExpanded: true, expandedAfterTool: 'true', collapsedByUser: 'false', reasoningText: true,
 			order: ['tools', 'reasoning', 'tools', 'progress'], chainHeaders: 0, nestedReasoning: 0, innerProgress: 0,
 		});
 		request.response?.complete();
@@ -13925,6 +13990,11 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	/** The bottom of a persistent activity row; expanded reasoning ends below its header's label. */
+	function getActivityRowBottom(label: HTMLElement): number {
+		return (label.closest('.chat-persistent-reasoning') ?? label).getBoundingClientRect().bottom;
+	}
+
 	for (const fontSize of [13, 18]) {
 		test(`persistent tools, reasoning, and working rows share one item gap (fontSize=${fontSize})`, () => {
 			const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
@@ -13955,7 +14025,7 @@ suite('ChatListRenderer', () => {
 			const labels = [...template.value.querySelectorAll<HTMLElement>(
 				'.chat-tool-chain .progress-container p, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, .chat-working-progress p',
 			)];
-			const gaps = labels.slice(1).map((label, index) => Math.round((label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom) * 100) / 100);
+			const gaps = labels.slice(1).map((label, index) => Math.round((label.getBoundingClientRect().top - getActivityRowBottom(labels[index])) * 100) / 100);
 			const textOffsets = labels.map(label => Math.round((label.getBoundingClientRect().left - template.value.getBoundingClientRect().left) * 10) / 10);
 			assert.deepStrictEqual({ rows: labels.length, gaps, textOffsets }, {
 				rows: 8,
@@ -14009,19 +14079,19 @@ suite('ChatListRenderer', () => {
 					proseToToolGap: Math.round(toolText.getBoundingClientRect().top - secondParagraph.getBoundingClientRect().bottom),
 					paddedHitTarget: button.getBoundingClientRect().height >= 24,
 				});
-				const collapsed = { ...snapshot(), textGap: Math.round(prose.getBoundingClientRect().top - label.getBoundingClientRect().bottom) };
-				button.click();
-				await timeout(0);
 				const expanded = snapshot();
 				button.click();
 				await timeout(0);
-				snapshots.push({ checkmarks, collapsed, expanded, collapsedAgain: snapshot() });
+				const collapsed = { ...snapshot(), textGap: Math.round(prose.getBoundingClientRect().top - label.getBoundingClientRect().bottom) };
+				button.click();
+				await timeout(0);
+				snapshots.push({ checkmarks, expanded, collapsed, expandedAgain: snapshot() });
 			}
 			assert.deepStrictEqual(snapshots, [false, true].map(checkmarks => ({
 				checkmarks,
-				collapsed: { textAligned: true, iconAligned: true, sectionGap: 16, paragraphGap: 16, proseToToolGap: 16, paddedHitTarget: true, textGap: 16 },
 				expanded: { textAligned: true, iconAligned: true, sectionGap: 16, paragraphGap: 16, proseToToolGap: 16, paddedHitTarget: true },
-				collapsedAgain: { textAligned: true, iconAligned: true, sectionGap: 16, paragraphGap: 16, proseToToolGap: 16, paddedHitTarget: true },
+				collapsed: { textAligned: true, iconAligned: true, sectionGap: 16, paragraphGap: 16, proseToToolGap: 16, paddedHitTarget: true, textGap: 16 },
+				expandedAgain: { textAligned: true, iconAligned: true, sectionGap: 16, paragraphGap: 16, proseToToolGap: 16, paddedHitTarget: true },
 			})));
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
@@ -14064,7 +14134,7 @@ suite('ChatListRenderer', () => {
 		}
 		renderer.renderElement(node, 0, template);
 		const labels = [...template.value.querySelectorAll<HTMLElement>(':scope > .chat-markdown-part > p, .chat-tool-chain .progress-container p, :scope > .chat-tool-call-with-icon .progress-container p, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, .chat-working-progress p')];
-		const measureGaps = () => labels.slice(1).map((label, index) => Math.round(label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom));
+		const measureGaps = () => labels.slice(1).map((label, index) => Math.round(label.getBoundingClientRect().top - getActivityRowBottom(labels[index])));
 		const defaultGaps = measureGaps();
 		const chainRows = [...template.value.querySelectorAll('.chat-tool-chain .chat-thinking-tool-wrapper')];
 		const connectorBounds = () => chainRows.map(row => {
