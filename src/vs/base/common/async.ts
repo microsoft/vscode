@@ -1508,6 +1508,14 @@ export interface IdleDeadline {
 	timeRemaining(): number;
 }
 
+/**
+ * Time budget (in ms) for work in an idle callback that runs without real
+ * idle time: either `requestIdleCallback` is unavailable and the callback
+ * runs from a timeout, or the idle callback ran because its timeout expired.
+ * This is one frame at 64fps.
+ */
+export const IDLE_FALLBACK_BUDGET_MS = 15;
+
 type IdleApi = Pick<typeof globalThis, 'requestIdleCallback' | 'cancelIdleCallback'>;
 
 
@@ -1544,7 +1552,7 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 				if (disposed) {
 					return;
 				}
-				const end = Date.now() + 15; // one frame at 64fps
+				const end = Date.now() + IDLE_FALLBACK_BUDGET_MS;
 				const deadline: IdleDeadline = {
 					didTimeout: true,
 					timeRemaining() {
