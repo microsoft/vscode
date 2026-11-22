@@ -10,6 +10,7 @@ import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fa
 import { Color } from '../../../../base/common/color.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, type Event } from '../../../../base/common/event.js';
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { editorBackground, editorForeground, editorSelectionBackground, editorSelectionForeground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
@@ -198,7 +199,14 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private static readonly BLINK_INTERVAL = 500;
 	/** Editor root class while the renderer paints; see editorViewGpu.css. */
 	public static readonly READY_CLASS_NAME = 'editor-view-gpu';
+	/** Editor root class while the renderer paints folding controls; see folding.css. */
+	private static readonly FOLDING_CONTROLS_CLASS_NAME = 'editor-view-gpu-folding-controls';
 	private readonly _editorRoot: HTMLElement;
+	/** Whether the renderer has painted, so the canvas may show through the DOM backgrounds. */
+	private _ready = false;
+	private readonly _onDidChangeEditorClassName = this._register(new Emitter<void>());
+	/** Fires when {@link editorClassName} changes. */
+	public readonly onDidChangeEditorClassName: Event<void> = this._onDidChangeEditorClassName.event;
 
 	constructor(
 		context: ViewContext,
@@ -231,6 +239,27 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		void this._initialize();
 	}
 
+	/**
+	 * Classes for the editor root while the renderer paints. `View` owns the
+	 * root's class name and rebuilds it on focus, configuration and theme
+	 * changes, so it includes these instead of the root keeping added classes.
+	 */
+	public get editorClassName(): string {
+		if (!this._ready) {
+			return '';
+		}
+		return EDITOR_VIEW_GPU_CAPABILITIES.foldingControls
+			? `${EditorViewGpu.READY_CLASS_NAME} ${EditorViewGpu.FOLDING_CONTROLS_CLASS_NAME}`
+			: EditorViewGpu.READY_CLASS_NAME;
+	}
+
+	private _setReady(ready: boolean): void {
+		if (this._ready !== ready) {
+			this._ready = ready;
+			this._onDidChangeEditorClassName.fire();
+		}
+	}
+
 	private async _initialize(): Promise<void> {
 		try {
 			const url = resolveAmdNodeModulePath('@vscode/editor-view', 'dist/index.js', this._environmentService.isBuilt);
@@ -251,21 +280,18 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				this._editorView = undefined;
 				return;
 			}
-			if (EDITOR_VIEW_GPU_CAPABILITIES.foldingControls) {
-				this._editorRoot.classList.add('editor-view-gpu-folding-controls');
-			}
 
 			// The renderer is ready; the planner still holds its initial full-reload
 			// state, so the first present loads the whole model.
 			this._present();
 			// Only now let the canvas show through the DOM editor and gutter
 			// backgrounds, so loading never shows an unpainted editor.
-			this._editorRoot.classList.add(EditorViewGpu.READY_CLASS_NAME);
+			this._setReady(true);
 		} catch (err) {
 			if (this._disposed) {
 				return;
 			}
-			this._editorRoot.classList.remove('editor-view-gpu-folding-controls', EditorViewGpu.READY_CLASS_NAME);
+			this._setReady(false);
 			editorGpuAcceleration.disableEditorView();
 			onUnexpectedError(err);
 		}
@@ -1369,7 +1395,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._blinkTimer.dispose();
 		this._editorView?.dispose();
 		this._editorView = undefined;
-		this._editorRoot.classList.remove('editor-view-gpu-folding-controls', EditorViewGpu.READY_CLASS_NAME);
+		this._ready = false;
 		this.canvas.domNode.remove();
 		super.dispose();
 	}

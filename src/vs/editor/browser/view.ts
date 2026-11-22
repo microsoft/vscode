@@ -199,6 +199,7 @@ export class View extends ViewEventHandler {
 			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		} else if (gpuAcceleration === 'editorView') {
 			this._editorViewGpu = this._instantiationService.createInstance(EditorViewGpu, this._context, this.domNode.domNode);
+			this._register(this._editorViewGpu.onDidChangeEditorClassName(() => this.domNode.setClassName(this._getEditorClassName())));
 			this._viewParts.push(this._editorViewGpu);
 		}
 		// In `editorView` mode the `@vscode/editor-view` (Rust/WASM) canvas draws
@@ -556,7 +557,8 @@ export class View extends ViewEventHandler {
 
 	private _getEditorClassName() {
 		const focused = this._editContext.isFocused() ? ' focused' : '';
-		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+		const editorView = this._editorViewGpu?.editorClassName ? ' ' + this._editorViewGpu.editorClassName : '';
+		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused + editorView;
 	}
 
 	// --- begin event handlers

@@ -114,11 +114,14 @@ around zones. Zone DOM in the content area and the margin sits above the canvas
 
 The canvas is the editor's bottom layer, in the place of the DOM text it
 replaces. `View` mounts it first in the overflow guard. Once the renderer has
-painted its first frame, `EditorViewGpu` adds the `editor-view-gpu` class to the
-editor root, and [`editorViewGpu.css`](./editorViewGpu.css) makes the DOM editor
-and gutter backgrounds transparent. Until then the DOM backgrounds stay, so
-loading never shows an unpainted editor. Every remaining DOM layer then stacks
-above the GPU picture as it would above DOM text:
+painted its first frame, the editor root gets the `editor-view-gpu` class, and
+[`editorViewGpu.css`](./editorViewGpu.css) makes the DOM editor and gutter
+backgrounds transparent. Until then the DOM backgrounds stay, so loading never
+shows an unpainted editor. `View` owns the root's class name and rebuilds it on
+focus, configuration and theme changes, so it takes the class from
+`EditorViewGpu.editorClassName` instead of the adapter adding it once. With the
+backgrounds transparent, every remaining DOM layer stacks above the GPU picture
+as it would above DOM text:
 
 - gutter: change bars and other line decorations, glyph-margin icons and
   widgets (breakpoints, lightbulbs), and line numbers with a
