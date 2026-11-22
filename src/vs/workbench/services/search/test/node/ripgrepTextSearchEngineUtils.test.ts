@@ -363,6 +363,9 @@ suite('RipgrepTextSearchEngine', () => {
 				[['**/a/*', 'b/*'], ['-g', '!*', '-g', '/b', '-g', '/b/*', '-g', '**/a/*']],
 				[['**/a/*', '**/b/*'], ['-g', '**/a/*', '-g', '**/b/*']],
 				[['foo/*bar/something/**'], ['-g', '!*', '-g', '/foo', '-g', '/foo/*bar', '-g', '/foo/*bar/something', '-g', '/foo/*bar/something/**']],
+				// escaped curly braces from a folder name (#194701)
+				[['[{][{]cookiecutter.name[}][}]/**'], ['-g', '!*', '-g', '/[{][{]cookiecutter.name[}][}]', '-g', '/[{][{]cookiecutter.name[}][}]/**']],
+				[['a[{]b/c/**'], ['-g', '!*', '-g', '/a[{]b', '-g', '/a[{]b/c', '-g', '/a[{]b/c/**']],
 			].forEach(([includes, expectedFromIncludes]) => testGetRgArgs(<string[]>includes, <string[]>expectedFromIncludes)));
 		});
 
@@ -445,6 +448,12 @@ suite('RipgrepTextSearchEngine', () => {
 			['{}foo', ['foo']],
 			['bar{ }foo', ['bar foo']],
 			['{}', ['']],
+			// braces in a character class are literal
+			['a[{]b[}]', ['a[{]b[}]']],
+			['a[{]b,c[}].txt', ['a[{]b,c[}].txt']],
+			['[{][{]x[}][}]/{a,b}', ['[{][{]x[}][}]/a', '[{][{]x[}][}]/b']],
+			['{a,[}]b}/c', ['a/c', '[}]b/c']],
+			['\\[{a,b}]', ['\\[a]', '\\[b]']],
 		].forEach(([includePattern, expectedPatterns]) => testBraceExpansion(<string>includePattern, <string[]>expectedPatterns));
 	});
 });

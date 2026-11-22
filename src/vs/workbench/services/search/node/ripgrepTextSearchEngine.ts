@@ -823,15 +823,39 @@ export function fixNewline(pattern: string): string {
  * - If the brace is prepended by a \ character, then it is escaped.
  * - Does not process escapes that are within the sub-glob.
  * - If two unescaped `{` occur before `}`, then ripgrep will return an error for brace nesting, so don't split on those.
+ * - Braces inside a character class (e.g. `[{]`) are literal characters, so they are left as they are.
  */
 function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: string; strInBraces: string; fixedEnd?: string } {
 	let inBraces = false;
+	let inBrackets = false;
 	let escaped = false;
 	let fixedStart = '';
 	let strInBraces = '';
 	for (let i = 0; i < pattern.length; i++) {
 		const char = pattern[i];
+		if (inBrackets && (char === '{' || char === '}')) {
+			// a brace in a character class is a literal character: keep it, and any escape before it, for ripgrep
+			if (inBraces) {
+				strInBraces += (escaped ? '\\' : '') + char;
+			} else {
+				fixedStart += (escaped ? '\\' : '') + char;
+			}
+			escaped = false;
+			continue;
+		}
 		switch (char) {
+			case '[':
+			case ']':
+				if (!escaped) {
+					inBrackets = char === '[';
+				}
+				if (inBraces) {
+					strInBraces += (escaped ? '\\' : '') + char;
+				} else {
+					fixedStart += (escaped ? '\\' : '') + char;
+				}
+				escaped = false;
+				break;
 			case '\\':
 				if (escaped) {
 					// If we're already escaped, then just leave the escaped slash and the preceeding slash that escapes it.

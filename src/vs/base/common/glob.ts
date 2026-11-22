@@ -85,10 +85,15 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 				}
 				break;
 			case '{':
-				inBraces = true;
+				// a brace in a character class (e.g. `[{]`) is a literal character
+				if (!inBrackets) {
+					inBraces = true;
+				}
 				break;
 			case '}':
-				inBraces = false;
+				if (!inBrackets) {
+					inBraces = false;
+				}
 				break;
 			case '[':
 				inBrackets = true;
