@@ -32,9 +32,10 @@ suite('Send instruction to chats', () => {
 		});
 	}
 
-	function session(id: string, chats: IChat[], options?: { archived?: boolean; automation?: boolean; connection?: SessionRemoteConnectionStatus; status?: SessionStatus }): ISession {
+	function session(id: string, chats: IChat[], options?: { archived?: boolean; automation?: boolean; connection?: SessionRemoteConnectionStatus; status?: SessionStatus; backgroundDispatch?: boolean }): ISession {
 		return upcastPartial<ISession>({
 			sessionId: id,
+			capabilities: constObservable({ supportsMultipleChats: true, supportsBackgroundDispatch: options?.backgroundDispatch ?? true }),
 			resource: URI.parse(`test-session:/${id}`),
 			title: constObservable(id),
 			mainChat: constObservable(chats[0]),
@@ -122,9 +123,9 @@ suite('Send instruction to chats', () => {
 			message: sut.notices[0]?.message,
 		}, {
 			sends: [
-				{ session: 'ordinary', chat: main.resource.toString(), options: { query } },
-				{ session: 'ordinary', chat: nested.resource.toString(), options: { query } },
-				{ session: 'automation', chat: 'test-chat:/run', options: { query } },
+				{ session: 'ordinary', chat: main.resource.toString(), options: { query, preserveDraft: true } },
+				{ session: 'ordinary', chat: nested.resource.toString(), options: { query, preserveDraft: true } },
+				{ session: 'automation', chat: 'test-chat:/run', options: { query, preserveDraft: true } },
 			],
 			picked: ['main', 'run'],
 			automation: 'Automation run: ',
@@ -167,6 +168,27 @@ suite('Send instruction to chats', () => {
 			await sut.run();
 			assert.deepStrictEqual(sut.sends, []);
 		}
+	});
+
+	test('excludes unsupported providers, including completed automation runs, before the picker', async () => {
+		const supported = session('agent-host', [chat('supported')]);
+		const cloud = session('cloud', [chat('cloud-main')], { backgroundDispatch: false });
+		const automation = session('cloud-automation', [chat('cloud-run')], { backgroundDispatch: false, automation: true });
+		const undeclared = { ...session('undeclared', [chat('undeclared-main')]), capabilities: constObservable({ supportsMultipleChats: false }) };
+		const sut = create([supported, cloud, automation, undeclared]);
+		await sut.run();
+		assert.deepStrictEqual({ offered: sut.items.map(item => item.label), sent: sut.sends.map(send => send.chat) }, {
+			offered: ['supported'], sent: ['test-chat:/supported'],
+		});
+	});
+
+	test('revalidates background dispatch capability after selection', async () => {
+		const sessions = [session('owner', [chat('main')])];
+		const sut = create(sessions, { beforeInput: () => { sessions[0] = session('owner', [chat('main')], { backgroundDispatch: false }); } });
+		await sut.run();
+		assert.deepStrictEqual({ sends: sut.sends, messages: sut.notices.map(notice => notice.message) }, {
+			sends: [], messages: ['Instruction submitted to 0 of 1 chats. Failed chats were not retried:\nmain: The chat is no longer available for an instruction.'],
+		});
 	});
 
 	test('reports per-chat failures and revalidates targets after selection without retrying successes', async () => {

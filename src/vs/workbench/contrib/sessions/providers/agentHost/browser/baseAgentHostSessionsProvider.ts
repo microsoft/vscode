@@ -1933,6 +1933,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const supportsMultipleChats = agentCapabilities?.multipleChats !== undefined;
 			const chatProviders = supportsMultipleChats ? this._options.chatProviders?.read(reader) : undefined;
 			return {
+				supportsBackgroundDispatch: true,
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				...(connection?.artifactIntegrationTransport ? { supportsArtifactIntegrations: true } : {}),
@@ -9309,7 +9310,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 			}
 
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: !options.preserveDraft, modelConfiguration: selectedModelConfiguration });
 		} finally {
 			modelRef.dispose();
 		}

@@ -30,6 +30,7 @@ interface IChatTarget extends IQuickPickItem {
 function canSendInstruction(session: ISession, chat: IChat): boolean {
 	const connection = session.remoteConnectionStatus?.get();
 	return isSessionCreated(session)
+		&& session.capabilities.get().supportsBackgroundDispatch === true
 		&& !session.isArchived.get()
 		&& !chat.isArchived.get()
 		&& chat.interactivity.get() === ChatInteractivity.Full
@@ -54,15 +55,18 @@ export class SendInstructionToChatsAction extends Action2 {
 				order: 20,
 			}, {
 				id: Menus.SessionItemContextMenu,
-				group: '2_chat',
+				group: 'navigation',
+				order: 3,
 				when: SessionIsArchivedContext.negate(),
 			}, {
 				id: Menus.SessionChatItemContext,
-				group: '2_chat',
+				group: 'navigation',
+				order: 3,
 				when: SessionChatItemIsArchivedContext.negate(),
 			}, {
 				id: Menus.AutomationsHistoryItemContext,
-				group: '2_chat',
+				group: 'navigation',
+				order: 3,
 				when: SessionIsArchivedContext.negate(),
 			}],
 		});
@@ -95,7 +99,7 @@ export class SendInstructionToChatsAction extends Action2 {
 			}
 		}
 		if (targets.size === 0) {
-			notifications.warn(localize('noInstructionTargets', "No chats are available. Chats must be connected, idle, and editable, and must not be archived or waiting for approval."));
+			notifications.warn(localize('noInstructionTargets', "No chats are available. Chats must support background instructions, be connected, idle, and editable, and must not be archived or waiting for approval."));
 			return;
 		}
 		const selected = await quickInput.pick([...targets.values()], {
@@ -135,7 +139,7 @@ export class SendInstructionToChatsAction extends Action2 {
 					if (!session || !chat || !canSendInstruction(session, chat)) {
 						throw new Error(localize('instructionTargetUnavailable', "The chat is no longer available for an instruction."));
 					}
-					await management.sendRequestInBackground(session, chat, { query });
+					await management.sendRequestInBackground(session, chat, { query, preserveDraft: true });
 					progress.report({ increment: 100 / selected.length });
 				})));
 			} finally {

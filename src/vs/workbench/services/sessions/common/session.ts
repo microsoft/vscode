@@ -1136,6 +1136,8 @@ export function toSessionId(providerId: string, resource: URI): string {
  * Consumers check these before surfacing session-specific features in the UI.
  */
 export interface ISessionCapabilities {
+	/** Whether the provider can submit awaited follow-ups to existing chats without opening them. */
+	readonly supportsBackgroundDispatch?: boolean;
 	/** Whether this external session can be imported without sending a message. */
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */

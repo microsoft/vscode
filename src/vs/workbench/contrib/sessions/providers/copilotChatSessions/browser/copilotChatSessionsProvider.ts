@@ -3032,6 +3032,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			createdBySession: chat.createdBySession ?? this._createdBySession(chat.resource),
 			isExternal: chat.isExternal,
 			capabilities: constObservable({
+				supportsBackgroundDispatch: false,
 				supportsMultipleChats: false,
 				supportsRename: false,
 				supportsDelete: false,

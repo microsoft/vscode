@@ -61,6 +61,8 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -75,9 +77,11 @@ import { IChatService, type ChatSendResult, type IChatModelReference, type IChat
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentService, IChatAgentService } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, type IChatModel, type IChatModelInputState, type IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { SendInstructionToChatsAction } from '../../../../../../workbench/contrib/sessions/browser/sessionsBroadcast.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CanvasOpenFailedError } from '../../../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
@@ -118,7 +122,7 @@ import { IPathService } from '../../../../../../workbench/services/path/common/p
 import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
-import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
@@ -17588,6 +17592,62 @@ suite('LocalAgentHostSessionsProvider', () => {
 				metadata: options.metadata,
 				onDidCreateResponse: options.onDidCreateResponse,
 			})), [{ agentHostMessageOrigin, metadata, onDidCreateResponse }]);
+		});
+	}
+
+	for (const rejected of [false, true]) {
+		test(`broadcast retains the real composer draft through management and agent-host dispatch (rejected: ${rejected})`, async () => {
+			const instantiation = workbenchInstantiationService(undefined, disposables);
+			instantiation.stub(IChatService, upcastPartial<IChatService>({}));
+			instantiation.stub(IChatAgentService, disposables.add(instantiation.createInstance(ChatAgentService)));
+			const model = disposables.add(instantiation.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, disableBackgroundKeepAlive: true,
+			}));
+			const draft: IChatModelInputState = {
+				inputText: 'Unsent private instruction',
+				attachments: [{ kind: 'file', id: 'draft-file', name: 'draft.ts', value: URI.file('/workspace/draft.ts') }],
+				selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 2, positionLineNumber: 1, positionColumn: 4 }],
+				mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, contrib: {},
+			};
+			model.inputModel.setState(draft);
+			const submitted: { query: string; attachedContext: IChatSendRequestOptions['attachedContext'] }[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async () => new ImmortalReference(model),
+				sendRequest: async (_resource, query, options) => {
+					submitted.push({ query, attachedContext: options?.attachedContext });
+					// Edits made while the independent instruction is submitting must survive too.
+					model.inputModel.setState({ inputText: 'Edited unsent instruction' });
+					return rejected ? { kind: 'rejected', reason: 'test rejection' } : { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			fireSessionAdded(agentHost, 'broadcast-draft', { title: 'Broadcast Draft' });
+			const session = provider.getSessions().find(session => session.title.get() === 'Broadcast Draft')!;
+			const management = createManagementService(disposables, provider);
+			instantiation.stub(ISessionsManagementService, management);
+			instantiation.stub(IQuickInputService, { pick: async items => items, input: async () => 'Shared instruction' });
+			const notifications = new TestNotificationService();
+			const errors = spy(notifications, 'error');
+			disposables.add(toDisposable(() => errors.restore()));
+			instantiation.stub(INotificationService, notifications);
+			instantiation.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
+			await instantiation.invokeFunction(accessor => new SendInstructionToChatsAction().run(accessor));
+			const retained = model.inputModel.state.get();
+			assert.deepStrictEqual({
+				capability: session.capabilities.get().supportsBackgroundDispatch,
+				submitted, text: retained?.inputText, attachments: retained?.attachments, selections: retained?.selections,
+				failures: errors.callCount,
+			}, {
+				capability: true, submitted: [{ query: 'Shared instruction', attachedContext: undefined }],
+				text: 'Edited unsent instruction', attachments: draft.attachments, selections: draft.selections,
+				failures: rejected ? 1 : 0,
+			});
+			if (!rejected) {
+				await management.sendRequest(session, session.mainChat.get(), { query: draft.inputText, attachedContext: [...draft.attachments] });
+				const cleared = model.inputModel.state.get();
+				assert.deepStrictEqual({ text: cleared?.inputText, attachments: cleared?.attachments, selections: cleared?.selections }, {
+					text: '', attachments: [], selections: [],
+				});
+			}
 		});
 	}
 

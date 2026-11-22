@@ -1773,7 +1773,8 @@ suite('CopilotChatSessionsProvider', () => {
 			sameSession: provider.getSessions()[0] === session,
 			automation: session.isAutomation?.get(),
 			external: session.isExternal?.get(),
-		}, { sameSession: true, automation: true, external: true });
+			backgroundDispatch: session.capabilities.get().supportsBackgroundDispatch,
+		}, { sameSession: true, automation: true, external: true, backgroundDispatch: false });
 	});
 
 	test('restoring conversation history does not mark an opened run unread', () => {
@@ -2558,9 +2559,11 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.deepStrictEqual({
 			model: session.modelId.get(),
 			source: session.mainChat.get().modelSource?.get(),
+			backgroundDispatch: session.capabilities.get().supportsBackgroundDispatch,
 		}, {
 			model: 'copilot/gpt-4o',
 			source: ChatModelSource.Chosen,
+			backgroundDispatch: false,
 		});
 		await assert.rejects(() => provider.createNewChat(session.sessionId), /does not support multiple chats/);
 		await assert.rejects(() => provider.sendRequest(session.sessionId, resource, { query: 'test' }), /Multiple chats per session is not supported/);
