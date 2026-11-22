@@ -274,6 +274,10 @@ export class PaneCompositeBar extends Disposable {
 		this._register(this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true)));
 		this._register(this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false)));
 
+		// Pinned view containers changed by another window or by applying a named layout. Also followed before
+		// extensions are registered, so that the bar never saves the pinned view containers it read before
+		this._register(this.sharedLayoutStateService.getValueChangeEvent(this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
+
 		// Extension registration
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (this._store.isDisposed) {
@@ -284,7 +288,6 @@ export class PaneCompositeBar extends Disposable {
 				this.updateCompositeBarItemsFromStorage(true);
 				this.saveCachedViewContainers();
 			}));
-			this._register(this.sharedLayoutStateService.getValueChangeEvent(this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 
@@ -615,7 +618,10 @@ export class PaneCompositeBar extends Disposable {
 				name: cachedViewContainer.name,
 				order: cachedViewContainer.order,
 				pinned: cachedViewContainer.pinned,
-				visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
+				// Until extensions are registered, the bar shows the view containers of extensions from the cache
+				visible: this.hasExtensionsRegistered
+					? cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id)
+					: !this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer),
 			});
 		}
 

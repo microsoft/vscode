@@ -9,7 +9,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { TestStorageService } from '../../../common/workbenchTestServices.js';
+import { TestExtensionService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ActivitybarPart, ActivityBarCompositeBar } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
@@ -17,13 +17,15 @@ import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenc
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
-import { IPaneCompositeBarOptions } from '../../../../browser/parts/paneCompositeBar.js';
+import { IPaneCompositeBarOptions, PaneCompositeBar } from '../../../../browser/parts/paneCompositeBar.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IActivityService } from '../../../../services/activity/common/activity.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { ISharedLayoutStateService } from '../../../../services/layout/common/sharedLayoutState.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -1145,6 +1147,35 @@ suite('ActivitybarPart', () => {
 			{ left: openMenu('left'), right: openMenu('right') },
 			{ left: { opened: true, opensLeftward: false }, right: { opened: true, opensLeftward: true } }
 		);
+	});
+
+	// --- pinned view containers -------------------------------------------------
+
+	test('a bar follows changes of its pinned view containers before extensions are registered', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IExtensionService, new class extends TestExtensionService {
+			override whenInstalledExtensionsRegistered(): Promise<boolean> { return new Promise(() => { }); }
+		}());
+		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+			override readonly onDidChangeContainerLocation = Event.None;
+			override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
+			override readonly onDidChangeViewContainers = Event.None;
+			override getViewContainersByLocation() { return []; }
+			override getViewContainerById() { return null; }
+		});
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		const storePinned = (entries: { id: string; pinned: boolean; visible: boolean }[]) => sharedLayoutStateService.store(ActivitybarPart.pinnedViewContainersKey, JSON.stringify(entries));
+		storePinned([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }]);
+		const bar = disposables.add(instantiationService.createInstance(PaneCompositeBar, ViewContainerLocation.Sidebar, activityBarOptions, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart()));
+
+		// A named layout is applied, then the definition of a layout unpins a view container
+		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
+		bar.arrangePaneComposites({ pinned: new Map([['search', false]]) });
+
+		assert.deepStrictEqual(JSON.parse(sharedLayoutStateService.get(ActivitybarPart.pinnedViewContainersKey, '[]')), [
+			{ id: 'search', pinned: false, visible: true },
+			{ id: 'explorer', pinned: false, visible: true }
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
