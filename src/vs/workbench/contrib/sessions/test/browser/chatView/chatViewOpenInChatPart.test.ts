@@ -123,6 +123,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const sessionsOnly = derived(reader => registrations.read(reader) > 0 && !viewHostsNewChat.read(reader));
 		// The Chat view and, while it is registered, the chat part's host, each with the chat it shows and their chat widgets
 		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
+		// Why the Chat view shows its chat: `commit` once the first request of its new chat made it the session it became
+		const viewReason = observableValue<'open' | 'commit'>('viewReason', 'open');
 		// The chat part's host registers as chats open in the chat part, or later, where it is late
 		const hostReady = observableValue('hostReady', !options.lateHost);
 		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader) && chatPartOptions.some(o => o.enabled.read(reader)));
@@ -173,8 +175,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			requests,
 			chatViewHosts: derived(reader => !replaced.read(reader)),
 			shownSession: derived(reader => {
-				const resource = (replaced.read(reader) ? shown.part : shown.view).read(reader);
-				return resource && { resource, reason: 'open' as const };
+				const inPart = replaced.read(reader);
+				const resource = (inPart ? shown.part : shown.view).read(reader);
+				return resource && { resource, reason: inPart ? 'open' as const : viewReason.read(reader) };
 			}),
 			openSession: async resource => {
 				request();
@@ -250,7 +253,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			}
 			activeEditorChanged.fire();
 		};
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, viewHostsNewChat, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, viewHostsNewChat, viewReason, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
 	}
 
 	test('editorArea opens the chats of sessions as editors, revealing one that is open, and does not use the chat part', async () => {
@@ -288,28 +291,37 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		});
 	});
 
-	test('editorArea opens the chat that the Chat view\'s new chat starts as an editor, once the Chat view shows only its sessions again', () => {
+	test('editorArea opens the chat that the first request of the Chat view\'s new chat commits as a pinned editor, also of a new chat revealed before its request', () => {
 		const run = (chatOpenIn: string) => {
-			const { shown, viewHostsNewChat, editorOpens } = setup({ chatOpenIn });
-			// The Chat view shows the composer of its new chat, then the chat its first request starts, as it shows only its sessions again
+			const { shown, viewHostsNewChat, viewReason, editorOpens } = setup({ chatOpenIn });
+			// New Chat shows the composer, whose first request commits the chat
 			transaction(tx => {
 				viewHostsNewChat.set(true, tx);
 				shown.view.set(URI.parse('agent-host-copilot:/untitled-new'), tx);
 			});
 			transaction(tx => {
 				viewHostsNewChat.set(false, tx);
+				viewReason.set('commit', tx);
 				shown.view.set(URI.parse('agent-host-copilot:/session-1'), tx);
 			});
-			// A new chat that it leaves without a request, such as for another open, stays in the Chat view
+			// Run Prompt in New Chat: the composer is revealed, the Chat view showing only its sessions already, before its request commits
 			transaction(tx => {
-				viewHostsNewChat.set(true, tx);
-				shown.view.set(URI.parse('agent-host-copilot:/untitled-other'), tx);
+				viewReason.set('open', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/untitled-revealed'), tx);
 			});
-			viewHostsNewChat.set(false, undefined);
-			return editorOpens.map(open => `${open.resource.path} ${open.target === ACTIVE_GROUP ? 'active' : 'other'} revealIfOpened=${open.revealIfOpened} pinned=${open.pinned}`);
+			transaction(tx => {
+				viewReason.set('commit', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/session-2'), tx);
+			});
+			// A chat that the Chat view opens, rather than commits, stays where it shows
+			transaction(tx => {
+				viewReason.set('open', tx);
+				shown.view.set(URI.parse('agent-host-copilot:/session-3'), tx);
+			});
+			return editorOpens.map(open => `${open.resource.path} ${open.target === ACTIVE_GROUP ? 'active' : 'other'} pinned=${open.pinned}`);
 		};
 		assert.deepStrictEqual({ editorArea: run('editorArea'), chatArea: run('chatArea'), chatPanel: run('chatPanel') }, {
-			editorArea: ['/session-1 active revealIfOpened=undefined pinned=true'],
+			editorArea: ['/session-1 active pinned=true', '/session-2 active pinned=true'],
 			chatArea: [],
 			chatPanel: [],
 		});

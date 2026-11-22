@@ -124,8 +124,8 @@ async function runNewChatCommand(accessor: ServicesAccessor, args: unknown[]): P
 			if (await chatViewHostService.newChat()) {
 				return;
 			}
-		} else if (chatViewHostService.sessionsOnly.get() && await chatViewHostService.newChat(undefined, { ownChat: true })) {
-			// While the chats open elsewhere, such as in editors, the Chat view shows only its sessions: its own new chat shows its composer
+		} else if (chatViewHostService.chatsOpenElsewhere.get() && await chatViewHostService.newChat(undefined, { ownChat: true })) {
+			// While the chats open elsewhere, such as in editors, the Chat view's own new chat shows its composer, also in place of one it shows
 			return;
 		}
 	}
