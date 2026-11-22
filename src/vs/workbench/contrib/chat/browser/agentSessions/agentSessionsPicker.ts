@@ -105,6 +105,10 @@ export class AgentSessionsPicker {
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
 
+		// keep the order and date groups in sync with the filter, e.g. when the
+		// default sort order setting changes while the picker is open
+		disposables.add(filter.onDidChange(() => picker.items = this.createPickerItems(filter)));
+
 		disposables.add(picker.onDidAccept(e => {
 			const pick = picker.selectedItems[0];
 			if (pick) {
