@@ -398,74 +398,71 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	});
 
-	// TEMPORARY: registers the suite several times to reproduce its flakiness in CI (#349670). Remove before merge.
-	for (let probe = 1; probe <= 12; probe++) {
-		(runDevContainerSuite ? describe : describe.skip)(`Agents Window (Dev Container handoff) #${probe}`, () => {
-			installDockerPrerequisite(logger, process.platform === 'linux');
+	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container handoff)', () => {
+		installDockerPrerequisite(logger, process.platform === 'linux');
 
-			// Identifies the containers of this run, so cleanup leaves environments that others create on the same Docker host.
-			const runLabel = `vscode.smoke.devContainerHandoff=${randomUUID()}`;
-			const handoff = setupAgentHostSuite(logger, {
-				serverLabel: 'Dev Container handoff AgentHost',
-				mockServerHost: '0.0.0.0',
-				captureRequests: true,
-				registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
-					registerScenario(DEV_CONTAINER_HANDOFF_SCENARIO_ID, devContainerHandoffScenario());
-					registerScenario(DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
-				},
-				settings: {
-					'chat.agentHost.devContainer.enabled': true,
-					'chat.agentHost.devContainer.environments.enabled': true,
-					'chat.agentHost.devContainer.handoff.enabled': true,
-					'chat.remoteAgentHostsEnabled': true,
-					// The Agent Host in the container resolves proxies through this client. The mock CAPI host only
-					// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
-					'http.useLocalProxyConfiguration': false,
-				},
-				// Environment containers have no devcontainer.json of the workspace to point them at the mock server, or to
-				// install a CLI when the update server has none for the commit of the build under test.
-				extraEnv: options => ({
-					VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({
-						containerEnv: devContainerMockEnvironment(handoff.mockServer.port),
-						runArgs: ['--add-host=vscode-smoke.test:host-gateway', `--label=${runLabel}`],
-						postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
-					}),
+		// Identifies the containers of this run, so cleanup leaves environments that others create on the same Docker host.
+		const runLabel = `vscode.smoke.devContainerHandoff=${randomUUID()}`;
+		const handoff = setupAgentHostSuite(logger, {
+			serverLabel: 'Dev Container handoff AgentHost',
+			mockServerHost: '0.0.0.0',
+			captureRequests: true,
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(DEV_CONTAINER_HANDOFF_SCENARIO_ID, devContainerHandoffScenario());
+				registerScenario(DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
+			},
+			settings: {
+				'chat.agentHost.devContainer.enabled': true,
+				'chat.agentHost.devContainer.environments.enabled': true,
+				'chat.agentHost.devContainer.handoff.enabled': true,
+				'chat.remoteAgentHostsEnabled': true,
+				// The Agent Host in the container resolves proxies through this client. The mock CAPI host only
+				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
+				'http.useLocalProxyConfiguration': false,
+			},
+			// Environment containers have no devcontainer.json of the workspace to point them at the mock server, or to
+			// install a CLI when the update server has none for the commit of the build under test.
+			extraEnv: options => ({
+				VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({
+					containerEnv: devContainerMockEnvironment(handoff.mockServer.port),
+					runArgs: ['--add-host=vscode-smoke.test:host-gateway', `--label=${runLabel}`],
+					postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 				}),
-				// Runs once the app exited, and before the mock server closes, which waits for the containers' connections.
-				cleanupWorkspace: () => removeLabeledDevContainerEnvironments(runLabel),
-			});
-
-			it('Continues a task in a new Dev Container session', async function () {
-				this.timeout(10 * 60 * 1000);
-				const app = this.app as Application;
-
-				try {
-					const requestsBefore = handoff.mockServer.getRequests().length;
-					await warmUpAgentHostModel(app, logger, 'Agents Window (Dev Container handoff)');
-					await app.workbench.agentsWindow.submitNewSessionPrompt(`continue in a Dev Container [scenario:${DEV_CONTAINER_HANDOFF_SCENARIO_ID}]`);
-					await app.workbench.agentsWindow.waitForActiveSessionView();
-					// The tool's progress message opens the log of the container it creates.
-					await app.workbench.agentsWindow.showDevContainerLogFromLink('sessions.devContainer.showEnvironmentLog');
-					// Approves creating the container and then the session, which the scripted agent requests.
-					await app.workbench.agentsWindow.waitForAssistantText(DEV_CONTAINER_HANDOFF_REPLY, 8 * 60 * 1000, { acceptToolConfirmations: true });
-					// Only the Agent Host in the container reaches the mock server through vscode-smoke.test.
-					await waitForPromptRequest(handoff.mockServer, requestsBefore, `[scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`, 2 * 60 * 1000);
-					const created = listLabeledContainers(runLabel);
-					assert.strictEqual(created.length, 1, `Expected one new Dev Container environment container, found: ${created.join(', ')}`);
-					const rendererLogs = await waitForLogContent(
-						() => readRendererLogs(handoff.logsPath),
-						/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,
-						30_000,
-					);
-					assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
-				} catch (error) {
-					logger.log(`Agents Window (Dev Container handoff) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-					await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container handoff)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-					throw error;
-				}
-			});
+			}),
+			// Runs once the app exited, and before the mock server closes, which waits for the containers' connections.
+			cleanupWorkspace: () => removeLabeledDevContainerEnvironments(runLabel),
 		});
-	}
+
+		it('Continues a task in a new Dev Container session', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+
+			try {
+				const requestsBefore = handoff.mockServer.getRequests().length;
+				await warmUpAgentHostModel(app, logger, 'Agents Window (Dev Container handoff)');
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`continue in a Dev Container [scenario:${DEV_CONTAINER_HANDOFF_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.waitForActiveSessionView();
+				// The tool's progress message opens the log of the container it creates.
+				await app.workbench.agentsWindow.showDevContainerLogFromLink('sessions.devContainer.showEnvironmentLog');
+				// Approves creating the container and then the session, which the scripted agent requests.
+				await app.workbench.agentsWindow.waitForAssistantText(DEV_CONTAINER_HANDOFF_REPLY, 8 * 60 * 1000, { acceptToolConfirmations: true });
+				// Only the Agent Host in the container reaches the mock server through vscode-smoke.test.
+				await waitForPromptRequest(handoff.mockServer, requestsBefore, `[scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`, 2 * 60 * 1000);
+				const created = listLabeledContainers(runLabel);
+				assert.strictEqual(created.length, 1, `Expected one new Dev Container environment container, found: ${created.join(', ')}`);
+				const rendererLogs = await waitForLogContent(
+					() => readRendererLogs(handoff.logsPath),
+					/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,
+					30_000,
+				);
+				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+			} catch (error) {
+				logger.log(`Agents Window (Dev Container handoff) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container handoff)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
 
 	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
 		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';

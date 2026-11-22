@@ -24,8 +24,6 @@ const suiteDurations = new Map<string, number>([
 	['Data Loss (insiders -> insiders)', 100],
 	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 70 : 15], // skips itself without Docker
 	['Agents Window (Dev Container handoff)', process.platform === 'linux' ? 90 : 15], // skips itself without Docker
-	// TEMPORARY: the copies that reproduce the handoff suite's flakiness in CI (#349670). Remove before merge.
-	...Array.from({ length: 12 }, (_, index) => [`Agents Window (Dev Container handoff) #${index + 1}`, process.platform === 'linux' ? 90 : 15] as const),
 	['Agents Window (SSH Dev Container AgentHost)', 50],
 	['Agents Window (Codex)', 45],
 	['Integrated Browser', 40],
