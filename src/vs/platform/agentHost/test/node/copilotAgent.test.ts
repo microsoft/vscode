@@ -24053,6 +24053,47 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(listed?.map(canvas => canvas.canvasId), ['board']);
 		}).timeout(30_000);
 
+		test('opening a canvas whose extension asked for consent while a workspace-less draft listed canvases starts the draft and takes the answer', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-consent-home-`));
+			let consent: Promise<string> | undefined;
+			const launched: { configs?: readonly Parameters<ITestCopilotClient['createSession']>[0][] } = {};
+			const askToLoad = async () => {
+				const config = launched.configs![0];
+				const result = await config.permissions!.onRequest!({ kind: 'extension-env-access', extensionName: 'user:board', environmentVariables: ['BOARD_TOKEN'] }, { sessionId: config.sessionId! });
+				assert.ok(result);
+				return result.kind === 'attributed' ? result.result.kind : result.kind;
+			};
+			// The extension asks to load when canvases are first listed, and its canvas opens once the user allows it.
+			const onSdkSession = (sdkSession: MockCopilotSession) => {
+				const list = sdkSession.rpc.canvas.list;
+				sdkSession.rpc.canvas.list = async () => {
+					consent ??= askToLoad();
+					return list();
+				};
+				sdkSession.rpc.canvas.open = async params => {
+					if (await consent !== 'approve-once') {
+						throw new Error(`extension did not become ready: ${params.extensionId}`);
+					}
+					return { instanceId: params.instanceId, extensionId: params.extensionId!, canvasId: params.canvasId };
+				};
+			};
+			const h = await createWarmableAgent('warm-workspaceless-canvas-consent', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true }, onSdkSession });
+			launched.configs = h.launchConfigs;
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			const session = AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-consent');
+			const open = (answer?: AgentCanvasOpenAnswer) => h.agent.openSessionCanvas(session, { canvasId: 'board', extensionId: 'user:board', instanceId: 'board' }, h.chat, h.context, answer);
+
+			await h.agent.listSessionCanvases(session, h.chat, h.context);
+			const asked = await open();
+			const afterAsk = h.state().materialized;
+			const answered = asked.kind === 'consentRequired' ? (await open({ kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow })).kind : undefined;
+
+			assert.deepStrictEqual({ asked: asked.kind, afterAsk, answered }, { asked: 'consentRequired', afterAsk: 1, answered: 'opened' });
+		}).timeout(30_000);
+
 		test('a worktree send discards the folder warm session and materializes in the worktree', async () => {
 			const h = await createWarmableAgent('warm-worktree');
 			afterTest(() => disposeAgent(h.agent));

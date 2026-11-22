@@ -8125,6 +8125,28 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('a canvas draft stops waiting for its canvas and releases its observation when the service is disposed', async () => {
+		let observers = 0;
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///canvas-chat'), canvases: observableValue<readonly ISessionCanvas[] | undefined>('canvases', undefined), observeCanvases: () => { observers++; return toDisposable(() => observers--); } };
+		const activeSession = stubSession({ sessionId: 'active', providerId: 'test' });
+		const canvasSession = stubSession({ sessionId: 'canvas-session', providerId: 'test', chats: constObservable([chat]), mainChat: constObservable(chat) });
+		const plan: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: '', requiresInput: false };
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createCanvasDraft(): ISessionsProviderCanvasDraft {
+				return { canvases: Promise.resolve([plan]), open: async () => canvasSession, dispose: () => { } };
+			}
+		}(activeSession);
+		const { service } = createSessionsManagementService(activeSession, disposables, provider);
+
+		const reference = service.createCanvasDraft().open(plan);
+		await timeout(0);
+		const observersWhileOpening = observers;
+		(service as SessionsManagementService).dispose();
+
+		assert.deepStrictEqual({ observersWhileOpening, reference: await reference, observersAfterDispose: observers }, { observersWhileOpening: 1, reference: undefined, observersAfterDispose: 0 });
+	});
+
 	test('createAndSendQuickChatRequest cancels commit detection and disposes the provisional draft', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///quick-chat') };
 		const session = stubSession({

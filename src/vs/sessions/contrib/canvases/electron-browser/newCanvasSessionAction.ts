@@ -15,6 +15,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { notifyCanvasOpenFailure } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { CANVASES_SECTION_ID, SESSIONS_LIST_CANVASES_SECTION_SETTING, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -61,12 +62,12 @@ class NewCanvasSessionAction extends Action2 {
 			icon: Codicon.add,
 			f1: true,
 			precondition: newCanvasSessionAvailable,
-			menu: [{
-				id: SessionSectionToolbarMenuId,
+			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
+				id,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(newCanvasSessionAvailable, SessionSectionTypeContext.isEqualTo(CANVASES_SECTION_ID)),
-			}],
+			})),
 		});
 	}
 

@@ -1947,14 +1947,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			open: async canvas => {
 				const instanceId = getCanvasDefinitionInstanceId(canvas);
 				const session = await draft.open(canvas, instanceId);
-				return this._store.isDisposed ? undefined : this._awaitPublishedCanvas(session, instanceId);
+				return this._awaitPublishedCanvas(session, instanceId);
 			},
 			dispose: () => draft.dispose(),
 		};
 	}
 
-	/** Resolves to the canvas `instanceId` once the main chat of `session`, which is not shown yet, publishes it. */
-	private async _awaitPublishedCanvas(session: ISession, instanceId: string): Promise<IReference<ICanvasReference>> {
+	/**
+	 * Resolves to the canvas `instanceId` once the main chat of `session`, which is not shown yet, publishes it, or to
+	 * `undefined` when this service is disposed first.
+	 */
+	private async _awaitPublishedCanvas(session: ISession, instanceId: string): Promise<IReference<ICanvasReference> | undefined> {
+		const disposed = this._disposeCts.token;
+		if (disposed.isCancellationRequested) {
+			return undefined;
+		}
 		const chat = session.mainChat.get();
 		// A chat publishes its canvases only while it is observed, and this session is not shown yet. The canvases stay
 		// observed until the caller releases the reference, so that the caller can still read them, for example to pin one.
@@ -1973,13 +1980,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				derived(reader => ({ canvas: chat.canvases?.read(reader)?.find(candidate => candidate.instanceId === instanceId), timedOut: timedOut.read(reader) })),
 				(state): state is { canvas: ISessionCanvas; timedOut: boolean } => state.canvas !== undefined,
 				state => state.timedOut && new Error(localize('sessions.canvasDraft.notPublished', "The canvas closed before it finished opening.")),
+				disposed,
 			);
+			if (disposed.isCancellationRequested) {
+				observation.dispose();
+				return undefined;
+			}
 			return {
 				object: { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: opened.resource },
 				dispose: () => observation.dispose(),
 			};
 		} catch (error) {
 			observation.dispose();
+			if (disposed.isCancellationRequested) {
+				return undefined;
+			}
 			throw error;
 		} finally {
 			timer.dispose();

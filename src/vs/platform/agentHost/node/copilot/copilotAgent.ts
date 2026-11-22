@@ -3618,8 +3618,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
 		// Consent goes straight to the live runtime: the chat queue can hold an operation that waits for the extension load it gates.
-		const target = this._resolveSessionCanvasChatContext(session, chat, operationContext, answer ? undefined : 'openSessionCanvas').target;
-		const live = target && isEqual(target.ownerSessionUri, session) ? target : undefined;
+		// A draft has no such operation, and must start before it asks, so that the user's answer reaches an initialized chat.
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext, answer ? undefined : 'openSessionCanvas');
+		const draft = this._provisionalSessions.get(context.provisionalKey)?.chat.toString() === context.chatKey;
+		const live = !draft && context.target && isEqual(context.target.ownerSessionUri, session) ? context.target : undefined;
 		if (answer?.kind === 'consent') {
 			// Only the runtime that asked can take the answer; resuming a runtime for it would start an open of its own.
 			if (!live) {
