@@ -12,7 +12,7 @@ import { URI, uriToFsPath } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, ShellIntegrationTimeoutOverride, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, ShellIntegrationTimeoutOverride, TerminalSettingId, TerminalShellType, WindowsShellType, GeneralShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
 import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { isNumber, isString } from '../../../../base/common/types.js';
@@ -340,12 +340,16 @@ export async function preparePathForShell(resource: string | URI, executable: st
 
 	const hasSpace = originalPath.includes(' ');
 	const hasParens = originalPath.includes('(') || originalPath.includes(')');
+	const hasSingleQuote = originalPath.includes('\'');
+	const hasDoubleQuote = originalPath.includes('"');
+	const needsQuoting = hasSpace || (hasSingleQuote && !hasDoubleQuote);
 
 	const pathBasename = path.basename(executable, '.exe');
 	const isPowerShell = pathBasename === 'pwsh' ||
 		title === 'pwsh' ||
 		pathBasename === 'powershell' ||
-		title === 'powershell';
+		title === 'powershell' ||
+		shellType === GeneralShellType.PowerShell;
 
 	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
 		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
@@ -365,7 +369,7 @@ export async function preparePathForShell(resource: string | URI, executable: st
 			else if (shellType === WindowsShellType.Wsl) {
 				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
 			}
-			else if (hasSpace) {
+			else if (needsQuoting) {
 				return `"${originalPath}"`;
 			}
 			return originalPath;
@@ -373,7 +377,7 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		const lowerExecutable = executable.toLowerCase();
 		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
 			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-		} else if (hasSpace) {
+		} else if (needsQuoting) {
 			return `"${originalPath}"`;
 		}
 		return originalPath;

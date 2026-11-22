@@ -238,7 +238,7 @@ suite('Workbench - TerminalEnvironment', () => {
 		suite('Windows frontend, Windows backend', () => {
 			test('Command Prompt', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `c:\\foo\\bar`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `c:\\foo\\bar'baz`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `"c:\\foo\\bar'baz"`);
 				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `"c:\\foo\\bar$(echo evil)baz"`);
 			});
 			test('PowerShell', async () => {
@@ -275,7 +275,7 @@ suite('Workbench - TerminalEnvironment', () => {
 		suite('Linux frontend, Windows backend', () => {
 			test('Command Prompt', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `c:\\foo\\bar`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `c:\\foo\\bar'baz`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `"c:\\foo\\bar'baz"`);
 				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `"c:\\foo\\bar$(echo evil)baz"`);
 			});
 			test('PowerShell', async () => {
