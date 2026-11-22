@@ -462,7 +462,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			if (slot && this._allowAllButton.element.parentElement !== slot) {
 				slot.appendChild(this._allowAllButton.element);
 			}
-			const item: IActionListItem<IAction> | undefined = this._permissionPicker.getActionListItems()
+			const item: IActionListItem<IAction> | undefined = this._permissionPicker.getActionListItems(() => true)
 				.find(item => item.item?.id === `permissionPicker.${ChatPermissionLevel.AutoApprove}`);
 			this._allowAllButton.element.style.display = this._permissionDelegate.isModePickerCombined.get() && item ? '' : 'none';
 			this._allowAllButton.enabled = !!item?.item?.enabled && !item.item.checked && !this._permissionDelegate.isResolving.get();

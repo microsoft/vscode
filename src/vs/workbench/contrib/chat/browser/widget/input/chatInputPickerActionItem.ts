@@ -5,7 +5,6 @@
 
 import './media/chatInputPicker.css';
 import { $, addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, reset } from '../../../../../../base/browser/dom.js';
-import { GestureEvent } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -90,10 +89,10 @@ export function trackChatInputPickerFocus(container: HTMLElement): IDisposable {
 }
 
 export function renderChatInputPickerShortcut(container: HTMLElement, label: string, store: DisposableStore, run: () => Promise<void>): Button {
-	const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
+	const button: Button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
 	button.element.classList.add('chat-input-permission-shortcut');
 	button.label = label;
-	store.add(button.onDidClick((event: MouseEvent | GestureEvent): void => {
+	store.add(button.onDidClick((event: Event): void => {
 		EventHelper.stop(event, true);
 		void run().catch(onUnexpectedError);
 	}));
