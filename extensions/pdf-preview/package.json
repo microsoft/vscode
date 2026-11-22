@@ -18,8 +18,7 @@
 		"Other"
 	],
 	"extensionKind": [
-		"ui",
-		"workspace"
+		"ui"
 	],
 	"capabilities": {
 		"virtualWorkspaces": true,

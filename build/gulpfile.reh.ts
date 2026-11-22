@@ -260,8 +260,10 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/*.{js,css}.map']));
 
 		const workspaceExtensionPoints = ['debuggers', 'jsonValidation'];
-		const isUIExtension = (manifest: { extensionKind?: string; main?: string; contributes?: Record<string, unknown> }) => {
-			switch (manifest.extensionKind) {
+		const isUIExtension = (manifest: { extensionKind?: string | string[]; main?: string; contributes?: Record<string, unknown> }) => {
+			// A single kind in an array, such as `["ui"]`, means the same as that kind as a string
+			const extensionKind = Array.isArray(manifest.extensionKind) && manifest.extensionKind.length === 1 ? manifest.extensionKind[0] : manifest.extensionKind;
+			switch (extensionKind) {
 				case 'ui': return true;
 				case 'workspace': return false;
 				default: {
