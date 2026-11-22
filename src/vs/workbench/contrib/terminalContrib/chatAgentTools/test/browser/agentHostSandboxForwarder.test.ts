@@ -319,8 +319,7 @@ suite('AgentHostSandboxForwarder', () => {
 				...rootState.config!,
 				values: {
 					...rootState.config!.values,
-					[AgentHostSandboxConfigKey.SandboxProfiles]: { strict: { name: 'Strict', sandbox: { allowNetwork: false } } },
-					[AgentHostSandboxConfigKey.ActiveSandboxProfile]: 'strict',
+					[AgentHostSandboxConfigKey.SandboxProfile]: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
 				},
 			},
 		});

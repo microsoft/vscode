@@ -15,12 +15,11 @@ import type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMet
 
 export type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
-/** The host's default sandbox values for new sessions, including the active sandbox profile. */
+/** The host's default sandbox values for new sessions, including the assigned sandbox profile. */
 export function getRootSandboxConfig(configuration: IAgentConfigurationService): ISandboxConfigValue | undefined {
 	return resolveRootSandboxConfig(
 		configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-		configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.SandboxProfiles),
-		configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.ActiveSandboxProfile),
+		configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.SandboxProfile),
 	);
 }
 

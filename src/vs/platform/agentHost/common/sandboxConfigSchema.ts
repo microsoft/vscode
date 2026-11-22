@@ -13,13 +13,11 @@ import type { SessionConfigPropertySchema } from './state/protocol/commands.js';
  * Top-level keys the agent host's root config bag exposes for sandboxing.
  * All sandbox-related values live nested under {@link AgentHostSandboxConfigKey.Sandbox}
  * — the persisted JSON has a single `"sandbox": { ... }` object rather than a
- * dozen flat keys. Named profiles and the active profile are separate keys, so
- * switching the active profile does not rewrite the profiles.
+ * dozen flat keys. The profile assigned to the host is a separate key.
  */
 export const enum AgentHostSandboxConfigKey {
 	Sandbox = 'sandbox',
-	SandboxProfiles = 'sandboxProfiles',
-	ActiveSandboxProfile = 'activeSandboxProfile',
+	SandboxProfile = 'sandboxProfile',
 }
 
 /**
@@ -72,8 +70,9 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.DeniedNetworkDomains]: string[];
 }>;
 
-/** A named set of sandbox values stored on the agent host. */
-export interface ISandboxProfileValue {
+/** A copy of a client's sandbox profile, assigned to an agent host. */
+export interface ISandboxProfileAssignment {
+	readonly id: string;
 	readonly name: string;
 	readonly sandbox: ISandboxConfigValue;
 }
@@ -199,47 +198,44 @@ const sandboxValueSchema: SessionConfigPropertySchema = {
 
 /**
  * Schema for the sandbox values hosts (today: the workbench client) may store
- * in the agent host's root config bag, plus the host's named sandbox profiles.
+ * in the agent host's root config bag, plus the sandbox profile assigned to the host.
  *
  * The workbench normalizes boolean enablement before forwarding. Legacy per-OS
  * filesystem keys serve the terminal engine; Copilot uses only UserConfiguredPaths.
  *
- * Profiles live on the host so every client connected to it sees and can change
- * them; the last write wins. New sessions use the active profile's values over
- * {@link AgentHostSandboxConfigKey.Sandbox}; see {@link resolveRootSandboxConfig}.
+ * The assigned profile is a copy of a client's profile, so every client
+ * connected to the host sees it and new sessions use it; the last write wins.
+ * See {@link resolveRootSandboxConfig}.
  */
 export const sandboxConfigSchema = createSchema({
 	[AgentHostSandboxConfigKey.Sandbox]: schemaProperty<ISandboxConfigValue>(sandboxValueSchema),
-	[AgentHostSandboxConfigKey.SandboxProfiles]: schemaProperty<Record<string, ISandboxProfileValue>>({
+	// No property is required: `{}` is how a client clears the assignment, because root config changes cannot remove keys.
+	[AgentHostSandboxConfigKey.SandboxProfile]: schemaProperty<Partial<ISandboxProfileAssignment>>({
 		type: 'object',
-		title: localize('agentHost.config.sandboxProfiles.title', "Sandbox Profiles"),
-		additionalProperties: {
-			type: 'object',
-			title: localize('agentHost.config.sandboxProfiles.entry.title', "Sandbox Profile"),
-			properties: {
-				name: { type: 'string', title: localize('agentHost.config.sandboxProfiles.name.title', "Name") },
-				sandbox: sandboxValueSchema,
-			},
-			required: ['name', 'sandbox'],
+		title: localize('agentHost.config.sandboxProfile.title', "Sandbox Profile"),
+		properties: {
+			id: { type: 'string', title: localize('agentHost.config.sandboxProfile.id.title', "ID") },
+			name: { type: 'string', title: localize('agentHost.config.sandboxProfile.name.title', "Name") },
+			sandbox: sandboxValueSchema,
 		},
-	}),
-	[AgentHostSandboxConfigKey.ActiveSandboxProfile]: schemaProperty<string>({
-		type: 'string',
-		title: localize('agentHost.config.activeSandboxProfile.title', "Active Sandbox Profile"),
 	}),
 });
 
-/**
- * Returns the host's default sandbox values for new sessions: the
- * {@link AgentHostSandboxConfigKey.Sandbox} values with the active profile's
- * values on top. Without an active profile, or when it no longer exists, only
- * the sandbox values apply. Session overrides and managed policy apply later.
- */
-export function resolveRootSandboxConfig(sandbox: ISandboxConfigValue | undefined, profiles: Readonly<Record<string, ISandboxProfileValue>> | undefined, activeProfile: string | undefined): ISandboxConfigValue | undefined {
-	const profile = activeProfile && profiles && Object.hasOwn(profiles, activeProfile) ? profiles[activeProfile] : undefined;
-	return profile ? { ...sandbox, ...profile.sandbox } : sandbox;
+/** Returns the assignment when it is complete; `{}` and partial values mean no profile. */
+export function getSandboxProfileAssignment(value: Partial<ISandboxProfileAssignment> | undefined): ISandboxProfileAssignment | undefined {
+	return value?.id && typeof value.name === 'string' && value.sandbox ? { id: value.id, name: value.name, sandbox: value.sandbox } : undefined;
 }
 
+/**
+ * Returns the host's default sandbox values for new sessions: the
+ * {@link AgentHostSandboxConfigKey.Sandbox} values with the assigned profile's
+ * values on top. Keys the profile omits keep the sandbox values. Session
+ * overrides and managed policy apply later.
+ */
+export function resolveRootSandboxConfig(sandbox: ISandboxConfigValue | undefined, assignment: Partial<ISandboxProfileAssignment> | undefined): ISandboxConfigValue | undefined {
+	const profile = getSandboxProfileAssignment(assignment);
+	return profile ? { ...sandbox, ...profile.sandbox } : sandbox;
+}
 /**
  * Maps modern workbench sandbox setting IDs (the ones the engine asks about)
  * to the sub-keys inside the agent host's `sandbox` config object.

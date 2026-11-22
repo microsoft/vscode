@@ -17,10 +17,6 @@ import { EditorExtensions } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { SandboxProfilesEditor } from './sandboxProfilesEditor.js';
 import { SandboxProfilesInput } from './sandboxProfilesInput.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { readHostSandboxProfiles } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -80,7 +76,7 @@ AccessibleViewRegistry.register({
 			return undefined;
 		}
 		return new AccessibleContentProvider(AccessibleViewProviderId.SandboxProfiles, { type: AccessibleViewType.Help },
-			() => localize('sandboxProfilesHelp', "Sandbox Profiles manages the profiles saved on one agent host; every device connected to that host shares them, and the latest change wins. Saved profiles are listed on the left and the selected profile's settings on the right. Use New Profile to create a profile from your current VS Code sandbox settings. Use the arrow keys to move between profiles; each profile has Use for New Sessions, Edit Profile, and Delete Profile actions, and the active profile is marked Active. New sessions on the host use the active profile; without one, they use the host's default sandbox settings. Use Tab to move between settings. Save stores your changes on the host. Discard Changes restores the saved values. Deleting the active profile makes new sessions use the default sandbox settings."),
+			() => localize('sandboxProfilesHelp', "Sandbox Profiles lists the profiles saved on this machine on the left and the selected profile's settings on the right. Use New Profile to create a profile from your current VS Code sandbox settings. Use the arrow keys to move between profiles; each profile has Edit Profile and Delete Profile actions. Use Tab to move between settings. Save stores your changes on this machine and updates the connected remote hosts the profile is assigned to. Discard Changes restores the saved values. Assign profiles to remote hosts in the Sandbox Profile column of Remote Environments. Deleting a profile removes it from this machine only; hosts using it keep their copy."),
 			() => focused.focus(), AccessibilityVerbositySettingId.SandboxProfiles);
 	}
 });
@@ -88,23 +84,9 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({ id: 'workbench.action.manageSandboxProfiles', title: localize2('manageSandboxProfiles', "Manage Sandbox Profiles"), category: localize2('sandboxCategory', "Sandbox"), f1: true, precondition: ChatContextKeys.enabled });
 	}
-	async run(accessor: ServicesAccessor, authority?: string): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const editors = accessor.get(IEditorService);
-		const instantiationService = accessor.get(IInstantiationService);
-		if (typeof authority !== 'string') {
-			const hosts = accessor.get(IAgentHostConnectionsService).connections.filter(info => info.connection && readHostSandboxProfiles(info.connection));
-			authority = hosts.length <= 1 ? hosts[0]?.authority : (await accessor.get(IQuickInputService).pick(
-				hosts.map(info => ({ label: info.name, description: info.isAmbient ? localize('thisComputer', "This Computer") : info.address, authority: info.authority })),
-				{ placeHolder: localize('pickHost', "Select the agent host whose sandbox profiles to manage") },
-			))?.authority;
-			if (!authority) {
-				if (!hosts.length) {
-					accessor.get(INotificationService).info(localize('noHosts', "No connected agent host supports sandbox profiles."));
-				}
-				return;
-			}
-		}
-		const input = editors.editors.find(editor => editor instanceof SandboxProfilesInput && editor.authority === authority) ?? instantiationService.createInstance(SandboxProfilesInput, authority);
+		const input = editors.editors.find(editor => editor instanceof SandboxProfilesInput) ?? accessor.get(IInstantiationService).createInstance(SandboxProfilesInput);
 		await editors.openEditor(input, { pinned: true, revealIfOpened: true });
 	}
 });

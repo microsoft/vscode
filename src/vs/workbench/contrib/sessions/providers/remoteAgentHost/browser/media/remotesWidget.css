@@ -927,13 +927,18 @@
 	display: none;
 }
 
-.remotes-widget .remotes-sandboxProfile-column.remotes-cell-action-hidden .monaco-select-box {
+.remotes-widget .remotes-sandboxProfile-column.remotes-cell-action-hidden .remotes-sandbox-profile-picker {
 	display: none;
+}
+
+.remotes-widget .remotes-sandbox-profile-picker {
+	width: 100%;
+	max-width: 220px;
+	min-width: 0;
 }
 
 .remotes-widget .remotes-sandboxProfile-column .monaco-select-box {
 	width: 100%;
-	max-width: 220px;
 	height: 22px;
 	/* Reserve the chevron's space so long names end in an ellipsis instead of running under it. */
 	padding: 0 var(--vscode-spacing-size240) 0 var(--vscode-spacing-size60);

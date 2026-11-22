@@ -35,8 +35,10 @@ import { IProgress } from '../../../../../../../platform/progress/common/progres
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostSandboxConfigKey } from '../../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
-import { ActionType } from '../../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { TestSandboxProfilesHost } from '../../../../../../../platform/agentHost/test/common/sandboxProfilesTestUtils.js';
+import { SeparatorSelectOption } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISandboxProfile, readSandboxProfiles, writeSandboxProfiles } from '../../../../../../../platform/sandbox/common/sandboxProfiles.js';
+import { AgentSandboxSettingId } from '../../../../../../../platform/sandbox/common/settings.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
@@ -2040,22 +2042,61 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('sets the host\'s active sandbox profile without connecting and disables the picker for disconnected hosts', () => {
-		const { parent, addHost, model } = createWidget();
+	test('lists this machine\'s profiles, assigns a copy to the host without connecting, and is disabled for disconnected or unsupported hosts', () => {
+		const { parent, addHost, model, storageService } = createWidget();
 		const laptop = addHost('tunnel:laptop', new TestSandboxProfilesHost());
-		laptop.dispatch('', { type: ActionType.RootConfigChanged, config: { [AgentHostSandboxConfigKey.SandboxProfiles]: { restricted: { name: 'Restricted', sandbox: {} } } } });
+		const strict: ISandboxProfile = { id: 'strict', name: 'Strict', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: false } };
+		writeSandboxProfiles(storageService, [strict]);
 		const picker = (id: string) => parent.querySelector<HTMLSelectElement>(`[data-remote-id="${id}"] select`)!;
-		const options = Array.from(picker('tunnel:laptop').options, option => option.text);
+		const state = (id: string) => ({ disabled: picker(id).disabled, options: Array.from(picker(id).options, option => option.text), selected: picker(id).options[picker(id).selectedIndex]?.text });
+		const listed = state('tunnel:laptop');
 		picker('tunnel:laptop').selectedIndex = 1;
 		picker('tunnel:laptop').dispatchEvent(new Event('change'));
-		const selected = laptop.values[AgentHostSandboxConfigKey.ActiveSandboxProfile];
+		const assigned = laptop.values[AgentHostSandboxConfigKey.SandboxProfile];
 		picker('tunnel:laptop').selectedIndex = 0;
 		picker('tunnel:laptop').dispatchEvent(new Event('change'));
+		const disconnected = state('ssh:build');
+		addHost('ssh:build', new TestSandboxProfilesHost(false));
 		assert.deepStrictEqual({
-			options, selected, cleared: laptop.values[AgentHostSandboxConfigKey.ActiveSandboxProfile],
-			disconnected: [picker('ssh:build').disabled, Array.from(picker('ssh:build').options, option => option.text)],
-			connections: model.connectionChanges,
-		}, { options: ['Default', 'Restricted'], selected: 'restricted', cleared: '', disconnected: [true, ['Default']], connections: [] });
+			listed, assigned, cleared: laptop.values[AgentHostSandboxConfigKey.SandboxProfile], disconnected, unsupported: state('ssh:build'), connections: model.connectionChanges,
+		}, {
+			listed: { disabled: false, options: ['Default', 'Strict'], selected: 'Default' },
+			assigned: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
+			cleared: {},
+			disconnected: { disabled: true, options: ['Default'], selected: 'Default' },
+			unsupported: { disabled: true, options: ['Default'], selected: 'Default' },
+			connections: [],
+		});
+	});
+
+	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {
+		const host = store.add(new TestSandboxProfilesHost());
+		const deviceA = createWidget();
+		const deviceB = createWidget();
+		const strict: ISandboxProfile = { id: 'strict', name: 'Strict', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: false } };
+		const open: ISandboxProfile = { id: 'open', name: 'Open', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: true } };
+		writeSandboxProfiles(deviceA.storageService, [strict]);
+		writeSandboxProfiles(deviceB.storageService, [open]);
+		deviceA.addHost('tunnel:laptop', host);
+		deviceB.addHost('tunnel:laptop', host);
+		const picker = (device: typeof deviceA) => device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		const state = (device: typeof deviceA) => ({ options: Array.from(picker(device).options, option => option.text), selected: picker(device).options[picker(device).selectedIndex]?.text });
+		const choose = (device: typeof deviceA, text: string) => {
+			const select = picker(device);
+			select.selectedIndex = Array.from(select.options, option => option.text).indexOf(text);
+			select.dispatchEvent(new Event('change'));
+		};
+		choose(deviceA, 'Strict');
+		const seenByB = state(deviceB);
+		choose(deviceB, 'Save "Strict" to My Profiles');
+		const savedByB = { state: state(deviceB), library: readSandboxProfiles(deviceB.storageService).map(profile => [profile.id, profile.name, profile.settings[AgentSandboxSettingId.AgentSandboxAllowNetwork]]), host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id };
+		choose(deviceB, 'Open');
+		assert.deepStrictEqual({ seenByB, savedByB, seenByA: state(deviceA), host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id }, {
+			seenByB: { options: ['Default', 'Open', SeparatorSelectOption.text, 'Strict (on host)', 'Save "Strict" to My Profiles'], selected: 'Strict (on host)' },
+			savedByB: { state: { options: ['Default', 'Open', 'Strict'], selected: 'Strict' }, library: [['open', 'Open', true], ['strict', 'Strict', false]], host: 'strict' },
+			seenByA: { options: ['Default', 'Strict', SeparatorSelectOption.text, 'Open (on host)', 'Save "Open" to My Profiles'], selected: 'Open (on host)' },
+			host: 'open',
+		});
 	});
 
 	test('sandbox profile picker keeps navigation keys from moving table focus and is hidden on non-remote rows', () => {

@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { MutableDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { sandboxSettingIdToAgentHostKey, type ISandboxConfigValue, type ISandboxProfileValue } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
-import { readHostSandboxProfiles, updateHostSandboxProfiles, watchHostSandboxProfiles } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { assignHostSandboxProfile, readHostSandboxProfile } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AgentNetworkDomainSettingId as Network } from '../../../../../platform/networkFilter/common/settings.js';
-import { AgentSandboxSettingId as Sandbox, IAgentSandboxUserConfiguredPaths, normalizeAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
+import { ISandboxProfile, readSandboxProfiles, watchSandboxProfiles, writeSandboxProfiles } from '../../../../../platform/sandbox/common/sandboxProfiles.js';
+import { AgentSandboxSettingId as Sandbox, normalizeAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-
 export const sandboxProfileGroups = [
 	{
 		title: localize('sandboxGroup', "Sandbox"), fields: [
@@ -50,41 +48,9 @@ export const sandboxProfileGroups = [
 	},
 ] as const;
 
-/** A sandbox profile as the editor edits it: values keyed by VS Code sandbox setting ID. */
-export interface ISandboxProfile {
-	id: string;
-	name: string;
-	settings: Record<string, boolean | string | string[] | IAgentSandboxUserConfiguredPaths>;
-}
-
-const editableSettingIds: readonly string[] = sandboxProfileGroups.flatMap(({ fields }) => fields.map(([key]) => key));
-
-function toHostProfile(profile: ISandboxProfile): ISandboxProfileValue {
-	const sandbox: Record<string, unknown> = {};
-	for (const [setting, value] of Object.entries(profile.settings)) {
-		const key = sandboxSettingIdToAgentHostKey[setting];
-		if (key && value !== undefined) {
-			sandbox[key] = value;
-		}
-	}
-	return { name: profile.name, sandbox: sandbox as ISandboxConfigValue };
-}
-
-function fromHostProfile(id: string, profile: ISandboxProfileValue): ISandboxProfile {
-	const settings: ISandboxProfile['settings'] = {};
-	const sandbox = profile.sandbox as Record<string, ISandboxProfile['settings'][string] | undefined>;
-	for (const setting of editableSettingIds) {
-		const value = sandbox[sandboxSettingIdToAgentHostKey[setting]];
-		if (value !== undefined) {
-			settings[setting] = value;
-		}
-	}
-	return { id, name: profile.name, settings };
-}
-
 /**
- * Edits the sandbox profiles stored on one agent host. Every client connected
- * to that host sees the same profiles and can change them; the last write wins.
+ * Edits this machine's sandbox profile library. Assigning profiles to hosts happens
+ * in Remote Environments; saving a profile updates the connected hosts it is assigned to.
  */
 export class SandboxProfilesInput extends EditorInput implements IModalEditorOptionsProvider {
 	static readonly ID = 'workbench.input.sandboxProfiles';
@@ -94,15 +60,11 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	getModalEditorOptions(): IModalEditorOptions {
 		return { compactHeader: true, canMoveToEditorArea: false };
 	}
-	override getName() {
-		return localize('title', "Sandbox Profiles: {0}", this.hostName);
-	}
-	override matches(other: EditorInput | IUntypedEditorInput) { return other instanceof SandboxProfilesInput && other.authority === this.authority; }
+	override getName() { return localize('title', "Sandbox Profiles"); }
+	override matches(other: EditorInput | IUntypedEditorInput) { return other instanceof SandboxProfilesInput; }
 
 	private readonly _onDidSelect = this._register(new Emitter<void>());
 	readonly onDidSelect = this._onDidSelect.event;
-	private readonly _hostListener = this._register(new MutableDisposable<DisposableStore>());
-	private _connection: IAgentConnection | undefined;
 	private _initial!: ISandboxProfile;
 	draft!: ISandboxProfile;
 	existing = false;
@@ -111,59 +73,22 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	private _dirty = false;
 
 	constructor(
-		/** The agent host connection authority whose profiles this input edits. */
-		readonly authority: string,
-		@IAgentHostConnectionsService private readonly _connections: IAgentHostConnectionsService,
+		@IStorageService private readonly _storage: IStorageService,
 		@IConfigurationService private readonly _config: IConfigurationService,
+		@IAgentHostConnectionsService private readonly _connections: IAgentHostConnectionsService,
 	) {
 		super();
-		this._register(this._connections.onDidChangeConnections(() => this._attach()));
-		this._attach();
+		watchSandboxProfiles(this._storage, this._store, () => this._onDidChangeLibrary());
 		this.select(this.profiles[0]);
 	}
 
-	get hostName(): string {
-		return this._connections.connections.find(info => info.authority === this.authority)?.name ?? this.authority;
-	}
-
-	/** Whether the host is connected and supports sandbox profiles. */
-	get available(): boolean {
-		return !!this._connection && !!readHostSandboxProfiles(this._connection);
-	}
-
 	get profiles(): ISandboxProfile[] {
-		const host = this._connection && readHostSandboxProfiles(this._connection);
-		return host ? Object.entries(host.profiles).map(([id, profile]) => fromHostProfile(id, profile)) : [];
+		return readSandboxProfiles(this._storage);
 	}
 
-	/** The profile new sessions on this host use, or `undefined` for the host's default sandbox values. */
-	get active(): string | undefined {
-		return this._connection && readHostSandboxProfiles(this._connection)?.active;
-	}
-
-	setActive(id: string | undefined): void {
-		if (this._connection && this.available) {
-			updateHostSandboxProfiles(this._connection, { active: id });
-		}
-	}
-
-	private _attach(): void {
-		const connection = this._connections.getConnectionByAuthority(this.authority);
-		if (connection === this._connection) {
-			return;
-		}
-		this._connection = connection;
-		const store = new DisposableStore();
-		if (connection) {
-			watchHostSandboxProfiles(connection, store, () => this._onDidChangeHost());
-		}
-		this._hostListener.value = store;
-		this._onDidChangeHost();
-	}
-
-	/** Shows changes made by other clients without discarding an edit in progress. */
-	private _onDidChangeHost(): void {
-		if (!this._initial || this.editing) {
+	/** Shows changes made in another window without discarding an edit in progress. */
+	private _onDidChangeLibrary(): void {
+		if (this.editing) {
 			this._onDidSelect.fire();
 			return;
 		}
@@ -180,10 +105,12 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		this.editing = !profile;
 		if (!profile) {
 			const settings: ISandboxProfile['settings'] = {};
-			for (const key of editableSettingIds) {
-				settings[key] = key === Sandbox.AgentSandboxEnabled
-					? normalizeAgentSandboxEnabledValue(this._config.getValue(key))
-					: this._config.getValue(key);
+			for (const { fields } of sandboxProfileGroups) {
+				for (const [key] of fields) {
+					settings[key] = key === Sandbox.AgentSandboxEnabled
+						? normalizeAgentSandboxEnabledValue(this._config.getValue(key))
+						: this._config.getValue(key);
+				}
 			}
 			profile = { id: generateUuid(), name: this._nextName(), settings };
 		}
@@ -221,9 +148,6 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	override isDirty(): boolean { return this._dirty; }
 
 	get validationMessage(): string | undefined {
-		if (!this.available) {
-			return localize('unavailable', "Connect to {0} to change its sandbox profiles.", this.hostName);
-		}
 		const name = this.draft.name.trim();
 		if (!name || name.length > 80) {
 			return localize('nameRequired', "Enter a profile name between 1 and 80 characters.");
@@ -234,15 +158,26 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		return undefined;
 	}
 
+	/** Saves the draft to the library and updates the connected hosts it is assigned to. */
 	override async save(): Promise<this> {
 		const message = this.validationMessage;
 		if (message) {
 			throw new Error(message);
 		}
 		const profile = { ...this.draft, name: this.draft.name.trim() };
-		const profiles = this.profiles.filter(p => p.id !== profile.id);
-		profiles.push(profile);
-		this._write(profiles);
+		const profiles = this.profiles;
+		const index = profiles.findIndex(p => p.id === profile.id);
+		if (index === -1) {
+			profiles.push(profile);
+		} else {
+			profiles[index] = profile;
+		}
+		writeSandboxProfiles(this._storage, profiles);
+		for (const { connection } of this._connections.connections) {
+			if (connection && readHostSandboxProfile(connection)?.id === profile.id) {
+				assignHostSandboxProfile(connection, profile);
+			}
+		}
 		this.select(profile);
 		return this;
 	}
@@ -251,25 +186,14 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		this.select(this.existing ? this.profiles.find(p => p.id === this.draft.id) : this.profiles[0]);
 	}
 
+	/** Removes the profile from the library. Hosts it is assigned to keep their copy. */
 	deleteProfile(id: string): void {
 		const remaining = this.profiles.filter(p => p.id !== id);
-		// Deleting the active profile also clears it, so new sessions do not silently fall back.
-		this._write(remaining, this.active === id);
+		writeSandboxProfiles(this._storage, remaining);
 		if (id === this.draft.id) {
 			this.select(remaining[0]);
 		} else {
 			this._onDidSelect.fire();
 		}
-	}
-
-	private _write(profiles: readonly ISandboxProfile[], clearActive = false): void {
-		if (!this._connection) {
-			return;
-		}
-		const hostProfiles: Record<string, ISandboxProfileValue> = {};
-		for (const profile of profiles) {
-			hostProfiles[profile.id] = toHostProfile(profile);
-		}
-		updateHostSandboxProfiles(this._connection, clearActive ? { profiles: hostProfiles, active: undefined } : { profiles: hostProfiles });
 	}
 }

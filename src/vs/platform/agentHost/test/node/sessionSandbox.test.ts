@@ -98,7 +98,7 @@ suite('Session sandbox configuration', () => {
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
 	});
 
-	test('the active sandbox profile overrides host values for new sessions within the managed policy', () => {
+	test('the assigned sandbox profile overrides host values for new sessions within the managed policy', () => {
 		const { configuration, create } = setupSession();
 		const owner = create('profiles');
 		const target = { session: owner, chat: buildDefaultChatUri(owner) };
@@ -106,27 +106,28 @@ suite('Session sandbox configuration', () => {
 			const sandbox = getSessionSandboxConfig(configuration, target, 'linux');
 			return { allowNetwork: sandbox.allowNetwork, allowLocalNetwork: sandbox.allowLocalNetwork, allowedNetworkDomains: sandbox.allowedNetworkDomains };
 		};
-		configuration.updateRootConfig({
-			[AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on', allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
-			[AgentHostSandboxConfigKey.SandboxProfiles]: { open: { name: 'Open', sandbox: { allowNetwork: true, allowLocalNetwork: false } } },
-		});
-		const withoutActive = read();
-		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.ActiveSandboxProfile]: 'open' });
-		const active = read();
+		const open = { id: 'open', name: 'Open', sandbox: { allowNetwork: true, allowLocalNetwork: false } };
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on', allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] } });
+		const unassigned = read();
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.SandboxProfile]: open });
+		const assigned = read();
 		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowOutbound: false });
 		const managed = read();
 		configuration.setSessionSandboxPolicy(owner, { enabled: true });
-		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.ActiveSandboxProfile]: 'deleted' });
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.SandboxProfile]: {} });
+		const cleared = read();
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.SandboxProfile]: { id: 'open', name: 'Open' } });
 		assert.deepStrictEqual({
-			withoutActive, active, managed, unknownActive: read(),
-			malformed: [{ open: { name: 'Open' } }, { open: { name: 'Open', sandbox: { enabled: 'maybe' } } }, { open: { name: 'Open', sandbox: {} } }]
-				.map(profiles => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.SandboxProfiles, profiles)),
+			unassigned, assigned, managed, cleared, partial: read(),
+			schema: [open, {}, { id: 'open', name: 'Open', sandbox: { enabled: 'maybe' } }, { id: 7, name: 'Open', sandbox: {} }]
+				.map(value => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.SandboxProfile, value)),
 		}, {
-			withoutActive: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
-			active: { allowNetwork: true, allowLocalNetwork: false, allowedNetworkDomains: ['host.example'] },
+			unassigned: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
+			assigned: { allowNetwork: true, allowLocalNetwork: false, allowedNetworkDomains: ['host.example'] },
 			managed: { allowNetwork: false, allowLocalNetwork: false, allowedNetworkDomains: ['host.example'] },
-			unknownActive: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
-			malformed: [false, false, true],
+			cleared: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
+			partial: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
+			schema: [true, true, false, false],
 		});
 	});
 

@@ -293,7 +293,7 @@ export class RemotesWidget extends Disposable {
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
-			instantiationService, hoverService, openerService, connections, contextViewService, () => Math.max(0, this.tableContainer.clientWidth - 24 - scrollbarGutterWidth),
+			instantiationService, hoverService, openerService, connections, this.storageService, contextViewService, () => Math.max(0, this.tableContainer.clientWidth - 24 - scrollbarGutterWidth),
 		));
 		const emptyRowMeasure = dom.$('.remotes-empty-row-measure', { 'aria-hidden': 'true', inert: '' });
 		const emptyRow = dom.append(emptyRowMeasure, dom.$('div'));

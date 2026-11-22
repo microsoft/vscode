@@ -13,7 +13,7 @@ import type { RootState } from '../../common/state/sessionState.js';
 /**
  * An agent host connection that, like the real host, merges each
  * `root/configChanged` into its config values and advertises the sandbox
- * schema, optionally without sandbox profiles. Every client sharing an
+ * schema, optionally without the sandbox profile key. Every client sharing an
  * instance sees the same host state.
  */
 export class TestSandboxProfilesHost extends mock<IAgentConnection>() {
@@ -24,7 +24,7 @@ export class TestSandboxProfilesHost extends mock<IAgentConnection>() {
 		super();
 		const properties = { ...sandboxConfigSchema.toProtocol().properties };
 		if (!advertiseProfiles) {
-			delete properties[AgentHostSandboxConfigKey.SandboxProfiles];
+			delete properties[AgentHostSandboxConfigKey.SandboxProfile];
 		}
 		this._state = { agents: [], config: { schema: { type: 'object', properties }, values: {} } };
 	}
