@@ -283,7 +283,6 @@ suite('Sessions - Chat View', () => {
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(96, 96, 96)');
 		workbench.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(128, 128, 128)');
-		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--session-view-background', 'rgb(16, 16, 16)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
 		const session = dom.append(part, dom.$('.session-view'));
@@ -303,7 +302,6 @@ suite('Sessions - Chat View', () => {
 		const readReveal = () => ({
 			bubbleOpacity: Number.parseFloat(targetWindow.getComputedStyle(response, '::before').opacity),
 			requestTint: targetWindow.getComputedStyle(bubble).backgroundImage,
-			requestBorder: targetWindow.getComputedStyle(bubble).boxShadow,
 			pillsOpacity: Number.parseFloat(targetWindow.getComputedStyle(pills).opacity),
 			pillsVisibility: targetWindow.getComputedStyle(pills).visibility,
 			timelineOpacity: Number.parseFloat(targetWindow.getComputedStyle(timeline).opacity),
@@ -355,16 +353,15 @@ suite('Sessions - Chat View', () => {
 		const isFading = (state: typeof halfwayIn) => ({
 			opacityBetweenEndpoints: state.bubbleOpacity > 0 && state.bubbleOpacity < 0.75 && [state.pillsOpacity, state.timelineOpacity].every(opacity => opacity > 0 && opacity < 1),
 			tintBetweenEndpoints: state.requestTint !== hidden.requestTint && state.requestTint !== visible.requestTint,
-			borderBetweenEndpoints: state.requestBorder !== hidden.requestBorder && state.requestBorder !== visible.requestBorder,
 			pillsVisibility: state.pillsVisibility,
 			timelineVisibility: state.timelineVisibility,
 			transcriptBetweenEndpoints: Number.parseFloat(state.transcriptOpacity) > 0.85 && Number.parseFloat(state.transcriptOpacity) < 1,
 		});
-		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.4), color(srgb 0.376471 0.376471 0.376471 / 0.4))', requestBorder: 'color(srgb 0.501961 0.501961 0.501961) 0px 0px 0px 1px inset', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
-		const revealed = { bubbleOpacity: 0.75, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.75), color(srgb 0.376471 0.376471 0.376471 / 0.75))', requestBorder: 'color(srgb 0 0 0 / 0) 0px 0px 0px 1px inset', pillsOpacity: 1, pillsVisibility: 'visible', timelineOpacity: 1, timelineVisibility: 'visible', transcriptOpacity: '1' };
-		const fading = { opacityBetweenEndpoints: true, tintBetweenEndpoints: true, borderBetweenEndpoints: true, pillsVisibility: 'visible', timelineVisibility: 'visible', transcriptBetweenEndpoints: true };
+		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.4), color(srgb 0.376471 0.376471 0.376471 / 0.4))', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
+		const revealed = { bubbleOpacity: 0.75, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.75), color(srgb 0.376471 0.376471 0.376471 / 0.75))', pillsOpacity: 1, pillsVisibility: 'visible', timelineOpacity: 1, timelineVisibility: 'visible', transcriptOpacity: '1' };
+		const fading = { opacityBetweenEndpoints: true, tintBetweenEndpoints: true, pillsVisibility: 'visible', timelineVisibility: 'visible', transcriptBetweenEndpoints: true };
 		assert.deepStrictEqual({ hidden, durations, halfwayIn: isFading(halfwayIn), visible, halfwayOut: isFading(halfwayOut), fadedOut, reducedMotionVisible, reducedMotionAnimations, reducedMotionHidden }, {
-			hidden: resting, durations: [[100, 100, 100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
+			hidden: resting, durations: [[100, 100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
 			reducedMotionVisible: revealed, reducedMotionAnimations: [0, 0, 0], reducedMotionHidden: resting,
 		});
 	});
@@ -454,76 +451,6 @@ suite('Sessions - Chat View', () => {
 			comparison: activeWallpaper,
 			highContrast: [activeWallpaper, activeWallpaper],
 			restored: activeWallpaper,
-		});
-	});
-
-	test('outlines request bubbles and their origins in unfocused chats without resizing them', () => {
-		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
-		disposables.add(toDisposable(() => workbench.remove()));
-		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(96, 96, 96)');
-		workbench.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(128, 128, 128)');
-		workbench.style.setProperty('--vscode-strokeThickness', '1px');
-		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const session = dom.append(part, dom.$('.session-view.is-active'));
-		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
-		const view = dom.append(group, dom.$('.chat-view.sessions-chat'));
-		const chat = dom.append(view, dom.$('.interactive-session'));
-		const list = dom.append(chat, dom.$('.interactive-list'));
-		list.style.transition = 'none';
-		const appendBubble = (parent: HTMLElement, request: HTMLElement) => {
-			const bubble = dom.append(dom.append(dom.append(parent, request), dom.$('.value')), dom.$('.chat-markdown-part.rendered-markdown'));
-			bubble.textContent = 'Request';
-			return bubble;
-		};
-		const bubble = appendBubble(list, dom.$('.interactive-item-container.interactive-request'));
-		const systemBubble = appendBubble(list, dom.$('.interactive-item-container.interactive-request.system-initiated-request'));
-		const coveredStickyBubble = appendBubble(dom.append(list, dom.$('.monaco-tree-sticky-row.source-node-partially-visible')), dom.$('.interactive-item-container.interactive-request'));
-		const origin = dom.append(list, dom.$('.chat-request-origin'));
-		const delegationOrigin = dom.append(list, dom.$('.chat-request-origin.delegation'));
-		const targetWindow = dom.getWindow(workbench);
-		const readOutlines = () => ({
-			bubble: targetWindow.getComputedStyle(bubble).boxShadow,
-			coveredStickyBubble: targetWindow.getComputedStyle(coveredStickyBubble).boxShadow,
-			origin: targetWindow.getComputedStyle(origin).boxShadow,
-			systemBubble: targetWindow.getComputedStyle(systemBubble).boxShadow,
-			delegationOrigin: targetWindow.getComputedStyle(delegationOrigin).boxShadow,
-		});
-		const readBubbleSize = () => [bubble.offsetWidth, bubble.offsetHeight];
-		const active = readOutlines();
-		const activeBubbleSize = readBubbleSize();
-		session.classList.remove('is-active');
-		const inactive = readOutlines();
-		const inactiveBubbleSize = readBubbleSize();
-		session.classList.add('hovered');
-		group.classList.add('hovered');
-		const hoveredInactive = readOutlines();
-		session.classList.remove('hovered');
-		group.classList.remove('hovered');
-		session.classList.add('is-active');
-		group.classList.remove('active-group');
-		const split = readOutlines();
-		workbench.classList.add('session-comparison-grid-active');
-		const comparison = readOutlines();
-		workbench.classList.remove('session-comparison-grid-active');
-		workbench.classList.add('hc-black');
-		const highContrast = readOutlines();
-
-		const none = { bubble: 'none', coveredStickyBubble: 'none', origin: 'none', systemBubble: 'none', delegationOrigin: 'none' };
-		const outline = (color: string) => ({
-			...none,
-			bubble: `${color} 0px 0px 0px 1px inset`,
-			coveredStickyBubble: `${color} 1px 0px 0px 0px inset, ${color} -1px 0px 0px 0px inset, ${color} 0px 1px 0px 0px inset`,
-			origin: `${color} 0px 0px 0px 1px inset`,
-		});
-		const outlined = outline('color(srgb 0.501961 0.501961 0.501961)');
-		assert.deepStrictEqual({ active, inactive, inactiveBubbleSize, hoveredInactive, split, comparison, highContrast }, {
-			active: none,
-			inactive: outlined,
-			inactiveBubbleSize: activeBubbleSize,
-			hoveredInactive: outline('color(srgb 0 0 0 / 0)'),
-			split: outlined,
-			comparison: none,
-			highContrast: none,
 		});
 	});
 

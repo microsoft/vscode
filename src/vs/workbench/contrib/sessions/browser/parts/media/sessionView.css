@@ -18,17 +18,11 @@
 	initial-value: 1;
 }
 
-/* A request keeps a faded fill and gains an outline where the other bubble backgrounds recede, so where it starts stays visible. */
+/* A request keeps a faded fill where the other bubble backgrounds recede, so where it starts stays visible. */
 @property --session-view-request-background-opacity {
 	syntax: '<number>';
 	inherits: true;
 	initial-value: 1;
-}
-
-@property --session-view-request-border-opacity {
-	syntax: '<number>';
-	inherits: true;
-	initial-value: 0;
 }
 
 /* Shared inset for the header content, transcript, and composer. */
@@ -40,7 +34,7 @@
 }
 
 .monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-list {
-	transition: opacity 100ms ease-out, --session-view-bubble-background-opacity 100ms ease-out, --session-view-request-background-opacity 100ms ease-out, --session-view-request-border-opacity 100ms ease-out;
+	transition: opacity 100ms ease-out, --session-view-bubble-background-opacity 100ms ease-out, --session-view-request-background-opacity 100ms ease-out;
 }
 
 .monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .prompt-timeline-rail,
@@ -127,7 +121,6 @@
 	--session-view-request-background-opacity: 0.75;
 	--vscode-chat-requestBubbleBackground: color-mix(in srgb, var(--session-view-request-background) calc(var(--session-view-request-background-opacity) * 100%), transparent);
 	--vscode-chat-requestBubbleHoverBackground: color-mix(in srgb, var(--session-view-request-hover-background) calc(var(--session-view-request-background-opacity) * 100%), transparent);
-	--session-view-request-border: color-mix(in srgb, var(--session-view-request-hover-background) calc(var(--session-view-request-border-opacity) * 100%), transparent);
 }
 
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view .interactive-session .interactive-list,
@@ -135,25 +128,10 @@
 	opacity: 0.85;
 	--session-view-bubble-background-opacity: 0;
 	--session-view-request-background-opacity: 0.4;
-	--session-view-request-border-opacity: 1;
 }
 
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .interactive-item-container.interactive-response::before {
 	opacity: var(--session-view-bubble-background-opacity);
-}
-
-/* An inset shadow, so the outline never changes the size of a bubble or of its row. */
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active), .session-view .chat-group-view:not(.active-group)) .interactive-list .interactive-item-container.interactive-request:not(.system-initiated-request) .value .rendered-markdown,
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active), .session-view .chat-group-view:not(.active-group)) .interactive-list .chat-request-origin:not(.delegation) {
-	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--session-view-request-border);
-}
-
-/* The sticky request continues into the rest of its bubble below it, so its bottom edge stays open. */
-.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active), .session-view .chat-group-view:not(.active-group)) .interactive-list .monaco-tree-sticky-row.source-node-partially-visible .interactive-item-container.interactive-request:not(.system-initiated-request) .value .rendered-markdown {
-	box-shadow:
-		inset var(--vscode-strokeThickness) 0 var(--session-view-request-border),
-		inset calc(-1 * var(--vscode-strokeThickness)) 0 var(--session-view-request-border),
-		inset 0 var(--vscode-strokeThickness) var(--session-view-request-border);
 }
 
 .monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active) .interactive-list .monaco-button:not(.disabled),
