@@ -267,7 +267,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		super(context);
 		this._editorRoot = editorRoot;
 		this._decorationResolver = new EditorViewDecorationResolver(editorRoot);
-		const readGlyphCache = () => configurationService.getValue(EditorViewGpu.GLYPH_CACHE_SETTING) === 'characters' ? 'characters' : 'runs';
+		const readGlyphCache = () => configurationService.getValue(EditorViewGpu.GLYPH_CACHE_SETTING) === 'runs' ? 'runs' : 'characters';
 		this._glyphCache = readGlyphCache();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EditorViewGpu.GLYPH_CACHE_SETTING)) {

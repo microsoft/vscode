@@ -95,13 +95,13 @@ truncation.
 
 ## Glyph cache experiment
 
-`editor.experimental.editorViewGlyphCache` (`runs` by default) is sent as the
-renderer's `glyphCache` and applies as soon as it changes. With `characters`,
-ASCII text in a verified monospace font (and line numbers) is drawn one
-character per cell from rasters cached per character and subpixel position,
-instead of one raster per token run. It exists to measure that trade-off
-(rasterization while typing and scrolling against pixel fidelity to the DOM)
-and goes away once one mode is chosen.
+`editor.experimental.editorViewGlyphCache` (`characters` by default) is sent
+as the renderer's `glyphCache` and applies as soon as it changes. ASCII text in
+a verified monospace font (and line numbers) is drawn one character per cell
+from rasters cached per character and subpixel position. `runs` brings back
+one raster per token run, which other text always uses; it remains to compare
+the two (rasterization while typing and scrolling, pixel fidelity to the DOM)
+and goes away once per-character text has shipped.
 
 ## Guide ownership
 

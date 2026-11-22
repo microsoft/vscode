@@ -118,7 +118,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.experimental.editorViewGlyphCache': {
 			type: 'string',
 			enum: ['runs', 'characters'],
-			default: 'runs',
+			default: 'characters',
 			enumDescriptions: [
 				nls.localize('editor.experimental.editorViewGlyphCache.runs', "Rasterize each token's text as one image."),
 				nls.localize('editor.experimental.editorViewGlyphCache.characters', "Rasterize each character of ASCII text in a monospace font once per subpixel position, and place it in its cell."),
