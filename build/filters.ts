@@ -163,8 +163,7 @@ export const indentationFilter = Object.freeze<string[]>([
 
 	// except for built files
 	'!extensions/mermaid-markdown-features/chat-webview-out/*.js',
-	'!extensions/mermaid-markdown-features/markdown-preview-out/*.js',
-	'!extensions/mermaid-markdown-features/notebook-out/*.js',
+	'!extensions/mermaid-markdown-features/webview-out/*.js',
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
@@ -225,8 +224,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!src/vs/platform/agentHost/node/codex/protocol/generated/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 	'!extensions/mermaid-markdown-features/chat-webview-out/**',
-	'!extensions/mermaid-markdown-features/markdown-preview-out/**',
-	'!extensions/mermaid-markdown-features/notebook-out/**',
+	'!extensions/mermaid-markdown-features/webview-out/**',
 
 	// vendored third-party libraries
 	'!src/vs/base/common/lit-html/**',

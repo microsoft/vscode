@@ -59,33 +59,16 @@ await Promise.all([
 			},
 		}
 	}, process.argv),
-	// Markdown preview
+	// Markdown preview, notebook and Markdown editor code blocks, built together so that they share their chunks.
+	// The entry modules stay in the folder of the chunks: a notebook only loads a renderer's files from the folder of its entry module.
 	run({
 		entryPoints: {
-			'index': path.join(previewSrcDir, 'markdown', 'index.ts'),
+			'markdown-preview': path.join(previewSrcDir, 'markdown', 'index.ts'),
+			'notebook': path.join(previewSrcDir, 'notebook', 'index.ts'),
+			'markdown-editor': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
 		},
 		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'markdown-preview-out'),
-		additionalOptions: mermaidMarkdownBuildOptions,
-	}, process.argv),
-	// Notebook
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'notebook', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'notebook-out'),
-		additionalOptions: {
-			...mermaidMarkdownBuildOptions,
-		},
-	}, process.argv),
-	// Markdown editor code blocks
-	run({
-		entryPoints: {
-			'index': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
-		},
-		srcDir: previewSrcDir,
-		outdir: path.join(rootDir, 'markdown-editor-out'),
+		outdir: path.join(rootDir, 'webview-out'),
 		additionalOptions: mermaidMarkdownBuildOptions,
 	}, process.argv),
 ]);
