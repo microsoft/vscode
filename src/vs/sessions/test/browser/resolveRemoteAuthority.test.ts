@@ -237,13 +237,13 @@ suite('resolveRemoteAuthority', () => {
 		assert.deepStrictEqual(authority ? JSON.parse(decodeHex(authority.slice('dev-container+'.length)).toString()) : undefined, repository);
 	});
 
-	test('opens an environment by the volume folder of its workspace, with the SSH or Tunnel host that runs it', () => {
+	test('opens an environment by the volume folder of its workspace, with the SSH or Tunnel host that runs it, or on WSL in a shared Docker engine', () => {
 		const address = 'devcontainer:environment';
-		const resolve = (hostAuthority?: string, knownVolume = true) => {
+		const resolve = (hostAuthority?: string, knownVolume = true, volumeOnLocalDockerEngine = false) => {
 			const providersService = makeProvidersService(address);
 			const remoteAgentHostService = makeRemoteAgentHostService([{
 				name: 'Dev Container',
-				connection: { type: RemoteAgentHostEntryType.DevContainer, address, environmentId: 'environment', ...(knownVolume ? { volume: { volumeName: 'ubuntu-2', folder: 'ubuntu-2' } } : {}), ...(hostAuthority ? { hostAuthority } : {}) },
+				connection: { type: RemoteAgentHostEntryType.DevContainer, address, environmentId: 'environment', ...(knownVolume ? { volume: { volumeName: 'ubuntu-2', folder: 'ubuntu-2' } } : {}), ...(hostAuthority ? { hostAuthority } : {}), ...(volumeOnLocalDockerEngine ? { volumeOnLocalDockerEngine } : {}) },
 			}]);
 			const folderUri = resolveRemoteFolderUri(URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), 'agenthost-environment', providersService, remoteAgentHostService);
 			if (!folderUri) {
@@ -258,14 +258,16 @@ suite('resolveRemoteAuthority', () => {
 			local: resolve(),
 			ssh: resolve('ssh-remote+build'),
 			tunnel: resolve('tunnel+build'),
-			// Dev Containers cannot address a WSL distribution's Docker engine for a volume.
+			// Dev Containers uses this computer's Docker engine for a volume, which is the WSL distribution's only if it has the volume.
 			wsl: resolve('wsl+Ubuntu'),
+			wslOnLocalDockerEngine: resolve('wsl+Ubuntu', true, true),
 			unknownVolume: resolve(undefined, false),
 		}, {
 			local: { scheme: 'vscode-remote', config, parentAuthority: undefined, path: '/workspaces/ubuntu-2' },
 			ssh: { scheme: 'vscode-remote', config, parentAuthority: 'ssh-remote+build', path: '/workspaces/ubuntu-2' },
 			tunnel: { scheme: 'vscode-remote', config, parentAuthority: 'tunnel+build', path: '/workspaces/ubuntu-2' },
 			wsl: undefined,
+			wslOnLocalDockerEngine: { scheme: 'vscode-remote', config, parentAuthority: undefined, path: '/workspaces/ubuntu-2' },
 			unknownVolume: undefined,
 		});
 	});

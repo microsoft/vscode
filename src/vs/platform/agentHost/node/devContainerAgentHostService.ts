@@ -38,7 +38,7 @@ import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '.
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
-import { IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
+import { hasDevContainerEnvironmentVolume, IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
@@ -1287,6 +1287,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
+	}
+
+	async hasEnvironmentVolume(environmentId: string): Promise<boolean> {
+		if (!await this.isDockerAvailable()) {
+			return false;
+		}
+		try {
+			return await hasDevContainerEnvironmentVolume(environmentId, args => this._runDocker(args));
+		} catch (error) {
+			// For example, the Docker engine is not running.
+			this._logService.trace(`${LOG_PREFIX} Could not list the volumes of environment ${environmentId}`, error);
+			return false;
+		}
 	}
 
 	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {

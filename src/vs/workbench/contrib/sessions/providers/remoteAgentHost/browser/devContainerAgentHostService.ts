@@ -128,7 +128,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				type: RemoteAgentHostEntryType.DevContainer,
 				address: connection.address,
 				...(connection.repository ? { repository: connection.repository }
-					: environment ? { environmentId: environment.environmentId, ...(volume ? { volume } : {}) }
+					: environment ? { environmentId: environment.environmentId, ...(volume ? { volume } : {}), ...(connection.volumeOnLocalDockerEngine ? { volumeOnLocalDockerEngine: true } : {}) }
 						: { hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri) }),
 				...(hostAuthority ? { hostAuthority } : {}),
 			},

@@ -18,7 +18,7 @@ import { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment, parseDevContainerEnvironmentWorkspaceFolder } from '../../common/devContainerEnvironments.js';
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
-import { devContainerEnvironmentLabel, devContainerVolumeLabel, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
+import { devContainerEnvironmentLabel, devContainerVolumeLabel, hasDevContainerEnvironmentVolume, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { getDevContainerStateVolumeLabels, getDevContainerStateVolumeName } from '../../node/devContainerState.js';
 
 suite('Dev Container environments', () => {
@@ -268,6 +268,19 @@ suite('Dev Container environments', () => {
 		}, {
 			legacy: [`volume rm ${volumeName} ${stateVolumeName}`],
 			other: [`volume rm ${volumeName}`],
+		});
+	});
+
+	test('finds an environment\'s volume in a Docker engine by its identifier label', async () => {
+		const calls: string[] = [];
+		const has = (stdout: string) => hasDevContainerEnvironmentVolume(environmentId, async args => {
+			calls.push(args.join(' '));
+			return { stdout, stderr: '', code: 0 };
+		});
+		assert.deepStrictEqual({ found: await has(`${volumeName}\n`), missing: await has(''), calls }, {
+			found: true,
+			missing: false,
+			calls: [1, 2].map(() => `volume ls --filter label=${devContainerEnvironmentLabel}=${environmentId} --format {{.Name}}`),
 		});
 	});
 

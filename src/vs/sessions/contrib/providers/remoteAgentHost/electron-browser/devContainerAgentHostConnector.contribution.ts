@@ -28,7 +28,7 @@ import { findDevContainerSample } from '../../../../../platform/agentHost/common
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
@@ -600,6 +600,14 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			// Dev Containers opens an environment's volume in this computer's Docker engine, which is a WSL distribution's only
+			// when it has the volume, as with Docker Desktop.
+			const volumeOnLocalDockerEngine = environment && sourceEntry?.connection.type === RemoteAgentHostEntryType.WSL
+				? await (this._mainService.hasEnvironmentVolume?.(environment.environmentId) ?? Promise.resolve(false)).catch(error => {
+					this._logService.warn('[DevContainerAgentHostConnector] Failed to look up the environment volume on this computer', error);
+					return false;
+				})
+				: undefined;
 
 			let seed = true;
 			const establish = async (): Promise<IRelayConnectionHandle> => {
@@ -668,6 +676,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				name: result.name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				volumeOnLocalDockerEngine,
 				sandboxSupported: result.sandboxSupported,
 				clientCertificates: remoteService ? undefined : {
 					isEnabled: () => result.sharesClientNetwork === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,

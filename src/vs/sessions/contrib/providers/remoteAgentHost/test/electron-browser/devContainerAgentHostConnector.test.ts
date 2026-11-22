@@ -16,7 +16,8 @@ import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
-import { devContainerEnvironmentImage, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { devContainerEnvironmentImage, devContainerEnvironmentUri, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -306,6 +307,72 @@ suite('Dev Container Agent Host Connector', () => {
 			workspace: '/workspaces',
 		});
 	});
+
+	for (const [entry, localVolume] of [
+		[{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } }, true],
+		[{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } }, false],
+		[{ name: 'Build', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:build', hostName: 'build' } }, true],
+	] satisfies [IRemoteAgentHostEntry, boolean][]) {
+		test(`tells whether this computer's Docker engine has the volume of an environment on a ${entry.connection.type} host (${localVolume ? 'shared' : 'separate'} engine)`, async () => {
+			const asked: unknown[] = [];
+			const remoteService = new class extends mock<IDevContainerAgentHostMainService>() {
+				override readonly onDidOutput = Event.None;
+				override readonly onDidRelayMessage = Event.None;
+				override readonly onDidRelayActivity = Event.None;
+				override readonly onDidRelayClose = Event.None;
+				override readonly onDidCloseConnection = Event.None;
+				override async connect(config: IDevContainerAgentHostConfig) {
+					return { connectionId: config.connectionId, address: 'devcontainer:environment', name: config.name, remoteWorkspaceFolder: '/workspaces/ubuntu' };
+				}
+				override async disconnect() { }
+			}();
+			const connection = new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable({ protocolVersion: '1', serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta(true, true) });
+				override readonly devContainerService = remoteService;
+			}();
+			const connector = store.add(new DevContainerAgentHostConnector(
+				new class extends mock<ISharedProcessService>() {
+					override getChannel(): IChannel {
+						return new class extends mock<IChannel>() {
+							override async call<T>(command: string, arg?: unknown): Promise<T> {
+								if (command !== 'hasEnvironmentVolume') {
+									throw new Error(`Must not run ${command} locally`);
+								}
+								asked.push(...(arg as unknown[]));
+								return localVolume as T;
+							}
+						}();
+					}
+				}(),
+				store.add(new TestInstantiationService()),
+				store.add(new NullLogService()),
+				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [DevContainerEnvironmentsEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true }),
+				new class extends mock<IEnvironmentService>() { }(),
+				new class extends mock<IOutputService>() {
+					override getChannel() {
+						return new class extends mock<IOutputChannel>() { override append() { } }();
+					}
+				}(),
+				new class extends mock<IFileService>() { }(),
+				new class extends mock<IRemoteAgentHostService>() {
+					override readonly configuredEntries = [entry];
+					override getConnection(): IAgentConnection { return connection; }
+				}(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IRequestService>() { }(),
+				NullTelemetryService,
+			));
+			const target = await connector.createConnection(devContainerEnvironmentUri(agentHostAuthority(getEntryAddress(entry)), 'environment'), 'devcontainer:environment', CancellationToken.None);
+			target.transportDisposable?.dispose();
+			await Promise.resolve();
+			// Only an environment on WSL needs this computer's engine to open its volume in VS Code.
+			const wsl = entry.connection.type === RemoteAgentHostEntryType.WSL;
+			assert.deepStrictEqual({ volumeOnLocalDockerEngine: target.volumeOnLocalDockerEngine, asked }, {
+				volumeOnLocalDockerEngine: wsl ? localVolume : undefined,
+				asked: wsl ? ['environment'] : [],
+			});
+		});
+	}
 
 	for (const remote of [false, true]) {
 		test(`publishes observed support before a failed connection (remote facade: ${remote})`, async () => {

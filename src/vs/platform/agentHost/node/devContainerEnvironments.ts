@@ -222,6 +222,12 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 	return { containerId: result.containerId, remoteWorkspaceFolder: workspace, cliArgs };
 }
 
+/** Whether the Docker engine has a volume of the environment, whose identifier is unique, so it is the engine of the environment's host. */
+export async function hasDevContainerEnvironmentVolume(environmentId: string, docker: DockerCommand): Promise<boolean> {
+	validateEnvironmentId(environmentId);
+	return (await listVolumes(docker, [`${devContainerEnvironmentLabel}=${environmentId}`])).length > 0;
+}
+
 /**
  * Removes an environment's containers, Docker volumes, and cached configuration. Its volumes carry its label, and its
  * containers the identity labels of its workspace volume, which no other volume has while that volume exists.

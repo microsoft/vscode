@@ -270,6 +270,8 @@ export type IRemoteAgentHostDevContainerConnection = {
 			readonly environmentId: string;
 			/** The volume folder that the Dev Containers extension opens the environment's container by, once known from its workspace. */
 			readonly volume?: IDevContainerVolumeFolder;
+			/** Whether this computer's Docker engine has the volume, which Dev Containers needs for an environment on a WSL host. */
+			readonly volumeOnLocalDockerEngine?: boolean;
 			readonly hostPath?: never;
 			readonly repository?: never;
 		}
