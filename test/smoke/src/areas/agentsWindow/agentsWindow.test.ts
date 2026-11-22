@@ -398,7 +398,9 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	});
 
-	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container handoff)', () => {
+	// TEMPORARY: registers the suite several times to reproduce its flakiness in CI (#349670). Remove before merge.
+	for (let probe = 1; probe <= 12; probe++) {
+	(runDevContainerSuite ? describe : describe.skip)(`Agents Window (Dev Container handoff) #${probe}`, () => {
 		installDockerPrerequisite(logger, process.platform === 'linux');
 
 		// Identifies the containers of this run, so cleanup leaves environments that others create on the same Docker host.
@@ -464,6 +466,7 @@ export function setup(logger: Logger, quality: Quality) {
 			}
 		});
 	});
+	}
 
 	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
 		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';
