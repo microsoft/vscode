@@ -528,5 +528,6 @@
 	"github.copilot.command.sessions.sync": "Sync Changes",
 	"github.copilot.command.sessions.discardChanges": "Discard Changes",
 	"github.copilot.command.sessions.refreshChanges": "Refresh",
-	"github.copilot.command.sessions.initializeRepository": "Initialize Repository"
+	"github.copilot.command.sessions.initializeRepository": "Initialize Repository",
+	"github.copilot.layouts.agentic.label": "Agentic"
 }

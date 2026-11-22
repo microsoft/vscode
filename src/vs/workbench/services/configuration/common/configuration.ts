@@ -156,6 +156,11 @@ export interface ILayoutSettings {
 	 * Whether the layout is locked. The settings of a locked layout cannot be changed.
 	 */
 	readonly locked: boolean;
+
+	/**
+	 * Whether the extension that contributes the layout locked it. Users cannot unlock such a layout.
+	 */
+	readonly lockedByExtension?: boolean;
 }
 
 /**

@@ -164,7 +164,7 @@
     "layouts": [
       {
         "id": "agentic",
-        "label": "Agentic",
+        "label": "%github.copilot.layouts.agentic.label%",
         "settings": {
 	        "chat.viewSessions.orientation": "sideBySide",
 	        "chat.viewSessions.openChatIn": "chatArea",

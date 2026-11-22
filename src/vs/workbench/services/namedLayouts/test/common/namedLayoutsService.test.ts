@@ -925,12 +925,15 @@ suite('NamedLayoutsService', () => {
 		const afterSwitchBack = participant.state;
 
 		const unlockError = await testObject.setLayoutLocked(layout, false).then(() => undefined, error => error.message);
+		const settingsFile = configurationService.layoutSettings!.resource;
+		const settings = { lockedByExtension: configurationService.layoutSettings?.lockedByExtension, readonly: readonlyFiles.get(settingsFile) };
 
-		assert.deepStrictEqual({ layout: testObject.activeLayout, afterRevert, afterSwitchBack, unlockError }, {
+		assert.deepStrictEqual({ layout: testObject.activeLayout, afterRevert, afterSwitchBack, unlockError, settings }, {
 			layout: { id: 'publisher.extension/focus', name: 'Focus', contribution: { extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', canReset: false, locked: true, hasUpdate: false }, locked: true },
 			afterRevert: 'horizontal over default state',
 			afterSwitchBack: 'horizontal over changed default state',
-			unlockError: 'A layout locked by its extension cannot be locked or unlocked.'
+			unlockError: 'A layout locked by its extension cannot be locked or unlocked.',
+			settings: { lockedByExtension: true, readonly: `The layout 'Focus' is locked by its extension. Create a new layout from it to change its settings.` }
 		});
 	});
 });

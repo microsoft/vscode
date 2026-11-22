@@ -266,7 +266,9 @@ export class SettingsTargetsWidget extends Widget {
 	 */
 	private getLayoutSettingsLabel(): string {
 		const layoutName = this.configurationService.layoutSettings?.name;
-		return localize('layoutSettings', "Layout") + (layoutName ? ` [${layoutName}]` : '');
+		return layoutName
+			? localize({ key: 'layoutSettingsWithName', comment: ['{0} is the name of the active layout'] }, "Layout [{0}]", layoutName)
+			: localize('layoutSettings', "Layout");
 	}
 
 	private create(parent: HTMLElement): void {
@@ -400,9 +402,12 @@ export class SettingsTargetsWidget extends Widget {
 		this.layoutSettings.enabled = !!this.configurationService.layoutSettings;
 
 		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");
-		this.layoutSettings.tooltip = this.configurationService.layoutSettings?.locked
-			? localize('lockedLayoutSettingsTooltip', "Settings of the active layout {0}. The layout is locked, unlock it to change its settings.", this.configurationService.layoutSettings.name)
-			: localize('layoutSettingsTooltip', "Settings of the active layout {0}. They take precedence over user and workspace settings in this window.", this.configurationService.layoutSettings?.name ?? '');
+		const layoutSettings = this.configurationService.layoutSettings;
+		this.layoutSettings.tooltip = layoutSettings?.lockedByExtension
+			? localize('lockedByExtensionLayoutSettingsTooltip', "Settings of the active layout {0}. The layout is locked by its extension, create a new layout from it to change its settings.", layoutSettings.name)
+			: layoutSettings?.locked
+				? localize('lockedLayoutSettingsTooltip', "Settings of the active layout {0}. The layout is locked, unlock it to change its settings.", layoutSettings.name)
+				: localize('layoutSettingsTooltip', "Settings of the active layout {0}. They take precedence over user and workspace settings in this window.", layoutSettings?.name ?? '');
 	}
 }
 

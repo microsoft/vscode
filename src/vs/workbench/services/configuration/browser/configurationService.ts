@@ -622,7 +622,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.updateLayoutConfiguration(createLayoutConfigurationModel(layout ? lastKnownSettings ?? {} : {}, this.logService));
 		}
 
-		if (resourceChanged || previous?.name !== layout?.name || previous?.locked !== layout?.locked) {
+		if (resourceChanged || previous?.name !== layout?.name || previous?.locked !== layout?.locked || previous?.lockedByExtension !== layout?.lockedByExtension) {
 			this._onDidChangeLayoutSettings.fire();
 		}
 	}

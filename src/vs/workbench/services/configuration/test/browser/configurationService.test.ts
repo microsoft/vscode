@@ -2750,11 +2750,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 		testObject.setLayoutSettings({ name: 'Debug', resource: joinPath(ROOT, 'layouts', 'debug', 'settings.json'), locked: true });
 		const locked = await write();
+		testObject.setLayoutSettings({ name: 'Focus', resource: joinPath(ROOT, 'layouts', 'focus', 'settings.json'), locked: true, lockedByExtension: true });
+		const lockedByExtension = await write();
 		testObject.setLayoutSettings(undefined);
 		const noLayout = await write();
 
-		assert.deepStrictEqual({ locked, noLayout, layoutConfiguration: testObject.getLayoutConfiguration() }, {
+		assert.deepStrictEqual({ locked, lockedByExtension, noLayout, layoutConfiguration: testObject.getLayoutConfiguration() }, {
 			locked: `Unable to write ${key} because the layout 'Debug' is locked. Unlock the layout to change its settings.`,
+			lockedByExtension: `Unable to write ${key} because the layout 'Focus' is locked by its extension. Create a new layout from it to change its settings.`,
 			noLayout: `Unable to write ${key} to Layout Settings because no named layout is active.`,
 			layoutConfiguration: {}
 		});

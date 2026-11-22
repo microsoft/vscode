@@ -408,7 +408,9 @@ export class ConfigurationEditing {
 			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write to {0} because no workspace is opened. Please open a workspace first and try again.", this.stringifyTarget(target));
 			case ConfigurationEditingErrorCode.ERROR_NO_LAYOUT_ACTIVE: return nls.localize('errorNoLayoutActive', "Unable to write {0} to Layout Settings because no named layout is active.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_LAYOUT_NOT_ACTIVE: return nls.localize('errorLayoutNotActive', "Unable to write {0} to Layout Settings because the layout it was changed in is no longer active.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_LAYOUT_LOCKED: return nls.localize('errorLayoutLocked', "Unable to write {0} because the layout '{1}' is locked. Unlock the layout to change its settings.", operation.key, this.configurationService.layoutSettings?.name ?? '');
+			case ConfigurationEditingErrorCode.ERROR_LAYOUT_LOCKED: return this.configurationService.layoutSettings?.lockedByExtension
+				? nls.localize('errorLayoutLockedByExtension', "Unable to write {0} because the layout '{1}' is locked by its extension. Create a new layout from it to change its settings.", operation.key, this.configurationService.layoutSettings.name)
+				: nls.localize('errorLayoutLocked', "Unable to write {0} because the layout '{1}' is locked. Unlock the layout to change its settings.", operation.key, this.configurationService.layoutSettings?.name ?? '');
 			case ConfigurationEditingErrorCode.ERROR_INVALID_LAYOUT_CONFIGURATION: return nls.localize('errorInvalidLayoutConfiguration', "Unable to write {0} to Layout Settings because a layout cannot define it.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_LAYOUT_LANGUAGE_CONFIGURATION: return nls.localize('errorInvalidLayoutLanguageConfiguration', "Unable to write to Layout Settings because a layout cannot define language specific values.");
 

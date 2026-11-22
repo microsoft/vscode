@@ -384,7 +384,9 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
 			this.scopeOverridesIndicator.label.text = '$(lock) ' + localize('layoutLockedLabelText', "Layout is locked");
-			const content = localize('layoutLockedDescription', "The active layout is locked. Unlock the layout to change its settings.");
+			const content = this.configurationService.layoutSettings?.lockedByExtension
+				? localize('layoutLockedByExtensionDescription', "The active layout is locked by its extension. Create a new layout from it to change its settings.")
+				: localize('layoutLockedDescription', "The active layout is locked. Unlock the layout to change its settings.");
 			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
 				...this.defaultHoverOptions,
 				content,

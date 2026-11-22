@@ -272,7 +272,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private isRestored = false;
 
 	/**
-	 * The settings files that editors show read-only because their layouts are locked, with the names of the layouts.
+	 * The settings files that editors show read-only because their layouts are locked, with the messages that explain why.
 	 */
 	private readonlySettingsFiles = new ResourceMap<string>();
 
@@ -947,7 +947,17 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	private getLayoutSettings(layoutId: string): ILayoutSettings {
-		return { name: this.getLayout(layoutId)?.name ?? layoutId, resource: getLayoutSettingsResource(layoutId), locked: this.isLocked(layoutId) };
+		return { name: this.getLayout(layoutId)?.name ?? layoutId, resource: getLayoutSettingsResource(layoutId), locked: this.isLocked(layoutId), lockedByExtension: this.isLockedByContribution(layoutId) };
+	}
+
+	/**
+	 * Explains why the settings of the given locked layout cannot be changed.
+	 */
+	private getLockedSettingsMessage(layoutId: string): string {
+		const name = this.getLayout(layoutId)?.name ?? layoutId;
+		return this.isLockedByContribution(layoutId)
+			? localize('lockedByExtensionLayoutSettings', "The layout '{0}' is locked by its extension. Create a new layout from it to change its settings.", name)
+			: localize('lockedLayoutSettings', "The layout '{0}' is locked. Unlock the layout to change its settings.", name);
 	}
 
 	/**
@@ -993,7 +1003,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			throw createFileSystemProviderError(localize('unknownLayoutSettings', "The layout does not exist."), FileSystemProviderErrorCode.FileNotFound);
 		}
 		if (this.isLocked(layoutId)) {
-			throw createFileSystemProviderError(localize('lockedLayoutSettings', "The layout '{0}' is locked. Unlock the layout to change its settings.", this.getLayout(layoutId)?.name ?? layoutId), FileSystemProviderErrorCode.NoPermissions);
+			throw createFileSystemProviderError(this.getLockedSettingsMessage(layoutId), FileSystemProviderErrorCode.NoPermissions);
 		}
 		if (content === this.getSettingsContent(layoutId)) {
 			return;
@@ -1035,20 +1045,20 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		const readonlySettingsFiles = new ResourceMap<string>();
 		for (const layout of this.layouts) {
 			if (layout.locked) {
-				readonlySettingsFiles.set(getLayoutSettingsResource(layout.id), layout.name);
+				readonlySettingsFiles.set(getLayoutSettingsResource(layout.id), this.getLockedSettingsMessage(layout.id));
 			}
 		}
 
 		const writableSettingsFiles = [...this.readonlySettingsFiles.keys()].filter(resource => !readonlySettingsFiles.has(resource));
-		const changedSettingsFiles = [...readonlySettingsFiles].filter(([resource, name]) => this.readonlySettingsFiles.get(resource) !== name);
+		const changedSettingsFiles = [...readonlySettingsFiles].filter(([resource, message]) => this.readonlySettingsFiles.get(resource) !== message);
 		this.readonlySettingsFiles = readonlySettingsFiles;
 
 		const onError = (error: unknown) => this.logService.error('[named layouts] Failed to update the read-only state of the settings files of locked layouts.', error);
 		if (writableSettingsFiles.length) {
 			this.filesConfigurationService.updateReadonly(writableSettingsFiles, 'reset').catch(onError);
 		}
-		for (const [resource, name] of changedSettingsFiles) {
-			this.filesConfigurationService.updateReadonly(resource, new MarkdownString(localize('lockedLayoutSettingsReadonly', "The layout '{0}' is locked. Unlock the layout to change its settings.", name))).catch(onError);
+		for (const [resource, message] of changedSettingsFiles) {
+			this.filesConfigurationService.updateReadonly(resource, new MarkdownString(message)).catch(onError);
 		}
 	}
 
