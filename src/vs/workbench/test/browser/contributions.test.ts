@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, IDLE_FALLBACK_BUDGET_MS, IdleDeadline, installFakeRunWhenIdle } from '../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isCI } from '../../../base/common/platform.js';
@@ -207,25 +208,28 @@ suite('Contributions', () => {
 		}
 
 		test('creates more than one contribution per callback when the idle callback timed out', async () => {
-			const { registry, created, runners } = setupIdleTest(3);
-			assert.strictEqual(runners.length, 1);
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			try {
+				const { registry, created, runners } = setupIdleTest(3);
+				assert.strictEqual(runners.length, 1);
 
-			runners.shift()!({ didTimeout: true, timeRemaining: () => 0 });
+				runners.shift()!({ didTimeout: true, timeRemaining: () => 0 });
 
-			assert.deepStrictEqual(created, ['idle0', 'idle1', 'idle2']);
-			assert.strictEqual(runners.length, 0);
-			await registry.whenRestored;
+				assert.deepStrictEqual(created, ['idle0', 'idle1', 'idle2']);
+				assert.strictEqual(runners.length, 0);
+				await registry.whenRestored;
+			} finally {
+				clock.restore();
+			}
 		});
 
 		test('reschedules when the budget of a timed out idle callback is used up', async () => {
 			// Each contribution takes a bit more than half of the budget, so
 			// a timed out callback runs out of budget after two contributions.
-			const realNow = Date.now;
-			let now = 0;
-			Date.now = () => now;
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
 			try {
 				const step = Math.ceil(IDLE_FALLBACK_BUDGET_MS * 0.6);
-				const { registry, created, runners } = setupIdleTest(3, () => now += step);
+				const { registry, created, runners } = setupIdleTest(3, () => clock.tick(step));
 				assert.strictEqual(runners.length, 1);
 
 				runners.shift()!({ didTimeout: true, timeRemaining: () => 0 });
@@ -238,7 +242,7 @@ suite('Contributions', () => {
 
 				await registry.whenRestored;
 			} finally {
-				Date.now = realNow;
+				clock.restore();
 			}
 		});
 
