@@ -8,7 +8,7 @@ import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { assignHostSandboxProfile, readHostSandboxProfile } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { assignHostSandboxProfile, readHostSandboxProfile, readSandboxProfileAssignments, rememberSandboxProfileAssignment } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AgentNetworkDomainSettingId as Network } from '../../../../../platform/networkFilter/common/settings.js';
@@ -186,8 +186,21 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		this.select(this.existing ? this.profiles.find(p => p.id === this.draft.id) : this.profiles[0]);
 	}
 
-	/** Removes the profile from the library. Hosts it is assigned to keep their copy. */
-	deleteProfile(id: string): void {
+	/** Names of remote environments with a live or last-known assignment to the profile. */
+	hostsUsingProfile(id: string): string[] {
+		for (const { address, name, connection, isAmbient } of this._connections.connections) {
+			if (address && connection && !isAmbient) {
+				rememberSandboxProfileAssignment(this._storage, address, name, readHostSandboxProfile(connection));
+			}
+		}
+		return readSandboxProfileAssignments(this._storage).filter(assignment => assignment.profile.id === id).map(assignment => assignment.name);
+	}
+
+	/** Removes an unassigned profile; offline last-known assignments also prevent deletion. */
+	deleteProfile(id: string): boolean {
+		if (this.hostsUsingProfile(id).length) {
+			return false;
+		}
 		const remaining = this.profiles.filter(p => p.id !== id);
 		writeSandboxProfiles(this._storage, remaining);
 		if (id === this.draft.id) {
@@ -195,5 +208,6 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		} else {
 			this._onDidSelect.fire();
 		}
+		return true;
 	}
 }

@@ -29,7 +29,7 @@ import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { assignHostSandboxProfile, fromHostSandboxProfile, readHostSandboxProfile, watchHostSandboxProfile } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { assignHostSandboxProfile, fromHostSandboxProfile, readHostSandboxProfile, readSandboxProfileAssignments, rememberSandboxProfileAssignment, watchHostSandboxProfile, watchSandboxProfileAssignments } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
 import type { ISandboxProfileAssignment } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { ISandboxProfile, readSandboxProfiles, watchSandboxProfiles, writeSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -546,17 +546,24 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							}
 							hostWatch.value = store;
 						}
-						const assigned = connection && readHostSandboxProfile(connection);
-						const supported = assigned !== undefined;
-						const library = supported ? readSandboxProfiles(this.storage) : [];
+						const liveAssignment = connection && readHostSandboxProfile(connection);
+						rememberSandboxProfileAssignment(this.storage, id, name, liveAssignment);
+						const cached = readSandboxProfileAssignments(this.storage).find(assignment => assignment.address === id)?.profile;
+						const assigned = liveAssignment === undefined ? cached : liveAssignment;
+						const supported = liveAssignment !== undefined;
+						const library = supported || assigned ? readSandboxProfiles(this.storage) : [];
 						const options: SandboxProfileOption[] = [{ kind: 'default' }, ...library.map(profile => ({ kind: 'assign' as const, profile }))];
 						const items: ISelectOptionItem[] = [{ text: localize('remotes.defaultSandboxProfile', "Default") }, ...library.map(profile => ({ text: profile.name }))];
 						let selected = assigned ? options.findIndex(option => option.kind === 'assign' && option.profile.id === assigned.id) : 0;
 						if (assigned && selected === -1) {
 							// Assigned from another device: keep showing it, and offer to save it to this machine's profiles.
-							options.push({ kind: 'separator' }, { kind: 'host' }, { kind: 'save', assignment: assigned });
-							items.push(SeparatorSelectOption, { text: localize('remotes.hostSandboxProfile', "{0} (on host)", assigned.name) }, { text: localize('remotes.saveHostSandboxProfile', "Save \"{0}\" to My Profiles", assigned.name) });
-							selected = options.length - 2;
+							options.push({ kind: 'separator' }, { kind: 'host' });
+							items.push(SeparatorSelectOption, { text: localize('remotes.hostSandboxProfile', "{0} (on host)", assigned.name) });
+							selected = options.length - 1;
+							if (supported) {
+								options.push({ kind: 'save', assignment: assigned });
+								items.push({ text: localize('remotes.saveHostSandboxProfile', "Save \"{0}\" to My Profiles", assigned.name) });
+							}
 						}
 						template.options = options;
 						template.select.setOptions(items, selected);
@@ -565,9 +572,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							? localize('remotes.selectSandboxProfile', "Sandbox profile for {0}", name)
 							: connection
 								? localize('remotes.sandboxProfileUnsupported', "Sandbox profile for {0}. This host doesn't support sandbox profiles.", name)
-								: localize('remotes.sandboxProfileUnavailable', "Sandbox profile for {0}. Connect to {0} to choose one.", name));
+								: assigned
+									? localize('remotes.sandboxProfileLastKnown', "Sandbox profile for {0}: {1}, last known assignment. Connect to {0} to refresh or change it.", name, assigned.name)
+									: localize('remotes.sandboxProfileUnavailable', "Sandbox profile for {0}. Connect to {0} to choose one.", name));
 					};
 					watchSandboxProfiles(this.storage, template.elementDisposables, refresh);
+					watchSandboxProfileAssignments(this.storage, template.elementDisposables, refresh);
 					template.elementDisposables.add(this.connections.onDidChangeConnections(refresh));
 					refresh();
 				}

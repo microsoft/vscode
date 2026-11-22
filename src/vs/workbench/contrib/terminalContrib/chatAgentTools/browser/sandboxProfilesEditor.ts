@@ -281,14 +281,31 @@ export class SandboxProfilesEditor extends EditorPane {
 
 	private async _deleteProfile(row: IProfileRow): Promise<void> {
 		const input = this._profileInput;
-		if (input && row.id && (await this._dialogs.confirm({
+		if (!input || !row.id) {
+			return;
+		}
+		const showInUse = async (hosts: readonly string[]) => {
+			await this._dialogs.info(
+				localize('deleteInUse', "Sandbox profile '{0}' can't be deleted because it is in use.", row.name),
+				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Disconnected hosts retain their last-known assignment. Connect and choose another profile or Default in Remote Environments, then delete it.", hosts.join(', ')),
+			);
+		};
+		const hosts = input.hostsUsingProfile(row.id);
+		if (hosts.length) {
+			await showInUse(hosts);
+			return;
+		}
+		if ((await this._dialogs.confirm({
 			type: 'warning',
 			message: localize('deletePrompt', "Delete sandbox profile '{0}'?", row.name),
-			detail: localize('deleteDetail', "Hosts using this profile keep using their copy. Choose another profile for them in Remote Environments."),
+			detail: localize('deleteDetail', "This removes the profile from this machine."),
 			primaryButton: localize('deleteButton', "&&Delete"),
 		})).confirmed) {
-			input.deleteProfile(row.id);
-			status(localize('deleted', "Sandbox profile {0} deleted.", row.name));
+			if (input.deleteProfile(row.id)) {
+				status(localize('deleted', "Sandbox profile {0} deleted.", row.name));
+			} else {
+				await showInUse(input.hostsUsingProfile(row.id));
+			}
 		}
 	}
 

@@ -54,6 +54,7 @@ import { registerTerminalCompressors } from './tools/terminalOutputCompressor.js
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 import { isNumber } from '../../../../../base/common/types.js';
+import '../../../chat/browser/agentSessions/sandboxProfileAssignments.contribution.js';
 
 // #region Services
 
@@ -76,13 +77,13 @@ AccessibleViewRegistry.register({
 			return undefined;
 		}
 		return new AccessibleContentProvider(AccessibleViewProviderId.SandboxProfiles, { type: AccessibleViewType.Help },
-			() => localize('sandboxProfilesHelp', "Sandbox Profiles lists the profiles saved on this machine on the left and the selected profile's settings on the right. Use New Profile to create a profile from your current VS Code sandbox settings. Use the arrow keys to move between profiles; each profile has Edit Profile and Delete Profile actions. Use Tab to move between settings. Save stores your changes on this machine and updates the connected remote hosts the profile is assigned to. Discard Changes restores the saved values. Assign profiles to remote hosts in the Sandbox Profile column of Remote Environments. Deleting a profile removes it from this machine only; hosts using it keep their copy."),
+			() => localize('sandboxProfilesHelp', "Sandbox Profiles lists the profiles saved on this machine on the left and the selected profile's settings on the right. Use New Profile to create a profile from your current VS Code sandbox settings. Use the arrow keys to move between profiles; each profile has Edit Profile and Delete Profile actions. Use Tab to move between settings. Save stores your changes on this machine and updates the connected remote hosts the profile is assigned to. Discard Changes restores the saved values. Assign profiles to remote hosts in the Sandbox Profile column of Remote Environments. A profile cannot be deleted while a remote environment is assigned to it, including a disconnected environment's last-known assignment. Connect and assign those environments another profile or Default before deleting."),
 			() => focused.focus(), AccessibilityVerbositySettingId.SandboxProfiles);
 	}
 });
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: 'workbench.action.manageSandboxProfiles', title: localize2('manageSandboxProfiles', "Manage Sandbox Profiles"), category: localize2('sandboxCategory', "Sandbox"), f1: true, precondition: ChatContextKeys.enabled });
+		super({ id: 'workbench.action.manageSandboxProfiles', title: localize2('manageSandboxProfiles', "Manage Sandbox Profiles"), category: localize2('sandboxCategory', "Sandbox"), f1: true, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${AgentSandboxSettingId.AgentSandboxProfilesEnabled}`, true)) });
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editors = accessor.get(IEditorService);

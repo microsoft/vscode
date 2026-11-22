@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { assignHostSandboxProfile } from '../../../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { useFakeTimers } from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
@@ -39,6 +40,8 @@ import { TestSandboxProfilesHost } from '../../../../../../../platform/agentHost
 import { SeparatorSelectOption } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
 import { ISandboxProfile, readSandboxProfiles, writeSandboxProfiles } from '../../../../../../../platform/sandbox/common/sandboxProfiles.js';
 import { AgentSandboxSettingId } from '../../../../../../../platform/sandbox/common/settings.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
@@ -240,6 +243,7 @@ suite('RemotesWidget', () => {
 		parent.style.height = '640px';
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled, true);
 		if (storageService) {
 			instantiationService.stub(IStorageService, storageService);
 		}
@@ -341,7 +345,11 @@ suite('RemotesWidget', () => {
 			onDidChangeConnections.fire();
 			return host;
 		};
-		return { widget, parent, model, addHost, errors, notifications, clipboard, hoverContents, mouseHoverTargets, opened, commands, sessionActions, activeComposer, documentation, settings, storageService: instantiationService.get(IStorageService), configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		const disconnectHost = (address: string) => {
+			hosts.delete(address);
+			onDidChangeConnections.fire();
+		};
+		return { widget, parent, model, addHost, disconnectHost, errors, notifications, clipboard, hoverContents, mouseHoverTargets, opened, commands, sessionActions, activeComposer, documentation, settings, storageService: instantiationService.get(IStorageService), configurationService: instantiationService.get(IConfigurationService) as TestConfigurationService, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function feedbackGeometry(parent: HTMLElement, selectors: readonly string[]): number[][] {
@@ -2069,6 +2077,30 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('retains the last-known assignment while disconnected and after recreating Remote Environments, then reconciles with the host', () => {
+		const first = createWidget();
+		const host = new TestSandboxProfilesHost();
+		first.addHost('tunnel:laptop', host);
+		assignHostSandboxProfile(host, { id: 'strict', name: 'Strict', settings: {} });
+		first.disconnectHost('tunnel:laptop');
+		const reopened = createWidget(OperatingSystem.Macintosh, 'type', 900, first.storageService);
+		const state = (device: typeof first) => {
+			const picker = device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, lastKnown: picker.getAttribute('aria-label')?.includes('last known assignment') };
+		};
+		const offline = [state(first), state(reopened)];
+		assignHostSandboxProfile(host, undefined);
+		reopened.addHost('tunnel:laptop', host);
+		assert.deepStrictEqual({ offline, reconnected: state(reopened), otherWindow: state(first) }, {
+			offline: [
+				{ disabled: true, selected: 'Strict (on host)', lastKnown: true },
+				{ disabled: true, selected: 'Strict (on host)', lastKnown: true },
+			],
+			reconnected: { disabled: false, selected: 'Default', lastKnown: false },
+			otherWindow: { disabled: true, selected: 'Default', lastKnown: false },
+		});
+	});
+
 	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {
 		const host = store.add(new TestSandboxProfilesHost());
 		const deviceA = createWidget();
@@ -2112,6 +2144,18 @@ suite('RemotesWidget', () => {
 			hiddenOnRemoteRows: sandboxProfileCells.some(cell => cell.closest('[data-remote-id]') && cell.classList.contains('remotes-cell-action-hidden')),
 			hiddenOnOtherRows: sandboxProfileCells.filter(cell => !cell.closest('[data-remote-id]')).every(cell => cell.classList.contains('remotes-cell-action-hidden')),
 		}, { focusedRemote: 'tunnel:laptop', hiddenOnRemoteRows: false, hiddenOnOtherRows: true });
+	});
+
+	test('shows the sandbox profile column only while sandbox profiles are enabled', () => {
+		const { parent, widget, configurationService } = createWidget();
+		widget.layout();
+		const hidden = () => parent.querySelector('.remotes-hide-sandbox-profile') !== null;
+		const setEnabled = (enabled: boolean) => {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxProfilesEnabled }));
+			return hidden();
+		};
+		assert.deepStrictEqual({ enabled: hidden(), disabled: setEnabled(false), reenabled: setEnabled(true) }, { enabled: false, disabled: true, reenabled: false });
 	});
 
 	test('keeps trailing content and actions clear of the vertical scrollbar through resizing', async () => {

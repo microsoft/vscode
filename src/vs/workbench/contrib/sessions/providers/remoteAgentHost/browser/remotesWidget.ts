@@ -31,6 +31,7 @@ import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost
 import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../platform/extensions/common/extensions.js';
@@ -106,6 +107,7 @@ export class RemotesWidget extends Disposable {
 	private readonly tableContainer: HTMLElement;
 	private readonly tableInner: HTMLElement;
 	private emptyRowWidth = 0;
+	private sandboxProfilesEnabled = false;
 	private readonly message: HTMLElement;
 	private readonly heading: HTMLElement;
 	private readonly headingTitle: HTMLElement;
@@ -270,7 +272,9 @@ export class RemotesWidget extends Disposable {
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
 
-		let label = localize('remotes.tableLabel', "Remote environments. Name, Status, Last Activity, System, Type, Sandbox Profile, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.");
+		let label = configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxProfilesEnabled) === true
+			? localize('remotes.tableLabel', "Remote environments. Name, Status, Last Activity, System, Type, Sandbox Profile, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.")
+			: localize('remotes.tableLabelWithoutSandboxProfile', "Remote environments. Name, Status, Last Activity, System, Type, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
@@ -419,6 +423,13 @@ export class RemotesWidget extends Disposable {
 		}));
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesWidget', () => this.layout(), dom.getWindow(this.domNode)));
 		this._register(resizeObserver.observe(this.domNode));
+		this.sandboxProfilesEnabled = configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxProfilesEnabled) === true;
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled)) {
+				this.sandboxProfilesEnabled = configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxProfilesEnabled) === true;
+				this.layout();
+			}
+		}));
 		this._register(autorun(reader => {
 			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
@@ -1372,7 +1383,7 @@ export class RemotesWidget extends Disposable {
 			this.tableContainer.classList.toggle('remotes-hide-method', width < 1000);
 			this.tableContainer.classList.toggle('remotes-hide-activity', width < 720);
 			this.tableContainer.classList.toggle('remotes-hide-system', width < 520);
-			this.tableContainer.classList.toggle('remotes-hide-sandbox-profile', width < 520);
+			this.tableContainer.classList.toggle('remotes-hide-sandbox-profile', width < 520 || !this.sandboxProfilesEnabled);
 			if (dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.classList.contains('remotes-sort-header') && !activeElement.offsetWidth) {
 				this.table.domFocus();
 			}
