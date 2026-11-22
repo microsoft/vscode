@@ -9,6 +9,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { registerChatContextActions } from '../../../browser/actions/chatContextActions.js';
 import { IChatExecuteActionContext } from '../../../browser/actions/chatExecuteActions.js';
@@ -20,7 +21,7 @@ suite('ChatContextActions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Add File to Chat attaches the given file, and opens the context picker when there is no file to attach', async () => {
+	test('Add File to Chat attaches the given file, and replaces any open quick input with the context picker when there is no file to attach', async () => {
 		store.add(registerChatContextActions());
 
 		const log: string[] = [];
@@ -40,6 +41,9 @@ suite('ChatContextActions', () => {
 			activeTextEditorControl: undefined,
 			activeEditor: undefined,
 		}));
+		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
+			cancel: async () => { log.push('cancel the open quick input'); },
+		}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id: string, context: IChatExecuteActionContext) => {
 				log.push(`run ${id} for ${context.widget === widget ? 'the revealed widget' : 'another widget'}`);
@@ -53,6 +57,7 @@ suite('ChatContextActions', () => {
 
 		assert.deepStrictEqual(log, [
 			'attach /workspace/file.ts',
+			'cancel the open quick input',
 			`run ${CHAT_ATTACH_CONTEXT_ACTION_ID} for the revealed widget`,
 		]);
 	});
