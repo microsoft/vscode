@@ -630,12 +630,14 @@ export class PaneCompositeBar extends Disposable {
 			if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
 				const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
 				if (index !== -1) {
+					// A view container that the stored value does not know is pinned like a new one. The bar
+					// may show it unpinned because another named layout was active, which must not carry over
 					const compositeItem = compositeItems[index];
 					newCompositeItems.splice(index, 0, {
 						id: viewContainer.id,
 						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
 						order: compositeItem.order,
-						pinned: compositeItem.pinned,
+						pinned: true,
 						visible: compositeItem.visible,
 					});
 				} else {
