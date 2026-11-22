@@ -110,7 +110,7 @@ import { linkKey } from '../../../common/sessionLinks.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getNestedChatDefaultChangesetId, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
-import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
+import { GitHubPullRequestArtifactWorkspaceConfiguration } from './githubPullRequestArtifactWorkspaceConfiguration.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { IArtifactModel } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
@@ -8725,7 +8725,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this.id,
 				provider.remoteAddress,
 				undefined,
-				createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer(this._baseConfigurationService),
+				this._instantiationService.createInstance(GitHubPullRequestArtifactWorkspaceConfiguration).synchronize,
 			);
 		}
 		return this._artifactIntegrations.value;
@@ -8768,7 +8768,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const chat = state && session.chats.read(reader).find(chat => getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat) === origin);
 			const folder = chat?.workspace.read(reader)?.folders[0];
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): artifact integration workspace context needs the owning connection mapper
-			return folder && origin ? { chat: origin, workingDirectory: fromAgentHostUri(folder.workingDirectory).toString(), resource: folder.root } : undefined;
+			return folder && origin ? { chat: origin, workingDirectory: fromAgentHostUri(folder.workingDirectory).toString(), resource: folder.workingDirectory } : undefined;
 		});
 		const reference = await integrations.acquireArtifact(session.backendUri.toString(), artifactId, workspace);
 		const chats = derived(reader => {
