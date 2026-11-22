@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toLocalAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -77,6 +79,18 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 			if (entry.connection.repository) {
 				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify(entry.connection.repository)))}`;
 			}
+			if (entry.connection.environmentId !== undefined) {
+				const volume = entry.connection.volume;
+				// Dev Containers opens a volume folder without a configuration in the container that its labels identify. It
+				// accepts only SSH and Tunnel parent authorities and identifies WSL by a host path, which a volume does not
+				// have, so it uses this computer's Docker engine. That is a WSL distribution's only if it has the volume.
+				const wsl = entry.connection.hostAuthority?.startsWith('wsl+');
+				if (!volume || (wsl && !entry.connection.volumeOnLocalDockerEngine)) {
+					return undefined;
+				}
+				const parentAuthority = wsl ? undefined : entry.connection.hostAuthority;
+				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify({ volumeName: volume.volumeName, folder: volume.folder })))}${parentAuthority ? `@${parentAuthority}` : ''}`;
+			}
 			let { hostPath, hostAuthority } = entry.connection;
 			if (hostAuthority?.startsWith('wsl+')) {
 				// Dev Containers identifies WSL through a UNC host path, not an @wsl parent authority.
@@ -114,19 +128,37 @@ export function resolveRemoteFolderUri(
 	return fromAgentHostUri(folderUri).with({ authority: remoteAuthority, scheme: Schemas.vscodeRemote });
 }
 
-/**
- * Why editor windows cannot open a session, see {@link getEditorWindowSessionResource}. For `'remote'`, the editor's
- * VS Code server runs its own agent host. For `'otherAgentHost'`, the tunnel's gateway connected this window to a
- * different agent host on the tunnel's machine than the one its editor windows reach.
- */
-export type EditorWindowSessionUnsupportedReason = 'remote' | 'otherAgentHost';
+/** Why the editor window cannot open a session from the connected remote agent host. */
+export type EditorWindowSessionUnsupportedReason = 'unsupported' | 'differentAgentHost';
+
+/** Editor-owned endpoints are shared only when the editor window follows the same stored SSH preference. */
+export function getEditorWindowSessionUnsupportedReason(
+	entry: IRemoteAgentHostEntry | undefined,
+	tunnelAgentHostService: ITunnelAgentHostService,
+	sshRemoteAgentHostService: ISSHRemoteAgentHostService,
+	locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
+): EditorWindowSessionUnsupportedReason | undefined {
+	switch (entry?.connection.type) {
+		case RemoteAgentHostEntryType.Tunnel:
+			// Tunnel editor windows are named by label, so they cannot look up the stored preference and always use a standalone host.
+			return tunnelAgentHostService.getSelectedServerType(getEntryAddress(entry)) === 'editor' ? 'differentAgentHost' : undefined;
+		case RemoteAgentHostEntryType.SSH: {
+			const address = getEntryAddress(entry);
+			const hostKey = computeSSHConnectionKey({ sshConfigHost: entry.connection.sshConfigHost, username: entry.connection.user, host: entry.connection.hostName, port: entry.connection.port });
+			return sshRemoteAgentHostService.connections.find(connection => connection.localAddress === address)?.serverType === 'editor'
+				&& locationPreferenceService.getPreference(hostKey) !== 'editor' ? 'differentAgentHost' : undefined;
+		}
+		case RemoteAgentHostEntryType.WSL:
+		case RemoteAgentHostEntryType.DevContainer:
+			return undefined;
+		default:
+			return 'unsupported';
+	}
+}
 
 /**
  * Names a session or chat as the editor window that opens its folder does, or returns why that window cannot open it.
- * An editor window of a VS Code remote reaches the agent host on its remote machine as its own agent host, while this
- * window connects to the same host as a remote agent host, which names its sessions differently. Only a tunnel's
- * editor windows share that agent host. Elsewhere, the editor's VS Code server runs its own agent host, with a session
- * registry separate from that of the agent host this window starts.
+ * Supported remote editor windows reach the shared host as their own agent host, using local session schemes.
  */
 export function getEditorWindowSessionResource(
 	resource: URI,
@@ -135,28 +167,30 @@ export function getEditorWindowSessionResource(
 	remoteAgentHostService: IRemoteAgentHostService,
 	agentHostConnectionsService: IAgentHostConnectionsService,
 	tunnelAgentHostService: ITunnelAgentHostService,
+	sshRemoteAgentHostService: ISSHRemoteAgentHostService,
+	locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 ): URI | EditorWindowSessionUnsupportedReason {
 	const connectionAuthority = agentHostConnectionsService.resolveSessionResourceIdentity(resource)?.connectionAuthority;
 	if (!connectionAuthority || connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY) {
 		return resource;
 	}
 	const sessionType = toLocalAgentHostSessionType(resource.scheme, connectionAuthority);
-	const entry = getRemoteAgentHostEntry(providerId, sessionsProvidersService, remoteAgentHostService);
-	if (!sessionType || entry?.connection.type !== RemoteAgentHostEntryType.Tunnel) {
-		return 'remote';
+	if (!sessionType) {
+		return 'unsupported';
 	}
-	// The tunnel's editor windows reach its standalone agent host, which a gateway may not have selected for this window.
-	if (tunnelAgentHostService.getSelectedServerType(getEntryAddress(entry)) === 'editor') {
-		return 'otherAgentHost';
+	const entry = getRemoteAgentHostEntry(providerId, sessionsProvidersService, remoteAgentHostService);
+	const reason = getEditorWindowSessionUnsupportedReason(entry, tunnelAgentHostService, sshRemoteAgentHostService, locationPreferenceService);
+	if (reason) {
+		return reason;
 	}
 	return resource.with({ scheme: sessionType });
 }
 
 /** Explains why the editor window opened for a session's folder does not open the session as well. */
 export function notifyEditorWindowSessionUnsupported(notificationService: INotificationService, reason: EditorWindowSessionUnsupportedReason): void {
-	notificationService.info(reason === 'otherAgentHost'
-		? localize('openInVSCode.otherAgentHostSessionUnsupported', "The session's folder was opened in a new editor window, but the session can't be opened there. This window is connected to a different agent host on the tunnel's machine than the one its editor windows use.")
-		: localize('openInVSCode.remoteSessionUnsupported', "The session's folder was opened in a new editor window, but editor windows can't open sessions from this remote yet. Only local and tunnel sessions can be opened there."));
+	notificationService.info(reason === 'differentAgentHost'
+		? localize('openInVSCode.differentAgentHostSessionUnsupported', "The session's folder was opened in a new editor window, but the session can't be opened there. This window is connected to a different agent host on the remote machine than the one its editor windows use.")
+		: localize('openInVSCode.sessionUnsupported', "The session's folder was opened in a new editor window, but editor windows can't open sessions from this kind of remote."));
 }
 
 /**

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Action } from '../../../../base/common/actions.js';
-import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IExtensionHostProfile } from '../../../services/extensions/common/extensions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { localize } from '../../../../nls.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
-import { Utils } from '../../../../platform/profiling/common/profiling.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Utils } from '../../../../platform/profiling/common/profiling.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { IExtensionHostProfile } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 
 abstract class RepoInfo {
@@ -101,20 +101,20 @@ export async function createSlowExtensionAction(
 	const instaService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const lifetime = new DisposableStore();
-	const controller = new AbortController();
-	const { signal } = controller;
+	const controller = lifetime.add(new CancellationTokenSource());
+	const cancellationToken = controller.token;
 	const deadline = Date.now() + 10_000;
-	lifetime.add(disposableTimeout(() => controller.abort(new CancellationError()), 10_000));
+	lifetime.add(disposableTimeout(() => controller.cancel(), 10_000));
 	let totalCount: number;
 	try {
-		const client = lifetime.add(await gitHubService.acquireAnonymousApiClient(signal));
-		signal.throwIfAborted();
-		const data = await client.search.issues(`state:open in:title repo:${info.owner}/${info.repo} "Extension causes high cpu load"`, signal, {
+		const client = lifetime.add(await gitHubService.acquireAnonymousApiClient(cancellationToken));
+		CancellationToken.throwIfCanceled(cancellationToken);
+		const data = await client.search.issues(`state:open in:title repo:${info.owner}/${info.repo} "Extension causes high cpu load"`, cancellationToken, {
 			caller: 'showExtensionSlowAction',
 			deadline,
 			query: { per_page: 1 },
 		});
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		totalCount = data.total_count;
 	} catch (error) {
 		logService.warn('[ExtensionsSlowActions] GitHub issue search failed', error);

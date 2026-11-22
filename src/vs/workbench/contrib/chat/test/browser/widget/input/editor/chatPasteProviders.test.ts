@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { decodeBase64 } from '../../../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
-import { createStringDataTransferItem, VSDataTransfer } from '../../../../../../../../base/common/dataTransfer.js';
+import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferFile, VSDataTransfer } from '../../../../../../../../base/common/dataTransfer.js';
 import { Mimes } from '../../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
@@ -17,10 +18,15 @@ import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../../../editor/common/services/model.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
-import { ILogService } from '../../../../../../../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../../../../../../../platform/environment/common/environment.js';
+import { IExtensionDescription } from '../../../../../../../../platform/extensions/common/extensions.js';
+import { IFileService, IFileStatWithMetadata } from '../../../../../../../../platform/files/common/files.js';
+import { ILogService, NullLogService } from '../../../../../../../../platform/log/common/log.js';
+import { IExtensionService } from '../../../../../../../services/extensions/common/extensions.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../browser/chat.js';
+import { IChatUserImageAttachmentEvent, IChatUserImageAttachmentService } from '../../../../../browser/attachments/chatUserImageAttachments.js';
 import { IChatSessionsService } from '../../../../../common/chatSessionsService.js';
-import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
+import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, getPastedImageName, PasteImageProvider, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { isSupportedChatFileScheme } from '../../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../../common/model/chatModel.js';
@@ -39,6 +45,23 @@ suite('Chat Paste Providers', () => {
 		assert.strictEqual(
 			instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, ChatResponseResource.scheme)),
 			false);
+	});
+
+	test('names pasted images after their file and keeps the names unique', () => {
+		// Mirrors toVSDataTransfer, which parses the native path of a pasted file into the uri
+		const fromDisk: IDataTransferFile = { id: '1', name: 'diagram #1.png', uri: URI.parse('C:\\Screenshots\\diagram #1.png'), data: async () => new Uint8Array() };
+		const rawBitmap: IDataTransferFile = { id: '2', name: 'image.png', uri: undefined, data: async () => new Uint8Array() };
+		assert.deepStrictEqual({
+			fromFile: getPastedImageName(fromDisk, []),
+			fromFileTaken: getPastedImageName(fromDisk, ['diagram #1.png', 'diagram #1 2.png']),
+			rawBitmap: getPastedImageName(rawBitmap, []),
+			rawBitmapTaken: getPastedImageName(rawBitmap, ['Pasted Image']),
+		}, {
+			fromFile: 'diagram #1.png',
+			fromFileTaken: 'diagram #1 3.png',
+			rawBitmap: 'Pasted Image',
+			rawBitmapTaken: 'Pasted Image 2',
+		});
 	});
 
 	test('creates sequential artifacts only for long pasted text', () => {
@@ -201,6 +224,75 @@ suite('Chat Paste Providers', () => {
 			],
 			attachmentsAfterUndo: [],
 			parsedInvalidLinks: [],
+		});
+	});
+
+	test('reports the images that a paste attaches once, not when an undo and redo put them back', async () => {
+		const attachments: IChatRequestVariableEntry[] = [];
+		const target: IChatPasteTarget = {
+			sessionResource: URI.parse('chat-session:/test'),
+			get attachments() { return attachments; },
+			get inlineReferences() { return []; },
+			addAttachments: entries => attachments.push(...entries),
+			removeAttachments: ids => attachments.splice(0, attachments.length, ...attachments.filter(attachment => !ids.includes(attachment.id))),
+			addInlineAttachment: () => { },
+			addInlineReference: () => { },
+			isTerminalCommandPaste: () => false,
+		};
+		const modelUri = URI.from({ scheme: Schemas.vscodeChatInput, path: 'image-paste-test' });
+		const pasteTargetService = new class extends mock<IChatPasteTargetService>() {
+			override getTarget(uri: URI): IChatPasteTarget | undefined {
+				return uri === modelUri ? target : undefined;
+			}
+		};
+		const events: IChatUserImageAttachmentEvent[] = [];
+		const provider = new PasteImageProvider(
+			pasteTargetService,
+			new class extends mock<IExtensionService>() {
+				override readonly extensions = [upcastPartial<IExtensionDescription>({ enabledApiProposals: ['chatReferenceBinaryData'] })];
+			},
+			new class extends mock<IChatUserImageAttachmentService>() {
+				override didAttachImages(event: IChatUserImageAttachmentEvent): void { events.push(event); }
+			},
+			new class extends mock<IFileService>() {
+				override async exists(): Promise<boolean> { return true; }
+				override async resolve(): Promise<IFileStatWithMetadata> { return upcastPartial<IFileStatWithMetadata>({ children: [] }); }
+				override async writeFile(): Promise<IFileStatWithMetadata> { return upcastPartial<IFileStatWithMetadata>({}); }
+			},
+			new class extends mock<IEnvironmentService>() {
+				override readonly workspaceStorageHome = URI.file('/workspaceStorage');
+			},
+			new NullLogService(),
+		);
+		const model = upcastPartial<ITextModel>({ uri: modelUri });
+		// A PNG of one pixel.
+		const png = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==').buffer;
+		const paste = async () => {
+			const transfer = new VSDataTransfer();
+			transfer.append('image/png', createFileDataTransferItem('image.png', undefined, async () => png));
+			const session = await provider.provideDocumentPasteEdits(model, [new Range(1, 1, 1, 1)], transfer, { triggerKind: DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+			return session?.edits[0]?.additionalEdit?.edits[0] as ICustomEdit | undefined;
+		};
+
+		const first = await paste();
+		await first?.redo();
+		const imageId = attachments[0]?.id;
+		const pasteOfAttachedImage = await paste();
+		await first?.undo();
+		await first?.redo();
+		await first?.undo();
+		const second = await paste();
+		await second?.redo();
+
+		assert.deepStrictEqual({
+			pasteOfAttachedImage,
+			events: events.map(event => ({ inputUri: event.inputUri.toString(), attachmentIds: event.attachmentIds, gesture: event.gesture })),
+		}, {
+			pasteOfAttachedImage: undefined,
+			events: [
+				{ inputUri: modelUri.toString(), attachmentIds: [imageId], gesture: 'paste' },
+				{ inputUri: modelUri.toString(), attachmentIds: [imageId], gesture: 'paste' },
+			],
 		});
 	});
 

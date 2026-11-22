@@ -54,11 +54,11 @@ export function renderCopilotShimLauncher(template: string, options: CopilotShim
 }
 
 export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): string {
-	const packageJsonPath = path.join(nodeModulesRoot, '@github', 'copilot-sdk', 'package.json');
+	const packageJsonPath = path.join(nodeModulesRoot, '@microsoft', 'copilot-sdk', 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { readonly copilotCliVersion?: string };
 	const runtimeVersion = packageJson.copilotCliVersion;
 	if (typeof runtimeVersion !== 'string' || !runtimeVersion) {
-		throw new Error(`@github/copilot-sdk is missing copilotCliVersion in ${packageJsonPath}.`);
+		throw new Error(`@microsoft/copilot-sdk is missing copilotCliVersion in ${packageJsonPath}.`);
 	}
 
 	return runtimeVersion;
@@ -151,7 +151,7 @@ const copilotOptionalNativePayloadDirs = [
 
 const copilotOptionalNativePayloadFiles = [
 	// Computer Use ships under plugins/computer-use/** in current
-	// @github/copilot-sdk platform packages. Do not productize it.
+	// @microsoft/copilot-sdk platform packages. Do not productize it.
 	'plugins/computer-use/**',
 	'prebuilds/*/computer.node',
 	'prebuilds/*/keytar.node',
@@ -202,7 +202,7 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	return [
 		'**',
 		...copilotPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
-		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-sdk-${p}/**`),
+		...nonTargetPlatforms.map(p => `!**/node_modules/@microsoft/copilot-sdk-${p}/**`),
 	];
 }
 
@@ -215,7 +215,7 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
-	const copilotSdkPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
+	const copilotSdkPackageDir = path.posix.join(nodeModulesRoot, '@microsoft', `copilot-sdk-${copilotPackagePlatformArch}`);
 
 	return [
 		path.posix.join(copilotSdkPackageDir, '**'),
@@ -235,10 +235,10 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 		return;
 	}
 
-	const packageName = `@github/copilot-sdk-${copilotPackagePlatformArch}`;
+	const packageName = `@microsoft/copilot-sdk-${copilotPackagePlatformArch}`;
 	ensureNpmPackage(packageName, nodeModulesRoot, options);
 
-	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
+	const packageDir = path.join(nodeModulesRoot, '@microsoft', `copilot-sdk-${copilotPackagePlatformArch}`);
 	const requiredFiles = [
 		'copilot-sdk/index.js',
 		path.join('prebuilds', copilotPackagePlatformArch, platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'),

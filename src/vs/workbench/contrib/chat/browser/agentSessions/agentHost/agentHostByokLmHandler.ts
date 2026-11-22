@@ -18,6 +18,8 @@ import {
 	IByokLmModelInfo,
 	IByokLmOutputItem,
 	IByokLmReasoningItem,
+	IByokLmStreamDelta,
+	IByokLmStreamDeltaBody,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -54,6 +56,14 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	private readonly _onDidChangeModels = this._register(new Emitter<void>());
 	/** Fires when the renderer's BYOK models change, so the node agent host re-enumerates. */
 	readonly onDidChangeModels = this._onDidChangeModels.event;
+
+	private readonly _onDidDelta = this._register(new Emitter<IByokLmStreamDelta>());
+	/**
+	 * Fires each piece of a {@link chat} response as the language model produces
+	 * it, so the node agent host can proxy it before the call completes. Deltas
+	 * are published only for requests that carry a `requestId`.
+	 */
+	readonly onDidDelta = this._onDidDelta.event;
 
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
@@ -109,6 +119,9 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			const output: IByokLmOutputItem[] = [];
 			const customToolNames = new Set(request.tools?.filter(tool => tool.type === 'custom').map(tool => tool.name));
 			const completedReasoningSummaryParts = new Set<string | undefined>();
+			// Each delta is published immediately before it is folded into `output`,
+			// so the delta stream reproduces the result the caller finally receives.
+			const emit = this._deltaEmitter(request.requestId);
 			let responseId: string | undefined;
 			let usage: IByokLmChatResult['usage'];
 			const streaming = (async () => {
@@ -116,28 +129,32 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					const parts = Array.isArray(part) ? part : [part];
 					for (const p of parts) {
 						if (p.type === 'text') {
+							emit?.({ kind: 'text', delta: p.value });
 							this._appendTextOutput(output, p.value);
 						} else if (p.type === 'thinking') {
 							if (p.metadata?.[VSCODE_REASONING_SUMMARY_PART_DONE] === true) {
 								completedReasoningSummaryParts.add(p.id);
 							} else {
 								const startsNewSummaryPart = p.value.length > 0 && completedReasoningSummaryParts.delete(p.id);
-								this._appendReasoningOutput(output, p, startsNewSummaryPart);
+								this._appendReasoningOutput(output, p, startsNewSummaryPart, emit);
 							}
 						} else if (p.type === 'tool_use') {
-							if (customToolNames.has(p.name)) {
+							const isCustom = customToolNames.has(p.name);
+							const value = isCustom ? this._customToolInput(p.parameters) : JSON.stringify(p.parameters ?? {});
+							emit?.({ kind: 'toolCall', callId: p.toolCallId, name: p.name, isCustom, value });
+							if (isCustom) {
 								output.push({
 									type: 'custom_tool_call',
 									callId: p.toolCallId,
 									name: p.name,
-									input: this._customToolInput(p.parameters),
+									input: value,
 								});
 							} else {
 								output.push({
 									type: 'function_call',
 									callId: p.toolCallId,
 									name: p.name,
-									argumentsJson: JSON.stringify(p.parameters ?? {}),
+									argumentsJson: value,
 								});
 							}
 						} else if (p.type === 'data' && p.mimeType === STATEFUL_MARKER_MIME_TYPE) {
@@ -347,12 +364,31 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		}
 	}
 
-	private _appendReasoningOutput(output: IByokLmOutputItem[], part: Extract<IChatMessagePart, { type: 'thinking' }>, startsNewSummaryPart: boolean): void {
+	private _appendReasoningOutput(output: IByokLmOutputItem[], part: Extract<IChatMessagePart, { type: 'thinking' }>, startsNewSummaryPart: boolean, emit?: (delta: IByokLmStreamDeltaBody) => void): void {
 		if (part.metadata?.vscode_reasoning_done === true) {
 			return;
 		}
 		const summary = Array.isArray(part.value) ? part.value : [part.value];
 		const encryptedContent = this._encodeReasoningMetadata(part.metadata);
+		const previous = output.at(-1);
+		// Whether the fold below extends the open reasoning item instead of starting
+		// a new one, which is the only case `startsNewSummaryPart` distinguishes.
+		const extendsOpenItem = previous?.type === 'reasoning' && previous.id === part.id;
+		if (emit) {
+			// One delta per summary entry the fold adds, so replaying the deltas
+			// reproduces this item's `summary` array entry for entry.
+			const encrypted = encryptedContent === undefined ? {} : { encryptedContent };
+			if (Array.isArray(part.value)) {
+				for (const entry of part.value) {
+					emit({ kind: 'reasoning', id: part.id, delta: entry, newSummaryPart: true, ...encrypted });
+				}
+				if (part.value.length === 0) {
+					emit({ kind: 'reasoning', id: part.id, delta: '', newSummaryPart: false, ...encrypted });
+				}
+			} else {
+				emit({ kind: 'reasoning', id: part.id, delta: part.value, newSummaryPart: !extendsOpenItem || startsNewSummaryPart, ...encrypted });
+			}
+		}
 		const reasoning: IByokLmReasoningItem = {
 			type: 'reasoning',
 			id: part.id,
@@ -360,7 +396,6 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			encryptedContent,
 			metadata: part.metadata,
 		};
-		const previous = output.at(-1);
 		if (previous?.type === 'reasoning' && previous.id === reasoning.id) {
 			output[output.length - 1] = {
 				...previous,
@@ -406,6 +441,18 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			throw new Error('Invalid Agent Host BYOK reasoning metadata');
 		}
 		return metadata as Record<string, unknown>;
+	}
+
+	/**
+	 * A publisher for `requestId`'s deltas, or `undefined` when the caller did not
+	 * ask for a stream. The node agent host mints `requestId` only for requests
+	 * whose own HTTP response is a stream.
+	 */
+	private _deltaEmitter(requestId: string | undefined): ((delta: IByokLmStreamDeltaBody) => void) | undefined {
+		if (requestId === undefined) {
+			return undefined;
+		}
+		return delta => this._onDidDelta.fire({ ...delta, requestId });
 	}
 
 	private _customToolInput(parameters: unknown): string {

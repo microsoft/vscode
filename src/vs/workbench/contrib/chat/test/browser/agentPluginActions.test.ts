@@ -331,18 +331,18 @@ suite('AgentPluginActions', () => {
 		const session = URI.parse('other-session://opaque/conversation');
 		const customization: PluginCustomization = {
 			type: CustomizationType.Plugin, id: 'opaque-plugin', name: 'Native', uri: 'file:///plugins/native',
-			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'native@marketplace', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'native@marketplace', globalEnabled: false, effectiveEnabled: true, repositorySupported: true, repositoryEnabled: true }),
 		};
 		const service = new class extends mock<IAgentHostCustomizationService>() {
 			override canSetRuntimePluginEnablement(): boolean { return true; }
-			override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean]): Promise<void> { calls.push(args); }
+			override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean | null]): Promise<void> { calls.push(args); }
 		}();
 		const actions = getAgentHostPluginEnablementActions(service, undefined, session, customization, true);
 		await actions[0].run();
 		await actions[1].run();
 		assert.deepStrictEqual({ actions: actions.map(action => [action.label, action.enabled]), calls }, {
-			actions: [['Enable Globally', true], ['Disable for Repository', true]],
-			calls: [[session, 'opaque-plugin', 'global', true], [session, 'opaque-plugin', 'repository', false]],
+			actions: [['Disable for Workspace', true], ['Use Global Enablement', true]],
+			calls: [[session, 'opaque-plugin', 'repository', false], [session, 'opaque-plugin', 'repository', null]],
 		});
 	});
 
@@ -363,6 +363,34 @@ suite('AgentPluginActions', () => {
 		await createAgentHostEnablePluginAction(service, undefined, session, reason.plugin, CustomizationEnablementKind.Global).run();
 		assert.deepStrictEqual(calls, [[session, plugin.id, 'global', true]]);
 	});
+
+	for (const [globalEnabled, effectiveEnabled] of [[false, true], [true, false]] as const) {
+		test(`runtime plugin switch reflects session activation ${effectiveEnabled} instead of global ${globalEnabled}`, async () => {
+			const calls: [URI, string, 'global' | 'repository', boolean | null][] = [];
+			const session = URI.parse('other-session:/opaque');
+			const plugin: PluginCustomization = {
+				type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'other-host:/plugin',
+				_meta: withRuntimePluginEnablement(undefined, {
+					provider: 'other', plugin: 'native@marketplace', globalEnabled,
+					effectiveEnabled, repositorySupported: true, repositoryEnabled: null,
+				}),
+			};
+			const service = new class extends mock<IAgentHostCustomizationService>() {
+				override canSetRuntimePluginEnablement(): boolean { return true; }
+				override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean | null]): Promise<void> { calls.push(args); }
+			}();
+			const [toggle] = getAgentHostPluginEnablementActions(service, undefined, session, plugin, true);
+			const writesBeforeToggle = calls.length;
+			await toggle.run();
+			assert.deepStrictEqual({
+				checked: toggle.checked, label: toggle.label, scope: toggle.scope, enabled: toggle.enabled,
+				writesBeforeToggle, calls,
+			}, {
+				checked: effectiveEnabled, label: effectiveEnabled ? 'Disable Globally' : 'Enable Globally', scope: 'global', enabled: true,
+				writesBeforeToggle: 0, calls: [[session, plugin.id, 'global', !effectiveEnabled]],
+			});
+		});
+	}
 
 	test('runtime-owned plugins remain read-only on hosts without the management capability', async () => {
 		const customization: PluginCustomization = {
@@ -401,6 +429,47 @@ suite('AgentPluginActions', () => {
 			ready: [
 				{ enabled: true, checked: false, tooltip: undefined },
 				{ enabled: false, checked: undefined, tooltip: 'This plugin does not support workspace enablement. You can change global enablement.' },
+			],
+		});
+	});
+
+	test('plugin switches follow explicit scope and preserve activation when selecting workspace scope', async () => {
+		const session = URI.parse('other-session:/opaque');
+		const calls: unknown[][] = [];
+		const service = new class extends mock<IAgentHostCustomizationService>() {
+			override canSetRuntimePluginEnablement(): boolean { return true; }
+			override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean | null]): Promise<void> { calls.push(args); }
+		}();
+		const results = [];
+		for (const [repositoryEnabled, effectiveEnabled] of [[null, true], [null, false], [true, true], [false, false], [undefined, true]] as const) {
+			const plugin: PluginCustomization = {
+				type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'other-host:/plugin',
+				_meta: withRuntimePluginEnablement(undefined, {
+					provider: 'other', plugin: 'native@marketplace', globalEnabled: true,
+					effectiveEnabled, repositorySupported: true, repositoryEnabled,
+				}),
+			};
+			const [toggle, scope] = getAgentHostPluginEnablementActions(service, undefined, session, plugin, true);
+			results.push({ checked: toggle.checked, scope: toggle.scope, label: scope.label, available: scope.enabled });
+			if (scope.enabled) {
+				await scope.run();
+			}
+			await toggle.run();
+		}
+		assert.deepStrictEqual({ results, calls: calls.map(call => call.slice(2)) }, {
+			results: [
+				{ checked: true, scope: 'global', label: 'Manage Enablement for This Workspace', available: true },
+				{ checked: false, scope: 'global', label: 'Manage Enablement for This Workspace', available: true },
+				{ checked: true, scope: 'workspace', label: 'Use Global Enablement', available: true },
+				{ checked: false, scope: 'workspace', label: 'Use Global Enablement', available: true },
+				{ checked: true, scope: 'global', label: 'Manage Enablement for This Workspace', available: false },
+			],
+			calls: [
+				['repository', true], ['global', false],
+				['repository', false], ['global', true],
+				['repository', null], ['repository', false],
+				['repository', null], ['repository', true],
+				['global', false],
 			],
 		});
 	});

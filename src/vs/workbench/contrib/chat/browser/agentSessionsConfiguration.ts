@@ -9,7 +9,7 @@ import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGen
 import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { migrateLegacyImageGenerationSetting } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
-import { AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -22,7 +22,7 @@ const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessio
 export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.AgentsWindowBannerEnabled]: {
 		type: 'boolean',
-		default: false,
+		default: true,
 		scope: ConfigurationScope.APPLICATION,
 		description: nls.localize('chat.agentsWindowBanner.enabled', "Show occasional invitations to continue or manage running Agent Host chats in the Agents Window. Invitations are hidden for users who have created at least three sessions in the Agents Window and created their latest session within the past 30 days."),
 		tags: ['experimental'],
@@ -120,6 +120,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			agentHost: { key: CopilotCliConfigKey.M365Enabled },
 		},
+		[AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentsWindowTitleBarIcons.enabled', "Controls whether the Open in Agents and Open in Editor title-bar buttons use the VS Code codicon designs instead of the branded icons."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
 			type: 'boolean',
 			default: false,
@@ -150,6 +158,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: 'sessions.automations.showSharedByOthers',
+	includeApplication: true,
+	migrateFn: () => ({ value: undefined }),
+}, {
 	key: legacyAutoArchiveMergedSessionsAfterDaysSetting,
 	includeApplication: true,
 	migrateFn: (value, accessor) => {

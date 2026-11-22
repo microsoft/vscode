@@ -84,8 +84,6 @@ export class TelemetryUserConfigImpl implements ITelemetryUserConfig {
 
 export type TelemetryProperties = { [key: string]: string };
 
-export type AdditionalTelemetryProperties = { [key: string]: string };
-
 /**
  * Creates a getter that returns the tracking ID from the token store.
  * The cache is:
@@ -121,6 +119,11 @@ export interface ITelemetryService extends IExperimentationTelemetry, IDisposabl
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryException(maybeError: unknown, origin: string): void;
+	/**
+	 * When defined, indicates whether any restricted telemetry sink will accept events.
+	 * Callers can skip expensive restricted payload preparation when this is `false`.
+	 */
+	readonly isRestrictedTelemetryActive?: boolean;
 	/**
 	 * Send restricted GitHub telemetry only for opted-in external users.
 	 * Microsoft and GitHub organization members are excluded.

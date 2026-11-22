@@ -12,10 +12,10 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { AuthRequiredReason, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -28,6 +28,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IProgressService, type IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -62,7 +63,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		},
 	};
 
-	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote') {
+	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote', configuredEntries: readonly IRemoteAgentHostEntry[] = []) {
 		const instantiation = store.add(new TestInstantiationService());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const notifications = store.add(new Emitter<INotification>());
@@ -94,6 +95,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = connectionsChanged.event;
 			override readonly onDidChangeDisplayName = Event.None;
+			override readonly configuredEntries = configuredEntries;
 			override get connections() {
 				return registered ? [new class extends mock<IRemoteAgentHostConnectionInfo>() {
 					override readonly address = address;
@@ -150,11 +152,14 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, { takePendingSessionRemovals: () => [] });
 		instantiation.stub(ILabelService, { getHostLabel: () => 'Remote' });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(IWorkspaceContextService, { onDidChangeWorkspaceFolders: Event.None, onDidChangeWorkbenchState: Event.None });
+		instantiation.stub(IAgentHostConnectionsService, {});
 		store.add(instantiation.createInstance(RemoteAgentHostContribution));
 		return {
 			authenticate: (value: IAgentHostMcpAuthenticationRequest) => { assert.ok(handler); return handler(value); }, sent, sessionOptions,
 			notifications, opened, authenticationSent: authenticationSent.p, authenticationError: authenticationError.p, errors,
 			removeConnection: () => { registered = false; connectionsChanged.fire(); },
+			shown: () => handler !== undefined,
 		};
 	}
 
@@ -169,6 +174,18 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			assert.strictEqual(context.opened.length, 1);
 		});
 	}
+
+	test('an editor window shows the hosts its extensions register, as those its workspace lists', () => {
+		const address = 'remote.example:8081';
+		const registered: IRemoteAgentHostEntry = { name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.jobs', extensionDisplayName: 'Jobs' } };
+		assert.deepStrictEqual({
+			registeredByAnExtension: fixture(undefined, true, false, address, [registered]).shown(),
+			neitherRegisteredNorListed: fixture(undefined, true, false, address).shown(),
+		}, {
+			registeredByAnExtension: true,
+			neitherRegisteredNorListed: false,
+		});
+	});
 
 	test('Agents window leaves progress to the session provider', () => {
 		const context = fixture();
@@ -233,7 +250,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		});
 		await context.authenticationSent;
 		assert.deepStrictEqual({ sent: context.sent, errors: context.errors }, {
-			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', _meta: authenticationAccountMeta({ providerId: 'docs-provider', accountId: 'account' }) }],
+			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', accountId: '["docs-provider","account",null]' }],
 			errors: [],
 		});
 	});

@@ -15,7 +15,7 @@ import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
@@ -44,8 +44,18 @@ const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
 const STEERING_RESPONSE_DELAY_MS = 10_000;
 const CANVAS_SCENARIO_ID = 'model-opened-canvas';
 const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
+const ENV_CANVAS_SCENARIO_ID = 'model-opened-env-canvas';
+// The runtime withholds its secret environment names from extensions until the user consents.
+const SENSITIVE_VARIABLE = 'BLACKBIRD_AUTH_METIS_API_KEY';
+const SENSITIVE_VALUE = 'mock-llm-canvas-sentinel';
 const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
 const PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID = 'plugin-restricted-sibling-delegation';
+
+/** The root settings a canvas test changes, as they were before it. */
+interface ICanvasRootConfig {
+	readonly canvasesEnabled: boolean;
+	readonly workspaceTrust: unknown;
+}
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -85,6 +95,41 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		throw new Error('The model request did not expose the task tool');
 	}
 
+	/** Applies `config` to the root configuration and waits for the host to acknowledge it. */
+	async function setRootConfig(config: Record<string, unknown>, clientSeq: number, replace = false): Promise<void> {
+		client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq,
+			action: { type: ActionType.RootConfigChanged, config, ...(replace ? { replace } : {}) },
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, ActionType.RootConfigChanged)
+			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+		);
+	}
+
+	async function readRootConfigValues(): Promise<Record<string, unknown>> {
+		const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		return { ...(result.snapshot!.state as RootState).config?.values };
+	}
+
+	async function readCanvasRootConfig(): Promise<ICanvasRootConfig> {
+		const values = await readRootConfigValues();
+		return { canvasesEnabled: values[AgentHostCanvasesEnabledConfigKey] === true, workspaceTrust: values[AgentHostWorkspaceTrustConfigKey] };
+	}
+
+	/** Puts back the root settings a canvas test changed, removing workspace trust when it was absent before. */
+	async function restoreCanvasRootConfig(previous: ICanvasRootConfig, clientSeq: number): Promise<void> {
+		const values = await readRootConfigValues();
+		values[AgentHostCanvasesEnabledConfigKey] = previous.canvasesEnabled;
+		if (previous.workspaceTrust === undefined) {
+			delete values[AgentHostWorkspaceTrustConfigKey];
+		} else {
+			values[AgentHostWorkspaceTrustConfigKey] = previous.workspaceTrust;
+		}
+		await setRootConfig(values, clientSeq, true);
+	}
+
 	suiteSetup(async function () {
 		this.timeout(120_000);
 		suiteHome = await mkdtemp(`${tmpdir()}/test-mock-copilot-home-`);
@@ -92,6 +137,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			mockLlm: true,
 			homeDir: suiteHome,
 			userDataDir: join(suiteHome, 'user-data'),
+			env: { [SENSITIVE_VARIABLE]: SENSITIVE_VALUE },
 			mockScenarios: [{
 				id: STEERING_OWNER_SCENARIO_ID,
 				definition: {
@@ -131,6 +177,18 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 							}],
 						},
 						{ kind: 'content', chunks: [{ content: 'Canvas opened.', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: ENV_CANVAS_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{ toolNamePattern: /^open_canvas$/, arguments: { canvasId: 'env-canvas', instanceId: 'env-instance' } }],
+						},
+						{ kind: 'content', chunks: [{ content: 'Env canvas opened.', delayMs: 0 }] },
 					],
 				},
 			}, {
@@ -391,12 +449,12 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		await mkdir(extensionDir, { recursive: true });
 		await writeFile(join(extensionDir, 'extension.mjs'), `
 import { writeFileSync } from 'node:fs';
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 writeFileSync(new URL('./observed-environment.json', import.meta.url), JSON.stringify({ copilotHome: process.env.COPILOT_HOME ?? null }));
 let session;
 let requestedAgent = false;
 session = await joinSession({
-	canvases: [createCanvas({
+	canvases: { definitions: [createCanvas({
 		id: 'proof-canvas',
 		displayName: 'Proof canvas',
 		description: 'Integration-test canvas.',
@@ -418,22 +476,11 @@ session = await joinSession({
 				status: 'ready'
 			};
 		}
-	})]
+	})] }
 });
 `, 'utf8');
 
-		const setCanvasesEnabled = async (enabled: boolean, clientSeq: number) => {
-			client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } },
-			});
-			await client.waitForNotification(n =>
-				isActionNotification(n, ActionType.RootConfigChanged)
-				&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
-			);
-		};
-		let previousCanvasesEnabled: boolean | undefined;
+		let previousRootConfig: ICanvasRootConfig | undefined;
 		try {
 			const sessionUri = await createProviderSession(
 				client,
@@ -442,9 +489,11 @@ session = await joinSession({
 				createdSessions,
 				URI.file(workspaceDir),
 				async () => {
-					const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-					previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
-					await setCanvasesEnabled(true, 1);
+					previousRootConfig = await readCanvasRootConfig();
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+					}, 1);
 				},
 			);
 			dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
@@ -509,7 +558,7 @@ session = await joinSession({
 
 			assert.deepStrictEqual({
 				openCanvasSucceeded: openCanvasComplete.result.success,
-				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				canvas: { instanceId: canvas.instanceId, uri: canvas.uri },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
 				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
@@ -518,7 +567,7 @@ session = await joinSession({
 				},
 			}, {
 				openCanvasSucceeded: true,
-				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				canvas: { instanceId: 'proof-instance', uri: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
 				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {
@@ -530,8 +579,193 @@ session = await joinSession({
 				},
 			});
 		} finally {
-			if (previousCanvasesEnabled !== undefined) {
-				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, 3);
+			}
+		}
+	});
+
+	test('asks in the turn before a lazy extension the model opens reads a sensitive environment variable', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-env-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'env-canvas');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.json'), JSON.stringify({
+			version: 1,
+			initialization: 'module',
+			canvases: [{ id: 'env-canvas', displayName: 'Env canvas', description: 'Reads a sensitive environment variable.' }],
+		}), 'utf8');
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+import declaration from './extension.json' with { type: 'json' };
+await joinSession({
+	requestedEnvironmentVariables: [${JSON.stringify(SENSITIVE_VARIABLE)}],
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}?env=\${process.env[${JSON.stringify(SENSITIVE_VARIABLE)}] === ${JSON.stringify(SENSITIVE_VALUE)} ? 'visible' : 'hidden'}\` }),
+	})) },
+});
+`, 'utf8');
+		let clientSeq = 1;
+		const confirm = (chat: string, ready: ChatToolCallReadyAction, selectedOptionId?: string) => client.dispatch({
+			channel: chat,
+			clientSeq: clientSeq++,
+			action: { type: ActionType.ChatToolCallConfirmed, turnId: ready.turnId, toolCallId: ready.toolCallId, approved: true, confirmed: ToolCallConfirmationReason.UserAction, ...(selectedOptionId ? { selectedOptionId } : {}) },
+		});
+		/** Waits for the tool call's confirmation request. */
+		const waitForConfirmation = async (toolName: string) => {
+			const start = getActionEnvelope(await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart) && (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === toolName, 90_000)).action as ChatToolCallStartAction;
+			return getActionEnvelope(await client.waitForNotification(n => {
+				const action = getActionEnvelope(n).action as ChatToolCallReadyAction;
+				return isActionNotification(n, ActionType.ChatToolCallReady) && action.toolCallId === start.toolCallId && !action.confirmed;
+			}, 90_000)).action as ChatToolCallReadyAction;
+		};
+		let previousRootConfig: ICanvasRootConfig | undefined;
+		try {
+			const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-env-canvas', createdSessions, URI.file(workspaceDir), async () => {
+				previousRootConfig = await readCanvasRootConfig();
+				await setRootConfig({
+					[AgentHostCanvasesEnabledConfigKey]: true,
+					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+				}, clientSeq++);
+			});
+			const chat = defaultChatChannel(sessionUri);
+			dispatchTurn(client, sessionUri, 'turn-env-canvas', `[scenario:${ENV_CANVAS_SCENARIO_ID}] Open the env canvas.`, clientSeq++);
+			const openCanvasReady = await waitForConfirmation('open_canvas');
+			confirm(chat, openCanvasReady);
+			const consentReady = await waitForConfirmation('extension_env_consent');
+			confirm(chat, consentReady, 'allow-once');
+			const openCanvasComplete = getActionEnvelope(await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallComplete) && (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasReady.toolCallId, 90_000)).action as ChatToolCallCompleteAction;
+			const canvasAction = getActionEnvelope(await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatCanvasesChanged)) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === chat && action.type === ActionType.ChatCanvasesChanged && (action.canvases?.length ?? 0) > 0;
+			}, 90_000)).action;
+			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged && canvasAction.canvases?.[0]);
+			const state = (await client.call<SubscribeResult>('subscribe', { channel: canvasAction.canvases[0].resource })).snapshot?.state;
+			assert.ok(state && hasKey(state, { uri: true }));
+			await client.waitForNotification(n => isActionNotification(n, ActionType.ChatTurnComplete) && (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-env-canvas', 90_000);
+			assert.deepStrictEqual({
+				consent: { title: consentReady.confirmationTitle, message: consentReady.invocationMessage, options: consentReady.options?.map(option => option.id) },
+				openCanvasSucceeded: openCanvasComplete.result.success,
+				uri: (state as CanvasState).uri,
+			}, {
+				consent: {
+					title: 'Allow env-canvas to Read Sensitive Environment Variables?',
+					message: `Extension 'env-canvas' (project:env-canvas) wants to read these sensitive environment variables: ${SENSITIVE_VARIABLE}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.`,
+					options: ['allow-once', 'not-now'],
+				},
+				openCanvasSucceeded: true,
+				uri: 'http://127.0.0.1:43119/env-instance?env=visible',
+			});
+		} finally {
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, clientSeq++);
+			}
+		}
+	});
+
+	test('launches a blocked project canvas extension only after its workspace becomes trusted', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-untrusted-mock-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'untrusted-canvas');
+		const launchLog = join(extensionDir, 'launches');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { appendFileSync } from 'node:fs';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+appendFileSync(new URL('./launches', import.meta.url), process.pid + '\\n');
+await joinSession({
+	canvases: [createCanvas({
+		id: 'untrusted-canvas',
+		displayName: 'Untrusted canvas',
+		description: 'Starts only in a trusted workspace.',
+		open: () => ({ url: 'http://127.0.0.1:43119/' })
+	})]
+});
+`, 'utf8');
+
+		let previousRootConfig: ICanvasRootConfig | undefined;
+		try {
+			const sessionUri = await createProviderSession(
+				client,
+				CANVAS_COPILOT_CONFIG,
+				'real-sdk-untrusted-mock-canvas',
+				createdSessions,
+				URI.file(workspaceDir),
+				async () => {
+					previousRootConfig = await readCanvasRootConfig();
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+					}, 1);
+				},
+			);
+			const turnId = 'turn-untrusted-canvas';
+			dispatchTurn(client, sessionUri, turnId, `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Complete without a canvas.`, 2);
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
+
+			const launches = async () => {
+				try {
+					return (await readFile(launchLog, 'utf8')).split('\n').filter(Boolean).map(Number);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+						return [];
+					}
+					throw error;
+				}
+			};
+			const isRunning = (pid: number) => {
+				try {
+					process.kill(pid, 0);
+					return true;
+				} catch (error) {
+					return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+				}
+			};
+			const launchesBeforeTrust = await launches();
+			await setRootConfig({
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+			}, 3);
+			await retry(async () => assert.notStrictEqual((await launches()).length, 0), 50, 200);
+			await timeout(3_000);
+			const launchesAfterTrust = await launches();
+			const extensionPid = launchesAfterTrust[launchesAfterTrust.length - 1];
+			const runningAfterTrust = isRunning(extensionPid);
+
+			await setRootConfig({
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			}, 4);
+			// Revoking trust stops the running extension, and the launch provider refuses to start it again.
+			await retry(async () => assert.strictEqual(isRunning(extensionPid), false), 50, 200);
+			await timeout(5_000);
+
+			assert.deepStrictEqual({
+				launchesBeforeTrust: launchesBeforeTrust.length,
+				launchesAfterTrust: launchesAfterTrust.length,
+				runningAfterTrust,
+				launchesAfterRevocation: (await launches()).length,
+			}, {
+				launchesBeforeTrust: 0,
+				launchesAfterTrust: 1,
+				runningAfterTrust: true,
+				launchesAfterRevocation: 1,
+			});
+		} finally {
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, 5);
 			}
 		}
 	});

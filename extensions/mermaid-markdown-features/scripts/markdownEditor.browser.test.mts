@@ -100,6 +100,20 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		await page.evaluate(() => window.mermaidTest.setText('zenuml\n Controller.Get(id) {\n  Service.Get(id)\n }'));
 		await frame.locator('svg').filter({ hasText: 'Controller' }).waitFor();
 
+		// Diagram types with their own default layout keep it rather than dagre: a mindmap spreads its children around
+		// its root (cose-bilkent) instead of in a row below it, and a swimlane diagram draws its subgraphs as lanes.
+		await page.evaluate(() => window.mermaidTest.setText('mindmap\n root((Project))\n  Source\n  Preview\n  Tests\n  Docs'));
+		await frame.locator('svg').filter({ hasText: 'Docs' }).waitFor();
+		const mindmap = await frame.evaluate(() => {
+			const nodes = [...document.querySelectorAll('g.node')];
+			const root = nodes.find(node => node.textContent!.trim() === 'Project')!.getBoundingClientRect();
+			const children = nodes.filter(node => node.textContent!.trim() !== 'Project').map(node => node.getBoundingClientRect());
+			return { childAboveRoot: children.some(child => child.bottom <= root.top), childBelowRoot: children.some(child => child.top >= root.bottom) };
+		});
+		await page.evaluate(() => window.mermaidTest.setText('swimlane-beta\n subgraph Dev[Developer]\n  A[Write code]\n end\n subgraph CI[Build]\n  B[Run tests]\n end\n A --> B'));
+		await frame.locator('svg').filter({ hasText: 'Run tests' }).waitFor();
+		assert.deepEqual({ ...mindmap, lanes: await frame.locator('g.cluster.swimlane').count() }, { childAboveRoot: true, childBelowRoot: true, lanes: 2 });
+
 		// Subgraph titles stay centered unless an edge crosses them there, so the title of a subgraph whose
 		// edge enters at its top center moves to the top left. A subgraph narrower than its title is widened
 		// to keep the title off its sides.
@@ -139,7 +153,7 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 
 		// An edge that cannot avoid a title passes behind it: no pixel of the (red) edge shows over the title's
 		// text where the edge crosses it, while the edge's arrowhead below the title stays whole.
-		await page.evaluate(() => window.mermaidTest.setText('---\nconfig:\n  layout: dagre\n---\nflowchart TD\n A[Source] --> B\n subgraph Long[A subgraph title that is much wider than its content]\n  B[Step]\n end'));
+		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n subgraph Long[A subgraph title that is much wider than its content]\n  B[Step]\n end'));
 		await frame.locator('svg').filter({ hasText: 'much wider' }).waitFor();
 		const crossing = await frame.evaluate(() => {
 			const title = document.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
@@ -180,7 +194,7 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 
 		// Class diagram namespaces get the same treatment as subgraphs. The edge entering this one runs just
 		// inside the left-aligned position, so the title moves a little closer to the border instead.
-		await page.evaluate(() => window.mermaidTest.setText('---\nconfig:\n  layout: dagre\n---\nclassDiagram\n namespace Rendering {\n  class Renderer\n }\n Client --> Renderer'));
+		await page.evaluate(() => window.mermaidTest.setText('classDiagram\n namespace Rendering {\n  class Renderer\n }\n Client --> Renderer'));
 		await frame.locator('svg').filter({ hasText: 'Rendering' }).waitFor();
 		const namespaceTitle = await frame.evaluate(() => {
 			const cluster = document.querySelector('g.cluster')!;
@@ -202,7 +216,7 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 
 		// A subgraph that edges attach to keeps its sides, so the edges still end at its border rather than
 		// inside it, even though its title is wider than its content.
-		await page.evaluate(() => window.mermaidTest.setText('---\nconfig:\n  layout: dagre\n---\nflowchart LR\n A[Source] --> S\n subgraph S[A subgraph title wider than its content]\n  B[Step]\n end\n S --> C[Next]'));
+		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Source] --> S\n subgraph S[A subgraph title wider than its content]\n  B[Step]\n end\n S --> C[Next]'));
 		await frame.locator('svg').filter({ hasText: 'wider than its content' }).waitFor();
 		const attachedEdges = await frame.evaluate(() => {
 			const box = document.querySelector('g.cluster rect')!.getBoundingClientRect();

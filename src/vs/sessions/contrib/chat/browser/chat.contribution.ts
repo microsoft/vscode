@@ -10,17 +10,11 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../workbench/browser/editor.js';
-import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { AgentHostSandboxNotifications } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSandboxNotifications.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import './nullInlineChatSessionService.js';
@@ -31,7 +25,7 @@ import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 import { AgenticPromptsService } from './promptsService.js';
@@ -44,15 +38,16 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionComparisonAccessibleView } from './sessionsChatAccessibilityHelp.js';
-import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanners/browser/sessionWorktreeCleanupAccessibilityHelp.js';
 import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from '../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
+import { ActiveSessionChatRevealerContribution } from './activeSessionChatRevealer.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
+import { SessionLinkAttachmentWidgetContribution } from './sessionLinkAttachmentWidget.js';
 import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_GRAPHIC_SETTING, NEW_SESSION_WELCOME_GRAPHICS, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
@@ -68,14 +63,12 @@ import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARN
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, FOCUS_NEW_SESSION_BRANCH_PICKER_KEYBINDING, FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, FOCUS_NEW_SESSION_WORKTREE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, FOCUS_SESSION_SYNC_ACTION_KEYBINDING, FOCUS_SESSION_SYNC_ACTION_WHEN } from '../../../../workbench/contrib/sessions/browser/chat/newChatPickerKeybinding.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../sessionInputBanners/browser/sessionStorageCleanupConfiguration.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
-import { SessionWorktreeCleanupEditorInput } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditorInput.js';
-import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditor.js';
+import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanup.contribution.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbarDebug.js';
 import { ADD_SESSION_REFERENCE_COMMAND, addSessionReference, IAddSessionReferenceArgs } from '../../../../workbench/contrib/sessions/browser/chat/sessionReferenceCompletions.js';
-import { PromptTemplatePlaceholderFocused, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID, replaceActivePromptTemplatePlaceholder } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
+import { registerReplacePromptTemplatePlaceholderCommand } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
 import { registerCompareAgentsSpotlightDescriptor } from '../../../../workbench/contrib/sessions/browser/chat/compareAgentsSpotlight.js';
 import { registerWorktreeSuggestionTourDescriptor } from '../../../../workbench/contrib/sessions/browser/tours/worktreeSuggestionTour.js';
 import { registerSessionArchiveTourDescriptor } from '../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
@@ -342,61 +335,6 @@ MenuRegistry.appendMenuItem(Menus.SessionChatBackgroundContext, {
 	when: toggleSessionActivityBarWhen,
 });
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		SessionWorktreeCleanupEditor,
-		SessionWorktreeCleanupEditor.ID,
-		localize('sessionWorktreeCleanupEditor', "Open worktree cleanup editor"),
-	),
-	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
-);
-
-registerAction2(class ManageAgentSessionStorageAction extends Action2 {
-	constructor() {
-		super({
-			id: MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID,
-			title: localize2('manageAgentSessionStorage', "Open Worktree Cleanup"),
-			category: CHAT_CATEGORY,
-			f1: true,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: Menus.SidebarSessionsHeader,
-				group: '2_manage',
-				order: 0,
-				when: ChatContextKeys.enabled,
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, section?: unknown): Promise<void> {
-		accessor.get(ISessionWorktreeCleanupService).suppressForWindow();
-		const pane = await accessor.get(IEditorService).openEditor(new SessionWorktreeCleanupEditorInput(), { pinned: true });
-		if (section === 'automatic' && pane instanceof SessionWorktreeCleanupEditor) {
-			pane.focusAutomaticCleanup();
-		} else if (section === 'all' && pane instanceof SessionWorktreeCleanupEditor) {
-			pane.showAllWorktrees();
-		}
-	}
-});
-
-registerAction2(class DisableSessionStorageCleanupSuggestionsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chat.disableSessionStorageCleanupSuggestions',
-			title: localize2('disableSessionStorageCleanupSuggestions', "Disable Session Storage Cleanup Suggestions"),
-			category: CHAT_CATEGORY,
-			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING}`, true)),
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(ISessionWorktreeCleanupService).suppressForWindow();
-		await accessor.get(IConfigurationService).updateValue(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, false, ConfigurationTarget.APPLICATION);
-		status(localize('sessionStorageCleanupSuggestionsDisabled', "Session storage cleanup suggestions disabled."));
-	}
-});
-
 // register actions
 registerAction2(BranchChatSessionAction);
 
@@ -405,8 +343,11 @@ registerAction2(BranchChatSessionAction);
 // chat.desktop.contribution.ts so the phone bundle can omit them.
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+// Before chat inputs restore their drafts, whose session links become pills once a widget can show them.
+registerWorkbenchContribution2(SessionLinkAttachmentWidgetContribution.ID, SessionLinkAttachmentWidgetContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ActiveSessionChatRevealerContribution.ID, ActiveSessionChatRevealerContribution, WorkbenchPhase.AfterRestored);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
@@ -417,13 +358,7 @@ registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, I
 
 CommandsRegistry.registerCommand(ADD_SESSION_REFERENCE_COMMAND, (_accessor, args: IAddSessionReferenceArgs) => addSessionReference(args));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 2,
-	when: PromptTemplatePlaceholderFocused,
-	primary: KeyCode.Enter,
-	handler: () => replaceActivePromptTemplatePlaceholder(),
-});
+registerReplacePromptTemplatePlaceholderCommand();
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
@@ -440,7 +375,6 @@ registerSessionArchiveTourDescriptor();
 // register accessibility help
 AccessibleViewRegistry.register(new ArtifactDetailsAccessibilityHelp());
 AccessibleViewRegistry.register(new ArtifactDetailsAccessibleView());
-AccessibleViewRegistry.register(new SessionWorktreeCleanupAccessibilityHelp());
 AccessibleViewRegistry.register(new SessionComparisonAccessibleView());
 
 // register configuration
@@ -461,14 +395,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session in a chat when all GitHub pull requests associated with that chat have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-		},
-		[AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold, or a local worktree's disk has less than 5 GB available."),
 		},
 		[COMPARE_AGENTS_ENABLED_SETTING]: {
 			type: 'boolean',
@@ -552,9 +478,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other devices. Requires Remote Environments management."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.remoteEnvironments.sharingSetup', "Controls whether the This Computer section of the Remote Environments editor sets up sharing in an expandable form where you compare connection methods and then select Start Sharing, instead of applying each connection method as soon as you select it."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -588,6 +522,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomePhrases', "Controls whether rotating welcome phrases are shown above the new-session composer."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[NEW_SESSION_WELCOME_GRAPHIC_SETTING]: {
+			type: 'string',
+			enum: [...NEW_SESSION_WELCOME_GRAPHICS],
+			enumDescriptions: [
+				localize('sessions.chat.welcomeGraphic.none', "Show no graphic."),
+				localize('sessions.chat.welcomeGraphic.windowOverview', "Show an animation in which the single task of the editor window becomes several tasks side by side in the Agents window."),
+				localize('sessions.chat.welcomeGraphic.windowOverviewStatic', "Show the single task of the editor window next to several tasks side by side in the Agents window."),
+				localize('sessions.chat.welcomeGraphic.workingCopies', "Show an animation in which a project becomes sessions that work in separate copies of that project and in another project."),
+				localize('sessions.chat.welcomeGraphic.workingCopiesStatic', "Show a project in the editor window next to sessions that work in separate copies of that project and in another project in the Agents window."),
+				localize('sessions.chat.welcomeGraphic.windowComparison', "Show an animated comparison of one task at a time in the editor window with parallel tasks across copies and projects in the Agents window."),
+			],
+			default: 'none',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.welcomeGraphic', "Controls which graphic is shown above the welcome message of a new session until you have started two sessions in the Agents window."),
+			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[NEW_SESSION_WELCOME_NAME_SETTING]: {
@@ -624,7 +575,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
-
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([
-	sessionStorageCleanupSuggestionConfigurationMigration,
-]);

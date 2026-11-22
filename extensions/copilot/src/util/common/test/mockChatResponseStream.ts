@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { ChatResponseAnchorPart, ChatResponseCommandButtonPart, ChatResponseConfirmationPart, ChatResponseExternalEditPart, ChatResponseFileTreePart, ChatResponseMarkdownPart } from '../../../vscodeTypes';
+import { ChatResponseAnchorPart, ChatResponseConfirmationPart, ChatResponseExternalEditPart, ChatResponseMarkdownPart } from '../../../vscodeTypes';
 import { coalesce } from '../../vs/base/common/arrays';
 import { ChatResponseStreamImpl } from '../chatResponseStreamImpl';
 import { isLocation, isSymbolInformation, isUri } from '../types';
@@ -36,14 +36,6 @@ export class SpyChatResponseStream extends ChatResponseStreamImpl {
 
 	get confirmations(): vscode.ChatResponseConfirmationPart[] {
 		return this.items.filter((part) => part instanceof ChatResponseConfirmationPart);
-	}
-
-	get fileTrees(): vscode.ChatResponseFileTreePart[] {
-		return this.items.filter((part) => part instanceof ChatResponseFileTreePart);
-	}
-
-	get commandButtons(): vscode.Command[] {
-		return this.items.filter((part): part is ChatResponseCommandButtonPart => part instanceof ChatResponseCommandButtonPart).map(part => part.value);
 	}
 
 	get externalEditUris(): vscode.Uri[] {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiQueryOptions, ApiRequestOptions } from '../client/request.js';
 import type { ActivationContext, EnvironmentKind } from './missionControl.js';
 
@@ -242,23 +243,23 @@ export type EnvironmentConnectResult = (
 /** Environment discovery, lifecycle, and credential operations. */
 export interface IEnvironmentsClient {
 	/** POST /agents/environments/tokens: mint a short-lived identity credential for host authentication. */
-	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken>;
+	mintIdentityToken(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken>;
 
 	/** GET /agents/environments: list the authenticated account's environments with optional filters. */
-	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]>;
+	list(cancellationToken: CancellationToken, options?: ListEnvironmentsOptions): Promise<readonly Environment[]>;
 
 	/** GET /agents/environments/{environment_id}: read an environment owned by the authenticated account. */
-	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment>;
+	get(environmentId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Environment>;
 
 	/** DELETE /agents/environments/{environment_id}: delete an owned environment; missing environments reject with HTTP 404. */
-	delete(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	delete(environmentId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/environments/{environment_id}/seal-token: seal a credential through the approved credential gateway without replay or caching. */
-	sealToken(environmentId: string, request: SealEnvironmentTokenRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<SealedEnvironmentToken>;
+	sealToken(environmentId: string, request: SealEnvironmentTokenRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<SealedEnvironmentToken>;
 
 	/** GET /agents/environments/{environment_id}/connect: request credentials for a new logical client connection, or report that the environment is waking. */
-	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult>;
+	connect(environmentId: string, cancellationToken: CancellationToken, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult>;
 
 	/** GET /agents/environments/{environment_id}/reconnect: refresh an existing client's credentials, or report that the environment is waking. */
-	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult>;
+	reconnect(environmentId: string, clientId: string, cancellationToken: CancellationToken, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult>;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ImmortalReference } from '../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -11,12 +12,12 @@ import { WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js
 import { Issue } from '../../../github/common/core/issues.js';
 import { PullRequest, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { GitHubQueryApi } from '../../../github/common/githubQueryService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
-import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 
 export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None, api: Partial<Pick<IGitHubAccountClient, 'pullRequests' | 'actions' | 'checks' | 'reviews'>> = {}, credentialSource?: IAgentHostCredentialSource): IAgentHostGitHubService {
 	const agentMergeBindings = new Map<string, IAgentHostCredentialSource>();
@@ -49,9 +50,9 @@ export function createTestGitHubClient(overrides: Partial<Pick<IGitHubClient, 'c
 	return new class extends mock<IGitHubClient>() {
 		override readonly credentials = overrides.credentials ?? new class extends mock<IGitHubCredentials>() {
 			override readonly onDidInvalidate = Event.None;
-			override async getCredential(signal: AbortSignal) {
-				signal.throwIfAborted();
-				return { account: { host: 'api.github.com', accountId: '1' }, token: 'test-token', generation: 1, signal: new AbortController().signal };
+			override async getCredential(cancellationToken: CancellationToken) {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				return { account: { host: 'api.github.com', accountId: '1' }, token: 'test-token', generation: 1, cancellationToken: CancellationToken.None };
 			}
 		}();
 		override readonly query = overrides.query ?? new class extends mock<GitHubQueryApi>() { }();

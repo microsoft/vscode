@@ -177,7 +177,7 @@ Common patterns in VS Code CI:
 gh run view <RUN_ID> --job <JOB_ID> --log-failed | grep "error TS"
 
 # Find hygiene/lint errors
-gh run view <RUN_ID> --job <JOB_ID> --log-failed | grep -E "eslint|stylelint|hygiene"
+gh run view <RUN_ID> --job <JOB_ID> --log-failed | grep -E "oxlint|stylelint|hygiene"
 ```
 
 ---

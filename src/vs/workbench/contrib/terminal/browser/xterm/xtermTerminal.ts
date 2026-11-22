@@ -12,6 +12,7 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -50,7 +51,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { updateTerminalFontRendering } from './terminalFontRendering.js';
+import { ensureCanvasFontLeadingWhitespaceFix, updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -547,7 +548,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
@@ -728,6 +729,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	getFont(): ITerminalFont {
 		return this._terminalConfigurationService.getFont(dom.getWindow(this.raw.element), this._core);
+	}
+
+	setBufferLineWrapped(lineIndex: number, isWrapped: boolean): void {
+		this._core._bufferService.buffer.setWrapped(lineIndex, isWrapped);
 	}
 
 	getLongestViewportWrappedLineLength(): number {
@@ -977,6 +982,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			customGlyphs
 		});
 		this._webglWindow = dom.getWindow(this.raw.element);
+		ensureCanvasFontLeadingWhitespaceFix(mainWindow);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -1213,7 +1219,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
 	}

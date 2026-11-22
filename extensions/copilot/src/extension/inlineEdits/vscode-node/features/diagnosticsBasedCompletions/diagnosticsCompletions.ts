@@ -10,7 +10,6 @@ import { LanguageId } from '../../../../../platform/inlineEdits/common/dataTypes
 import { RootedLineEdit } from '../../../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
 import { IObservableDocument } from '../../../../../platform/inlineEdits/common/observableWorkspace';
 import { ILogger } from '../../../../../platform/log/common/logService';
-import { min } from '../../../../../util/common/arrays';
 import { ErrorUtils } from '../../../../../util/common/errors';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { LineEdit } from '../../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -86,10 +85,6 @@ export abstract class DiagnosticCompletionItem implements vscode.InlineCompletio
 
 	toLineEdit() {
 		return LineEdit.fromTextEdit(this.toTextEdit(), this._workspaceDocument.value.get());
-	}
-
-	getDiagnosticOffsetRange() {
-		return this.diagnostic.range;
 	}
 
 	getRootedLineEdit() {
@@ -277,14 +272,4 @@ export function sortDiagnosticsByDistance(workspaceDocument: IObservableDocument
 		// always prefer the first diagnostic to minimize recomputation and flickering on cursor move
 		return -1;
 	});
-}
-
-export function distanceToClosestDiagnostic(workspaceDocument: IObservableDocument, diagnostics: Diagnostic[], position: Position): number | undefined {
-	if (diagnostics.length === 0) {
-		return undefined;
-	}
-
-	const distances = diagnostics.map(diagnostic => diagnosticDistanceToPosition(workspaceDocument, diagnostic, position).lineDelta);
-
-	return min(distances);
 }

@@ -119,10 +119,10 @@ suite('AgentHostTcpConnection', () => {
 				stream.flushCredit();
 				sent.length = 0;
 			}
-			const maximumMessageBytes = agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024;
+			const maximumMessageBytes = agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maxFrameBytes + 64 * 1024;
 			const text = JSON.stringify({ jsonrpc: '2.0', method: 'tcp/data', params: { channel, data: 'YWFh'.repeat(maximumMessageBytes / 8) } });
 			const rejected = assert.rejects(stream.read(), /Channel reassembly capacity exceeded/);
-			const fragmentCharacters = agentHostTcpReceiveLimits.maximumFrameBytes / 4;
+			const fragmentCharacters = agentHostTcpReceiveLimits.maxFrameBytes / 4;
 			for (let offset = 0; offset < text.length; offset += fragmentCharacters) {
 				const frame: JsonRpcNotification = {
 					jsonrpc: '2.0', method: 'channel/frame',

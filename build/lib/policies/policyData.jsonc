@@ -535,7 +535,7 @@
                 }
             },
             "type": "boolean",
-            "default": false,
+            "default": true,
             "included": true,
             "agentHost": {
                 "status": "enforced"
@@ -678,7 +678,7 @@
             "localization": {
                 "description": {
                     "key": "chat.extensionToolsEnabled",
-                    "value": "Enable using tools contributed by third-party extensions."
+                    "value": "Enable using tools contributed by third-party extensions. These tools are also disabled when your organization disables MCP."
                 }
             },
             "type": "boolean",
@@ -973,14 +973,14 @@
             "localization": {
                 "description": {
                     "key": "chat.useHooks.description",
-                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness."
+                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings."
                 }
             },
             "type": "boolean",
             "default": true,
             "included": true,
             "agentHost": {
-                "status": "notEnforced"
+                "status": "partial"
             }
         },
         {

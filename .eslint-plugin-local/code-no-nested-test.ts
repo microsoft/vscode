@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Scope, Visitor } from '@oxlint/plugins';
 
 const registrations = new Set(['test', 'it', 'suite', 'describe']);
 const testBodies = new Set(['test', 'it']);
@@ -14,9 +13,9 @@ const testBodies = new Set(['test', 'it']);
  * test body happens too late: Mocha silently drops it, so it never runs. This typically comes from
  * a misplaced closing brace.
  */
-export default new class NoNestedTest implements eslint.Rule.RuleModule {
+export default new class NoNestedTest implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		messages: {
 			nested: '`{{name}}` is declared inside the body of another test and will never run. Check for a misplaced closing brace.'
@@ -24,10 +23,13 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 		schema: []
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const sourceCode = context.sourceCode;
 
-		/** Returns the test API name (`test`, `suite`, ...) when the call is a call into the test framework. */
+		/**
+		 * Returns the test API name (`test`, `suite`, ...) when the callee syntactically looks like a call into the
+		 * test framework. {@link isFrameworkGlobal} must also hold for it to be one.
+		 */
 		function getTestApiName(node: ESTree.Node): string | undefined {
 			if (node.type !== 'CallExpression') {
 				return undefined;
@@ -37,31 +39,32 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 			if (callee.type === 'MemberExpression' && callee.object.type === 'Identifier' && !callee.computed) {
 				callee = callee.object;
 			}
-			if (callee.type !== 'Identifier' || !registrations.has(callee.name)) {
-				return undefined;
-			}
-			// Only Mocha's globals are covered. A local helper that happens to be named `test` is not the test
-			// framework, and `node:test` runs a test declared inside another test as a subtest.
-			const name = callee.name;
-			for (let scope: eslint.Scope.Scope | null = sourceCode.getScope(node); scope; scope = scope.upper) {
+			return callee.type === 'Identifier' && registrations.has(callee.name) ? callee.name : undefined;
+		}
+
+		/**
+		 * Only Mocha's globals are covered. A local helper that happens to be named `test` is not the test
+		 * framework, and `node:test` runs a test declared inside another test as a subtest.
+		 * This requires scope analysis, which is costly, so it is only checked after all syntactic conditions.
+		 */
+		function isFrameworkGlobal(node: ESTree.Node, name: string): boolean {
+			for (let scope: Scope | null = sourceCode.getScope(node); scope; scope = scope.upper) {
 				const variable = scope.set.get(name);
 				// Configured globals (`languageOptions.globals`, `/* global test */`) have no definitions.
 				if (variable && variable.defs.length > 0) {
-					return undefined;
+					return false;
 				}
 			}
-			return name;
+			return true;
 		}
 
 		function isInsideTestBody(node: ESTree.Node): boolean {
-			const ancestors = sourceCode.getAncestors(node);
-			for (let i = ancestors.length - 1; i > 0; i--) {
-				const fn = ancestors[i];
-				const parent = ancestors[i - 1];
+			for (let fn: ESTree.Node | null = node.parent; fn; fn = fn.parent) {
+				const parent = fn.parent;
 				if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
-					&& parent.type === 'CallExpression' && parent.arguments.includes(fn)) {
+					&& parent?.type === 'CallExpression' && parent.arguments.includes(fn)) {
 					const name = getTestApiName(parent);
-					if (name && testBodies.has(name)) {
+					if (name && testBodies.has(name) && isFrameworkGlobal(parent, name)) {
 						return true;
 					}
 				}
@@ -77,7 +80,7 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 		return {
 			CallExpression: (node: ESTree.CallExpression) => {
 				const name = getTestApiName(node);
-				if (name && node.arguments.some(isCallbackArgument) && isInsideTestBody(node)) {
+				if (name && node.arguments.some(isCallbackArgument) && isInsideTestBody(node) && isFrameworkGlobal(node, name)) {
 					context.report({ node, messageId: 'nested', data: { name } });
 				}
 			}

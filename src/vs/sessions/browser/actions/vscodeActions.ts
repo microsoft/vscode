@@ -13,6 +13,8 @@ import { Action2 } from '../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
@@ -92,7 +94,7 @@ export class OpenInVSCodeAction extends Action2 {
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
-		const chatSession = getEditorWindowSessionResource(context?.chat.resource ?? activeSession.resource, activeSession.providerId, sessionsProvidersService, remoteAgentHostService, accessor.get(IAgentHostConnectionsService), accessor.get(ITunnelAgentHostService));
+		const chatSession = getEditorWindowSessionResource(context?.chat.resource ?? activeSession.resource, activeSession.providerId, sessionsProvidersService, remoteAgentHostService, accessor.get(IAgentHostConnectionsService), accessor.get(ITunnelAgentHostService), accessor.get(ISSHRemoteAgentHostService), accessor.get(IRemoteAgentHostLocationPreferenceService));
 		if (URI.isUri(chatSession)) {
 			params.set('session', chatSession.toString());
 		} else {

@@ -626,7 +626,7 @@ export class FileService extends Disposable implements IFileService {
 				!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) ||	// provider has no buffered capability
 				(hasReadWriteCapability(provider) && readFileOptions?.preferUnbuffered)								// unbuffered read is preferred
 			) {
-				fileStream = this.readFileUnbuffered(provider, resource, readFileOptions);
+				fileStream = this.readFileUnbuffered(provider, resource, cancellableSource.token, readFileOptions);
 			}
 
 			// read streamed (always prefer over primitive buffered read)
@@ -699,7 +699,7 @@ export class FileService extends Disposable implements IFileService {
 		return stream;
 	}
 
-	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithFileAtomicReadCapability, resource: URI, options?: IReadFileOptions & IReadFileStreamOptions): VSBufferReadableStream {
+	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithFileAtomicReadCapability, resource: URI, token: CancellationToken, options?: IReadFileOptions & IReadFileStreamOptions): VSBufferReadableStream {
 		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
 
 		// Read the file into the stream async but do not wait for
@@ -708,9 +708,9 @@ export class FileService extends Disposable implements IFileService {
 			try {
 				let buffer: Uint8Array;
 				if (options?.atomic && hasFileAtomicReadCapability(provider)) {
-					buffer = await provider.readFile(resource, { atomic: true });
+					buffer = await provider.readFile(resource, { atomic: true }, token);
 				} else {
-					buffer = await provider.readFile(resource);
+					buffer = await provider.readFile(resource, undefined, token);
 				}
 
 				// respect position option

@@ -1207,9 +1207,27 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			if (deep) {
 				this.collapse(node.element.element as T);
 			} else {
-				this.refreshAndRenderNode(node.element, false)
+				this.refreshStaleNode(node.element)
 					.catch(onUnexpectedError);
 			}
+		}
+	}
+
+	/**
+	 * Loads the children of a stale node that was just expanded. A refresh of an intersecting subtree that is already
+	 * in flight loads them itself if it samples the node after the expansion, so only refresh the node if it is
+	 * still stale and expanded once that refresh is done.
+	 */
+	private async refreshStaleNode(node: IAsyncDataTreeNode<TInput, T>): Promise<void> {
+		for (const [refreshNode, refreshPromise] of this.subTreeRefreshPromises) {
+			if (intersects(refreshNode, node)) {
+				await refreshPromise;
+				break;
+			}
+		}
+
+		if (node.stale && this.tree.hasElement(node) && !this.tree.isCollapsed(node)) {
+			await this.refreshAndRenderNode(node, false);
 		}
 	}
 
@@ -1345,7 +1363,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return {
 				element: node,
 				collapsible: node.hasChildren,
-				collapsed: true
+				// A stale node the user expanded since it was sampled stays expanded: its children are being loaded
+				collapsed: !this.tree.hasElement(node) || this.tree.isCollapsed(node)
 			};
 		}
 

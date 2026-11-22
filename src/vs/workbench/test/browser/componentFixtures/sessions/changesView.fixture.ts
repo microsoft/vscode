@@ -44,6 +44,7 @@ import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, te
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -76,6 +77,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
+	readonly activeSessionBaseBranchFullNameObs = constObservable<string | undefined>(undefined);
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 	getSessionChanges(): IChangesSessionObservables {
@@ -96,6 +98,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 			changesSummaryObs: this.activeSessionChangesSummaryObs,
 			sectionCollapseStateObs: this.activeSessionSectionCollapseStateObs,
 			stateObs: this.activeSessionStateObs,
+			baseBranchFullNameObs: this.activeSessionBaseBranchFullNameObs,
 		};
 	}
 
@@ -426,7 +429,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			}());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'fixture', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(IWorkspaceFolderLabelService, new class extends mock<IWorkspaceFolderLabelService>() {
 				override getWorkspaceFolderLabel(): string {
 					return 'vscode (feature/changes-view-fixtures)';

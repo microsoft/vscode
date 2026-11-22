@@ -9,7 +9,7 @@ import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IReference, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, waitForState } from '../../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -22,6 +22,8 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { ITextDiffEditorPane } from '../../../../../../common/editor.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IMcpAppResourceContent, McpToolCallUI } from '../../../../../mcp/browser/mcpToolCallUI.js';
 import { MCP } from '../../../../../mcp/common/modelContextProtocol.js';
 import { McpApps } from '../../../../../mcp/common/modelContextProtocolApps.js';
@@ -29,10 +31,12 @@ import { IOverlayWebview, IWebviewService, WebviewMessageReceivedEvent } from '.
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostMcpAppToolProvider, IAgentHostMcpAppToolsService } from '../../../../browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IChatWidgetService } from '../../../../browser/chat.js';
+import { ChatMcpAppEditorInput } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppEditor.js';
 import { ChatMcpAppModel } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppModel.js';
 import { IMcpAppRenderData } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppSubPart.js';
 import { IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
+import { registerTestIframe } from '../../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatMcpAppModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +64,14 @@ suite('ChatMcpAppModel', () => {
 		const operations: string[] = [];
 		const anchors: [HTMLElement, HTMLElement | undefined][] = [];
 		const observerWindows: ReturnType<typeof dom.getWindow>[] = [];
+		const editorInputs: ChatMcpAppEditorInput[] = [];
+		const editorAttachment = store.add(new MutableDisposable());
+		const editorContainer = dom.$('div');
+		editorContainer.style.cssText = 'width: 100px; height: 100px;';
+		document.body.appendChild(editorContainer);
+		store.add(toDisposable(() => editorContainer.remove()));
+		let editorReferences = 0;
+		let editorOpenSucceeds = true;
 		let owner: object | undefined;
 		let contextWindow: ReturnType<typeof dom.getWindow> | undefined;
 		let hasContext = false;
@@ -127,6 +139,10 @@ suite('ChatMcpAppModel', () => {
 				},
 			})],
 			[IAgentHostMcpAppToolsService, upcastPartial<IAgentHostMcpAppToolsService>({
+				acquire: (): IReference<ChatMcpAppModel> => {
+					editorReferences++;
+					return Object.assign(toDisposable(() => editorReferences--), { object: model });
+				},
 				registerApp: (session, provider) => {
 					assert.deepStrictEqual(session, sessionResource);
 					registered = provider;
@@ -140,6 +156,23 @@ suite('ChatMcpAppModel', () => {
 					initiallyRetaining = !!info.options.retainContextWhenHidden;
 					recordOperation('create');
 					return webview;
+				},
+			})],
+			[IEditorService, upcastPartial<IEditorService>({
+				openEditor: async input => {
+					assert.ok(input instanceof ChatMcpAppEditorInput);
+					if (!editorInputs.includes(input)) {
+						editorAttachment.value = input.model.attach(editorContainer, {
+							targetWindow: dom.getWindow(editorContainer),
+							maxHeight: constObservable(700),
+							currentWidth: constObservable(1000),
+							clippingContainer: editorContainer,
+						});
+						store.add(input.onWillDispose(() => editorAttachment.clear()));
+						setVisible(true, editorContainer);
+					}
+					editorInputs.push(input);
+					return editorOpenSucceeds ? upcastPartial<ITextDiffEditorPane>({ input }) : undefined;
 				},
 			})],
 			[IStorageService, store.add(new InMemoryStorageService())],
@@ -209,9 +242,10 @@ suite('ChatMcpAppModel', () => {
 		};
 		setVisible(initiallyVisible);
 		const send = (message: McpApps.AppMessage) => onMessage.fire({ message });
+		let displayModeRequestId = 0;
 		const listRequests = () => messages.filter((message): message is MCP.ListToolsRequest => hasKey(message, { method: true }) && message.method === 'tools/list');
 		return {
-			model, html, messages, serverToolCalls, operations, anchors, observerWindows, container, attachment, send, listRequests, readsBeforeAttach, setVisible, currentWidth,
+			model, html, messages, serverToolCalls, operations, anchors, observerWindows, container, attachment, send, listRequests, readsBeforeAttach, setVisible, currentWidth, editorInputs,
 			onDidOverlayOperation: onDidOverlayOperation.event,
 			onDidPostMessage: onDidPostMessage.event,
 			get reads() { return reads; },
@@ -219,12 +253,22 @@ suite('ChatMcpAppModel', () => {
 			get contextWindow() { return contextWindow; },
 			get initiallyRetaining() { return initiallyRetaining; },
 			get registered() { return registered; },
-			async initialize(tools = true) {
+			get editorReferences() { return editorReferences; },
+			set editorOpenSucceeds(value: boolean) { editorOpenSucceeds = value; },
+			async requestDisplayMode(mode: McpApps.McpUiDisplayMode) {
+				const id = `display-mode-${displayModeRequestId++}`;
+				const pending = Event.toPromise(Event.filter(onDidPostMessage.event, message => !hasKey(message, { method: true }) && message.id === id));
+				send({ jsonrpc: '2.0', id, method: 'ui/request-display-mode', params: { mode } });
+				const response = await pending;
+				assert.ok(hasKey(response, { result: true }));
+				return response.result;
+			},
+			async initialize(tools = true, availableDisplayModes?: McpApps.McpUiDisplayMode[]) {
 				await waitForState(model.loadState, state => state.status === 'loaded');
 				const response = Event.toPromise(Event.filter(onDidPostMessage.event, message => !(hasKey(message, { method: true })) && message.id === 'initialize'));
 				send({
 					jsonrpc: '2.0', id: 'initialize', method: 'ui/initialize',
-					params: { appInfo: { name: 'test', version: '1' }, appCapabilities: tools ? { tools: { listChanged: true } } : {}, protocolVersion: McpApps.LATEST_PROTOCOL_VERSION },
+					params: { appInfo: { name: 'test', version: '1' }, appCapabilities: { ...(tools ? { tools: { listChanged: true } } : {}), availableDisplayModes }, protocolVersion: McpApps.LATEST_PROTOCOL_VERSION },
 				});
 				await response;
 				send({ method: 'ui/notifications/initialized' });
@@ -293,6 +337,24 @@ suite('ChatMcpAppModel', () => {
 		fixture.setServer(McpServerStatus.Ready);
 		await waitForState(fixture.model.loadState, state => state.status === 'loaded');
 		assert.deepStrictEqual({ state: fixture.model.loadState.get(), reads: fixture.reads }, { state: { status: 'loaded' }, reads: 2 });
+	});
+
+	test('starts a stopped server once after a failed load and leaves failed servers to explicit starts', async () => {
+		let starts = 0;
+		const start = async () => { starts++; };
+		const fixture = createFixture(McpServerStatus.Stopped, async () => { throw new Error('MCP server not connected: verification'); });
+		fixture.setServer(McpServerStatus.Stopped, { enabled: true, start });
+		await waitForState(fixture.model.loadState, state => state.status === 'unavailable');
+		const startsAfterFirstLoad = starts;
+
+		fixture.setServer(McpServerStatus.Error, { enabled: true, start });
+		await waitForState(fixture.model.loadState, state => state.status === 'unavailable');
+		const startsAfterFailure = starts;
+
+		await fixture.model.startServer();
+		assert.deepStrictEqual({ startsAfterFirstLoad, startsAfterFailure, starts, reads: fixture.reads }, {
+			startsAfterFirstLoad: 1, startsAfterFailure: 1, starts: 2, reads: 2,
+		});
 	});
 
 	test('keeps errors for a Ready server without auto-retrying and supports manual retry', async () => {
@@ -365,6 +427,76 @@ suite('ChatMcpAppModel', () => {
 		fixture.model.retry();
 		assert.deepStrictEqual({ state: fixture.model.loadState.get(), reads: fixture.reads, htmlCount: fixture.html.length }, {
 			state: { status: 'unavailable' }, reads: 1, htmlCount: 0,
+		});
+	});
+
+	test('negotiates fullscreen unless the app declares modes without it and announces fixed editor dimensions', async () => {
+		const results = [];
+		for (const availableModes of [undefined, ['inline'], ['inline', 'fullscreen']] satisfies (McpApps.McpUiDisplayMode[] | undefined)[]) {
+			const fixture = createFixture(McpServerStatus.Ready);
+			await fixture.initialize(false, availableModes);
+			const result = await fixture.requestDisplayMode('fullscreen');
+			const context = fixture.messages.filter((message): message is McpApps.McpUiHostContextChangedNotification & MCP.JSONRPCNotification => hasKey(message, { method: true }) && message.method === 'ui/notifications/host-context-changed').at(-1)?.params;
+			results.push({ result, canFullscreen: fixture.model.canFullscreen.get(), editors: fixture.editorInputs.length, context });
+		}
+		assert.deepStrictEqual(results, [
+			{
+				result: { mode: 'fullscreen' }, canFullscreen: true, editors: 1,
+				context: { displayMode: 'fullscreen', containerDimensions: { width: 1000, height: 700 }, toolCall: { toolCallId: 'call', toolName: 'verification' } },
+			},
+			{ result: { mode: 'inline' }, canFullscreen: false, editors: 0, context: undefined },
+			{
+				result: { mode: 'fullscreen' }, canFullscreen: true, editors: 1,
+				context: { displayMode: 'fullscreen', containerDimensions: { width: 1000, height: 700 }, toolCall: { toolCallId: 'call', toolName: 'verification' } },
+			},
+		]);
+	});
+
+	test('reinitializing resets fullscreen capabilities without closing the editor and closing returns inline', async () => {
+		const fixture = createFixture(McpServerStatus.Ready);
+		await fixture.initialize(false, ['inline', 'fullscreen']);
+		await fixture.model.setDisplayMode('fullscreen');
+		const input = fixture.editorInputs[0];
+		await fixture.initialize(false, ['inline']);
+		const reinitialized = { mode: fixture.model.displayMode.get(), canFullscreen: fixture.model.canFullscreen.get(), references: fixture.editorReferences };
+		input.dispose();
+		assert.deepStrictEqual({ reinitialized, mode: fixture.model.displayMode.get(), references: fixture.editorReferences, closed: input.isDisposed(), title: input.getName() }, {
+			reinitialized: { mode: 'fullscreen', canFullscreen: false, references: 1 }, mode: 'inline', references: 0, closed: true, title: 'test',
+		});
+	});
+
+	test('moving inline to editor and back retains the same iframe until the inline attachment claims it', async () => {
+		const fixture = createFixture(undefined, async () => resource, { kind: 'local' });
+		fixture.model.setHiddenRetentionEnabled(false);
+		await fixture.initialize(false, ['inline', 'fullscreen']);
+		await fixture.model.setDisplayMode('fullscreen');
+		fixture.attachment.dispose();
+		const fullscreen = fixture.context;
+		const pip = await fixture.requestDisplayMode('pip');
+		await fixture.model.setDisplayMode('fullscreen');
+		await fixture.model.setDisplayMode('inline');
+		fixture.model.setHiddenRetentionEnabled(false);
+		const returning = fixture.context;
+		store.add(fixture.model.attach(fixture.container, {
+			targetWindow: dom.getWindow(fixture.container), maxHeight: constObservable(600), currentWidth: constObservable(800),
+		}));
+		fixture.setVisible(true);
+		assert.deepStrictEqual({ fullscreen, pip, returning, inline: fixture.context, mode: fixture.model.displayMode.get(), reads: fixture.reads, htmlCount: fixture.html.length, reusedInput: fixture.editorInputs[0] === fixture.editorInputs[1] }, {
+			fullscreen: { alive: true, creations: 1, disposals: 0, retaining: true },
+			pip: { mode: 'fullscreen' },
+			returning: { alive: true, creations: 1, disposals: 0, retaining: true },
+			inline: { alive: true, creations: 1, disposals: 0, retaining: false },
+			mode: 'inline', reads: 1, htmlCount: 1, reusedInput: true,
+		});
+	});
+
+	test('a failed editor open returns the app inline and releases the editor reference', async () => {
+		const fixture = createFixture(McpServerStatus.Ready);
+		await fixture.initialize(false, ['inline', 'fullscreen']);
+		fixture.editorOpenSucceeds = false;
+		const mode = await fixture.model.setDisplayMode('fullscreen');
+		assert.deepStrictEqual({ mode, references: fixture.editorReferences, closed: fixture.editorInputs[0].isDisposed() }, {
+			mode: 'inline', references: 0, closed: true,
 		});
 	});
 
@@ -738,6 +870,7 @@ suite('ChatMcpAppModel', () => {
 		const frame = dom.$<HTMLIFrameElement>('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		assert.ok(frame.contentDocument?.body);
 		const container = dom.$('div');
 		container.style.cssText = 'width: 100px; height: 100px;';

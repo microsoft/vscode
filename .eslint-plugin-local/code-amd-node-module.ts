@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -26,18 +25,20 @@ function getModules(): Set<string> {
 	return cachedModules;
 }
 
-export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
+type Literal = Extract<ESTree.Node, { type: 'Literal' }>;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+export default new class ApiProviderNaming implements CreateRule {
+
+	readonly meta: RuleMeta = {
 		messages: {
 			amdX: 'Use `import type` for import declarations, use `amdX#importAMDNodeModule` for import expressions'
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
-		const checkImport = (node: ESTree.Literal & { parent?: ESTree.Node & { importKind?: string } }) => {
+		const checkImport = (node: Literal) => {
 
 			if (typeof node.value !== 'string') {
 				return;
@@ -58,9 +59,22 @@ export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 			});
 		};
 
+		// Track whether we are inside an import declaration/expression instead of
+		// using descendant selectors, which are expensive to match on every literal
+		let importDepth = 0;
+		const enterImport = () => { importDepth++; };
+		const exitImport = () => { importDepth--; };
+
 		return {
-			['ImportExpression Literal']: checkImport,
-			['ImportDeclaration Literal']: checkImport
+			['ImportExpression']: enterImport,
+			['ImportExpression:exit']: exitImport,
+			['ImportDeclaration']: enterImport,
+			['ImportDeclaration:exit']: exitImport,
+			['Literal']: (node: Literal) => {
+				if (importDepth > 0) {
+					checkImport(node);
+				}
+			}
 		};
 	}
 };

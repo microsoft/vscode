@@ -269,10 +269,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		super.dispose();
 	}
 
-	get currentModels(): vscode.LanguageModelChatInformation[] {
-		return this._currentModels;
-	}
-
 	private async _registerChatProvider(): Promise<void> {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,

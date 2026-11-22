@@ -17,6 +17,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -39,13 +40,14 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -85,7 +87,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../sessions/browser/fixCIChecks.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../sessions/providers/agentHost/browser/agentHostSkillButtons.js';
-import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -349,6 +351,10 @@ export function isChangesActionsWorkspaceReady(session: ISession | undefined, ch
 		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
 }
 
+const AGENT_MERGE_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionAgentMergeEnabledContext.key]);
+const ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionArtifactIntegrationsEnabledContext.key]);
+const CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS: ReadonlySet<string> = new Set([DesktopChangesEditorTransitionContext.key]);
+
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _buttonBar: WorkbenchButtonBar;
@@ -368,6 +374,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
 
@@ -406,6 +413,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
 			}
 		}));
+		// The button bar's action runner catches what an operation throws, such
+		// as a merge the agent host rejects, so report it here.
+		this._register(buttonBar.onDidRun(({ action, error }) => {
+			if (error && !isCancellationError(error)) {
+				this.logService.error(`[ChangesWorkbenchButtonBarWidget] Changeset operation failed: operation=${action.id}`, error);
+				notificationService.error(error);
+			}
+		}));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuChanged = observableSignalFromEvent(this, menu.onDidChange);
@@ -423,9 +438,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			));
 		});
 
-		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
+		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(AGENT_MERGE_ENABLED_CONTEXT_KEYS)), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
-		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
+		const artifactIntegrationsEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS)), () =>
+			SessionArtifactIntegrationsEnabledContext.getValue(contextKeyService) === true);
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS)), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
@@ -475,10 +492,15 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			// by the host because the Agent Merge menu keys off them to know it
 			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
 			// Merge is unavailable this state simply offers no button.
+			//
+			// With artifact integrations, the pull request artifact offers the
+			// pull request operations, such as Mark Ready and Merge, instead.
+			const hidesPullRequestOperations = artifactIntegrationsEnabledObs.read(reader);
 			const operations = changes.changesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
 				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
+				.filter(op => !hidesPullRequestOperations || !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))
 				.filter(op => !excludedOperationIds.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
@@ -575,11 +597,16 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const usesContributedPrimary = !operations.hasRunning && dropdownMenuActions.primary !== undefined;
 			const primaryAction = usesContributedPrimary ? dropdownMenuActions.primary : operations.groups[0]?.[0];
 
+			// The bar renders a single button, so while an operation owns it the
+			// actions of the toolbar's submenus, such as Submit Feedback, join
+			// its dropdown rather than being dropped behind it.
+			const toolbarActions = primaryAction ? getChangesToolbarDropdownActions(menuActions.primary) : [];
+
 			// The button bar treats the first entry of a submenu as the button
 			// itself and the remainder as the dropdown, so the primary has to
 			// lead. A contributed primary only names its own actions, so the
 			// menu entry it came from is dropped rather than repeated below it.
-			const groups = [...operations.groups, ...dropdownMenuActions.groups]
+			const groups = [...operations.groups, ...dropdownMenuActions.groups, toolbarActions]
 				.map(group => group.filter(action => action !== dropdownMenuActions.contributed))
 				.filter(group => group.length > 0);
 			const entryCount = groups.reduce((count, group) => count + group.length, 0);
@@ -730,6 +757,17 @@ export function actionsNamingSession<T extends MenuItemAction | SubmenuItemActio
 	return withSession.map(([group, actions], groupIndex) => [group, actions.map((action, index) => action instanceof MenuItemAction && action.item.source ? withResource[groupIndex]?.[1][index] ?? action : action)]);
 }
 
+/**
+ * The actions of the submenus of the Changes toolbar, such as Apply Actions with Submit Feedback, as entries of the
+ * dropdown of the operation that owns the button, such as Merge Changes: the button bar renders only its first action,
+ * so the submenu itself would never show, and the dropdown is a flat list.
+ */
+export function getChangesToolbarDropdownActions(actions: readonly IAction[]): IAction[] {
+	return actions.flatMap(action => action instanceof SubmenuAction
+		? action.actions.filter(child => !(child instanceof Separator))
+		: []);
+}
+
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -755,24 +793,29 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-interface IChangesPickerLabel {
+export interface IChangesPickerLabel {
 	readonly label: string;
 	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
 }
 
 export function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
-	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
+	return derivedObservableWithCache<(IChangesPickerLabel & { readonly changesetLabel: string }) | undefined>(owner, (reader, lastValue) => {
 		const changeset = changes.changesetObs.read(reader);
 		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
-			return lastValue;
+			// Keeps the label stable, but without a base branch the incoming changesets may not share.
+			return lastValue && { ...lastValue, label: lastValue.changesetLabel };
 		}
 		if (!changeset) {
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
+		const baseBranchFullName = changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changes.baseBranchFullNameObs.read(reader) : undefined;
 		return {
-			label: changeset.label,
+			label: baseBranchFullName
+				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, baseBranchFullName)
+				: changeset.label,
+			changesetLabel: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
 		};
@@ -2172,6 +2215,12 @@ export class VersionsPickerAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: desktopChangesEditorHeader,
+			}, {
+				// The header that the Changes editor draws itself, where the editor part around it does not
+				id: Menus.SessionsEditorHeaderPrimary,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionChangesEditorDrawsHeaderContext),
 			}],
 		});
 	}

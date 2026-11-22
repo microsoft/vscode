@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
-import tseslint from 'typescript-eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import rule from '../code-translation-remind.ts';
 
 RuleTester.describe = suite;
@@ -13,7 +12,7 @@ RuleTester.it = test;
 
 const code = `import { localize } from '../../../../nls.js';`;
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-translation-remind', rule, {
+new RuleTester().run('code-translation-remind', rule, {
 	valid: [
 		{ filename: '/repo/src/vs/workbench/contrib/chat/browser/example.ts', code },
 		{ filename: String.raw`C:\repo\src\vs\workbench\contrib\chat\browser\example.ts`, code },

@@ -48,21 +48,25 @@ import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../../workbench/
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionsPartTestHarness, createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { SessionsServiceNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -75,6 +79,7 @@ import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/ses
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -83,6 +88,7 @@ import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbe
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ITestSessionsService, ITestSessionWithChat, ITestShownChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - Actions', () => {
 
@@ -214,15 +220,13 @@ suite('Sessions - Actions', () => {
 		}, {
 			toolbar: [
 				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 3, when: 'chatIsEnabled && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived && sessionsViewPane.grouping != \'inbox\'' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: 'chatIsEnabled && !sessionIsArchived' },
 				{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 				{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 			],
 			contextMenu: [
 				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '4_manage', order: 2.5, when: 'chatIsEnabled && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived && sessionsViewPane.grouping != \'inbox\'' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: 'chatIsEnabled && !sessionIsArchived' },
 				{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
 				{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
 			],
@@ -336,6 +340,7 @@ suite('Sessions - Actions', () => {
 			ARCHIVE_CHAT_COMMAND_ID,
 			'sessionsViewPane.moveChatUp',
 			'sessionsViewPane.moveChatDown',
+			MOVE_CHAT_TO_SESSION_ACTION_ID,
 			PROMOTE_CHAT_TO_SESSION_ACTION_ID,
 			RENAME_CHAT_COMMAND_ID,
 			'sessions.list.deleteChat',
@@ -353,7 +358,8 @@ suite('Sessions - Actions', () => {
 			{ id: ARCHIVE_CHAT_COMMAND_ID, group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.moveChatUp', group: '2_organize', order: 1 },
 			{ id: 'sessionsViewPane.moveChatDown', group: '2_organize', order: 2 },
-			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: MOVE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 4 },
 			{ id: RENAME_CHAT_COMMAND_ID, group: '4_manage', order: 1 },
 			{ id: 'sessions.list.deleteChat', group: '4_manage', order: 2 },
 		]);
@@ -368,6 +374,7 @@ suite('Sessions - Actions', () => {
 			'sessionsViewPane.markAllNestedRead',
 			'sessionsViewPane.pinSession',
 			'sessionsViewPane.unpinSession',
+			MOVE_SESSION_INTO_SESSION_ACTION_ID,
 			RENAME_SESSION_COMMAND_ID,
 			'sessionsViewPane.deleteSession',
 		]);
@@ -390,6 +397,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1 },
 			{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1 },
+			{ id: MOVE_SESSION_INTO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
 			{ id: RENAME_SESSION_COMMAND_ID, group: '4_manage', order: 2 },
 			{ id: 'sessionsViewPane.deleteSession', group: '4_manage', order: 3 },
 		]);
@@ -430,6 +438,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession, pane: constObservable(testGridPane(activeSession)) }); }
 		});
+		instantiationService.stub(ISessionsNavigationService, instantiationService.createInstance(SessionsServiceNavigationService));
 
 		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
 
@@ -639,6 +648,7 @@ suite('Sessions - Actions', () => {
 				return pendingRead.p;
 			}
 		});
+		instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 
 		const result = CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
 
@@ -2075,6 +2085,7 @@ suite('Sessions - Actions', () => {
 
 	test('New Session prefills a supplied prompt and only inherits available quick-chat targets', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		const { session } = createTestSession('prompted');
 		const activeSession = upcastPartial<ITestSessionWithChat>(session);
@@ -2148,6 +2159,7 @@ suite('Sessions - Actions', () => {
 		]) {
 			test(`New Session preserves ${scenario.name} inheritance with toSide=${toSide}`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
@@ -2196,6 +2208,7 @@ suite('Sessions - Actions', () => {
 		for (const pending of [false, true]) {
 			test(`New Session preserves container intent across repeated New (pending: ${pending}, toSide: ${toSide})`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
@@ -2301,6 +2314,7 @@ suite('Sessions - Actions', () => {
 	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
 		const run = async (toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 			instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 			instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 			const composerService = disposables.add(new NewSessionComposerService());
@@ -2558,6 +2572,7 @@ suite('Sessions - Actions', () => {
 				{ id: local.providerId, environment: { id: 'local', label: 'This Computer' } },
 			].map(provider => upcastPartial<ISessionsProvider>(provider));
 			const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+			const environments: string[] = [];
 			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 			instantiationService.stub(ISessionsProvidersService, {
 				getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
@@ -2579,6 +2594,10 @@ suite('Sessions - Actions', () => {
 						selections.push({ folder, options });
 						return 'applied';
 					},
+					selectEnvironment: providerId => {
+						environments.push(providerId);
+						return 'applied';
+					},
 				}),
 			});
 			instantiationService.stub(ICommandService, new TestCommandService());
@@ -2591,19 +2610,26 @@ suite('Sessions - Actions', () => {
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
 
-			assert.deepStrictEqual(selections, available
-				? Array.from({ length: 5 }, () => ({
-					folder: creationTarget.folderUri,
-					options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
-				}))
-				: [{
-					folder: localFolder,
-					options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
-				}]);
+			// Without a creation target, the environment section still starts in its environment.
+			assert.deepStrictEqual({ selections, environments }, available
+				? {
+					selections: Array.from({ length: 5 }, () => ({
+						folder: creationTarget.folderUri,
+						options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+					})),
+					environments: [],
+				}
+				: {
+					selections: [{
+						folder: localFolder,
+						options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+					}],
+					environments: [session.providerId],
+				});
 		});
 	}
 
-	test('New Session never starts like a session that only names its repository by URL without a creation target', async () => {
+	test('New Session never starts like a session that only names its repository by URL without a creation target, but in its environment', async () => {
 		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const sandbox = (title: string) => {
 			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });
@@ -2636,6 +2662,10 @@ suite('Sessions - Actions', () => {
 					selections.push(`${options?.providerId} ${folder.toString()}`);
 					return 'applied';
 				},
+				selectEnvironment: providerId => {
+					selections.push(`environment of ${providerId}`);
+					return 'applied';
+				},
 			}),
 			focusNewSessionSlot: () => { },
 		}));
@@ -2646,12 +2676,15 @@ suite('Sessions - Actions', () => {
 		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// A workspace section starts like its first session that it can start like.
 		await run({ sessions: [sandbox('sandbox'), local] });
+		// An environment section of only such sessions, such as an extension's host of jobs, starts in its environment.
+		await run({ environment: { id: 'cloud', label: 'Cloud' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 
-		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
+		assert.deepStrictEqual({ opened, selections }, { opened: 3, selections: ['local-provider file:///local', 'environment of sandbox-provider'] });
 	});
 
 	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 		let canvasRequests = 0;
@@ -2719,6 +2752,7 @@ suite('Sessions - Actions', () => {
 
 	test('New Session uses the displayed custom view for plain invocations and incidental toolbar context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		let hosted = 0;
 		let opened = 0;
@@ -2786,6 +2820,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ slotPanes: constObservable([]) }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({}));
+		instantiationService.stub(ISessionEditorWorkingSetService, new SessionEditorWorkingSetService());
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, session: constObservable(undefined), chat: constObservable(undefined) }) }));
 		const picked = upcastPartial<ISession>({ sessionId: 'picked', resource: URI.parse('test-session:/picked') });
 		await instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, picked, chatWindow, { preserveFocus: false, toSide: false }));

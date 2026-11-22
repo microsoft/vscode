@@ -57,6 +57,10 @@ function sortRefByName(refA: Ref, refB: Ref): number {
 	return 0;
 }
 
+function getWorktreesKey(worktrees: Worktree[]): string {
+	return worktrees.map(w => `${w.path}\0${w.ref}`).sort().join('\n');
+}
+
 function sortByWorktreeTypeAndNameAsc(a: Worktree, b: Worktree): number {
 	if (a.main && !b.main) {
 		return -1;
@@ -114,6 +118,18 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			if (result.operation.kind === OperationKind.Stash) {
 				this._onDidChangeArtifacts.fire(['stashes']);
 			} else if (result.operation.kind === OperationKind.Worktree) {
+				this._onDidChangeArtifacts.fire(['worktrees']);
+			}
+		}));
+
+		// Worktrees can be added or removed outside of this repository
+		// (ex: another window, the command line), so refresh the group
+		// whenever `git status` detects a change in the list of worktrees
+		let worktreesKey = getWorktreesKey(repository.worktrees);
+		this._disposables.push(repository.onDidRunGitStatus(() => {
+			const key = getWorktreesKey(repository.worktrees);
+			if (key !== worktreesKey) {
+				worktreesKey = key;
 				this._onDidChangeArtifacts.fire(['worktrees']);
 			}
 		}));

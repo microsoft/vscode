@@ -498,7 +498,17 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	readonly resource: URI | undefined;
+
+	/**
+	 * Where the untitled editor is created from. Only used for telemetry.
+	 */
+	readonly untitledOrigin?: UntitledTextEditorOrigin;
 }
+
+/**
+ * Where a new untitled text editor is created from. Only used for telemetry.
+ */
+export type UntitledTextEditorOrigin = 'newFileCommand' | 'tabBarDoubleClick' | 'emptyGroupDoubleClick' | 'newTabButton' | 'extensionApi' | 'chat';
 
 /**
  * A resource side by side editor input shows 2 editors side by side but
@@ -576,6 +586,14 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * Whether the editor should be serialized and stored for subsequent sessions.
 	 */
 	readonly isTransient?: boolean;
+
+	/**
+	 * Whether the editor offers a list of the changed files alongside the diffs.
+	 * Defaults to `true`. When `false`, the editor has no file list: it is not
+	 * shown, cannot be toggled or focused, and the diffs keep the order of their
+	 * source. Use it for editors whose host shows the changed files in another way.
+	 */
+	readonly showFileList?: boolean;
 }
 
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {

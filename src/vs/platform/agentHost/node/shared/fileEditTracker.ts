@@ -20,6 +20,7 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
+import { getFileEditResourceKey } from '../fileEditPath.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -90,11 +91,11 @@ export class FileEditTracker extends Disposable {
 	 * {@link takeCompletedEdit}, which persists the edit to the database.
 	 */
 	private readonly _edits = new Map<string, IFileEdits>();
-	/** Processes each file's completed edits in claim order, so attribution never sees them reordered. */
+	/** Processes each file's completed edits in claim order, whichever spelling of its path each used, so they are recorded and attributed in that order. */
 	private readonly _completedEditSequencer = new SequencerByKey<string>();
 
 	constructor(
-		private readonly _sessionUri: string,
+		private readonly _location: { readonly storage: URI; readonly chat: URI },
 		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
 		private readonly _owner: () => string,
 		private readonly _provider: string | undefined,
@@ -237,7 +238,7 @@ export class FileEditTracker extends Disposable {
 		this._releaseEdits(edits.completed.splice(0, Math.max(completedIndex, 0)));
 		const [edit] = edits.completed.splice(0, 1);
 		this._deleteIfSettled(filePath, edits);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId))
+		return this._completedEditSequencer.queue(getFileEditResourceKey(this._paths.toUri(filePath)), () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId))
 			.finally(() => this._runningEdits.delete(edit.lease));
 	}
 
@@ -296,9 +297,9 @@ export class FileEditTracker extends Disposable {
 		}
 
 		try {
-			const ref = this._sessionDataService.openDatabase(URI.parse(this._sessionUri));
+			const ref = this._sessionDataService.openDatabase(this._location.storage);
 			try {
-				await ref.object.storeFileEdit({
+				await this._fileEditCoordinator.storeFileEdit(this._location.chat, ref.object, {
 					turnId,
 					toolCallId,
 					filePath,
@@ -316,16 +317,17 @@ export class FileEditTracker extends Disposable {
 		}
 
 		const autoTier = isThenable<string | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
+		const storageUri = this._location.storage.toString();
 
 		const content: ToolResultFileEditContent = {
 			type: ToolResultContentType.FileEdit,
 			before: {
 				uri: this._paths.toUri(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
+				content: { uri: buildSessionDbUri(storageUri, toolCallId, filePath, 'before') },
 			},
 			after: {
 				uri: this._paths.toUri(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
+				content: { uri: buildSessionDbUri(storageUri, toolCallId, filePath, 'after') },
 			},
 			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
 		};
@@ -335,7 +337,7 @@ export class FileEditTracker extends Disposable {
 
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
-			sessionUri: this._sessionUri,
+			sessionUri: storageUri,
 			ownerSessionUri: this._owner(),
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
@@ -354,7 +356,7 @@ export class FileEditTracker extends Disposable {
 		let marker: IFileEditAttributionMarker | undefined;
 		try {
 			marker = await this._editAttributionService.recordEdit({
-				sessionUri: this._sessionUri,
+				sessionUri: storageUri,
 				copilotTrackingId,
 				ownerSessionUri: this._owner(),
 				...(this._provider ? { provider: this._provider } : {}),
@@ -378,7 +380,7 @@ export class FileEditTracker extends Disposable {
 		if (initialEdit) {
 			this._editArcReporterService.reportEdit({
 				clientContext,
-				sessionUri: this._sessionUri,
+				sessionUri: storageUri,
 				ownerSessionUri: this._owner(),
 				isSubagent,
 				...(this._provider ? { provider: this._provider } : {}),
@@ -412,7 +414,7 @@ export class FileEditTracker extends Disposable {
 	}
 
 	async flushAttribution(): Promise<void> {
-		await this._editAttributionService.flushSession(this._sessionUri);
+		await this._editAttributionService.flushSession(this._location.storage.toString());
 	}
 
 	private async _readFileWithExistence(filePath: string): Promise<IFileSnapshot> {

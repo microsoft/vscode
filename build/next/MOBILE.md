@@ -37,10 +37,20 @@ compressed-size limits. The build examines transitive bundle inputs, not only
 the entry's direct imports. An unknown contribution or unpackaged dependency
 fails the build independently of the size checks.
 
+Native screenshot capture and image editing are excluded from the package.
+The selecting entry supplies these capabilities rather than requiring an
+unsupported mobile service. Browser screenshot capture, ordinary image
+attachments, and image previews remain shared.
+
 The ordinary entry's repository, list, Configure Session and edit presentation
 implementations and clipboard registration are also rejected. The mobile entry
 selects its own implementations; their shared contracts and behavior remain
 available.
+
+Worktree-suggestion presentation, service, and styles are rejected too. Shared
+inputs and configuration pickers accept this capability from the selecting
+entry rather than requiring an unsupported mobile service. Provider
+configuration writes remain shared.
 
 Mobile does not include chat-background controls, settings, rendering, tinting
 or built-in background-generation tools. Its resource list is
@@ -54,18 +64,22 @@ background skill already instructs the agent to explain when required tools
 are unavailable rather than generating an image it cannot apply; packaging
 the skill does not include the background implementation or enable its tools.
 
+Pinned-canvas implementation is excluded from the package. The selecting entry
+supplies pinning through the list presentation; shared lists do not require a
+mobile placeholder service. Ordinary window canvases remain shared.
+
 The size limits are experimental regression guards introduced with this target,
 not existing VS Code product requirements or hosting restrictions. Review actual
 dependency growth before changing a baseline; do not widen the contribution
 list or remove a size check merely to make a build pass.
 
-The temporary ceilings are 5,600,000 gzip bytes for the main JavaScript and
-6,200,000 gzip bytes for the initial bundle. They accommodate the reviewed
-current-main baseline after removing chat backgrounds; the stylesheet, runtime
-and extension ceilings remain unchanged. These are growth guards for the
-current package, not mobile performance targets. Reducing the actual downloads needed
-for a usable session list and composer requires separate startup measurements
-and loading changes.
+The temporary ceilings are 6,400,000 gzip bytes for the main JavaScript,
+275,000 for the stylesheet, 7,000,000 for the initial bundle and 16,500,000
+for the runtime. They leave headroom for normal shared-code growth above
+the reviewed current-main baseline; the extension ceiling remains 800,000
+gzip bytes. These are growth guards, not mobile performance targets.
+Reducing the actual downloads needed for a usable session list and composer
+requires separate startup measurements and loading changes.
 
 - Initial size counts the main JavaScript, stylesheet and language bundle.
 - Runtime size includes workers and runtime libraries but excludes extensions.
@@ -96,17 +110,40 @@ behavior; those require separate end-to-end validation.
 
 ## Standard publication
 
-The existing product pipeline can include this target with
-`VSCODE_BUILD_WEB_MOBILE=true`. The option is false by default and requires a
-Product build with the ordinary Web stage enabled. When explicitly selected, a
-failed mobile build, guard test or upload fails that selected build; errors are
-not ignored. Ordinary builds do not run the optional mobile steps.
+The existing product pipeline selects this target by default with the
+`🎯 Mobile` checkbox (`VSCODE_BUILD_WEB_MOBILE=true`). It runs in Product builds
+independently of `🎯 Web`: select Mobile alone for just the mobile bundle, Web
+alone for the ordinary Web bundle, or both for both bundles. Selecting neither
+omits both. CI builds skip both product targets.
 
-The Web job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
+Web and Mobile have separate stages that reuse the same build-job template.
+The existing shared Quality, APIScan, and source-security checks still run;
+they are not additional product targets. The native Sanity Tests stage is
+included only when a selected platform contributes tests to it. Mobile-only
+and Web-only runs do not need to enable "Skip tests" to avoid an empty stage.
+
+Mobile runs in its own optional job, with a separate timeout and workspace,
+so its work cannot consume the ordinary Web job's time or prevent its archive
+from being published. Mobile is best-effort: build, validation, CDN upload, archive/SBOM publication,
+and artifact download/registration failures are reported without blocking the
+ordinary release. Failed mobile build or CDN upload steps stop that job before
+archive publication, so failed uploads cannot register a build with missing CDN assets.
+Only a fully validated and archived package can be published;
+failed registry operations are not recorded as successfully processed and can
+be retried. Ordinary Web and other platform failures still block release.
+The publisher waits for the selected stages, but a failed or canceled Mobile
+stage does not override failures or successes of the required stages.
+On an otherwise successful publish,
+an enabled Mobile job that produces no archive emits a warning in Publish.
+Canceling the whole run still stops the release.
+
+The Mobile job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
 top-level directory, and registers its archive as platform `web-mobile` through
 the normal publisher. Source commit and quality remain the release identity.
 Normal release controls and platform-based update lookup select this asset;
 there is no mobile-specific release registry.
+The standalone Mobile job does not run the ordinary Web gulp compile; its
+embedded build date therefore uses the bundler's Git commit-date fallback.
 
 Both Web archives use the standard existing-artifact check so retrying the job
 does not republish an immutable pipeline artifact.
@@ -117,7 +154,7 @@ the expanded mobile files and their own `files.txt` under
 directory, so its preload inventory does not include mobile files.
 
 Publication contract checks run with the normal build-script tests and in the
-opted-in Web job:
+Mobile job:
 
 ```sh
 node --test build/lib/test/mobileWebPublication.test.ts

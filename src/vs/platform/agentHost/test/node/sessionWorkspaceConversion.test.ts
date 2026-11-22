@@ -865,6 +865,29 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	}
 
+	test('workspace tool marks the transition to an existing worktree as a worktree', async () => {
+		const worktree = URI.file('/repo.worktrees/agent-created');
+		const worktrees = new TestWorktreeIsolation(worktree);
+		const harness = createHarness(worktrees);
+		makeFolderSession(harness);
+		harness.agent.getDescriptor = () => ({ provider: 'copilot', displayName: 'Copilot', description: '' });
+		completePriorTurn(harness.stateManager, harness.chat);
+		const provider: IAgent = harness.agent;
+		provider.setChatWorkingDirectory = async () => { };
+		await changeWorkspaceViaTool(harness, harness.chat, worktree);
+		assert.deepStrictEqual({
+			transition: (await harness.database.getTurnWorkspaceTransitions()).get('continuation-1'),
+			created: worktrees.createdWorktrees,
+		}, {
+			transition: serializeAgentWorkspaceTransition({
+				content: 'Workspace changed to agent-created',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
+				workspaceName: 'agent-created',
+			}),
+			created: [],
+		});
+	});
+
 	test('synchronizes removed branch configuration with clients during a folder switch', async () => {
 		const harness = createHarness(new TestWorktreeIsolation(URI.file('/worktree')));
 		makeFolderSession(harness);

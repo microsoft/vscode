@@ -8,10 +8,10 @@ import { ToolCallStatus, type StringOrMarkdown, type ToolCallState, type ToolDef
 import type { IAgentMetadataSource } from './metadata.js';
 import { hasVSCodeToolCallMeta, readToolCallMeta as readVSCodeToolCallMeta, type ToolKind } from './vscode/agentToolCallMeta.js';
 import { readCopilotToolOutputDelta, withCopilotToolPreferences } from './copilotd/copilotdMetadataReader.js';
-import { readCopilotToolPresentation, readCopilotUrlPermissionPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
+import { readCopilotTaskCompleteMarkdown, readCopilotToolPresentation, readCopilotUrlPermissionPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
 
 export { copilotCliToolInputContract, isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
-export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind } from './vscode/agentToolCallMeta.js';
+export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallHookDenialMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind, ViewedResourceType } from './vscode/agentToolCallMeta.js';
 
 export interface IAgentToolOutputChunk {
 	readonly output: string;
@@ -58,6 +58,14 @@ export function readToolCallPresentation(call: ToolCallState): IToolCallPresenta
 		pastTenseMessage: fallback && genericCompletion ? fallback.pastTenseMessage : pastTense,
 		...(permission?.confirmationTitle ? { confirmationTitle: permission.confirmationTitle } : {}),
 	};
+}
+
+/**
+ * Response text that a completed tool call carries, for a host that reports it through the call rather
+ * than as a response part. Clients show it in place of the call.
+ */
+export function readToolCallResponseMarkdown(call: ToolCallState): string | undefined {
+	return hasVSCodeToolCallMeta(call) ? undefined : readCopilotTaskCompleteMarkdown(call);
 }
 
 export function readAgentToolOutputDelta(action: IAgentMetadataSource, initial: Pick<ToolCallState, '_meta'>, current: Pick<ToolCallState, '_meta'>): IAgentToolOutputChunk | undefined {

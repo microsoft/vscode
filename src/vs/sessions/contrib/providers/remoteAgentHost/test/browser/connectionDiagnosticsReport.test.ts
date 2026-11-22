@@ -52,6 +52,7 @@ import { HostFilterActionViewItem } from '../../../../../../workbench/contrib/se
 import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 import { MobileHostDrawerHeaderViewItem } from '../../browser/mobileHostDrawerHeaderViewItem.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 
 suite('ConnectionDiagnosticsReport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -769,13 +770,11 @@ suite('ConnectionDiagnosticsReport', () => {
 					? '.host-picker-overlay .mobile-picker-sheet:not(.closing) .mobile-picker-sheet-header-action:not(.mobile-picker-sheet-done)'
 					: '.host-picker-sheet-information');
 				assert.deepStrictEqual({
-					hint: !!container.querySelector('.host-picker-hint'),
 					computers: container.querySelectorAll(experimentalMobile ? '.host-picker-computers [role="menuitemradio"]' : '.host-picker-sheet-item').length,
 					information: information()?.getAttribute('aria-label'),
 					title: container.querySelector(experimentalMobile ? '.mobile-picker-sheet-title' : '.host-picker-sheet-title')?.textContent,
 					empty: container.querySelector('.host-picker-sheet-empty')?.textContent,
 				}, {
-					hint: experimentalMobile && hostCount === 0,
 					computers: hostCount,
 					information: experimentalMobile ? 'Connection Information' : 'Open Connection Information',
 					title: experimentalMobile ? 'Where sessions run' : 'Hosts',
@@ -960,6 +959,7 @@ suite('ConnectionDiagnosticsReport', () => {
 						return undefined as T;
 					}
 				}(),
+				new class extends mock<IRemoteGitHubEnvironmentSharingService>() { }(),
 			));
 			widget.render(container);
 			const connection = container.querySelector<HTMLElement>('.agent-host-filter-connect');

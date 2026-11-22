@@ -8,20 +8,29 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
-import { constObservable, derived, observableValue } from '../../../../../../../base/common/observable.js';
-import { isWindows } from '../../../../../../../base/common/platform.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { withAgentHostResources } from '../../../../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { RootState } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ExtensionRemoteAgentHostsService, IExtensionRemoteAgentHostsService } from '../../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHHostKeyTrustService, ISSHTrustedHostKey } from '../../../../../../../platform/agentHost/common/sshHostKeyTrust.js';
+import { IRemoteConnectionDiagnosticEvent } from '../../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
+import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { Implementation, InitializeResult, PathStyle } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IVscodeUpgradeResult } from '../../../../../../../platform/agentHost/common/state/protocolUpgrade.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
-import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
+import { IWSLCachedDistro, IWSLDistro, IWSLRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -34,10 +43,15 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { TestProgressService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
+import { ISession, SessionStatus } from '../../../../../../services/sessions/common/session.js';
+import { buildTestSession } from '../../../../test/common/testSessionBuilder.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
 import { getSessionCreationEnvironments } from '../../../../browser/chat/sessionEnvironmentPicker.js';
@@ -51,9 +65,9 @@ suite('RemotesModel', () => {
 		connection: { type: RemoteAgentHostEntryType.SSH as const, address: 'ssh:removed', sshConfigHost: 'removed', hostName: 'removed.example', user: undefined, port: undefined },
 	};
 
-	function setup(initialConnections: readonly IRemoteAgentHostConnectionInfo[] = [], initialTunnelStatus?: Promise<TunnelStatus>) {
+	function setup(initialConnections: readonly IRemoteAgentHostConnectionInfo[] = [], initialTunnelStatus?: Promise<TunnelStatus>, storageOverride?: InMemoryStorageService) {
 		const instantiationService = store.add(new TestInstantiationService());
-		const storage = store.add(new InMemoryStorageService());
+		const storage = storageOverride ?? store.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({
 			[RemoteAgentHostsEnabledSettingId]: true,
 		});
@@ -63,6 +77,7 @@ suite('RemotesModel', () => {
 		const providersChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const tunnelsChanged = store.add(new Emitter<void>());
+		const wslConnectionsChanged = store.add(new Emitter<void>());
 		const tunnelStatusChanged = store.add(new Emitter<TunnelStatus>());
 		const tunnelState: { canDelete: boolean; pendingDeletion?: DeferredPromise<void>; failure?: Error } = { canDelete: true };
 		const deletedTunnels: { tunnel: ITunnelInfo; authProvider?: 'github' | 'microsoft' }[] = [];
@@ -70,6 +85,8 @@ suite('RemotesModel', () => {
 		const dismissed = new Set<string>();
 		const removals: string[] = [];
 		const sshDisconnects: string[] = [];
+		const resolvedSSHHosts: string[] = [];
+		const sshConfigs = new Map<string, Partial<ISSHResolvedConfig>>();
 		const removedConnections: string[] = [];
 		const connectionChanges: { id: string; connected: boolean }[] = [];
 		const reconnects: string[] = [];
@@ -79,7 +96,9 @@ suite('RemotesModel', () => {
 		const displayNamesChanged = store.add(new Emitter<string>());
 		const renameInputs: IInputOptions[] = [];
 		let renameInput: string | undefined;
+		const devContainerPicks: { picked?: string; readonly offered: string[][] } = { offered: [] };
 		const environmentHosts = observableValue<readonly IMissionControlHost[]>(store, []);
+		const ownEnvironmentId = observableValue<string | undefined>(store, undefined);
 		const environmentAvailable = observableValue<boolean | undefined>(store, false);
 		const environmentState = {
 			account: 'account-one' as string | undefined,
@@ -107,13 +126,28 @@ suite('RemotesModel', () => {
 			displayNamesChanged.fire(address);
 		};
 		let connectionFailure: Error | undefined;
+		const initializeResults = new Map<string, ISettableObservable<InitializeResult | undefined>>();
+		const initializeResultFor = (address: string) => {
+			let result = initializeResults.get(address);
+			if (!result) {
+				result = observableValue<InitializeResult | undefined>(store, undefined);
+				initializeResults.set(address, result);
+			}
+			return result;
+		};
 		const logEntries: { message: string; args: readonly unknown[] }[] = [];
 		let wslDiscoveryCalls = 0;
+		const wslState: { discoveryFailure?: Error; runningFailure?: Error } = {};
+		let wslDistros: IWSLDistro[] = [{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }];
 		let sshDiscovery: () => Promise<string[]> = async () => ['build', 'build'];
 		let tunnelDiscovery: () => Promise<ITunnelInfo[]> = async () => [tunnel];
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
+		const diagnosticEvents: IRemoteConnectionDiagnosticEvent[] = [];
+		const terminatedDistros: string[] = [];
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
+		const extensionHosts = store.add(new ExtensionRemoteAgentHostsService(storage));
+		instantiationService.stub(IExtensionRemoteAgentHostsService, extensionHosts);
 		instantiationService.stub(IDialogService, new class extends TestDialogService {
 			override async confirm(confirmation: IConfirmation) {
 				confirmations.push(confirmation);
@@ -125,7 +159,7 @@ suite('RemotesModel', () => {
 			getPreference: key => locationPreferences.get(key),
 			setPreference: (key, preference) => { locationPreferences.set(key, preference); },
 		});
-		instantiationService.stub(IProductService, { nameShort: 'Code - OSS' });
+		instantiationService.stub(IProductService, { nameShort: 'Code - OSS', nameLong: 'Code - OSS', version: '1.140.0', commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' });
 		instantiationService.stub(IProgressService, new TestProgressService());
 		instantiationService.stub(IRemoteTunnelService, {
 			onDidChangeTunnelStatus: tunnelStatusChanged.event,
@@ -148,6 +182,7 @@ suite('RemotesModel', () => {
 			setDisplayName,
 			reconnect: address => { reconnects.push(address); },
 			removeRemoteAgentHost: async address => { removedConnections.push(address); },
+			getConnection: address => upcastPartial<IAgentConnection>({ initializeResult: initializeResultFor(address) }),
 			triggerServerUpgrade: async (address, method) => {
 				upgrades.push({ address, method });
 				if (upgrade.failure) {
@@ -161,6 +196,21 @@ suite('RemotesModel', () => {
 				}
 				return { address, name: address, status: RemoteAgentHostConnectionStatus.connected };
 			},
+			getConnectionDiagnostics: () => diagnosticEvents,
+		});
+		const trustedHostKeys = new Map<string, ISSHTrustedHostKey[]>();
+		const forgottenHosts: string[] = [];
+		instantiationService.stub(ISSHHostKeyTrustService, {
+			onDidChangeTrustedHosts: Event.None,
+			getTrustedKeys: (host, port) => trustedHostKeys.get(`${host}:${port}`) ?? [],
+			forgetHost: (host, port) => {
+				forgottenHosts.push(`${host}:${port}`);
+				trustedHostKeys.delete(`${host}:${port}`);
+			},
+		});
+		instantiationService.stub(IExtensionService, {
+			onDidChangeExtensions: Event.None,
+			getExtension: async id => id === 'publisher.jobs' ? upcastPartial<IExtensionDescription>({ version: '1.4.2', bugs: { url: 'https://github.com/publisher/jobs/issues' } }) : undefined,
 		});
 		instantiationService.stub(IQuickInputService, {
 			input: async options => {
@@ -169,10 +219,16 @@ suite('RemotesModel', () => {
 				}
 				return environmentState.pendingRename?.p ?? renameInput;
 			},
+			pick: (async (picks: QuickPickInput<IQuickPickItem>[]) => {
+				const items = picks.filter((pick): pick is IQuickPickItem => pick.type !== 'separator');
+				devContainerPicks.offered.push(items.map(item => item.description ? `${item.label} (${item.description})` : item.label));
+				return items.find(item => item.id === devContainerPicks.picked);
+			}) as IQuickInputService['pick'],
 		});
 		instantiationService.stub(IMissionControlAvailabilityService, { available: environmentAvailable });
 		instantiationService.stub(IMissionControlEnvironmentService, {
 			hosts: environmentHosts,
+			ownEnvironmentId,
 			get enabled() {
 				return environmentAvailable.get() === true && configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true;
 			},
@@ -193,6 +249,34 @@ suite('RemotesModel', () => {
 				environmentHosts.set(environmentHosts.get().map(host => host.id === id ? { ...host, displayName: name?.trim() || undefined } : host), undefined);
 			},
 		});
+		const sharing = {
+			shareable: observableValue<ReadonlySet<string>>(store, new Set()),
+			shares: observableValue<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>(store, new Map()),
+			environmentIds: observableValue<ReadonlySet<string>>(store, new Set()),
+			// Result of the keep-sharing prompt on disconnect: `false` means the user cancelled the disconnect.
+			disconnectConfirmed: true,
+			// Records how many removals had happened, to verify that sharing stops first.
+			events: [] as string[],
+		};
+		instantiationService.stub(IRemoteGitHubEnvironmentSharingService, {
+			shareable: sharing.shareable,
+			shares: sharing.shares,
+			environmentIds: sharing.environmentIds,
+			confirmDisconnect: async (address, name) => {
+				sharing.events.push(`confirm disconnect ${address} (${name})`);
+				return sharing.disconnectConfirmed;
+			},
+			setShared: async (address, shared) => {
+				sharing.events.push(`${shared ? 'share' : 'unshare'} ${address} after ${removals.length + sshDisconnects.length + deletedTunnels.length} removals`);
+				const shares = new Map(sharing.shares.get());
+				if (shared) {
+					shares.set(address, { state: 'enabled', environmentId: `env-${address}` });
+				} else {
+					shares.delete(address);
+				}
+				sharing.shares.set(shares, undefined);
+			},
+		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
 			listSSHConfigHosts: () => sshDiscovery(),
 			disconnect: async key => {
@@ -202,14 +286,30 @@ suite('RemotesModel', () => {
 				}
 				removeSSHRemoteAgentHostEntry(storage, key);
 			},
-			resolveSSHConfig: async () => ({ hostname: 'build.example', user: 'developer', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined }),
+			resolveSSHConfig: async host => {
+				resolvedSSHHosts.push(host);
+				return { hostname: 'build.example', user: 'developer', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined, ...sshConfigs.get(host) };
+			},
 		});
 		instantiationService.stub(IWSLRemoteAgentHostService, {
-			onDidChangeConnections: Event.None,
+			onDidChangeConnections: wslConnectionsChanged.event,
 			getCachedDistros: () => distros,
 			listDistros: async () => {
 				wslDiscoveryCalls++;
-				return [{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }];
+				if (wslState.discoveryFailure) {
+					throw wslState.discoveryFailure;
+				}
+				return wslDistros;
+			},
+			listRunningDistros: async () => {
+				if (wslState.runningFailure) {
+					throw wslState.runningFailure;
+				}
+				return wslDistros.filter(distro => distro.isRunning).map(distro => distro.name);
+			},
+			terminateDistro: async distro => {
+				terminatedDistros.push(distro);
+				wslDistros = wslDistros.map(value => value.name === distro ? { ...value, isRunning: false } : value);
 			},
 			cacheDistro: distro => { distros = [distro]; },
 		});
@@ -239,6 +339,13 @@ suite('RemotesModel', () => {
 		});
 		const pickerVisibility = store.add(new RemoteAgentHostPickerVisibility(storage));
 		const createProvider = (address: string, preferenceKey?: string) => new class extends mock<IAgentHostSessionsProvider>() {
+			readonly sessions: ISession[] = [];
+			sessionReads = 0;
+			override readonly sessionListVersion = observableValue(this, 0);
+			readonly root = observableValue<RootState | undefined>(this, undefined);
+			override getRootState(): RootState | undefined { return this.root.get(); }
+			override readonly onDidChangeSessions = Event.None;
+			override getSessions(): ISession[] { this.sessionReads++; return this.sessions; }
 			override readonly id = `agenthost-${address}`;
 			override readonly remoteAddress = address;
 			override readonly remoteLocationPreferenceKey = preferenceKey;
@@ -288,6 +395,26 @@ suite('RemotesModel', () => {
 			onDidChangeProviders: providersChanged.event,
 			getProviders: () => [...providers.values()],
 		});
+		const devContainers = {
+			environments: observableValue<readonly IDevContainerEnvironment[]>(store, []),
+			hosts: observableValue<ReadonlySet<string>>(store, new Set()),
+			deletions: [] as string[],
+		};
+		instantiationService.stub(IDevContainerAgentHostService, {
+			environments: devContainers.environments,
+			environmentHosts: devContainers.hosts,
+			createEnvironment: async sourceAddress => {
+				const environment = { address: `devcontainer:${sourceAddress}`, sourceAddress, providerId: `agenthost-devcontainer:${sourceAddress}` };
+				devContainers.environments.set([...devContainers.environments.get(), environment], undefined);
+				return { ...environment, workspaceUri: undefined };
+			},
+			deleteEnvironment: async address => {
+				devContainers.deletions.push(address);
+				devContainers.environments.set(devContainers.environments.get().filter(environment => environment.address !== address), undefined);
+			},
+		});
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetry);
 		const model = store.add(instantiationService.createInstance(RemotesModel));
 		const addProvider = (address: string, localRegistration?: LocalAgentHostRegistration) => {
 			const provider = createProvider(address);
@@ -299,18 +426,19 @@ suite('RemotesModel', () => {
 		return {
 			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
+			wslState, wslConnectionsChanged, terminatedDistros, diagnosticEvents, trustedHostKeys, forgottenHosts, resolvedSSHHosts, sshConfigs,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			getCachedTunnels: () => tunnels,
 			setCachedTunnels: (cached: ICachedTunnel[]) => { tunnels = cached; tunnelsChanged.fire(); },
 			tunnelConnections, tunnelState, deletedTunnels,
 			setTunnelStatus: (status: TunnelStatus) => tunnelStatusChanged.fire(status),
-			failConnection: (error: Error) => { connectionFailure = error; },
+			failConnection: (error: Error | undefined) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
-			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
+			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setWSLDistros: (value: IWSLDistro[]) => { wslDistros = value; }, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations,
+			environmentHosts, ownEnvironmentId, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts, devContainers, devContainerPicks, telemetry,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -320,8 +448,225 @@ suite('RemotesModel', () => {
 			},
 			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => addProvider(cloudSandboxAddress(id), localRegistration),
 			addProvider,
+			setInitializeResultMeta: (address: string, meta: Record<string, unknown> | undefined, serverInfo?: Implementation) => initializeResultFor(address).set({ protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], _meta: meta, ...(serverInfo ? { serverInfo } : {}) }, undefined),
 		};
 	}
+
+	test('retains last-known metadata without reading an unresolved list or guessing the system from path style', async () => {
+		const first = setup();
+		const provider = first.providers.get('ssh:build')!;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		await first.model.refresh(CancellationToken.None);
+		first.setConnections([{ address: 'ssh:build', name: 'Build', status: RemoteAgentHostConnectionStatus.connected, pathStyle: PathStyle.Posix }]);
+		const unresolvedReads = provider.sessionReads;
+		const session = buildTestSession({ id: 'working', title: 'Working', status: SessionStatus.InProgress }, 100000);
+		provider.sessions.push(session.session);
+		provider.sessionListVersion.set(1, undefined);
+		const observed = first.model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata!;
+		provider.sessionListVersion.set(0, undefined);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		first.model.dispose();
+		const second = setup([], undefined, first.storage);
+		await second.model.refresh(CancellationToken.None);
+		const restored = second.model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		const cached = { metadata: restored.metadata, stale: restored.metadataIsStale };
+		const nextProvider = second.providers.get('ssh:build')!;
+		nextProvider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const whileLoading = second.model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata;
+		nextProvider.sessionListVersion.set(1, undefined);
+		const empty = second.model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata!;
+		assert.deepStrictEqual({
+			unresolvedReads, observed: { ...observed, observedAt: observed.observedAt > 0, lastOnlineAt: typeof observed.lastOnlineAt },
+			cached, whileLoading: whileLoading?.activeSessionCount, empty: empty.activeSessionCount,
+			connectionChanges: [...first.connectionChanges, ...second.connectionChanges],
+		}, {
+			unresolvedReads: 0, observed: { operatingSystem: undefined, activeSessionCount: 1, observedSessionCount: 1, lastConnectedAt: undefined, lastActivityAt: session.session.updatedAt.get().getTime(), lastOnlineAt: 'number', observedAt: true },
+			cached: { metadata: observed, stale: true }, whileLoading: 1, empty: 0, connectionChanges: [],
+		});
+	});
+
+	test('last activity uses session updates, survives disconnection and never substitutes connection time', async () => {
+		const { model, providers } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('ssh:build')!;
+		const updatedAt = observableValue(model, new Date(200_000));
+		const session = buildTestSession({ id: 'activity', title: 'Activity' }, 100_000).session;
+		provider.sessions.push({ ...session, updatedAt });
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const pending = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt;
+		provider.sessionListVersion.set(1, undefined);
+		const observed = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt;
+		updatedAt.set(new Date(300_000), undefined);
+		const latest = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		updatedAt.set(new Date(400_000), undefined);
+		assert.deepStrictEqual({ pending, observed, latest, cached: model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt }, {
+			pending: undefined, observed: 200_000, latest: 300_000, cached: 300_000,
+		});
+	});
+
+	test('reads host-reported system resources for every connection method and retains them as last known after disconnect', async () => {
+		const { model, providers, environmentAvailable, environmentHosts, setConfiguration, addEnvironmentProvider, connectionChanges } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set([{ id: 'personal', name: 'Personal', kind: 'user-local', status: 'online' }], undefined);
+		addEnvironmentProvider('personal');
+		await model.refresh(CancellationToken.None);
+		const samples = [];
+		for (const [address, provider] of providers) {
+			provider.root.set({ agents: [], _meta: withAgentHostResources(undefined, { platform: 'linux', architecture: 'arm64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3 }) }, undefined);
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			const live = model.remotes.get().find(remote => remote.id === address)!;
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			const cached = model.remotes.get().find(remote => remote.id === address)!;
+			samples.push({
+				kind: live.kind,
+				resources: [live.metadata?.operatingSystem, live.metadata?.architecture, live.metadata?.cpuCount, live.metadata?.memoryBytes],
+				loadingSessions: live.metadata?.observedSessionCount,
+				retained: cached.metadata?.architecture,
+			});
+		}
+		assert.deepStrictEqual({ samples, connectionChanges }, {
+			samples: ['ssh', 'wsl', 'tunnel', 'environment'].map(kind => ({
+				kind, resources: [OperatingSystem.Linux, 'arm64', 8, 16 * 1024 ** 3],
+				loadingSessions: undefined, retained: 'arm64',
+			})),
+			connectionChanges: [],
+		});
+	});
+
+	test('shows resolved SSH identity without connecting or changing the alias used to connect', async () => {
+		const { model, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		assert.deepStrictEqual({ name: remote.name, detail: remote.detail, id: remote.id, connectionChanges }, {
+			name: 'build', detail: 'developer@build.example', id: 'ssh:build', connectionChanges: [],
+		});
+	});
+
+	test('distinguishes ambiguous names without exposing IDs, merging hosts or renumbering on availability changes', async () => {
+		const { model, environmentAvailable, environmentHosts, setConfiguration } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set(['one', 'two', 'three'].map(id => ({ id, name: 'Workstation', kind: 'user-local', status: 'offline' })), undefined);
+		const before = model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => [remote.id, remote.name]);
+		environmentHosts.set([...environmentHosts.get()].reverse().map(host => ({ ...host, status: 'online' })), undefined);
+		const after = model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => [remote.id, remote.name]);
+		assert.deepStrictEqual({ before, after }, {
+			before: [['cloudsandbox:one', 'Workstation'], ['cloudsandbox:three', 'Workstation (2)'], ['cloudsandbox:two', 'Workstation (3)']],
+			after: before,
+		});
+	});
+
+	test('excludes this computer by registration identity even without a connected local provider, not by its name', async () => {
+		const { model, ownEnvironmentId, environmentAvailable, environmentHosts, setConfiguration } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set(['own', 'other'].map(id => ({ id, name: 'Workstation', kind: 'user-local', status: 'offline' })), undefined);
+		ownEnvironmentId.set('own', undefined);
+		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => [remote.id, remote.name]), [
+			['cloudsandbox:other', 'Workstation'],
+		]);
+	});
+
+	test('same-named connection methods get meaningful route names and keep their original connection targets', async () => {
+		const { model, environmentAvailable, environmentHosts, setConfiguration, connectionChanges } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set([{ id: 'remote', name: 'build', kind: 'user-local', status: 'online' }], undefined);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			hosts: model.remotes.get().filter(remote => remote.name.startsWith('build')).map(remote => [remote.id, remote.name]),
+			connectionChanges,
+		}, {
+			hosts: [['ssh:build', 'build (SSH)'], ['cloudsandbox:remote', 'build (GitHub Environment)']], connectionChanges: [],
+		});
+	});
+
+	test('counts only active work, including waiting for input, and observes completion', async () => {
+		const { model, providers } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('ssh:build')!;
+		const sessions = [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Completed, SessionStatus.Error, SessionStatus.Untitled]
+			.map((status, index) => buildTestSession({ id: `session-${index}`, title: 'Session', status }));
+		provider.sessions.push(...sessions.map(session => session.session));
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		provider.sessionListVersion.set(1, undefined);
+		const count = () => model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.activeSessionCount;
+		const working = count();
+		const total = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.observedSessionCount;
+		sessions[0].status.set(SessionStatus.Completed, undefined);
+		const waiting = count();
+		sessions[1].status.set(SessionStatus.Completed, undefined);
+		assert.deepStrictEqual({ working, waiting, idle: count(), total }, { working: 2, waiting: 1, idle: 0, total: 4 });
+	});
+
+	test('ignores legacy cached totals while preserving known system metadata', async () => {
+		const { model, storage, connectionChanges } = setup();
+		storage.store(`remoteAgentHost.lastKnownMetadata.${getRemoteAgentHostPickerKey('tunnel:laptop')}`, {
+			operatingSystem: OperatingSystem.Macintosh, sessionCount: 393, runningSessionCount: 0, observedAt: 100000,
+		}, StorageScope.PROFILE, StorageTarget.MACHINE);
+		await model.refresh(CancellationToken.None);
+		const remote = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!;
+		assert.deepStrictEqual({ metadata: { ...remote.metadata, lastOnlineAt: typeof remote.metadata?.lastOnlineAt }, stale: remote.metadataIsStale, connectionChanges }, {
+			// Recording when the tunnel was seen online must not refresh when its system details were observed.
+			metadata: { operatingSystem: OperatingSystem.Macintosh, activeSessionCount: undefined, observedSessionCount: undefined, observedAt: 100000, lastConnectedAt: undefined, lastActivityAt: undefined, lastOnlineAt: 'number' },
+			stale: true, connectionChanges: [],
+		});
+	});
+
+	test('last connection records successful observed connections, not discovery or session updates', async () => {
+		const { model, providers, storage } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('ssh:build')!;
+		const before = model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastConnectedAt;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
+		const pending = model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastConnectedAt;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const connected = model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastConnectedAt;
+		provider.sessions.push(buildTestSession({ id: 'later', title: 'Later', status: SessionStatus.InProgress }, Date.now() + 100000).session);
+		provider.sessionListVersion.set(1, undefined);
+		const afterSession = model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastConnectedAt;
+		model.dispose();
+		const next = setup([], undefined, storage);
+		await next.model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ before, pending, recorded: typeof connected, unchanged: afterSession === connected, restored: next.model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastConnectedAt }, {
+			before: undefined, pending: undefined, recorded: 'number', unchanged: true, restored: connected,
+		});
+	});
+
+	test('explicit inline run behavior bypasses the prompt and uses the existing stable preference and reconnect path', async () => {
+		const { model, providers, locationPreferences, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('ssh:build')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const result = await model.changePreferredAgentLocation('ssh:build', 'dedicated');
+		assert.deepStrictEqual({ result, preference: locationPreferences.get('ssh:build'), connections: connectionChanges }, {
+			result: 'reconnected', preference: 'dedicated', connections: [{ id: 'ssh:build', connected: true }],
+		});
+	});
+
+	test('last-known environment metadata is account-scoped and corrupt cache entries are discarded with a warning', async () => {
+		const { model, storage, setConfiguration, environmentAvailable, environmentHosts, environmentState, addEnvironmentProvider, logEntries } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		const host = { id: 'personal', name: 'Personal', kind: 'user-local', status: 'online' };
+		environmentHosts.set([host], undefined);
+		const provider = addEnvironmentProvider(host.id);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		provider.sessionListVersion.set(1, undefined);
+		const id = cloudSandboxAddress(host.id);
+		const recorded = model.remotes.get().find(remote => remote.id === id)!.metadata?.activeSessionCount;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		environmentState.account = 'account-two';
+		environmentHosts.set([{ ...host, status: 'offline' }], undefined);
+		const otherAccount = model.remotes.get().find(remote => remote.id === id)!.metadata;
+		const key = `remoteAgentHost.lastKnownMetadata.${getRemoteAgentHostPickerKey(id, 'account-two')}`;
+		storage.store(key, { observedAt: -1, activeSessionCount: 'not a count' }, StorageScope.PROFILE, StorageTarget.MACHINE);
+		environmentHosts.set([{ ...host, status: 'offline' }], undefined);
+		assert.deepStrictEqual({ recorded, otherAccount, discarded: storage.get(key, StorageScope.PROFILE), warned: logEntries.some(entry => entry.message.includes('Invalid cached environment metadata')) }, {
+			recorded: 0, otherAccount: undefined, discarded: undefined, warned: true,
+		});
+	});
 
 	test('merges discovery and registered remotes, deduplicates and groups in the requested order', async () => {
 		const { model } = setup();
@@ -331,6 +676,243 @@ suite('RemotesModel', () => {
 			{ kind: 'wsl', name: 'Ubuntu', canRemove: true },
 			{ kind: 'tunnel', name: 'Laptop', canRemove: false },
 		]);
+	});
+
+	test('lists extension remotes while registered, connects user-disconnected ones and refuses to remove them', async () => {
+		const { model, extensionHosts, reconnects } = setup();
+		const registration = extensionHosts.registerHost({ extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner', name: 'Runner Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		extensionHosts.setDisconnected('127.0.0.1:8445', true);
+		const extensionRemotes = () => model.remotes.get().filter(remote => remote.kind === 'extension')
+			.map(({ id, name, detail, contributedBy, canRemove, connectionStatus }) => ({ id, name, detail, contributedBy, canRemove, status: connectionStatus.kind }));
+		const registered = extensionRemotes();
+		const removal = await model.remove('127.0.0.1:8445').then(() => 'removed', (error: Error) => error.message);
+		await model.setConnected('127.0.0.1:8445', true);
+		const disconnected = [...extensionHosts.disconnectedAddresses.get()];
+		registration.dispose();
+
+		assert.deepStrictEqual({ registered, removal, disconnected, reconnects, unregistered: extensionRemotes() }, {
+			registered: [{ id: '127.0.0.1:8445', name: 'Runner Jobs', detail: '127.0.0.1:8445', contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, canRemove: false, status: 'disconnected' }],
+			removal: 'This remote cannot be removed. Only registered remotes that support removal can be removed.',
+			disconnected: [],
+			reconnects: ['127.0.0.1:8445'],
+			unregistered: [],
+		});
+	});
+
+	test('offers Create Dev Container on Docker hosts only when enabled, triggering the experiment in every arm', async () => {
+		const results = [];
+		for (const enabled of [false, true]) {
+			const { model, devContainers, telemetry, setConfiguration } = setup();
+			await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+			await setConfiguration(DevContainerEnvironmentsEnabledSettingId, enabled);
+			const triggersWithoutHosts = [...telemetry.triggers];
+			devContainers.hosts.set(new Set(['wsl:Ubuntu']), undefined);
+			results.push({
+				enabled, triggersWithoutHosts, triggers: telemetry.triggers,
+				creatable: model.remotes.get().filter(remote => remote.canCreateDevContainer).map(remote => remote.id),
+			});
+		}
+		const trigger = `config.${DevContainerEnvironmentsEnabledSettingId}`;
+		assert.deepStrictEqual(results, [
+			{ enabled: false, triggersWithoutHosts: [], triggers: [trigger], creatable: [] },
+			{ enabled: true, triggersWithoutHosts: [], triggers: [trigger], creatable: ['wsl:Ubuntu'] },
+		]);
+	});
+
+	test('lists created Dev Containers with their host and deletes them after confirmation', async () => {
+		const { model, devContainers, confirmations, setConfiguration } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		const devContainerRows = () => model.remotes.get().filter(remote => remote.kind === 'devContainer')
+			.map(({ id, name, description, canDelete, canRemove }) => ({ id, name, description, canDelete, canRemove }));
+		await assert.rejects(model.createDevContainer('wsl:Ubuntu'), /cannot be created/);
+		devContainers.hosts.set(new Set(['wsl:Ubuntu']), undefined);
+		await model.createDevContainer('wsl:Ubuntu');
+		const created = devContainerRows();
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
+		const disabled = devContainerRows();
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		await model.deleteDevContainer('devcontainer:wsl:Ubuntu');
+		assert.deepStrictEqual({ created, disabled, confirmations: confirmations.map(confirmation => confirmation.message), deletions: devContainers.deletions, deleted: devContainerRows() }, {
+			created: [{ id: 'devcontainer:wsl:Ubuntu', name: 'Dev Container', description: 'Ubuntu', canDelete: true, canRemove: false }],
+			disabled: [],
+			confirmations: ['Are you sure you want to delete Dev Container \'Dev Container\'?'],
+			deletions: ['devcontainer:wsl:Ubuntu'],
+			deleted: [],
+		});
+	});
+
+	test('offers creating a Dev Container when only this computer has Docker, triggering the experiment in every arm', async () => {
+		const results = [];
+		for (const enabled of [false, true]) {
+			const { model, devContainers, telemetry, setConfiguration } = setup();
+			await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+			await setConfiguration(DevContainerEnvironmentsEnabledSettingId, enabled);
+			const before = { triggers: [...telemetry.triggers], canCreate: model.canCreateDevContainer.get() };
+			devContainers.hosts.set(new Set([LocalDevContainerEnvironmentHost]), undefined);
+			results.push({ enabled, before, triggers: telemetry.triggers, canCreate: model.canCreateDevContainer.get() });
+		}
+		const trigger = `config.${DevContainerEnvironmentsEnabledSettingId}`;
+		assert.deepStrictEqual(results, [
+			{ enabled: false, before: { triggers: [], canCreate: false }, triggers: [trigger], canCreate: false },
+			{ enabled: true, before: { triggers: [], canCreate: false }, triggers: [trigger], canCreate: true },
+		]);
+	});
+
+	test('creates Dev Containers from the section on the only host or a picked one, naming those on this computer', async () => {
+		const { model, devContainers, devContainerPicks, confirmations, setConfiguration } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		const unavailable = await model.createDevContainer().then(() => 'created', (error: Error) => error.message);
+		devContainers.hosts.set(new Set([LocalDevContainerEnvironmentHost]), undefined);
+		await model.createDevContainer();
+		devContainers.hosts.set(new Set([LocalDevContainerEnvironmentHost, 'wsl:Ubuntu']), undefined);
+		await model.createDevContainer();
+		devContainerPicks.picked = 'wsl:Ubuntu';
+		await model.createDevContainer();
+		const rows = model.remotes.get().filter(remote => remote.kind === 'devContainer').map(({ id, description, connectsWithHost }) => ({ id, description, connectsWithHost }));
+		await model.deleteDevContainer('devcontainer:local');
+		assert.deepStrictEqual({ unavailable, offered: devContainerPicks.offered, rows, details: confirmations.map(confirmation => confirmation.detail), deletions: devContainers.deletions }, {
+			unavailable: 'Dev Containers cannot be created on this remote now. Connect to it and make sure Docker is installed.',
+			offered: [['This Computer', 'Ubuntu (WSL)'], ['This Computer', 'Ubuntu (WSL)']],
+			rows: [
+				{ id: 'devcontainer:local', description: 'This Computer', connectsWithHost: undefined },
+				{ id: 'devcontainer:wsl:Ubuntu', description: 'Ubuntu', connectsWithHost: true },
+			],
+			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.'],
+			deletions: ['devcontainer:local'],
+		});
+	});
+
+	test('troubleshooting info reads SSH configuration, saved host keys and the last connection step without connecting', async () => {
+		const { model, storage, diagnosticEvents, trustedHostKeys, forgottenHosts, confirmations, connectionChanges } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		trustedHostKeys.set('build.example:22', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:abc', addedAt: 0 }]);
+		// Trust saved under the alias belongs to another identity; the connector trusts the resolved host name here.
+		trustedHostKeys.set('removed:22', [{ keyType: 'ssh-rsa', fingerprint: 'SHA256:other', addedAt: 0 }]);
+		diagnosticEvents.push(
+			{ address: 'ssh:removed', operationId: '1', phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: { name: 'Error', message: 'Host key verification failed' } },
+			{ address: 'ssh:removed', operationId: '1', phase: 'connection.closed', outcome: 'info', timestamp: 3 },
+			{ address: 'ssh:other', operationId: '2', phase: 'transport.connect', outcome: 'succeeded', timestamp: 4 },
+		);
+		const saved = await model.getTroubleshootingInfo('ssh:removed');
+		await model.forgetSSHHostKey('ssh:removed');
+		const forgotten = (await model.getTroubleshootingInfo('ssh:removed')).ssh?.hasSavedHostKey;
+		const forgetAgain = await model.forgetSSHHostKey('ssh:removed').then(() => 'forgotten', (error: Error) => error.message);
+		assert.deepStrictEqual({ saved, forgottenHosts, remainingTrust: [...trustedHostKeys.keys()], confirmations: confirmations.map(({ message, detail }) => ({ message, detail })), forgotten, forgetAgain, connectionChanges }, {
+			saved: {
+				lastStep: { phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: 'Error: Host key verification failed' },
+				ssh: { alias: 'removed', hostName: 'build.example', user: 'developer', port: 22, hasSavedHostKey: true },
+				versions: { client: { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } } },
+			},
+			forgottenHosts: ['build.example:22'],
+			remainingTrust: ['removed:22'],
+			confirmations: [{
+				message: 'Forget the saved host key for \'Saved host\'?',
+				detail: 'The next time you connect, you\'ll be asked to verify the remote computer\'s host key. Only continue if you know why the key changed.\n\nssh-ed25519 SHA256:abc',
+			}],
+			forgotten: false,
+			forgetAgain: 'No host key is saved for this remote.',
+			connectionChanges: [],
+		});
+	});
+
+	test('troubleshooting info resolves saved SSH hosts without an alias, and falls back from a HostKeyAlias without keys like the connector', async () => {
+		const { model, storage, trustedHostKeys, forgottenHosts, resolvedSSHHosts, sshConfigs } = setup();
+		addSSHRemoteAgentHostEntry(storage, {
+			name: 'Direct host', connectionToken: undefined,
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:dev@direct.example:2222', hostName: 'direct.example', user: 'dev', port: 2222 },
+		});
+		sshConfigs.set('direct.example', { hostname: 'direct.internal', hostKeyAlias: 'direct-key', port: 22 });
+		trustedHostKeys.set('direct.internal:2222', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:legacy', addedAt: 0 }]);
+		const legacy = await model.getTroubleshootingInfo('ssh:dev@direct.example:2222');
+		trustedHostKeys.set('direct-key:2222', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:alias', addedAt: 0 }]);
+		await model.forgetSSHHostKey('ssh:dev@direct.example:2222');
+		assert.deepStrictEqual({ ssh: legacy.ssh, resolvedSSHHosts, forgottenHosts, remainingTrust: [...trustedHostKeys.keys()] }, {
+			ssh: { host: 'direct.example', hostName: 'direct.internal', user: 'dev', port: 2222, hasSavedHostKey: true },
+			resolvedSSHHosts: ['direct.example', 'direct.example'],
+			forgottenHosts: ['direct-key:2222'],
+			remainingTrust: ['direct.internal:2222'],
+		});
+	});
+
+	test('troubleshooting info describes tunnels, extension remotes and Dev Container hosts', async () => {
+		const { model, extensionHosts, devContainers, setConfiguration, setCachedTunnels } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		setCachedTunnels([{ ...tunnel, tunnelId: 'saved', name: 'Saved', authProvider: 'github' }, { ...tunnel, tunnelId: 'other', name: 'Other account', authProvider: 'microsoft' }]);
+		await model.refresh(CancellationToken.None);
+		const savedTunnels = { saved: (await model.getTroubleshootingInfo('tunnel:saved')).tunnel, otherAccount: (await model.getTroubleshootingInfo('tunnel:other')).tunnel };
+		const registration = extensionHosts.registerHost({ extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner', name: 'Runner Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		devContainers.hosts.set(new Set(['ssh:build']), undefined);
+		await model.setConnected('ssh:build', true);
+		await model.createDevContainer('ssh:build');
+		const hostConnected = (await model.getTroubleshootingInfo('devcontainer:ssh:build')).devContainer;
+		await model.setConnected('ssh:build', false);
+		const hostDisconnected = (await model.getTroubleshootingInfo('devcontainer:ssh:build')).devContainer;
+		const info = {
+			tunnel: (await model.getTroubleshootingInfo('tunnel:laptop')).tunnel, extension: (await model.getTroubleshootingInfo('127.0.0.1:8445')).extension,
+			hostConnected, hostDisconnected,
+		};
+		registration.dispose();
+		assert.deepStrictEqual({ ...info, savedTunnels }, {
+			tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 1 },
+			extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' },
+			hostConnected: { hostId: 'ssh:build', hostName: 'build', hostConnected: true, dockerAvailable: true },
+			hostDisconnected: { hostId: 'ssh:build', hostName: 'build', hostConnected: false },
+			// Saved tunnels have no host count, and discovery with one account says nothing about another's tunnels.
+			savedTunnels: { saved: { authProvider: 'github', inLastDiscovery: false }, otherAccount: { authProvider: 'microsoft' } },
+		});
+	});
+
+	test('troubleshooting info shows the server version of the current or last connection and whether an update is available', async () => {
+		const { model, providers, setInitializeResultMeta } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('tunnel:laptop')!;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const serverInfo: Implementation = { name: 'vscode-agent-host', title: 'VS Code Agent Host', version: '1.140.0' };
+		const build = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const method = { 'vscode.upgradeMethod': '_vscodeUpgrade' };
+		const versions = async (meta: Record<string, unknown> | undefined) => {
+			setInitializeResultMeta('tunnel:laptop', meta, serverInfo);
+			return (await model.getTroubleshootingInfo('tunnel:laptop')).versions;
+		};
+		const results = {
+			relay: await versions(undefined),
+			otherQuality: await versions({ ...method, 'vscode.build': { ...build, quality: 'stable' } }),
+			sameBuild: await versions({ ...method, 'vscode.build': { ...build, commit: 'client-commit' } }),
+			olderBuild: await versions({ ...method, 'vscode.build': build }),
+		};
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		const lastConnection = (await model.getTroubleshootingInfo('tunnel:laptop')).versions;
+		const client = { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } };
+		const server = { name: 'VS Code Agent Host', version: '1.140.0', current: true };
+		assert.deepStrictEqual({ ...results, lastConnection }, {
+			relay: { server, client, update: 'unavailable' },
+			otherQuality: { server: { ...server, build: { ...build, quality: 'stable' } }, client, update: 'otherQuality' },
+			sameBuild: { server: { ...server, build: { ...build, commit: 'client-commit' } }, client, update: 'upToDate' },
+			olderBuild: { server: { ...server, build }, client, update: 'available' },
+			lastConnection: { server: { ...server, build, current: false }, client },
+		});
+	});
+
+	(isWindows ? test : test.skip)('Restart Distribution stops the distribution after confirmation and connects again', async () => {
+		const { model, setWSLDistros, terminatedDistros, connectionChanges, confirmations, environmentState } = setup();
+		setWSLDistros([{ name: 'Ubuntu', isDefault: true, isRunning: true, version: 2 }]);
+		await model.refresh(CancellationToken.None);
+		const info = await model.getTroubleshootingInfo('wsl:Ubuntu');
+		environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+		void environmentState.pendingConfirmation.complete({ confirmed: false });
+		const cancelled = await model.restartWSLDistribution('wsl:Ubuntu').then(() => false, isCancellationError);
+		environmentState.pendingConfirmation = undefined;
+		await model.restartWSLDistribution('wsl:Ubuntu');
+		assert.deepStrictEqual({ canRestart: info.canRestartDistribution, cancelled, terminatedDistros, connectionChanges, confirmations: confirmations.map(confirmation => confirmation.message) }, {
+			canRestart: true,
+			cancelled: true,
+			terminatedDistros: ['Ubuntu'],
+			connectionChanges: [{ id: 'wsl:Ubuntu', connected: true }],
+			confirmations: ['Restart the WSL distribution \'Ubuntu\'?', 'Restart the WSL distribution \'Ubuntu\'?'],
+		});
 	});
 
 	test('reads service-owned error metadata even when opened midway through a retry', async () => {
@@ -360,6 +942,45 @@ suite('RemotesModel', () => {
 		});
 	});
 
+	test('live connection service state wins over a lagging provider and offline discovery', async () => {
+		const connection: IRemoteAgentHostConnectionInfo = { address: 'tunnel:laptop', name: 'Laptop', status: RemoteAgentHostConnectionStatus.connected };
+		const { model, providers, setConnections, setTunnelDiscovery, connectionChanges } = setup([connection]);
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => {
+			const remote = model.remotes.get().find(remote => remote.id === connection.address)!;
+			return { status: remote.connectionStatus.kind, availability: remote.availability };
+		};
+		const connected = snapshot();
+		await model.setConnected(connection.address, true);
+		const redundantAttempts = connectionChanges.length;
+		providers.get(connection.address)!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		setConnections([{ ...connection, status: RemoteAgentHostConnectionStatus.disconnected }]);
+		const disconnected = snapshot();
+		await assert.rejects(model.setConnected(connection.address, true), /offline/);
+		assert.deepStrictEqual({ connected, redundantAttempts, disconnected, connectionChanges }, {
+			connected: { status: 'connected', availability: 'online' }, redundantAttempts: 0,
+			disconnected: { status: 'disconnected', availability: 'offline' },
+			connectionChanges: [],
+		});
+	});
+
+	test('unrecognized GitHub Environment states and failed refreshes are not reported as offline', async () => {
+		const { model, setConfiguration, environmentAvailable, environmentHosts, environmentState } = setup();
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		const host = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'starting' };
+		environmentHosts.set([host], undefined);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => model.remotes.get().find(remote => remote.id === cloudSandboxAddress(host.id))!.availability;
+		const unrecognized = snapshot();
+		environmentHosts.set([{ ...host, status: 'online' }], undefined);
+		const online = snapshot();
+		environmentState.refreshFailure = new Error('Network unavailable');
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ unrecognized, online, failed: snapshot() }, { unrecognized: 'unknown', online: 'online', failed: 'unknown' });
+	});
+
 	test('fresh tunnel discovery wins over cached and provider names without registering or connecting', async () => {
 		const { model, setCachedTunnels, getCachedTunnels, setTunnelDiscovery, providersChanged, connectionChanges, reconnects } = setup();
 		const cached: ICachedTunnel[] = [
@@ -386,6 +1007,44 @@ suite('RemotesModel', () => {
 		});
 	});
 
+	test('tunnel availability follows discovery even when a GitHub Environment has the same name', async () => {
+		const { model, providers, setCachedTunnels, setTunnelDiscovery, setConfiguration, environmentAvailable, environmentHosts } = setup();
+		const reasons = () => Object.fromEntries(model.remotes.get().filter(remote => remote.kind === 'tunnel').map(remote => [remote.id, `${remote.availability}: ${remote.unavailableReason?.split(' ').slice(0, 4).join(' ')}`]));
+		setCachedTunnels([{ ...tunnel, tunnelId: 'gone', name: 'Gone', authProvider: 'github' }]);
+		setTunnelDiscovery(async () => { throw new Error('network'); });
+		await model.refresh(CancellationToken.None);
+		const discoveryFailed = reasons();
+		setTunnelDiscovery(async () => [
+			{ ...tunnel },
+			{ ...tunnel, tunnelId: 'idle', name: 'Idle', hostConnectionCount: 0 },
+			{ ...tunnel, tunnelId: 'moogle', name: 'Moogle' },
+		]);
+		await model.refresh(CancellationToken.None);
+		const discovered = reasons();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set([{ id: 'moogle', name: 'moogle', kind: 'user-local', status: 'online' }], undefined);
+		const matchingName = reasons()['tunnel:moogle'];
+		environmentHosts.set([{ id: 'other', name: 'other', displayName: 'Moogle', kind: 'user-local', status: 'online' }], undefined);
+		const matchingDisplayName = reasons()['tunnel:moogle'];
+		await model.setConnected('tunnel:moogle', true);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ discoveryFailed, discovered, matchingName, matchingDisplayName, connectedWithoutHost: reasons()['tunnel:laptop'] }, {
+			discoveryFailed: { 'tunnel:gone': 'unknown: Couldn\'t check this environment\'s' },
+			discovered: {
+				'tunnel:gone': 'unknown: This saved Dev Tunnel',
+				'tunnel:idle': 'offline: The Dev Tunnel host',
+				'tunnel:laptop': 'online: undefined',
+				'tunnel:moogle': 'online: undefined',
+			},
+			matchingName: 'online: undefined',
+			matchingDisplayName: 'online: undefined',
+			connectedWithoutHost: 'online: undefined',
+		});
+	});
+
 	test('explicit tunnel rename overrides discovery and clearing it restores the latest discovered name', async () => {
 		const { model, setCachedTunnels, setTunnelDiscovery, setRenameInput, renameInputs } = setup();
 		setCachedTunnels([{ ...tunnel, name: 'Old cached name' }]);
@@ -400,6 +1059,36 @@ suite('RemotesModel', () => {
 		await model.rename('tunnel:laptop');
 		assert.deepStrictEqual({ renamed, cleared: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.name, initialRenameValue: renameInputs[0].value }, {
 			renamed: 'My tunnel', cleared: 'Newest discovered name', initialRenameValue: 'Discovered name',
+		});
+	});
+
+	test('missing or failed tunnel status stays unverified and confirmed offline blocks connection until refresh', async () => {
+		const { model, providers, setTunnelDiscovery, connectionChanges } = setup();
+		const snapshot = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.availability;
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: undefined }]);
+		await model.refresh(CancellationToken.None);
+		const missing = snapshot();
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 1 }]);
+		await model.refresh(CancellationToken.None);
+		const online = snapshot();
+		setTunnelDiscovery(async () => { throw new Error('Network unavailable'); });
+		await model.refresh(CancellationToken.None);
+		const failed = snapshot();
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		const offline = snapshot();
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
+		const connecting = snapshot();
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		await assert.rejects(model.setConnected('tunnel:laptop', true), /offline/);
+		const offlineAttempts = connectionChanges.length;
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 1 }]);
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('tunnel:laptop', true);
+		assert.deepStrictEqual({ missing, online, failed, offline, connecting, offlineAttempts, connected: snapshot(), connectionChanges }, {
+			missing: 'unknown', online: 'online', failed: 'unknown', offline: 'offline', connecting: 'offline', connected: 'online',
+			offlineAttempts: 0,
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }],
 		});
 	});
 
@@ -442,35 +1131,59 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('copies each remote address without connecting or copying its display name', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, copiedAddresses, connectionChanges, reconnects, setDisplayName } = setup();
+	test('copies only pasteable SSH hosts, without connecting or copying display names', async () => {
+		const { model, storage, configuration, environmentAvailable, environmentHosts, copiedAddresses, connectionChanges, reconnects, setDisplayName } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([{ id: 'desktop', name: 'Friendly desktop', kind: 'user-local', status: 'offline' }], undefined);
+		for (const port of [2222, 22]) {
+			addSSHRemoteAgentHostEntry(storage, {
+				name: `Explicit ${port}`, connection: { type: RemoteAgentHostEntryType.SSH, address: `localhost:${port}`, hostName: `host${port}.example.com`, user: 'user', port },
+			});
+		}
 		await model.refresh(CancellationToken.None);
 		setDisplayName('ssh:build', 'Renamed SSH');
-		const addresses = model.remotes.get().map(remote => remote.id);
-		for (const address of addresses) {
-			await model.copyAddress(address);
+		const copyable = model.remotes.get().filter(remote => remote.copyableAddress).map(remote => remote.id);
+		for (const id of copyable) {
+			await model.copyAddress(id);
 		}
-		assert.deepStrictEqual({ copiedAddresses, connectionChanges, reconnects }, {
-			copiedAddresses: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop', 'cloudsandbox:desktop'], connectionChanges: [], reconnects: [],
+		for (const id of ['wsl:Ubuntu', 'tunnel:laptop', 'cloudsandbox:desktop']) {
+			await assert.rejects(model.copyAddress(id), /no longer available/);
+		}
+		assert.deepStrictEqual({ copiedAddresses: [...copiedAddresses].sort(), connectionChanges, reconnects }, {
+			copiedAddresses: ['build', 'user@host22.example.com', 'user@host2222.example.com:2222'], connectionChanges: [], reconnects: [],
 		});
 	});
 
 	for (const id of ['ssh:build', 'tunnel:laptop']) {
 		for (const preference of [undefined, 'editor', 'dedicated'] as const) {
-			test(`${id} location action reuses preference persistence and reconnect (${preference})`, async () => {
+			test(`${id} location action saves without connecting a disconnected provider (${preference})`, async () => {
 				const { model, locationPromptResult, locationPreferences, connectionChanges } = setup();
 				await model.refresh(CancellationToken.None);
 				locationPromptResult.result = preference;
 				await model.changePreferredAgentLocation(id);
 				assert.deepStrictEqual({ preferences: [...locationPreferences], connectionChanges }, {
 					preferences: preference ? [[id, preference]] : [],
-					connectionChanges: preference ? [{ id, connected: true }] : [],
+					connectionChanges: [],
 				});
 			});
 		}
+	}
+
+	for (const connected of [false, true]) {
+		test(`explicit run behavior saves without connecting an offline environment and reconnects only a connected one (connected=${connected})`, async () => {
+			const { model, providers, setTunnelDiscovery, locationPreferences, connectionChanges } = setup();
+			setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+			await model.refresh(CancellationToken.None);
+			if (connected) {
+				providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			}
+			const result = await model.changePreferredAgentLocation('tunnel:laptop', 'dedicated');
+			assert.deepStrictEqual({ result, preferences: [...locationPreferences], connectionChanges }, {
+				result: connected ? 'reconnected' : 'saved', preferences: [['tunnel:laptop', 'dedicated']],
+				connectionChanges: connected ? [{ id: 'tunnel:laptop', connected: true }] : [],
+			});
+		});
 	}
 
 	for (const sshConfigHost of ['remote', undefined]) {
@@ -485,6 +1198,7 @@ suite('RemotesModel', () => {
 			});
 			const key = sshConfigHost ? 'ssh:remote' : 'user@remote.example.com:2222';
 			providers.set(address, createProvider(address, key));
+			providers.get(address)!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 			providersChanged.fire({ added: [], removed: [] });
 			locationPromptResult.result = 'editor';
 			await model.changePreferredAgentLocation(address);
@@ -511,17 +1225,18 @@ suite('RemotesModel', () => {
 		});
 	}));
 
-	test('Update Server preserves already-current and failure notifications', async () => {
+	test('Update Server notifies already-current hosts and rejects with failures, for the caller to show', async () => {
 		const { model, providers, upgrade, upgrades, notifications, connectionChanges } = setup();
 		await model.refresh(CancellationToken.None);
 		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Update required', ['1'], undefined, 'vendor/update'), undefined);
 		await model.updateServer('tunnel:laptop');
 		upgrade.result = { ok: false, error: 'Download failed' };
-		await model.updateServer('tunnel:laptop');
+		const notStarted = await model.updateServer('tunnel:laptop').then(() => 'updated', (error: Error) => error.message);
 		upgrade.failure = new Error('Connection lost');
-		await model.updateServer('tunnel:laptop');
-		assert.deepStrictEqual({ calls: upgrades.length, messages: notifications.map(notification => notification.message), connectionChanges }, {
-			calls: 3, messages: ['Laptop is already on the latest version.', 'Failed to update Laptop: Download failed', 'Failed to update Laptop: Connection lost'], connectionChanges: [],
+		const failed = await model.updateServer('tunnel:laptop').then(() => 'updated', (error: Error) => error.message);
+		assert.deepStrictEqual({ calls: upgrades.length, messages: notifications.map(notification => notification.message), notStarted, failed, connectionChanges }, {
+			calls: 3, messages: ['Laptop is already on the latest version.'],
+			notStarted: 'Failed to update Laptop: Download failed', failed: 'Failed to update Laptop: Connection lost', connectionChanges: [],
 		});
 	});
 
@@ -549,10 +1264,98 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual(upgrades, []);
 	});
 
+	test('connected hosts offer Update Server only while they run an older build, and ask before updating', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, upgrades, confirmations, connectionChanges, environmentState, setInitializeResultMeta } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		await assert.rejects(model.updateServer('tunnel:laptop'), /does not support updating/);
+		const canUpdate = (meta: Record<string, unknown> | undefined) => {
+			setInitializeResultMeta('tunnel:laptop', meta);
+			return model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canUpdateServer ?? false;
+		};
+		const method = { 'vscode.upgradeMethod': 'vendor/update' };
+		const olderBuild = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const offered = {
+			absent: canUpdate(undefined),
+			methodWithoutBuild: canUpdate(method),
+			buildWithoutMethod: canUpdate({ 'vscode.build': olderBuild }),
+			malformedMethod: canUpdate({ 'vscode.upgradeMethod': 42, 'vscode.build': olderBuild }),
+			malformedBuild: canUpdate({ ...method, 'vscode.build': { ...olderBuild, date: 'yesterday' } }),
+			sameBuild: canUpdate({ ...method, 'vscode.build': { ...olderBuild, commit: 'client-commit' } }),
+			newerBuild: canUpdate({ ...method, 'vscode.build': { ...olderBuild, date: '2026-11-21T00:00:00.000Z' } }),
+			otherQuality: canUpdate({ ...method, 'vscode.build': { ...olderBuild, quality: 'stable' } }),
+			olderBuild: canUpdate({ ...method, 'vscode.build': olderBuild }),
+		};
+		const declined = new DeferredPromise<IConfirmationResult>();
+		void declined.complete({ confirmed: false });
+		environmentState.pendingConfirmation = declined;
+		await assert.rejects(model.updateServer('tunnel:laptop'), isCancellationError);
+		const afterDecline = [...upgrades];
+		environmentState.pendingConfirmation = undefined;
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		const start = Date.now();
+		await model.updateServer('tunnel:laptop');
+		assert.deepStrictEqual({
+			offered, afterDecline, upgrades, connectionChanges, elapsed: Date.now() - start,
+			confirmations: confirmations.map(({ message, primaryButton }) => ({ message, primaryButton })),
+		}, {
+			offered: {
+				absent: false, methodWithoutBuild: false, buildWithoutMethod: false, malformedMethod: false, malformedBuild: false,
+				sameBuild: false, newerBuild: false, otherQuality: false, olderBuild: true,
+			},
+			afterDecline: [],
+			upgrades: [{ address: 'tunnel:laptop', method: 'vendor/update' }],
+			// The connection stayed up through the restart delay, so the update reconnects explicitly.
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], elapsed: 3000,
+			confirmations: Array(2).fill({ message: 'Update the server on \'Laptop\'?', primaryButton: '&&Update Server' }),
+		});
+	}));
+
+	test('updating a connected server leaves reconnecting to a connection that drops during the restart', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, connectionChanges, setInitializeResultMeta } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('tunnel:laptop')!;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': '_vscodeUpgrade', 'vscode.build': { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' } });
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		setTimeout(() => provider.connectionStatus.set(RemoteAgentHostConnectionStatus.reconnecting, undefined), 1500);
+		const start = Date.now();
+		await model.updateServer('tunnel:laptop');
+		assert.deepStrictEqual({ connectionChanges, elapsed: Date.now() - start }, { connectionChanges: [], elapsed: 2000 });
+	}));
+
+	test('Connect asks to update a server that requires it and connects through the update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, upgrades, confirmations, connectionChanges, environmentState } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['1'], ['2'], 'vendor/update'), undefined);
+		const declined = new DeferredPromise<IConfirmationResult>();
+		void declined.complete({ confirmed: false });
+		environmentState.pendingConfirmation = declined;
+		await assert.rejects(model.setConnected('tunnel:laptop', true), /Canceled/);
+		const afterDecline = { upgrades: [...upgrades], connectionChanges: [...connectionChanges] };
+		environmentState.pendingConfirmation = undefined;
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		await model.setConnected('tunnel:laptop', true);
+		assert.deepStrictEqual({
+			afterDecline, upgrades, connectionChanges,
+			confirmations: confirmations.map(({ message, detail, primaryButton }) => ({ message, detail, primaryButton })),
+		}, {
+			afterDecline: { upgrades: [], connectionChanges: [] },
+			upgrades: [{ address: 'tunnel:laptop', method: 'vendor/update' }],
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }],
+			confirmations: Array(2).fill({
+				message: 'Update the server on \'Laptop\' to connect?',
+				detail: 'Unsupported protocol version\n\nUpdating restarts the server and then connects to it.',
+				primaryButton: '&&Update and Connect',
+			}),
+		});
+	}));
+
 	test('tunnel location saves without a provider and reports reconnect failures', async () => {
 		const { model, providers, locationPromptResult, locationPreferences, notifications, failConnection } = setup();
 		await model.refresh(CancellationToken.None);
 		locationPromptResult.result = 'editor';
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		failConnection(new Error('Connection refused'));
 		await model.changePreferredAgentLocation('tunnel:laptop');
 		providers.delete('tunnel:laptop');
@@ -570,7 +1373,7 @@ suite('RemotesModel', () => {
 		await assert.rejects(model.copyAddress('missing'), /no longer available/);
 		await assert.rejects(model.changePreferredAgentLocation('missing'), /no longer available/);
 		await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
-		await assert.rejects(model.copyAddress('tunnel:laptop'), /no longer available/);
+		await assert.rejects(model.copyAddress('ssh:build'), /no longer available/);
 		await assert.rejects(model.changePreferredAgentLocation('tunnel:laptop'), /no longer available/);
 		assert.deepStrictEqual({ copiedAddresses, preferences: [...locationPreferences] }, { copiedAddresses: [], preferences: [] });
 	});
@@ -598,6 +1401,59 @@ suite('RemotesModel', () => {
 			removals: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop'],
 			ssh: { name: 'build', connectionToken: undefined, connection: { type: 'ssh', address: 'ssh:build', hostName: 'build.example', user: 'developer', port: 22, sshConfigHost: 'build' } },
 			rediscovered: [{ kind: 'ssh', canRemove: false }, ...(isWindows ? [{ kind: 'wsl', canRemove: false }] : []), { kind: 'tunnel', canRemove: false }],
+		});
+	});
+
+	test('SSH hosts stay connectable without a status check', async () => {
+		const { model, storage } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		const availability = () => ['ssh:removed', 'ssh:build'].map(id => model.remotes.get().find(remote => remote.id === id)?.availability);
+		const initial = availability();
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ initial, refreshed: availability() }, { initial: ['unknown', undefined], refreshed: ['unknown', 'unknown'] });
+	});
+
+	test('last seen online changes only after a fresh positive check, not cached availability or a failed recheck', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, setTunnelDiscovery, setConfiguration } = setup();
+		await model.refresh(CancellationToken.None);
+		const onlineAt = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')?.metadata?.lastOnlineAt;
+		const first = Date.now();
+		const observations = [onlineAt()];
+		await timeout(60001);
+		await setConfiguration(RemoteAgentHostsEnabledSettingId, true);
+		observations.push(onlineAt());
+		const discovery = new DeferredPromise<ITunnelInfo[]>();
+		setTunnelDiscovery(() => discovery.p);
+		const refresh = model.refresh(CancellationToken.None);
+		await timeout(0);
+		observations.push(onlineAt());
+		await discovery.complete([{ ...tunnel, hostConnectionCount: 0 }]);
+		await refresh;
+		observations.push(onlineAt());
+		await timeout(60001);
+		setTunnelDiscovery(async () => [tunnel]);
+		await model.refresh(CancellationToken.None);
+		observations.push(onlineAt());
+		assert.deepStrictEqual(observations, [first, first, first, first, Date.now()]);
+	}));
+
+	(isWindows ? test : test.skip)('failed WSL checks cannot reuse an old offline result', async () => {
+		const { model, setWSLDistros, wslState, wslConnectionsChanged } = setup();
+		setWSLDistros([]);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => model.remotes.get().find(remote => remote.id === 'wsl:Ubuntu')!.availability;
+		const missing = snapshot();
+		wslState.discoveryFailure = new Error('WSL unavailable');
+		await model.refresh(CancellationToken.None);
+		const discoveryFailed = snapshot();
+		wslState.discoveryFailure = undefined;
+		setWSLDistros([{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }]);
+		await model.refresh(CancellationToken.None);
+		wslState.runningFailure = new Error('Running distributions unavailable');
+		wslConnectionsChanged.fire();
+		await timeout(0);
+		assert.deepStrictEqual({ missing, discoveryFailed, runningFailed: snapshot() }, {
+			missing: 'offline', discoveryFailed: 'unknown', runningFailed: 'unknown',
 		});
 	});
 
@@ -641,9 +1497,9 @@ suite('RemotesModel', () => {
 				pending: {
 					cached: 1, disconnects: [], confirmations: [{
 						type: 'warning',
-						message: 'Are you sure you want to delete saved SSH connection \'Saved host\'?',
-						detail: 'This forgets the saved connection and disconnects this client. Your SSH configuration and files on the remote machine will not be deleted.',
-						primaryButton: '&&Delete',
+						message: 'Forget saved SSH connection \'Saved host\'?',
+						detail: 'This forgets the saved connection and disconnects this client. Your SSH configuration, the remote computer, and its files are kept.',
+						primaryButton: '&&Forget',
 					}],
 				},
 				cached: confirmed ? [] : [savedSSHHost],
@@ -743,6 +1599,33 @@ suite('RemotesModel', () => {
 		});
 	});
 
+	for (const olderFails of [false, true]) {
+		test(`newer discovery survives an older ${olderFails ? 'authentication failure' : 'offline result'} arriving last`, async () => {
+			const { model, setTunnelDiscovery, logEntries } = setup();
+			const older = new DeferredPromise<ITunnelInfo[]>();
+			const started = new DeferredPromise<void>();
+			setTunnelDiscovery(() => {
+				started.complete();
+				return older.p;
+			});
+			const refreshing = model.refresh(CancellationToken.None);
+			await started.p;
+			setTunnelDiscovery(async () => [tunnel]);
+			await model.refresh(CancellationToken.None);
+			if (olderFails) {
+				await older.error(new TunnelAuthenticationRequiredError('github'));
+			} else {
+				await older.complete([{ ...tunnel, hostConnectionCount: 0 }]);
+			}
+			const olderFailures = await refreshing;
+			assert.deepStrictEqual({
+				availability: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')?.availability,
+				authenticationRequired: model.tunnelAuthenticationRequired.get(),
+				olderFailures, logEntries,
+			}, { availability: 'online', authenticationRequired: undefined, olderFailures: [], logEntries: [] });
+		});
+	}
+
 	test('reports each source finishing independently, including discovery failures', async () => {
 		const { model, setSSHDiscovery, setTunnelDiscovery } = setup();
 		const ssh = new DeferredPromise<string[]>();
@@ -770,11 +1653,13 @@ suite('RemotesModel', () => {
 		const partial = { ssh: refreshing.has('ssh'), tunnel: refreshing.has('tunnel') };
 		await tunnel.error(new Error('Tunnel discovery failed'));
 		const failures = await refresh;
+		// Extension remotes are registered and Dev Containers are created in this client rather than discovered.
+		const discoveredKinds = remoteKinds.filter(kind => kind !== 'extension' && kind !== 'devContainer').sort();
 		assert.deepStrictEqual({
 			partial, failures, remaining: [...refreshing],
 			started: updates.filter(update => update.refreshing).map(update => update.kind).sort(),
 			finished: updates.filter(update => !update.refreshing).map(update => update.kind).sort(),
-		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: [...remoteKinds].sort(), finished: [...remoteKinds].sort() });
+		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: discoveredKinds, finished: discoveredKinds });
 	});
 
 	test('tunnel progress spans authentication and reports missing-scope failure before other discovery finishes', async () => {
@@ -931,6 +1816,25 @@ suite('RemotesModel', () => {
 		}, { removable: isWindows ? [false] : [], discoveryCalls: isWindows ? 1 : 0 });
 	});
 
+	(isWindows ? test : test.skip)('WSL rows are available only while the distribution is running', async () => {
+		const { model, setWSLDistros } = setup();
+		const snapshot = async (running: boolean | undefined) => {
+			setWSLDistros(running === undefined ? [] : [{ name: 'Ubuntu', isDefault: true, isRunning: running, version: 2 }]);
+			await model.refresh(CancellationToken.None);
+			const remote = model.remotes.get().find(remote => remote.id === 'wsl:Ubuntu');
+			return { availability: remote?.availability, startsOnConnect: remote?.startsOnConnect ?? false };
+		};
+		assert.deepStrictEqual({
+			running: await snapshot(true),
+			stopped: await snapshot(false),
+			uninstalled: await snapshot(undefined),
+		}, {
+			running: { availability: 'online', startsOnConnect: false },
+			stopped: { availability: 'offline', startsOnConnect: true },
+			uninstalled: { availability: 'offline', startsOnConnect: false },
+		});
+	});
+
 	test('tracks provider connection state and stops observing removed providers', async () => {
 		const { model, providers, providersChanged } = setup();
 		await model.refresh(CancellationToken.None);
@@ -980,6 +1884,30 @@ suite('RemotesModel', () => {
 			await model.setConnected(id, true);
 		}
 		assert.deepStrictEqual(reconnects, ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop']);
+	});
+
+	test('connection failures before transport registration stay on the row until a successful connection', async () => {
+		const { model, failConnection } = setup();
+		await model.refresh(CancellationToken.None);
+		failConnection(new Error('All configured authentication methods failed'));
+		await assert.rejects(model.setConnected('ssh:build', true), /authentication methods failed/);
+		const failure = model.remotes.get().find(remote => remote.id === 'ssh:build')!.lastConnectionError;
+		await model.refresh(CancellationToken.None);
+		const afterRefresh = model.remotes.get().find(remote => remote.id === 'ssh:build')!.lastConnectionError;
+		failConnection(undefined);
+		await model.setConnected('ssh:build', true);
+		assert.deepStrictEqual({ failure, afterRefresh, afterSuccess: model.remotes.get().find(remote => remote.id === 'ssh:build')!.lastConnectionError }, {
+			failure: 'All configured authentication methods failed', afterRefresh: 'All configured authentication methods failed', afterSuccess: undefined,
+		});
+	});
+
+	test('a provider hook returning early cannot report success before connection readiness', async () => {
+		const { model, providers, failConnection } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('ssh:build')!.connect = async () => { };
+		failConnection(new Error('Agent host handshake failed'));
+		await assert.rejects(model.setConnected('ssh:build', true), /handshake failed/);
+		assert.deepStrictEqual(model.remotes.get().find(remote => remote.id === 'ssh:build')?.lastConnectionError, 'Agent host handshake failed');
 	});
 
 	test('connection errors propagate and disabled AI prevents connection changes', async () => {
@@ -1058,31 +1986,57 @@ suite('RemotesModel', () => {
 		}, { hidden: ['ssh:build', 'tunnel:laptop'], externallyShown: false, remainingHidden: [], entries: [], connectionChanges: [], reconnects: [], removals: [] });
 	});
 
-	test('offline environment visibility is account-scoped and cannot bypass availability', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentConnections, addEnvironmentProvider } = setup();
+	test('offline environment visibility remains editable and account-scoped without bypassing availability', async () => {
+		const { model, configuration, providers, environmentAvailable, environmentHosts, environmentState, environmentConnections, addEnvironmentProvider } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		const host = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' } as const;
 		environmentHosts.set([host], undefined);
-		addEnvironmentProvider(host.id);
+		const provider = addEnvironmentProvider(host.id);
+		await model.refresh(CancellationToken.None);
 		const id = cloudSandboxAddress('desktop');
+		const snapshot = () => {
+			const remote = model.remotes.get().find(remote => remote.id === id)!;
+			return {
+				hidden: remote.hidden, reason: remote.pickerUnavailableReason,
+				inPicker: getSessionCreationEnvironments([...providers.values()]).some(environment => environment.providerIds.includes(provider.id)),
+			};
+		};
 		model.setHidden(id, true);
 		const hosts = [{ ...host, status: 'offline' }] as const;
 		environmentHosts.set(hosts, undefined);
-		const hidden = model.remotes.get().find(remote => remote.id === id)?.hidden;
-		assert.throws(() => model.setHidden(id, false), /when the owning application is online/);
-		const reason = model.remotes.get().find(remote => remote.id === id)?.pickerUnavailableReason;
+		provider.isAvailableInEnvironmentPicker.set(false, undefined);
+		const hiddenOffline = snapshot();
+		model.setHidden(id, false);
+		const shownOffline = snapshot();
+		model.setHidden(id, true);
 		environmentState.account = 'account-two';
 		environmentHosts.set([...hosts], undefined);
 		const otherAccount = model.remotes.get().find(remote => remote.id === id)?.hidden;
 		environmentState.account = 'account-one';
 		environmentHosts.set([...hosts], undefined);
 		const restored = model.remotes.get().find(remote => remote.id === id)?.hidden;
-		await assert.rejects(model.setConnected(id, true), /not online/);
+		await assert.rejects(model.setConnected(id, true), /offline/);
 		environmentHosts.set([host], undefined);
+		provider.isAvailableInEnvironmentPicker.set(true, undefined);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const hiddenOnline = snapshot();
 		model.setHidden(id, false);
-		assert.deepStrictEqual({ hidden, otherAccount, restored, reason, environmentConnections }, {
-			hidden: true, otherAccount: false, restored: true, reason: 'Available in the picker when the owning application is online.', environmentConnections: [],
+		const shownOnline = snapshot();
+		environmentHosts.set(hosts, undefined);
+		provider.isAvailableInEnvironmentPicker.set(false, undefined);
+		const offlineAgain = snapshot();
+		environmentHosts.set([host], undefined);
+		provider.isAvailableInEnvironmentPicker.set(true, undefined);
+		assert.deepStrictEqual({ hiddenOffline, shownOffline, otherAccount, restored, hiddenOnline, shownOnline, offlineAgain, onlineAgain: snapshot(), environmentConnections }, {
+			hiddenOffline: { hidden: true, reason: undefined, inPicker: false },
+			shownOffline: { hidden: false, reason: undefined, inPicker: false },
+			otherAccount: false, restored: true,
+			hiddenOnline: { hidden: true, reason: undefined, inPicker: false },
+			shownOnline: { hidden: false, reason: undefined, inPicker: true },
+			offlineAgain: { hidden: false, reason: undefined, inPicker: false },
+			onlineAgain: { hidden: false, reason: undefined, inPicker: true },
+			environmentConnections: [],
 		});
 		environmentHosts.set([], undefined);
 		assert.throws(() => model.setHidden(id, true), /no longer available/);
@@ -1122,32 +2076,54 @@ suite('RemotesModel', () => {
 				};
 			};
 			const discovered = snapshot();
-			assert.throws(() => model.setHidden(id, false), /Connect once/);
-			assert.throws(() => model.setHidden(id, true), /Connect once/);
+			model.setHidden(id, true);
+			const hiddenBeforeRegistration = snapshot();
 			providers.set(id, provider);
 			providersChanged.fire({ added: [], removed: [] });
+			const registeredHidden = snapshot();
+			model.setHidden(id, false);
 			const registered = snapshot();
+			model.setHidden(id, true);
+			const hiddenDisconnected = snapshot();
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			const hiddenConnected = snapshot();
+			model.setHidden(id, false);
+			const connected = snapshot();
 			model.setHidden(id, true);
 			const hidden = snapshot();
 			provider.isAvailableInEnvironmentPicker.set(false, undefined);
 			const unavailable = snapshot();
-			assert.throws(() => model.setHidden(id, false), /currently unavailable/);
+			model.setHidden(id, false);
+			const shownUnavailable = snapshot();
 			provider.isAvailableInEnvironmentPicker.set(true, undefined);
 			const availableAgain = snapshot();
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			const disconnected = snapshot();
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Update required', ['1']), undefined);
+			const incompatible = snapshot();
+			model.setHidden(id, true);
+			const hiddenIncompatible = snapshot();
 			model.setHidden(id, false);
-			const shown = snapshot();
 			providers.delete(id);
 			providersChanged.fire({ added: [], removed: [] });
 			assert.deepStrictEqual({
-				discovered, registered, hidden, unavailable, availableAgain, shown, withdrawn: snapshot(), connectionChanges, reconnects, removals,
+				discovered, hiddenBeforeRegistration, registeredHidden, registered, hiddenDisconnected, hiddenConnected, connected, hidden, unavailable, shownUnavailable, availableAgain, disconnected, incompatible, hiddenIncompatible, withdrawn: snapshot(), connectionChanges, reconnects, removals,
 			}, {
-				discovered: { hidden: false, reason: 'Connect once to add this remote to the picker.', inPicker: false },
+				discovered: { hidden: false, reason: undefined, inPicker: false },
+				hiddenBeforeRegistration: { hidden: true, reason: undefined, inPicker: false },
+				registeredHidden: { hidden: true, reason: undefined, inPicker: false },
 				registered: { hidden: false, reason: undefined, inPicker: true },
+				hiddenDisconnected: { hidden: true, reason: undefined, inPicker: false },
+				hiddenConnected: { hidden: true, reason: undefined, inPicker: false },
+				connected: { hidden: false, reason: undefined, inPicker: true },
 				hidden: { hidden: true, reason: undefined, inPicker: false },
-				unavailable: { hidden: true, reason: 'This remote is currently unavailable in the picker.', inPicker: false },
-				availableAgain: { hidden: true, reason: undefined, inPicker: false },
-				shown: { hidden: false, reason: undefined, inPicker: true },
-				withdrawn: { hidden: false, reason: 'Connect once to add this remote to the picker.', inPicker: false },
+				unavailable: { hidden: true, reason: undefined, inPicker: false },
+				shownUnavailable: { hidden: false, reason: undefined, inPicker: false },
+				availableAgain: { hidden: false, reason: undefined, inPicker: true },
+				disconnected: { hidden: false, reason: undefined, inPicker: true },
+				incompatible: { hidden: false, reason: undefined, inPicker: true },
+				hiddenIncompatible: { hidden: true, reason: undefined, inPicker: false },
+				withdrawn: { hidden: false, reason: undefined, inPicker: false },
 				connectionChanges: [], reconnects: [], removals: [],
 			});
 		});
@@ -1160,7 +2136,7 @@ suite('RemotesModel', () => {
 		provider.supportsWorkspaceSelection = false;
 		providersChanged.fire({ added: [], removed: [] });
 		const unsupported = model.remotes.get().find(remote => remote.id === 'ssh:build')?.pickerUnavailableReason;
-		assert.throws(() => model.setHidden('ssh:build', false), /does not support/);
+		assert.throws(() => model.setHidden('ssh:build', false), /can't appear as a separate entry/);
 		provider.supportsWorkspaceSelection = true;
 		provider.hostGroup = { id: 'group', label: 'Group' };
 		providersChanged.fire({ added: [], removed: [] });
@@ -1168,8 +2144,8 @@ suite('RemotesModel', () => {
 			unsupported, grouped: model.remotes.get().find(remote => remote.id === 'ssh:build')?.pickerUnavailableReason,
 			inPicker: getSessionCreationEnvironments([...providers.values()]).some(environment => environment.providerIds.includes(provider.id)),
 		}, {
-			unsupported: 'This remote does not support a separate entry in the Environment picker.',
-			grouped: 'This remote does not support a separate entry in the Environment picker.', inPicker: false,
+			unsupported: 'This remote can\'t appear as a separate entry in the environment picker.',
+			grouped: 'This remote can\'t appear as a separate entry in the environment picker.', inPicker: false,
 		});
 	});
 
@@ -1219,13 +2195,20 @@ suite('RemotesModel', () => {
 			{ id: 'sandbox', name: 'Task sandbox', kind: 'managed-sandbox', status: 'online' },
 			{ id: 'future', name: 'Future kind', kind: 'future', status: 'online' },
 		], undefined);
-		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
-			id: remote.id, name: remote.name, unavailable: !!remote.unavailableReason, canRemove: remote.canRemove,
-		})), [
-			{ id: cloudSandboxAddress('online'), name: 'A desktop', unavailable: false, canRemove: true },
-			{ id: cloudSandboxAddress('offline'), name: 'B desktop', unavailable: true, canRemove: true },
-		]);
-		await assert.rejects(model.setConnected(cloudSandboxAddress('offline'), true), /not online/);
+		const environmentRows = () => model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
+			id: remote.id, name: remote.name, availability: remote.availability, unavailable: !!remote.unavailableReason, canRemove: remote.canRemove,
+		}));
+		// Hosts restored before discovery keep a stale status, so they aren't reported as online or offline.
+		const restored = environmentRows().map(row => row.availability);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ restored, verified: environmentRows() }, {
+			restored: ['pending', 'pending'],
+			verified: [
+				{ id: cloudSandboxAddress('online'), name: 'A desktop', availability: 'online', unavailable: false, canRemove: true },
+				{ id: cloudSandboxAddress('offline'), name: 'B desktop', availability: 'offline', unavailable: true, canRemove: true },
+			],
+		});
+		await assert.rejects(model.setConnected(cloudSandboxAddress('offline'), true), /offline/);
 		await assert.rejects(model.remove(cloudSandboxAddress('sandbox')), /no longer available/);
 		await model.remove(cloudSandboxAddress('online'));
 		await model.remove(cloudSandboxAddress('offline'));
@@ -1253,8 +2236,8 @@ suite('RemotesModel', () => {
 				before: {
 					confirmations: [{
 						type: 'warning',
-						message: 'Are you sure you want to delete dev tunnel \'My test tunnel\'?',
-						detail: 'This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again.',
+						message: 'Delete Dev Tunnel \'My test tunnel\'?',
+						detail: 'This removes the tunnel registration and disconnects all its clients. The remote computer and its files stay available. The tunnel returns when sharing restarts on that computer.',
 						primaryButton: '&&Delete',
 					}],
 					deletedTunnels: [],
@@ -1292,7 +2275,7 @@ suite('RemotesModel', () => {
 		tunnelState.canDelete = true;
 		setTunnelStatus({ type: 'connected', info: { tunnelId: 'laptop', tunnelName: 'Different display name', isAttached: false }, serviceInstallFailed: false });
 		const hosted = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete;
-		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /currently hosting/);
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /sharing this dev tunnel/);
 		setTunnelStatus({ type: 'disconnected' });
 		assert.deepStrictEqual({ unsupported, hosted, stopped: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete, deletedTunnels, confirmations }, {
 			unsupported: false, hosted: false, stopped: true, deletedTunnels: [], confirmations: [],
@@ -1318,7 +2301,7 @@ suite('RemotesModel', () => {
 			await model.refresh(CancellationToken.None);
 			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
 			const deletion = model.deleteTunnel('tunnel:laptop');
-			const rejected = assert.rejects(deletion, change === 'hosting' ? /currently hosting/ : change === 'capability' ? /not supported/ : isCancellationError);
+			const rejected = assert.rejects(deletion, change === 'hosting' ? /sharing this dev tunnel/ : change === 'capability' ? /not supported/ : isCancellationError);
 			switch (change) {
 				case 'inventory':
 					setTunnelDiscovery(async () => []);
@@ -1388,9 +2371,9 @@ suite('RemotesModel', () => {
 			}, {
 				confirmations: [{
 					type: 'warning',
-					message: 'Are you sure you want to delete environment \'Office desktop\'?',
-					detail: 'This removes the environment registration and disconnects this client. Files on the machine will not be deleted. The environment may reappear if its owning application registers it again.',
-					primaryButton: '&&Delete',
+					message: 'Remove environment \'Office desktop\'?',
+					detail: 'This removes the environment registration and disconnects this client. The remote computer and its files are kept. The environment may reappear if its owning application registers it again.',
+					primaryButton: '&&Remove',
 				}],
 				deletions: [], hosts: [host, retained],
 			});
@@ -1440,7 +2423,7 @@ suite('RemotesModel', () => {
 	}
 
 	test('environment connections prefer provider hooks and retain inventory on disconnect', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider } = setup();
+		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider, sharing } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' }], undefined);
@@ -1449,8 +2432,8 @@ suite('RemotesModel', () => {
 		addEnvironmentProvider('desktop');
 		await model.setConnected(id, true);
 		await model.setConnected(id, false);
-		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id) }, {
-			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true,
+		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id), sharingEvents: sharing.events }, {
+			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true, sharingEvents: [],
 		});
 	});
 
@@ -1475,6 +2458,79 @@ suite('RemotesModel', () => {
 			cached: ['Desktop'],
 			discovered: ['Laptop', 'Desktop'],
 			ownTunnel: ['Desktop'],
+		});
+	});
+
+	test('GitHub environment sharing is gated, lists shared remotes once and rejects unsupported targets', async () => {
+		const { model, configuration, setConfiguration, environmentAvailable, environmentHosts, sharing } = setup();
+		await model.refresh(CancellationToken.None);
+		sharing.shareable.set(new Set(['ssh:build', 'tunnel:laptop']), undefined);
+		const snapshot = () => ({
+			rows: model.remotes.get().filter(remote => remote.canShareAsGitHubEnvironment !== undefined)
+				.map(remote => `${remote.id}: ${remote.canShareAsGitHubEnvironment ? 'shareable' : 'not shareable'}${remote.gitHubEnvironment ? `, ${remote.gitHubEnvironment.state}` : ''}`),
+			environments: model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => remote.name),
+		});
+		const gated = snapshot();
+		await assert.rejects(model.setSharedAsGitHubEnvironment('ssh:build', true), /no longer available/);
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([
+			{ id: 'shared-build', name: 'Shared build', kind: 'user-local', status: 'online' },
+			{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' },
+		], undefined);
+		await model.setSharedAsGitHubEnvironment('ssh:build', true);
+		sharing.environmentIds.set(new Set(['shared-build']), undefined);
+		const shared = snapshot();
+		await assert.rejects(model.setSharedAsGitHubEnvironment('wsl:Ubuntu', true), /no longer available/);
+		await assert.rejects(model.setSharedAsGitHubEnvironment('tunnel:laptop', false), /no longer available/);
+		await assert.rejects(model.setSharedAsGitHubEnvironment(cloudSandboxAddress('desktop'), true), /no longer available/);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, false);
+		const disabled = snapshot();
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		await model.setSharedAsGitHubEnvironment('ssh:build', false);
+		sharing.environmentIds.set(new Set(), undefined);
+		assert.deepStrictEqual({ gated, shared, disabled, unshared: snapshot(), events: sharing.events }, {
+			gated: { rows: [], environments: [] },
+			shared: { rows: ['ssh:build: shareable, enabled', 'tunnel:laptop: shareable'], environments: ['Desktop'] },
+			disabled: { rows: [], environments: [] },
+			unshared: { rows: ['ssh:build: shareable', 'tunnel:laptop: shareable'], environments: ['Desktop', 'Shared build'] },
+			events: ['share ssh:build after 0 removals', 'unshare ssh:build after 0 removals'],
+		});
+	});
+
+	test('removing or deleting a shared remote stops sharing it first', async () => {
+		const { model, storage, configuration, environmentAvailable, sharing } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		await model.refresh(CancellationToken.None);
+		const ids = ['ssh:removed', 'wsl:Ubuntu', 'tunnel:laptop'];
+		sharing.shareable.set(new Set(ids), undefined);
+		for (const id of ids) {
+			await model.setSharedAsGitHubEnvironment(id, true);
+		}
+		await model.deleteSSHHost('ssh:removed');
+		await model.remove('wsl:Ubuntu');
+		await model.deleteTunnel('tunnel:laptop');
+		assert.deepStrictEqual({ events: sharing.events.slice(ids.length), shares: [...sharing.shares.get().keys()] }, {
+			events: ['unshare ssh:removed after 0 removals', 'unshare wsl:Ubuntu after 1 removals', 'unshare tunnel:laptop after 2 removals'],
+			shares: [],
+		});
+	});
+
+	test('disconnecting asks whether to keep sharing as a GitHub environment and can be cancelled', async () => {
+		const { model, sharing, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('ssh:build', true);
+		sharing.disconnectConfirmed = false;
+		await model.setConnected('ssh:build', false);
+		const cancelled = model.remotes.get().find(remote => remote.id === 'ssh:build')?.connectionStatus.kind;
+		sharing.disconnectConfirmed = true;
+		await model.setConnected('ssh:build', false);
+		assert.deepStrictEqual({ cancelled, events: sharing.events, connectionChanges }, {
+			cancelled: 'connected',
+			events: ['confirm disconnect ssh:build (build)', 'confirm disconnect ssh:build (build)'],
+			connectionChanges: [{ id: 'ssh:build', connected: true }, { id: 'ssh:build', connected: false }],
 		});
 	});
 
