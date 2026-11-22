@@ -17607,11 +17607,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				inputText: 'Unsent private instruction',
 				attachments: [{ kind: 'file', id: 'draft-file', name: 'draft.ts', value: URI.file('/workspace/draft.ts') }],
 				selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 2, positionLineNumber: 1, positionColumn: 4 }],
-				mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, contrib: {},
+				mode: { id: 'agent://unsent-agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'unsent-model', metadata: createTestLanguageModel('unsent-model') }, contrib: {},
 			};
 			model.inputModel.setState(draft);
+			const initialDraft = model.inputModel.state.get();
 			const submitted: { query: string; attachedContext: IChatSendRequestOptions['attachedContext'] }[] = [];
-			const provider = createProvider(disposables, agentHost, undefined, {
+			agentHost.addSession(createSession('broadcast-draft', { summary: 'Broadcast Draft' }));
+			const provider = createRefreshableProvider(disposables, agentHost, {
 				acquireOrLoadSession: async () => new ImmortalReference(model),
 				sendRequest: async (_resource, query, options) => {
 					submitted.push({ query, attachedContext: options?.attachedContext });
@@ -17620,7 +17623,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					return rejected ? { kind: 'rejected', reason: 'test rejection' } : { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
 				},
 			});
-			fireSessionAdded(agentHost, 'broadcast-draft', { title: 'Broadcast Draft' });
+			await provider.refreshForTest();
 			const session = provider.getSessions().find(session => session.title.get() === 'Broadcast Draft')!;
 			const management = createManagementService(disposables, provider);
 			instantiation.stub(ISessionsManagementService, management);
@@ -17634,12 +17637,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const retained = model.inputModel.state.get();
 			assert.deepStrictEqual({
 				capability: session.capabilities.get().supportsBackgroundDispatch,
-				submitted, text: retained?.inputText, attachments: retained?.attachments, selections: retained?.selections,
-				failures: errors.callCount,
+				submitted, retained,
+				failures: errors.args.map(([message]) => message),
 			}, {
 				capability: true, submitted: [{ query: 'Shared instruction', attachedContext: undefined }],
-				text: 'Edited unsent instruction', attachments: draft.attachments, selections: draft.selections,
-				failures: rejected ? 1 : 0,
+				retained: { ...initialDraft, inputText: 'Edited unsent instruction' },
+				failures: rejected ? [`Instruction submitted to 0 of 1 chats. Failed chats were not retried:\nBroadcast Draft: [${provider.id}] sendRequest rejected: test rejection`] : [],
 			});
 			if (!rejected) {
 				await management.sendRequest(session, session.mainChat.get(), { query: draft.inputText, attachedContext: [...draft.attachments] });
