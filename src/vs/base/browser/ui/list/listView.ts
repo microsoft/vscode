@@ -757,7 +757,7 @@ export class ListView<T> implements IListView<T> {
 			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
 				// A retained selection edge can enter the render range with its row already in place.
-				if (item.row) {
+				if (this.selectionEdges.includes(i)) {
 					continue;
 				}
 				const rows = rowsToDispose.get(item.templateId);
