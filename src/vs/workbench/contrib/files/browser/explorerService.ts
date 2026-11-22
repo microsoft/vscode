@@ -22,7 +22,7 @@ import { IExplorerView, IExplorerService } from './files.js';
 import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from '../../../../platform/progress/common/progress.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Promises, RunOnceScheduler } from '../../../../base/common/async.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -264,25 +264,31 @@ export class ExplorerService implements IExplorerService {
 			progressOptions = {
 				location: location,
 				title: options.progressLabel,
-				cancellable: edit.length > 1,
+				cancellable: true,
 			} satisfies IProgressOptions;
 		} else {
 			progressOptions = {
 				location: location,
 				title: options.progressLabel,
-				cancellable: edit.length > 1,
+				cancellable: true,
 				delay: 500,
 			} satisfies IProgressCompositeOptions;
 		}
 		const promise = this.progressService.withProgress(progressOptions, async progress => {
-			await this.bulkEditService.apply(edit, {
-				undoRedoSource: UNDO_REDO_SOURCE,
-				label: options.undoLabel,
-				code: 'undoredo.explorerOperation',
-				progress,
-				token: cancellationTokenSource.token,
-				confirmBeforeUndo: options.confirmBeforeUndo
-			});
+			try {
+				await this.bulkEditService.apply(edit, {
+					undoRedoSource: UNDO_REDO_SOURCE,
+					label: options.undoLabel,
+					code: 'undoredo.explorerOperation',
+					progress,
+					token: cancellationTokenSource.token,
+					confirmBeforeUndo: options.confirmBeforeUndo
+				});
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					throw error;
+				}
+			}
 		}, () => cancellationTokenSource.cancel());
 		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
 		cancellationTokenSource.dispose();
