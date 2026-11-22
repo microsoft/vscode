@@ -16,7 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment } from '../../common/devContainerEnvironments.js';
+import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment, parseDevContainerEnvironmentWorkspaceFolder } from '../../common/devContainerEnvironments.js';
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
 import { devContainerEnvironmentLabel, devContainerVolumeLabel, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { getDevContainerStateVolumeLabels, getDevContainerStateVolumeName } from '../../node/devContainerState.js';
@@ -101,7 +101,14 @@ suite('Dev Container environments', () => {
 			},
 			devcontainer: async () => ({ stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: '/workspaces/ubuntu-3' }), stderr: '', code: 0 }),
 		});
-		assert.deepStrictEqual({ created, workspace: prepared.remoteWorkspaceFolder }, { created: ['ubuntu-2', 'ubuntu-3'], workspace: '/workspaces/ubuntu-3' });
+		// Open in VS Code reads the volume and folder from the workspace folder; they match the container's labels.
+		const labels = prepared.cliArgs.filter((_, index) => prepared.cliArgs[index - 1] === '--id-label');
+		assert.deepStrictEqual({ created, workspace: prepared.remoteWorkspaceFolder, volume: parseDevContainerEnvironmentWorkspaceFolder(prepared.remoteWorkspaceFolder), labels }, {
+			created: ['ubuntu-2', 'ubuntu-3'],
+			workspace: '/workspaces/ubuntu-3',
+			volume: { volumeName: 'ubuntu-3', folder: 'ubuntu-3' },
+			labels: ['vsc.devcontainer.volume.name=ubuntu-3', 'vsc.devcontainer.volume.folder=ubuntu-3'],
+		});
 	});
 
 	test('never gives a new environment a name whose state volume exists, nor mounts a state volume of another environment', async () => {

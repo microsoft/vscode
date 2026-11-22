@@ -80,8 +80,15 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify(entry.connection.repository)))}`;
 			}
 			if (entry.connection.environmentId !== undefined) {
-				// The Dev Containers extension has no authority for environment containers.
-				return undefined;
+				const volume = entry.connection.volume;
+				if (!volume) {
+					return undefined;
+				}
+				// Dev Containers opens a volume folder without a configuration in the container that its labels identify. A
+				// volume has no host path to identify WSL by, and Dev Containers accepts only SSH and Tunnel parent authorities;
+				// Docker Desktop shares one engine with its WSL distributions, so their volumes are reachable without one.
+				const parentAuthority = entry.connection.hostAuthority?.startsWith('wsl+') ? undefined : entry.connection.hostAuthority;
+				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify({ volumeName: volume.volumeName, folder: volume.folder })))}${parentAuthority ? `@${parentAuthority}` : ''}`;
 			}
 			let { hostPath, hostAuthority } = entry.connection;
 			if (hostAuthority?.startsWith('wsl+')) {
@@ -141,9 +148,8 @@ export function getEditorWindowSessionUnsupportedReason(
 				&& locationPreferenceService.getPreference(hostKey) !== 'editor' ? 'differentAgentHost' : undefined;
 		}
 		case RemoteAgentHostEntryType.WSL:
-			return undefined;
 		case RemoteAgentHostEntryType.DevContainer:
-			return entry.connection.environmentId !== undefined ? 'unsupported' : undefined;
+			return undefined;
 		default:
 			return 'unsupported';
 	}
