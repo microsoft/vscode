@@ -3900,7 +3900,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	for (const rejected of [false, true]) {
-		test(`archive shows the session as archived before host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test(`archive shows the session as archived until host confirmation, also over earlier host updates, and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const backend = URI.parse('opaque-session://tenant/archiving');
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
@@ -3920,11 +3920,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
 			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
 			await dispatched.p;
-			const beforeAcknowledgement = { completed, archived: session.isArchived.get() };
+			// The host reports a status from before it applied the archive.
+			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged, session: backend.toString(), changes: { status: ProtocolSessionStatus.Idle } });
+			const beforeAcknowledgement = { completed, archived: session.isArchived.get(), archivePending: session.archivePending?.get() };
 			await acknowledgement.complete();
 			await result;
-			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
-				beforeAcknowledgement: { completed: false, archived: true }, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), archivePending: session.archivePending?.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
+				beforeAcknowledgement: { completed: false, archived: true, archivePending: true }, completed: !rejected, archived: !rejected, archivePending: false, calls: [backend.toString()], released: 1,
 			});
 		}));
 	}
@@ -3959,7 +3961,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			active, maximumActive, elapsedMs: Date.now() - started,
 			outcomes: results.map(result => result.status),
 			archived: sessions.map(session => session.isArchived.get()),
-			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			changes: changes.map(event => event.changed.map(session => session.sessionId).sort()),
 			channels: [...channels],
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		};
@@ -3973,16 +3975,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				elapsedMs: 230,
 				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
 				archived: sessions.map((_, index) => index !== 1),
-				// Sessions show as archived when their archive starts; the rejected one is restored in the next change.
-				changes: [
-					sessions.slice(0, 4),
-					[sessions[4], sessions[1], ...sessions.slice(5, 8)],
-					...Array.from({ length: 21 }, (_, batch) => sessions.slice((batch + 2) * 4, (batch + 3) * 4)),
-				].map(batch => batch.map(session => session.sessionId)),
+				// Each change shows the archives that started and settles those that the host confirmed or rejected before.
+				changes: Array.from({ length: 24 }, (_, event) => sessions.slice(Math.max(0, event - 1) * 4, (event + 1) * 4)
+					.map(session => session.sessionId).sort()),
 				channels: backends.map(resource => resource.toString()),
 				released: backends.map(() => 1),
 			},
-			changesAfterRetry: 24,
+			changesAfterRetry: 26,
 		});
 	}));
 
@@ -4018,14 +4017,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			active, maximumActive,
 			outcomes: results.map(batch => batch.map(result => result.status)),
 			archived: sessions.map(session => session.isArchived.get()),
-			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			changes: changes.map(event => event.changed.map(session => session.sessionId).sort()),
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		}, {
 			betweenBatches: { active: 4, changes: 2 },
 			active: 0, maximumActive: 4,
 			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
 			archived: sessions.map(() => true),
-			changes: [sessions.slice(0, 4), sessions.slice(4)].map(batch => batch.map(session => session.sessionId)),
+			changes: [sessions.slice(0, 4), sessions, sessions.slice(4)].map(batch => batch.map(session => session.sessionId).sort()),
 			released: backends.map(() => 1),
 		});
 	}));
