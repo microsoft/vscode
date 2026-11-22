@@ -7341,19 +7341,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 		const listed = this.sessions.find(candidate => candidate.sessionId === session.sessionId);
-		if (!listed || !this.getTree(listed).hasElement(listed)) {
+		if (!listed || !this.tree.hasElement(listed)) {
 			return;
 		}
 		const chatRow = this.findChatRow(listed, shown.chat.resource);
-		const chatItem = chatRow && (!chatRow.parent || !this.getTree(chatRow.parent).isCollapsed(chatRow.parent)) ? chatRow.chatItem : undefined;
-		const row = chatItem && this.getTree(chatItem).getNode(chatItem).visible ? chatItem : listed;
-		const tree = this.getTree(row);
-		if (tree.getRelativeTop(row) === null) {
-			tree.reveal(row, 0.5);
+		const chatItem = chatRow && (!chatRow.parent || !this.tree.isCollapsed(chatRow.parent)) ? chatRow.chatItem : undefined;
+		const row = chatItem && this.tree.getNode(chatItem).visible ? chatItem : listed;
+		if (this.tree.getRelativeTop(row) === null) {
+			this.tree.reveal(row, 0.5);
 		}
 		this.revealAboveStickyShowMore(row);
-		tree.setFocus([row]);
-		tree.setSelection([row]);
+		this.tree.setFocus([row]);
+		this.tree.setSelection([row]);
 	}
 
 	/**

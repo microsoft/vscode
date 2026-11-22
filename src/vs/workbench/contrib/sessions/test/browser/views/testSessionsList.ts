@@ -115,7 +115,7 @@ export class TestSessionsList extends SessionsList {
 
 	/** Returns references to the selected session and chat rows. */
 	getSelectedItems(): SessionsListItemReference[] {
-		return this.trees.flatMap(tree => tree.getSelection()).flatMap((element): SessionsListItemReference[] => {
+		return this.tree.getSelection().flatMap((element): SessionsListItemReference[] => {
 			if (element instanceof SessionChatItem) {
 				return [{ session: element.session.resource, chat: element.chat.resource }];
 			}
@@ -126,7 +126,7 @@ export class TestSessionsList extends SessionsList {
 	/** Whether the referenced row is in the list and entirely within the viewport. */
 	isItemInViewport(item: SessionsListItemReference): boolean {
 		const element = this.findItem(item);
-		return !!element && this.getTree(element).getRelativeTop(element) !== null;
+		return !!element && this.tree.getRelativeTop(element) !== null;
 	}
 
 	private revealElement(element: SessionListItem): void {
