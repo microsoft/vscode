@@ -393,8 +393,25 @@ export class AutomationHistorySection extends Disposable {
 		this.container.style.display = '';
 		this.ensureHeader();
 
-		const groups = groupRunsByDate(displayedRuns);
+		const groups = groupRunsByAttentionAndDate(displayedRuns, historySessions, reader);
 		const activeKeys = new Set(groups.map(group => group.key));
+		// Move existing cloud rows before disposing their former date group.
+		for (const group of groups) {
+			const destination: IAutomationHistoryGroup = this.persistentGroups.get(group.key) ?? this.createGroup(group.key, group.label);
+			for (const run of group.runs) {
+				if (historySessions.has(run.id) || destination.temporaryRows.has(run.id)) {
+					continue;
+				}
+				for (const source of this.persistentGroups.values()) {
+					const row: IAutomationTemporaryRunRow | undefined = source.temporaryRows.deleteAndLeak(run.id);
+					if (row) {
+						destination.temporaryRows.set(run.id, row);
+						destination.runsContainer.appendChild(row.element);
+						break;
+					}
+				}
+			}
+		}
 		for (const [key, entry] of this.persistentGroups) {
 			if (!activeKeys.has(key)) {
 				entry.disposables.dispose();
@@ -426,6 +443,10 @@ export class AutomationHistorySection extends Disposable {
 			index++;
 		}
 
+		if (focusedTemporaryRunId && activeElement && !activeElement.isConnected && !this.shouldRestoreFocus) {
+			this.pendingFocusRunId = focusedTemporaryRunId;
+			this.shouldRestoreFocus = true;
+		}
 		this.restoreFocusAfterRender();
 		if (historyOwnedFocus && DOM.isHTMLElement(activeElement)) {
 			// A newer run of a shared session takes over its row, possibly in another date group.
@@ -1116,7 +1137,7 @@ function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefine
 	return completed && !!session && !session.isRead.read(reader);
 }
 
-function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
+function groupRunsByAttentionAndDate(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>, reader: IReader): { key: string; label: string; runs: IAutomationRun[] }[] {
 	const now = new Date();
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 	const yesterday = new Date(today);
@@ -1127,12 +1148,18 @@ function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label:
 	const groups: Map<string, { key: string; label: string; order: number; runs: IAutomationRun[] }> = new Map();
 
 	for (const run of runs) {
-		const t = Date.parse(run.startedAt);
-		if (Number.isNaN(t)) {
-			continue;
+		const needsInput: boolean = !!run.needsInput || sessions.get(run.id)?.status.read(reader) === SessionStatus.NeedsInput;
+		let bucket: { key: string; label: string; order: number };
+		if (needsInput) {
+			bucket = { key: 'needs-input', label: localize('automationRunsNeedsAttention', "Needs Attention"), order: -1 };
+		} else {
+			const t: number = Date.parse(run.startedAt);
+			if (Number.isNaN(t)) {
+				continue;
+			}
+			bucket = getDateBucket(new Date(t), today, yesterday, lastWeekStart);
 		}
-		const date = new Date(t);
-		const { key, label, order } = getDateBucket(date, today, yesterday, lastWeekStart);
+		const { key, label, order } = bucket;
 
 		let group = groups.get(key);
 		if (!group) {
