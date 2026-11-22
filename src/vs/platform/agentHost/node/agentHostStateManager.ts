@@ -272,10 +272,12 @@ class SessionSummaryNotifier extends Disposable {
 		return undefined;
 	}
 
-	/** Marks `session` dirty and schedules a debounced flush. */
+	/** Marks `session` dirty and schedules a flush without postponing an existing batch. */
 	markDirty(session: string): void {
 		this._dirty.add(session);
-		this._scheduler.schedule();
+		if (!this._scheduler.isScheduled()) {
+			this._scheduler.schedule();
+		}
 	}
 
 	/** Whether `session` has a pending (unflushed) summary change. */

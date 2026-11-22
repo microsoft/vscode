@@ -10,10 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
-import { SessionOriginKind } from '../../common/state/protocol/state.js';
+import { SessionOriginKind, ToolCallConfirmationReason } from '../../common/state/protocol/state.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -1562,6 +1562,51 @@ suite('AgentHostStateManager', () => {
 			assert.strictEqual((changed[0] as SessionSummaryChangedParams).changes.title, 'Second');
 		});
 	});
+
+	for (const blocker of ['question', 'approval'] as const) {
+		test(`publishes resolved ${blocker} status within the batching window despite other session activity`, () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const busySession = `${sessionUri}-busy`;
+				manager.createSession(makeSessionSummary());
+				manager.createSession(makeSessionSummary(busySession));
+				manager.dispatchServerAction(sessionChatUri, chatTurnStarted('turn-1', 'Continue'));
+				if (blocker === 'question') {
+					manager.dispatchServerAction(sessionChatUri, {
+						type: ActionType.ChatInputRequested,
+						request: { id: 'question-1', questions: [{ kind: ChatInputQuestionKind.Text, id: 'value', message: 'Which value?' }] },
+					});
+				} else {
+					manager.dispatchServerAction(sessionChatUri, chatToolCallStart('turn-1', 'tool-1', 'write', 'Write'));
+					manager.dispatchServerAction(sessionChatUri, chatToolCallReady('turn-1', 'tool-1', 'Write file', { confirmationTitle: 'Write file?' }));
+				}
+				await timeout(150);
+
+				const startedAt = Date.now();
+				const statusChanges: { elapsed: number; status: SessionStatus }[] = [];
+				disposables.add(manager.onDidEmitNotification(notification => {
+					if (notification.type === NotificationType.SessionSummaryChanged && notification.session === sessionUri && notification.changes.status !== undefined) {
+						statusChanges.push({ elapsed: Date.now() - startedAt, status: notification.changes.status });
+					}
+				}));
+				if (blocker === 'question') {
+					manager.dispatchServerAction(sessionChatUri, {
+						type: ActionType.ChatInputCompleted, requestId: 'question-1', response: ChatInputResponseKind.Accept,
+					});
+				} else {
+					manager.dispatchServerAction(sessionChatUri, {
+						type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tool-1',
+						approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+					});
+				}
+				for (let update = 0; update < 5; update++) {
+					await timeout(40);
+					manager.dispatchServerAction(busySession, { type: ActionType.SessionTitleChanged, title: `Activity ${update}` });
+				}
+
+				assert.deepStrictEqual(statusChanges, [{ elapsed: 100, status: SessionStatus.InProgress }]);
+			});
+		});
+	}
 
 	test('does not emit sessionSummaryChanged when summary is unchanged', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
