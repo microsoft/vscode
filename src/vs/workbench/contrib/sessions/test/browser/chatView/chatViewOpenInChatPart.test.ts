@@ -10,7 +10,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -118,7 +118,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		}));
 		// The seam owns the rule that the Chat view shows its chat while it hosts one: here, a registration is all that is asked for
 		const registrations = observableValue('registrations', 0);
-		const sessionsOnly = derived(reader => registrations.read(reader) > 0);
+		// While the Chat view hosts a new chat of its own, it shows its composer rather than only its sessions
+		const viewHostsNewChat = observableValue('viewHostsNewChat', false);
+		const sessionsOnly = derived(reader => registrations.read(reader) > 0 && !viewHostsNewChat.read(reader));
 		// The Chat view and, while it is registered, the chat part's host, each with the chat it shows and their chat widgets
 		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
 		// The chat part's host registers as chats open in the chat part, or later, where it is late
@@ -132,10 +134,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const partComposer = options.partComposerInput !== undefined ? new FakeChatWidget(options.partComposerInput) : undefined;
 		const widgets = new Map<string, FakeChatWidget>();
 		const widgetOf = (resource: URI | undefined) => (resource && widgets.get(resource.toString())) as IChatWidget | undefined;
-		const editorOpens: { resource: URI; target: unknown; revealIfOpened: boolean | undefined }[] = [];
+		const editorOpens: { resource: URI; target: unknown; revealIfOpened: boolean | undefined; pinned?: boolean }[] = [];
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			getWidgetBySessionResource: resource => widgetOf(resource),
-			openSession: async (resource, target, openOptions) => { editorOpens.push({ resource, target, revealIfOpened: openOptions?.revealIfOpened }); return undefined; },
+			openSession: async (resource, target, openOptions) => { editorOpens.push({ resource, target, revealIfOpened: openOptions?.revealIfOpened, pinned: openOptions?.pinned }); return undefined; },
 		}));
 		const presenters: IEditorWindowSessionsPresenter[] = [];
 		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({
@@ -248,7 +250,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			}
 			activeEditorChanged.fire();
 		};
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, viewHostsNewChat, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
 	}
 
 	test('editorArea opens the chats of sessions as editors, revealing one that is open, and does not use the chat part', async () => {
@@ -283,6 +285,33 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			editorArea: chatArea,
 			chatArea: { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true, localChatHidden: true },
 			chatPanel: { registered: [], sessionsOnly: false, localChatHidden: false },
+		});
+	});
+
+	test('editorArea opens the chat that the Chat view\'s new chat starts as an editor, once the Chat view shows only its sessions again', () => {
+		const run = (chatOpenIn: string) => {
+			const { shown, viewHostsNewChat, editorOpens } = setup({ chatOpenIn });
+			// The Chat view shows the composer of its new chat, then the chat its first request starts, as it shows only its sessions again
+			transaction(tx => {
+				viewHostsNewChat.set(true, tx);
+				shown.view.set(URI.parse('agent-host-copilot:/untitled-new'), tx);
+			});
+			transaction(tx => {
+				viewHostsNewChat.set(false, tx);
+				shown.view.set(URI.parse('agent-host-copilot:/session-1'), tx);
+			});
+			// A new chat that it leaves without a request, such as for another open, stays in the Chat view
+			transaction(tx => {
+				viewHostsNewChat.set(true, tx);
+				shown.view.set(URI.parse('agent-host-copilot:/untitled-other'), tx);
+			});
+			viewHostsNewChat.set(false, undefined);
+			return editorOpens.map(open => `${open.resource.path} ${open.target === ACTIVE_GROUP ? 'active' : 'other'} revealIfOpened=${open.revealIfOpened} pinned=${open.pinned}`);
+		};
+		assert.deepStrictEqual({ editorArea: run('editorArea'), chatArea: run('chatArea'), chatPanel: run('chatPanel') }, {
+			editorArea: ['/session-1 active revealIfOpened=undefined pinned=true'],
+			chatArea: [],
+			chatPanel: [],
 		});
 	});
 

@@ -178,6 +178,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 					return shownSession && this._sessionsManagementService.getSessionForChatResource(shownSession.resource);
 				});
 				reader.store.add(this._shownChatService.bind(shown, { override: true, priority: 1 }));
+				// The chat that the Chat view's new chat starts, as the Chat view shows only its sessions again, moves to an editor that stays open
+				reader.store.add(runOnChange(this._chatViewHostService.sessionsOnly, (sessionsOnly, wasSessionsOnly) => {
+					const resource = this._chatViewHostService.shownSession.read(undefined)?.resource;
+					if (sessionsOnly && !wasSessionsOnly && resource && !isUntitledChatSession(resource) && this._chatViewHostService.chatViewHosts.read(undefined)) {
+						this._chatWidgetService.openSession(resource, ACTIVE_GROUP, { pinned: true }).catch(onUnexpectedError);
+					}
+				}));
 				// A chat that shows in an editor is read, as one that shows in the Chat view is
 				const readMarker = new ShownChatReadMarker(this._sessionsManagementService, extUri);
 				reader.store.add(autorun(reader => {

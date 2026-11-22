@@ -19,6 +19,9 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionListStore, IAgentHostSessionListConnection } from '../../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
+import { observeMatchProjectRoot } from '../../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../../../common/constants.js';
 
 suite('AgentHostSessionListStore - project root', () => {
 
@@ -225,6 +228,29 @@ suite('AgentHostSessionListStore - project root', () => {
 			// Off, as on main: any folder of the session
 			offA: ['first-a', 'first-b'],
 			offB: ['first-a', 'first-b'],
+		});
+	});
+});
+
+suite('AgentHostSessionListStore - project root of the window', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the sessions of the folder\'s worktrees are listed with worktree support, and while chats open in the chat area, whose composer offers New Worktree', () => {
+		const matches = (settings: Record<string, unknown>) => observeMatchProjectRoot(new TestConfigurationService(settings)).get();
+
+		assert.deepStrictEqual({
+			default: matches({}),
+			worktreeSupport: matches({ [ChatConfiguration.EditorWindowEnableWorktree]: true }),
+			chatArea: matches({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: ChatViewSessionsOpenChatIn.ChatArea }),
+			chatAreaStacked: matches({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: ChatViewSessionsOpenChatIn.ChatArea, [ChatConfiguration.ChatViewSessionsOrientation]: 'stacked' }),
+			editorArea: matches({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: ChatViewSessionsOpenChatIn.EditorArea }),
+		}, {
+			default: false,
+			worktreeSupport: true,
+			chatArea: true,
+			chatAreaStacked: false,
+			editorArea: false,
 		});
 	});
 });
