@@ -127,12 +127,37 @@ export class EditorViewMinimapPainter implements IMinimapPainter {
 		if (!changed) {
 			return true;
 		}
-		this._host.syncModel();
+		this._syncPaintedLines(frame);
 		return view.renderMinimap!(this._surface.id, {
 			startLine: frame.startLineNumber - 1,
 			endLine: frame.endLineNumber,
 			topPaddingLines: frame.topPaddingLineCount,
 			sampling: frame.sampling && { ratio: frame.sampling.ratio, lines: frame.sampling.lines.map(line => line - 1) },
 		});
+	}
+
+	/** Bring the view lines the frame paints up to date, as runs of consecutive lines. */
+	private _syncPaintedLines(frame: IMinimapPainterFrame): void {
+		if (!frame.sampling) {
+			this._host.syncLines(frame.startLineNumber - 1, frame.endLineNumber);
+			return;
+		}
+		let runStart = -1;
+		let runEnd = -1;
+		for (let i = frame.startLineNumber - 1; i < frame.endLineNumber; i++) {
+			const line = frame.sampling.lines[i] - 1;
+			if (line === runEnd) {
+				runEnd++;
+				continue;
+			}
+			if (runStart >= 0) {
+				this._host.syncLines(runStart, runEnd);
+			}
+			runStart = line;
+			runEnd = line + 1;
+		}
+		if (runStart >= 0) {
+			this._host.syncLines(runStart, runEnd);
+		}
 	}
 }

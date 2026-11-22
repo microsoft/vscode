@@ -3,53 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LineInput, ModelDeltaInput } from './editorViewTypes.js';
+/**
+ * Replaces `deleteCount` mirrored lines at zero-based `start` with `insertCount`
+ * lines whose content has not been sent.
+ */
+export interface IEditorViewLineSplice {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly insertCount: number;
+}
 
 /**
  * A batch of work to apply to the `@vscode/editor-view` mirror at present time.
  * Either a full rebuild, or a set of incremental operations.
  */
 export interface IEditorViewSyncPlan {
-	/** When `true`, ignore the incremental arrays and rebuild the whole model. */
+	/** When `true`, ignore the incremental arrays: no line of the mirror has been sent. */
 	readonly fullReload: boolean;
 	/**
-	 * Structural line splices (inserts/deletes) to apply **in order** before the
-	 * content refresh. Inserts carry empty placeholder lines so the mirror's line
-	 * count matches the view model; the real content is filled by {@link contentLines}.
+	 * Structural line splices (inserts/deletes) to apply **in order**, so the
+	 * mirror's line count matches the view model.
 	 */
-	readonly structural: readonly ModelDeltaInput[];
-	/** View lines (1-based, final coordinates) whose text *and* tokens must be refreshed. */
-	readonly contentLines: readonly number[];
-	/** View lines (1-based, final coordinates) whose tokens (only) must be refreshed. */
-	readonly tokenLines: readonly number[];
+	readonly structural: readonly IEditorViewLineSplice[];
+	/** View lines (1-based, final coordinates) whose sent text or tokens are out of date. */
+	readonly staleLines: readonly number[];
 }
 
 /**
  * Pure, renderer-free planner that turns VS Code view events into the minimal set
- * of `@vscode/editor-view` model deltas — the incremental counterpart to shipping
- * the whole document on every change.
+ * of changes to the `@vscode/editor-view` mirror — the incremental counterpart to
+ * shipping the whole document on every change.
  *
- * It mirrors the approach of the DOM `RenderedLinesCollection` (`viewLayer.ts`):
- * structure is tracked as events arrive (so line numbers stay consistent), but the
- * actual line **content is read lazily at present time**, in final view-model
- * coordinates. To make that possible it keeps the dirty-line sets in sync with the
- * structure by shifting them through every insert/delete.
+ * The mirror always has the view model's line count, but holds a line's content
+ * only once the renderer needs it: like the DOM `RenderedLinesCollection`
+ * (`viewLayer.ts`), structure is tracked as events arrive (so line numbers stay
+ * consistent) and content is read lazily, in final view-model coordinates, and
+ * only for lines the renderer paints, measures or shows in the minimap. The plan
+ * therefore carries splices by count and the lines whose sent content went
+ * stale, shifting them through every insert/delete.
  *
  * This class holds no reference to the renderer or the view model, so it is fully
  * unit-testable. The owner ({@link EditorViewGpu}) is responsible for renderer
- * readiness (calling {@link scheduleFullReload} until the renderer exists) and for
- * executing the {@link IEditorViewSyncPlan} returned by {@link takePlan}.
+ * readiness (calling {@link scheduleFullReload} until the renderer exists), for
+ * executing the {@link IEditorViewSyncPlan} returned by {@link takePlan}, and for
+ * sending lines before the renderer reads them.
  */
 export class EditorViewModelSync {
 
 	/** Starts `true` so the first {@link takePlan} performs the initial load. */
 	private _fullReload = true;
-	/** View lines (1-based) needing a text+tokens refresh, in current mirror coordinates. */
-	private readonly _contentDirty = new Set<number>();
-	/** View lines (1-based) needing a tokens-only refresh, in current mirror coordinates. */
-	private readonly _tokenDirty = new Set<number>();
-	/** Structural splices recorded in emission order (inserts carry placeholders). */
-	private _structural: ModelDeltaInput[] = [];
+	/** View lines (1-based) whose sent content is out of date, in current mirror coordinates. */
+	private readonly _stale = new Set<number>();
+	/** Structural splices recorded in emission order. */
+	private _structural: IEditorViewLineSplice[] = [];
 
 	/** Whether a full rebuild is currently queued for the next {@link takePlan}. */
 	public get pendingFullReload(): boolean {
@@ -62,14 +68,13 @@ export class EditorViewModelSync {
 	 * run several times per frame) without paying `takePlan`'s array churn.
 	 */
 	public get hasPendingChanges(): boolean {
-		return this._fullReload || this._contentDirty.size > 0 || this._tokenDirty.size > 0 || this._structural.length > 0;
+		return this._fullReload || this._stale.size > 0 || this._structural.length > 0;
 	}
 
-	/** Queue a full `setLines` rebuild, discarding any pending incremental work. */
+	/** Queue a full rebuild, discarding any pending incremental work. */
 	public scheduleFullReload(): void {
 		this._fullReload = true;
-		this._contentDirty.clear();
-		this._tokenDirty.clear();
+		this._stale.clear();
 		this._structural = [];
 	}
 
@@ -80,7 +85,7 @@ export class EditorViewModelSync {
 		}
 		const to = fromLineNumber + count - 1;
 		for (let line = fromLineNumber; line <= to; line++) {
-			this._contentDirty.add(line);
+			this._stale.add(line);
 		}
 	}
 
@@ -90,11 +95,8 @@ export class EditorViewModelSync {
 			return;
 		}
 		const count = toLineNumber - fromLineNumber + 1;
-		this._shiftDirtyLines(line => line >= fromLineNumber ? line + count : line);
-		this._structural.push({ type: 'replaceLines', start: fromLineNumber - 1, deleteCount: 0, insert: EditorViewModelSync._emptyLines(count) });
-		for (let line = fromLineNumber; line <= toLineNumber; line++) {
-			this._contentDirty.add(line);
-		}
+		this._shiftStaleLines(line => line >= fromLineNumber ? line + count : line);
+		this._structural.push({ start: fromLineNumber - 1, deleteCount: 0, insertCount: count });
 	}
 
 	/** `[fromLineNumber..toLineNumber]` view lines were deleted. */
@@ -103,8 +105,8 @@ export class EditorViewModelSync {
 			return;
 		}
 		const count = toLineNumber - fromLineNumber + 1;
-		this._shiftDirtyLines(line => (line >= fromLineNumber && line <= toLineNumber) ? null : (line > toLineNumber ? line - count : line));
-		this._structural.push({ type: 'replaceLines', start: fromLineNumber - 1, deleteCount: count, insert: [] });
+		this._shiftStaleLines(line => (line >= fromLineNumber && line <= toLineNumber) ? null : (line > toLineNumber ? line - count : line));
+		this._structural.push({ start: fromLineNumber - 1, deleteCount: count, insertCount: 0 });
 	}
 
 	/** Tokens changed for the given (1-based, inclusive) view line ranges. */
@@ -116,58 +118,41 @@ export class EditorViewModelSync {
 			const from = Math.max(1, range.fromLineNumber);
 			const to = Math.min(range.toLineNumber, lineCount);
 			for (let line = from; line <= to; line++) {
-				this._tokenDirty.add(line);
+				this._stale.add(line);
 			}
 		}
 	}
 
 	/**
-	 * Consume the accumulated plan and reset to a clean (no-op) state. `tokenLines`
-	 * excludes any line already in `contentLines` (a content refresh updates tokens
-	 * too). Both are returned sorted ascending for deterministic application/testing.
+	 * Consume the accumulated plan and reset to a clean (no-op) state.
+	 * `staleLines` is sorted ascending for deterministic application/testing.
 	 */
 	public takePlan(): IEditorViewSyncPlan {
-		let plan: IEditorViewSyncPlan;
-		if (this._fullReload) {
-			plan = { fullReload: true, structural: [], contentLines: [], tokenLines: [] };
-		} else {
-			const contentLines = Array.from(this._contentDirty).sort((a, b) => a - b);
-			const tokenLines = Array.from(this._tokenDirty).filter(line => !this._contentDirty.has(line)).sort((a, b) => a - b);
-			plan = { fullReload: false, structural: this._structural, contentLines, tokenLines };
-		}
+		const plan: IEditorViewSyncPlan = this._fullReload
+			? { fullReload: true, structural: [], staleLines: [] }
+			: { fullReload: false, structural: this._structural, staleLines: Array.from(this._stale).sort((a, b) => a - b) };
 		this._fullReload = false;
-		this._contentDirty.clear();
-		this._tokenDirty.clear();
+		this._stale.clear();
 		this._structural = [];
 		return plan;
 	}
 
 	/**
-	 * Remap the dirty-line sets through a structural edit so their numbers stay in
-	 * the mirror's coordinate system. `shift` returns the new line number, or `null`
-	 * to drop the entry (a deleted line).
+	 * Remap the stale lines through a structural edit so their numbers stay in
+	 * the mirror's coordinate system. `shift` returns the new line number, or
+	 * `null` to drop the entry (a deleted line).
 	 */
-	private _shiftDirtyLines(shift: (line: number) => number | null): void {
-		for (const set of [this._contentDirty, this._tokenDirty]) {
-			const remapped: number[] = [];
-			for (const line of set) {
-				const next = shift(line);
-				if (next !== null) {
-					remapped.push(next);
-				}
-			}
-			set.clear();
-			for (const line of remapped) {
-				set.add(line);
+	private _shiftStaleLines(shift: (line: number) => number | null): void {
+		const remapped: number[] = [];
+		for (const line of this._stale) {
+			const next = shift(line);
+			if (next !== null) {
+				remapped.push(next);
 			}
 		}
-	}
-
-	private static _emptyLines(count: number): LineInput[] {
-		const lines: LineInput[] = new Array(count);
-		for (let i = 0; i < count; i++) {
-			lines[i] = { text: '', tokens: [] };
+		this._stale.clear();
+		for (const line of remapped) {
+			this._stale.add(line);
 		}
-		return lines;
 	}
 }

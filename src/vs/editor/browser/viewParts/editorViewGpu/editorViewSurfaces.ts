@@ -13,8 +13,8 @@ export interface IEditorViewSurfaceHost {
 	getEditorView(): EditorView | undefined;
 	/** Fires when {@link getEditorView} changes. */
 	readonly onDidChangeEditorView: Event<void>;
-	/** Bring the renderer's lines up to date with the view model. */
-	syncModel(): void;
+	/** Bring the renderer's 0-based view lines `[start, end)` up to date with the view model. */
+	syncLines(start: number, end: number): void;
 }
 
 export function packColor(color: Color): number {

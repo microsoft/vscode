@@ -140,6 +140,21 @@ export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
 };
 
 /**
+ * Replace `deleteCount` entries of `array` at `start` with `insertCount`
+ * `undefined` entries, without spreading a large insert into `splice`.
+ */
+function spliceUnsent<T>(array: (T | undefined)[], start: number, deleteCount: number, insertCount: number): void {
+	const tail = array.splice(start + deleteCount);
+	array.length = Math.min(array.length, start);
+	for (let i = 0; i < insertCount; i++) {
+		array.push(undefined);
+	}
+	for (const value of tail) {
+		array.push(value);
+	}
+}
+
+/**
  * Experimental integration of the `@vscode/editor-view` (Rust/WASM) GPU renderer.
  *
  * This is a **read-only proof of concept**: it mounts a canvas over the editor
@@ -182,8 +197,12 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _sentGutterLabels: (string | undefined)[] = [];
 	/** 1-based view lines in {@link _decorationWindow} with a `lineNumberClassName` decoration. */
 	private _decoratedGutterLines = new Set<number>();
-	/** Text-style key ({@link ILineTextStyle.key}) of each view line as last sent. */
-	private _sentTextStyle: string[] = [];
+	/**
+	 * Text-style key ({@link ILineTextStyle.key}) of each view line as last
+	 * sent. `undefined` marks a line whose content the renderer does not have:
+	 * lines are sent only before it paints, measures or minimaps them.
+	 */
+	private _sentTextStyle: (string | undefined)[] = [];
 	/** Text-style key of lines built by `_buildLine`, recorded when they are sent. */
 	private readonly _builtTextStyle = new WeakMap<LineInput, string>();
 	/** 1-based view lines whose inline decorations are applied (the renderer's range this frame). */
@@ -266,7 +285,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const surfaceHost: IEditorViewSurfaceHost = {
 			getEditorView: () => this._ready ? this._editorView : undefined,
 			onDidChangeEditorView: this.onDidChangeReady,
-			syncModel: () => this._syncModel(),
+			syncLines: (start, end) => {
+				this._syncModel();
+				this._fillLines(start, end);
+			},
 		};
 		this._minimapPainter = new EditorViewMinimapPainter(surfaceHost);
 		this._overviewRulerPainter = new EditorViewOverviewRulerPainter(surfaceHost);
@@ -332,7 +354,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 
 			// The renderer is ready; the planner still holds its initial full-reload
-			// state, so the first present loads the whole model.
+			// state, so the first present sizes the mirror and sends the lines it paints.
 			this._present();
 			// Only now let the canvas show through the DOM editor and gutter
 			// backgrounds, so loading never shows an unpainted editor.
@@ -667,16 +689,6 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		return undefined;
 	}
 
-	private _gatherLines(): LineInput[] {
-		const lineCount = this._context.viewModel.getLineCount();
-		const ctx = this._tokenColorContext();
-		const lines: LineInput[] = new Array(lineCount);
-		for (let i = 0; i < lineCount; i++) {
-			lines[i] = this._buildLine(i + 1, ctx.colorMap, ctx.defaultForeground);
-		}
-		return lines;
-	}
-
 	/** Build one view line's `{ text, tokens }` payload from the view model. */
 	private _buildLine(viewLineNumber: number, colorMap: number[], defaultForeground: number): LineInput {
 		const lineData = this._context.viewModel.getViewLineData(viewLineNumber);
@@ -954,21 +966,48 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 	}
 
-	private _setLines(lines: LineInput[]): void {
-		this._editorView!.setLines(lines);
-		this._sentGutterLabels = lines.map(line => line.gutterLabel);
-		this._sentTextStyle = lines.map(line => this._builtTextStyle.get(line) ?? '');
+	/**
+	 * Replace `deleteCount` mirrored lines at 0-based `start` with `insertCount`
+	 * lines whose content is sent once the renderer needs it.
+	 */
+	private _spliceLines(start: number, deleteCount: number, insertCount: number): void {
+		try {
+			if (this._editorView!.spliceLines) {
+				this._editorView!.spliceLines(start, deleteCount, insertCount);
+			} else {
+				// npm 0.0.1 inserts lines only with content.
+				this._editorView!.applyDelta({ type: 'replaceLines', start, deleteCount, insert: Array.from({ length: insertCount }, () => ({ text: '' })) });
+			}
+		} catch (err) {
+			onUnexpectedError(err);
+			this._sync.scheduleFullReload();
+			return;
+		}
+		spliceUnsent(this._sentGutterLabels, start, deleteCount, insertCount);
+		spliceUnsent(this._sentTextStyle, start, deleteCount, insertCount);
 	}
 
 	/**
 	 * Gutter labels depend on other lines (inserts/deletes renumber everything
 	 * below), the primary cursor (relative/interval) and the `lineNumbers`
 	 * option, and high-contrast selected-text colors on the selections, so a
-	 * line's stored payload can go stale without its content changing. Re-send
-	 * the renderer's visible lines whose label or selected text differs, as one
-	 * `replaceLines` per contiguous run.
+	 * line's stored payload can go stale without its content changing. Send
+	 * the renderer's lines that it does not have, or whose label or text style
+	 * differs.
 	 */
 	private _syncLineDerivedState({ start, end }: { start: number; end: number }): void {
+		this._sendLines(start, end, line => this._sentTextStyle[line] === undefined
+			|| this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]
+			|| this._lineTextStyle(line + 1).key !== this._sentTextStyle[line]);
+	}
+
+	/** Send the lines in 0-based `[start, end)` the renderer does not have, before it reads them. */
+	private _fillLines(start: number, end: number): void {
+		this._sendLines(Math.max(0, start), Math.min(end, this._sentTextStyle.length), line => this._sentTextStyle[line] === undefined);
+	}
+
+	/** Send the lines in 0-based `[start, end)` that `needsSend` picks, as one `replaceLines` per contiguous run. */
+	private _sendLines(start: number, end: number, needsSend: (line: number) => boolean): void {
 		let ctx: { colorMap: number[]; defaultForeground: number } | undefined;
 		let runStart = -1;
 		const flush = (runEnd: number) => {
@@ -984,8 +1023,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			runStart = -1;
 		};
 		for (let line = start; line < end; line++) {
-			if (this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]
-				|| this._lineTextStyle(line + 1).key !== this._sentTextStyle[line]) {
+			if (needsSend(line)) {
 				if (runStart < 0) {
 					runStart = line;
 				}
@@ -1014,9 +1052,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	/**
-	 * Execute the planner's batch at present time, reading line content in the (now
-	 * final) view-model state — mirroring how the DOM `ViewLines` reads line data
-	 * lazily at render time rather than in the event handlers.
+	 * Execute the planner's batch: keep the mirror's line count in step with the
+	 * view model and forget the content of lines that changed. Lines are read,
+	 * in the (now final) view-model state, only when the renderer needs them —
+	 * as the DOM `ViewLines` reads line data lazily at render time.
 	 */
 	private _syncModel(): void {
 		if (!this._sync.hasPendingChanges) {
@@ -1026,35 +1065,22 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		const plan = this._sync.takePlan();
 		if (plan.fullReload) {
-			this._setLines(this._gatherLines());
-			return;
-		}
-		if (plan.structural.length === 0 && plan.contentLines.length === 0 && plan.tokenLines.length === 0) {
-			return;
-		}
-		// Structural splices first so the mirror's line count matches the view model,
-		// then fill in the (final-coordinate) dirty lines' content and tokens.
-		for (const delta of plan.structural) {
-			this._applyDelta(delta);
-		}
-		const lineCount = this._context.viewModel.getLineCount();
-		const ctx = this._tokenColorContext();
-		for (const line of plan.contentLines) {
-			if (line >= 1 && line <= lineCount) {
-				this._applyDelta({
-					type: 'replaceLines',
-					start: line - 1,
-					deleteCount: 1,
-					insert: [this._buildLine(line, ctx.colorMap, ctx.defaultForeground)],
-				});
+			try {
+				this._editorView!.setLines([]);
+			} catch (err) {
+				onUnexpectedError(err);
 			}
+			this._sentGutterLabels = [];
+			this._sentTextStyle = [];
+			this._spliceLines(0, 0, this._context.viewModel.getLineCount());
+			return;
 		}
-		for (const line of plan.tokenLines) {
-			if (line >= 1 && line <= lineCount) {
-				const textStyle = this._lineTextStyle(line);
-				const tokens = this._buildTokens(this._context.viewModel.getViewLineData(line).tokens, ctx.colorMap, ctx.defaultForeground, textStyle);
-				this._applyDelta({ type: 'setTokens', line: line - 1, tokens });
-				this._sentTextStyle[line - 1] = textStyle.key;
+		for (const splice of plan.structural) {
+			this._spliceLines(splice.start, splice.deleteCount, splice.insertCount);
+		}
+		for (const line of plan.staleLines) {
+			if (line >= 1 && line <= this._sentTextStyle.length) {
+				this._sentTextStyle[line - 1] = undefined;
 			}
 		}
 	}
@@ -1117,10 +1143,14 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const { width, height, dpr } = this._measure();
 		this._editorView.setConfig(this._buildConfig());
 		this._syncModel();
+		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
+		// The renderer measures only the lines it can paint.
+		const lines = this._rendererLineRange(scrollTop);
+		this._fillLines(lines.start, lines.end);
 		this._editorView.setViewport({
 			width,
 			height,
-			scrollTop: this._context.viewLayout.getCurrentScrollTop(),
+			scrollTop,
 			scrollLeft: this._context.viewLayout.getCurrentScrollLeft(),
 			devicePixelRatio: dpr,
 		});
@@ -1323,6 +1353,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const lineCount = this._context.viewModel.getLineCount();
 		const start = Math.max(0, Math.min(startLineNumber, lineCount) - 1);
 		const end = Math.max(0, Math.min(endLineNumber, lineCount) - 1);
+		this._fillLines(start, end + 1);
 		return this._editorView.maxLineWidth(start, end);
 	}
 
@@ -1337,6 +1368,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			return undefined;
 		}
 		this._syncModel();
+		this._fillLines(lineNumber - 1, lineNumber);
 		return this._editorView.columnOffset(lineNumber - 1, column - 1);
 	}
 
@@ -1368,6 +1400,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			return undefined;
 		}
 		this._syncModel();
+		this._fillLines(lineNumber - 1, lineNumber);
 		const column = this._editorView.columnAtOffset(lineNumber - 1, mouseContentHorizontalOffset);
 		return column === undefined ? undefined : new Position(lineNumber, column + 1);
 	}

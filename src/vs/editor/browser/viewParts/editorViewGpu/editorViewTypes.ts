@@ -206,6 +206,11 @@ export interface SolidRectInput {
 export interface EditorView {
 	setLines(lines: LineInput[]): void;
 	applyDelta(delta: ModelDeltaInput): void;
+	/**
+	 * Remove `deleteCount` lines at `start` and insert `insertCount` empty lines,
+	 * whose content hosts send before the renderer reads them. Absent in npm 0.0.1.
+	 */
+	spliceLines?(start: number, deleteCount: number, insertCount: number): void;
 	/** Absent in npm 0.0.1; hosts must check before enabling bracket guide paint. */
 	setBracketGuides?(start: number, guides: BracketGuideInput[][]): void;
 	/** Folding controls for consecutive view lines from `start`; other lines keep theirs. Absent in npm 0.0.1. */
