@@ -405,6 +405,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const container: HTMLElement = combined ? rig.modeContainer : rig.permissionContainer;
 			const button: HTMLElement = container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
 			assert.strictEqual(button.style.display, '');
+			assert.strictEqual(button.title, '');
+			assert.strictEqual(button.getAttribute('aria-description'), 'Allow all tools in this session');
 			button.click();
 			await rig.sandboxReady();
 			assert.deepStrictEqual({

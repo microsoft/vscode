@@ -517,7 +517,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const action: IActionWidgetDropdownAction | undefined = this.getAllowAllAction();
 		button.element.style.display = action && !this.pickerOptions.compact.get() ? '' : 'none';
 		button.enabled = !!action?.enabled && !action.checked && this.delegate.isResolving?.get() !== true && this.delegate.isApplicable?.get() !== false;
-		button.element.title = action?.ariaDescription ?? localize('permissions.allowAll.session', "Allow all tools in this session");
+		const description: string = action?.ariaDescription ?? localize('permissions.allowAll.session', "Allow all tools in this session");
+		button.setTitle(description);
+		button.element.setAttribute('aria-description', description);
 	}
 
 	public refresh(): void {

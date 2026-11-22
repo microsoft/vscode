@@ -236,6 +236,8 @@ suite('AgentHostModePicker', () => {
 			const rig = setup(true, confirmed);
 			const button: HTMLElement = rig.trigger.parentElement!.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
 			assert.strictEqual(button.style.display, '');
+			assert.strictEqual(button.title, '');
+			assert.strictEqual(button.getAttribute('aria-description'), 'Allow all tools in this session');
 			button.click();
 			await timeout(0);
 			assert.deepStrictEqual(rig.writes, confirmed ? [{ session: 'test-session', property: 'autoApprove', value: 'autoApprove' }] : []);
@@ -336,6 +338,8 @@ suite('AgentHostModePicker', () => {
 			const actions = dom.append(actionBar, dom.$('ul.actions-container'));
 			const item = dom.append(actions, dom.$('li.action-item'));
 			const trigger = picker.render(item);
+			const shortcut: HTMLElement = trigger.parentElement!.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
+			assert.notStrictEqual(dom.getWindow(shortcut).getComputedStyle(shortcut).display, 'none', layout);
 			const mode = trigger.querySelector<HTMLElement>('.agent-host-mode-button')!;
 			const permissions = trigger.querySelector<HTMLElement>('.agent-host-permissions-button')!;
 			const leftInset = mode.firstElementChild!.getBoundingClientRect().left - trigger.getBoundingClientRect().left;
@@ -360,6 +364,7 @@ suite('AgentHostModePicker', () => {
 				width: trigger.getBoundingClientRect().width,
 				height: trigger.getBoundingClientRect().height,
 				permissions: dom.getWindow(permissions).getComputedStyle(permissions).display,
+				shortcut: dom.getWindow(shortcut).getComputedStyle(shortcut).display,
 			};
 			states.push({ layout, expanded, compact });
 		}
@@ -379,7 +384,7 @@ suite('AgentHostModePicker', () => {
 					{ width: 12, height: 12, fontSize: '12px' },
 				],
 			},
-			compact: { width: 22, height: 22, permissions: 'none' },
+			compact: { width: 22, height: 22, permissions: 'none', shortcut: 'none' },
 		})));
 	});
 

@@ -227,11 +227,16 @@ suite('PermissionPickerActionItem', () => {
 		store.add({ dispose: () => warning.restore() });
 		const button = fixture.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
 		assert.strictEqual(button.textContent, 'Allow all');
+		assert.strictEqual(fixture.container.classList.contains('chat-input-picker-with-shortcut'), true);
+		assert.strictEqual(button.title, '');
+		assert.strictEqual(button.getAttribute('aria-description'), 'Allow all tools in this session');
 		button.click();
 		await timeout(0);
 		assert.deepStrictEqual({ warnings: warning.callCount, writes: fixture.writes, dropdown: fixture.items().length }, {
 			warnings: 1, writes: [ChatPermissionLevel.AutoApprove], dropdown: 0,
 		});
+		fixture.picker.dispose();
+		assert.strictEqual(fixture.container.classList.contains('chat-input-picker-with-shortcut'), false);
 	});
 
 	test('Allow all shortcut respects cancellation and revalidates the session and host after the warning', async () => {
@@ -257,8 +262,10 @@ suite('PermissionPickerActionItem', () => {
 		const fixture = setupPolicy({ availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove], unavailableLevels: [{ level: ChatPermissionLevel.AutoApprove, byPolicy: true }] });
 		const button = fixture.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!;
 		assert.strictEqual(button.ariaDisabled, 'true');
+		assert.strictEqual(button.getAttribute('aria-description'), 'Disabled by your organization. Contact your administrator.');
 		fixture.unavailableLevels.set([], undefined);
 		assert.strictEqual(button.ariaDisabled, 'false');
+		assert.strictEqual(button.getAttribute('aria-description'), 'Allow all tools in this session');
 		const unsupported = setupPolicy({ availableLevels: [ChatPermissionLevel.Default] });
 		assert.strictEqual(unsupported.container.querySelector<HTMLElement>('.chat-input-permission-shortcut')!.style.display, 'none');
 	});

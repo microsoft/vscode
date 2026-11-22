@@ -89,6 +89,8 @@ export function trackChatInputPickerFocus(container: HTMLElement): IDisposable {
 }
 
 export function renderChatInputPickerShortcut(container: HTMLElement, label: string, store: DisposableStore, run: () => Promise<void>): Button {
+	container.classList.add('chat-input-picker-with-shortcut');
+	store.add(toDisposable(() => container.classList.remove('chat-input-picker-with-shortcut')));
 	const button: Button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
 	button.element.classList.add('chat-input-permission-shortcut');
 	button.label = label;

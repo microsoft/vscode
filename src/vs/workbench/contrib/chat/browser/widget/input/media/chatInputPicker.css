@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-input-picker-item:has(> .chat-input-permission-shortcut),
-.monaco-action-bar .action-item.chat-input-picker-item:has(> .chat-input-permission-shortcut) {
+.chat-input-picker-item.chat-input-picker-with-shortcut,
+.monaco-action-bar .action-item.chat-input-picker-item.chat-input-picker-with-shortcut {
 	display: inline-flex;
 	align-items: center;
 }
@@ -18,7 +18,7 @@
 	white-space: nowrap;
 }
 
-.interactive-session .compact-picker .chat-input-permission-shortcut {
+.compact-picker .chat-input-permission-shortcut {
 	display: none !important;
 }
 

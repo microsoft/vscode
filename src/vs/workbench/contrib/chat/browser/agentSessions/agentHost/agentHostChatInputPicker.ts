@@ -1006,7 +1006,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			const item: IActionListItem<IConfigPickerItem> | undefined = items.find(item => item.item?.value === ChatPermissionLevel.AutoApprove);
 			button.element.style.display = item ? '' : 'none';
 			button.enabled = !!item && !item.disabled && this._canEdit(current) && current.value !== ChatPermissionLevel.AutoApprove;
-			button.element.title = item?.ariaDescription ?? localize('agentHostChatInputPicker.allowAllSession', "Allow all tools in this session");
+			const description: string = item?.ariaDescription ?? localize('agentHostChatInputPicker.allowAllSession', "Allow all tools in this session");
+			button.setTitle(description);
+			button.element.setAttribute('aria-description', description);
 		}).catch(onUnexpectedError);
 	}
 

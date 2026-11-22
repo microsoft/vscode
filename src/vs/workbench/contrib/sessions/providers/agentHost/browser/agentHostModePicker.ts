@@ -466,7 +466,9 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 				.find(item => item.item?.id === `permissionPicker.${ChatPermissionLevel.AutoApprove}`);
 			this._allowAllButton.element.style.display = this._permissionDelegate.isModePickerCombined.get() && item ? '' : 'none';
 			this._allowAllButton.enabled = !!item?.item?.enabled && !item.item.checked && !this._permissionDelegate.isResolving.get();
-			this._allowAllButton.element.title = item?.ariaDescription ?? localize('agentHostModePicker.allowAllSession', "Allow all tools in this session");
+			const description: string = item?.ariaDescription ?? localize('agentHostModePicker.allowAllSession', "Allow all tools in this session");
+			this._allowAllButton.setTitle(description);
+			this._allowAllButton.element.setAttribute('aria-description', description);
 		}
 		const previous = this._splitTrigger.value;
 		this._splitTrigger.clear();
