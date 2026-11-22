@@ -433,8 +433,7 @@ export function setup(logger: Logger, quality: Quality) {
 			cleanupWorkspace: () => removeLabeledDevContainerEnvironments(runLabel),
 		});
 
-		// Flaky in CI: times out waiting for the model request of the Dev Container session
-		it.skip('Continues a task in a new Dev Container session', async function () {
+		it('Continues a task in a new Dev Container session', async function () {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
 
