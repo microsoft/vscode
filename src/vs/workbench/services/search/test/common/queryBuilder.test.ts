@@ -48,4 +48,19 @@ suite('QueryBuilderCommon', () => {
 		assert.strictEqual(escapedResult, true, 'Escaped pattern should match literally');
 		assert.strictEqual(escapedPattern, 'file[[]test[]].txt', 'Pattern should have escaped brackets');
 	});
+
+	test('resolveResourcesForSearchIncludes escapes paths with curly braces', () => {
+		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? 'C:\\testWorkspace\\{{cookiecutter.name}}' : '/testWorkspace/{{cookiecutter.name}}')], context);
+		assert.deepStrictEqual(actual, ['./[{][{]cookiecutter.name[}][}]']);
+	});
+
+	test('escapeGlobPattern properly escapes curly braces for literal matching', () => {
+		// Folders like `{{cookiecutter.name}}` must not be read as (nested) brace expansion, see #194701
+		const fileName = '{{cookiecutter.name}}/a{b,c}.txt';
+
+		const escapedPattern = escapeGlobPattern(fileName);
+		assert.strictEqual(escapedPattern, '[{][{]cookiecutter.name[}][}]/a[{]b,c[}].txt');
+		assert.strictEqual(glob.match(escapedPattern, fileName), true, 'Escaped pattern should match literally');
+		assert.strictEqual(glob.match(escapedPattern, 'cookiecutter.name/ab.txt'), false, 'Escaped pattern should not expand braces');
+	});
 });
