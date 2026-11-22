@@ -1033,10 +1033,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			return;
 		}
 
-		try {
-			this.element.contentWindow?.focus();
-		} catch {
-			// noop
+		// Window activation may already have restored focus inside the webview.
+		// Focusing the shell again would interrupt that focus until the delayed handoff.
+		const targetDocument = this.element.ownerDocument;
+		if (!targetDocument.hasFocus() || targetDocument.activeElement !== this.element) {
+			try {
+				this.element.contentWindow?.focus();
+			} catch {
+				// noop
+			}
 		}
 
 		// Workaround for https://github.com/microsoft/vscode/issues/75209

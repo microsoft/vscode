@@ -14,7 +14,7 @@ import { Disposable, DisposableSet, IDisposable } from '../../../../base/common/
 import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
-import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, ModifierKeyEmitter, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -62,6 +62,13 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		this._register(this.onDidChangeFocus(focus => {
 			if (focus) {
 				this.clearToasts();
+			}
+		}));
+
+		// A focused webview can receive the DOM blur instead of the workbench.
+		this._register(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow(windowId => {
+			if (hasWindow(windowId)) {
+				ModifierKeyEmitter.getInstance().resetKeyStatus();
 			}
 		}));
 	}
