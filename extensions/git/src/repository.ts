@@ -935,6 +935,10 @@ export class Repository implements Disposable {
 	 */
 	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
+	get isShallow(): Promise<boolean> {
+		return this.repository.isShallow();
+	}
+
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
