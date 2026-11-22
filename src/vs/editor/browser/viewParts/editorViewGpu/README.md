@@ -169,6 +169,34 @@ High-contrast themes color selected text with `editor.selectionForeground`, as
 `ViewLine` does with `inline-selected-text` spans. It is applied last, over
 inline decorations.
 
+## Minimap
+
+The `Minimap` view part stays mounted and keeps its layout, slider, input,
+autohide fades and section headers. On WebGPU it hands the rest of its paint to
+`EditorViewGpu.minimapPainter`: characters, selections and decorations are drawn
+by the renderer into a canvas that `Minimap` mounts in the slot of its 2D
+character canvas, below the decorations canvas, which then draws only section
+headers. The canvas is an auxiliary surface on the renderer's device, sharing
+its pipelines and glyph atlas, and the renderer reads the lines it already
+retains, so the minimap no longer rasterizes characters into `ImageData` on the
+CPU. Characters use the token's own colors (`baseForeground`), not inline
+decoration colors, as in the DOM minimap. The painter sends settings, the char
+sheet and decorations only when they change and skips frames in which nothing
+changed. On WebGL2, before the renderer paints, or when a surface fails, the 2D
+canvases paint as before. One known difference: with a translucent
+`minimap.background`, the DOM blends characters against that background over the
+editor background, while the GPU blends them over the translucent background.
+
+## Overview ruler
+
+`DecorationsOverviewRuler` stays mounted and paints through
+`EditorViewGpu.overviewRulerPainter` the same way. A sibling canvas with the
+same class takes the place of its 2D canvas, and the renderer draws the marks,
+cursors, background and border on an auxiliary surface. It places lines with the
+vertical layout it already mirrors, including view zones and padding. Colors
+resolve as a 2D canvas resolves `fillStyle`, so every CSS color syntax that
+extensions use paints the same.
+
 ## Decoration probes in auxiliary windows
 
 Decoration probe elements are created in the main-window DOM realm even when

@@ -59,6 +59,8 @@ function patchToken(token: TokenInput, style: ITextStylePatch): TokenInput {
 	return {
 		...token,
 		foreground,
+		// The minimap paints the token's own color, like the DOM minimap.
+		...(foreground !== token.foreground ? { baseForeground: token.baseForeground ?? token.foreground } : {}),
 		...(style.bold ? { bold: true } : {}),
 		...(style.italic ? { italic: true } : {}),
 	};

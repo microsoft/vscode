@@ -84,6 +84,8 @@ export interface TokenInput {
 	startColumn: number;
 	endColumn: number;
 	foreground: number;
+	/** The token's own color when `foreground` paints a decoration's over it; the minimap paints this. */
+	baseForeground?: number;
 	bold?: boolean;
 	italic?: boolean;
 	underline?: boolean;
@@ -141,6 +143,66 @@ export interface VerticalLayoutInput {
 	whitespaces: { beforeLine: number; height: number }[];
 }
 
+/** Minimap paint settings; lengths are canvas pixels, as in `minimap.ts`. */
+export interface MinimapConfig {
+	width: number;
+	height: number;
+	lineHeight: number;
+	charWidth: number;
+	fontScale: number;
+	renderCharacters: boolean;
+	background: number;
+	/** `minimap.foregroundOpacity`, 0..1. */
+	foregroundAlpha: number;
+	selectionColor?: number;
+	defaultForeground: number;
+	tabSize?: number;
+}
+
+export interface MinimapDecorationInput extends SelectionInput {
+	color: number;
+	position: 'inline' | 'gutter';
+	zIndex?: number;
+}
+
+export interface MinimapRenderInput {
+	/** Zero-based first painted minimap line; `endLine` is exclusive. */
+	startLine: number;
+	endLine: number;
+	topPaddingLines?: number;
+	/** Minimap line `i` shows zero-based view line `lines[i]`. */
+	sampling?: { ratio: number; lines: ArrayLike<number> };
+}
+
+export interface OverviewRulerConfig {
+	width: number;
+	height: number;
+	lanes: number;
+	pixelRatio: number;
+	background?: number;
+	border?: number;
+	hideCursor?: boolean;
+}
+
+export interface OverviewRulerDecorationGroup {
+	color: number;
+	/** `lane, startLine, endLine` triples with zero-based view lines. */
+	data: ArrayLike<number>;
+}
+
+export interface OverviewRulerCursorInput {
+	line: number;
+	color: number;
+}
+
+export interface SolidRectInput {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	color: number;
+}
+
 export interface EditorView {
 	setLines(lines: LineInput[]): void;
 	applyDelta(delta: ModelDeltaInput): void;
@@ -156,6 +218,22 @@ export interface EditorView {
 	columnAtOffset(line: number, offset: number): number | undefined;
 	resize(width: number, height: number): void;
 	render(): boolean;
+	/**
+	 * Auxiliary surfaces (minimap, overview ruler, scrollbar sliders) share the
+	 * renderer's WebGPU device. Absent in npm 0.0.1, and `false` on WebGL2.
+	 */
+	readonly supportsSurfaces?: boolean;
+	attachSurface?(id: string, canvas: HTMLCanvasElement, width: number, height: number): void;
+	resizeSurface?(id: string, width: number, height: number): void;
+	detachSurface?(id: string): void;
+	setMinimap?(config: MinimapConfig | undefined): void;
+	setMinimapCharSheet?(scale: number, charData: Uint8Array): void;
+	setMinimapDecorations?(decorations: MinimapDecorationInput[]): void;
+	renderMinimap?(surfaceId: string, input: MinimapRenderInput): boolean;
+	setOverviewRuler?(config: OverviewRulerConfig | undefined): void;
+	setOverviewRulerDecorations?(groups: OverviewRulerDecorationGroup[]): void;
+	renderOverviewRuler?(surfaceId: string, scrollHeight: number, cursors: OverviewRulerCursorInput[]): boolean;
+	renderRects?(surfaceId: string, rects: SolidRectInput[]): boolean;
 	dispose(): void;
 }
 

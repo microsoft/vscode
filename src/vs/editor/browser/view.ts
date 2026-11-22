@@ -199,7 +199,11 @@ export class View extends ViewEventHandler {
 			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		} else if (gpuAcceleration === 'editorView') {
 			this._editorViewGpu = this._instantiationService.createInstance(EditorViewGpu, this._context, this.domNode.domNode);
-			this._register(this._editorViewGpu.onDidChangeEditorClassName(() => this.domNode.setClassName(this._getEditorClassName())));
+			this._register(this._editorViewGpu.onDidChangeReady(() => {
+				this.domNode.setClassName(this._getEditorClassName());
+				// Surface painters such as the minimap's start or stop painting.
+				this._scheduleRender();
+			}));
 			this._viewParts.push(this._editorViewGpu);
 		}
 		// In `editorView` mode the `@vscode/editor-view` (Rust/WASM) canvas draws
@@ -226,7 +230,7 @@ export class View extends ViewEventHandler {
 		// Decorations overview ruler
 		let decorationsOverviewRuler: DecorationsOverviewRuler | undefined;
 		if (!gpu?.overviewRuler) {
-			decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
+			decorationsOverviewRuler = new DecorationsOverviewRuler(this._context, this._editorViewGpu?.overviewRulerPainter);
 			this._viewParts.push(decorationsOverviewRuler);
 		}
 
@@ -332,7 +336,7 @@ export class View extends ViewEventHandler {
 
 		let minimap: Minimap | undefined;
 		if (!gpu?.minimap) {
-			minimap = new Minimap(this._context);
+			minimap = new Minimap(this._context, this._editorViewGpu?.minimapPainter);
 			this._viewParts.push(minimap);
 		}
 
@@ -341,6 +345,10 @@ export class View extends ViewEventHandler {
 		if (decorationsOverviewRuler) {
 			const overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
 			overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
+			const painterDomNode = decorationsOverviewRuler.getPainterDomNode();
+			if (painterDomNode) {
+				overviewRulerData.parent.insertBefore(painterDomNode, overviewRulerData.insertBefore);
+			}
 		}
 
 		if (contentViewOverlays) {

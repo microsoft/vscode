@@ -46,4 +46,20 @@ suite('applyTextStyleRuns', () => {
 		assert.deepStrictEqual(compact(applyTextStyleRuns(tokens, [])), ['0 5 111111ff  ']);
 		assert.deepStrictEqual(compact(applyTextStyleRuns(tokens, [{ start: 7, end: 9, style: { bold: true } }])), ['0 5 111111ff  ']);
 	});
+
+	test('recolored pieces keep the token\'s own color as their base foreground', () => {
+		const tokens = [token(0, 6, 0x111111ff)];
+		const inline = applyTextStyleRuns(tokens, [
+			{ start: 0, end: 2, style: { foreground: 0xffd700ff } },
+			{ start: 4, end: 6, style: { bold: true } },
+		]);
+		const selected = applyTextStyleRuns(inline, [{ start: 1, end: 5, style: { foreground: 0xffffffff } }]);
+		assert.deepStrictEqual(selected.map(t => [t.startColumn, t.endColumn, t.foreground.toString(16), t.baseForeground?.toString(16)]), [
+			[0, 1, 'ffd700ff', '111111ff'],
+			[1, 2, 'ffffffff', '111111ff'],
+			[2, 4, 'ffffffff', '111111ff'],
+			[4, 5, 'ffffffff', '111111ff'],
+			[5, 6, '111111ff', undefined],
+		]);
+	});
 });

@@ -36,6 +36,11 @@ import type { IEditorViewLineWidthProvider } from '../viewLines/viewLines.js';
 import type { IViewLineHitTestProvider } from '../../controller/mouseHandler.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { EditorViewBracketGuideColors, toEditorViewBracketGuide } from './editorViewGuides.js';
+import { EditorViewMinimapPainter } from './editorViewMinimap.js';
+import { EditorViewOverviewRulerPainter } from './editorViewOverviewRuler.js';
+import type { IEditorViewSurfaceHost } from './editorViewSurfaces.js';
+import type { IMinimapPainter } from '../minimap/minimap.js';
+import type { IOverviewRulerPainter } from '../overviewRuler/decorationsOverviewRuler.js';
 import { localize } from '../../../../nls.js';
 
 /**
@@ -80,9 +85,16 @@ export interface EditorViewGpuCapabilities {
 	readonly decorations: boolean;
 	/** Vertical rulers (`Rulers`). */
 	readonly rulers: boolean;
-	/** Minimap (`Minimap`). */
+	/**
+	 * Minimap (`Minimap`). While `false`, `Minimap` stays mounted and paints
+	 * through `EditorViewGpu.minimapPainter` when the renderer can.
+	 */
 	readonly minimap: boolean;
-	/** Overview ruler marks (`DecorationsOverviewRuler`). */
+	/**
+	 * Overview ruler marks (`DecorationsOverviewRuler`). While `false`, the
+	 * ruler stays mounted and paints through `EditorViewGpu.overviewRulerPainter`
+	 * when the renderer can.
+	 */
 	readonly overviewRuler: boolean;
 	/** Scroll shadow (`ScrollDecorationViewPart`). */
 	readonly scrollDecoration: boolean;
@@ -204,9 +216,14 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private readonly _editorRoot: HTMLElement;
 	/** Whether the renderer has painted, so the canvas may show through the DOM backgrounds. */
 	private _ready = false;
-	private readonly _onDidChangeEditorClassName = this._register(new Emitter<void>());
-	/** Fires when {@link editorClassName} changes. */
-	public readonly onDidChangeEditorClassName: Event<void> = this._onDidChangeEditorClassName.event;
+	private readonly _onDidChangeReady = this._register(new Emitter<void>());
+	/**
+	 * Fires when the renderer starts or stops painting, which changes
+	 * {@link editorClassName} and whether the surface painters can paint.
+	 */
+	public readonly onDidChangeReady: Event<void> = this._onDidChangeReady.event;
+	private readonly _minimapPainter: EditorViewMinimapPainter;
+	private readonly _overviewRulerPainter: EditorViewOverviewRulerPainter;
 
 	constructor(
 		context: ViewContext,
@@ -236,7 +253,25 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		// reaches the DOM editor above it, which remains the source of truth.
 		this.canvas.domNode.style.pointerEvents = 'none';
 
+		const surfaceHost: IEditorViewSurfaceHost = {
+			getEditorView: () => this._ready ? this._editorView : undefined,
+			onDidChangeEditorView: this.onDidChangeReady,
+			syncModel: () => this._syncModel(),
+		};
+		this._minimapPainter = new EditorViewMinimapPainter(surfaceHost);
+		this._overviewRulerPainter = new EditorViewOverviewRulerPainter(surfaceHost);
+
 		void this._initialize();
+	}
+
+	/** Paints the minimap on the renderer's device; see `Minimap`. */
+	public get minimapPainter(): IMinimapPainter {
+		return this._minimapPainter;
+	}
+
+	/** Paints the overview ruler on the renderer's device; see `DecorationsOverviewRuler`. */
+	public get overviewRulerPainter(): IOverviewRulerPainter {
+		return this._overviewRulerPainter;
 	}
 
 	/**
@@ -256,7 +291,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _setReady(ready: boolean): void {
 		if (this._ready !== ready) {
 			this._ready = ready;
-			this._onDidChangeEditorClassName.fire();
+			if (!ready) {
+				this._minimapPainter.reset();
+				this._overviewRulerPainter.reset();
+			}
+			this._onDidChangeReady.fire();
 		}
 	}
 

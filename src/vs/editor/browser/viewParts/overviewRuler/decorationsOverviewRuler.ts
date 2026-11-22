@@ -18,6 +18,45 @@ import * as viewEvents from '../../../common/viewEvents.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { OverviewRulerDecorationsGroup } from '../../../common/viewModel.js';
 import { equals } from '../../../../base/common/arrays.js';
+import type { Event } from '../../../../base/common/event.js';
+
+/** One overview ruler frame for an {@link IOverviewRulerPainter}. Lengths are canvas pixels. */
+export interface IOverviewRulerPainterFrame {
+	/** Canvas backing-store size. */
+	readonly width: number;
+	readonly height: number;
+	readonly lanes: number;
+	readonly pixelRatio: number;
+	readonly background: Color | null;
+	/** CSS color of the border, or `null` for none. */
+	readonly border: string | null;
+	readonly hideCursor: boolean;
+	/** The editor's scroll height in CSS pixels. */
+	readonly scrollHeight: number;
+	/** Decoration groups in paint order. */
+	readonly decorations: readonly OverviewRulerDecorationsGroup[];
+	/** Whether {@link decorations} changed since the last frame. */
+	readonly decorationsChanged: boolean;
+	/** Cursor marks sorted by position; a `null` color paints none. */
+	readonly cursors: readonly { readonly position: Position; readonly color: string | null }[];
+}
+
+/**
+ * Paints the overview ruler into a canvas the ruler mounts in place of its 2D
+ * canvas (`editorView` GPU acceleration).
+ */
+export interface IOverviewRulerPainter {
+	/** Fires when {@link canPaint} may have changed. */
+	readonly onDidChangeCanPaint: Event<void>;
+	readonly canPaint: boolean;
+	/**
+	 * Paint `frame` into `canvas`. Returns `false` when it cannot this frame;
+	 * the ruler then paints with its 2D canvas.
+	 */
+	paint(canvas: HTMLCanvasElement, frame: IOverviewRulerPainterFrame): boolean;
+	/** Stop painting into `canvas`. */
+	release(canvas: HTMLCanvasElement): void;
+}
 
 class Settings {
 
@@ -244,7 +283,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _renderedDecorations: OverviewRulerDecorationsGroup[] = [];
 	private _renderedCursorPositions: Cursor[] = [];
 
-	constructor(context: ViewContext) {
+	private readonly _painter: IOverviewRulerPainter | undefined;
+	/** Where {@link _painter} paints, beside `_domNode`. */
+	private readonly _painterCanvas: FastDomNode<HTMLCanvasElement> | null = null;
+	/** Whether {@link _painter} paints the ruler. */
+	private _paintsWithPainter = false;
+
+	constructor(context: ViewContext, painter?: IOverviewRulerPainter) {
 		super(context);
 
 		this._domNode = createFastDomNode(document.createElement('canvas'));
@@ -255,6 +300,24 @@ export class DecorationsOverviewRuler extends ViewPart {
 		// leaving the last device pixel column unpainted, and the editor text shows through it (#213309)
 		this._domNode.setContain('size');
 		this._domNode.setAttribute('aria-hidden', 'true');
+
+		this._painter = painter;
+		if (painter) {
+			// The same class, so rules that style or hide the ruler apply to both canvases.
+			this._painterCanvas = createFastDomNode(document.createElement('canvas'));
+			this._painterCanvas.setClassName('decorationsOverviewRuler');
+			this._painterCanvas.setPosition('absolute');
+			this._painterCanvas.setLayerHinting(true);
+			this._painterCanvas.setContain('size');
+			this._painterCanvas.setAttribute('aria-hidden', 'true');
+			this._painterCanvas.setDisplay('none');
+			this._register(painter.onDidChangeCanPaint(() => {
+				// Repaint everything with whichever paints next.
+				this._renderedDecorations = [];
+				this._markRenderingIsNeeded();
+				this.forceShouldRender();
+			}));
+		}
 
 		this._updateSettings(false);
 
@@ -287,6 +350,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._domNode.setHeight(this._settings.domHeight);
 		this._domNode.domNode.width = this._settings.canvasWidth;
 		this._domNode.domNode.height = this._settings.canvasHeight;
+		// The painter sizes its canvas's backing store when it paints.
+		this._painterCanvas?.setTop(this._settings.top);
+		this._painterCanvas?.setRight(this._settings.right);
+		this._painterCanvas?.setWidth(this._settings.domWidth);
+		this._painterCanvas?.setHeight(this._settings.domHeight);
 
 		if (renderNow) {
 			this._render();
@@ -347,6 +415,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return this._domNode.domNode;
 	}
 
+	/** The canvas the painter paints into; mount it right after {@link getDomNode}. */
+	public getPainterDomNode(): HTMLElement | undefined {
+		return this._painterCanvas?.domNode;
+	}
+
 	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
@@ -356,10 +429,53 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._actualShouldRender = ShouldRenderValue.NotNeeded;
 	}
 
+	/** Paint with {@link _painter}. Returns `false` when the 2D canvas must paint this frame. */
+	private _renderWithPainter(decorations: readonly OverviewRulerDecorationsGroup[], decorationsChanged: boolean): boolean {
+		const painter = this._painter;
+		const canvas = this._painterCanvas;
+		const settings = this._settings;
+		if (!painter?.canPaint || !canvas || settings.canvasWidth === 0 || settings.canvasHeight === 0) {
+			this._setPaintsWithPainter(false);
+			return false;
+		}
+		const wasPainting = this._paintsWithPainter;
+		this._setPaintsWithPainter(true);
+		const painted = painter.paint(canvas.domNode, {
+			width: settings.canvasWidth,
+			height: settings.canvasHeight,
+			lanes: settings.overviewRulerLanes,
+			pixelRatio: settings.pixelRatio,
+			background: settings.backgroundColor,
+			border: settings.renderBorder ? settings.borderColor : null,
+			hideCursor: settings.hideCursor,
+			scrollHeight: this._context.viewLayout.getScrollHeight(),
+			decorations,
+			decorationsChanged: decorationsChanged || !wasPainting,
+			cursors: this._cursorPositions,
+		});
+		if (!painted) {
+			this._setPaintsWithPainter(false);
+		}
+		return painted;
+	}
+
+	private _setPaintsWithPainter(paints: boolean): void {
+		if (this._paintsWithPainter === paints) {
+			return;
+		}
+		this._paintsWithPainter = paints;
+		this._domNode.setDisplay(paints ? 'none' : 'block');
+		this._painterCanvas?.setDisplay(paints ? 'block' : 'none');
+		if (!paints && this._painterCanvas) {
+			this._painter?.release(this._painterCanvas.domNode);
+		}
+	}
+
 	private _render(): void {
 		const backgroundColor = this._settings.backgroundColor;
 		if (this._settings.overviewRulerLanes === 0) {
 			// overview ruler is off
+			this._setPaintsWithPainter(false);
 			this._domNode.setBackgroundColor(backgroundColor ? Color.Format.CSS.formatHexA(backgroundColor) : '');
 			this._domNode.setDisplay('none');
 			return;
@@ -368,7 +484,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
 		decorations.sort(OverviewRulerDecorationsGroup.compareByRenderingProps);
 
-		if (this._actualShouldRender === ShouldRenderValue.Maybe && !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations)) {
+		const decorationsChanged = !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations);
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && decorationsChanged) {
 			this._actualShouldRender = ShouldRenderValue.Needed;
 		}
 		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.position.lineNumber === b.position.lineNumber && a.color === b.color)) {
@@ -380,6 +497,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		}
 		this._renderedDecorations = decorations;
 		this._renderedCursorPositions = this._cursorPositions;
+
+		if (this._renderWithPainter(decorations, decorationsChanged)) {
+			return;
+		}
 
 		this._domNode.setDisplay('block');
 		const canvasWidth = this._settings.canvasWidth;
