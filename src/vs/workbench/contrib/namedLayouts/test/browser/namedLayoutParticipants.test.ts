@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -20,6 +21,8 @@ class TestLayoutService extends mock<IWorkbenchLayoutService>() {
 	readonly visibleParts = new Set<Parts>([Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]);
 	private nonMaximizedVisibleParts: Set<Parts> | undefined;
 	panelAlignment: PanelAlignment = 'center';
+	panelPosition = Position.BOTTOM;
+	focusedPart: Parts = Parts.EDITOR_PART;
 
 	override readonly mainContainerDimension = { width: 1000, height: 800 };
 	override readonly onDidChangePartVisibility = Event.None;
@@ -32,10 +35,15 @@ class TestLayoutService extends mock<IWorkbenchLayoutService>() {
 	override setPartHidden(hidden: boolean, part: Parts): void {
 		if (hidden) {
 			this.visibleParts.delete(part);
+			if (this.focusedPart === part) {
+				this.focusedPart = Parts.EDITOR_PART;
+			}
 		} else {
 			this.visibleParts.add(part);
 		}
 	}
+	override hasFocus(part: Parts): boolean { return this.focusedPart === part; }
+	override focusPart(part: Parts): void { this.focusedPart = part; }
 	override isVisibleWhenAuxiliaryBarNotMaximized(part: Parts.SIDEBAR_PART | Parts.PANEL_PART): boolean { return (this.nonMaximizedVisibleParts ?? this.visibleParts).has(part); }
 	override isAuxiliaryBarMaximized(): boolean { return !!this.nonMaximizedVisibleParts; }
 	override setAuxiliaryBarMaximized(maximized: boolean): boolean {
@@ -49,7 +57,16 @@ class TestLayoutService extends mock<IWorkbenchLayoutService>() {
 		return true;
 	}
 	override isPanelMaximized(): boolean { return false; }
-	override getPanelPosition(): Position { return Position.BOTTOM; }
+	override getPanelPosition(): Position { return this.panelPosition; }
+	override setPanelPosition(position: Position): void {
+		this.panelPosition = position;
+		// Moving the panel shows and focuses a hidden panel and focuses a focused panel again. A terminal in it then shows the panel after a delay
+		if (!this.visibleParts.has(Parts.PANEL_PART) || this.focusedPart === Parts.PANEL_PART) {
+			this.visibleParts.add(Parts.PANEL_PART);
+			this.focusedPart = Parts.PANEL_PART;
+			setTimeout(() => this.setPartHidden(false, Parts.PANEL_PART));
+		}
+	}
 	override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
 	override setPanelAlignment(alignment: PanelAlignment): void { this.panelAlignment = alignment; }
 	override isMainEditorLayoutCentered(): boolean { return false; }
@@ -67,6 +84,14 @@ suite('NamedLayoutParticipants', () => {
 			override getActivePaneComposite() { return undefined; }
 			override getLastActivePaneCompositeId(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? 'explorer' : 'terminal'; }
 			override getPaneComposite() { return undefined; }
+			override async openPaneComposite(_id: string | undefined, location: ViewContainerLocation, focus?: boolean) {
+				const part = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : location === ViewContainerLocation.Panel ? Parts.PANEL_PART : Parts.AUXILIARYBAR_PART;
+				layoutService.setPartHidden(false, part);
+				if (focus) {
+					layoutService.focusPart(part);
+				}
+				return undefined;
+			}
 		};
 		const commandService = new class extends mock<ICommandService>() { override readonly onDidExecuteCommand = Event.None; };
 		return disposables.add(new WorkbenchPartsLayoutParticipant(layoutService, paneCompositePartService, commandService));
@@ -96,6 +121,26 @@ suite('NamedLayoutParticipants', () => {
 			maximized: true,
 			restoredParts: [Parts.AUXILIARYBAR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART].sort()
 		});
+	});
+
+	test('a panel that a layout moves and hides is not shown again by a terminal that gets the focus', async () => {
+		const moveAndHidePanel = async (panelVisible: boolean, panelFocused: boolean) => {
+			const layoutService = new TestLayoutService();
+			const testObject = aWorkbenchPartsLayoutParticipant(layoutService);
+			const state = testObject.capture();
+			layoutService.setPartHidden(!panelVisible, Parts.PANEL_PART);
+			if (panelFocused) {
+				layoutService.focusPart(Parts.PANEL_PART);
+			}
+
+			await testObject.apply({ ...state, panel: { ...state.panel, visible: false, position: 'right' } });
+			await timeout(0);
+
+			return { panelVisible: layoutService.isVisible(Parts.PANEL_PART), panelPosition: layoutService.getPanelPosition(), focusedPart: layoutService.focusedPart };
+		};
+
+		const expected = { panelVisible: false, panelPosition: Position.RIGHT, focusedPart: Parts.EDITOR_PART };
+		assert.deepStrictEqual({ focused: await moveAndHidePanel(true, true), hidden: await moveAndHidePanel(false, false) }, { focused: expected, hidden: expected });
 	});
 
 	test('parts that are maximized or hidden by a maximized part keep the size they had before', () => {

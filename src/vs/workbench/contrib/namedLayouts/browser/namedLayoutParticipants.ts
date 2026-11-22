@@ -170,7 +170,18 @@ export class WorkbenchPartsLayoutParticipant extends Disposable implements IName
 
 		// Panel position and alignment. The alignment only applies to a horizontal panel
 		const panelPosition = positionFromString(state.panel.position);
-		if (this.layoutService.getPanelPosition() !== panelPosition) {
+		// Moving the panel shows it and focuses its view container if it is hidden, and focuses it again if it has
+		// the focus. A terminal then shows the panel once more after a delay, also if this layout hides it. So the
+		// editor has the focus while the panel moves, and a hidden panel is shown without focus before
+		const movesPanel = this.layoutService.getPanelPosition() !== panelPosition;
+		const movesFocusedPanel = movesPanel && this.layoutService.hasFocus(Parts.PANEL_PART);
+		if (movesFocusedPanel) {
+			this.layoutService.focusPart(Parts.EDITOR_PART, mainWindow);
+		}
+		if (movesPanel) {
+			if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+				await this.paneCompositePartService.openPaneComposite(this.paneCompositePartService.getLastActivePaneCompositeId(ViewContainerLocation.Panel), ViewContainerLocation.Panel, false);
+			}
 			this.layoutService.setPanelPosition(panelPosition);
 		}
 		if (panelAlignment && isHorizontal(panelPosition) && this.layoutService.getPanelAlignment() !== panelAlignment) {
@@ -202,6 +213,11 @@ export class WorkbenchPartsLayoutParticipant extends Disposable implements IName
 		// Centered editor layout
 		if (this.layoutService.isMainEditorLayoutCentered() !== state.editorCentered) {
 			this.layoutService.centerMainEditorLayout(state.editorCentered);
+		}
+
+		// The moved panel gets the focus back if the layout shows it
+		if (movesFocusedPanel && this.layoutService.isVisible(Parts.PANEL_PART)) {
+			this.layoutService.focusPart(Parts.PANEL_PART);
 		}
 	}
 
