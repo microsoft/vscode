@@ -109,6 +109,11 @@ suite('Files - FilesFilter', () => {
 		filter.filter(gitignore2, TreeVisibility.Visible);
 		await changed;
 
+		const rootOut = createItem(root, 'out', true);
+		const subOut = createItem(folder, 'out', true);
+		assert.strictEqual(filter.isIgnored(rootOut.resource, root.resource, true), true, 'rootOut should initially be ignored');
+		assert.strictEqual(filter.isIgnored(subOut.resource, root.resource, true), true, 'subOut should initially be ignored');
+
 		// Fire deletion event for both ignore files simultaneously
 		let fireCount = 0;
 		const sub = filter.onDidChange(() => { fireCount++; });
@@ -122,5 +127,7 @@ suite('Files - FilesFilter', () => {
 		sub.dispose();
 
 		assert.strictEqual(fireCount, 1, 'onDidChange should be batched once per root for multiple deletions');
+		assert.strictEqual(filter.isIgnored(rootOut.resource, root.resource, true), false, 'rootOut should no longer be ignored after deletion');
+		assert.strictEqual(filter.isIgnored(subOut.resource, root.resource, true), false, 'subOut should no longer be ignored after deletion');
 	});
 });
