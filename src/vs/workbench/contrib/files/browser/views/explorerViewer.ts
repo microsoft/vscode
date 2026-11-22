@@ -1208,19 +1208,27 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				this.updateConfiguration();
 			}
 		}));
-		this.toDispose.push(this.fileService.onDidFilesChange(e => {
+		this.toDispose.push(this.fileService.onDidFilesChange(async e => {
 			// Check to see if the update contains any of the ignoreFileResources
 			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
-				ignoreFileResourceSet.forEach(async ignoreResource => {
+				let didDelete = false;
+				for (const ignoreResource of Array.from(ignoreFileResourceSet)) {
 					if (e.contains(ignoreResource, FileChangeType.UPDATED)) {
-						await this.processIgnoreFile(root, ignoreResource, true);
+						try {
+							await this.processIgnoreFile(root, ignoreResource, true);
+						} catch {
+							// ignore file read errors on updated ignore file
+						}
 					}
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
 						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
 						ignoreFileResourceSet.delete(ignoreResource);
-						this._onDidChange.fire();
+						didDelete = true;
 					}
-				});
+				}
+				if (didDelete) {
+					this._onDidChange.fire();
+				}
 			}
 		}));
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {

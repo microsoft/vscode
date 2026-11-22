@@ -11,7 +11,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangeType, FileChangesEvent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
@@ -90,5 +90,37 @@ suite('Files - FilesFilter', () => {
 			exception: false,
 			ignoredFolder: true,
 		});
+	});
+
+	test('handles multiple deleted ignore files in a single change event without set mutation issues and batches onDidChange', async () => {
+		const { root, createItem, filter, fileService } = createFilter({}, true);
+		fileService.setContent('out/\n');
+
+		const gitignore1 = createItem(root, '.gitignore', false);
+		const folder = createItem(root, 'sub', true);
+		const gitignore2 = createItem(folder, '.gitignore', false);
+
+		// Initialize both ignore files
+		let changed = Event.toPromise(filter.onDidChange);
+		filter.filter(gitignore1, TreeVisibility.Visible);
+		await changed;
+
+		changed = Event.toPromise(filter.onDidChange);
+		filter.filter(gitignore2, TreeVisibility.Visible);
+		await changed;
+
+		// Fire deletion event for both ignore files simultaneously
+		let fireCount = 0;
+		const sub = filter.onDidChange(() => { fireCount++; });
+
+		const deleteEvent = new FileChangesEvent([
+			{ resource: gitignore1.resource, type: FileChangeType.DELETED },
+			{ resource: gitignore2.resource, type: FileChangeType.DELETED }
+		], false);
+
+		fileService.fireFileChanges(deleteEvent);
+		sub.dispose();
+
+		assert.strictEqual(fireCount, 1, 'onDidChange should be batched once per root for multiple deletions');
 	});
 });
