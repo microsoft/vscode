@@ -216,6 +216,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private readonly _editorRoot: HTMLElement;
 	/** Whether the renderer has painted, so the canvas may show through the DOM backgrounds. */
 	private _ready = false;
+	/** Counts renderer losses, so only the latest recovery commits. */
+	private _rendererLosses = 0;
 	private readonly _onDidChangeReady = this._register(new Emitter<void>());
 	/**
 	 * Fires when the renderer starts or stops painting, which changes
@@ -313,6 +315,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				width: Math.max(1, Math.round(width * dpr)),
 				height: Math.max(1, Math.round(height * dpr)),
 				config: this._buildConfig(),
+				onRendererLost: () => this._onRendererLost(),
 			});
 			if (this._disposed) {
 				this._editorView.dispose();
@@ -331,6 +334,43 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				return;
 			}
 			this._setReady(false);
+			editorGpuAcceleration.disableEditorView();
+			onUnexpectedError(err);
+		}
+	}
+
+	/**
+	 * The renderer lost its GPU device or WebGL2 context (GPU process restart,
+	 * driver update). The DOM backgrounds and the parts' 2D painters show until
+	 * a new renderer paints; if none can be created, the editor falls back to
+	 * DOM rendering.
+	 */
+	private _onRendererLost(): void {
+		if (this._disposed) {
+			return;
+		}
+		this._setReady(false);
+		void this._recoverRenderer(++this._rendererLosses);
+	}
+
+	private async _recoverRenderer(loss: number): Promise<void> {
+		const editorView = this._editorView;
+		try {
+			if (!editorView?.recoverRenderer) {
+				throw new Error('The installed @vscode/editor-view package cannot recover a lost GPU device.');
+			}
+			await editorView.recoverRenderer();
+			// A later loss starts its own recovery.
+			if (this._disposed || loss !== this._rendererLosses) {
+				return;
+			}
+			// The retained model survives; glyphs re-rasterize into the new atlas.
+			this._present();
+			this._setReady(true);
+		} catch (err) {
+			if (this._disposed || loss !== this._rendererLosses) {
+				return;
+			}
 			editorGpuAcceleration.disableEditorView();
 			onUnexpectedError(err);
 		}

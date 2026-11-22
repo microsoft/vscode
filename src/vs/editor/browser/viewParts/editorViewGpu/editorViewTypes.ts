@@ -234,11 +234,22 @@ export interface EditorView {
 	setOverviewRulerDecorations?(groups: OverviewRulerDecorationGroup[]): void;
 	renderOverviewRuler?(surfaceId: string, scrollHeight: number, cursors: OverviewRulerCursorInput[]): boolean;
 	renderRects?(surfaceId: string, rects: SolidRectInput[]): boolean;
+	/**
+	 * Replace a renderer lost with its GPU device or WebGL2 context, keeping
+	 * retained state; auxiliary surfaces must be attached again. Absent in npm 0.0.1.
+	 */
+	recoverRenderer?(): Promise<void>;
 	dispose(): void;
 }
 
 export interface EditorViewModule {
 	EditorView: {
-		create(canvas: HTMLCanvasElement, options: { width: number; height: number; config: EditorViewConfig }): Promise<EditorView>;
+		create(canvas: HTMLCanvasElement, options: {
+			width: number;
+			height: number;
+			config: EditorViewConfig;
+			/** Called when the renderer loses its GPU device or WebGL2 context. Ignored by npm 0.0.1. */
+			onRendererLost?: (reason: string) => void;
+		}): Promise<EditorView>;
 	};
 }

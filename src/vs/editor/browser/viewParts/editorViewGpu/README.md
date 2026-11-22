@@ -197,6 +197,20 @@ vertical layout it already mirrors, including view zones and padding. Colors
 resolve as a 2D canvas resolves `fillStyle`, so every CSS color syntax that
 extensions use paints the same.
 
+## Device loss
+
+A GPU process restart, a driver update or a lost WebGL2 context takes the
+renderer's device and all its textures with it. The package reports the loss
+through `onRendererLost`. The adapter then leaves the ready state, so the DOM
+backgrounds and the minimap's and overview ruler's 2D canvases show, and asks
+the package to rebuild the renderer on the same canvas with `recoverRenderer`.
+The document, decorations and measurements retained in WASM survive, and glyphs
+re-rasterize into the new atlas on the first frame. Once that frame is drawn the
+adapter is ready again and the parts attach their surfaces to the new device. If
+no renderer can be created, for example when the browser has disabled WebGPU
+after repeated GPU crashes or does not restore a WebGL2 context within five
+seconds, the editor falls back to DOM rendering as after a failed start.
+
 ## Decoration probes in auxiliary windows
 
 Decoration probe elements are created in the main-window DOM realm even when
