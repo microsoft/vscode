@@ -12,6 +12,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { OverlayWebview } from '../../browser/overlayWebview.js';
@@ -31,7 +32,7 @@ suite('OverlayWebview', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchLayoutService, { getContainer: () => root });
 		instantiationService.stub(IWebviewService, webviewServiceStub ?? {});
-		instantiationService.stub(IContextKeyService, {});
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(ISizeService, { onDidChangeSizes });
 		instantiationService.stub(IThemeService, { onDidColorThemeChange: Event.None });
 		return store.add(instantiationService.createInstance(OverlayWebview, {
@@ -228,6 +229,7 @@ suite('OverlayWebview', () => {
 			createWebviewElement: () => {
 				return {
 					mountTo: () => { },
+					setContextKeyService: () => { },
 					onDidFocus: Event.None,
 					onDidBlur: Event.None,
 					onDidClickLink: Event.None,
@@ -258,7 +260,7 @@ suite('OverlayWebview', () => {
 		const p2 = overlay.postMessage('second');
 		const p3 = overlay.postMessage('fail');
 
-		overlay.claim('testOwner', mainWindow);
+		overlay.claim('testOwner', mainWindow, undefined);
 
 		const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
 
@@ -273,6 +275,102 @@ suite('OverlayWebview', () => {
 		assert.strictEqual(r1, true);
 		assert.strictEqual(r2, true);
 		assert.strictEqual(r3, false);
+	});
+
+	test('preserves FIFO order for messages posted during initial delivery', async () => {
+		const root = document.createElement('div');
+		const deliveryLog: string[] = [];
+		const webviewServiceStub: Partial<IWebviewService> = {
+			createWebviewElement: () => {
+				return {
+					mountTo: () => { },
+					setContextKeyService: () => { },
+					onDidFocus: Event.None,
+					onDidBlur: Event.None,
+					onDidClickLink: Event.None,
+					onMessage: Event.None,
+					onMissingCsp: Event.None,
+					onDidWheel: Event.None,
+					onFatalError: Event.None,
+					intrinsicContentSize: observableValue('test', undefined),
+					onDidScroll: Event.None,
+					onDidUpdateState: Event.None,
+					postMessage: async (message: unknown) => {
+						deliveryLog.push(`start:${message}`);
+						await timeout(10);
+						deliveryLog.push(`end:${message}`);
+						return true;
+					},
+					dispose: () => { },
+				} as unknown as IWebviewElement;
+			}
+		};
+
+		const overlay = createOverlay(root, Event.None, webviewServiceStub);
+
+		const p1 = overlay.postMessage('A');
+		const p2 = overlay.postMessage('B');
+
+		overlay.claim('testOwner', mainWindow, undefined);
+
+		// Post C while A is currently being delivered
+		const p3 = overlay.postMessage('C');
+
+		const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+
+		assert.deepStrictEqual(deliveryLog, [
+			'start:A',
+			'end:A',
+			'start:B',
+			'end:B',
+			'start:C',
+			'end:C',
+		]);
+		assert.strictEqual(r1, true);
+		assert.strictEqual(r2, true);
+		assert.strictEqual(r3, true);
+	});
+
+	test('resolves queued messages to false if webview is released while draining', async () => {
+		const root = document.createElement('div');
+		const webviewServiceStub: Partial<IWebviewService> = {
+			createWebviewElement: () => {
+				return {
+					mountTo: () => { },
+					setContextKeyService: () => { },
+					onDidFocus: Event.None,
+					onDidBlur: Event.None,
+					onDidClickLink: Event.None,
+					onMessage: Event.None,
+					onMissingCsp: Event.None,
+					onDidWheel: Event.None,
+					onFatalError: Event.None,
+					intrinsicContentSize: observableValue('test', undefined),
+					onDidScroll: Event.None,
+					onDidUpdateState: Event.None,
+					postMessage: async (message: unknown) => {
+						await timeout(10);
+						return true;
+					},
+					dispose: () => { },
+				} as unknown as IWebviewElement;
+			}
+		};
+
+		const overlay = createOverlay(root, Event.None, webviewServiceStub);
+
+		const p1 = overlay.postMessage('A');
+		const p2 = overlay.postMessage('B');
+
+		overlay.claim('testOwner', mainWindow, undefined);
+
+		// Release overlay while A is still in flight
+		overlay.release('testOwner');
+
+		const [r1, r2] = await Promise.all([p1, p2]);
+
+		assert.strictEqual(r1, true);
+		assert.strictEqual(r2, false);
 	});
 
 	test('resolves pending first-load messages to false when disposed before mount', async () => {
