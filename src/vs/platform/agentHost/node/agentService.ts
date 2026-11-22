@@ -11152,6 +11152,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * - Refresh the in-memory summary with the resolved working directory
 	 *   and project metadata.
 	 * - Persist any config values now that we have a real on-disk session.
+	 * - Retire the session's unused-draft status, so empty-session GC never
+	 *   deletes it, even before its first turn.
 	 * - Emit the deferred `notify/sessionAdded` so other clients learn of
 	 *   the session.
 	 * - Dispatch `SessionReady` so subscribers see the lifecycle transition.
@@ -11255,6 +11257,7 @@ export class AgentService extends Disposable implements IAgentService {
 			() => this._clearSessionProvisional(session),
 			`provisional clearing for ${sessionKey}`,
 		).catch(err => this._logService.error(err, `[AgentService] Failed to clear the provisional marker for ${sessionKey}`));
+		this._stateManager.markSessionUsed(sessionKey);
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.

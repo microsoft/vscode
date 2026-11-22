@@ -7,17 +7,23 @@ import { Limiter, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
-import { isObject } from '../../../../../../base/common/types.js';
+import { isDefined, isObject } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { formatConnectionDiagnosticError, sanitizeConnectionDiagnosticText } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { readAgentHostResources } from '../../../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { IAgentHostBuild, readAgentHostBuild, readAgentHostUpgradeMethod } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
+import type { Implementation, InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IExtensionRemoteAgentHost, IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHHostKeyTrustService } from '../../../../../../platform/agentHost/common/sshHostKeyTrust.js';
 import { isTunnelHosted, ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -37,7 +43,8 @@ import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreatio
 import { areDevContainerEnvironmentsEnabled, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { isActiveSessionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, getCopyableRemoteAddress, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
+import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmRemoteHostServerUpdate, confirmTunnelDeletion, disconnectSSHEntry, getCopyableRemoteAddress, getRemoteHostUpgradeMethod, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'extension', 'devContainer'] as const;
@@ -57,6 +64,10 @@ export interface IRemoteMetadata {
 	readonly lastActivityAt?: number;
 	/** When this window last confirmed the remote was online. */
 	readonly lastOnlineAt?: number;
+	/** How the server identified itself on the last connection. */
+	readonly server?: Implementation;
+	/** The VS Code build the server advertised on the last connection, when it did. */
+	readonly serverBuild?: IAgentHostBuild;
 	readonly observedAt: number;
 }
 
@@ -72,6 +83,26 @@ export type RemoteAvailability = 'online' | 'offline' | 'pending' | 'unknown';
 /** Minimum time between persisted updates of {@link IRemoteMetadata.lastOnlineAt}. */
 const lastOnlineWriteIntervalMs = 60_000;
 const sshConfigResolveConcurrency = 8;
+
+function readCachedServer(value: unknown): Implementation | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const { name, title, version } = value as Partial<Record<keyof Implementation, unknown>>;
+	return typeof name === 'string' && name && (title === undefined || typeof title === 'string') && (version === undefined || typeof version === 'string')
+		? { name, ...(title ? { title } : {}), ...(version ? { version } : {}) }
+		: undefined;
+}
+
+function readCachedBuild(value: unknown): IAgentHostBuild | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const { commit, quality, date } = value as Partial<Record<keyof IAgentHostBuild, unknown>>;
+	return typeof commit === 'string' && commit && typeof quality === 'string' && quality && typeof date === 'string' && !isNaN(Date.parse(date))
+		? { commit, quality, date }
+		: undefined;
+}
 
 export const remoteKindLabels: Record<RemoteKind, string> = {
 	ssh: localize('remotes.ssh', "SSH"),
@@ -117,6 +148,8 @@ export interface ICustomizationRemote {
 	readonly canCreateDevContainer?: boolean;
 	/** Whether this remote connects and disconnects with its host, so it has no connect action of its own. */
 	readonly connectsWithHost?: boolean;
+	/** Whether this remote's server can be updated from here, either to connect again or, while connected, because a newer version is available. */
+	readonly canUpdateServer?: boolean;
 }
 
 export function canConnectToRemote(remote: ICustomizationRemote): boolean {
@@ -126,6 +159,51 @@ export function canConnectToRemote(remote: ICustomizationRemote): boolean {
 export type IRemoteRefreshProgress =
 	| { readonly kind: RemoteKind; readonly refreshing: true }
 	| { readonly kind: RemoteKind; readonly refreshing: false; readonly failed: boolean };
+
+/** Facts for the Troubleshoot Connection page, read from local state and configuration without connecting. */
+export interface IRemoteTroubleshootingInfo {
+	/** The last connection step this window observed for the remote. */
+	readonly lastStep?: { readonly phase: string; readonly outcome: 'started' | 'succeeded' | 'failed'; readonly timestamp: number; readonly error?: string };
+	readonly ssh?: {
+		/** The SSH configuration alias used to connect, if any. */
+		readonly alias?: string;
+		/** The saved host of a connection without an alias, which SSH configuration resolves to {@link hostName}. */
+		readonly host?: string;
+		readonly hostName?: string;
+		readonly user?: string;
+		readonly port?: number;
+		readonly identityFiles?: readonly string[];
+		readonly proxyCommand?: string;
+		/** Whether a host key was saved for this host, which Forget Saved Host Key removes. */
+		readonly hasSavedHostKey: boolean;
+	};
+	readonly tunnel?: {
+		readonly authProvider?: 'github' | 'microsoft';
+		/** Whether the most recent successful discovery listed this tunnel; undefined until discovery succeeds in this window. */
+		readonly inLastDiscovery?: boolean;
+		readonly hostConnectionCount?: number;
+	};
+	readonly extension?: { readonly version?: string; readonly issuesUrl?: string };
+	readonly devContainer?: {
+		/** The SSH, WSL, or tunnel host that runs the container; undefined for this computer. */
+		readonly hostId?: string;
+		readonly hostName: string;
+		readonly hostConnected: boolean;
+		/** True once a check on the connected host found Docker; otherwise unknown, because the check may be pending or unsupported. */
+		readonly dockerAvailable?: true;
+	};
+	/** Whether Restart Distribution can stop and start this WSL distribution again. */
+	readonly canRestartDistribution?: boolean;
+	/** Whether this remote's connection log can be shown. */
+	readonly canShowLog?: boolean;
+	readonly versions?: {
+		/** The server as it identified itself on the current connection, or else on the last one. */
+		readonly server?: { readonly name: string; readonly version?: string; readonly build?: IAgentHostBuild; readonly current: boolean };
+		readonly client: { readonly name: string; readonly version: string; readonly build?: IAgentHostBuild };
+		/** Whether updating the connected server from here would install a newer build; undefined when that can't be told. */
+		readonly update?: 'available' | 'upToDate' | 'otherQuality' | 'unavailable';
+	};
+}
 
 export interface IRemotesModel extends IDisposable {
 	readonly remotes: IObservable<readonly ICustomizationRemote[]>;
@@ -141,6 +219,7 @@ export interface IRemotesModel extends IDisposable {
 	copyAddress(id: string): Promise<void>;
 	getPreferredAgentLocation(id: string): RemoteAgentHostLocationPreference | undefined;
 	changePreferredAgentLocation(id: string, preference?: RemoteAgentHostLocationPreference): Promise<'saved' | 'reconnected' | undefined>;
+	/** Updates the server after confirmation, rejecting with a cancellation when declined and with an error when the update fails. */
 	updateServer(id: string): Promise<void>;
 	setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void>;
 	deleteTunnel(id: string): Promise<void>;
@@ -154,6 +233,14 @@ export interface IRemotesModel extends IDisposable {
 	deleteDevContainer(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
 	setHidden(id: string, hidden: boolean): void;
+	getTroubleshootingInfo(id: string): Promise<IRemoteTroubleshootingInfo>;
+	/** Fires when facts that {@link getTroubleshootingInfo} reads may have changed, such as discovery results, Docker checks, trusted host keys, or extensions. */
+	readonly onDidChangeTroubleshootingInfo: Event<void>;
+	/** Forgets the saved SSH host key after confirmation, so the next connection asks to verify the host again. */
+	forgetSSHHostKey(id: string): Promise<void>;
+	/** Stops a WSL distribution after confirmation, then connects again, which starts it with the latest available server. */
+	restartWSLDistribution(id: string): Promise<void>;
+	showConnectionLog(id: string): Promise<void>;
 }
 
 /**
@@ -184,6 +271,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private readonly targets = new Map<string, RemoteTarget>();
 	private readonly registered = new Set<string>();
 	private readonly _remotes = observableValue<readonly ICustomizationRemote[]>(this, []);
+	private readonly _onDidChangeTroubleshootingInfo = this._register(new Emitter<void>());
+	readonly onDidChangeTroubleshootingInfo = this._onDidChangeTroubleshootingInfo.event;
+	private troubleshootingInputs = '';
 	readonly remotes = this._remotes;
 	private readonly _environmentsEnabled = observableValue(this, false);
 	readonly environmentsEnabled = this._environmentsEnabled;
@@ -241,6 +331,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IExtensionRemoteAgentHostsService private readonly extensionRemoteAgentHostsService: IExtensionRemoteAgentHostsService,
 		@IDevContainerAgentHostService private readonly devContainerService: IDevContainerAgentHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISSHHostKeyTrustService private readonly hostKeyTrustService: ISSHHostKeyTrustService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 		this.pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
@@ -280,6 +372,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			this.remoteTunnelStatus = status;
 			this.update();
 		}));
+		this._register(hostKeyTrustService.onDidChangeTrustedHosts(() => this._onDidChangeTroubleshootingInfo.fire()));
+		this._register(extensionService.onDidChangeExtensions(() => this._onDidChangeTroubleshootingInfo.fire()));
 		void this.loadTunnelStatus(remoteTunnelService);
 	}
 
@@ -566,10 +660,15 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
 		const status = provider.connectionStatus?.get() ?? remote.connectionStatus;
-		if (!RemoteAgentHostConnectionStatus.isIncompatible(status) || !status.vscodeUpgradeMethod) {
+		const upgradeMethod = getRemoteHostUpgradeMethod(status, this.remoteAgentHostService.getConnection(id), this.productService);
+		if (!upgradeMethod) {
 			throw new Error(localize('remotes.updateUnavailable', "This remote does not support updating its server."));
 		}
-		await upgradeRemoteHost(provider, status.vscodeUpgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService);
+		if (!await confirmRemoteHostServerUpdate(this.dialogService, remote.name, status)) {
+			throw new CancellationError();
+		}
+		// Callers show failures where the update was requested.
+		await upgradeRemoteHost(provider, upgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService, 'throw');
 	}
 
 	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
@@ -930,6 +1029,191 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this.pickerVisibility.setHidden(key, hidden);
 	}
 
+	async getTroubleshootingInfo(id: string): Promise<IRemoteTroubleshootingInfo> {
+		const target = this.targets.get(id);
+		if (!target || !this.enabled) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		const lastStep = this.getLastConnectionStep(id);
+		const common: IRemoteTroubleshootingInfo = {
+			...(lastStep ? { lastStep } : {}), ...(provider?.showConnectionLog ? { canShowLog: true } : {}),
+			versions: this.getVersions(id),
+		};
+		switch (target.kind) {
+			case 'ssh': {
+				const { info } = await this.resolveSSHHostKeyIdentity(target.entry);
+				return { ...common, ssh: info };
+			}
+			case 'wsl':
+				return { ...common, canRestartDistribution: !this.installedDistros || this.installedDistros.has(target.distro) };
+			case 'tunnel': {
+				// Like availability: a saved tunnel's absence from discovery only counts when discovery queried its account.
+				const queried = this.tunnelDiscoverySucceeded && (target.source === 'discovered' || !target.authProvider || target.authProvider === this.tunnelDiscoveryAuthProvider);
+				return {
+					...common, tunnel: {
+						...(target.authProvider ? { authProvider: target.authProvider } : {}),
+						...(queried ? { inLastDiscovery: target.source === 'discovered' } : {}),
+						// Saved tunnels have no host count of their own.
+						...(target.source === 'discovered' && target.tunnel.hostConnectionCount !== undefined ? { hostConnectionCount: target.tunnel.hostConnectionCount } : {}),
+					},
+				};
+			}
+			case 'extension': {
+				const extension = await this.extensionService.getExtension(target.host.extensionId);
+				return { ...common, extension: { ...(extension?.version ? { version: extension.version } : {}), ...(extension?.bugs?.url ? { issuesUrl: extension.bugs.url } : {}) } };
+			}
+			case 'devContainer': {
+				const source = target.environment.sourceAddress;
+				const local = source === LocalDevContainerEnvironmentHost;
+				const host = local ? undefined : this._remotes.get().find(remote => remote.id === source);
+				const hostConnected = local || RemoteAgentHostConnectionStatus.isConnected(host?.connectionStatus);
+				return {
+					...common, devContainer: {
+						...(local ? {} : { hostId: source }),
+						hostName: local ? localize('remotes.thisComputer', "This Computer") : host?.name ?? this.remoteAgentHostService.getDisplayNameOverride(source) ?? source,
+						hostConnected,
+						// A host is missing from the Docker hosts while its check runs or when it can't host Dev Containers, not only without Docker.
+						...(hostConnected && this.devContainerService.environmentHosts.get().has(source) ? { dockerAvailable: true } : {}),
+					},
+				};
+			}
+			case 'environment':
+				return common;
+		}
+	}
+
+	/** The server's and this client's versions, and for a connected server whether updating it from here installs a newer build. */
+	private getVersions(id: string): NonNullable<IRemoteTroubleshootingInfo['versions']> {
+		const remote = this._remotes.get().find(remote => remote.id === id);
+		const result = RemoteAgentHostConnectionStatus.isConnected(remote?.connectionStatus) ? this.remoteAgentHostService.getConnection(id)?.initializeResult.get() : undefined;
+		const server = remote?.metadata?.server;
+		const serverBuild = remote?.metadata?.serverBuild;
+		const { nameLong, version, commit, quality, date } = this.productService;
+		const hostBuild = readAgentHostBuild(result);
+		// Servers that don't identify themselves predate update offers, so their update state is unknown.
+		const update = !result?.serverInfo ? undefined
+			: remote?.canUpdateServer ? 'available'
+				: !readAgentHostUpgradeMethod(result) ? 'unavailable'
+					: !hostBuild || !commit || !date ? undefined
+						: hostBuild.quality !== quality ? 'otherQuality' : 'upToDate';
+		return {
+			...(server ? {
+				server: {
+					name: server.title || server.name, ...(server.version ? { version: server.version } : {}), ...(serverBuild ? { build: serverBuild } : {}),
+					current: !!result?.serverInfo,
+				},
+			} : {}),
+			client: { name: nameLong, version, ...(commit && quality && date ? { build: { commit, quality, date } } : {}) },
+			...(update ? { update } : {}),
+		};
+	}
+
+	/** The last connection step the remote connection service observed, skipping informational events such as closed relays. */
+	private getLastConnectionStep(id: string): IRemoteTroubleshootingInfo['lastStep'] {
+		const address = normalizeRemoteAgentHostAddress(id);
+		const events = this.remoteAgentHostService.getConnectionDiagnostics();
+		for (let index = events.length - 1; index >= 0; index--) {
+			const event = events[index];
+			if (event.outcome !== 'info' && normalizeRemoteAgentHostAddress(event.address) === address) {
+				return {
+					phase: event.phase, outcome: event.outcome, timestamp: event.timestamp,
+					...(event.error ? { error: sanitizeConnectionDiagnosticText(formatConnectionDiagnosticError(event.error)) } : {}),
+				};
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Resolves an SSH host from local configuration like the SSH connector, which also resolves saved hosts without an alias,
+	 * and the identity its host key is trusted under: `HostKeyAlias` or else the resolved host name, falling back to the
+	 * resolved host name when the alias has no saved key, with the saved entry's port before the configured one.
+	 */
+	private async resolveSSHHostKeyIdentity(entry: IRemoteAgentHostEntry): Promise<{ readonly info: NonNullable<IRemoteTroubleshootingInfo['ssh']>; readonly trusted?: { readonly host: string; readonly port: number } }> {
+		const connection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
+		const alias = connection?.sshConfigHost;
+		const configHost = alias ?? connection?.hostName;
+		let resolved: ISSHResolvedConfig | undefined;
+		if (configHost) {
+			try {
+				resolved = await this.sshService.resolveSSHConfig(configHost);
+			} catch (error) {
+				this.logService.trace(`[Remotes] Couldn't resolve SSH configuration for ${configHost}`, error);
+			}
+		}
+		const hostName = resolved?.hostname ?? connection?.hostName;
+		const port = connection?.port ?? resolved?.port;
+		// The connector uses the saved user of a connection without an alias.
+		const user = alias ? resolved?.user ?? connection?.user : connection?.user ?? resolved?.user;
+		const trusted = [resolved?.hostKeyAlias ?? hostName, hostName]
+			.filter(isDefined)
+			.map(host => ({ host, port: port ?? 22 }))
+			.find(identity => this.hostKeyTrustService.getTrustedKeys(identity.host, identity.port).length > 0);
+		return {
+			info: {
+				...(alias ? { alias } : connection?.hostName ? { host: connection.hostName } : {}),
+				...(hostName ? { hostName } : {}), ...(user ? { user } : {}), ...(port !== undefined ? { port } : {}),
+				...(resolved?.identityFile.length ? { identityFiles: resolved.identityFile } : {}),
+				...(resolved?.proxyCommand ? { proxyCommand: resolved.proxyCommand } : {}),
+				hasSavedHostKey: !!trusted,
+			},
+			...(trusted ? { trusted } : {}),
+		};
+	}
+
+	async forgetSSHHostKey(id: string): Promise<void> {
+		const target = this.targets.get(id);
+		if (!target || target.kind !== 'ssh' || !this.enabled) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		const { trusted } = await this.resolveSSHHostKeyIdentity(target.entry);
+		if (!trusted) {
+			throw new Error(localize('remotes.noSavedHostKey', "No host key is saved for this remote."));
+		}
+		const keys = this.hostKeyTrustService.getTrustedKeys(trusted.host, trusted.port).map(key => `${key.keyType} ${key.fingerprint}`);
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('remotes.forgetHostKeyConfirmation', "Forget the saved host key for '{0}'?", this._remotes.get().find(remote => remote.id === id)?.name ?? id),
+			detail: localize('remotes.forgetHostKeyDetail', "The next time you connect, you'll be asked to verify the remote computer's host key. Only continue if you know why the key changed.\n\n{0}", keys.join('\n')),
+			primaryButton: localize('remotes.forgetHostKeyButton', "&&Forget"),
+		});
+		if (!confirmed) {
+			throw new CancellationError();
+		}
+		this.hostKeyTrustService.forgetHost(trusted.host, trusted.port);
+	}
+
+	async restartWSLDistribution(id: string): Promise<void> {
+		const target = this.targets.get(id);
+		if (!target || target.kind !== 'wsl' || !this.enabled) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('remotes.restartDistributionConfirmation', "Restart the WSL distribution '{0}'?", this._remotes.get().find(remote => remote.id === id)?.name ?? target.name),
+			detail: localize('remotes.restartDistributionDetail', "This stops everything running in the distribution, including agent sessions and other programs. Then it connects again, which starts a new agent host."),
+			primaryButton: localize('remotes.restartDistributionButton', "&&Restart"),
+		});
+		if (!confirmed) {
+			throw new CancellationError();
+		}
+		await this.wslService.terminateDistro(target.distro);
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		await this.refreshRunningDistros();
+		await this.setConnected(id, true);
+	}
+
+	async showConnectionLog(id: string): Promise<void> {
+		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		if (!this.enabled || !provider?.showConnectionLog) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		await provider.showConnectionLog();
+	}
+
 	private getPickerUnavailableReason(provider: IAgentHostSessionsProvider | undefined): string | undefined {
 		if (provider && !isRemoteSessionCreationEnvironment(provider)) {
 			return localize('remotes.pickerUnsupported', "This remote can't appear as a separate entry in the environment picker.");
@@ -1041,11 +1325,15 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			|| value.observedSessionCount !== undefined && (!validNumber(value.observedSessionCount) || !Number.isInteger(value.observedSessionCount))
 			|| value.lastConnectedAt !== undefined && !validNumber(value.lastConnectedAt)
 			|| value.lastActivityAt !== undefined && !validNumber(value.lastActivityAt)
-			|| value.lastOnlineAt !== undefined && !validNumber(value.lastOnlineAt)) {
+			|| value.lastOnlineAt !== undefined && !validNumber(value.lastOnlineAt)
+			|| value.server !== undefined && !readCachedServer(value.server)
+			|| value.serverBuild !== undefined && !readCachedBuild(value.serverBuild)) {
 			this.logService.warn('[Remotes] Invalid cached environment metadata');
 			this.storageService.remove(key, StorageScope.PROFILE);
 			return undefined;
 		}
+		const server = readCachedServer(value.server);
+		const serverBuild = readCachedBuild(value.serverBuild);
 		return {
 			observedAt: value.observedAt,
 			operatingSystem: value.operatingSystem,
@@ -1057,6 +1345,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			lastConnectedAt: value.lastConnectedAt,
 			lastActivityAt: value.lastActivityAt,
 			lastOnlineAt: value.lastOnlineAt,
+			...(server ? { server } : {}),
+			...(serverBuild ? { serverBuild } : {}),
 		};
 	}
 
@@ -1064,7 +1354,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this.onlineObservations.set(this.getPickerKey(target), Date.now());
 	}
 
-	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
+	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, initializeResult: InitializeResult | undefined, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
 		const pickerKey = this.getPickerKey(target);
 		const key = `${metadataKeyPrefix}${pickerKey}`;
 		const previous = this.readMetadata(key);
@@ -1086,6 +1376,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				lastActivityAt = updatedAt;
 			}
 		}
+		// Each connection replaces the server identity of the previous one, including a build it no longer advertises.
+		const liveServer = live && initializeResult ? readCachedServer(initializeResult.serverInfo) : undefined;
+		const server = liveServer ?? previous?.server;
+		const serverBuild = liveServer ? readAgentHostBuild(initializeResult) : previous?.serverBuild;
 		const next = {
 			// A host's advertised path style does not identify its operating system.
 			operatingSystem: operatingSystem ?? previous?.operatingSystem,
@@ -1098,14 +1392,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			lastActivityAt,
 			lastOnlineAt: onlineAt !== undefined && (previous?.lastOnlineAt === undefined || onlineAt - previous.lastOnlineAt >= lastOnlineWriteIntervalMs)
 				? onlineAt : previous?.lastOnlineAt,
+			...(server ? { server } : {}),
+			...(serverBuild ? { serverBuild } : {}),
 		};
-		if (next.operatingSystem === undefined && next.architecture === undefined && next.cpuCount === undefined && next.memoryBytes === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined) {
+		if (next.operatingSystem === undefined && next.architecture === undefined && next.cpuCount === undefined && next.memoryBytes === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined && !server) {
 			return {};
 		}
 		let metadata = previous;
 		const observedChanged = !previous || previous.operatingSystem !== next.operatingSystem || previous.activeSessionCount !== next.activeSessionCount || previous.observedSessionCount !== next.observedSessionCount
 			|| previous.architecture !== next.architecture || previous.cpuCount !== next.cpuCount || previous.memoryBytes !== next.memoryBytes
-			|| previous.lastConnectedAt !== next.lastConnectedAt || previous.lastActivityAt !== next.lastActivityAt;
+			|| previous.lastConnectedAt !== next.lastConnectedAt || previous.lastActivityAt !== next.lastActivityAt
+			|| JSON.stringify(previous.server) !== JSON.stringify(server) || JSON.stringify(previous.serverBuild) !== JSON.stringify(serverBuild);
 		if (observedChanged || previous.lastOnlineAt !== next.lastOnlineAt) {
 			// A new online observation does not refresh retained system details.
 			metadata = { ...next, observedAt: observedChanged ? now : previous.observedAt };
@@ -1257,7 +1554,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(target.kind === 'environment' ? {
 					lastHeartbeatAt: target.host.lastHeartbeatAt, reportedSessionCount: target.host.reportedSessionCount,
 				} : {}),
-				...this.getMetadata(target, provider, connectionStatus, reader),
+				...this.getMetadata(target, provider, connectionStatus, this.remoteAgentHostService.getConnection(id)?.initializeResult.read(reader), reader),
 				...(target.kind === 'extension' ? { contributedBy: { extensionId: target.host.extensionId, displayName: target.host.extensionDisplayName } } : {}),
 				...(description ? { description } : {}),
 				...(isDevContainerHost && devContainersEnabled ? { canCreateDevContainer: true } : {}),
@@ -1276,6 +1573,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					...(shares.has(id) ? { gitHubEnvironment: shares.get(id) } : {}),
 				} : {}),
 				connectionStatus,
+				...(getRemoteHostUpgradeMethod(connectionStatus, this.remoteAgentHostService.getConnection(id), this.productService, reader) ? { canUpdateServer: true } : {}),
 				...(lastConnectionError ? { lastConnectionError } : {}),
 			});
 		}
@@ -1324,5 +1622,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			this._remotes.set(remotes.map(remote => displayNames.has(remote.id) ? { ...remote, name: displayNames.get(remote.id)! } : remote)
 				.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), tx);
 		});
+		// Connection states of other remotes matter too, for example a Dev Container's host.
+		const troubleshootingInputs = JSON.stringify([
+			remotes.map(remote => [remote.id, remote.connectionStatus.kind]),
+			[...devContainerHosts],
+			this.tunnelDiscoverySucceeded, this.tunnelDiscoveryAuthProvider,
+			[...this.targets.values()].flatMap(target => target.kind === 'tunnel' ? [[target.tunnel.tunnelId, target.source, target.tunnel.hostConnectionCount]] : []),
+			this.installedDistros && [...this.installedDistros],
+		]);
+		if (troubleshootingInputs !== this.troubleshootingInputs) {
+			this.troubleshootingInputs = troubleshootingInputs;
+			this._onDidChangeTroubleshootingInfo.fire();
+		}
 	}
 }

@@ -51,7 +51,7 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 							targetId: target.targetId,
 							onDidShow: this.onDidShow,
 							title: localize('inboxAutoAdvanceSpotlight.title', "Your session is here"),
-							description: new MarkdownString(localize('inboxAutoAdvanceSpotlight.description', "Your reply moved to Working. {0} [Change auto-advance]({1}).",
+							description: new MarkdownString(localize('inboxAutoAdvanceSpotlight.description', "Your session moved to Working. {0} [Change auto-advance]({1}).",
 								this.hasNext
 									? localize('inboxAutoAdvanceSpotlight.next', "Inbox opened the next session.")
 									: localize('inboxAutoAdvanceSpotlight.empty', "Inbox is now empty."),

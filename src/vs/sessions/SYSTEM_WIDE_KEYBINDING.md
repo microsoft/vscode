@@ -29,6 +29,8 @@ later keybinding changes.
 Open Agents Window force-reveals the window through the native host, because a system-wide trigger
 usually fires while VS Code is inactive or hidden and does not focus any window itself.
 
+Show Agents Launcher takes the `args` of its keybinding to the Agents Window, also through an editor window. With `{ "workspace": "" }`, the launcher opens on a chat without a workspace, as picking Chat in its workspace picker does, and keeps what was typed. Without `workspace`, the launcher keeps its workspace; other values, such as folder paths, are not supported yet and are ignored with a warning.
+
 Rejected bindings for these commands are logged in the Agents Window. OS registration failures are
 reported by each renderer owner so an Agents-only process retains a visible failure surface. When
 an editor and the Agents Window both own the same failing accelerator, both windows may display the

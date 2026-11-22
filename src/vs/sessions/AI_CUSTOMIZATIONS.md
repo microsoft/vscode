@@ -182,6 +182,8 @@ The management-editor command may select a section, target a session type, revea
 
 Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
 
+A provider may also report section notices: problems with a section as a whole, such as hook files the runtime could not load. The list shows them above its search box rather than as items, and they are not part of the extension API.
+
 Host-reported MCP provenance distinguishes user, workspace, plugin, built-in, managed-catalog, and signed-in-account sources. Account-contributed servers retain that source through protocol metadata and display a signed-in-account explanation when the runtime does not expose an editable definition. Tool telemetry reports only the bounded source kind, never the account identity.
 
 Canvas management uses the optional `vscode.copilotExtensions` Agent Host capability because declaring-extension discovery and enablement are runtime-owned rather than prompt-file customizations. With no chat target, inventory reports persisted user and plugin extensions plus the provider's effective loading mode. With an exact live chat, inventory reports effective user, project, and plugin extensions with lifecycle status. User and plugin decisions persist through the host-scoped API and reconcile the exact live chat; project extensions are read-only in the first version. The capability is an implementation detail of the Canvases section rather than a separate management destination. It remains optional, and absent hosts can still list and open Canvases without enablement controls.

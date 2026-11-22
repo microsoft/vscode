@@ -103,4 +103,12 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	stopContainer(source: DevContainerAgentHostSource): Promise<boolean>;
 	/** Removes the container; an environment's Docker volume is removed with it. */
 	removeContainer(source: DevContainerAgentHostSource): Promise<boolean>;
+	/**
+	 * Whether this service's Docker engine has a volume of the Dev Container environment, false without Docker. Clients ask
+	 * the service on their own computer, so it is optional for the services of remote hosts.
+	 */
+	hasEnvironmentVolume?(environmentId: string): Promise<boolean>;
 }
+
+/** How long {@link IDevContainerAgentHostMainService.hasEnvironmentVolume} may take before a stalled Docker engine counts as not having the volume. */
+export const DevContainerEnvironmentVolumeLookupTimeoutMs = 10_000;

@@ -130,6 +130,11 @@ export interface ICanvasContextService {
 	readonly workingSets?: ICanvasWorkingSets;
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean;
 	/**
+	 * Maps an owner that surfaces outside the chat widget, such as a session pill built from the
+	 * session model, to the canonical owner of the visible chat it belongs to. `undefined` when no visible chat matches.
+	 */
+	resolveOwner?(owner: ICanvasOwner): ICanvasOwner | undefined;
+	/**
 	 * Resolves an owner that this window can still look up, including one that is
 	 * not visible. Its canvases are `undefined` while membership is unknown;
 	 * `undefined` means the owner is outside this window's live scope.
@@ -200,8 +205,9 @@ export interface ICanvasService {
 	 * Resolves the live browser model retained for this presentation, creating it once when needed.
 	 * A retained model keeps its last page while the provider is temporarily unavailable, then
 	 * loads the next source in place. Reloading requires a retained page and a current live source.
+	 * `onCreated` receives the new or retained model before navigation finishes, so its host can present dialogs.
 	 */
-	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean): Promise<ICanvasModelResolution>;
+	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean, onCreated?: (model: IBrowserViewModel) => void): Promise<ICanvasModelResolution>;
 }
 
 export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolean {

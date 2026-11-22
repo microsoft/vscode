@@ -3367,11 +3367,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Trigger the CLI-managed upgrade flow for this agent host using the
 	 * method name advertised by the server (typically
-	 * {@link VSCODE_UPGRADE_METHOD}). Callable before {@link connect} has
-	 * completed — typically used when the host has just rejected our
-	 * `initialize` with an `UnsupportedProtocolVersion` error. The
-	 * transport stays open after the rejection, so the extension request
-	 * rides over it without a special out-of-band path.
+	 * {@link VSCODE_UPGRADE_METHOD}). Connected clients send it like any other
+	 * request. It is also callable before {@link connect} has completed,
+	 * typically when the host has just rejected our `initialize` with an
+	 * `UnsupportedProtocolVersion` error. The transport stays open after the
+	 * rejection, so the extension request rides over it without a special
+	 * out-of-band path.
 	 *
 	 * The result mirrors the CLI's HTTP response: ok flag, whether the
 	 * upgrade is needed / started, running/latest commits.

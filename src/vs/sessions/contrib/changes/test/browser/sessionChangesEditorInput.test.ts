@@ -558,6 +558,7 @@ suite('SessionChangesEditorInput', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 		}());
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());

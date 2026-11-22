@@ -31,6 +31,9 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -135,6 +138,8 @@ export class SessionHeaderBar extends Disposable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	private readonly _statusIcon: SessionStatusIcon;
+	private readonly _workingProgressEl: HTMLElement;
+	private readonly _showsWorkingProgress = observableValue<boolean>(this, false);
 
 	get element(): HTMLElement {
 		return this._container;
@@ -223,6 +228,11 @@ export class SessionHeaderBar extends Disposable {
 		const titleActions = $('.chat-composite-bar-title-actions');
 		titleRow.appendChild(titleActions);
 		this._titleActionsEl = titleActions;
+
+		this._workingProgressEl = $('span.chat-composite-bar-working-progress', { role: 'img' });
+		this._workingProgressEl.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+		this._workingProgressEl.style.display = 'none';
+		titleActions.appendChild(this._workingProgressEl);
 
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
 		titleActions.appendChild(toolbarContainer);
@@ -419,6 +429,11 @@ export class SessionHeaderBar extends Disposable {
 		}));
 	}
 
+	/** Whether the header shows that the chat is working, spinning at its end, as the tab of a chat editor does. */
+	setShowsWorkingProgress(shows: boolean): void {
+		this._showsWorkingProgress.set(shows, undefined);
+	}
+
 	setVisible(visible: boolean): void {
 		if (this._requestedVisible === visible) {
 			return;
@@ -442,6 +457,11 @@ export class SessionHeaderBar extends Disposable {
 		const isRead = activeChat?.isRead.read(reader) ?? true;
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
+		const working = status === SessionStatus.InProgress && this._showsWorkingProgress.read(reader);
+		this._workingProgressEl.style.display = working ? '' : 'none';
+		if (working) {
+			this._workingProgressEl.setAttribute('aria-label', getSessionConversationStatusAriaLabel(status));
+		}
 
 		// A draft is titled as new, whatever its chat is titled yet
 		if (!activeChat || this._isDraft) {

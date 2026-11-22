@@ -104,8 +104,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// govern independent discovery, including executable Copilot extensions, but VS Code-only policy values
 	// do not reach those paths and standalone instructions still lack equivalent runtime coverage.
 	ChatStrictPluginOnlyCustomization: { status: 'partial' },
-	// Documented as Local-only; Agent Host enables runtime file hooks regardless.
-	ChatHooks: { status: 'notEnforced' },
+	// Copilot sessions leave out repository hooks, custom agent hooks, and the plugin hooks VS Code runs itself.
+	// The runtime still runs user hooks and the hooks of plugins it loads from a folder; no session option skips them.
+	ChatHooks: { status: 'partial' },
 	// Shared prompt discovery filters hooks, but VS Code-only values do not govern runtime file
 	// hooks. Runtime-native enforcement and its effect on SDK callbacks remain unverified here.
 	ChatAllowManagedHooksOnly: { status: 'partial' },

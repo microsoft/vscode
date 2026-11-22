@@ -167,6 +167,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IRenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
+	getCopyContent?(hoverPart: T): string;
 	handleResize?(): void;
 	handleHide?(): void;
 	handleContentsChanged?(): void;

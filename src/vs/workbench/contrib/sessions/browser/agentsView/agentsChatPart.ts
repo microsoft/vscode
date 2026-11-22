@@ -202,7 +202,7 @@ class AgentsChatPartChat extends SessionChatEditorEntry {
 	 * As the editor window's chat, it shows its session's changes as the working set of its input; as a new-session composer,
 	 * the session header titled as new, as a chat shows it, rather than a tab.
 	 */
-	readonly hostOptions: ISessionViewHostOptions = { ...SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS, showComposerHeader: true };
+	readonly hostOptions: ISessionViewHostOptions = { ...SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS, showComposerHeader: true, showTitleProgress: true };
 
 	protected override get composerRendersTitle(): boolean {
 		return !!this.hostOptions.showComposerHeader;

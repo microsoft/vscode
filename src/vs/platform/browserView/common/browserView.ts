@@ -163,6 +163,11 @@ export interface IBrowserViewWindowConfiguration {
 
 	/** Whether AI features are disabled for this window. */
 	readonly aiFeaturesDisabled?: boolean;
+	/**
+	 * User agent for the window's browser views. When unset, the default
+	 * Electron user agent is used. Device emulation still takes precedence.
+	 */
+	readonly userAgent?: string;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
@@ -474,11 +479,36 @@ export interface IBrowserViewState {
 	session: IBrowserViewSessionOptions;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
+	pendingDialog?: IBrowserViewDialog;
 	browserZoomIndex: number;
 	elementSelectionState: IBrowserElementSelectionState;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 	audiences: IBrowserViewAudience[];
+}
+
+/**
+ * Only the current top-level origin or a pending main-frame navigation may request website sign-in.
+ * This is stricter than Chrome, which only blocks cross-origin images.
+ */
+export function getBrowserViewAuthenticationOrigin(url: string, mainFrameOrigin: string, navigationOrigin: string | undefined): string | undefined {
+	const origin = URL.parse(url)?.origin;
+	return origin && origin !== 'null' && (origin === mainFrameOrigin || origin === navigationOrigin) ? origin : undefined;
+}
+
+export interface IBrowserViewDialog {
+	readonly requestId: string;
+	readonly type: 'login' | 'alert' | 'confirm' | 'prompt';
+	readonly origin: string;
+	readonly message?: string;
+	readonly defaultPrompt?: string;
+}
+
+export interface IBrowserViewDialogResponse {
+	readonly accept: boolean;
+	readonly username?: string;
+	readonly password?: string;
+	readonly promptText?: string;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -698,6 +728,7 @@ export interface BrowserViewEventData {
 	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
+	onDidChangeDialog: IBrowserViewDialog | undefined;
 	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
 	onDidRequestOpenExternal: string;
 }
@@ -949,6 +980,9 @@ export interface IBrowserViewService {
 	 * @param deviceId The selected device id, or `null` to cancel
 	 */
 	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/** Answer the current browser dialog, identified by its request ID. */
+	respondToDialog(id: string, requestId: string, response: IBrowserViewDialogResponse): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

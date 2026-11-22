@@ -203,6 +203,8 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
+	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	readonly baseBranchFullName?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
 	/** Whether the repository has any Git remote. */
@@ -1215,6 +1217,11 @@ export function getUntitledSessionTitle(isQuickChat: boolean): string {
 		: localize('agentSessions.newSession', "New Session");
 }
 
+export interface ISessionWorkspaceBrowseOptions {
+	readonly recentFolders: readonly URI[];
+	readonly token: CancellationToken;
+}
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
@@ -1244,7 +1251,7 @@ export interface ISessionWorkspaceBrowseAction {
 	 * if cancelled. The current execution workspace is provided so context
 	 * pickers can scope results to its repository.
 	 */
-	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
+	run(currentWorkspace?: ISessionWorkspace, options?: ISessionWorkspaceBrowseOptions): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
@@ -1421,6 +1428,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchFullName === b.baseBranchFullName
 		&& a.baseBranchProtected === b.baseBranchProtected
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
