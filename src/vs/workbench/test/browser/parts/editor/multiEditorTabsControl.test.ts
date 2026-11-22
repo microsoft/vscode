@@ -851,6 +851,40 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, beforeToolbar: true, closeClickable: true, noAddTab: true })));
 	});
 
+	test('wrapped fit tabs stay wrapped instead of alternating when their title overflows', async () => {
+		const group = connectedGroup();
+		openNamedEditors([`Very long ${'filename segment '.repeat(30)}.ts`]);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fit', tabActionReserveSpace: true };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const width of [400, 400, 300, 300, 3000, 3000, 400]) {
+			await layoutConnectedGroup(group, width);
+			const tab = container.querySelector<HTMLElement>('.tabs-container > .tab')!;
+			const row = tab.closest<HTMLElement>('.tabs-and-actions-container')!;
+			const close = tab.querySelector<HTMLElement>('.action-label')!;
+			close.focus();
+			const bounds = close.getBoundingClientRect();
+			const target = mainWindow.document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+			results.push({
+				width,
+				wrapped: row.classList.contains('wrapping'),
+				contained: tab.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1 / 64,
+				closeClickable: !!target && (target === close || close.contains(target)),
+			});
+			close.blur();
+		}
+		assert.deepStrictEqual(results, [
+			{ width: 400, wrapped: true, contained: true, closeClickable: true },
+			{ width: 400, wrapped: true, contained: true, closeClickable: true },
+			{ width: 300, wrapped: true, contained: true, closeClickable: true },
+			{ width: 300, wrapped: true, contained: true, closeClickable: true },
+			{ width: 3000, wrapped: false, contained: true, closeClickable: true },
+			{ width: 3000, wrapped: false, contained: true, closeClickable: true },
+			{ width: 400, wrapped: true, contained: true, closeClickable: true },
+		]);
+	});
+
 	test('modern editor headers retain an opaque backing during narrow and wide layouts', async () => {
 		const group = connectedGroup();
 		group.style.setProperty('--vscode-editor-background', '#123456');

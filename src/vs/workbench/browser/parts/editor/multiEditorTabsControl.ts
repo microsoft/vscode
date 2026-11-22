@@ -2273,6 +2273,27 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else if (this.groupsView.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
+			// While wrapped, fit tabs are capped to the row width, so `scrollWidth`
+			// cannot tell whether the tabs would also fit without wrapping. Measure
+			// them without the wrapping constraints before deciding to unwrap,
+			// otherwise a width-constrained row looks like it fits and the layout
+			// alternates between wrapping and not wrapping.
+			// https://github.com/microsoft/vscode/issues/349532
+			const tabsFitWithoutWrapping = () => {
+				if (!didTabsWrapMultiLine) {
+					return allTabsWidth <= visibleTabsWidth + 1;
+				}
+
+				const lastTabMarginRight = tabsContainer.style.getPropertyValue('--last-tab-margin-right');
+				tabsAndActionsContainer.classList.remove('wrapping');
+				tabsContainer.style.setProperty('--last-tab-margin-right', '0');
+				try {
+					return tabsContainer.scrollWidth <= tabsContainer.offsetWidth + 1;
+				} finally {
+					tabsAndActionsContainer.classList.add('wrapping');
+					tabsContainer.style.setProperty('--last-tab-margin-right', lastTabMarginRight);
+				}
+			};
 			const tabsFitWrapped = () => {
 				const lastTab = this.getLastTab();
 				if (!lastTab) {
@@ -2319,7 +2340,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (tabsWrapMultiLine) {
 				if (
 					(tabsAndActionsContainer.offsetHeight > dimensions.available.height) ||				// if the complete wrapped title exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
+					(tabsContainer.offsetHeight === this.tabHeight && tabsFitWithoutWrapping()) ||	// if wrapping is not needed anymore
 					(!tabsFitWrapped())																		// if a tab or the trailing controls do not fit anymore
 				) {
 					updateTabsWrapping(false);
