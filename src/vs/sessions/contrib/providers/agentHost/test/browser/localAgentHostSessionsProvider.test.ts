@@ -8919,6 +8919,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
 				_newWorktree: instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true)),
 				contextKeyService: { contextMatchesRules: () => true },
+				configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': true }),
 				_getWorktreeSendChoiceControl: () => mainWindow.document.createElement('div'),
 				_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
 				_warnNewWorktreeUnavailable: Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable'),

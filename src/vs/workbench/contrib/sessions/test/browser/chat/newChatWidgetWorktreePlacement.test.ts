@@ -178,7 +178,6 @@ suite('NewChatWidget New Worktree offer', () => {
 			_session: constObservable(session),
 			_draftHost: upcastPartial<INewSessionDraftHost>({ getFolderPresentation: () => undefined }),
 			_environmentWorkspaceChanged: observableSignal('environmentWorkspaceChanged'),
-			_worktreeSettingEnabled: constObservable(worktreeSupport),
 			_newWorktree: newWorktree,
 			_newWorktreeCheckboxVisible: constObservable(false),
 			_askingWorktreeOnSend: new Set<string>(),
