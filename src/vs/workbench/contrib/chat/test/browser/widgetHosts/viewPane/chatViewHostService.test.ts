@@ -11,6 +11,7 @@ import { constObservable, observableValue, runOnChange } from '../../../../../..
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSessionsListServiceTestUtils.js';
@@ -22,6 +23,7 @@ import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IChatViewHost, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatViewHostEvent, ChatViewHostService, IChatViewHostState, stepChatViewHostState } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { NewChatAction } from '../../../../browser/actions/chatNewActions.js';
 import { IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 
 suite('ChatViewHostService', () => {
@@ -578,6 +580,50 @@ suite('ChatViewHostService', () => {
 		elsewhere.dispose();
 
 		assert.deepStrictEqual(steps, [true, false, true]);
+	});
+
+	test('while the chats open elsewhere, consecutive New Chats each start the Chat view\'s own new chat, which keeps showing its composer', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		const steps: string[] = [];
+		let drafts = 0;
+		// As the Chat view does: its new chat shows an untitled chat
+		Object.assign(view, { newChat: async (_target: unknown, options?: IChatViewHostNewChatOptions) => { steps.push(`view.newChat ownChat=${options?.ownChat}`); shownSession.set({ resource: URI.parse(`agent-host-copilot:/untitled-${++drafts}`), reason: 'open' }, undefined); return true; } });
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>(id: unknown) => (id === IInstantiationService ? { invokeFunction: () => { steps.push('chat widget New Chat'); } } : service) as T) as ServicesAccessor['get'],
+		});
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+
+		await new NewChatAction().run(accessor);
+		steps.push(`sessionsOnly=${service.sessionsOnly.get()}`);
+		await new NewChatAction().run(accessor);
+		steps.push(`sessionsOnly=${service.sessionsOnly.get()}`);
+		elsewhere.dispose();
+
+		assert.deepStrictEqual(steps, ['view.newChat ownChat=true', 'sessionsOnly=false', 'view.newChat ownChat=true', 'sessionsOnly=false']);
+	});
+
+	test('while the chats open elsewhere, the commit of a new chat that was revealed before its request is reported as the Chat view\'s shown chat', async () => {
+		const { service, view, shownSession, showView } = createService({ chatVisible: true });
+		showView();
+		Object.assign(view, { newChat: async () => { shownSession.set({ resource: URI.parse('agent-host-copilot:/untitled-1'), reason: 'open' }, undefined); return true; } });
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		const reported: string[] = [];
+		const listener = runOnChange(service.shownSession, shown => reported.push(`${shown?.resource.path} ${shown?.reason}`));
+
+		await service.newChat(undefined, { ownChat: true });
+		// Run Prompt in New Chat reveals the Chat view before it sends
+		await service.reveal(true);
+		const sessionsOnlyRevealed = service.sessionsOnly.get();
+		shownSession.set({ resource: URI.parse('agent-host-copilot:/session-1'), reason: 'commit' }, undefined);
+		listener.dispose();
+		elsewhere.dispose();
+
+		assert.deepStrictEqual({ sessionsOnlyRevealed, reported: reported.at(-1), chatViewHosts: service.chatViewHosts.get() }, {
+			sessionsOnlyRevealed: true,
+			reported: '/session-1 commit',
+			chatViewHosts: true,
+		});
 	});
 
 	test('the Chat view shows only its sessions while the chats open elsewhere, even with no host, unless it hosts the chat shown last of a host that replaces it', () => {
