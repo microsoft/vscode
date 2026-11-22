@@ -281,7 +281,7 @@ export class MdDocumentRenderer {
  * Injects empty marker `<span>` elements into the markdown source text at inner change positions.
  */
 function injectInnerChangeMarkers(text: string, innerChanges: readonly MarkdownPreviewInnerChange[]): string {
-	const lines = text.split('\n');
+	const lines = text.split(/\r?\n/);
 
 	// Group inner changes by line
 	const changesByLine = new Map<number, { index: number; change: MarkdownPreviewInnerChange }[]>();
@@ -301,14 +301,17 @@ function injectInnerChangeMarkers(text: string, innerChanges: readonly MarkdownP
 		}
 
 		let line = lines[lineNum];
+		const lineLength = line.length;
 
 		// Sort by startColumn descending so that insertions don't shift earlier positions
 		changes.sort((a, b) => b.change.startColumn - a.change.startColumn);
 
 		for (const { index, change } of changes) {
-			const start = Math.min(change.startColumn, line.length);
-			const end = Math.min(change.endColumn, line.length);
-			if (start >= end) {
+			const start = Math.min(change.startColumn, lineLength);
+			const end = Math.min(change.endColumn, lineLength);
+			// Whole-line changes already have a line highlight. A marker at column zero
+			// can prevent Markdown from recognizing block syntax such as a heading.
+			if (start >= end || (start === 0 && end === lineLength)) {
 				continue;
 			}
 
