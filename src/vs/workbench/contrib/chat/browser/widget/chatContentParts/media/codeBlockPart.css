@@ -64,8 +64,19 @@
 
 .interactive-session .interactive-request .interactive-result-code-block {
 	border: 1px solid var(--vscode-chat-requestCodeBorder);
-	/* The editor width is computed, so let the border wrap the editor rather than the bubble */
+}
+
+/* The editor width is computed, so let the border wrap the editor rather than the bubble */
+.interactive-session .interactive-request .interactive-result-code-block:not(.chat-output-code-block) {
 	width: fit-content;
+}
+
+/* Keep the block inside its container where the computed width doesn't fit, e.g. in a blockquote. Lists dedent their code blocks to the full width, see chat.css */
+.interactive-session .interactive-request .interactive-result-code-block:not(.chat-output-code-block, li *) {
+	box-sizing: border-box;
+	max-width: 100%;
+	/* Clip horizontally only, so the toolbar above the block stays visible */
+	overflow-x: clip;
 }
 
 .interactive-session .interactive-response .interactive-result-code-block {
