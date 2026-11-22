@@ -117,6 +117,8 @@ function getName(entity: protocol.StructuralDiffItem): string {
 			return vscode.l10n.t('Imports');
 		case 'exports':
 			return vscode.l10n.t('Exports');
+		case 'statements':
+			return vscode.l10n.t('Top-Level Code');
 		default:
 			return entity.name;
 	}
