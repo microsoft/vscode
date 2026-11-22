@@ -208,6 +208,8 @@ export interface EditorView {
 	applyDelta(delta: ModelDeltaInput): void;
 	/** Absent in npm 0.0.1; hosts must check before enabling bracket guide paint. */
 	setBracketGuides?(start: number, guides: BracketGuideInput[][]): void;
+	/** Folding controls for consecutive view lines from `start`; other lines keep theirs. Absent in npm 0.0.1. */
+	setFoldingControls?(start: number, controls: (FoldingControlInput | null)[]): void;
 	/** Absent in npm 0.0.1; hosts must check before rendering padding or view zones. */
 	setVerticalLayout?(layout: VerticalLayoutInput): void;
 	setConfig(config: EditorViewConfig): void;

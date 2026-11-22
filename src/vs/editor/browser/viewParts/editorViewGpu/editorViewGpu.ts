@@ -165,6 +165,14 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private readonly _sync = new EditorViewModelSync();
 	private readonly _decorationResolver: EditorViewDecorationResolver;
 	private _decorationsDirty = true;
+	/**
+	 * 0-based `[start, end)` view lines whose decorations and folding controls
+	 * the renderer holds: its range plus a margin, so scrolling re-queries
+	 * them only every screen or so.
+	 */
+	private _decorationWindow = { start: 0, end: 0 };
+	/** Folding control of each 0-based view line in {@link _decorationWindow} that has one. */
+	private _foldingControls = new Map<number, FoldingControlInput>();
 	private _bracketGuideColors: EditorViewBracketGuideColors | undefined;
 	private _unsupportedRendererReported = false;
 	/** Last vertical layout sent to the renderer: `[paddingTop, beforeLine0, height0, ...]`. */
@@ -172,7 +180,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _foldingControlsHovered = false;
 	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
 	private _sentGutterLabels: (string | undefined)[] = [];
-	/** 1-based view lines in the renderer's range with a `lineNumberClassName` decoration. */
+	/** 1-based view lines in {@link _decorationWindow} with a `lineNumberClassName` decoration. */
 	private _decoratedGutterLines = new Set<number>();
 	/** Text-style key ({@link ILineTextStyle.key}) of each view line as last sent. */
 	private _sentTextStyle: string[] = [];
@@ -679,6 +687,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			gutterLabel: this._getGutterLabel(viewLineNumber),
 			continuesWithWrappedLine: lineData.continuesWithWrappedLine,
 			fauxIndentLength: lineData.minColumn - 1,
+			// Re-sending a line replaces its folding control too.
+			foldingControl: this._foldingControls.get(viewLineNumber - 1),
 		};
 		this._builtTextStyle.set(line, textStyle.key);
 		return line;
@@ -958,8 +968,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * the renderer's visible lines whose label or selected text differs, as one
 	 * `replaceLines` per contiguous run.
 	 */
-	private _syncLineDerivedState(scrollTop: number): void {
-		const { start, end } = this._rendererLineRange(scrollTop);
+	private _syncLineDerivedState({ start, end }: { start: number; end: number }): void {
 		let ctx: { colorMap: number[]; defaultForeground: number } | undefined;
 		let runStart = -1;
 		const flush = (runEnd: number) => {
@@ -985,28 +994,6 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 		}
 		flush(end);
-	}
-
-	/**
-	 * Collect the lines whose label the DOM `LineNumbersOverlay` draws (it
-	 * covers each decoration's full line range, as in DOM mode).
-	 */
-	private _updateDecoratedGutterLines(scrollTop: number): void {
-		const { start, end } = this._rendererLineRange(scrollTop);
-		const lines = new Set<number>();
-		if (start < end) {
-			const range = new Range(start + 1, 1, end, this._context.viewModel.getLineMaxColumn(end));
-			for (const decoration of this._context.viewModel.getDecorationsInViewport(range)) {
-				if (decoration.options.lineNumberClassName) {
-					const first = Math.max(decoration.range.startLineNumber, start + 1);
-					const last = Math.min(decoration.range.endLineNumber, end);
-					for (let line = first; line <= last; line++) {
-						lines.add(line);
-					}
-				}
-			}
-		}
-		this._decoratedGutterLines = lines;
 	}
 
 	/**
@@ -1072,16 +1059,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 	}
 
-	private _syncGuides(scrollTop: number): void {
+	private _syncGuides({ start, end }: { start: number; end: number }): void {
 		const guideOptions = this._context.configuration.options.get(EditorOption.guides);
 		if (!guideOptions.indentation && guideOptions.bracketPairs === false) {
 			return;
 		}
-		const lineCount = this._context.viewModel.getLineCount();
-		if (lineCount === 0) {
-			return;
-		}
-		const { start, end } = this._rendererLineRange(scrollTop);
 		if (start >= end) {
 			return;
 		}
@@ -1157,42 +1139,68 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		})));
 	}
 
-	private _syncDecorations(): void {
-		if (!this._decorationsDirty) {
+	/**
+	 * Send the decorations and folding controls of the lines around the
+	 * renderer's range `range`, when they changed or the range left the lines
+	 * last sent. Like the DOM editor, this queries only what can be painted,
+	 * so its cost does not grow with the document.
+	 */
+	private _syncDecorations(range: { start: number; end: number }): void {
+		const window = this._decorationWindow;
+		if (!this._decorationsDirty && window.start <= range.start && range.end <= window.end) {
 			return;
 		}
 
-		const lineCount = this._context.viewModel.getLineCount();
-		if (lineCount === 0) {
-			this._applyDelta({ type: 'setFoldingControls', controls: [] });
-			this._applyDelta({ type: 'setDecorations', decorations: [] });
-			this._decorationsDirty = false;
-			return;
-		}
-
-		const range = new Range(
-			1,
-			this._context.viewModel.getLineMinColumn(1),
-			lineCount,
-			this._context.viewModel.getLineMaxColumn(lineCount),
-		);
-		const retained = this._context.viewModel.getDecorationsInViewport(range);
+		const viewModel = this._context.viewModel;
+		const margin = range.end - range.start;
+		const start = Math.max(0, range.start - margin);
+		const end = Math.min(viewModel.getLineCount(), range.end + margin);
 		const decorations: DecorationInput[] = [];
-		const foldingControls: (FoldingControlInput | null)[] = new Array(lineCount).fill(null);
-		for (const decoration of retained) {
-			const foldingControl = this._foldingControlForDecoration(decoration);
-			const foldingLine = decoration.range.startLineNumber - 1;
-			if (foldingControl && foldingLine >= 0 && foldingLine < foldingControls.length) {
-				foldingControls[foldingLine] = foldingControl;
-			}
-			const resolved = this._decorationResolver.resolve(decoration, decorations.length + 1);
-			if (resolved) {
-				decorations.push(...resolved);
+		const controls: (FoldingControlInput | null)[] = new Array(Math.max(0, end - start)).fill(null);
+		const foldingControls = new Map<number, FoldingControlInput>();
+		const gutterLines = new Set<number>();
+		if (start < end) {
+			const viewRange = new Range(start + 1, viewModel.getLineMinColumn(start + 1), end, viewModel.getLineMaxColumn(end));
+			for (const decoration of viewModel.getDecorationsInViewport(viewRange)) {
+				const foldingControl = this._foldingControlForDecoration(decoration);
+				const foldingLine = decoration.range.startLineNumber - 1;
+				if (foldingControl && foldingLine >= start && foldingLine < end) {
+					controls[foldingLine - start] = foldingControl;
+					foldingControls.set(foldingLine, foldingControl);
+				}
+				// The DOM `LineNumbersOverlay` draws these labels, over each
+				// decoration's full line range, as in DOM mode.
+				if (decoration.options.lineNumberClassName) {
+					const last = Math.min(decoration.range.endLineNumber, end);
+					for (let line = Math.max(decoration.range.startLineNumber, start + 1); line <= last; line++) {
+						gutterLines.add(line);
+					}
+				}
+				const resolved = this._decorationResolver.resolve(decoration, decorations.length + 1);
+				if (resolved) {
+					decorations.push(...resolved);
+				}
 			}
 		}
-		this._applyDelta({ type: 'setFoldingControls', controls: foldingControls });
+		this._setFoldingControls(start, controls);
 		this._applyDelta({ type: 'setDecorations', decorations });
+		this._decorationWindow = { start, end };
+		this._foldingControls = foldingControls;
+		this._decoratedGutterLines = gutterLines;
 		this._decorationsDirty = false;
+	}
+
+	private _setFoldingControls(start: number, controls: (FoldingControlInput | null)[]): void {
+		if (this._editorView?.setFoldingControls) {
+			this._editorView.setFoldingControls(start, controls);
+			return;
+		}
+		// npm 0.0.1 takes the controls of every line.
+		const all = new Array<FoldingControlInput | null>(this._context.viewModel.getLineCount()).fill(null);
+		for (let i = 0; i < controls.length; i++) {
+			all[start + i] = controls[i];
+		}
+		this._applyDelta({ type: 'setFoldingControls', controls: all });
 	}
 
 	// --- rendering -----------------------------------------------------------
@@ -1267,11 +1275,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._styleRange = styleLines.start < styleLines.end
 			? new Range(styleLines.start + 1, 1, styleLines.end, this._context.viewModel.getLineMaxColumn(styleLines.end))
 			: undefined;
-		this._updateDecoratedGutterLines(scrollTop);
 		this._syncModel();
-		this._syncLineDerivedState(scrollTop);
-		this._syncDecorations();
-		this._syncGuides(scrollTop);
+		// Before re-sending lines, which carry their folding control and label.
+		this._syncDecorations(styleLines);
+		this._syncLineDerivedState(styleLines);
+		this._syncGuides(styleLines);
 		this._editorView.setViewport({
 			width,
 			height,

@@ -80,8 +80,11 @@ To use a local renderer build, run `npm run build` in the package, then link it:
 ## Document size
 
 The adapter mirrors the complete view model; there is no renderer-specific
-line-count cap. Text, tokens, decorations, folding controls, and coordinate
-queries use the same full document range, including soft-wrapped view lines.
+line-count cap. Text, tokens and coordinate queries use the same full document
+range, including soft-wrapped view lines. Decorations and folding controls are
+sent only for the lines around the viewport (one renderer range of margin on
+each side), and queried again when they change or scrolling leaves those
+lines, so typing in a long document costs what it does in a short one.
 Ordinary edits remain incremental regardless of document length. Initial loads
 and complete view remaps still transfer the full document; indentation guides
 and paint are restricted to the viewport. Large documents remain subject to
