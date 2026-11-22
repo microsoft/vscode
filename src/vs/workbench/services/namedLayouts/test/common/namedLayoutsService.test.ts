@@ -389,6 +389,38 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
+	test('settings changed while a layout is applied are kept', async () => {
+		let continueApplying = () => { };
+		const whenContinued = () => new Promise<void>(resolve => continueApplying = resolve);
+		const participant = new class extends TestDefinitionParticipant {
+			override async apply(state: unknown): Promise<void> { await whenContinued(); return super.apply(state); }
+			override async applyDefinition(definition: INamedLayoutDefinition, defaultState: unknown): Promise<void> { await whenContinued(); return super.applyDefinition(definition, defaultState); }
+			async applyDefault(): Promise<void> { }
+		}();
+		const testObject = createService(participant);
+		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion: '1.0.0', id: 'debug', label: 'Debugging', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' } } }]);
+		const changeSettingsWhileApplying = async (switched: Promise<unknown>, value: string) => {
+			await timeout(0);
+			await configurationService.writeLayoutSettings({ [LAYOUT_SETTING]: value });
+			continueApplying();
+			await switched;
+		};
+		const getStoredSettings = (id: string) => JSON.parse(storageService.get(LAYOUT_STORAGE_KEY_PREFIX + id, StorageScope.PROFILE)!).settings;
+
+		// The layout of an extension is saved with the changed settings
+		await changeSettingsWhileApplying(testObject.switchLayout(testObject.layouts.find(layout => layout.contribution)!), 'changedValue');
+		const contributed = { settings: getStoredSettings('publisher.extension/debug'), hasState: storageService.get('workbench.namedLayouts.state.publisher.extension/debug', StorageScope.PROFILE) !== undefined };
+
+		// A layout synchronized from another machine gets the arrangement of the window, but keeps the changed settings
+		storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}synced`, JSON.stringify({ name: 'Synced', settings: '{}' }), StorageScope.PROFILE, StorageTarget.USER);
+		await changeSettingsWhileApplying(testObject.switchLayout(testObject.layouts.find(layout => layout.name === 'Synced')!), 'syncedValue');
+
+		assert.deepStrictEqual({ contributed, synced: getStoredSettings('synced') }, {
+			contributed: { settings: JSON.stringify({ [LAYOUT_SETTING]: 'changedValue' }), hasState: true },
+			synced: JSON.stringify({ [LAYOUT_SETTING]: 'syncedValue' })
+		});
+	});
+
 	test('layouts and locks stored under a single key are stored under their own keys', async () => {
 		storageService.store('workbench.namedLayouts', JSON.stringify([
 			{ id: 'old', name: 'Old', settings: { [LAYOUT_SETTING]: 'storedValue' }, state: { test: 'old state' } },

@@ -675,10 +675,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.setActiveLayout(storedLayout?.id ?? DEFAULT_NAMED_LAYOUT_ID);
 		await this.applyLayoutState(storedLayout, [...this.participants]);
 
-		// A layout synchronized from another machine keeps the arrangement of the window, which
-		// is saved right away so that a locked layout has an arrangement to revert to
-		if (storedLayout && !storedLayout.state) {
-			this.storeLayout({ ...storedLayout, state: this.captureState() });
+		// A layout synchronized from another machine keeps the arrangement of the window, which is saved right away
+		// so that a locked layout has an arrangement to revert to. Its settings may have changed while it was applied
+		const appliedLayout = storedLayout && this.getStoredLayout(storedLayout.id);
+		if (appliedLayout && !appliedLayout.state) {
+			this.storeLayout({ ...appliedLayout, state: this.captureState() });
 		}
 	}
 
@@ -689,6 +690,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 */
 	private async applyContributedLayout(layoutId: string, contributedLayout: IContributedNamedLayout, settings = toSettingsContent(this.getDefinitionSettings(contributedLayout))): Promise<void> {
 		const { definition } = contributedLayout;
+		const storedLayoutBeforeApply = this.getStoredLayout(layoutId);
 
 		this.configurationService.setLayoutSettings(this.getLayoutSettings(layoutId), this.parseSettings(layoutId, settings));
 		this.setActiveLayout(layoutId);
@@ -713,9 +715,10 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.isApplying = false;
 		}
 
+		// Settings changed while the layout was applied, in this or another window, are kept
 		const storedLayout = this.getStoredLayout(layoutId);
 		const layout: IStoredNamedLayout = storedLayout && !contributedLayout.locked
-			? { ...storedLayout, settings, state: this.captureState() }
+			? { ...storedLayout, settings: storedLayout === storedLayoutBeforeApply ? settings : storedLayout.settings, state: this.captureState() }
 			: { id: layoutId, name: contributedLayout.label, settings, state: this.captureState(), contribution: this.toStoredContribution(contributedLayout) };
 
 		// The saved changes of a changed layout that was not active on this machine yet get the state of
@@ -889,7 +892,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	/**
 	 * Saves the state of the participants that changed in this window since the baseline was taken.
 	 *
-	 * @param includeUnchanged Whether to save the state of all participants of a saved layout.
+	 * @param includeUnchanged Whether to save the state of all participants.
 	 */
 	private saveActiveLayout(includeUnchanged = false): void {
 		if (this.isApplying) {
@@ -908,17 +911,18 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		const baseline = this.changeBaseline;
 		const changedParticipants = baseline ? this.getChangedParticipants(baseline.snapshot) : [];
+		// A layout without a saved state, for example saved while it was applied, gets the state of all participants
+		const saveAll = includeUnchanged || !activeLayout?.state;
 		if (!activeLayout) {
 			// The layout of an extension is saved once it was changed after the window settled, until then it follows its definition
 			if (!baseline?.settled || !changedParticipants.length) {
 				return;
 			}
-		} else if (!includeUnchanged && !changedParticipants.length) {
+		} else if (!saveAll && !changedParticipants.length) {
 			return;
 		}
 
-		// A new layout of an extension gets the state of all participants
-		const state = this.captureState(participant => !activeLayout || includeUnchanged || changedParticipants.includes(participant));
+		const state = this.captureState(participant => saveAll || changedParticipants.includes(participant));
 		const contribution = activeLayout?.contribution ?? (contributedLayout ? this.toStoredContribution(contributedLayout) : undefined);
 		const updatedLayout: IStoredNamedLayout = {
 			id: this.activeLayoutId,
@@ -998,10 +1002,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (storedLayout) {
 			this.storeLayout({ ...storedLayout, settings: content });
 		} else if (contributedLayout) {
-			const isActive = this.activeLayoutId === layoutId;
-			this.storeLayout({ id: layoutId, name: contributedLayout.label, settings: content, state: isActive ? this.captureState() : undefined, contribution: this.toStoredContribution(contributedLayout) });
+			// A layout that is applied gets its state once it is applied
+			const captureState = this.activeLayoutId === layoutId && !this.isApplying;
+			this.storeLayout({ id: layoutId, name: contributedLayout.label, settings: content, state: captureState ? this.captureState() : undefined, contribution: this.toStoredContribution(contributedLayout) });
 			this._onDidChangeLayouts.fire();
-			if (isActive) {
+			if (captureState) {
 				this.resetChangeTracking(); // its changes are saved from now on
 			}
 		}

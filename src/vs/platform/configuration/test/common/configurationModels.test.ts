@@ -1457,16 +1457,19 @@ suite('Configuration', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: folder })]);
 		testObject.updateFolderConfiguration(folder, toConfigurationModel({ 'b': 2 }));
 		testObject.updateLayoutConfiguration(toConfigurationModel({ 'a': 3 }));
+		const resource = URI.joinPath(folder, 'file.txt');
+		const resourceValueBeforeMemory = testObject.getValue('a', { resource }, workspace);
 		testObject.updateValue('a', 4);
 		testObject.updateValue('b', 5);
 
-		const resource = URI.joinPath(folder, 'file.txt');
 		assert.deepStrictEqual({
+			resourceValueBeforeMemory,
 			value: testObject.getValue('a', {}, workspace),
 			resourceValue: testObject.getValue('a', { resource }, workspace),
 			// Folder settings keep winning over the memory configuration for keys that the layout does not define
 			resourceValueNotInLayout: testObject.getValue('b', { resource }, workspace),
 		}, {
+			resourceValueBeforeMemory: 3,
 			value: 4,
 			resourceValue: 4,
 			resourceValueNotInLayout: 2,
