@@ -724,6 +724,12 @@ export class MouseTargetFactory {
 			offset -= ctx.layoutInfo.lineNumbersWidth;
 
 			// On the line decorations
+			if (!res.isAfterLines && !request.target.classList.contains('cldr')) {
+				// No line decoration (see `LinesDecorationsOverlay`) is under the mouse, so behave like a click on the content left of the text
+				const lineNumber = pos.lineNumber;
+				const column = ctx.isRtl(lineNumber) ? ctx.viewModel.getLineMaxColumn(lineNumber) : ctx.viewModel.getLineMinColumn(lineNumber);
+				return request.fulfillContentEmpty(new Position(lineNumber, column), { isAfterLines: false });
+			}
 			return request.fulfillMargin(MouseTargetType.GUTTER_LINE_DECORATIONS, pos, res.range, detail);
 		}
 		return null;
