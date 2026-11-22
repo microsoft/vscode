@@ -1002,12 +1002,13 @@ function getTestCall(expression: ts.Expression): TestCall | undefined {
 }
 
 /**
- * Returns whether a function registers suites or tests, such as `suite`, `test.skip` or Playwright's `test.describe`,
- * or whether it is one of Playwright's hooks.
+ * Returns whether a function registers suites or tests, such as `suite`, `test.skip`, Playwright's `test.describe` or a
+ * wrapper of `suite` such as `flakySuite`, or whether it is one of Playwright's hooks.
  */
 function getTestKind(node: ts.Node): TestKind | 'hook' | undefined {
 	if (ts.isIdentifier(node)) {
-		return node.text === 'describe' || node.text === 'suite' ? 'suite' : node.text === 'test' || node.text === 'it' ? 'test' : undefined;
+		return node.text === 'describe' || node.text === 'suite' || /[a-z\d]Suite$/.test(node.text) ? 'suite'
+			: node.text === 'test' || node.text === 'it' ? 'test' : undefined;
 	}
 	if (ts.isPropertyAccessExpression(node)) {
 		const kind = getTestKind(node.expression);

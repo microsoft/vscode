@@ -700,6 +700,21 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		]);
 	});
 
+	test('lists the tests of suites that wrappers such as flakySuite register', async () => {
+		const original = [
+			'flakySuite("Network", () => {',
+			'\tensureNoDisposablesAreLeakedInTestSuite();',
+			'\ttest("connects", () => { assert(1); });',
+			'});',
+		].join('\n');
+		const modified = original.replace('1', '2');
+		const result = await compute(original, modified, [{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') }]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['Network'], vscode.SymbolKind.Class],
+			[['Network', 'connects'], vscode.SymbolKind.Method],
+		]);
+	});
+
 	test('classifies the arguments after a test callback and those of calls chained to the test as its implementation', async () => {
 		const original = [
 			'test("waits", () => { run(); }).timeout(1000);',
