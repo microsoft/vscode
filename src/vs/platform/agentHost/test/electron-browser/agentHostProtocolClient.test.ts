@@ -28,8 +28,8 @@ import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationE
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, GitHubEnvironmentChangedNotification } from '../../common/agentHostExtensionProtocol.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
-import { RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../../common/agentHostByokLmProtocol.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { ByokLmDeltaExtensionMethod, RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../../common/agentHostByokLmProtocol.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmModelInfo, IByokLmStreamDelta } from '../../common/agentHostByokLm.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
@@ -588,12 +588,14 @@ suite('AgentHostProtocolClient', () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, false, true));
 		const changed = disposables.add(new Emitter<void>());
+		const deltas = disposables.add(new Emitter<IByokLmStreamDelta>());
 		let models: IByokLmModelInfo[] = [{ vendor: 'ai4dev', id: 'Qwen/Qwen3.8-Flash-Next', name: 'Qwen 3.8' }];
 		const requests: IByokLmChatRequest[] = [];
 		const result = { output: [{ type: 'message' as const, content: [{ type: 'text' as const, text: 'Hello from AI4Dev' }] }] };
 		const handler: IAgentHostByokLmHandler = {
 			_serviceBrand: undefined,
 			onDidChangeModels: changed.event,
+			onDidDelta: deltas.event,
 			listModels: async () => models,
 			chat: async request => {
 				requests.push(request);
@@ -635,7 +637,20 @@ suite('AgentHostProtocolClient', () => {
 			response: { jsonrpc: '2.0', id: 71, result },
 		});
 
+		// A delta fired by the serving handler rides to the host as a notification
+		// tagged with its requestId, so the host can route it to the right stream.
+		const delta: IByokLmStreamDelta = { requestId: 'req-1', kind: 'text', delta: 'Hello' };
+		deltas.fire(delta);
+		await timeout(0);
+		assert.deepStrictEqual(servedBridge(), {
+			jsonrpc: '2.0',
+			method: ByokLmDeltaExtensionMethod,
+			params: delta,
+		});
+
 		registration.dispose();
+		deltas.fire({ requestId: 'req-1', kind: 'text', delta: ' after disposal' });
+		await timeout(0);
 		assert.deepStrictEqual(servedBridge(), {
 			jsonrpc: '2.0',
 			method: UnregisterClientByokLmModelsExtensionMethod,

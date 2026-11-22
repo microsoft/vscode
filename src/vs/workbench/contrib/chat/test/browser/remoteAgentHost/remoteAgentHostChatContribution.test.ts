@@ -82,6 +82,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			_serviceBrand: undefined,
 			chat: async () => ({ output: [] }),
 			listModels: async () => [],
+			onDidDelta: Event.None,
 		};
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly clientId = 'client';

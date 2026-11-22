@@ -60,8 +60,8 @@ import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, typ
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostByokLmBridge, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../../common/agentHostByokLmProtocol.js';
-import type { IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { ByokLmDeltaExtensionMethod, RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../../common/agentHostByokLmProtocol.js';
+import type { IByokLmChatRequest, IByokLmModelInfo, IByokLmStreamDelta } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry, type IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
@@ -901,6 +901,19 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: expectedResult });
 		assert.deepStrictEqual(await chat, expectedResult);
 
+		// Renderer deltas arrive as notifications and reach the bridge
+		// connection's onDidDelta, so a streaming consumer sees output early.
+		const receivedDeltas: IByokLmStreamDelta[] = [];
+		const deltaListener = servingConnection.onDidDelta(delta => receivedDeltas.push(delta));
+		const delta: IByokLmStreamDelta = { requestId: 'req-1', kind: 'text', delta: 'Hello' };
+		transport.simulateMessage(notification(ByokLmDeltaExtensionMethod, delta));
+		await handler.whenIdle();
+		assert.deepStrictEqual(receivedDeltas, [delta]);
+		transport.simulateMessage(notification(ByokLmDeltaExtensionMethod, { requestId: 7, kind: 'text', delta: 'invalid' }));
+		await handler.whenIdle();
+		assert.deepStrictEqual(receivedDeltas, [delta]);
+		deltaListener.dispose();
+
 		transport.simulateMessage(request(4, UnregisterClientByokLmModelsExtensionMethod, {}));
 		await handler.whenIdle();
 		assert.strictEqual(registry.getServingConnection(), undefined);
@@ -909,6 +922,42 @@ suite('ProtocolServerHandler', () => {
 		await handler.whenIdle();
 		assert.deepStrictEqual(registry.getModels(), [model]);
 		transport.simulateClose();
+		await handler.whenIdle();
+		assert.strictEqual(registry.getServingConnection(), undefined);
+	});
+
+	test('BYOK bridge registrations of two transports sharing a clientId survive independently until their own disposal', async () => {
+		const registry = protocolServerConfig.byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		const model: IByokLmModelInfo = { vendor: 'ai4dev', id: 'Qwen/Qwen3.8-Flash-Next', name: 'Qwen 3.8' };
+		const updatedModel = { ...model, id: 'Qwen/Qwen3.8-Flash-Next-2', name: 'Qwen 3.8 Second' };
+
+		// Two live transports initialize with the same clientId (e.g. a
+		// reconnect whose previous transport is still draining).
+		const first = connectClient('shared-client');
+		const second = connectClient('shared-client');
+
+		first.simulateMessage(request(2, RegisterClientByokLmModelsExtensionMethod, { models: [model] }));
+		await handler.whenIdle();
+		second.simulateMessage(request(2, RegisterClientByokLmModelsExtensionMethod, { models: [updatedModel] }));
+		await handler.whenIdle();
+
+		// Both registrations coexist: whichever serves, the registry keeps a
+		// live entry per transport.
+		assert.ok(registry.getServingConnection());
+
+		// Closing the transport that pushed `model` must not remove the peer's
+		// registration or its model listener.
+		first.simulateClose();
+		await handler.whenIdle();
+		assert.deepStrictEqual(registry.getModels(), [updatedModel]);
+
+		// The surviving transport keeps receiving updates through its own listener.
+		const thirdModel = { ...updatedModel, name: 'Qwen 3.8 Third' };
+		second.simulateMessage(request(3, RegisterClientByokLmModelsExtensionMethod, { models: [thirdModel] }));
+		await handler.whenIdle();
+		assert.deepStrictEqual(registry.getModels(), [thirdModel]);
+
+		second.simulateClose();
 		await handler.whenIdle();
 		assert.strictEqual(registry.getServingConnection(), undefined);
 	});

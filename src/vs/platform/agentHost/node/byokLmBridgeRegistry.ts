@@ -10,9 +10,10 @@ import { IByokLmBridgeConnection, IByokLmModelInfo } from '../common/agentHostBy
 export const IByokLmBridgeRegistry = createDecorator<IByokLmBridgeRegistry>('byokLmBridgeRegistry');
 
 /**
- * Node-side registry of renderer {@link IByokLmBridgeConnection}s keyed by
- * client id. Populated by the agent host's connection lifecycle (one entry per
- * connected renderer) and consumed by {@link IByokLmProxyService} (inference
+ * Node-side registry of renderer {@link IByokLmBridgeConnection}s keyed by a
+ * transport-scoped registration id (derived from the client id by the
+ * server). Populated by the agent host's connection lifecycle (one entry per
+ * live transport) and consumed by {@link IByokLmProxyService} (inference
  * routing) and {@link CopilotAgent} (model catalogue).
  *
  * **Single serving window, multiple connections.** BYOK is serviced by the
@@ -35,8 +36,13 @@ export const IByokLmBridgeRegistry = createDecorator<IByokLmBridgeRegistry>('byo
 export interface IByokLmBridgeRegistry {
 	readonly _serviceBrand: undefined;
 
-	/** Register a renderer connection. Disposing the result removes it. */
-	register(clientId: string, connection: IByokLmBridgeConnection): IDisposable;
+	/**
+	 * Register a renderer connection under `registrationId`. Two live
+	 * transports may share a client id, so callers mint a distinct
+	 * registration id per registration; each entry then survives until its
+	 * own disposal. Disposing the result removes the entry.
+	 */
+	register(registrationId: string, connection: IByokLmBridgeConnection): IDisposable;
 
 	/**
 	 * The serving window's BYOK models, read synchronously from the cache (no
@@ -93,18 +99,19 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 		}
 	}
 
-	register(clientId: string, connection: IByokLmBridgeConnection): IDisposable {
-		// Replace any prior entry for the same client id (e.g. a reconnect).
-		this._entries.get(clientId)?.store.dispose();
+	register(registrationId: string, connection: IByokLmBridgeConnection): IDisposable {
+		// Replace any prior entry under the same registration id (a caller
+		// re-using the id replaces itself, not another live transport).
+		this._entries.get(registrationId)?.store.dispose();
 
 		const store = new DisposableStore();
 		const entry: IConnectionEntry = { connection, models: undefined, store };
-		this._entries.set(clientId, entry);
+		this._entries.set(registrationId, entry);
 
 		// Cache each pushed snapshot; notify only when the serving set changes.
 		store.add(connection.onDidChangeModels(models => {
 			// Drop the push if the entry was removed/replaced meanwhile.
-			if (this._entries.get(clientId) !== entry) {
+			if (this._entries.get(registrationId) !== entry) {
 				return;
 			}
 			if (entry.models === undefined || !modelsEqual(entry.models, models)) {
@@ -117,8 +124,8 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 		this._notifyChanged();
 
 		return toDisposable(() => {
-			if (this._entries.get(clientId) === entry) {
-				this._entries.delete(clientId);
+			if (this._entries.get(registrationId) === entry) {
+				this._entries.delete(registrationId);
 				entry.store.dispose();
 				this._notifyChanged();
 			}

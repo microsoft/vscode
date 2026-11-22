@@ -5,11 +5,13 @@
 
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ValidatorBase, vArray, vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUnion, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
-import type { IByokLmChatRequest, IByokLmChatResult, IByokLmContentPart, IByokLmInputItem, IByokLmModelInfo, IByokLmOutputItem, IByokLmTool } from './agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmChatResult, IByokLmContentPart, IByokLmInputItem, IByokLmModelInfo, IByokLmOutputItem, IByokLmStreamDelta, IByokLmTool } from './agentHostByokLm.js';
 
 export const RegisterClientByokLmModelsExtensionMethod = 'vscode/registerClientByokLmModels';
 export const UnregisterClientByokLmModelsExtensionMethod = 'vscode/unregisterClientByokLmModels';
 export const RequestAgentHostByokLmChatExtensionMethod = 'vscode/requestByokLmChat';
+/** Client → host notification carrying one {@link IByokLmStreamDelta} of an in-flight BYOK chat. */
+export const ByokLmDeltaExtensionMethod = 'vscode/byokLmDelta';
 
 class JsonObjectValidator extends ValidatorBase<Record<string, unknown>> {
 	validate(content: unknown): { content: Record<string, unknown>; error: undefined } | { content: undefined; error: ValidationError } {
@@ -110,6 +112,9 @@ export const registerClientByokLmModelsParamsValidator = vObj({
 export const unregisterClientByokLmModelsParamsValidator = vObj({});
 
 export const byokLmChatRequestValidator: ValidatorBase<IByokLmChatRequest> = vObj({
+	// Minted node-side for streaming requests; must survive validation so the
+	// renderer handler can tag its deltas with it.
+	requestId: vOptionalProp(vString()),
 	vendor: vString(),
 	modelId: vString(),
 	instructions: vOptionalProp(vString()),
@@ -143,6 +148,13 @@ export const byokLmChatResultValidator: ValidatorBase<IByokLmChatResult> = vObj(
 	error: vOptionalProp(vString()),
 });
 
+export const byokLmStreamDeltaValidator: ValidatorBase<IByokLmStreamDelta> = vUnion(
+	vObj({ requestId: vString(), kind: vEnum('text'), delta: vString() }),
+	vObj({ requestId: vString(), kind: vEnum('reasoning'), id: vOptionalProp(vString()), delta: vString(), newSummaryPart: vBoolean(), encryptedContent: vOptionalProp(vString()) }),
+	vObj({ requestId: vString(), kind: vEnum('toolCall'), callId: vString(), name: vString(), isCustom: vBoolean(), value: vString() }),
+);
+
 export type RegisterClientByokLmModelsParams = ValidatorType<typeof registerClientByokLmModelsParamsValidator>;
 export type ByokLmChatRequest = ValidatorType<typeof byokLmChatRequestValidator>;
 export type ByokLmChatResult = ValidatorType<typeof byokLmChatResultValidator>;
+export type ByokLmStreamDelta = ValidatorType<typeof byokLmStreamDeltaValidator>;

@@ -38,8 +38,8 @@ import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, 
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { createAgentHostByokLmModelSnapshotEvent } from '../common/agentHostClientByokLmChannel.js';
-import { byokLmChatRequestValidator, byokLmChatResultValidator, RegisterClientByokLmModelsExtensionMethod, RequestAgentHostByokLmChatExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../common/agentHostByokLmProtocol.js';
-import type { IAgentHostByokLmHandler } from '../common/agentHostByokLm.js';
+import { byokLmChatRequestValidator, byokLmChatResultValidator, ByokLmDeltaExtensionMethod, RegisterClientByokLmModelsExtensionMethod, RequestAgentHostByokLmChatExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../common/agentHostByokLmProtocol.js';
+import type { IAgentHostByokLmHandler, IByokLmStreamDelta } from '../common/agentHostByokLm.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { AgentHostMultipleChatProvidersMetaKey } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
@@ -196,6 +196,7 @@ function isConnectionClosedError(error: unknown): boolean {
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	'vscode/byokLmDelta': { params: IByokLmStreamDelta };
 }
 
 interface IPendingRequest {
@@ -2143,6 +2144,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (this._byokLmHandler === handler && this._state.kind === AgentHostClientState.Connected) {
 					this._sendExtensionRequest(RegisterClientByokLmModelsExtensionMethod, { models })
 						.catch(error => this._logService.warn('[ByokLmBridge] Could not publish renderer BYOK models to the agent host', error));
+				}
+			}));
+			// Stream the handler's deltas to the host for the life of this
+			// connection; the host routes them to the bridge connection's
+			// `onDidDelta` so consumers see output before `chat` resolves.
+			reader.store.add(handler.onDidDelta(delta => {
+				if (this._byokLmHandler === handler && this._state.kind === AgentHostClientState.Connected) {
+					this._sendExtensionNotification(ByokLmDeltaExtensionMethod, delta);
 				}
 			}));
 		}));
