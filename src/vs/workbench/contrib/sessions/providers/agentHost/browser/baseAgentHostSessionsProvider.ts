@@ -8010,12 +8010,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('sessionArchiveUnavailable', "Connect to this session's host to mark it as done."));
 		}
 		const subscription = connection.getSubscription(StateComponents.Session, cached.backendUri, 'archiveSession');
+		// Show the session as archived right away: confirmation first needs the
+		// session's full state from the host, which takes long for long sessions.
+		// Callers such as worktree cleanup still wait for the confirmation below.
+		const wasArchived = cached.isArchived.get();
+		this._setSessionArchivedLocally(sessionId, true);
 		try {
 			const result = await connection.dispatchConfirmed(cached.backendUri.toString(), subscription.object, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, CancellationToken.None);
 			if (result.rejectionReason) {
 				throw new Error(result.rejectionReason);
 			}
-			this._setSessionArchivedLocally(sessionId, true);
+		} catch (error) {
+			this._setSessionArchivedLocally(sessionId, wasArchived);
+			throw error;
 		} finally {
 			subscription.dispose();
 		}

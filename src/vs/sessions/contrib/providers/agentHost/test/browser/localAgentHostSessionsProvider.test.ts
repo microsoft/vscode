@@ -3817,7 +3817,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	for (const rejected of [false, true]) {
-		test(`archive waits for host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test(`archive shows the session as archived before host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const backend = URI.parse('opaque-session://tenant/archiving');
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
@@ -3837,11 +3837,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
 			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
 			await dispatched.p;
-			const beforeAcknowledgement = completed;
+			const beforeAcknowledgement = { completed, archived: session.isArchived.get() };
 			await acknowledgement.complete();
 			await result;
 			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
-				beforeAcknowledgement: false, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+				beforeAcknowledgement: { completed: false, archived: true }, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
 			});
 		}));
 	}

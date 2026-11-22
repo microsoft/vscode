@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Limiter } from '../../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -54,6 +55,36 @@ import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
 import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
 
+/**
+ * How many sessions a multi-session archive confirms with their providers at once. Providers hide a
+ * session as soon as its archive starts, so the bound keeps a large selection from waiting on each
+ * confirmation in turn without asking the host to restore every selected session at the same time.
+ */
+const MAX_CONCURRENT_ARCHIVES = 4;
+
+/**
+ * Archives the sessions with bounded concurrency. Every session is attempted even when another one
+ * fails; the results are in the order of `sessions`.
+ */
+async function archiveSessionsConcurrently(sessions: readonly ISession[], sessionsManagementService: ISessionsManagementService): Promise<PromiseSettledResult<void>[]> {
+	const limiter = new Limiter<void>(MAX_CONCURRENT_ARCHIVES);
+	try {
+		return await Promise.allSettled(sessions.map(session => limiter.queue(() => sessionsManagementService.archiveSession(session))));
+	} finally {
+		limiter.dispose();
+	}
+}
+
+/**
+ * Throws the reason of the first rejected result, if any.
+ */
+function throwFirstRejection(results: readonly PromiseSettledResult<unknown>[]): void {
+	const rejected = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+	if (rejected) {
+		throw rejected.reason;
+	}
+}
+
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
 	wording: ChatSessionArchiveActionWording,
@@ -71,12 +102,15 @@ async function archiveSessionsWithUndo(
 		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
 		.map(comparison => [comparison.groupId, comparison.id]));
 	try {
-		for (const entry of candidates) {
-			await sessionsManagementService.archiveSession(entry.session);
-			archived.push(entry);
-		}
+		const results = await archiveSessionsConcurrently(candidates.map(entry => entry.session), sessionsManagementService);
+		candidates.forEach((entry, index) => {
+			if (results[index].status === 'fulfilled') {
+				archived.push(entry);
+			}
+		});
+		throwFirstRejection(results);
 	} finally {
-		// A partially completed batch must remain undoable even when a later archive fails.
+		// A partially completed batch must remain undoable even when another archive fails.
 		if (archived.length > 0) {
 			const removedComparisonGroups = new Map([...comparisonGroups].filter(([groupId]) => !groupsService.getGroup(groupId)));
 			const restoredGroupIds = new Map<string, string>();
@@ -425,9 +459,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 		}
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		throwFirstRejection(await archiveSessionsConcurrently(sessions, sessionsManagementService));
 	}
 }
 

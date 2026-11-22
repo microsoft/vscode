@@ -562,6 +562,24 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
+	test('archives a multi-selection without waiting for each session in turn', async () => {
+		const sessions = ['One', 'Two', 'Three'].map(title => createTestSession(title).session);
+		const harness = createActionHarness(sessions, undefined);
+		const started: string[] = [];
+		const completion = new DeferredPromise<void>();
+		harness.managementService.archiveSession = async session => {
+			started.push(session.sessionId);
+			await completion.p;
+		};
+
+		const archive = harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const startedBeforeCompletion = [...started];
+		await completion.complete();
+		await archive;
+
+		assert.deepStrictEqual(startedBeforeCompletion, sessions.map(session => session.sessionId));
+	});
+
 	test('plays the confetti signal optimistically when keyboard archive is requested', async () => {
 		const enabled = createActionHarness([createTestSession('Enabled').session], undefined);
 		const disabled = createActionHarness([createTestSession('Disabled').session], undefined, undefined, undefined, false, { confettiEnabled: false });
