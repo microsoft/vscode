@@ -624,11 +624,11 @@ suite('AgentHostSkillCompletionProvider', () => {
 			afterPrefix: afterPrefix.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
 		}, {
 			afterSlash: [
-				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: `/Let's`.length },
-				{ insertText: '/pstack:review ', rangeStart: 0, rangeEnd: `/Let's`.length },
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: 1 },
+				{ insertText: '/pstack:review ', rangeStart: 0, rangeEnd: 1 },
 			],
 			afterPrefix: [
-				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: `/potLet's`.length },
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: '/pot'.length },
 			],
 		});
 	});
