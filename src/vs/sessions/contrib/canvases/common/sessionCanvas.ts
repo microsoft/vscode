@@ -11,7 +11,7 @@ import { CanvasInput, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels }
 import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../common/agentsWindowContextKeys.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
-import { type ICanvasReference } from '../../../../workbench/common/canvasReference.js';
+import { type ICanvasOwner, type ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export const WindowCanvasesAvailableContext = new RawContextKey<boolean>('windowCanvasesAvailable', false);
 export const SessionCanvasActivityBarToggledContext = ContextKeyExpr.and(
@@ -41,8 +41,32 @@ export const ISessionCanvasRegistryService = createDecorator<ISessionCanvasRegis
 
 export interface ISessionCanvasRegistryService {
 	readonly _serviceBrand: undefined;
+	/** The focused chat, which the Canvas menus act on: they list its running canvases and open canvases in it. */
+	readonly owner: IObservable<ICanvasOwner | undefined>;
 	/** Whether canvases are enabled and the active chat supports them, even when no canvas type is registered. */
 	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
+	/** Opens a new canvas of `canvas`'s type in the focused chat, beside any canvases of that type it already has. */
 	openCanvas(canvas: ISessionCanvasDefinition): Promise<void>;
+}
+
+export const ISessionCanvasCatalogService = createDecorator<ISessionCanvasCatalogService>('sessionCanvasCatalogService');
+
+/**
+ * The canvas types that New Canvas offered last, kept across restarts so that it can offer them while it lists them again.
+ */
+export interface ISessionCanvasCatalogService {
+	readonly _serviceBrand: undefined;
+	/** The remembered canvas types that can start a session, ordered by name. */
+	readonly entries: IObservable<readonly ISessionCanvasDefinition[]>;
+	/** Replaces the remembered canvas types with the ones a draft listed. */
+	replace(canvases: readonly ISessionCanvasDefinition[]): void;
+}
+
+/**
+ * Whether a canvas type can start a session of its own: a session started from a canvas has no workspace and no
+ * request, so the canvas must come from an extension that is not tied to a workspace and must open without input.
+ */
+export function canStartSessionWithCanvas(canvas: ISessionCanvasDefinition): boolean {
+	return (canvas.extensionSource === 'user' || canvas.extensionSource === 'plugin') && !canvas.requiresInput;
 }

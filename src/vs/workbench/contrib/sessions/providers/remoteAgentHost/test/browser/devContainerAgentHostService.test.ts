@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { autorun, constObservable, waitForState } from '../../../../../../../base/common/observable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -15,21 +15,28 @@ import { getComparisonKey } from '../../../../../../../base/common/resources.js'
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
+import { findDevContainerEnvironment } from '../../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { IDevContainerAgentHostMainService } from '../../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { resolveDevContainerSourceWorkspace } from '../../../../browser/openInVSCodeUtils.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostProtocolClient } from '../../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
-import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentHostUri } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../common/sessionsProvider.js';
-import { IDevContainerAgentHostConnector } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnector, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
 import { DevContainerAgentHostService } from '../../browser/devContainerAgentHostService.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -59,6 +66,7 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 	override readonly onDidChangeDisplayName = this._onDidChangeDisplayName.event;
 	private readonly _displayNames = new Map<string, string>();
 	private _connections: IRemoteAgentHostConnectionInfo[] = [];
+	private readonly _hostConnections = new Map<string, IAgentConnection>();
 	private _factory: IRemoteAgentHostConnectionFactory | undefined;
 	private _pendingConnect: Promise<void> | undefined;
 
@@ -68,7 +76,25 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 	transportDisposable: IDisposable | undefined;
 
 	override get connections(): readonly IRemoteAgentHostConnectionInfo[] {
-		return this._connections;
+		return [
+			...[...this._hostConnections.keys()].map(address => ({ address, name: address, clientId: `${address}-client`, status: RemoteAgentHostConnectionStatus.connected })),
+			...this._connections,
+		];
+	}
+
+	/** Connects or disconnects an SSH, Tunnel, or WSL source host. */
+	setHostConnection(address: string, connection: IAgentConnection | undefined): void {
+		if (connection) {
+			this._hostConnections.set(address, connection);
+		} else {
+			this._hostConnections.delete(address);
+		}
+		this._onDidChangeConnections.fire();
+	}
+
+	setConfiguredEntries(entries: readonly IRemoteAgentHostEntry[]): void {
+		this.configuredEntries = entries;
+		this._onDidChangeConfiguredEntries.fire();
 	}
 
 	override getDisplayNameOverride(address: string): string | undefined {
@@ -85,6 +111,10 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 	}
 
 	override getConnection(address: string): IAgentConnection | undefined {
+		const hostConnection = this._hostConnections.get(address);
+		if (hostConnection) {
+			return hostConnection;
+		}
 		return this._connections.some(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status))
 			? this.connection
 			: undefined;
@@ -241,8 +271,9 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 	provider: TestProvider | undefined;
 	publishSessionOnCreate = false;
 
-	constructor(...args: [IInstantiationService, IRemoteAgentHostService, ISessionsProvidersService, IStorageService]) {
-		super(...args, new class extends mock<IWorkspaceTrustRequestService>() { }());
+	constructor(...args: [IInstantiationService, IRemoteAgentHostService, ISessionsProvidersService, IStorageService, IConfigurationService?]) {
+		const [instantiationService, remoteService, providersService, storageService, configurationService] = args;
+		super(instantiationService, remoteService, providersService, storageService, new class extends mock<IWorkspaceTrustRequestService>() { }(), configurationService ?? new TestConfigurationService(), new NullLogService());
 	}
 
 	protected override _createProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
@@ -257,33 +288,172 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers and removes an offline location without starting or deleting a container', async () => {
+	function setupEnvironments(removeContainer: (workspaceUri: URI) => Promise<boolean> = async () => true, options: { readonly localDocker?: boolean; readonly stored?: readonly unknown[]; readonly beforeConnect?: () => Promise<void> } = {}) {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		remoteService.configuredEntries = [{ name: 'Build', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:build', hostName: 'build' } }];
 		const storage = store.add(new InMemoryStorageService());
-		const providers = store.add(new TestSessionsProvidersService());
-		const service = store.add(new TestDevContainerAgentHostService(
-			store.add(new TestInstantiationService()), store.add(new TestRemoteAgentHostService()), providers, storage,
-		));
-		const workspaceUri = URI.file('/project');
-		service.addWorkspace(workspaceUri, 'Project');
-		const added = { workspaces: service.getWorkspaces().map(workspace => ({ name: workspace.name, uri: workspace.workspaceUri.toString() })), providers: providers.getProviders().length };
-		service.dispose();
-		const restored = store.add(new TestDevContainerAgentHostService(
-			store.add(new TestInstantiationService()), store.add(new TestRemoteAgentHostService()), providers, storage,
-		));
-		const restoredWorkspaces = restored.getWorkspaces().map(workspace => ({ name: workspace.name, uri: workspace.workspaceUri.toString() }));
-		const availabilityChanges: { workspaces: number; providers: number }[] = [];
-		store.add(restored.onDidChangeAvailability(() => availabilityChanges.push({
-			workspaces: restored.getWorkspaces().length, providers: providers.getProviders().length,
-		})));
-		await restored.removeWorkspace(workspaceUri);
+		if (options.stored) {
+			storage.store('devContainerAgentHost.environments', JSON.stringify(options.stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [DevContainerEnvironmentsEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true });
+		const providersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, storage, configurationService));
+		const createdUris: URI[] = [];
+		const removedUris: URI[] = [];
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			isLocalDockerAvailable: async () => !!options.localDocker,
+			showLog: async () => { },
+			createConnection: async (workspaceUri, address) => {
+				createdUris.push(workspaceUri);
+				await options.beforeConnect?.();
+				return { address, name: 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
+			},
+			removeContainer: async workspaceUri => {
+				removedUris.push(workspaceUri);
+				return removeContainer(workspaceUri);
+			},
+		}));
+		const dockerChecks: string[] = [];
+		const createHostConnection = () => new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable({ protocolVersion: '1', serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta(true, true) });
+			override readonly devContainerService = new class extends mock<IDevContainerAgentHostMainService>() {
+				override async isDockerAvailable() { dockerChecks.push('checked'); return true; }
+			}();
+		}();
+		return { service, remoteService, storage, createdUris, removedUris, createHostConnection, providersService, dockerChecks };
+	}
+
+	test('checks Docker again on a host that was removed and configured again', async () => {
+		const { service, remoteService, createHostConnection, dockerChecks } = setupEnvironments();
+		const entries = remoteService.configuredEntries;
+		remoteService.setHostConnection('ssh:build', createHostConnection());
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		remoteService.setConfiguredEntries([]);
+		const removed = [...service.environmentHosts.get()];
+		remoteService.setConfiguredEntries(entries);
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		assert.deepStrictEqual({ removed, dockerChecks: dockerChecks.length }, { removed: [], dockerChecks: 2 });
+	});
+
+	test('creates environments on Docker hosts that connect and disconnect with the host until deleted', async () => {
+		const { service, remoteService, storage, createdUris, removedUris, createHostConnection } = setupEnvironments();
+		const hostsWhileDisconnected = [...service.environmentHosts.get()];
+		remoteService.setHostConnection('ssh:build', createHostConnection());
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+
+		const environment = await service.createEnvironment('ssh:build');
+		const provider = service.provider!;
+		const snapshot = () => ({ status: provider.status.kind, connected: !!provider.wiredConnection, defaultDirectory: provider.defaultDirectory });
+		const created = snapshot();
+		remoteService.setHostConnection('ssh:build', undefined);
+		await timeout(0);
+		const hostDisconnected = snapshot();
+		remoteService.setHostConnection('ssh:build', createHostConnection());
+		await timeout(0);
+		const hostReconnected = snapshot();
+		await service.deleteEnvironment(environment.address);
+
 		assert.deepStrictEqual({
-			added, restoredWorkspaces, removed: restored.getWorkspaces(), providers: providers.getProviders().length, availabilityChanges,
+			hostsWhileDisconnected,
+			environment: { sourceAddress: environment.sourceAddress, providerId: environment.providerId, workspaceUri: environment.workspaceUri?.toString() },
+			providerConfig: { name: provider.config.name, host: provider.config.devContainerEnvironmentHost, canRemove: provider.config.canRemove, sourceWorkspace: provider.config.devContainerSourceWorkspaceUri },
+			stagedEntry: remoteService.stagedEntry?.connection,
+			sources: [...createdUris, ...removedUris].map(uri => findDevContainerEnvironment(uri)?.sourceAuthority),
+			created, hostDisconnected, hostReconnected,
+			deleted: { environments: service.environments.get(), providerDisposed: provider.disposed, stored: storage.get('devContainerAgentHost.environments', StorageScope.APPLICATION) },
 		}, {
-			added: { workspaces: [{ uri: workspaceUri.toString(), name: 'Project' }], providers: 1 },
-			restoredWorkspaces: [{ uri: workspaceUri.toString(), name: 'Project' }],
-			removed: [], providers: 0,
-			availabilityChanges: [{ workspaces: 0, providers: 0 }],
+			hostsWhileDisconnected: [],
+			environment: { sourceAddress: 'ssh:build', providerId: provider.id, workspaceUri: agentHostUri(agentHostAuthority(environment.address), '/workspaces/ubuntu-2').toString() },
+			providerConfig: { name: 'Dev Container', host: 'ssh:build', canRemove: false, sourceWorkspace: undefined },
+			// Open in VS Code identifies the container by the volume and folder of its workspace.
+			stagedEntry: { type: RemoteAgentHostEntryType.DevContainer, address: environment.address, environmentId: findDevContainerEnvironment(createdUris[0])?.environmentId, volume: { volumeName: 'ubuntu-2', folder: 'ubuntu-2' }, hostAuthority: 'ssh-remote+build' },
+			sources: [agentHostAuthority('ssh:build'), agentHostAuthority('ssh:build'), agentHostAuthority('ssh:build')],
+			created: { status: 'connected', connected: true, defaultDirectory: '/workspaces/ubuntu-2' },
+			hostDisconnected: { status: 'disconnected', connected: false, defaultDirectory: undefined },
+			hostReconnected: { status: 'connected', connected: true, defaultDirectory: '/workspaces/ubuntu-2' },
+			deleted: { environments: [], providerDisposed: true, stored: undefined },
 		});
+	});
+
+	test('environments on this computer need no source host and connect when created or first used, not when restored', async () => {
+		const { service, createdUris, removedUris, providersService } = setupEnvironments(undefined, {
+			localDocker: true,
+			stored: [{ id: 'restored', sourceAddress: LocalDevContainerEnvironmentHost, name: 'Dev Container' }],
+		});
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		const restored = providersService.getProviders().find((provider): provider is TestProvider => provider instanceof TestProvider)!;
+		await timeout(0);
+		const afterRestore = { status: restored.status.kind, connections: createdUris.length };
+		await restored.config.connectOnDemand!();
+		const afterFirstUse = { status: restored.status.kind, connections: createdUris.length };
+		let announced: { readonly providerId: string; readonly connections: number } | undefined;
+		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost, { onWillConnect: environment => announced = { providerId: environment.providerId, connections: createdUris.length } });
+		const afterCreate = { status: service.provider!.status.kind, host: service.provider!.config.devContainerEnvironmentHost, connections: createdUris.length, announcedBeforeConnecting: announced?.providerId === created.providerId && announced.connections === 1 };
+		await service.deleteEnvironment(created.address);
+		assert.deepStrictEqual({
+			hosts: [...service.environmentHosts.get()],
+			afterRestore, afterFirstUse, afterCreate,
+			sources: [...createdUris, ...removedUris].map(uri => findDevContainerEnvironment(uri)?.sourceAuthority),
+			environments: service.environments.get().map(environment => environment.sourceAddress),
+		}, {
+			hosts: [LocalDevContainerEnvironmentHost],
+			afterRestore: { status: 'disconnected', connections: 0 },
+			afterFirstUse: { status: 'connected', connections: 1 },
+			afterCreate: { status: 'connected', host: LocalDevContainerEnvironmentHost, connections: 2, announcedBeforeConnecting: true },
+			sources: ['local', 'local', 'local'],
+			environments: [LocalDevContainerEnvironmentHost],
+		});
+	});
+
+	test('drops the disposed client of an environment whose relay closed for good, so first use connects again', async () => {
+		const { service, remoteService, createdUris } = setupEnvironments(undefined, { localDocker: true });
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		await service.createEnvironment(LocalDevContainerEnvironmentHost);
+		const provider = service.provider!;
+		remoteService.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		const closed = { status: provider.status.kind, connected: !!provider.wiredConnection };
+		await provider.config.connectOnDemand!();
+		assert.deepStrictEqual({ closed, reopened: { status: provider.status.kind, connected: !!provider.wiredConnection, connections: createdUris.length } }, {
+			closed: { status: 'disconnected', connected: false },
+			reopened: { status: 'connected', connected: true, connections: 2 },
+		});
+	});
+
+	test('keeps an environment whose creation was cancelled by disconnecting its host, without connecting the host to remove it', async () => {
+		const host: { disconnect?: () => void } = {};
+		const { service, remoteService, removedUris, createHostConnection } = setupEnvironments(undefined, {
+			beforeConnect: async () => {
+				host.disconnect?.();
+				throw new CancellationError();
+			},
+		});
+		remoteService.setHostConnection('ssh:build', createHostConnection());
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		host.disconnect = () => remoteService.setHostConnection('ssh:build', undefined);
+		await assert.rejects(service.createEnvironment('ssh:build'), /Canceled/);
+		assert.deepStrictEqual({ environments: service.environments.get().map(environment => environment.sourceAddress), removals: removedUris.length }, { environments: ['ssh:build'], removals: 0 });
+	});
+
+	test('does not reconnect an environment whose deletion connects its host', async () => {
+		const host = { connect: () => { } };
+		const { service, remoteService, createdUris, createHostConnection } = setupEnvironments(async () => {
+			// The connector connects a disconnected host to remove the container there.
+			host.connect();
+			await timeout(0);
+			return true;
+		});
+		host.connect = () => remoteService.setHostConnection('ssh:build', createHostConnection());
+		host.connect();
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		const environment = await service.createEnvironment('ssh:build');
+		remoteService.setHostConnection('ssh:build', undefined);
+		await timeout(0);
+		await service.deleteEnvironment(environment.address);
+		await timeout(0);
+		assert.deepStrictEqual({ connections: createdUris.length, environments: service.environments.get() }, { connections: 1, environments: [] });
 	});
 
 	test('publishes inspected sandbox support even when the first connection fails', async () => {
@@ -982,12 +1152,14 @@ suite('Dev Container Agent Host Service', () => {
 				worktreeScope: service.provider?.config.devContainerWorktreeScope,
 				workspaceHostLabels,
 				providerLabels: [service.provider?.config.name, ...service.provider?.labels ?? []],
+				workspaceLabel: service.getWorkspaceLabel(source),
 			}, {
 				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority },
 				remoteWorktree: true,
 				worktreeScope: getComparisonKey(URI.file('/project')),
 				workspaceHostLabels: [`Dev Container on ${entry.name}`, 'Dev Container on Renamed'],
 				providerLabels: [`project [Dev Container on ${entry.name}]`, 'project [Dev Container on Renamed]'],
+				workspaceLabel: 'project [Dev Container on Renamed]',
 			});
 			await target.release();
 		});

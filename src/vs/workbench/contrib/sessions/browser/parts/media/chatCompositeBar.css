@@ -83,6 +83,15 @@
 	height: 100%;
 }
 
+/* The title and the stats that follow it differ in size, so only their baselines line up. */
+.chat-composite-bar-title-line {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 .session-header-bar[draggable="true"] {
 	cursor: grab;
 }
@@ -131,8 +140,13 @@
 	cursor: text;
 }
 
-.chat-composite-bar-session-title.editable:hover {
+.chat-composite-bar-session-title.editable:not(.editing):not(:focus-within):is(:hover, .hovered) {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+:is(.hc-black, .hc-light) .chat-composite-bar-session-title.editable:not(.editing):not(:focus-within):is(:hover, .hovered) {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .chat-composite-bar-session-title.editing {
@@ -175,6 +189,16 @@
 	gap: 2px;
 	flex-shrink: 0;
 	margin-left: auto;
+}
+
+/* The running response's stats follow the title, after a separator that stays clear of the title's hover background. */
+.chat-composite-bar-title-line > .chat-live-response-stats {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-composite-bar-title-line > .chat-live-response-stats::before {
+	content: '\00b7';
+	margin-inline-end: var(--vscode-spacing-size60);
 }
 
 /* Metadata action fixture host. */
@@ -443,7 +467,7 @@
 }
 
 .chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
-	background-color: var(--vscode-list-warningForeground);
+	background-color: var(--vscode-agentSessionNeedsInput-foreground);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
@@ -603,6 +627,7 @@
  * Connected tabs retain the same ownership in compact density. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface) {
 	border-color: transparent;
+	border-width: var(--agents-session-frame-inset);
 	background-clip: padding-box;
 }
 
@@ -612,7 +637,7 @@
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view {
 	position: relative;
-	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	border-radius: max(0px, calc(var(--agents-component-corner-radius, var(--agents-part-corner-radius, var(--vscode-cornerRadius-large))) - var(--agents-session-frame-inset, var(--vscode-strokeThickness))));
 	overflow: hidden;
 }
 
@@ -648,7 +673,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface {
-	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	border-radius: max(0px, calc(var(--agents-component-corner-radius, var(--agents-part-corner-radius, var(--vscode-cornerRadius-large))) - var(--agents-session-frame-inset, var(--vscode-strokeThickness))));
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-content {
@@ -783,4 +808,19 @@
 	background: none;
 	border: 0;
 	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+}
+
+.session-header-bar .chat-composite-bar-working-progress {
+	display: flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.chat-editor-content.title-progress .chat-working-progress > .chat-progress-icon,
+.chat-editor-content.title-progress .chat-working-progress.chat-working-progress-generic-label > .progress-step {
+	display: none;
+}
+
+.monaco-reduce-motion .session-header-bar .chat-composite-bar-working-progress {
+	animation: none;
 }

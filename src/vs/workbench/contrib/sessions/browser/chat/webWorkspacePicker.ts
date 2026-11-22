@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../../base/common/arrays.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -130,7 +130,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 
 	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
 		const trigger = anchor ?? this._triggerElement;
-		if (!trigger) {
+		if (!trigger || this._isReadOnly()) {
 			return;
 		}
 		// On phone, render the picker as a bottom sheet instead of the
@@ -144,34 +144,72 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		this._workspaceFilter = '';
-		const items = this._buildItems();
 		const resources = new DisposableStore();
 		this._mobilePicker.value = resources;
 		void this._removeMissingLocalWorkspaces().catch(onUnexpectedError);
-		const cancellation = new CancellationTokenSource();
-		resources.add(toDisposable(() => cancellation.dispose(true)));
-		void showMobileWorkspacePickerSheet(
-			this._layoutService,
-			trigger,
-			items,
-			item => this._dispatchPickerItem(item),
-			this._getAllBrowseActions(),
-			attachesContext !== true,
-			cancellation.token,
-			undefined,
-			{
-				getItems: query => {
-					this._workspaceFilter = query.trim().toLocaleLowerCase();
-					return this._buildItems();
-				},
-				onDidChange: this._onDidChangeMobileItems.event,
-			},
-		).finally(() => {
+		void this._showPhoneWorkspacePicker(trigger, preferredGroup, attachesContext, cancelOnDispose(resources)).finally(() => {
 			if (this._mobilePicker.value === resources) {
 				this._mobilePicker.clear();
 				this._workspaceFilter = '';
 			}
 		}).catch(onUnexpectedError);
+	}
+
+	private async _showPhoneWorkspacePicker(trigger: HTMLElement, preferredGroup: string | undefined, attachesContext: boolean | undefined, token: CancellationToken): Promise<void> {
+		const items = this._buildItems();
+		const actions = this._getAllowedFolders() ? [] : this._getAllBrowseActions();
+		const host = this.options.searchWorkspaceTargetDirectly && preferredGroup === undefined && attachesContext !== true
+			? this._agentHostFilterService.selectedHost : undefined;
+		const surfaced = items.flatMap(({ item, disabled }) => item?.browseActionIndex !== undefined && !disabled ? [actions[item.browseActionIndex]] : [])
+			.filter(action => action && !action.attachesContext);
+		if (host?.sessionCreationProviderId) {
+			const repositories = surfaced.filter(action => action.providerId === host.sessionCreationProviderId && action.group === SESSION_WORKSPACE_GROUP_GITHUB);
+			if (repositories.length === 1) {
+				const action = repositories[0];
+				const recentFolders = items.flatMap(({ item, disabled }) => !disabled && item?.providerId === action.providerId && item.folderUri ? [item.folderUri] : []);
+				trigger.setAttribute('aria-expanded', 'true');
+				const resetExpanded = token.onCancellationRequested(() => trigger.setAttribute('aria-expanded', 'false'));
+				try {
+					await this._dispatchPickerItem({ browseAction: action }, { recentFolders, token });
+				} finally {
+					resetExpanded.dispose();
+					if (!token.isCancellationRequested) {
+						trigger.setAttribute('aria-expanded', 'false');
+						if (trigger.isConnected && trigger.ownerDocument.activeElement === trigger.ownerDocument.body) {
+							trigger.focus();
+						}
+					}
+				}
+				return;
+			}
+		}
+
+		const folderProviders = new Set(surfaced.filter(action => action.listFolders && host && !host.grouped && host.providerIds.includes(action.providerId)).map(action => action.providerId));
+		const scopeFolders = (entries: readonly IActionListItem<IWorkspacePickerItem>[]) => folderProviders.size === 0 ? entries : entries.filter(({ item }) => {
+			if (item?.browseActionIndex !== undefined) {
+				const action = actions[item.browseActionIndex];
+				return action?.listFolders && folderProviders.has(action.providerId);
+			}
+			return item?.folderUri && item.providerId && folderProviders.has(item.providerId);
+		});
+		await showMobileWorkspacePickerSheet(
+			this._layoutService,
+			trigger,
+			scopeFolders(items),
+			item => this._dispatchPickerItem(item),
+			actions,
+			attachesContext !== true,
+			token,
+			undefined,
+			{
+				getItems: query => {
+					this._workspaceFilter = query.trim().toLocaleLowerCase();
+					return scopeFolders(this._buildItems());
+				},
+				onDidChange: this._onDidChangeMobileItems.event,
+			},
+			folderProviders.size > 0,
+		);
 	}
 
 	protected override _refreshPickerItems(): void {
@@ -206,6 +244,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
+		const restricted = this.options.allowedFolders && this._buildRestrictedItems();
+		if (restricted) {
+			return restricted;
+		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		const scoped = this._agentHostFilterService.selectedHost;

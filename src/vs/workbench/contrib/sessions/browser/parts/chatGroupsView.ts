@@ -31,6 +31,7 @@ import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, 
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../../browser/parts/partGrid/partGridGap.js';
 import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+import { updateSashEndpoints } from '../../../../browser/part.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -1153,6 +1154,14 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
+	/**
+	 * Saves the layout of the groups of the session shown, with their current sizes, which another view restores when it
+	 * shows the session, such as the view the session moves to.
+	 */
+	saveLayout(): void {
+		this._persistLayout();
+	}
+
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
 		const source = this._activeGroup;
 		const sourceIndex = source ? this._groups.indexOf(source) : -1;
@@ -1210,6 +1219,10 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.selectNoWorkspace(options) ?? 'notReady';
 	}
 
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		return this._activeGroup?.view.selectEnvironment(providerId) ?? 'notReady';
+	}
+
 	prefillInput(text: string): void {
 		this._activeGroup?.view.prefillInput(text);
 	}
@@ -1263,7 +1276,7 @@ export class ChatGroupsView extends Themable {
 		if (this._grid) {
 			const hasGaps = gap > 0 && this._groups.length > 1;
 			this.element.classList.toggle('chat-groups-view-has-gaps', hasGaps);
-			updateGridGapSashes(this._grid, hasGaps);
+			updateGridGapSashes(this._grid, hasGaps, gap);
 			const corners = getGridBottomCornerViews(this._grid);
 			for (const group of this._groups) {
 				group.view.element.classList.toggle('chat-grid-bottom-left', group.view === corners.bottomLeft);
@@ -1286,6 +1299,7 @@ export class ChatGroupsView extends Themable {
 			this._grid.layout(width, height, top, left);
 			this._gridDidLayout = true;
 			this._gridTopologyChanged = false;
+			updateSashEndpoints(this._grid.element, hasGaps);
 		} else {
 			this.element.classList.remove('chat-groups-view-has-gaps');
 		}

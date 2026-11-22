@@ -42,7 +42,7 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
+import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
@@ -52,11 +52,12 @@ import { ISessionChangesService } from '../../../../workbench/contrib/sessionCha
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
-import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
+import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService, IStashedSessionEditors } from '../common/sessionEditorWorkingSet.js';
 import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
@@ -160,6 +161,9 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _panelViewBySession = new ResourceMap<string>();
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
+	private readonly _stashLeases = new Set<{ key: URI | undefined }>();
+	private readonly _unappliedWorkingSets = new ResourceSet();
+	private _currentWorkingSetTarget: IEditorWorkingSetTarget | undefined;
 	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
 	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
@@ -329,6 +333,8 @@ export abstract class BaseLayoutController extends Disposable {
 		this._chatLayoutContext = this._chatLayoutEnabled
 			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._mainWindowSession, this._mainWindowChat))
 			: undefined;
+
+		this._register(this._editorWorkingSetService.registerStashedEditorsProvider((session, chatResource) => this._takeStashedEditors(session, chatResource)));
 
 		// [B3] Restore persisted state (with one-time legacy migration).
 		this._loadState();
@@ -538,6 +544,7 @@ export abstract class BaseLayoutController extends Disposable {
 		});
 		let currentWorkingSetTarget = activeSessionForWorkingSet.get();
 		this._settledEditorWorkingSetKey = activeEditorWorkingSetTarget.get().key;
+		this._currentWorkingSetTarget = activeEditorWorkingSetTarget.get();
 		this._editorWorkingSetService.setCurrentOwner(activeEditorWorkingSetTarget.get().owner);
 
 		// Working sets are always active: browser editors dock in the shared grid
@@ -570,6 +577,7 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 
 		this._register(runOnChange(activeEditorWorkingSetTarget, (current, previous) => {
+			this._currentWorkingSetTarget = current;
 			const shouldApply = !!previous.shown || (!!current.key && this._workingSets.has(current.key));
 			if (!shouldApply) {
 				const previousPending = this._pendingEditorWorkingSetRestore;
@@ -624,6 +632,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(this._sessionManagementService.onDidChangeSessions(e => {
 			const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...e.removed, ...archivedSessions]) {
+				this._forgetStashLeases(session.resource);
 				this._deleteWorkingSet(session.resource);
 				this._viewStateBySession.delete(session.resource);
 				this._editorPartHiddenBySession.delete(session.resource);
@@ -796,7 +805,7 @@ export abstract class BaseLayoutController extends Disposable {
 							id: AgentsWindowMenus.TitleBarSessionMenu,
 							group: 'navigation',
 							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate())
 						},
 						{
 							// Replaces the title bar entry while the Session Activity Bar shows its layout actions.
@@ -899,11 +908,19 @@ export abstract class BaseLayoutController extends Disposable {
 		if (isEqual(oldKey, newKey)) {
 			return;
 		}
+		for (const lease of this._stashLeases) {
+			if (lease.key && isEqual(lease.key, oldKey)) {
+				lease.key = newKey;
+			}
+		}
 		const workingSet = this._workingSets.get(oldKey);
 		if (workingSet) {
 			const previousAtNewKey = this._workingSets.get(newKey);
 			this._workingSets.set(newKey, workingSet);
 			this._workingSets.delete(oldKey);
+			if (this._unappliedWorkingSets.delete(oldKey)) {
+				this._unappliedWorkingSets.add(newKey);
+			}
 			if (previousAtNewKey && previousAtNewKey.id !== workingSet.id) {
 				this._releaseWorkingSetReference(previousAtNewKey);
 			}
@@ -933,6 +950,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _forgetPeerChatState(keys: readonly URI[]): void {
 		for (const key of keys) {
+			this._forgetStashLeases(key);
 			this._deleteWorkingSet(key);
 			this._viewStateBySession.delete(key);
 			this._editorPartHiddenBySession.delete(key);
@@ -1063,6 +1081,7 @@ export abstract class BaseLayoutController extends Disposable {
 			const resource = URI.parse(entry.sessionResource);
 			if (entry.editorWorkingSet) {
 				this._workingSets.set(resource, entry.editorWorkingSet);
+				this._unappliedWorkingSets.add(resource);
 			}
 			if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
 				this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
@@ -1157,6 +1176,7 @@ export abstract class BaseLayoutController extends Disposable {
 					const resource = URI.parse(entry.sessionResource);
 					if (entry.editorWorkingSet) {
 						this._workingSets.set(resource, entry.editorWorkingSet);
+						this._unappliedWorkingSets.add(resource);
 					}
 					if (entry.auxiliaryBarState) {
 						this._viewStateBySession.set(resource, {
@@ -1282,6 +1302,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(owner)) {
 				return;
 			}
+			if (sessionResource) {
+				this._unappliedWorkingSets.delete(sessionResource);
+			}
 			if (workingSet === 'empty' && sessionResource && isEqual(sessionResource, this._workingSetAdoptingReplacement)) {
 				this._workingSetAdoptingReplacement = undefined;
 				return;
@@ -1396,6 +1419,10 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {
+		const mainEditors = this._editorGroupsService.mainPart.groups.flatMap(group => group.editors);
+		if (this._workingSets.has(sessionResource) && this._unappliedWorkingSets.has(sessionResource) && mainEditors.length > 0 && mainEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
+			return;
+		}
 		this._deleteWorkingSet(sessionResource);
 
 		// Note: the editor part's hidden state is captured eagerly by the [B2]
@@ -1407,6 +1434,75 @@ export abstract class BaseLayoutController extends Disposable {
 			const workingSetName = `session-working-set:${sessionResource.toString()}`;
 			const workingSet = this._editorGroupsService.saveWorkingSet(workingSetName);
 			this._workingSets.set(sessionResource, workingSet);
+			this._unappliedWorkingSets.add(sessionResource);
+		}
+	}
+
+	private _takeStashedEditors(session: ISession, chatResource: URI): IStashedSessionEditors | undefined {
+		const key = this._ownerKeyForChat(session.resource, chatResource, session.mainChat.get().resource);
+		const workingSet = key && this._workingSets.get(key);
+		if (!key || !workingSet) {
+			return undefined;
+		}
+		const resolved = this._editorGroupsService.resolveWorkingSet(workingSet);
+		if (!resolved) {
+			return undefined;
+		}
+
+		this._workingSets.delete(key);
+		const lease: { key: URI | undefined } = { key };
+		this._stashLeases.add(lease);
+		let settled = false;
+		return {
+			editors: resolved.editors,
+			activeEditor: resolved.activeEditor,
+			accept: () => {
+				if (!settled) {
+					settled = true;
+					this._stashLeases.delete(lease);
+					resolved.dispose();
+					this._releaseWorkingSetReference(workingSet);
+				}
+			},
+			dispose: () => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				this._stashLeases.delete(lease);
+				resolved.dispose();
+				if (!lease.key || this._workingSets.has(lease.key)) {
+					this._releaseWorkingSetReference(workingSet);
+				} else {
+					this._workingSets.set(lease.key, workingSet);
+					this._reapplyRolledBackWorkingSet(lease.key);
+				}
+			}
+		};
+	}
+
+	private _reapplyRolledBackWorkingSet(key: URI): void {
+		const target = this._currentWorkingSetTarget;
+		if (!target?.owner || !isEqual(target.key, key)) {
+			return;
+		}
+		const mainEditors = this._editorGroupsService.mainPart.groups.flatMap(group => group.editors);
+		if (mainEditors.some(editor => !(editor instanceof EmptyFileEditorInput))) {
+			return;
+		}
+		this._applyPendingEditorWorkingSetRestore({
+			key,
+			owner: target.owner,
+			isInitialRestore: false,
+			restore: this._editorWorkingSetService.beginRestore(target.owner),
+		});
+	}
+
+	private _forgetStashLeases(key: URI): void {
+		for (const lease of this._stashLeases) {
+			if (lease.key && isEqual(lease.key, key)) {
+				lease.key = undefined;
+			}
 		}
 	}
 

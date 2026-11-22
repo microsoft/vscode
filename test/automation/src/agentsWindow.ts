@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as playwright from '@playwright/test';
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
 import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
@@ -27,6 +28,9 @@ const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
+const REMOTES_WIDGET = '.remotes-widget:visible';
+// The workbench keeps other, hidden menus in the DOM, such as those of the custom title bar.
+const OPEN_MENU = '.monaco-menu:visible';
 
 // The Agents Window active session input reuses the workbench `ChatInputPart`,
 // so its model picker renders the same `.model-picker-name` / `.model-picker-config`
@@ -144,8 +148,33 @@ export class AgentsWindow {
 	async showSessionPreparationLog(): Promise<void> {
 		const page = this.code.driver.currentPage;
 		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await this.waitForDevContainerLogAndClose();
+	}
+
+	/**
+	 * Clicks a link in the active session's response that runs `commandId`, accepting tool confirmations until it
+	 * renders, and waits for the Dev Container log that it opens.
+	 */
+	async showDevContainerLogFromLink(commandId: string, timeoutMs = 5 * 60 * 1000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const link = page.locator(`${ACTIVE_SESSION} .interactive-response a[data-href^="command:${commandId}"]`).first();
+		const deadline = Date.now() + timeoutMs;
+		while (!await link.isVisible()) {
+			if (Date.now() > deadline) {
+				throw new Error(`Timed out waiting for a link that runs ${commandId}`);
+			}
+			await acceptToolConfirmationIfPresent(this.code);
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+		await link.click();
+		await this.waitForDevContainerLogAndClose();
+	}
+
+	private async waitForDevContainerLogAndClose(): Promise<void> {
+		const page = this.code.driver.currentPage;
 		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
-		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		// The log of a Dev Container environment starts with its Docker commands, before the Dev Containers CLI writes to it.
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:|\$\s*docker/.test(text.replace(/\u00a0/g, ' ')));
 		await this.quickaccess.runCommand('workbench.action.closePanel');
 	}
 
@@ -222,6 +251,62 @@ export class AgentsWindow {
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
 	}
 
+	/**
+	 * Opens Remote Environments, connects the remote named `name` unless it is connected, and waits until the More Actions
+	 * menu of its row offers the enabled action labeled `actionLabel`. A narrow table hides the Connect and Disconnect
+	 * buttons of its rows, so that menu connects the remote then.
+	 */
+	async waitForRemoteAction(name: string, actionLabel: string, timeoutMs: number = 60_000): Promise<void> {
+		await this.quickaccess.runCommand('sessions.openRemotes');
+		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
+		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
+		// A hidden button keeps its label, so it still identifies the row and whether the remote is connected. `has`
+		// locators match within the row, so they must not repeat the widget scope.
+		const page = this.code.driver.currentPage;
+		// While it connects, the button's label is its progress, such as `Connecting: name`.
+		const rowButton = page.getByLabel(`Connect to ${name}`, { exact: true }).or(page.getByLabel(`Disconnect ${name}`, { exact: true }))
+			.or(page.locator(`.remotes-connect-action[aria-label$=${JSON.stringify(`: ${name}`)}]`));
+		const row = widget.locator('.monaco-list-row').filter({ has: rowButton }).first();
+		await row.waitFor({ timeout: 30_000 });
+		if (await connect.count()) {
+			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
+			if (await connect.isVisible()) {
+				await connect.click();
+			} else {
+				await this.openRemoteRowMenu(row);
+				await this.remoteRowMenuItem('Connect', true).click({ timeout: 30_000 });
+			}
+		}
+		// The menu keeps the items it opened with, so it is opened again until the action is enabled.
+		const deadline = Date.now() + timeoutMs;
+		while (!await this.isRemoteRowMenuActionEnabled(row, actionLabel)) {
+			if (Date.now() > deadline) {
+				throw new Error(`The More Actions menu of ${name} did not offer an enabled '${actionLabel}' within ${timeoutMs} ms`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 1000));
+		}
+	}
+
+	private remoteRowMenuItem(label: string, enabledOnly: boolean) {
+		const page = this.code.driver.currentPage;
+		return page.locator(`${OPEN_MENU} .action-menu-item${enabledOnly ? ':not(.disabled)' : ''}`).filter({ has: page.getByLabel(label, { exact: true }) }).first();
+	}
+
+	private async openRemoteRowMenu(row: playwright.Locator): Promise<void> {
+		// The actions of a row show while it is hovered or focused.
+		await row.hover();
+		await row.locator('.monaco-toolbar .codicon-toolbar-more').click();
+		await this.code.driver.currentPage.locator(OPEN_MENU).first().waitFor({ timeout: 10_000 });
+	}
+
+	private async isRemoteRowMenuActionEnabled(row: playwright.Locator, label: string): Promise<boolean> {
+		await this.openRemoteRowMenu(row);
+		const enabled = await this.remoteRowMenuItem(label, true).isVisible();
+		await this.code.driver.currentPage.keyboard.press('Escape');
+		await this.code.driver.currentPage.locator(OPEN_MENU).first().waitFor({ state: 'detached', timeout: 10_000 });
+		return enabled;
+	}
+
 	async getRemoteConnectionDiagnostics(): Promise<string> {
 		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
 			const activeElement = document.activeElement;
@@ -241,6 +326,79 @@ export class AgentsWindow {
 				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
 			};
 		}));
+	}
+
+	/**
+	 * Logs in with `username` and `password` to every proxy login dialog until stopped, in any window, as the main
+	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `whenIdle`
+	 * resolves once a later check of all windows finds no proxy login dialog, so keyboard input that follows cannot
+	 * reach one already shown. `stop` returns the details of the dialogs filled, which name the proxy.
+	 */
+	fillProxyAuthenticationDialogs(username: string, password: string): { whenIdle(): Promise<void>; stop(): Promise<string[]> } {
+		const details: string[] = [];
+		let stopped = false;
+		let passesStarted = 0;
+		const idleWaiters: { readonly minPass: number; readonly resolve: () => void }[] = [];
+		const resolveIdleWaiters = (pass: number) => {
+			for (let i = idleWaiters.length - 1; i >= 0; i--) {
+				if (pass >= idleWaiters[i].minPass) {
+					idleWaiters.splice(i, 1)[0].resolve();
+				}
+			}
+		};
+		const loop = (async () => {
+			while (!stopped) {
+				const pass = passesStarted++;
+				let detail: string | undefined;
+				let failed = false;
+				try {
+					detail = await this.tryFillProxyAuthenticationDialog(username, password);
+				} catch (error) {
+					failed = true;
+					this.code.logger.log(`[agentsWindow] Failed to log in to a proxy login dialog: ${error}`);
+				}
+				if (detail !== undefined) {
+					details.push(detail);
+				} else {
+					if (!failed) {
+						resolveIdleWaiters(pass);
+					}
+					await new Promise(resolve => setTimeout(resolve, 250));
+				}
+			}
+			resolveIdleWaiters(Number.MAX_SAFE_INTEGER);
+		})();
+		return {
+			whenIdle: () => stopped ? Promise.resolve() : new Promise<void>(resolve => idleWaiters.push({ minPass: passesStarted, resolve })),
+			stop: async () => {
+				stopped = true;
+				await loop;
+				return details;
+			}
+		};
+	}
+
+	/**
+	 * Logs in to a visible proxy login dialog of any window, returning its detail, or `undefined` if no window shows one.
+	 */
+	private async tryFillProxyAuthenticationDialog(username: string, password: string): Promise<string | undefined> {
+		for (const page of this.code.driver.getAllWindows()) {
+			if (page.isClosed()) {
+				continue;
+			}
+			const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
+			if (!await dialog.isVisible().catch(() => false)) {
+				continue;
+			}
+			const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
+			this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
+			await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
+			await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
+			await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
+			await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+			return detail;
+		}
+		return undefined;
 	}
 
 	private async fillQuickInput(title: string, value: string): Promise<void> {
@@ -321,7 +479,7 @@ export class AgentsWindow {
 			try {
 				await picker.click();
 				if (usesEnvironmentPicker) {
-					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container', { exact: true }) });
+					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container for Folder', { exact: true }) });
 					await container.waitFor({ state: 'visible', timeout: 5_000 });
 					await container.click();
 				} else {
@@ -363,21 +521,38 @@ export class AgentsWindow {
 		throw new Error(`Timed out selecting Dev Container. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
+	/**
+	 * Switches the new-session environment from Cloud to This Computer.
+	 *
+	 * The workspace handoff of a window opened with a folder can switch the
+	 * environment to This Computer on its own after startup. That re-renders the
+	 * composer and closes an open Environment picker, so each attempt is bounded
+	 * and the loop ends as soon as the picker no longer shows Cloud.
+	 */
 	private async selectLocalEnvironment(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const cloudEnvironment = page.locator(ENVIRONMENT_PICKER).filter({ hasText: /^Cloud$/ });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
+		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
 		const deadline = Date.now() + 60_000;
+		let lastError: unknown;
 		while (await cloudEnvironment.isVisible()) {
-			await cloudEnvironment.click();
-			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
-			if (await localEnvironment.isVisible()) {
-				await localEnvironment.click();
-				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
-				return;
-			}
-			await page.keyboard.press('Escape');
 			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for This Computer in the Environment picker');
+				throw new Error(`Timed out selecting This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+			try {
+				await cloudEnvironment.click({ timeout: 5_000 });
+				if (await localEnvironment.isVisible()) {
+					await localEnvironment.click({ timeout: 5_000 });
+					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 15_000 });
+					return;
+				}
+				lastError = new Error('This Computer is not listed in the Environment picker');
+			} catch (error) {
+				lastError = error;
+			}
+			if (await environmentPicker.getAttribute('aria-expanded', { timeout: 5_000 }).catch(() => undefined) === 'true') {
+				await page.keyboard.press('Escape');
 			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}
@@ -653,7 +828,30 @@ export class AgentsWindow {
 			}
 		}
 
-		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+		await this.clickActiveSessionSendButton();
+	}
+
+	/**
+	 * Clicks the enabled send button of the active session. A modal dialog, such as a proxy login dialog opened by a
+	 * concurrent request, swallows the click, so this waits for it to close first, and clicks again if one opened in the
+	 * meantime and the prompt was not sent, which disables the send button or replaces it with the stop button.
+	 */
+	private async clickActiveSessionSendButton(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const modalDialog = page.locator('.monaco-dialog-modal-block').first();
+		const sendButton = page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).first();
+		for (let attempt = 1; ; attempt++) {
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+			if (attempt === 3 || !await modalDialog.isVisible().catch(() => false)) {
+				return;
+			}
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			if (await sendButton.waitFor({ state: 'detached', timeout: 5_000 }).then(() => true, () => false)) {
+				return;
+			}
+			this.code.logger.log('[agentsWindow] A modal dialog swallowed the click on the send button, clicking it again');
+		}
 	}
 
 	private async _activeSessionContainsResponse(label: string): Promise<boolean> {

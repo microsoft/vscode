@@ -8,9 +8,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { mapStreamSync } from '../streams.ts';
+import { collectStream } from './collectStream.ts';
 import VinylFile from 'vinyl';
-import { getMixedInDistroDependencies, toFlatProductionDependencies, toPackagedLayout } from '../dependencies.ts';
+import { getLayoutLockfile, getMixedInDistroDependencies, toFlatProductionDependencies, toPackagedLayout } from '../dependencies.ts';
+import { getHoistedLocations } from '../pnpmHoist.ts';
+import { parsePnpmLockfile } from '../pnpmLock.ts';
 
 suite('dependencies', () => {
 
@@ -20,7 +24,7 @@ suite('dependencies', () => {
 		const folder = path.join(root, 'remote');
 		const distroFolder = path.join(root, '.build', 'distro', 'npm', 'remote');
 		fs.mkdirSync(distroFolder, { recursive: true });
-		fs.writeFileSync(path.join(distroFolder, 'package.json'), JSON.stringify({ dependencies: { 'vsda': '1.0.0', '@vscode/vsce-sign': '2.1.0', 'not-mixed-in': '1.0.0' } }));
+		fs.writeFileSync(path.join(distroFolder, 'package.json'), JSON.stringify({ dependencies: { 'vsda': '1.0.0', '@vscode/vsce-sign': '2.1.1', 'not-mixed-in': '1.0.0' } }));
 		for (const name of ['vsda', '@vscode/vsce-sign', 'other']) {
 			fs.mkdirSync(path.join(folder, 'node_modules', name), { recursive: true });
 		}
@@ -31,6 +35,51 @@ suite('dependencies', () => {
 		}, {
 			mixedIn: [path.join('remote', 'node_modules', 'vsda'), path.join('remote', 'node_modules', '@vscode', 'vsce-sign')],
 			noDistro: [],
+		});
+	});
+
+	test('lays out the projects of each layout root as a separate install of the folder', () => {
+		// The root and the built-in extensions are in one install, but `extensions` and
+		// `extensions/copilot` are laid out without the rest of the workspace: `c@2.0.0` of
+		// `extensions` takes `extensions/node_modules/c`, and Copilot is not one of its projects.
+		const repo = fs.realpathSync(path.join(import.meta.dirname, '..', '..', '..'));
+		const lockfile = parsePnpmLockfile(`lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      c:
+        specifier: 1.0.0
+        version: 1.0.0
+  extensions:
+    dependencies:
+      c:
+        specifier: 2.0.0
+        version: 2.0.0
+  extensions/copilot:
+    dependencies:
+      c:
+        specifier: 1.0.0
+        version: 1.0.0
+  extensions/git:
+    dependencies:
+      c:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  c@1.0.0:
+    resolution: {integrity: sha512-c1}
+  c@2.0.0:
+    resolution: {integrity: sha512-c2}
+snapshots:
+  c@1.0.0: {}
+  c@2.0.0: {}
+`);
+		const layout = (layoutRoot: string) => Object.fromEntries(getHoistedLocations(getLayoutLockfile(lockfile, repo, path.join(repo, layoutRoot)), new Set()));
+
+		assert.deepStrictEqual({ root: layout(''), extensions: layout('extensions'), copilot: layout('extensions/copilot') }, {
+			root: { 'c@1.0.0': ['node_modules/c'] },
+			extensions: { 'c@2.0.0': ['node_modules/c'], 'c@1.0.0': ['git/node_modules/c'] },
+			copilot: { 'c@1.0.0': ['node_modules/c'] },
 		});
 	});
 
@@ -79,13 +128,12 @@ suite('dependencies', () => {
 			.map(file => new VinylFile({ base: root, path: file, contents: fs.readFileSync(file) }));
 
 		// Like `rewriteSourceMappingURL`, change each file synchronously, from its packaged path.
-		const packaged = await new Promise<VinylFile[]>((resolve, reject) => es.readArray(files)
+		const packaged = await collectStream<VinylFile>(Readable.from(files)
 			.pipe(toPackagedLayout([a, uuid, b, bUuid, distro]))
-			.pipe(es.mapSync((file: VinylFile) => {
+			.pipe(mapStreamSync((file: VinylFile) => {
 				file.contents = Buffer.from(file.contents!.toString().replace(/sourceMappingURL=(.*)$/, `sourceMappingURL=https://cdn/${path.dirname(file.relative).split(path.sep).join('/')}/$1`));
 				return file;
-			}))
-			.pipe(es.writeArray((err: Error | undefined, result: VinylFile[]) => err ? reject(err) : resolve(result))));
+			})));
 
 		assert.deepStrictEqual(packaged.map(file => [file.relative.split(path.sep).join('/'), file.contents!.toString()]), [
 			['node_modules/a/index.js', 'a'],

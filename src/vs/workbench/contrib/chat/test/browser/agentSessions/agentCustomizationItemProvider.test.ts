@@ -34,17 +34,22 @@ import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
 import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { withCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
+import { withCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 
-function makePromptsService(extensionFiles: readonly IExtensionPromptPath[] = []): IPromptsService {
+function makePromptsService(extensionFiles: readonly IExtensionPromptPath[] = [], localHookFiles: readonly IPromptPath[] = []): IPromptsService {
 	return upcastPartial<IPromptsService>({
 		onDidChangeSkills: Event.None,
 		getDisabledPromptFiles: () => new ResourceSet(),
 		listPromptFilesForStorage: async (_type, storage) => storage === PromptsStorage.extension ? extensionFiles : [],
+		onDidChangeHooks: Event.None,
+		getDiscoveryInfo: async type => ({ type, durationInMillis: 0, files: type === PromptsType.hook ? localHookFiles.map(promptPath => ({ status: 'loaded' as const, promptPath })) : [] }),
 	});
 }
 
@@ -52,6 +57,36 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps runtime enablement explanations on controls rather than plugin status badges', async () => {
+		let ready = false;
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			canSetRuntimePluginEnablement(): boolean { return true; }
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'other-host:/plugin', children: [],
+					load: { kind: ready ? CustomizationLoadStatus.Loaded : CustomizationLoadStatus.Loading },
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					_meta: withRuntimePluginEnablement(undefined, {
+						provider: 'copilotcli', plugin: 'direct', globalEnabled: false,
+						effectiveEnabled: ready ? false : undefined, repositorySupported: false,
+					}),
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('host') }, undefined, undefined,
+			upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+		const session = URI.parse('agent-host-copilot:/session');
+		const pending = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		ready = true;
+		const initialized = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		assert.deepStrictEqual([pending, initialized].map(items => items.filter(item => item.type === 'plugin').map(item => ({
+			statusMessage: item.statusMessage, enabled: item.enabled, toggleEnabled: item.actions?.[0].enabled,
+		}))), [
+			[{ statusMessage: 'Waiting for Session Start', enabled: undefined, toggleEnabled: false }],
+			[{ statusMessage: undefined, enabled: false, toggleEnabled: true }],
+		]);
+	});
 
 	for (const kind of agentHostConnectionKinds) {
 		test(`projects host-owned troubleshooting as a discovery-only built-in skill (${kind.name})`, async () => {
@@ -194,23 +229,48 @@ suite('AgentCustomizationItemProvider', () => {
 		});
 	}
 
-	test('shows discovery errors even when no hook actions could be loaded', async () => {
+	test('reports hook load problems as section notices without marking the hooks that loaded', async () => {
+		const loadProblem = (id: string, name: string, load: Extract<Customization, { type: CustomizationType.Directory }>['load'], enabled = true): Customization => ({
+			type: CustomizationType.Directory, id, uri: `agent-discovery://copilot/${id}`, name, contents: CustomizationType.Hook, enabled, writable: false, children: [], load,
+		});
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
-				return [{
-					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
-					name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
-					load: { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' },
-				}];
+				return [
+					{
+						type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+						name: 'Copilot hooks', contents: CustomizationType.Hook, enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Loaded },
+						children: [{ type: CustomizationType.Hook, id: 'guard', uri: 'file:///workspace/.github/hooks/guard.json', name: 'preToolUse', enabled: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository', hookType: 'preToolUse' }) }],
+					},
+					loadProblem('hooks/diagnostics', 'Some hook files could not be loaded', { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' }),
+					// A failed discovery, as published by another host.
+					loadProblem('other-host-hooks', 'Couldn\'t load hooks', { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' }),
+					loadProblem('hooks/empty', 'Empty', { kind: CustomizationLoadStatus.Loaded }),
+					// A disabled directory without hooks explains why hooks won't run, so it stays a row.
+					loadProblem('hooks/turnedOff', 'Hooks turned off', { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run because hooks are turned off.' }, false),
+				];
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
 			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
-		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
-		assert.deepStrictEqual(items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, readable: hasReadableCustomizationContent(item.uri) })),
-			[{ name: 'Hooks', status: 'error', message: 'SDK hook discovery failed', readable: false }]);
+		const session = URI.parse('other-host:/opaque/session');
+		const items = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, enabled: item.enabled })),
+			hookNotices: await provider.provideSectionNotices(session, PromptsType.hook),
+			skillNotices: await provider.provideSectionNotices(session, PromptsType.skill),
+		}, {
+			items: [
+				{ name: 'Pre-Tool Use', status: 'loaded', message: undefined, enabled: true },
+				{ name: 'Hooks turned off', status: 'degraded', message: 'Won\'t run because hooks are turned off.', enabled: false },
+			],
+			hookNotices: [
+				{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' },
+				{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' },
+			],
+			skillNotices: [],
+		});
 	});
 
 	test('shows host-discovered plugin hooks without reading client files and preserves individual enablement', async () => {
@@ -247,6 +307,245 @@ suite('AgentCustomizationItemProvider', () => {
 				enabled, readable: false,
 			}))
 		});
+	});
+
+	test('marks hooks of a disabled, degraded hook directory as not running, including after file expansion', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const uri = URI.file('/workspace/.github/hooks/hooks.json');
+		await fileService.writeFile(uri, VSBuffer.fromString(JSON.stringify({ version: 1, hooks: { sessionStart: [{ type: 'command', bash: 'echo hi' }] } })));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'untrusted', uri: 'agent-discovery://copilot/hooks/untrusted',
+					name: 'Hooks in untrusted folders', contents: CustomizationType.Hook, enabled: false, writable: false,
+					load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run until you trust this folder.' },
+					children: [{ type: CustomizationType.Hook, id: 'file', uri: uri.toString(), name: 'hooks.json', enabled: false, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }) }],
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		const expanded = await expandHookFileItems(items, upcastPartial<IAICustomizationWorkspaceService>({ getActiveProjectRoot: () => URI.file('/workspace') }), fileService,
+			new TestPathService(URI.file('/client-home')));
+		assert.deepStrictEqual(expanded.map(item => ({ name: item.name, source: item.source, enabled: item.enabled, status: item.status, statusMessage: item.statusMessage, badge: item.badge })), [{
+			name: 'Session Start', source: AICustomizationSources.local, enabled: false, status: 'degraded',
+			statusMessage: 'Won\'t run until you trust this folder.', badge: 'Won\'t run',
+		}]);
+	});
+
+	test('lists hooks declared in custom agent files for the Copilot runtime, and as not running when a folder is untrusted or hooks are turned off', async () => {
+		const agentUri = URI.file('/workspace/.github/agents/guard.agent.md');
+		// The client reads host files through the agent host's own file system.
+		const hostAgentUri = toAgentHostUri(agentUri, 'remote');
+		const fileService = createInMemoryFileService(disposables, hostAgentUri.scheme);
+		await fileService.writeFile(hostAgentUri, VSBuffer.fromString([
+			'---',
+			'name: Guard',
+			'hooks:',
+			'  sessionStart:',
+			'    - type: command',
+			'      bash: echo one',
+			'    - type: command',
+			'      bash: echo two',
+			'  preToolUse:',
+			'    - type: command',
+			'      bash: echo three',
+			'---',
+			'Body',
+		].join('\n')));
+		const agents: Customization = {
+			type: CustomizationType.Directory, id: 'agents', uri: 'file:///workspace/.github/agents',
+			name: 'agents', contents: CustomizationType.Agent, enabled: true, writable: true,
+			children: [{ type: CustomizationType.Agent, id: 'guard', uri: agentUri.toString(), name: 'Guard' }],
+		};
+		// Another folder of the session is untrusted, so the host lists one of its hook files as not running.
+		const untrusted: Customization = {
+			type: CustomizationType.Directory, id: 'untrusted', uri: 'agent-discovery://copilot/hooks/untrusted', name: 'Hooks in untrusted folders',
+			contents: CustomizationType.Hook, enabled: false, writable: false, load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run until you trust this folder.' },
+			children: [{ type: CustomizationType.Hook, id: 'other', uri: 'file:///other/.github/hooks/a.json', name: 'a.json', enabled: false }],
+		};
+		// With hooks turned off, the host publishes the reason even when it lists no hook files.
+		const turnedOff: Customization = {
+			type: CustomizationType.Directory, id: 'turnedOff', uri: 'agent-discovery://copilot/hooks/turnedOff', name: 'Hooks turned off',
+			contents: CustomizationType.Hook, enabled: false, writable: false, load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run because hooks are turned off in the chat.useHooks setting.' },
+			children: [],
+		};
+		const hookRows = async (customizations: readonly Customization[], listsCustomAgentHooks: boolean) => {
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getWorkingDirectories(): readonly string[] { return ['file:///workspace']; }
+				override getCustomizations(): readonly Customization[] { return customizations; }
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, fileService,
+				new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+			));
+			provider.setListsCustomAgentHooks(listsCustomAgentHooks);
+			const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+			return items.filter(item => item.type === PromptsType.hook && item.uri.path === hostAgentUri.path).map(item => ({ name: item.name, description: item.description, source: item.source, badge: item.badge }));
+		};
+		const running = { description: 'Runs while Guard is active', source: AICustomizationSources.local, badge: undefined };
+		assert.deepStrictEqual({
+			copilot: await hookRows([agents], true),
+			otherRuntime: await hookRows([agents], false),
+			untrustedFolder: await hookRows([agents, untrusted], true),
+			hooksTurnedOff: await hookRows([agents, turnedOff], true),
+		}, {
+			copilot: [{ name: 'Session Start', ...running }, { name: 'Session Start', ...running }, { name: 'Pre-Tool Use', ...running }],
+			otherRuntime: [],
+			untrustedFolder: ['Session Start', 'Session Start', 'Pre-Tool Use'].map(name => ({ name, ...running, badge: 'Won\'t run' })),
+			hooksTurnedOff: ['Session Start', 'Session Start', 'Pre-Tool Use'].map(name => ({ name, ...running, badge: 'Won\'t run' })),
+		});
+	});
+
+	test('lists hook files the Local harness runs and the local agent host does not as not running', async () => {
+		const workspaceHooks = URI.file('/workspace/.github/hooks/root.json');
+		const configured = URI.file('/workspace/tools/hooks/custom.json');
+		const shared = URI.file('/shared-hooks/guard.json');
+		const subfolder = URI.file('/workspace/sub/.github/hooks/sub.json');
+		const claude = URI.file('/workspace/.claude/settings.json');
+		const configuredClaude = URI.file('/workspace/tools/.claude/settings.json');
+		const hostHooks = (load?: Extract<Customization, { type: CustomizationType.Directory }>['load'], fragment = ''): Customization[] => [{
+			type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+			name: 'Copilot hooks', contents: CustomizationType.Hook, enabled: true, writable: false, load,
+			children: [{ type: CustomizationType.Hook, id: 'root', uri: workspaceHooks.with({ fragment }).toString(), name: 'sessionStart', enabled: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository', hookType: 'sessionStart' }) }],
+		}];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			customizations: readonly Customization[] = hostHooks();
+			roots: readonly URI[] = [URI.file('/workspace')];
+			override getCustomizations(): readonly Customization[] { return this.customizations; }
+			override getClientWorkingDirectoryUris(): readonly URI[] { return this.roots; }
+		}
+		const localFiles: IPromptPath[] = [
+			{ uri: workspaceHooks, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.GitHubWorkspace },
+			{ uri: configured, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ConfigWorkspace },
+			{ uri: shared, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ConfigWorkspace },
+			{ uri: subfolder, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.GitHubWorkspace },
+			{ uri: claude, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ClaudeWorkspace },
+			{ uri: configuredClaude, storage: PromptsStorage.local, type: PromptsType.hook, source: PromptFileSource.ConfigWorkspace },
+		];
+		const notRunning = async (options: { listed?: boolean; customizations?: readonly Customization[]; roots?: readonly URI[] } = {}) => {
+			const service = new TestCustomizationService();
+			service.customizations = options.customizations ?? service.customizations;
+			service.roots = options.roots ?? service.roots;
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}),
+				new NullLogService(), service, makePromptsService([], localFiles), labelService,
+			));
+			if (options.listed !== false) {
+				provider.listHooksNotRunning(() => [URI.file('/workspace')]);
+			}
+			const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+			return items.filter(item => item.badge !== undefined).map(item => item.uri.path);
+		};
+		const message = (await (async () => {
+			const service = new TestCustomizationService();
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}),
+				new NullLogService(), service, makePromptsService([], localFiles), labelService,
+			));
+			provider.listHooksNotRunning(() => [URI.file('/workspace')]);
+			return (await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None)).find(item => item.uri.path === configured.path);
+		})());
+		assert.deepStrictEqual({
+			message: { source: message?.source, enabled: message?.enabled, status: message?.status, statusMessage: message?.statusMessage },
+			copilot: await notRunning(),
+			notListed: await notRunning({ listed: false }),
+			hostFilesWithFragments: await notRunning({ customizations: hostHooks(undefined, 'sessionStart') }),
+			beforeHostInventory: await notRunning({ customizations: [] }),
+			hostDiscoveryFailed: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Error, message: 'failed' }) }),
+			hostDiscoveryLoading: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Loading }) }),
+			// Files that failed to load are reported in their own directory and are missing from the host's inventory.
+			hostLoadErrors: await notRunning({
+				customizations: [...hostHooks({ kind: CustomizationLoadStatus.Loaded }), {
+					type: CustomizationType.Directory, id: 'diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Some hook files could not be loaded',
+					contents: CustomizationType.Hook, enabled: true, writable: false, children: [], load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration' },
+				}],
+			}),
+			worktreeSession: await notRunning({ roots: [URI.file('/worktrees/workspace-1')] }),
+		}, {
+			message: { source: AICustomizationSources.local, enabled: false, status: 'degraded', statusMessage: 'Copilot doesn\'t read hooks from folders added in chat.hookFilesLocations. Move the file to .github/hooks or ~/.copilot/hooks, and check that its scripts work with Copilot.' },
+			copilot: ['/workspace/tools/hooks/custom.json', '/shared-hooks/guard.json', '/workspace/sub/.github/hooks/sub.json'],
+			notListed: [],
+			hostFilesWithFragments: ['/workspace/tools/hooks/custom.json', '/shared-hooks/guard.json', '/workspace/sub/.github/hooks/sub.json'],
+			beforeHostInventory: [],
+			hostDiscoveryFailed: [],
+			hostDiscoveryLoading: [],
+			hostLoadErrors: [],
+			// Files of the workspace folder belong to its repository, not the worktree; a shared configured folder applies to both.
+			worktreeSession: ['/shared-hooks/guard.json'],
+		});
+	});
+
+	test('marks managed-policy hooks and organization-managed plugins as organization controlled', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [
+					{
+						type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+						name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false,
+						children: ([['policy', true], ['policy', false], ['user', true]] as const).map(([source, enabled], index) => ({
+							type: CustomizationType.Hook, id: `hook-${index}`, uri: `agent-discovery://copilot/hooks#${index}`,
+							name: 'sessionStart', enabled,
+							_meta: withCustomizationDiscoveryMeta(undefined, { source, hookType: 'sessionStart' }),
+						})),
+					},
+					...([['required', { requiredEnabled: true }], ['supplied', {}], ['unmanaged', undefined]] as const).map(([name, organization]): PluginCustomization => ({
+						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+						...(organization ? { _meta: withCustomizationOrganizationMeta(undefined, organization) } : {}),
+					})),
+					// A runtime-installed plugin states what the organization requires with its activation.
+					...([['runtime-required', true], ['runtime-blocked', false], ['runtime-unmanaged', undefined]] as const).map(([name, managedDesiredEnabled]): PluginCustomization => ({
+						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+						_meta: withRuntimePluginEnablement(undefined, {
+							provider: 'copilotcli', plugin: `${name}@enterprise`, globalEnabled: false, effectiveEnabled: managedDesiredEnabled ?? false,
+							repositorySupported: true, managedDesiredEnabled,
+						}),
+					})),
+				];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ key: item.itemKey ?? item.name, organizationControl: item.organizationControl })), [
+			{ key: 'required', organizationControl: { requiredEnabled: true } },
+			{ key: 'supplied', organizationControl: {} },
+			{ key: 'unmanaged', organizationControl: undefined },
+			{ key: 'runtime-required', organizationControl: { requiredEnabled: true } },
+			{ key: 'runtime-blocked', organizationControl: { requiredEnabled: false } },
+			{ key: 'runtime-unmanaged', organizationControl: undefined },
+			{ key: 'hook-0', organizationControl: { requiredEnabled: true } },
+			{ key: 'hook-1', organizationControl: {} },
+			{ key: 'hook-2', organizationControl: undefined },
+		]);
+	});
+
+	test('marks plugins the host reports as provided by a GitHub Team, and no others', async () => {
+		const customizations: PluginCustomization[] = ([['assigned', true, undefined], ['assigned-and-required', true, { requiredEnabled: true }], ['unmarked', undefined, undefined]] as const).map(([name, team, organization]) => {
+			const meta = withCustomizationTeamProvided(organization ? withCustomizationOrganizationMeta(undefined, organization) : undefined, team);
+			return { type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name, ...(meta ? { _meta: meta } : {}) };
+		});
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			// The host's metadata reaches the client as JSON.
+			override getCustomizations(): readonly Customization[] {
+				return JSON.parse(JSON.stringify(customizations));
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ key: item.itemKey ?? item.name, teamProvided: item.teamProvided, organizationControl: item.organizationControl })), [
+			{ key: 'assigned', teamProvided: true, organizationControl: undefined },
+			{ key: 'assigned-and-required', teamProvided: true, organizationControl: { requiredEnabled: true } },
+			{ key: 'unmarked', teamProvided: undefined, organizationControl: undefined },
+		]);
 	});
 
 	for (const kind of agentHostConnectionKinds) {
@@ -394,6 +693,23 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('projects host greetings and ignores malformed or absent metadata', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'one', uri: 'other-host:/one', name: 'One', _meta: { 'vscode.welcomeMessage': 'Hello' } },
+			{ type: CustomizationType.Agent, id: 'two', uri: 'other-host:/two', name: 'Two', _meta: { 'vscode.welcomeMessage': 42 } },
+			{ type: CustomizationType.Agent, id: 'three', uri: 'other-host:/three', name: 'Three' },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => new CustomChatMode(agent).toJSON().welcomeMessage), ['Hello', undefined, undefined]);
+	});
+
 	test('does not treat a case-distinct host agent as a client draft', async () => {
 		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
 			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',
@@ -473,10 +789,10 @@ suite('AgentCustomizationItemProvider', () => {
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => {
 			const mode = new CustomChatMode(agent);
-			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage, sourceUri: agent.sourceUri?.toString() };
 		}), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension, sourceUri: files[0].uri.toString() },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension, sourceUri: files[1].uri.toString() },
 		]);
 	});
 
@@ -865,6 +1181,40 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
 		]);
+	});
+
+	test('labels bundled extension customizations with the extension display name', async () => {
+		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const syncedSkillUri = URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md');
+		const extensionSkillUri = URI.file('/extensions/acme.acme-chat-kit/skills/review/SKILL.md');
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
+		await fileService.writeFile(syncedSkillUri, VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
+			undefined,
+			syncedUri => isEqual(syncedUri, syncedSkillUri)
+				? { uri: extensionSkillUri, source: AICustomizationSources.extension, extensionId: 'acme.acme-chat-kit', extensionLabel: 'Acme Chat Kit' }
+				: undefined,
+			fileService,
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			makePromptsService(), labelService,
+		));
+		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
+			type: CustomizationType.Plugin,
+			id: bundleUri.toString(),
+			uri: bundleUri.toString(),
+			name: 'VS Code Standalone Customizations',
+			nonce: '1',
+		}]));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilotcli:///draft'), CancellationToken.None);
+		const normalized = new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({})).normalizeItems(items, PromptsType.skill);
+
+		assert.deepStrictEqual(normalized.map(item => ({ uri: item.uri.toString(), origin: item.origin })), [{
+			uri: extensionSkillUri.toString(),
+			origin: { kind: 'extension', id: 'extension:acme.acme-chat-kit', label: 'Acme Chat Kit' },
+		}]);
 	});
 
 	test('surfaces session agents through directory customizations', async () => {

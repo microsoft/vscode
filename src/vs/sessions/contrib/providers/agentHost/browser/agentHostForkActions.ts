@@ -71,7 +71,7 @@ registerAction2(class extends ForkConversationAction {
 					if (options?.toSide) {
 						await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
 					} else {
-						await sessionsService.openChat(session, newChat.resource);
+						await sessionsService.openChat(session, newChat.resource, { referenceChatResource: sourceSessionResource });
 					}
 				}
 			} catch (error) {
@@ -109,7 +109,7 @@ registerAction2(class extends ForkConversationAction {
 				if (options?.toSide) {
 					await sessionsService.openChatToSide(parentSession, forkedSessionResource, { referenceChatResource: parentSessionResource });
 				} else {
-					await sessionsService.openChat(parentSession, forkedSessionResource);
+					await sessionsService.openChat(parentSession, forkedSessionResource, { referenceChatResource: parentSessionResource });
 				}
 				return;
 			}

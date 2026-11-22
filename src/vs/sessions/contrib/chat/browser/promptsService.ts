@@ -13,7 +13,11 @@ import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../wor
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatNativeComponentsRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, isDevContainerHandoffEnabled } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 /** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
@@ -87,9 +91,19 @@ export class AgenticPromptsService extends PromptsService {
 	private async getBuiltinSkillPaths(): Promise<readonly IBuiltinPromptPath[]> {
 		const skills = await this.getBuiltinSkills();
 		return skills.filter(s => {
+			if (s.name === 'html-preview') {
+				return this.configurationService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled) === true
+					&& !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+			}
+			if (s.name === 'vscode-ui') {
+				return !!getChatNativeComponentsRenderer(this.configurationService);
+			}
 			if (s.name === 'automate') {
 				return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
 					&& !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+			}
+			if (s.name === 'dev-container-handoff') {
+				return isDevContainerHandoffEnabled(this.configurationService);
 			}
 			return s.name !== 'generate-chat-background' || this.configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true;
 		}).map(s => ({
@@ -119,7 +133,13 @@ export class AgenticPromptsService extends PromptsService {
 	protected override get onDidChangeBuiltinPromptFiles(): Event<PromptsType> {
 		return Event.map(Event.filter(this.configurationService.onDidChangeConfiguration,
 			event => event.affectsConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING)
+				|| event.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
+				|| event.affectsConfiguration(ChatConfiguration.NativeComponentsEnabled)
 				|| event.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)
+				|| event.affectsConfiguration(DevContainerHandoffEnabledSettingId)
+				|| event.affectsConfiguration(DevContainerEnvironmentsEnabledSettingId)
+				|| event.affectsConfiguration(DevContainerAgentHostEnabledSettingId)
+				|| event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)
 				|| event.affectsConfiguration(ChatAIDisabledSettingId)), () => PromptsType.skill);
 	}
 }

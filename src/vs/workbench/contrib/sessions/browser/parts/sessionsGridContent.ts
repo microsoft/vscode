@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Color } from '../../../../../base/common/color.js';
 import { contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { SessionDropTarget, ISessionDropTargetDelegate } from './sessionDropTarget.js';
-import { SessionsChatSurface } from '../sessionsChatSurface.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
@@ -87,6 +87,7 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 	) {
 		super();
 
@@ -98,7 +99,10 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 	}
 
 	renderBackground(partContainer: HTMLElement): void {
-		this._register(this.instantiationService.createInstance(SessionsChatSurface, partContainer));
+		const background = this.chatViewFactory.createChatBackground?.(partContainer, this.instantiationService);
+		if (background) {
+			this._register(background);
+		}
 	}
 
 	render(contentArea: HTMLElement): void {
@@ -117,6 +121,10 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		this._slots.push(placeholder);
 		this._slotsChanged.trigger(undefined);
 		contentArea.appendChild(this._gridWidget.element);
+
+		this._register(autorun(reader => {
+			this._gridWidget?.element.classList.toggle('single-chat', this.shownChatCount.read(reader) <= 1);
+		}));
 
 		// Propagate the grid's maximized-view state to each session view so the
 		// per-view toolbars can render the maximize action in its toggled state.
@@ -165,6 +173,15 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		this._activeViewPickerVisibility.clear();
 
 		const oldSlots = new Map(this._slots.map(slot => [slot.id, slot]));
+		// Each view that stops showing its session saves the session's layout before any view takes up a session. Otherwise a
+		// session that moves to another view, such as one it is dropped in, restores a layout saved before its chats were last
+		// resized: the view it leaves saves its sizes only once it is disposed, after the other view restored them.
+		const nextSessions = new Map(entries.map(entry => [entry.id, entry.sessionId]));
+		for (const slot of this._slots) {
+			if (!nextSessions.has(slot.id) || nextSessions.get(slot.id) !== slot.boundSessionId) {
+				slot.view.saveLayout();
+			}
+		}
 		const next = entries.map(entry => {
 			const slot = oldSlots.get(entry.id) ?? this._createSlot(entry.id);
 			oldSlots.delete(entry.id);

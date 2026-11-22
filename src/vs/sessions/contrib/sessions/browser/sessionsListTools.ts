@@ -17,8 +17,9 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionGroupSectionId, ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
@@ -62,6 +63,7 @@ type SessionsListNodeOutput =
 	| {
 		readonly type: 'session';
 		readonly id: string;
+		readonly children?: readonly SessionsListNodeOutput[];
 		readonly title: string;
 		readonly status: string;
 		readonly workspace?: string;
@@ -108,6 +110,7 @@ export class ReadSessionsListTool implements IToolImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	getToolData(): IToolData {
@@ -174,7 +177,7 @@ export class ReadSessionsListTool implements IToolImpl {
 
 	private getViewState(view: SessionsView & { readonly sessionsControl: SessionsList }) {
 		const list = view.sessionsControl;
-		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session));
+		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri);
 		return {
 			grouping: view.grouping,
 			sorting: view.sorting,
@@ -195,6 +198,7 @@ export class OrganizeSessionsListTool implements IToolImpl {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	getToolData(): IToolData {
@@ -363,15 +367,11 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		const resetFilters = optionalBoolean(operation, 'resetFilters');
 		const filters = this.readFilters(operation, list);
 
-		// Validate before changing anything, so a rejected operation changes nothing.
-		if (grouping === SessionsGrouping.Inbox && !this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
-			throw new SessionsListToolInputError(`Inbox Mode requires "${SESSIONS_LIST_INBOX_ENABLED_SETTING}" to be enabled.`);
+		if (grouping !== undefined) {
+			view.setGrouping(grouping);
 		}
 		if (resetFilters) {
 			view.resetFilters();
-		}
-		if (grouping !== undefined) {
-			view.setGrouping(grouping);
 		}
 		if (sorting !== undefined) {
 			view.setSorting(sorting);
@@ -400,7 +400,7 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		if (!Array.isArray(operation.filters)) {
 			throw new SessionsListToolInputError('"filters" must be an array.');
 		}
-		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session))
+		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session), this.uriIdentityService.extUri)
 			.map(option => [sessionFilterKey(option.filter), option.filter]));
 		return operation.filters.map((entry: unknown) => {
 			if (!isObject(entry)) {
@@ -503,7 +503,7 @@ const organizeInputSchema: IJSONSchema & { type: 'object' } = {
 					after: { type: 'string', description: 'Position after this session ID (moveSessions) or sibling header ID (moveHeader).' },
 					position: { type: 'string', enum: ['top', 'bottom'], description: 'Position first or last in the destination (moveSessions).' },
 					collapsed: { type: 'boolean', description: 'Whether to collapse (setCollapsed).' },
-					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date, or use inbox triage categories (setView). Inbox mode requires sessions.list.inboxEnabled. It preserves custom organization and presents attention-state categories as collapsible groups, with pinned sessions always visible.' },
+					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date, or use inbox triage categories (setView). Inbox mode preserves custom organization and presents attention-state categories as collapsible groups, with pinned sessions always visible.' },
 					sorting: { type: 'string', enum: Object.values(SessionsSorting), description: 'Sort sessions by creation or last update time (setView).' },
 					filters: {
 						type: 'array',
@@ -592,13 +592,10 @@ function getInvokingSession(sessionsManagementService: ISessionsManagementServic
 
 function findHeader(nodes: readonly SessionsListSnapshotNode[], headerId: string): SessionsListSnapshotNode | undefined {
 	for (const node of nodes) {
-		if (node.type === 'session') {
-			continue;
-		}
-		if (node.id === headerId) {
+		if (node.type !== 'session' && node.id === headerId) {
 			return node;
 		}
-		const match = findHeader(node.children, headerId);
+		const match = findHeader(node.children ?? [], headerId);
 		if (match) {
 			return match;
 		}
@@ -609,13 +606,10 @@ function findHeader(nodes: readonly SessionsListSnapshotNode[], headerId: string
 /** The custom group the header is nested in, or `undefined` at the top level. */
 function findHeaderParent(nodes: readonly SessionsListSnapshotNode[], headerId: string, parentId?: string): string | undefined {
 	for (const node of nodes) {
-		if (node.type === 'session') {
-			continue;
-		}
-		if (node.id === headerId) {
+		if (node.type !== 'session' && node.id === headerId) {
 			return parentId;
 		}
-		const match = findHeaderParent(node.children, headerId, node.id);
+		const match = findHeaderParent(node.children ?? [], headerId, node.type === 'session' ? undefined : node.id);
 		if (match !== undefined) {
 			return match;
 		}
@@ -636,6 +630,7 @@ function toNodeOutput(node: SessionsListSnapshotNode, currentSessionId: string |
 			...(!session.isRead.get() ? { unread: true } : {}),
 			...(session.sessionId === currentSessionId ? { current: true } : {}),
 			...(node.hidden ? { hidden: true } : {}),
+			...(node.children ? { children: node.children.map(child => toNodeOutput(child, currentSessionId, maxSessions)) } : {}),
 		};
 	}
 	let sessionCount = 0;

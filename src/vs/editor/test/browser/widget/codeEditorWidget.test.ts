@@ -4,24 +4,113 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IME } from '../../../../base/common/ime.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TabFocus } from '../../../browser/config/tabFocus.js';
+import { MouseTargetType } from '../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { GlyphMarginLane } from '../../../common/model.js';
 import { createTextModel } from '../../common/testTextModel.js';
-import { createCodeEditorServices, withTestCodeEditor } from '../testCodeEditor.js';
+import { createCodeEditorServices, createTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { MockContextKeyService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 
 suite('CodeEditorWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('tabFocusMode', () => {
+		let originalTabFocusMode: boolean;
+		setup(() => {
+			originalTabFocusMode = TabFocus.getTabFocusMode();
+			TabFocus.setTabFocusMode(false);
+		});
+		teardown(() => TabFocus.setTabFocusMode(originalTabFocusMode));
+
+		for (const tabFocusMode of [undefined, false, true]) {
+			test(`tabMovesFocus follows the effective mode with tabFocusMode=${tabFocusMode}`, () => {
+				const contextKeyService = new MockContextKeyService();
+				const editor = disposables.add(createTestCodeEditor(undefined, {
+					tabFocusMode,
+					serviceCollection: new ServiceCollection([IContextKeyService, contextKeyService]),
+				}));
+				const states: { option: boolean; contextKey: boolean | undefined }[] = [];
+				const recordState = () => states.push({
+					option: editor.getOption(EditorOption.tabFocusMode),
+					contextKey: contextKeyService.getContextKeyValue(EditorContextKeys.tabMovesFocus.key),
+				});
+
+				recordState();
+				TabFocus.setTabFocusMode(false);
+				recordState();
+				TabFocus.setTabFocusMode(true);
+				recordState();
+				TabFocus.setTabFocusMode(false);
+				recordState();
+				editor.updateOptions({ tabFocusMode: true });
+				recordState();
+				TabFocus.setTabFocusMode(false);
+				recordState();
+				editor.updateOptions({ tabFocusMode: false });
+				recordState();
+
+				const initialValue = tabFocusMode === true;
+				assert.deepStrictEqual(states, [
+					{ option: initialValue, contextKey: initialValue },
+					{ option: initialValue, contextKey: initialValue },
+					{ option: true, contextKey: true },
+					{ option: initialValue, contextKey: initialValue },
+					{ option: true, contextKey: true },
+					{ option: true, contextKey: true },
+					{ option: false, contextKey: false },
+				]);
+			});
+		}
+	});
+
+	test('issue #347431: native edit context releases focus when another editor is focused while IME is disabled', function () {
+		// Needs real focus/blur events, which don't fire while the document is unfocused
+		if (typeof (globalThis as { EditContext?: unknown }).EditContext !== 'function' || !document.hasFocus()) {
+			this.skip();
+		}
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const containerA = document.createElement('div');
+		const containerB = document.createElement('div');
+		container.append(containerA, containerB);
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editorA = disposables.add(instantiationService.createInstance(CodeEditorWidget, containerA, { editContext: true }, { contributions: [] }));
+		const editorB = disposables.add(instantiationService.createInstance(CodeEditorWidget, containerB, { editContext: true }, { contributions: [] }));
+		editorA.setModel(disposables.add(createTextModel('first')));
+		editorB.setModel(disposables.add(createTextModel('second')));
+
+		try {
+			editorA.focus();
+			IME.disable();
+			editorB.focus();
+			assert.deepStrictEqual([editorA.hasTextFocus(), editorB.hasTextFocus()], [false, true]);
+
+			IME.enable();
+			assert.strictEqual(document.activeElement, containerB.querySelector('.native-edit-context'));
+		} finally {
+			IME.enable();
+		}
+	});
 
 	test('preserves the documentation link when the cursor limit is reached', () => {
 		const prompts: Parameters<INotificationService['prompt']>[] = [];
@@ -314,6 +403,37 @@ suite('CodeEditorWidget', () => {
 		});
 
 		disposables.dispose();
+	});
+
+	test('mouse down just below an empty line at a sub-pixel editor offset targets that line', () => {
+		const container = document.createElement('div');
+		container.style.position = 'fixed';
+		container.style.top = '0.1px';
+		container.style.left = '0';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { lineHeight: 20, padding: { top: 12, bottom: 12 }, minimap: { enabled: false } }, { contributions: [] }));
+		editor.setModel(disposables.add(createTextModel('')));
+		editor.layout({ width: 400, height: 64 });
+		editor.render(true);
+
+		const targets: { type: MouseTargetType; position: Position | null }[] = [];
+		disposables.add(editor.onMouseDown(e => targets.push({ type: e.target.type, position: e.target.position })));
+
+		// The empty line spans vertical offsets 12 to 32 of an editor at a fractional page offset. Chromium
+		// paints and hit tests the composited lines layer at whole pixels, so at the first whole pixel after
+		// the line it hits the `.view-lines` container. The editor's unrounded mouse math still maps that
+		// pixel into the line, where hit testing an empty line finds no text.
+		const viewLines = container.querySelector<HTMLElement>('.view-lines')!;
+		const editorRect = container.querySelector('.monaco-editor')!.getBoundingClientRect();
+		const init: MouseEventInit = { bubbles: true, cancelable: true, button: 0, detail: 1, clientX: Math.round(editorRect.left + 200), clientY: Math.floor(editorRect.top + 32) };
+		viewLines.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }));
+		viewLines.dispatchEvent(new PointerEvent('pointerup', init));
+		viewLines.dispatchEvent(new MouseEvent('mouseup', init));
+
+		assert.deepStrictEqual(targets, [{ type: MouseTargetType.CONTENT_EMPTY, position: new Position(1, 1) }]);
 	});
 
 });

@@ -15,9 +15,15 @@ parameters:
       - smoke-electron
       - smoke-agents-pac-proxy
       - smoke-agents-kerberos-pac-proxy
+      - smoke-agents-basic-proxy
       - smoke-wsl-kerberos-proxy
+      - smoke-wsl-basic-proxy
+      - smoke-wsl-basic-pac-proxy
       - smoke-browser-chromium
       - smoke-remote
+      - copilot-unit
+      - copilot-simulation
+      - copilot-prompt
       - copilot-extension
       - copilot-completions-core
       - copilot-sanity

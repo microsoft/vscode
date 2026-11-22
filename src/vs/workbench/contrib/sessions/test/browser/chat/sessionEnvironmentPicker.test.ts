@@ -11,9 +11,10 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItemHover } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, NullRemoteAgentHostService, readWebSocketRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -32,7 +33,7 @@ import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../se
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../../browser/chat/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getPickedSessionCreationEnvironment, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../../browser/chat/sessionEnvironmentPicker.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../common/chatConstants.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 
@@ -46,6 +47,7 @@ suite('SessionEnvironmentPicker', () => {
 	function provider(id: string, environment: string, options: Partial<ISessionsProvider> = {}): ISessionsProvider {
 		return upcastPartial<ISessionsProvider>({
 			id, environment: { id: environment, label: environment }, label: id, icon: Codicon.remote,
+			sessionTypes: [{ id: 'test', label: 'Test', icon: Codicon.remote, authRequirement: SessionTypeAuthRequirement.GitHub }],
 			resolveWorkspace: () => workspace,
 			getSessionTypes: () => [],
 			...options,
@@ -94,6 +96,16 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
+	test('preserves the checked workspace provider across provider registration order', () => {
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud, local], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, LOCAL_AGENT_HOST_PROVIDER_ID, false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local], folder, 'cloud', false, undefined, true)?.id,
+		], ['cloud', 'cloud', 'cloud', 'local', 'local']);
+	});
+
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {
 		const localProvider = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local');
 		const cloudProvider = provider('cloud', 'cloud');
@@ -108,7 +120,16 @@ suite('SessionEnvironmentPicker', () => {
 		], [LOCAL_AGENT_HOST_PROVIDER_ID, undefined, 'cloud']);
 	});
 
-	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {
+	test('hides Cloud creation without disabling its workspace browse contributions', () => {
+		const cloudProvider = provider('cloud', 'cloud', { sessionTypes: [] });
+		assert.deepStrictEqual({
+			environments: getSessionCreationEnvironments([cloudProvider]),
+			workspace: cloudProvider.resolveWorkspace(folder),
+			workspaceSelection: cloudProvider.supportsWorkspaceSelection !== false,
+		}, { environments: [], workspace, workspaceSelection: true });
+	});
+
+	test('connection descriptions use the shared connection status labels', () => {
 		const states = [
 			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.disconnected, RemoteAgentHostConnectionStatus.reconnecting,
@@ -118,7 +139,7 @@ suite('SessionEnvironmentPicker', () => {
 			...provider(`agenthost-remote-${index}`, 'remote'), connectionStatus: constObservable(connectionStatus),
 		}));
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(environment => environment.description), [
-			'Connected', 'Connecting', 'Disconnected', 'Disconnected', 'Disconnected',
+			'Connected', 'Connecting', 'Disconnected', 'Reconnecting', 'Update required',
 		]);
 	});
 
@@ -158,6 +179,17 @@ suite('SessionEnvironmentPicker', () => {
 		}, { picker: [], selected: selected.id, resolved: selected.id });
 	});
 
+	test('a draft keeps its picked environment while one of its providers is registered, even unlisted, and drops it once all are gone', () => {
+		const picked: ISessionCreationEnvironment = { id: 'agenthost-jobs', kind: 'remote', label: 'Jobs', icon: Codicon.remote, providerIds: ['agenthost-jobs'], description: 'Connected' };
+		const listed: ISessionCreationEnvironment = { ...picked, description: 'Disconnected' };
+		const jobs = provider('agenthost-jobs', 'remote');
+		assert.deepStrictEqual([
+			getPickedSessionCreationEnvironment(picked, [local, listed], [jobs]),
+			getPickedSessionCreationEnvironment(picked, [local], [jobs]),
+			getPickedSessionCreationEnvironment(picked, [local], [provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local')]),
+		], [listed, picked, undefined]);
+	});
+
 	for (const containerRequested of [false, true]) {
 		test(`restored hidden remote retains its destination without adding it to the picker (container: ${containerRequested})`, () => {
 			const remote = upcastPartial<IAgentHostSessionsProvider>({
@@ -171,7 +203,7 @@ suite('SessionEnvironmentPicker', () => {
 				picker: environments.map(environment => environment.id),
 				resolved: selected && getEnvironmentWorkspaceProvider(selected, [remote], folder)?.id,
 			}, {
-				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container' : remote.label, providers: [remote.id] },
+				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container for Folder' : remote.label, providers: [remote.id] },
 				picker: ['local'], resolved: remote.id,
 			});
 		});
@@ -182,13 +214,18 @@ suite('SessionEnvironmentPicker', () => {
 		let hide: (() => void) | undefined;
 		let accept: ((index: number) => void) | undefined;
 		let labels: (string | undefined)[] = [];
+		let hovers: IActionListItemHover['content'][] = [];
+		let ariaLabels: (string | undefined)[] = [];
 		const selected = observableValue<ISessionCreationEnvironment | undefined>('environment', local);
 		const tooltipLabels: string[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			hide: () => hide?.(),
-			show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+			show: (...args: Parameters<IActionWidgetService['show']>) => {
+				const [, , items, delegate, , , , accessibilityProvider] = args;
 				labels = items.map(item => item.label);
+				hovers = items.map(item => item.hover?.content);
+				ariaLabels = items.map(item => accessibilityProvider?.getAriaLabel?.(item)?.toString());
 				hide = () => delegate.onHide();
 				accept = index => delegate.onSelect(items[index].item!);
 			},
@@ -209,6 +246,7 @@ suite('SessionEnvironmentPicker', () => {
 		instantiation.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		instantiation.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
 		instantiation.stub(IMissionControlEnvironmentService, { enabled: false, hosts: constObservable([]) });
+		instantiation.stub(IExtensionRemoteAgentHostsService, { hosts: constObservable([]) });
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
@@ -222,15 +260,85 @@ suite('SessionEnvironmentPicker', () => {
 		assert.deepStrictEqual({
 			order: container.textContent,
 			labels,
+			hovers,
+			ariaLabels,
 			selected: selected.get()?.id,
 			ariaLabel: trigger.getAttribute('aria-label'),
 			expanded: trigger.getAttribute('aria-expanded'),
 			toolbar: !!trigger.closest('.monaco-toolbar'),
 			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
+			order: 'CloudRepository', labels: ['This Computer', 'Cloud'],
+			hovers: ['Run this session directly on this computer', 'Run this session in the cloud on GitHub'],
+			ariaLabels: ['This Computer, Run this session directly on this computer', 'Cloud, Run this session in the cloud on GitHub'],
+			selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
 			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
+	});
+
+	test('describes every entry kind in its hover and accessible name', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_SETTING]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		const entries: readonly IRemoteAgentHostEntry[] = [
+			{ name: 'build-box', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:remote', hostName: 'remote' } },
+			{ name: 'laptop', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'remote', clusterId: 'test' } },
+			{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
+			{ name: 'desktop', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:remote', environmentId: 'remote', environmentKind: 'user-local' } },
+			{ name: 'my_host*', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://localhost:3000' } },
+			{ name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address: '127.0.0.1:8445', extensionId: 'publisher.jobs', extensionDisplayName: 'Job_runner' } },
+		];
+		const providers = entries.map((entry, index) => upcastPartial<IAgentHostSessionsProvider>({
+			...provider(`agenthost-remote-${index}`, 'remote'), label: entry.name, remoteAddress: getEntryAddress(entry),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+		}));
+		instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
+		// Mission Control and extensions describe the hosts the service is not dialing: a GitHub Environment and an extension's host the user disconnected.
+		instantiation.stub(IRemoteAgentHostService, { configuredEntries: entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox && entry.connection.type !== RemoteAgentHostEntryType.Extension) });
+		instantiation.stub(IMissionControlEnvironmentService, { enabled: true, accountKey: 'account', hosts: constObservable([{ id: 'remote', name: 'desktop', kind: 'user-local', status: 'online' }]) });
+		instantiation.stub(IExtensionRemoteAgentHostsService, { hosts: constObservable([{ name: 'Jobs', address: '127.0.0.1:8445', extensionId: 'publisher.jobs', extensionDisplayName: 'Job_runner' }]) });
+		instantiation.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
+		instantiation.stub(IContextKeyService, new MockContextKeyService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IKeybindingService, new MockKeybindingService());
+		instantiation.stub(ICommandService, {});
+		const menuActions = [
+			instantiation.createInstance(MenuItemAction, { id: 'test.ssh', title: 'SSH...', tooltip: 'Connect over *SSH*' }, undefined, undefined, undefined, undefined),
+			instantiation.createInstance(MenuItemAction, { id: 'test.other', title: 'Other...' }, undefined, undefined, undefined, undefined),
+		];
+		instantiation.stub(IMenuService, { getMenuActions: () => [['navigation', menuActions]] });
+		let described: { hover: IActionListItemHover['content']; aria: string | undefined }[] = [];
+		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			hide: () => { },
+			show: (...args: Parameters<IActionWidgetService['show']>) => {
+				const [, , items, , , , , accessibilityProvider] = args;
+				described = items.filter(item => item.kind === ActionListItemKind.Action)
+					.map(item => ({ hover: item.hover?.content, aria: accessibilityProvider?.getAriaLabel?.(item)?.toString() }));
+			},
+		}));
+		const container: ISessionCreationEnvironment = { id: 'container:local', kind: 'container', label: 'Dev Container for Folder', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
+		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud, ...getSessionCreationEnvironments(providers), container]), observableValue<ISessionCreationEnvironment | undefined>(store, local), async () => { }, () => []));
+		store.add(picker.render(dom.$('div')));
+		picker.showPicker();
+		const remote = (name: string, hover: string, escaped = hover) => ({ hover: escaped, aria: `${name}, Disconnected, ${hover}` });
+		assert.deepStrictEqual(described, [
+			{ hover: 'Run this session directly on this computer', aria: 'This Computer, Run this session directly on this computer' },
+			{ hover: 'Run this session in the cloud on GitHub', aria: 'Cloud, Run this session in the cloud on GitHub' },
+			remote('build-box', 'Run this session on build-box over SSH'),
+			remote('laptop', 'Run this session on laptop through a dev tunnel'),
+			remote('Ubuntu', 'Run this session on Ubuntu in WSL'),
+			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
+			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
+			remote('Jobs', 'Run this session on Jobs, registered by the Job_runner extension', 'Run this session on Jobs, registered by the Job\\_runner extension'),
+			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container for Folder, Run this session in a dev container for the selected folder' },
+			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
+			{ hover: undefined, aria: 'Other...' },
+			{ hover: 'Add, connect, and manage remote environments', aria: 'Manage Remote Environments..., Add, connect, and manage remote environments' },
+		]);
 	});
 
 	for (const { remotesEnabled, environmentPickerEnabled } of [false, true].flatMap(remotesEnabled => [false, true].map(environmentPickerEnabled => ({ remotesEnabled, environmentPickerEnabled })))) {
@@ -289,6 +397,7 @@ suite('SessionEnvironmentPicker', () => {
 				instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
 				let configuredEntries = entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox);
 				instantiation.stub(IRemoteAgentHostService, { get configuredEntries() { return configuredEntries; } });
+				instantiation.stub(IExtensionRemoteAgentHostsService, { hosts: constObservable([]) });
 				const telemetry = new TestExperimentTriggerTelemetryService();
 				instantiation.stub(ITelemetryService, telemetry);
 				instantiation.stub(IContextKeyService, new MockContextKeyService());

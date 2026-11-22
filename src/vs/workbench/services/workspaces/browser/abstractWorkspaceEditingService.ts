@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { FolderLocationChangeReason, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IDidEnterWorkspaceEvent, IWillRemoveFoldersEvent, IWorkspaceEditingService, IWorkspaceFoldersEditOptions } from '../common/workspaceEditing.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
@@ -16,6 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { distinct } from '../../../../base/common/arrays.js';
 import { basename, isEqual, isEqualAuthority, joinPath, removeTrailingPathSeparator } from '../../../../base/common/resources.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -24,7 +27,7 @@ import { IHostService } from '../../host/browser/host.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { SaveReason } from '../../../common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -58,6 +61,9 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	private readonly _onDidEnterWorkspace = this._register(new Emitter<IDidEnterWorkspaceEvent>());
 	readonly onDidEnterWorkspace: Event<IDidEnterWorkspaceEvent> = this._onDidEnterWorkspace.event;
 
+	private readonly _onWillRemoveFolders = this._register(new Emitter<IWillRemoveFoldersEvent>());
+	readonly onWillRemoveFolders: Event<IWillRemoveFoldersEvent> = this._onWillRemoveFolders.event;
+
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService protected readonly contextService: WorkspaceService,
@@ -76,6 +82,8 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService protected readonly logService: ILogService,
+		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 	) {
 		super();
 	}
@@ -124,7 +132,240 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 
-	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
+	private folderLocationRequest = 0;
+	private pendingFolderLocationRequests = 0;
+
+	async setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI; readonly force?: boolean }): Promise<void> {
+		if (options?.ifIdle && this.pendingFolderLocationRequests > 0) {
+			return;
+		}
+
+		this.pendingFolderLocationRequests++;
+		try {
+			await this.doSetFolderLocation(location, options?.reason, options?.folder, options?.force);
+		} finally {
+			this.pendingFolderLocationRequests--;
+		}
+	}
+
+	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI, force?: boolean): Promise<void> {
+		const currentFolder = this.contextService.getWorkspace().folders[0];
+		if (!currentFolder || !this.workspaceFolderLocationService.canSetLocation(currentFolder)) {
+			throw new Error(localize('folderLocationLocalSingleFolderOnly', "Folder locations are only supported in local single-folder workspaces."));
+		}
+
+		if (folder && !this.uriIdentityService.extUri.isEqual(folder, this.contextService.getWorkspace().folders[0].uri)) {
+			throw new Error(localize('folderLocationUnknownFolder', "'{0}' is not a folder of this workspace.", folder.toString()));
+		}
+
+		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
+		const request = ++this.folderLocationRequest;
+
+		const getIdentity = () => {
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
+			}
+			const workspace = this.contextService.getWorkspace();
+			return workspace.uri ?? workspace.folders[0].uri;
+		};
+		const identity = getIdentity();
+		const validatePrimary = () => {
+			if (!this.uriIdentityService.extUri.isEqual(getIdentity(), identity)) {
+				throw new Error(localize('folderLocationWrongPrimary', "The workspace changed while the folder location was being set."));
+			}
+		};
+
+		let resolved: IResolvedFolderLocation | undefined;
+		if (!this.uriIdentityService.extUri.isEqual(location, identity)) {
+			if (identity.scheme !== Schemas.file || location.scheme !== Schemas.file) {
+				throw new Error(localize('folderLocationLocalOnly', "Folder locations are only supported for local folders."));
+			}
+
+			resolved = await this.workspaceFolderLocationService.resolveLocation(identity, location, CancellationToken.None);
+			if (!resolved) {
+				throw new Error(localize('folderLocationUnknown', "'{0}' is not an alternate location of '{1}'.", location.toString(), identity.toString()));
+			}
+
+			if (request !== this.folderLocationRequest) {
+				return; // superseded by a newer invocation
+			}
+			validatePrimary(); // the workspace may have changed while resolving
+		}
+
+		// Whether this request is still the latest one for the same workspace; it never throws
+		const isCurrent = () => request === this.folderLocationRequest
+			&& this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			&& this.uriIdentityService.extUri.isEqual(getIdentity(), identity);
+
+		// Same, but a workspace change is an error
+		const isFresh = () => {
+			if (request !== this.folderLocationRequest) {
+				return false;
+			}
+			validatePrimary();
+			return true;
+		};
+
+		// What runs against the current location asks to be considered before the folder moves, unless the caller forces the change
+		if (!force && !this.uriIdentityService.extUri.isEqual(location, currentFolder.uri)) {
+			const vetoes = await this.willRemoveFolders([currentFolder.uri]);
+			if (!isFresh()) {
+				return;
+			}
+			if (vetoes.reasons.length > 0) {
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Warning,
+					message: localize('confirmFolderLocationSwitch', "Switch the folder to '{0}'?", resolved?.label ?? basename(location)),
+					detail: localize('confirmFolderLocationSwitchDetail', "{0}\n\nSwitching stops them.", vetoes.reasons.join('\n')),
+					primaryButton: localize({ key: 'stopAndSwitch', comment: ['&& denotes a mnemonic'] }, "&&Stop and Switch")
+				});
+				if (!confirmed || !isFresh()) {
+					return;
+				}
+				await vetoes.stop();
+				if (!isFresh()) {
+					return;
+				}
+			}
+		}
+
+		// Settle the trust of the destination before switching, so its settings are never applied under another trust.
+		// This also applies to returning to the primary location, which has its own trust.
+		// A request superseded before its trust grant starts persists no trust: freshness is checked right before each grant.
+		// Once a grant has started (a built-in provider vouched for the location, or the user said yes) it completes,
+		// but the superseded switch itself is not applied.
+		let trusted: boolean | undefined;
+		const destinationIsCurrent = this.uriIdentityService.extUri.isEqual(location, currentFolder.uri);
+		if (!destinationIsCurrent && this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
+			const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+			let destinationTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(location)).trusted;
+			if (!isFresh()) {
+				return;
+			}
+
+			if (!destinationTrusted) {
+				if (resolved?.builtIn) {
+					// A built-in provider vouches for its locations: they inherit the trust of the primary location
+					const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(identity)).trusted;
+					if (!isFresh()) {
+						return;
+					}
+					if (primaryTrusted) {
+						await this.workspaceTrustManagementService.setUrisTrust([location], true);
+						destinationTrusted = true;
+					}
+				} else if (wasTrusted) {
+					const { confirmed } = await this.dialogService.confirm({
+						type: Severity.Info,
+						message: localize('trustFolderLocationMessage', "Do you trust the authors of the files in this folder?"),
+						detail: localize('trustFolderLocationDetail', "You are switching a trusted workspace to a location whose files are not currently trusted. If you do not trust them, the workspace switches in Restricted Mode."),
+						cancelButton: localize('no', "No"),
+						custom: { icon: Codicon.shield }
+					});
+					if (!isFresh()) {
+						return; // a superseded request does not persist trust
+					}
+					if (confirmed) {
+						await this.workspaceTrustManagementService.setUrisTrust([location], true);
+						destinationTrusted = true;
+					}
+				}
+			}
+			trusted = destinationTrusted;
+		}
+
+		if (!isFresh()) {
+			return; // superseded by a newer invocation, or the workspace changed
+		}
+
+		// The queued switch is skipped when superseded while waiting for earlier workspace edits.
+		// The location metadata is published as soon as the switch was applied, so it always follows the last applied switch.
+		await this.contextService.setFolderLocation(location, {
+			trusted,
+			isCurrent,
+			onApplied: () => {
+				const folder = this.contextService.getWorkspace().folders[0];
+				if (folder && this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
+					this.workspaceFolderLocationService.setLocation(folder, resolved, reason);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Asks what runs against `folders` ({@link onWillRemoveFolders}) whether they can leave the workspace without the user's confirmation.
+	 */
+	private async willRemoveFolders(folders: readonly URI[]): Promise<{ readonly reasons: readonly string[]; stop(): Promise<void> }> {
+		const pending: Promise<string | readonly string[] | undefined>[] = [];
+		const stops: (() => Promise<void>)[] = [];
+		this._onWillRemoveFolders.fire({
+			folders,
+			veto: (reasons, stop) => {
+				pending.push(Promise.resolve(reasons));
+				if (stop) {
+					stops.push(stop);
+				}
+			}
+		});
+
+		const reasons = new Set<string>();
+		for (const result of await Promise.all(pending)) {
+			for (const reason of result === undefined ? [] : typeof result === 'string' ? [result] : result) {
+				reasons.add(reason);
+			}
+		}
+
+		return {
+			reasons: [...reasons],
+			stop: async () => {
+				const results = await Promise.allSettled(stops.map(stop => stop()));
+				const failure = results.find(result => result.status === 'rejected');
+				if (failure) {
+					throw failure.reason;
+				}
+			}
+		};
+	}
+
+	/**
+	 * Asks the user to confirm the removal of `folders` when something runs against them, and stops what runs.
+	 * Returns whether the folders can be removed.
+	 */
+	private async confirmRemoveFolders(folders: readonly URI[]): Promise<boolean> {
+		if (folders.length === 0) {
+			return true;
+		}
+
+		const vetoes = await this.willRemoveFolders(folders);
+		if (vetoes.reasons.length === 0) {
+			return true;
+		}
+
+		const names = folders.map(folder => this.contextService.getWorkspaceFolder(folder)?.name ?? basename(folder));
+		const { confirmed } = await this.dialogService.confirm({
+			type: Severity.Warning,
+			message: names.length === 1
+				? localize('confirmRemoveFolder', "Remove the folder '{0}'?", names[0])
+				: localize('confirmRemoveFolders', "Remove the folders {0}?", names.join(', ')),
+			detail: localize('confirmRemoveFoldersDetail', "{0}\n\nRemoving stops them.", vetoes.reasons.join('\n')),
+			primaryButton: localize({ key: 'stopAndRemove', comment: ['&& denotes a mnemonic'] }, "&&Stop and Remove")
+		});
+		if (!confirmed) {
+			return false;
+		}
+
+		await vetoes.stop();
+		return true;
+	}
+
+	/**
+	 * The folders of an update that actually leave the workspace: those that are not added again.
+	 */
+	private getLeavingFolders(foldersToDelete: readonly URI[], foldersToAdd: readonly IWorkspaceFolderCreationData[]): URI[] {
+		return foldersToDelete.filter(folder => !foldersToAdd.some(added => this.uriIdentityService.extUri.isEqual(added.uri, folder)));
+	}
+
+	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], options?: IWorkspaceFoldersEditOptions): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -146,12 +387,12 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Add Folders
 		if (wantsToAdd && !wantsToDelete) {
-			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+			return this.doAddFolders(foldersToAdd, index, options?.donotNotifyError);
 		}
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete);
+			return this.removeFolders(foldersToDelete, { force: options?.force });
 		}
 
 		// Add & Delete Folders
@@ -161,24 +402,31 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
+				if (!options?.force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+					return;
+				}
 				return this.createAndEnterWorkspace(foldersToAdd);
 			}
 
 			// if we are not in workspace-state, we just add the folders
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-				return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+				return this.doAddFolders(foldersToAdd, index, options?.donotNotifyError);
 			}
 
 			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError);
+			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, options);
 		}
 	}
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false): Promise<void> {
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, options?: IWorkspaceFoldersEditOptions): Promise<void> {
+		if (!options?.force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+			return;
+		}
+
 		try {
 			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
 		} catch (error) {
-			if (donotNotifyError) {
+			if (options?.donotNotifyError) {
 				throw error;
 			}
 
@@ -228,19 +476,26 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], options?: IWorkspaceFoldersEditOptions): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
 		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
+			if (!options?.force && !await this.confirmRemoveFolders(foldersToRemove)) {
+				return;
+			}
 			return this.createAndEnterWorkspace([]);
+		}
+
+		if (!options?.force && !await this.confirmRemoveFolders(foldersToRemove)) {
+			return;
 		}
 
 		// Delegate removal of folders to workspace service otherwise
 		try {
 			await this.contextService.removeFolders(foldersToRemove);
 		} catch (error) {
-			if (donotNotifyError) {
+			if (options?.donotNotifyError) {
 				throw error;
 			}
 

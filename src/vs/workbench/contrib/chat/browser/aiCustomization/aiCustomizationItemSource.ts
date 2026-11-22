@@ -24,7 +24,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOrganizationControl, ICustomizationSectionNotice, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -57,6 +57,9 @@ export interface ICustomizationSkillItem extends ICustomizationItem {
 export interface ICustomizationHookItem extends ICustomizationItem {
 	readonly isHookAction?: boolean;
 }
+
+/** Prefix of the item keys of hooks declared in a custom agent file, which are edited in that file rather than deleted. */
+export const CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX = 'agent-hook:';
 
 /**
  * Identifies who supplied a customization within its scope.
@@ -109,6 +112,10 @@ export interface IAICustomizationListItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
+	/** True when this hook file uses the deprecated Local hook format; {@link statusMessage} explains what to do. */
+	readonly localFormatHook?: boolean;
+	/** Set when the user's organization manages this item. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** When true, this item can be selected for syncing to a remote harness. */
 	readonly syncable?: boolean;
 	/** When true, this syncable item is currently selected for syncing. */
@@ -129,6 +136,7 @@ export interface IAICustomizationItemSource extends IDisposable {
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
 	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
 	fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]>;
+	fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]>;
 }
 
 // #endregion
@@ -221,7 +229,10 @@ export async function expandHookFileItems(
 							pluginLabel: item.pluginLabel,
 							status: item.status,
 							statusMessage: item.statusMessage,
+							badge: item.badge,
+							badgeTooltip: item.badgeTooltip,
 							disabledReason: item.disabledReason,
+							organizationControl: item.organizationControl,
 							userInvocable: item.userInvocable,
 						});
 					}
@@ -292,6 +303,7 @@ export class AICustomizationItemNormalizer {
 			extensionId,
 			status: item.status,
 			statusMessage: item.statusMessage,
+			organizationControl: item.organizationControl,
 		};
 	}
 
@@ -455,6 +467,10 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 
+	async fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return (await this.itemProvider.provideSectionNotices?.(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
 	/**
 	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
 	 * into the provider's items. The provider may re-discover the bundled
@@ -557,6 +573,10 @@ export class EmptyItemProviderItemSource extends Disposable implements IAICustom
 	fetchSourceFolders(_promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
 		return Promise.resolve([]);
 	}
+
+	fetchSectionNotices(_promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return Promise.resolve([]);
+	}
 }
 
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
@@ -615,7 +635,9 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 
-
+	async fetchSectionNotices(promptType: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		return (await this.itemProvider.provideSectionNotices?.(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
 }
 
 

@@ -31,10 +31,12 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
-import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
+import { SessionActiveChatResourceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { CanvasInput, canPresentCanvasInGroup, ICanvasContext, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
@@ -53,6 +55,7 @@ import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../..
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const emptyRegistryService = upcastPartial<ISessionCanvasRegistryService>({
+		owner: constObservable({ providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') }),
 		supportsCanvases: constObservable(false),
 		availableCanvases: constObservable([]),
 		openCanvas: async () => { },
@@ -112,6 +115,8 @@ suite('SessionCanvasService', () => {
 		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', undefined);
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
+		const draftDiscarded = store.add(new Emitter<ISession>());
+		const draftReplaced = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const definition: ISessionCanvasDefinition = {
 			canvasId: 'preview',
 			extensionId: 'user:preview',
@@ -121,10 +126,12 @@ suite('SessionCanvasService', () => {
 			description: 'Interactive preview.',
 			requiresInput: false,
 		};
-		const definitionOpens: { canvas: ISessionCanvasDefinition; instanceId: string }[] = [];
+		const definitionOpens: { canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string }[] = [];
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,
+			onDidDiscardNewSession: draftDiscarded.event,
+			onDidReplaceNewDraftSession: draftReplaced.event,
 			listCanvases: async () => [definition],
 			openCanvas: async (_session, _chat, canvas, instanceId) => { definitionOpens.push({ canvas, instanceId }); },
 		});
@@ -216,7 +223,7 @@ suite('SessionCanvasService', () => {
 			activeCustomView.set(reference ? upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }) : undefined, tx);
 			pinnedCanvases.show(reference);
 		});
-		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
+		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, draftDiscarded, draftReplaced, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
 	}
 
 	function owner(session: ITestSessionWithChat, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -487,6 +494,135 @@ suite('SessionCanvasService', () => {
 			opened: 1,
 			disposedAfterRemoval: true,
 		});
+	});
+
+	test('reloads a retained page through its network once and keeps a failed same-source reload cached', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const events: string[] = [];
+		const proxyReady = new DeferredPromise<void>();
+		const pageLoaded = new DeferredPromise<void>();
+		let fail = false;
+		let creates = 0;
+		const model = upcastPartial<IBrowserViewModel>({
+			network: { authority: 'ssh-remote+host' },
+			onWillDispose: Event.None,
+			loadURL: async url => {
+				events.push(`load ${url}`);
+				if (fail) {
+					throw new Error('load failed');
+				}
+				await pageLoaded.p;
+			},
+			dispose: () => { },
+		});
+		harness.setCreateBrowserModelHandler(async () => { creates++; return model; });
+		harness.setAcquireNetworkHandler(async network => {
+			events.push('acquire');
+			await proxyReady.p;
+			return { object: network, dispose: () => events.push('release') };
+		});
+		const source = harness.canvas.source!;
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, source, true), CancellationError);
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		const first = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const duplicate = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const whileProxyStarts = [...events];
+		proxyReady.complete();
+		await timeout(0);
+		const whileLoading = [...events];
+		pageLoaded.complete();
+		const resolutions = await Promise.all([first, duplicate]);
+		fail = true;
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, source, true), /load failed/);
+		const cached = await harness.canvasService.resolveCanvasModel(input.reference, source);
+
+		assert.deepStrictEqual({
+			creates, whileProxyStarts, whileLoading, events,
+			sameModel: [...resolutions, cached].every(resolution => resolution.model === model),
+			reused: [...resolutions, cached].map(resolution => resolution.reused),
+		}, {
+			creates: 1, whileProxyStarts: ['acquire'], whileLoading: ['acquire', 'load https://example.test/preview'],
+			events: ['acquire', 'load https://example.test/preview', 'release', 'acquire', 'load https://example.test/preview', 'release'],
+			sameModel: true, reused: [false, true, true],
+		});
+	});
+
+	test('does not reload a stale retained source after its remote proxy becomes ready', async () => {
+		const results: { transition: string; events: string[] }[] = [];
+		for (const transition of ['membership', 'source', 'owner', 'dispose']) {
+			const harness = createHarness();
+			await harness.openSettled[0];
+			await Promise.resolve();
+			const input = harness.opened[0];
+			const events: string[] = [];
+			const proxyReady = new DeferredPromise<void>();
+			harness.setCreateBrowserModelHandler(async () => upcastPartial<IBrowserViewModel>({
+				network: { authority: 'ssh-remote+host' },
+				onWillDispose: Event.None,
+				loadURL: async () => { events.push('load'); },
+				dispose: () => { },
+			}));
+			harness.setAcquireNetworkHandler(async network => {
+				events.push('acquire');
+				await proxyReady.p;
+				return { object: network, dispose: () => events.push('release') };
+			});
+			const source = harness.canvas.source!;
+			await harness.canvasService.resolveCanvasModel(input.reference, source);
+			const reloading = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+			const rejected = assert.rejects(reloading, CancellationError);
+			if (transition === 'membership') {
+				harness.canvases.set(undefined, undefined);
+			} else if (transition === 'source') {
+				harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+			} else if (transition === 'owner') {
+				harness.activeSession.set(undefined, undefined);
+			} else {
+				harness.canvasService.dispose();
+			}
+			proxyReady.complete();
+			await rejected;
+			results.push({ transition, events });
+		}
+
+		assert.deepStrictEqual(results, ['membership', 'source', 'owner', 'dispose'].map(transition => ({ transition, events: ['acquire', 'release'] })));
+	});
+
+	test('reattaches the retained page without waiting for a manual reload that later fails', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const loading = new DeferredPromise<void>();
+		const model = upcastPartial<IBrowserViewModel>({
+			onWillDispose: Event.None,
+			loadURL: () => loading.p,
+			dispose: () => { },
+		});
+		harness.setCreateBrowserModelHandler(async () => model);
+		const source = harness.canvas.source!;
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		const reloading = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const failed = assert.rejects(reloading, /load failed/);
+		let reattached: ICanvasModelResolution | undefined;
+		let reattachError: Error | undefined;
+		const returning = harness.canvasService.resolveCanvasModel(input.reference, source).then(
+			resolution => { reattached = resolution; },
+			error => { reattachError = error; },
+		);
+		await timeout(0);
+		const attachedBeforeFailure = reattached?.model === model;
+		loading.error(new Error('load failed'));
+		await Promise.all([returning, failed]);
+		const cached = await harness.canvasService.resolveCanvasModel(input.reference, source);
+
+		assert.deepStrictEqual({
+			attachedBeforeFailure, sameModel: reattached?.model === model, reused: reattached?.reused,
+			reattachError: reattachError?.message, cached: cached.model === model,
+		}, { attachedBeforeFailure: true, sameModel: true, reused: true, reattachError: undefined, cached: true });
 	});
 
 	test('waits for the remote network proxy before loading a returning source into the retained page, and holds it until the load settles', async () => {
@@ -792,7 +928,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('contributes titled canvas instances to the Add Tab Canvas submenu', async () => {
+	test('contributes the chat\'s running canvases to the Add Tab Canvas submenu, with their tab open or closed', async () => {
 		const canvases: ISessionCanvas[] = [
 			{ resource: URI.parse('agent-host-canvas:/preview-editor'), instanceId: 'editor', title: 'Preview', source: URI.parse('https://example.test/editor') },
 			{ resource: URI.parse('agent-host-canvas:/preview-sidebar'), instanceId: 'sidebar', title: 'Preview', source: URI.parse('https://example.test/sidebar') },
@@ -801,15 +937,17 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
-		const { canvasService, canvases: canvasStates, contextService, opened } = createHarness(true, canvases);
+		const { canvasService, canvases: canvasStates, chat, contextService, opened } = createHarness(true, canvases);
 		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService, contextService));
-		for (const input of [...opened]) {
-			input.dispose();
-		}
 		const getItems = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+		const getTitles = () => getItems().map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const titlesWhileOpen = getTitles();
+		for (const input of [...opened]) {
+			input.dispose();
+		}
 		const getSubmenus = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas);
@@ -818,7 +956,11 @@ suite('SessionCanvasService', () => {
 			.filter(item => item.submenu === AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas);
 		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === AgentsWindowMenus.SessionActivityBarCanvas);
+			.filter(item => item.submenu === AgentsWindowMenus.SessionActivityBarCanvas)
+			// Only the entry of the Session Activity Bar beside the chat, in the main window.
+			.filter(item => item.when?.evaluate({
+				getValue: <T extends ContextKeyValue>(key: string) => (key === SessionActiveChatResourceContext.key ? chat.resource.toString() : key !== IsAuxiliaryWindowContext.key && key !== WindowCanvasesAvailableContext.key) as T,
+			}) ?? true);
 		const items = getItems();
 		const submenus = getSubmenus();
 		const activityBarSubmenus = getActivityBarSubmenus();
@@ -831,13 +973,14 @@ suite('SessionCanvasService', () => {
 		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
 		const remainingItems = getItems();
-		const remainingTitles = remainingItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const remainingTitles = getTitles();
 		const remainingCommandIds = remainingItems.map(item => item.command.id);
 		const staleCommandsRegistered = initialCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined);
 		registration.dispose();
 
 		assert.deepStrictEqual({
 			submenuTitles: submenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
+			titlesWhileOpen,
 			titles: items.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			groups: items.map(item => item.group),
 			requiresChat: when.includes(ChatContextKeys.enabled.key),
@@ -862,6 +1005,7 @@ suite('SessionCanvasService', () => {
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
+			titlesWhileOpen: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
 			titles: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
 			groups: ['1_running', '1_running', '1_running', '1_running', '1_running', '1_running'],
 			requiresChat: true,
@@ -877,13 +1021,13 @@ suite('SessionCanvasService', () => {
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
 			refreshedCommandIds: initialCommandIds,
 			refreshedTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			remainingTitles: ['Preview', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
+			remainingTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
+			initialCommandsRegisteredAfterReopen: [true, true, true, true, true, true],
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
 			listSubmenusAfterDispose: 0,
 			activityBarSubmenusAfterDispose: 0,
-			remainingCommandsAfterDispose: [false, false, false, false, false],
+			remainingCommandsAfterDispose: [false, false, false, false, false, false],
 		});
 	});
 
@@ -906,6 +1050,88 @@ suite('SessionCanvasService', () => {
 		activeSession.set(session, undefined);
 
 		assert.strictEqual(opened.length, 2);
+	});
+
+	for (const kind of ['discarded', 'replaced'] as const) {
+		test(`releases canvas owners and closes inputs of ${kind} drafts`, async () => {
+			const harness = createHarness();
+			await Promise.all(harness.openSettled);
+			const input = harness.opened[0];
+			harness.setFindEditorsHandler(() => [{ editor: input, groupId: 1 }]);
+			const removed: string[] = [];
+			store.add(harness.contextService.onDidRemoveOwner(owner => removed.push(owner.session.toString())));
+			if (kind === 'discarded') {
+				harness.activeSession.set(undefined, undefined);
+				harness.draftDiscarded.fire(harness.session);
+			} else {
+				harness.draftReplaced.fire({ from: harness.session, to: { ...harness.session, resource: URI.parse('agent-host-session:/replacement') } });
+				harness.activeSession.set(undefined, undefined);
+			}
+			await Promise.all(harness.closeSettled);
+			const removedOnDraftEvent = [...removed];
+			harness.sessionChanges.fire({ added: [], changed: [], removed: [harness.session] });
+			harness.activeSession.set(harness.session, undefined);
+			assert.deepStrictEqual({
+				removed,
+				removedOnDraftEvent,
+				closed: harness.closeCount,
+				reopened: harness.opened.length,
+				oldInputDisposed: input.isDisposed(),
+			}, { removed: [harness.session.resource.toString()], removedOnDraftEvent: [harness.session.resource.toString()], closed: 1, reopened: 2, oldInputDisposed: true });
+		});
+
+		test(`forgets dismissed canvases of ${kind} drafts`, () => {
+			const harness = createHarness();
+			harness.opened[0].dispose();
+			if (kind === 'discarded') {
+				harness.activeSession.set(undefined, undefined);
+				harness.draftDiscarded.fire(harness.session);
+			} else {
+				harness.draftReplaced.fire({ from: harness.session, to: { ...harness.session, resource: URI.parse('agent-host-session:/replacement') } });
+				harness.activeSession.set(undefined, undefined);
+			}
+			harness.activeSession.set(harness.session, undefined);
+			assert.strictEqual(harness.opened.length, 2);
+		});
+
+		test(`repeated ${kind} drafts do not retain canvas owners`, () => {
+			const harness = createHarness(true, []);
+			const removed: string[] = [];
+			store.add(harness.contextService.onDidRemoveOwner(owner => removed.push(owner.session.toString())));
+			for (let i = 0; i < 36; i++) {
+				const chat = { ...harness.chat, resource: URI.parse(`agent-host-chat:/draft-${i}/main`) };
+				const draft = {
+					...harness.session,
+					resource: URI.parse(`agent-host-session:/draft-${i}`),
+					activeChat: constObservable(chat),
+					chats: constObservable([chat]),
+				};
+				harness.activeSession.set(draft, undefined);
+				if (kind === 'discarded') {
+					harness.activeSession.set(undefined, undefined);
+					harness.draftDiscarded.fire(draft);
+				} else {
+					harness.draftReplaced.fire({ from: draft, to: harness.session });
+				}
+				harness.activeSession.set(harness.session, undefined);
+			}
+			assert.deepStrictEqual({
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retention without a test-only API.
+				retainedOwners: harness.contextService['knownOwners'].size,
+				removed: removed.length,
+			}, { retainedOwners: 1, removed: 36 });
+		});
+	}
+
+	test('keeps canvas state when a replacement reuses the draft resource', () => {
+		const harness = createHarness();
+		harness.opened[0].dispose();
+		const removed: string[] = [];
+		store.add(harness.contextService.onDidRemoveOwner(owner => removed.push(owner.session.toString())));
+		harness.draftReplaced.fire({ from: harness.session, to: { ...harness.session } });
+		harness.activeSession.set(undefined, undefined);
+		harness.activeSession.set(harness.session, undefined);
+		assert.deepStrictEqual({ removed, opened: harness.opened.length }, { removed: [], opened: 1 });
 	});
 
 	test('forgets dismissed canvases when the owning session is archived', () => {
@@ -1283,7 +1509,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None }),
 			upcastPartial<IEditorGroupsService>({
 				get activeGroup() { return upcastPartial<IEditorGroup>({ windowId: activeWindowId }); },
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup, groups: [activeGroup, canvasGroup], windowId: 1 }),
@@ -1326,7 +1552,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			upcastPartial<ISessionHostService>({ getHostOfChat: chat => isEqual(chat, owner.chat) ? chatWindowHost : undefined }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None }),
 			upcastPartial<IEditorGroupsService>({
 				get activeGroup() { return upcastPartial<IEditorGroup>({ windowId: activeGroupWindowId }); },
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup, groups: [mainGroup], windowId: 1 }),
@@ -1355,7 +1581,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, getSessionForChatResource: () => undefined }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None, getSessionForChatResource: () => undefined }),
 			upcastPartial<IEditorGroupsService>({}),
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
@@ -1387,7 +1613,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, getSessionForChatResource: () => undefined }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None, getSessionForChatResource: () => undefined }),
 			editorGroupsService,
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
@@ -1423,7 +1649,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable while another window has focus', () => {
+	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable and tracked while another window has focus', () => {
 		const createSession = (name: string) => {
 			const chat = upcastPartial<IChat>({ resource: URI.parse(`agent-host-chat:/${name}/main`), canvases: constObservable([]) });
 			return upcastPartial<ITestSessionWithChat>({
@@ -1445,6 +1671,8 @@ suite('SessionCanvasService', () => {
 			upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidDeleteChat: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
 				getSessionForChatResource: () => undefined,
 				getSession: resource => [mainWindowSession, chatWindowSession, otherSession].find(session => session.resource.toString() === resource.toString()),
 			}),
@@ -1462,12 +1690,16 @@ suite('SessionCanvasService', () => {
 			mainWindow: { visible: contextService.isOwnerVisible(ownerOf(mainWindowSession)), context: !!contextService.getContext(ownerOf(mainWindowSession)) },
 			other: { visible: contextService.isOwnerVisible(ownerOf(otherSession)), context: !!contextService.getContext(ownerOf(otherSession)) },
 		});
-		const chatWindowFocused = presentable();
+		const contexts = () => contextService.contexts.get().map(context => ({ chat: context.owner.chat.toString(), background: context.background }));
+		const chatWindowFocused = { ...presentable(), contexts: contexts() };
 		focusedSession.set(otherSession, undefined);
-		const otherWindowFocused = presentable();
+		const otherWindowFocused = { ...presentable(), contexts: contexts() };
 
 		const expected = { chatWindow: { visible: true, context: true }, mainWindow: { visible: true, context: true }, other: { visible: false, context: false } };
-		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, { chatWindowFocused: expected, otherWindowFocused: expected });
+		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, {
+			chatWindowFocused: { ...expected, contexts: [{ chat: 'agent-host-chat:/chatWindow/main', background: false }, { chat: 'agent-host-chat:/main/main', background: true }] },
+			otherWindowFocused: { ...expected, contexts: [{ chat: 'agent-host-chat:/other/main', background: false }, { chat: 'agent-host-chat:/main/main', background: true }] },
+		});
 	});
 	suite('chat window chats', () => {
 		const createFixture = (focusedInWindow: boolean) => {
@@ -1522,6 +1754,8 @@ suite('SessionCanvasService', () => {
 					getSessionForChatResource: resource => isEqual(resource, chatA.resource) ? { session, chat: chatA } : isEqual(resource, chatB.resource) ? { session: sessionB, chat: sessionBChats.get()[0] } : undefined,
 					onDidChangeSessions: Event.None,
 					onDidDeleteChat: Event.None,
+					onDidDiscardNewSession: Event.None,
+					onDidReplaceNewDraftSession: Event.None,
 				}),
 				upcastPartial<IEditorGroupsService>({
 					activeGroup: upcastPartial<IEditorGroup>({ windowId: 1 }),

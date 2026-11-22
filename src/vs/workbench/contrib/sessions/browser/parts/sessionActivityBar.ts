@@ -398,7 +398,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 	private applyPosition(): void {
 		if (this.element?.isConnected && this.isShown(this.hostedIn.get()) && this.activityBar?.visible.get()) {
-			this.element.style.top = `${this.hostedIn.get() ? 0 : this.area.top + this.getOffset()}px`;
+			const host = this.hostedIn.get();
+			this.element.style.top = host?.fullSize ? '' : `${host ? 0 : this.area.top + this.getOffset()}px`;
 		}
 	}
 

@@ -73,6 +73,10 @@ export interface ICustomizationItemAction {
 	readonly tooltip?: string;
 	readonly icon?: ThemeIcon;
 	readonly enabled?: boolean;
+	/** Checked state for an action that can also be presented as an inline toggle. */
+	readonly checked?: boolean;
+	/** Scope targeted by an inline enablement toggle or scope-changing action. */
+	readonly scope?: 'global' | 'workspace';
 	run(): void | Promise<void>;
 }
 
@@ -118,6 +122,8 @@ export interface ICustomizationMarketplaceInfo {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the user's GitHub Team provides this marketplace. */
+	readonly team?: boolean;
 }
 
 export interface ICustomizationMarketplaceRemoveResult {
@@ -144,7 +150,8 @@ export interface ICustomizationMarketplaceManagementProvider {
 	 */
 	readonly onDidChangeMarketplaces: Event<void>;
 	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
-	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	/** Omit the session for a global mutation through the local provider. */
+	add(sessionResource: URI | undefined, source: string): Promise<ICustomizationMarketplaceInfo>;
 	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
 	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
@@ -258,6 +265,15 @@ export interface IHarnessDescriptor {
 	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
+/** Organization control over a single customization. */
+export interface ICustomizationOrganizationControl {
+	/**
+	 * Enabled state the organization requires. Undefined when the organization
+	 * supplies the customization without locking its enablement.
+	 */
+	readonly requiredEnabled?: boolean;
+}
+
 /**
  * Identifies who supplied a built-in or account customization.
  * `label` is optional for `harness`, which defaults to the active harness name.
@@ -289,10 +305,14 @@ export interface ICustomizationItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
-	/** Whether this customization is currently enabled. */
+	/** Whether this customization is active, independent of whether its enablement can be changed. */
 	readonly enabled?: boolean;
 	/** Host-published reason for a disabled customization. */
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** Set when the user's organization manages this customization. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
+	/** Set when the user's GitHub Team provides this customization. Provenance only; it doesn't restrict enablement. */
+	readonly teamProvided?: boolean;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/**
@@ -430,6 +450,12 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Provide messages about the customizations of the given type as a whole, such as
+	 * files that failed to load, shown above the section's list rather than as items.
+	 */
+	provideSectionNotices?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSectionNotice[] | undefined>;
+
+	/**
 	 * Returns the readiness of the most recent source-folder discovery for this session.
 	 * Providers that do not expose this treat a completed empty result as authoritative.
 	 */
@@ -442,6 +468,17 @@ export interface ICustomizationItemProvider {
 }
 
 export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
+
+/**
+ * A message about a section's customizations as a whole, such as files that failed to load.
+ */
+export interface ICustomizationSectionNotice {
+	readonly severity: 'warning' | 'error';
+	/** Short summary, such as "Some hook files could not be loaded". */
+	readonly title: string;
+	/** Details, one per line. */
+	readonly message: string;
+}
 
 /**
  * A directory where new customization files of a given type can be created.

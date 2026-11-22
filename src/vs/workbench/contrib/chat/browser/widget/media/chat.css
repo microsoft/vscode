@@ -562,6 +562,11 @@
 	text-overflow: ellipsis;
 }
 
+/* The model details give way first, so the working time is never cut off mid-number. */
+.interactive-item-container .chat-response-working-time {
+	flex-shrink: 0;
+}
+
 .interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
 	display: none;
 }
@@ -596,7 +601,8 @@
 	pointer-events: auto;
 }
 
-.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+/* Not in session chats, which pad it themselves, whatever window shows them. */
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container:where(:not(.sessions-chat *)) {
 	box-sizing: border-box;
 	padding-inline-end: var(--vscode-spacing-size160);
 }
@@ -1251,13 +1257,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
 	display: flex;
 	align-items: center;
-	text-align: center;
+}
+
+.chat-dnd-overlay .attach-context-overlay-text .overlay-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
@@ -1504,8 +1511,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-arrow-up-compact::before {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
 	transform: translateY(0.5px);
 }
@@ -1540,11 +1551,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* A host-provided label (for example "Run 3 Attempts") shares the button surface. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button.labeled {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar :is(.action-item, .action-container).chat-submit-button.labeled {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	padding-left: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
 
 	&:not(.disabled) {
 		background-color: var(--vscode-button-background);
@@ -1556,6 +1568,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		> .action-label {
 			background: transparent;
+			color: var(--vscode-button-foreground);
 		}
 
 		&:is(:hover, .hovered, :focus-within) {
@@ -1568,7 +1581,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .chat-submit-button-label {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar :is(.action-item, .action-container).chat-submit-button > .chat-submit-button-label {
 	order: -1;
 	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
@@ -1576,8 +1589,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.labeled) > .chat-submit-button-label {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar :is(.action-item, .action-container).chat-submit-button:not(.labeled) > .chat-submit-button-label,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .chat-submit-button.label-only > .chat-submit-button-label {
 	display: none;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .chat-submit-button.labeled.label-only {
+	padding: 0;
+	gap: 0;
+
+	> .action-label {
+		display: flex;
+		align-items: center;
+		width: auto;
+		height: var(--chat-input-control-height);
+		padding: 0 var(--vscode-spacing-size80);
+		font-family: inherit;
+		font-size: var(--vscode-fontSize-label1);
+		font-weight: var(--vscode-fontWeight-regular);
+		border-radius: inherit;
+		white-space: nowrap;
+
+		&::before {
+			display: none;
+		}
+	}
 }
 
 .interactive-session .chat-editing-session {
@@ -2292,7 +2328,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
-.monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,
+.monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item:not(.label-only, .chat-submit-button-label-only) .codicon,
 .monaco-workbench .interactive-session .chat-input-toolbars .action-label .codicon {
 	color: var(--vscode-icon-foreground) !important;
 }
@@ -2414,8 +2450,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.auto-image-warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -2645,6 +2680,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-decoration: inherit;
 }
 
+/*
+ * The pills of the issues and pull requests of a repository differ only by their number. A pill that is
+ * shortened to fit shortens the repository and keeps the number, which is the suffix of its label.
+ */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-name-container {
+	min-width: 0;
+}
+
+/* The number is not clipped at its box either, which would dim the edge of its first character. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-suffix-container {
+	flex-shrink: 0;
+	overflow: visible;
+}
+
+/* The number reads as part of the name rather than as a description of it. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .label-suffix {
+	color: inherit;
+}
+
+/* A block shows an ellipsis for the part of the repository that is cut off, which a flex container does not. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label {
+	display: block;
+}
+
+/* The icon of the label takes the height of its line, which centers it as the flex container did. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label .codicon {
+	line-height: inherit;
+	vertical-align: top;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close-compact,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close-compact,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-add-compact,
@@ -2657,12 +2722,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+/* An image in the input ends with a Mark Up button, which mirrors the remove button that starts the pill. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment.can-mark-up {
+	padding-right: 0;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.chat-attached-context-mark-up-button {
+	order: 1;
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* A theme icon is centered in its box, so the box takes the height of the pill rather than the taller height of a list row. */
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath.codicon {
-	padding-top: 2px;
+	height: auto;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {
@@ -2730,11 +2808,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* An attachment shown as a pill inline with the text of a request, see `chat.inlineAttachments.enabled`. */
 .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-attached-context.chat-request-inline-attachment {
 	display: inline-flex;
-	vertical-align: middle;
 	max-width: 100%;
 	width: auto;
 	margin: 0;
 	padding: 0;
+}
+
+/*
+ * The label of the pill sits on the baseline of the text of the request. The pill takes its baseline from its
+ * first box, which would be its icon, so a box without text that is laid out as the line of its label comes first.
+ */
+.interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment::before {
+	content: '\200b';
 }
 
 /* Codicons in the text of a request are moved down to its baseline, while those of a pill are centered in it. */
@@ -2873,6 +2958,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+/*
+ * A reference in the text of a request that is not an attachment pill, such as a slash command, is level with the
+ * pills beside it, and its text stays on the baseline of the text of the request. Its box is a line that also holds
+ * the label of a pill, without text: 18px high, in the smaller font of a pill and inside the width of its border.
+ */
+.interactive-item-container.interactive-request .chat-resource-widget {
+	display: inline-block;
+	padding-block: var(--vscode-strokeThickness);
+	line-height: normal;
+}
+
+.interactive-item-container.interactive-request .chat-resource-widget::before {
+	content: '\200b';
+	font-size: var(--vscode-chat-font-size-body-xs);
+	line-height: 18px;
+}
 
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {
@@ -3786,6 +3887,70 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.chat-working-progress > .chat-live-response-stats {
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Leading stats take the place of a generic working phrase, and lead a label or activities that name a state. */
+.chat-working-progress-generic-label > .chat-working-progress-leading-stats:not([hidden]) ~ .rendered-markdown.progress-step {
+	display: none;
+}
+
+.chat-working-progress:not(.chat-working-progress-generic-label) > .chat-working-progress-leading-stats::after {
+	/* The separator between the stats themselves. */
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* Trailing stats follow the phrase, label or activities, after the same separator. */
+.chat-working-progress > .chat-working-progress-trailing-stats::before {
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* After activities, the separator rests in the slot of their chevron instead, so that slot leaves no gap. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
+	content: none;
+}
+
+/* The same space follows the slot as leads it, so what the slot shows sits midway between the label and the stats. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats {
+	margin-inline-start: var(--vscode-spacing-size20);
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button {
+	position: relative;
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	content: '\00b7';
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	transition: opacity 100ms ease-in-out;
+}
+
+/* The chevron takes the separator's place in the states that show it, so nothing moves. */
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button:is(:hover, .hovered, :focus-visible, [aria-expanded="true"])::after {
+	opacity: 0;
+}
+
+.monaco-reduce-motion .chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+		transition: none;
+	}
+}
+
 .chat-working-activities {
 	--chat-pill-background: transparent;
 	display: flex;
@@ -3912,6 +4077,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	padding: 8px 12px;
 	gap: 6px;
+}
+
+/* The mute button uses the chat input notice action's styles; it sits on the right. */
+.chat-notification-widget .chat-notification-widget-action {
+	margin-left: auto;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
@@ -4570,8 +4740,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.auto-image-warning {
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning {
 		border-color: var(--vscode-notificationsWarningIcon-foreground);
 	}
 
@@ -5164,7 +5333,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container.pending-request {
 	opacity: 0.7;
 
-	.request-hover {
+	&:not(.scheduled-request) .request-hover {
 		top: -17px !important;
 	}
 }
@@ -5221,6 +5390,182 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-chat-font-size-body-xs);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container.scheduled-request {
+	&.scheduled-request-editing {
+		opacity: 1;
+
+		.chat-request-timestamp-container {
+			height: auto;
+			margin-top: var(--vscode-spacing-size40);
+			pointer-events: auto;
+		}
+	}
+
+	.scheduled-request-editor {
+		display: flex;
+		flex-direction: column;
+		gap: var(--vscode-spacing-size80);
+		width: 100%;
+	}
+
+	.scheduled-request-editor-actions {
+		display: flex;
+		justify-content: flex-end;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
+	}
+
+	.scheduled-request-editor .monaco-button {
+		width: auto;
+		flex: 0 0 auto;
+		margin: 0;
+		height: var(--chat-input-control-height);
+		padding: 0 var(--vscode-spacing-size80);
+		border: none;
+		font-size: var(--vscode-fontSize-label1);
+		border-radius: var(--vscode-cornerRadius-circle);
+	}
+
+	.scheduled-request-cancel {
+		color: var(--vscode-foreground);
+		background-color: transparent;
+	}
+
+	.scheduled-request-cancel:not(.disabled):hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+
+	.scheduled-request-save {
+		display: flex;
+		min-width: 0;
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-button-background);
+		box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+	}
+
+	.scheduled-request-save .scheduled-request-save-label {
+		flex: 0 1 auto;
+		min-width: 0;
+		padding-left: var(--vscode-spacing-size100);
+		border-radius: var(--vscode-cornerRadius-circle) 0 0 var(--vscode-cornerRadius-circle);
+
+		> span {
+			min-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.scheduled-request-save-separator {
+		align-self: stretch;
+		width: var(--vscode-strokeThickness);
+		margin: var(--vscode-spacing-size40) 0;
+		background-color: var(--vscode-button-separator);
+	}
+
+	.scheduled-request-save .scheduled-request-edit-time {
+		width: var(--vscode-spacing-size240);
+		padding: 0;
+		border-radius: 0 var(--vscode-cornerRadius-circle) var(--vscode-cornerRadius-circle);
+
+		.codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+	}
+
+	.scheduled-request-editor-actions .monaco-button:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: var(--vscode-strokeThickness);
+	}
+
+	&.interactive-request .scheduled-request-actions {
+		/* Keep the toolbar out of the preceding message's inline editor. */
+		top: calc(-1 * var(--vscode-spacing-size80));
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	&.interactive-request:hover .scheduled-request-actions,
+	&.interactive-request:focus-within .scheduled-request-actions {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.scheduled-request-header {
+		display: flex;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+
+	.value .rendered-markdown .scheduled-request-header > .codicon {
+		top: 0;
+		font-size: var(--vscode-codiconFontSize-compact);
+	}
+
+	.scheduled-request-description {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.scheduled-request-time {
+		flex: 0 1 auto;
+		display: inline-grid;
+		overflow: hidden;
+
+		> time {
+			grid-area: 1 / 1;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			transition: opacity 160ms ease, transform 160ms ease;
+		}
+
+		> .scheduled-request-exact {
+			opacity: 0;
+			transform: translateY(100%);
+		}
+	}
+
+	.scheduled-request-time:hover,
+	.rendered-markdown:focus-visible .scheduled-request-time {
+		> .scheduled-request-from-now {
+			opacity: 0;
+			transform: translateY(-100%);
+		}
+
+		> .scheduled-request-exact {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.scheduled-request-text,
+	.scheduled-request-attachments {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+
+	.scheduled-request-attachments {
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+}
+
+.monaco-reduce-motion .interactive-item-container.scheduled-request .scheduled-request-time > time {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-item-container.scheduled-request .scheduled-request-time > time {
+		transition: none;
+	}
 }
 
 /* Outline removal except for HC themes */

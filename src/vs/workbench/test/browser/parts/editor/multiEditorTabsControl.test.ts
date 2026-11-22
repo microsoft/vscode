@@ -8,6 +8,9 @@ import { stub } from 'sinon';
 import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
+import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -19,14 +22,18 @@ import { ITreeViewsDnDService } from '../../../../../editor/common/services/tree
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
+import { EditorAddTabControl } from '../../../../browser/parts/editor/editorAddTabControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
-import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
@@ -748,7 +755,10 @@ suite('MultiEditorTabsControl', () => {
 					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
 					const addWidth = container.querySelector<HTMLElement>('.tabs-bar-add-tab')?.offsetWidth ?? 0;
 					const terminal = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).at(-1)!;
-					const gutter = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd) - (hasAdd ? 0 : toolbar.offsetWidth);
+					// Following the last tab, the Add Tab control and the toolbar add to the margin of the last tab around a second gutter
+					const margin = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd);
+					const follows = tabs.closest<HTMLElement>('.tabs-and-actions-container')!.classList.contains('add-tab-follows-last-tab');
+					const gutter = follows ? (margin - addWidth - toolbar.offsetWidth) / 2 : margin - (hasAdd ? 0 : toolbar.offsetWidth);
 					const threshold = (hasAdd ? Math.max(80, toolbar.offsetWidth + addWidth) : 80 + toolbar.offsetWidth) + gutter;
 					for (const delta of [-2, 2, -2, 2]) {
 						await layoutConnectedGroup(group, threshold + delta);
@@ -986,6 +996,107 @@ suite('MultiEditorTabsControl', () => {
 			}
 		}
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, allIconsVisible: true })));
+	});
+
+	test('fixed tabs respect configured width bounds across tab styles', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', 'a-significantly-longer-filename.ts', 'another-significantly-longer-filename.ts']);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected']) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			for (const [minimum, maximum] of [[50, 50], [50, 60], [50, 160], [120, 140]]) {
+				for (const tabActionLocation of ['left', 'right'] as const) {
+					if (style !== 'connected' && tabActionLocation === 'left') {
+						continue;
+					}
+					for (const tabActionReserveSpace of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabSizing: 'fixed', tabActionLocation, tabActionReserveSpace, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: maximum, editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						for (const [available, expectedWidth] of [[maximum * 3 + 100, maximum], [minimum * 3 - 20, minimum]]) {
+							await layoutConnectedGroup(group, available);
+							const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+							results.push({
+								style, tabActionLocation, tabActionReserveSpace, minimum, maximum, available,
+								widths: tabs.map(tab => tab.getBoundingClientRect().width),
+								widthsMatch: tabs.every(tab => Math.abs(tab.getBoundingClientRect().width - expectedWidth) < 1 / 32),
+								actionsInBounds: style === 'legacy' || tabs.every(tab => {
+									const action = tab.querySelector<HTMLElement>('.action-label')!;
+									const bounds = action.getBoundingClientRect();
+									const tabBounds = tab.getBoundingClientRect();
+									return bounds.left >= tabBounds.left && bounds.right <= tabBounds.right;
+								}),
+							});
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results.filter(result => !result.widthsMatch || !result.actionsInBounds), []);
+	});
+
+	test('connected fixed width bounds leave compact and shrink pinned tabs at their dedicated widths', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['sticky.ts', 'regular.ts']);
+		const sticky = model.getEditorByIndex(0)!;
+		model.stick(sticky);
+		control.stickEditor(sticky);
+		const results = [];
+		for (const pinnedTabSizing of ['compact', 'shrink'] as const) {
+			for (const minimum of [50, 120]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing: 'fixed', pinnedTabSizing, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: 140, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 600);
+				results.push({
+					pinnedTabSizing, minimum,
+					width: container.querySelector<HTMLElement>('.tab.sticky')!.getBoundingClientRect().width,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, width: result.pinnedTabSizing === 'compact' ? 28 : 80 })));
+	});
+
+	test('fit and shrink tabs ignore fixed width bounds and respond to available space', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', 'a-significantly-longer-filename.ts', 'another-significantly-longer-filename.ts']);
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const tabSizing of ['fit', 'shrink'] as const) {
+				let baseline: number[] | undefined;
+				for (const fixedWidth of [38, 200]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing, tabActionReserveSpace: true, tabSizingFixedMinWidth: fixedWidth, tabSizingFixedMaxWidth: fixedWidth, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 1200);
+					const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+					const widths = () => tabs.map(tab => tab.getBoundingClientRect().width);
+					const fullNames = () => tabs.every(tab => {
+						const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+						return name.scrollWidth <= name.clientWidth;
+					});
+					const wide = widths();
+					const baselineWidths = baseline ??= wide;
+					const wideNamesComplete = fullNames();
+					await layoutConnectedGroup(group, 240);
+					const narrow = widths();
+					const narrowMatchesMode = tabSizing === 'fit'
+						? narrow.every((width, index) => Math.abs(width - wide[index]) < 1 / 32) && fullNames()
+						: narrow.every((width, index) => width <= wide[index] + 1 / 32) && narrow.some((width, index) => width < wide[index] - 1) && !fullNames();
+					await layoutConnectedGroup(group, 1200);
+					results.push({
+						connected, tabSizing, fixedWidth, wideNamesComplete, narrowMatchesMode,
+						ignoresFixedBounds: wide.every((width, index) => Math.abs(width - baselineWidths[index]) < 1 / 32),
+						restored: widths().every((width, index) => Math.abs(width - wide[index]) < 1 / 32) && fullNames(),
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wideNamesComplete: true, narrowMatchesMode: true, ignoresFixedBounds: true, restored: true })));
 	});
 
 	test('connected shrink tabs preserve icons as the editor width changes', async () => {
@@ -4782,5 +4893,202 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
 	});
 
+	test('logs the journey through the Add Tab menu: opened, then picked or dismissed', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(): Promise<R> { return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.journey') });
+
+		const open = () => container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		open();
+		const [entry] = shownMenu!.getActions();
+		// Like the context menu: running an entry first hides the menu
+		const onWillRun = shownMenu!.actionRunner!.onWillRun(() => shownMenu!.onHide?.(false));
+		await shownMenu!.actionRunner!.run(entry, shownMenu!.getActionsContext?.());
+		onWillRun.dispose();
+		open();
+		shownMenu!.onHide?.(true);
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events.filter(e => e.eventName === 'editorAddTabMenu').map(e => e.data), [
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'picked', menuId: 'test.addTab.journey', entry: 'test.connectedTabs.newEditor' },
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'dismissed', menuId: 'test.addTab.journey', entry: undefined },
+		]);
+	});
+
+	test('dragging a tab after the last tab shows the drop indicator on the last tab, with and without the add tab button', async () => {
+		const group = connectedGroup();
+		const dropTargetsAfterLastTab = async (withAddTab: boolean) => {
+			control.dispose();
+			reset(container);
+			control = createControl(withAddTab ? { tabsBarAddTab: MenuId.for('test.addTab.dropTarget') } : undefined);
+			await layoutConnectedGroup(group, 2000);
+			const tabsContainer = container.querySelector<HTMLElement>('.tabs-container')!;
+			const tabs = [...tabsContainer.querySelectorAll<HTMLElement>(':scope > .tab')];
+			const dropTargets = () => [...tabsContainer.children].filter(child => child.classList.contains('drop-target-left')).map(child => child.classList.contains('tab')
+				? `tab ${tabs.indexOf(child as HTMLElement)}${mainWindow.getComputedStyle(child, '::after').display === 'none' ? ' (hidden)' : ''}`
+				: child.className);
+			const dragOver = (target: HTMLElement) => {
+				target.dispatchEvent(new DragEvent(EventType.DRAG_ENTER, { dataTransfer: new DataTransfer(), bubbles: true }));
+				const result = dropTargets();
+				target.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE, { dataTransfer: new DataTransfer(), bubbles: true }));
+				return result;
+			};
+			tabs[0].dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+			const result = {
+				emptySpace: dragOver(tabsContainer),
+				addTabButton: withAddTab ? dragOver(container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!) : undefined,
+			};
+			tabs[0].dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true }));
+			return result;
+		};
+
+		assert.deepStrictEqual({ without: await dropTargetsAfterLastTab(false), with: await dropTargetsAfterLastTab(true) }, {
+			without: { emptySpace: [`tab ${model.count - 1}`], addTabButton: undefined },
+			with: { emptySpace: [`tab ${model.count - 1}`], addTabButton: [`tab ${model.count - 1}`] },
+		});
+	});
+
+	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
+		const executed: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R> { executed.push(`${id} in group ${(args[0] as IEditorCommandsContext | undefined)?.groupId}`); return undefined as R; }
+		}());
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		instantiationService.stub(IContextViewService, new class extends mock<IContextViewService>() {
+			override hideContextView(): void { const menu = shownMenu; shownMenu = undefined; menu?.onHide?.(true); }
+		}());
+
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true, context: { groupId: 7 } }));
+		const press = (button: EditorAddTabControl, clientX?: number) => {
+			const bounds = button.element.getBoundingClientRect();
+			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: clientX ?? bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
+		};
+		const open = (button: EditorAddTabControl) => {
+			press(button);
+			const menu = shownMenu!.getActions().map(action => action.id);
+			shownMenu!.onHide?.(true);
+			return menu;
+		};
+
+		const button = createButton();
+		const initially = open(button);
+		press(button);
+		// Like the context menu: picking an entry hides the menu first
+		const picked = shownMenu!;
+		picked.onHide?.(false);
+		await picked.actionRunner!.run(picked.getActions()[1], picked.getActionsContext?.());
+		const afterPickingSecond = open(button);
+		// A second press while the menu is open picks the default entry and closes the menu
+		press(button);
+		press(button);
+		await timeout(0);
+		const menuOpen = !!shownMenu;
+		// Also on the part of the visible button outside the control, as with the negative margin of the Connected tab style
+		const label = button.element.querySelector<HTMLElement>('.action-label')!;
+		label.style.marginInlineStart = '-5px';
+		const labelLeft = label.getBoundingClientRect().left;
+		press(button);
+		press(button, labelLeft + 1);
+		await timeout(0);
+		const menuOpenAfterEdgePress = !!shownMenu;
+
+		assert.deepStrictEqual({
+			initially,
+			afterPickingSecond,
+			inAnotherButton: open(createButton()),
+			executed,
+			menuOpen,
+			pressedOutsideControl: labelLeft + 1 < button.element.getBoundingClientRect().left,
+			menuOpenAfterEdgePress,
+		}, {
+			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
+			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
+			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
+			// Each pick runs in the group of the button, also when a second press picks it
+			executed: ['test.newTabButton.second in group 7', 'test.newTabButton.second in group 7', 'test.newTabButton.second in group 7'],
+			menuOpen: false,
+			pressedOutsideControl: true,
+			menuOpenAfterEdgePress: false,
+		});
+	});
+
+	test('the new tab button menu describes the recent entry and highlights it only while the pointer is over the button', async () => {
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		// Renders the menu like the context menu service does: in a context view with the menu's class names
+		const menuStore = disposables.add(new DisposableStore());
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				const contextView = $(`.context-view.${delegate.getMenuClassName!().split(' ').join('.')}`);
+				mainWindow.document.body.appendChild(contextView);
+				menuStore.add(toDisposable(() => contextView.remove()));
+				menuStore.add(new Menu(contextView, delegate.getActions(), {}, defaultMenuStyles));
+			}
+		}());
+		instantiationService.get(IStorageService).store('editor.addTabMenu.recentEntry.test.newTabButton.decorated', 'test.newTabButton.second', StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const button = disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton.decorated'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		// The button can have no size in a headless browser
+		Object.assign(button.element.style, { display: 'inline-block', width: '20px', height: '20px' });
+		// The button can move once the menu shows, so its center is read for each event
+		const onButton = () => {
+			const bounds = button.element.getBoundingClientRect();
+			return { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+		};
+		button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, ...onButton() }));
+		await timeout(0);
+		const menu = () => [...mainWindow.document.querySelectorAll('.context-view.editor-add-tab-menu .action-item')].map(item => (item.classList.contains('focused') ? '* ' : '') + item.textContent);
+		const onOpen = menu();
+		const { clientX, clientY } = onButton();
+		mainWindow.document.body.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, clientX: clientX + 300, clientY: clientY + 300 }));
+		const pointerElsewhere = menu();
+		button.element.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, ...onButton() }));
+		const pointerOnButton = menu();
+		menuStore.clear();
+
+		assert.deepStrictEqual({ onOpen, pointerElsewhere, pointerOnButton }, {
+			onOpen: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerElsewhere: ['test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerOnButton: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+		});
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

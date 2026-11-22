@@ -308,7 +308,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 		const paddingLeft = editorVisible && !compact ? AuxiliaryBarPart.CONTENT_PADDING_LEFT : 0;
 		const marginBottom = !this.layoutService.mainContainer.classList.contains('dock-detail-panel')
-			? getSidePaneBottomFrameInset(this.layoutService.mainContainer)
+			? getSidePaneBottomFrameInset(this.layoutService.mainContainer, this.layoutService.getPanelSpacing())
 			: AuxiliaryBarPart.MARGIN_BOTTOM;
 
 		super.layout(

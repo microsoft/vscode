@@ -18,6 +18,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
+import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatQuestionCarousel.css';
 
 function createCarousel(questions: IChatQuestion[], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -53,8 +54,8 @@ function createOptions(overrides: Partial<IChatQuestionCarouselOptions> = {}): I
 	};
 }
 
-function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void): void {
-	const { container, disposableStore } = context;
+function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void, host: HTMLElement = context.container): void {
+	const { disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -78,19 +79,26 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 		)
 	);
 
-	container.style.width = '400px';
-	container.style.padding = '8px';
-	container.classList.add('interactive-session');
+	host.style.width = '400px';
+	host.style.padding = '8px';
+	host.classList.add('interactive-session');
 
 	// The CSS uses `.interactive-session .interactive-input-part > .chat-question-carousel-widget-container`
 	// for most layout rules, so we need those wrapper elements.
 	const inputPart = dom.$('.interactive-input-part');
 	const widgetContainer = dom.$('.chat-question-carousel-widget-container');
 	inputPart.appendChild(widgetContainer);
-	container.appendChild(inputPart);
+	host.appendChild(inputPart);
 
 	widgetContainer.appendChild(part.domNode);
 	afterRender?.(part);
+}
+
+function renderAgentSessionsCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel): void {
+	context.container.classList.add('monaco-workbench');
+	const sessionsSurface = dom.append(context.container, dom.$('.sessions-chat-surface'));
+	const content = dom.append(sessionsSurface, dom.$('.content'));
+	renderCarousel(context, carousel, false, {}, undefined, content);
 }
 
 interface ICarouselLayout {
@@ -208,6 +216,15 @@ const deleteBranchesQuestion: IChatQuestion = {
 	options: booleanOptions,
 	allowFreeformInput: false,
 	required: true,
+};
+
+const publishDashboardQuestion: IChatQuestion = {
+	id: 'publish-dashboard',
+	type: 'singleSelect',
+	title: 'Publish the dashboard changes?',
+	message: 'Both queries passed validation. May I publish them to the shared dashboard?',
+	options: booleanOptions,
+	allowFreeformInput: true,
 };
 
 const experimentGateQuestion: IChatQuestion = {
@@ -339,6 +356,8 @@ function createDeploymentCarousel(optionCount: number, description: string | und
 // Fixtures
 // ============================================================================
 
+const defaultThemes = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast'] as const;
+
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	SingleTextQuestion: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -348,6 +367,22 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	SingleSelectQuestion: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([singleSelectQuestion])),
+	}),
+
+	AgentSessionsSingleSelectQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: defaultThemes,
+		expectedVisualDescriptions: ['The custom answer editor is a single, uniform input surface without an inset panel-colored editor area or gutters.'],
+		virtualTime: { enabled: false },
+		render: context => renderAgentSessionsCarousel(context, createCarousel([singleSelectQuestion])),
+	}),
+
+	AgentSessionsBooleanCustomAnswer: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: defaultThemes,
+		expectedVisualDescriptions: ['Yes and No appear as vertical options above the custom answer editor, which uses the same input frame as other single-select questions.'],
+		virtualTime: { enabled: false },
+		render: context => renderAgentSessionsCarousel(context, createCarousel([publishDashboardQuestion])),
 	}),
 
 	MultiSelectQuestion: defineComponentFixture({

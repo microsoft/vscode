@@ -8,16 +8,19 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
+import { CanvasDefinitionOpener, getCanvasDefinitionLabels, getCanvasIconUri, getCanvasInstanceLabels, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
 import { CanvasDefinitionStore } from '../common/canvasDefinitionStore.js';
-import { canvasOwnerKey, getCanvasReferenceKey, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { canvasOwnerKey, getCanvasReferenceKey, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { openCanvasForUser } from '../common/agentHostCanvasConsent.js';
 
 export const OPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.openCanvas';
 export const REOPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.reopenCanvas';
@@ -25,7 +28,7 @@ export const ChatNewCanvasMenuId = new MenuId('ChatNewCanvasMenu');
 
 /** The groups of {@link ChatNewCanvasMenuId}, top to bottom, the same as in the Agents window's Canvas menus. */
 const CanvasMenuGroup = {
-	/** The chat's canvases whose tab was closed but which are still running. */
+	/** The chat's running canvases, whether or not their tab is open. */
 	Running: '1_running',
 	/** The chat's canvas types, which open a canvas. */
 	Available: '2_available',
@@ -37,6 +40,8 @@ class CanvasMenuActionRegistration extends Disposable {
 	private title: string | undefined;
 	private group: string | undefined;
 	private order: number | undefined;
+	/** The path of the canvas's icon data URI, which holds the whole image. */
+	private iconKey: string | undefined;
 	private run: () => Promise<void>;
 
 	constructor(
@@ -48,19 +53,21 @@ class CanvasMenuActionRegistration extends Disposable {
 		this._register(CommandsRegistry.registerCommand(commandId, () => this.run()));
 	}
 
-	update(title: string, group: string, order: number, run: () => Promise<void>): void {
+	/** Shows the entry with `title`, and with `icon`, the canvas's own icon, or else the default canvas icon. */
+	update(title: string, group: string, order: number, run: () => Promise<void>, icon: URI | undefined): void {
 		this.run = run;
-		if (this.title === title && this.group === group && this.order === order) {
+		if (this.title === title && this.group === group && this.order === order && this.iconKey === icon?.path) {
 			return;
 		}
 		this.title = title;
 		this.group = group;
 		this.order = order;
+		this.iconKey = icon?.path;
 		this.menuRegistration.value = MenuRegistry.appendMenuItem(ChatNewCanvasMenuId, {
 			command: {
 				id: this.commandId,
 				title,
-				icon: Codicon.preview,
+				icon: icon ? { dark: icon } : Codicon.preview,
 				precondition: ChatContextKeys.enabled,
 			},
 			group,
@@ -76,6 +83,7 @@ export function registerEditorCanvasActions(
 	widgetService: IChatWidgetService,
 	logService: ILogService,
 	notificationService: INotificationService,
+	progressService: IProgressService,
 ): IDisposable {
 	const store = new DisposableStore();
 	store.add(MenuRegistry.appendMenuGroup(ChatNewCanvasMenuId, { group: CanvasMenuGroup.Running, title: localize('editorCanvas.running', "Running") }));
@@ -107,19 +115,22 @@ export function registerEditorCanvasActions(
 		observableSignalFromEvent(reader.store, definitionProvider.onDidChangeDefinitions).read(reader);
 		return { owner: context.owner, listCanvases: () => definitionProvider.listCanvases() };
 	}, '[EditorCanvasActions]', logService)).definitions;
+	const opener = new CanvasDefinitionOpener();
 	let commandSequence = 0;
 
 	store.add(autorun(reader => {
 		const context = currentContext.read(reader);
 		const definitions = availableDefinitions.read(reader);
+		// Running lists the canvases the chat's canvas pill does, whether or not their tab is open.
 		const targets = context
-			? canvasService.reopenableCanvases.read(reader).filter(target => isCanvasOwner(target.reference, context.owner))
+			? (context.canvases.read(reader) ?? [])
+				.map(canvas => ({ reference: { ...context.owner, canvas: canvas.resource }, canvas }))
+				.filter(({ reference, canvas }) => canvas.source !== undefined && canvasService.isOwnerPresentable(reference, reader))
 			: [];
 		const activeKeys = new Set<string>();
 		if (context) {
 			const ownerKey = canvasOwnerKey(context.owner);
 			const definitionLabels = getCanvasDefinitionLabels(definitions);
-			const definitionInstanceIds = new Set(definitions.map(getCanvasDefinitionInstanceId));
 			for (let index = 0; index < definitions.length; index++) {
 				const canvas = definitions[index];
 				const label = definitionLabels[index];
@@ -135,28 +146,27 @@ export function registerEditorCanvasActions(
 					CanvasMenuGroup.Available,
 					index,
 					() => openCanvasDefinition(context.owner, canvas, label),
+					getCanvasIconUri(canvas.icon),
 				);
 			}
 
 			const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
 			for (let index = 0; index < targets.length; index++) {
 				const target = targets[index];
-				if (target.canvas.instanceId && definitionInstanceIds.has(target.canvas.instanceId)) {
-					continue;
-				}
 				const label = targetLabels[index];
 				const key = `reopen:${getCanvasReferenceKey(target.reference)}`;
 				activeKeys.add(key);
 				let registration = registrations.get(key);
 				if (!registration) {
-					registration = new CanvasMenuActionRegistration(`${REOPEN_EDITOR_CANVAS_COMMAND_ID}.${++commandSequence}`, () => reopenCanvas(target.reference, label));
+					registration = new CanvasMenuActionRegistration(`${REOPEN_EDITOR_CANVAS_COMMAND_ID}.${++commandSequence}`, () => revealCanvas(target.reference, label));
 					registrations.set(key, registration);
 				}
 				registration.update(
 					label,
 					CanvasMenuGroup.Running,
 					index,
-					() => reopenCanvas(target.reference, label),
+					() => revealCanvas(target.reference, label),
+					target.canvas.icon,
 				);
 			}
 		}
@@ -177,34 +187,31 @@ export function registerEditorCanvasActions(
 			: undefined;
 	}));
 
-	async function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
-		const context = currentContext.get();
-		const definitionAvailable = availableDefinitions.get().some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
-		if (!canvasService.enabled.get() || !context?.definitionProvider || !isCanvasOwner(context.owner, owner) || !definitionAvailable) {
-			return;
-		}
-		try {
-			const instanceId = getCanvasDefinitionInstanceId(canvas);
-			const existing = context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
-			if (existing) {
-				await canvasService.revealCanvas({ ...context.owner, canvas: existing.resource });
-				if (existing.source) {
-					return;
-				}
-			}
-			await context.definitionProvider.openCanvas(canvas, instanceId);
-		} catch (error) {
-			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
-		}
+	/** Opens a new canvas of `canvas`'s type, beside any canvases of that type the chat already has. */
+	function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
+		return openCanvasForUser(progressService, notificationService, label, options => openCanvasDefinitionIn(owner, canvas, options));
 	}
 
-	async function reopenCanvas(reference: ICanvasReference, label: string): Promise<void> {
+	/** Opens a new canvas of `canvas`'s type while `owner` is the current chat, throwing when the open fails. */
+	async function openCanvasDefinitionIn(owner: ICanvasOwner, canvas: ICanvasDefinition, options?: ICanvasOpenOptions): Promise<void> {
+		const context = currentContext.get();
+		const definitionProvider = context?.definitionProvider;
+		// A declined extension's canvases stay unregistered until the retry replaces the chat's runtime.
+		const definitionAvailable = options?.retryDeniedConsent || availableDefinitions.get().some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
+		if (!canvasService.enabled.get() || !context || !definitionProvider || !isCanvasOwner(context.owner, owner) || !definitionAvailable) {
+			return;
+		}
+		await opener.open(context.owner, canvas, context.canvases.get() ?? [], instanceId => definitionProvider.openCanvas(canvas, instanceId, options));
+	}
+
+	/** Shows a running canvas of the chat: focuses its tab, or opens it again once the tab was closed. */
+	async function revealCanvas(reference: ICanvasReference, label: string): Promise<void> {
 		const context = currentContext.get();
 		if (!canvasService.enabled.get() || !context || !isCanvasOwner(context.owner, reference)) {
 			return;
 		}
 		try {
-			await canvasService.reopenCanvas(reference);
+			await canvasService.revealCanvas(reference);
 		} catch (error) {
 			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
 		}

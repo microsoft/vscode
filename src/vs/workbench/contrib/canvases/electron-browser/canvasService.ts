@@ -40,7 +40,7 @@ interface ICanvasPresentation {
 	model: IBrowserViewModel | undefined;
 	/** The live source `model` presents, or `undefined` once its provider became unavailable. */
 	modelSource: URI | undefined;
-	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
+	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel>; readonly model?: IBrowserViewModel; readonly onCreated?: Set<(model: IBrowserViewModel) => void> } | undefined;
 	modelDisposeListener: IDisposable | undefined;
 	modelGeneration: number;
 }
@@ -73,6 +73,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly dismissedChanged = observableSignal(this);
 	private readonly presentationsChanged = observableSignal(this);
 	private readonly workingSetState: IObservable<ICanvasWorkingSetState>;
+	private readonly applyingWorkingSet: IObservable<boolean>;
 	private restoreSettled: DeferredPromise<boolean> | undefined;
 
 	constructor(
@@ -92,6 +93,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(CanvasesEnabledSettingId)),
 		), () => !entitlementService.sentiment.hidden && configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true);
 		this.workingSetState = contextService.workingSets?.state ?? constObservable(settledWorkingSet);
+		this.applyingWorkingSet = observableFromEvent(this, editorGroupsService.onDidChangeApplyingWorkingSet, () => editorGroupsService.isApplyingWorkingSet);
 		this.reopenableCanvases = derived(this, reader => {
 			this.dismissedChanged.read(reader);
 			if (!this.enabled.read(reader)) {
@@ -136,21 +138,28 @@ export class CanvasService extends Disposable implements ICanvasService {
 			this.presentationsChanged.read(reader);
 			const enabled = this.enabled.read(reader);
 			const { owner: workingSetOwner, restoring } = this.workingSetState.read(reader);
+			// Only a window without working sets of its own swaps its editors this way; the Agents window tracks its own.
+			const applyingWorkingSet = !contextService.workingSets && this.applyingWorkingSet.read(reader);
 			const contexts = contextService.contexts.read(reader);
 			if (enabled) {
 				this.reconcilePresentations(reader);
 			}
 			const knownOwners = new Set<string>();
 			const liveKeys = new Set<string>();
+			let anyOwnerVisible = false;
 			for (const context of contexts) {
 				const canvases = context.canvases.read(reader);
+				const visible = enabled && contextService.isOwnerVisible(context.owner, reader);
+				if (visible) {
+					// Also when its canvases are not settled yet: the window already shows this owner.
+					anyOwnerVisible = true;
+				}
 				if (canvases === undefined) {
 					continue;
 				}
 				knownOwners.add(canvasOwnerKey(context.owner));
-				const visible = enabled && contextService.isOwnerVisible(context.owner, reader);
-				const workingSetPresented = (!restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner)))
-					|| contextService.presentsOutsideWorkingSets?.(context.owner, reader) === true;
+				const workingSetPresented = !applyingWorkingSet && ((!restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner)))
+					|| contextService.presentsOutsideWorkingSets?.(context.owner, reader) === true);
 				const requests = context.openRequests?.read(reader);
 				for (const canvas of canvases) {
 					const reference: ICanvasReference = { ...context.owner, canvas: canvas.resource };
@@ -179,8 +188,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 					if (!visible || !workingSetPresented || canvas.source === undefined
 						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
+						if (presentation || existingInput) {
+							this.logService.trace(`[Canvas] Reconcile keeps ${key} closed: visible=${visible} workingSetPresented=${workingSetPresented} (applying=${applyingWorkingSet} restoring=${restoring} owner=${workingSetOwner}) source=${canvas.source !== undefined} dismissed=${!!dismissed} opened=${presentation?.opened} hasInput=${!!existingInput}`);
+						}
 						continue;
 					}
+					this.logService.trace(`[Canvas] Reconcile opens ${key}: opened=${presentation?.opened} hasInput=${!!existingInput} applying=${applyingWorkingSet}`);
 					if ((modalActive || context.background === true) && request?.pending) {
 						continue;
 					}
@@ -226,7 +239,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 			}
 			for (const [key, input] of this.inputs) {
-				if (!enabled || (knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key))) {
+				// A window without working sets keeps no canvas of a conversation it no longer shows, once it shows another.
+				const followsVisibleOwner = !applyingWorkingSet && !contextService.workingSets && anyOwnerVisible && !contextService.isOwnerVisible(input.reference, reader) && !this.opening.has(input);
+				if (!enabled || followsVisibleOwner || (knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key))) {
+					this.logService.trace(`[Canvas] Closing ${key}: enabled=${enabled} followsVisibleOwner=${followsVisibleOwner} ownerGone=${knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key)}`);
 					void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
 				}
 			}
@@ -266,12 +282,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 		);
 	}
 
-	async revealCanvas(reference: ICanvasReference): Promise<void> {
+	async revealCanvas(requested: ICanvasReference): Promise<void> {
+		const owner = this.contextService.resolveOwner?.(requested);
+		const reference: ICanvasReference = owner ? { ...owner, canvas: requested.canvas } : requested;
 		const key = getCanvasReferenceKey(reference);
 		// After a working-set restore, and once an editor of the canvas that is closing closed, which a new one would reveal
 		// instead of opening; what to reveal is resolved after both.
 		while (true) {
 			if (this.workingSetState.get().restoring && !await this.waitForWorkingSetRestore()) {
+				this.logService.warn(`[Canvas] Not revealing ${key}: the working set restore did not complete`);
 				return;
 			}
 			const pendingClose = this.pendingCloses.get(key);
@@ -283,15 +302,19 @@ export class CanvasService extends Disposable implements ICanvasService {
 				return;
 			}
 		}
-		const context = this.isOwnerPresentable(reference)
-			? this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference))
-			: undefined;
+		if (!this.isOwnerPresentable(reference)) {
+			this.logService.warn(`[Canvas] Not revealing ${key}: canvases enabled=${this.enabled.get()}, owner visible=${this.contextService.isOwnerVisible(reference)}`);
+			return;
+		}
+		const context = this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference));
 		const canvas = context?.canvases.get()?.find(canvas => isEqual(canvas.resource, reference.canvas));
 		if (!canvas) {
+			this.logService.warn(`[Canvas] Not revealing ${key}: ${context ? 'the owner has no such canvas' : 'no context for the owner'}`);
 			return;
 		}
 		this.deleteDismissed(key);
 		if (canvas.source === undefined) {
+			this.logService.warn(`[Canvas] Not revealing ${key}: the canvas has no source`);
 			return;
 		}
 		const input = this.getOrCreateInput(reference, canvas);
@@ -333,7 +356,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return input;
 	}
 
-	async resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution> {
+	async resolveCanvasModel(reference: ICanvasReference, source: URI, reload = false, onCreated?: (model: IBrowserViewModel) => void): Promise<ICanvasModelResolution> {
 		const key = getCanvasReferenceKey(reference);
 		if (!isEqual(this.presentations.get(key)?.canvas?.source, source)) {
 			// A view outside the editor working set, such as a pinned canvas page, observes the canvas
@@ -341,26 +364,45 @@ export class CanvasService extends Disposable implements ICanvasService {
 			// reconciliation completes synchronously, so judge the source only once the update settled.
 			await Promise.resolve();
 		}
-		const presentation = this.presentations.get(key) ?? this.createExternalPresentation(reference, source);
-		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
+		const presentation = this.presentations.get(key) ?? (reload ? undefined : this.createExternalPresentation(reference, source));
+		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)
+			|| (reload && (!presentation.model || !this.isLiveSource(reference, source)))) {
 			throw new CancellationError();
 		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return { model: await presentation.modelPromise.value, reused: true };
+		const createdModel = presentation.model ?? (isEqual(presentation.modelPromise?.source, source) ? presentation.modelPromise?.model : undefined);
+		if (createdModel) {
+			onCreated?.(createdModel);
 		}
-		if (presentation.model && isEqual(presentation.modelSource, source)) {
+		if (!reload && presentation.model && isEqual(presentation.modelSource, source)) {
 			return { model: presentation.model, reused: true };
 		}
+		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
+			if (!createdModel && onCreated) {
+				presentation.modelPromise.onCreated?.add(onCreated);
+			}
+			return { model: await presentation.modelPromise.value, reused: true };
+		}
 		if (presentation.model) {
-			return { model: await this.navigatePresentationModel(presentation, presentation.model, source), reused: false };
+			return { model: await this.navigatePresentationModel(presentation, presentation.model, source, reload), reused: false };
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
-		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }).then(model => {
-			const retained = this.presentations.get(key) === presentation
-				&& presentation.modelGeneration === generation
-				&& isEqual(presentation.canvas?.source, source);
-			if (retained) {
+		let loadingModel: IBrowserViewModel | undefined;
+		const callbacks = new Set(onCreated ? [onCreated] : []);
+		const isCurrent = () => this.presentations.get(key) === presentation
+			&& presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }, model => {
+			loadingModel = model;
+			if (isCurrent()) {
+				for (const callback of callbacks) {
+					callback(model);
+				}
+				callbacks.clear();
+			} else {
+				model.dispose();
+			}
+		}).then(model => {
+			if (isCurrent()) {
 				presentation.model = model;
 				presentation.modelSource = source;
 				presentation.modelDisposeListener = Event.once(model.onWillDispose)(() => {
@@ -377,20 +419,32 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			return model;
 		}).finally(() => {
+			callbacks.clear();
 			if (presentation.modelPromise?.value === value) {
 				presentation.modelPromise = undefined;
 			}
 		});
-		presentation.modelPromise = { source, value };
+		presentation.modelPromise = { source, value, onCreated: callbacks, get model() { return loadingModel; } };
 		return { model: await value, reused: false };
 	}
 
-	/** Loads a new source into the retained page, so it is replaced in place without detaching its view or moving focus. */
-	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI): Promise<IBrowserViewModel> {
+	private isLiveSource(reference: ICanvasReference, source: URI): boolean {
+		const canvas = this.lookupCanvas(reference)?.canvas;
+		return !this._store.isDisposed && canvas?.instanceId !== undefined && isEqual(canvas.source, source) && this.isPresentable(reference);
+	}
+
+	/** Loads a source into the retained page without detaching its view or moving focus. */
+	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI, reload = false): Promise<IBrowserViewModel> {
 		const generation = ++presentation.modelGeneration;
-		// The page leaves its previous source even if this navigation is superseded, so returning to that source must load it again.
-		presentation.modelSource = undefined;
-		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		// Keep same-source reloads cached so revisiting a failure never retries it automatically.
+		if (!reload || !isEqual(presentation.modelSource, source)) {
+			presentation.modelSource = undefined;
+		}
+		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation
+			&& isEqual(presentation.canvas?.source, source) && (!reload || this.isLiveSource(presentation.reference, source));
+		if (!isCurrent()) {
+			throw new CancellationError();
+		}
 		const url = source.toString(true);
 		const network = model.network;
 		const loaded = network ? this.loadOnRemoteNetwork(model, network, url, isCurrent) : model.loadURL(url);
@@ -463,6 +517,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
+				this.logService.warn(`[Canvas] Not opening ${key}: its owner is not visible`);
 				return;
 			}
 			const options: IEditorOptions = restoreFallback
@@ -535,7 +590,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		lifetime.add(Event.once(input.onWillDispose)(() => {
 			const isCurrentInput = this.inputs.get(key) === input;
-			const workingSetSuspension = this.workingSetSuspensions.delete(input);
+			// Without working sets of its own, a window swaps editors as the folder location changes: an editor closed then
+			// is no dismissal by the user. It shows again once its owner is visible and the swap is done.
+			const workingSetSuspension = this.workingSetSuspensions.delete(input)
+				|| (!this.contextService.workingSets && this.editorGroupsService.isApplyingWorkingSet);
+			this.logService.trace(`[Canvas] Editor closing ${key}: current=${isCurrentInput} programmatic=${this.programmaticCloses.has(input)} suspension=${workingSetSuspension} applying=${this.editorGroupsService.isApplyingWorkingSet} ownerVisible=${this.contextService.isOwnerVisible(reference)} disposed=${this._store.isDisposed}`);
 			if (isCurrentInput) {
 				// First, so nothing that reacts to the presentation changing below still finds this closing editor.
 				this.inputs.deleteAndLeak(key);
@@ -550,7 +609,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 					} else {
 						this.deletePresentation(key);
 					}
-				} else if (presentation?.admitted) {
+				} else if (presentation && (presentation.admitted || !this.contextService.workingSets)) {
 					presentation.opened = false;
 					this.presentationsChanged.trigger(undefined);
 				}
@@ -701,6 +760,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private removeOwner(owner: ICanvasOwner): void {
+		// Establish pending closes before presentation changes reconcile the still-published draft.
+		for (const [key, input] of this.inputs) {
+			if (isCanvasOwner(input.reference, owner)) {
+				void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
+			}
+		}
 		for (const [key, presentation] of this.presentations) {
 			if (isCanvasOwner(presentation.reference, owner)) {
 				this.deletePresentation(key);
@@ -711,11 +776,6 @@ export class CanvasService extends Disposable implements ICanvasService {
 				this.deleteDismissed(key);
 				this.requests.delete(key);
 				this.pendingRequests.delete(key);
-			}
-		}
-		for (const [key, input] of this.inputs) {
-			if (isCanvasOwner(input.reference, owner)) {
-				void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
 			}
 		}
 	}
@@ -807,6 +867,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (!canvas.source) {
 			// Keep the last page while the provider is unavailable; the next source loads into it in place.
 			presentation.modelSource = undefined;
+			presentation.modelPromise?.model?.dispose();
 			presentation.modelPromise = undefined;
 			presentation.modelGeneration++;
 		}
@@ -814,10 +875,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	private disposePresentationModel(presentation: ICanvasPresentation): void {
 		presentation.modelGeneration++;
+		const model = presentation.model ?? presentation.modelPromise?.model;
 		presentation.modelPromise = undefined;
 		presentation.modelDisposeListener?.dispose();
 		presentation.modelDisposeListener = undefined;
-		const model = presentation.model;
 		presentation.model = undefined;
 		presentation.modelSource = undefined;
 		model?.dispose();

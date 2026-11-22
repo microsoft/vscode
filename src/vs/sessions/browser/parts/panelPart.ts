@@ -83,7 +83,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = AGENTS_FLOATING_PANEL_GAP;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -239,17 +238,18 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		// Layout content with reduced dimensions to account for visual margins and border.
 		const compact = this.layoutService.isModernUICompact();
+		const spacing = this.layoutService.getPanelSpacing();
 		const borderTotal = compact ? 0 : 2;
 		const sessionFrameInset = this.layoutService.isVisible(Parts.SESSIONS_PART)
-			? getSessionsPartFrameInset(this.layoutService.mainContainer)
+			? getSessionsPartFrameInset(this.layoutService.mainContainer, spacing)
 			: 0;
-		const marginTop = compact ? 0 : Math.max(0, PanelPart.MARGIN_TOP - sessionFrameInset);
+		const marginTop = compact ? 0 : Math.max(0, spacing - sessionFrameInset);
 		const marginLeft = !compact && !isPhoneLayout(this.layoutService) && !this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			? AGENTS_FLOATING_PANEL_GAP
 			: 0;
 		const editorPaneVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		const marginRight = !compact && this.layoutService.getPanelAlignment() === 'center' && editorPaneVisible
-			? AGENTS_FLOATING_PANEL_GAP
+			? spacing
 			: 0;
 		super.layout(
 			width - marginLeft - marginRight - borderTotal,

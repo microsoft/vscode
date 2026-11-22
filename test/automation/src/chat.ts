@@ -73,17 +73,6 @@ export class Chat {
 	}
 
 	/**
-	 * Waits until the chat view is bound to a chat session other than
-	 * `previousSessionResource`. Commands that start a new chat in the view
-	 * keep running after the command palette closes, so a message sent before
-	 * the new session is bound lands in the outgoing session and its response
-	 * is never shown.
-	 */
-	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
-		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
-	}
-
-	/**
 	 * Waits until the chat view is bound to a local chat session other than
 	 * `previousSessionResource`, such as the one `smoketest.openLocalChat`
 	 * opens. That command keeps running after the command palette closes, and
@@ -598,11 +587,13 @@ export class Chat {
  */
 export async function acceptToolConfirmationIfPresent(code: Code): Promise<void> {
 	const allowButtonSelector = '.chat-confirmation-widget2 .monaco-button.monaco-text-button';
+	// Agent Host client tools offer "Allow in this Session" as their primary action.
+	const allowLabel = /^Allow( in this Session)?$/;
 	try {
 		const buttons = await code.driver.getElements(allowButtonSelector, /* recursive */ true);
 		// The first text button in the widget is "Allow"; only proceed when
 		// that holds so we never accidentally hit "Skip".
-		if (!buttons || buttons.length === 0 || (buttons[0].textContent ?? '').trim() !== 'Allow') {
+		if (!buttons || buttons.length === 0 || !allowLabel.test((buttons[0].textContent ?? '').trim())) {
 			return;
 		}
 		// Filter to only visible "Allow" buttons: the DOM can contain multiple
@@ -612,7 +603,7 @@ export async function acceptToolConfirmationIfPresent(code: Code): Promise<void>
 		// element order and often pick a hidden one.
 		const allowButtons = code.driver.currentPage
 			.locator('.chat-confirmation-widget2 .monaco-button.monaco-text-button')
-			.filter({ hasText: /^Allow$/ });
+			.filter({ hasText: allowLabel });
 		const total = await allowButtons.count();
 		for (let i = 0; i < total; i++) {
 			const b = allowButtons.nth(i);

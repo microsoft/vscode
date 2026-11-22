@@ -82,20 +82,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts alpine $VSCODE_ARCH $(node -p process.arch) alpine-3.22 > .build/packagelockhash
-        displayName: Prepare node_modules cache key
-
-      - task: Cache@2
-        inputs:
-          key: '"node_modules" | .build/packagelockhash'
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
-        retryCountOnTaskFailure: 2
-
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
+      - template: ../common/restore-pnpm-store.yml@self
+        parameters:
+          keyArgs: alpine $(VSCODE_ARCH) alpine-3.22
+          os: linux
 
       - script: |
           set -e
@@ -120,7 +110,7 @@ jobs:
 
       - template: ../common/setup-qemu.yml@self
         parameters:
-          condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['NPM_ARCH'], 'arm64'))
+          condition: and(succeeded(), eq(variables['NPM_ARCH'], 'arm64'))
 
       - task: Docker@1
         inputs:
@@ -131,11 +121,10 @@ jobs:
           arguments: --pull=always
           containerCommand: uname
         displayName: "Pull image"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+      - script: ./build/azure-pipelines/linux/apt-install-with-retry.sh libkrb5-dev
         displayName: Install build dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        timeoutInMinutes: 25
 
       - script: |
           set -e
@@ -156,11 +145,9 @@ jobs:
         env:
           AZURE_DEVOPS_EXT_PAT: "$(System.AccessToken)"
         displayName: Download NodeJS MUSL
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: pnpm run preinstall
         displayName: Install Electron headers
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
@@ -184,7 +171,6 @@ jobs:
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       # NuGetAuthenticate@1 exposes its access token to all later steps as the
       # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it
@@ -198,15 +184,10 @@ jobs:
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         displayName: Mixin distro node modules
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+      - template: ../common/prune-pnpm-store.yml@self
+        parameters:
+          os: linux
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
@@ -225,11 +206,6 @@ jobs:
         parameters:
           vscodePlatform: alpine
 
-      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX (background)
-
       - template: ../common/mixin-vscode-capi.yml@self
 
       - script: pnpm run gulp core-ci
@@ -237,10 +213,7 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
-      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX
+      - template: ../copilot/builtin-steps.yml@self
 
       - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
         env:

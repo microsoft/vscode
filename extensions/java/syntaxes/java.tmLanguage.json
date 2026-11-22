@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/redhat-developer/vscode-java/commit/f09b712f5d6d6339e765f58c8dfab3f78a378183",
+	"version": "https://github.com/redhat-developer/vscode-java/commit/28e59628a8ea73b35cf96ad018d929f8a10eabe4",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -1438,59 +1438,64 @@
 					"include": "#storage-modifiers"
 				},
 				{
-					"include": "#generics"
-				},
-				{
 					"include": "#comments"
 				},
 				{
-					"begin": "(record)\\s+([\\w$]+)(<[\\w$]+>)?(\\()",
+					"begin": "(record)\\s+([\\w$]+)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.java"
 						},
 						"2": {
 							"name": "entity.name.type.record.java"
-						},
-						"3": {
-							"patterns": [
-								{
-									"include": "#generics"
-								}
-							]
-						},
-						"4": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.java"
 						}
 					},
-					"end": "\\)",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.java"
-						}
-					},
-					"name": "meta.record.identifier.java",
+					"end": "(?=\\{)",
+					"name": "meta.record.header.java",
 					"patterns": [
 						{
-							"include": "#code"
-						}
-					]
-				},
-				{
-					"begin": "(implements)\\s",
-					"beginCaptures": {
-						"1": {
-							"name": "storage.modifier.implements.java"
-						}
-					},
-					"end": "(?=\\s*\\{)",
-					"name": "meta.definition.class.implemented.interfaces.java",
-					"patterns": [
-						{
-							"include": "#object-types-inherited"
+							"include": "#generics"
 						},
 						{
 							"include": "#comments"
+						},
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.parameters.begin.bracket.round.java"
+								}
+							},
+							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.parameters.end.bracket.round.java"
+								}
+							},
+							"name": "meta.record.parameters.java",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						},
+						{
+							"begin": "(implements)\\s",
+							"beginCaptures": {
+								"1": {
+									"name": "storage.modifier.implements.java"
+								}
+							},
+							"end": "(?=\\s*\\{)",
+							"name": "meta.definition.class.implemented.interfaces.java",
+							"patterns": [
+								{
+									"include": "#object-types-inherited"
+								},
+								{
+									"include": "#comments"
+								}
+							]
 						}
 					]
 				},

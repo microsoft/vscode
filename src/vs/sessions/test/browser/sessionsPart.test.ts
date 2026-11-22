@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { noSessionPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility, renderTestPanes } from './sessionViewTestUtils.js';
-import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { ColorScheme } from '../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -22,6 +22,8 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSessions } from '../../../workbench/services/sessions/browser/visibleSessions.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -131,6 +133,51 @@ suite('Sessions - Sessions Part', () => {
 			samePane: true,
 			sameView: true,
 			rebound: false,
+		});
+	});
+
+	test('a session that moves into the view of another session shows its chats with the sizes it last gave them', async () => {
+		const { part, content } = createSessionsPartTestHarness(store);
+		const grid = store.add(new VisibleSessions(session => session.mainChat.get(), () => [], () => [], () => { }, new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		}));
+		const a = createTestActiveSession('a');
+		const c = createTestActiveSession('c', true, { chatCount: 2 });
+		grid.restoreGrid([{ session: a, sticky: false }, { session: c, sticky: false }], 1);
+		const render = () => content.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
+		render();
+		part.layout(1202, 802, 0, 0);
+		/** The grid of the chat groups of the view of `c`, and the views of its groups, in order. */
+		const groupsOfC = () => {
+			const groupsView = Reflect.get(content.getSessionView('c')!, '_groupsView');
+			return {
+				groupsGrid: Reflect.get(groupsView, '_grid') as SerializableGrid<ChatGroupView>,
+				groups: (Reflect.get(groupsView, '_groups') as { readonly view: ChatGroupView }[]).map(group => group.view),
+			};
+		};
+		/** The share of the width of the view of `c` that its first chat group takes. */
+		const firstGroupShare = () => {
+			const { groupsGrid, groups: [first, second] } = groupsOfC();
+			const [firstWidth, secondWidth] = [groupsGrid.getViewSize(first).width, groupsGrid.getViewSize(second).width];
+			return Math.round(firstWidth / (firstWidth + secondWidth) * 100) / 100;
+		};
+
+		// `c` shows its chats side by side, saved as split evenly, and then resized, which saves nothing until its view leaves
+		content.getSessionView('c')!.splitActiveChat('right');
+		await timeout(0);
+		const split = firstGroupShare();
+		const { groupsGrid, groups: [first] } = groupsOfC();
+		groupsGrid.resizeView(first, { width: groupsGrid.width * 0.4 });
+		const resized = firstGroupShare();
+
+		// Dropped in the middle of the view of `a`, `c` moves there
+		const source = content.getSessionView('c');
+		grid.openInSlot(c, 'a');
+		render();
+		part.layout(1202, 802, 0, 0);
+
+		assert.deepStrictEqual({ split, resized, moved: content.getSessionView('c') !== source, after: firstGroupShare() }, {
+			split: 0.5, resized: 0.4, moved: true, after: 0.4,
 		});
 	});
 
@@ -362,6 +409,42 @@ suite('Sessions - Sessions Part', () => {
 		part.layout(1402, 902, 0, 0);
 		assert.deepStrictEqual(observations, [['698px', '698px'], ['698px', '698px']]);
 	});
+
+	for (const created of [false, true]) {
+		test(`top bars only show a grab cursor with multiple visible chat panels (created: ${created})`, async () => {
+			const { part, content, configurationService } = createSessionsPartTestHarness(store);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+			const session = createTestActiveSession('session', created, { chatCount: 2 });
+			const other = createTestActiveSession('other');
+			renderTestPanes(content, [session], session);
+			part.layout(1202, 802, 0, 0);
+			const view = content.getSessionView(session.sessionId)!;
+			const readTopBars = () => Array.from(view.element.querySelectorAll<HTMLElement>('.session-header-bar, .chat-composite-bar-toolbar-floating'))
+				.filter(element => mainWindow.getComputedStyle(element).display !== 'none')
+				.map(element => ({ cursor: mainWindow.getComputedStyle(element).cursor, draggable: element.draggable }));
+			const single = readTopBars();
+
+			const [pane] = renderTestPanes(content, [session, other], session);
+			const multiple = readTopBars();
+			content.toggleMaximizePane(pane);
+			const maximized = readTopBars();
+			content.toggleMaximizePane(pane);
+			const restored = readTopBars();
+			renderTestPanes(content, [session], session);
+			const singleAgain = readTopBars();
+
+			const normal = [{ cursor: 'default', draggable: true }];
+			const grab = [{ cursor: 'grab', draggable: true }];
+			assert.deepStrictEqual({ single, multiple, maximized, restored, singleAgain }, {
+				single: normal, multiple: grab, maximized: normal, restored: grab, singleAgain: normal,
+			});
+
+			if (created) {
+				await view.openChatToSide(session.chats.get()[1].resource);
+				assert.deepStrictEqual(readTopBars(), [...grab, ...grab]);
+			}
+		});
+	}
 
 	test('aggregates chats actually shown across splits, maximization, and part visibility', async () => {
 		const { part, content } = createSessionsPartTestHarness(store);

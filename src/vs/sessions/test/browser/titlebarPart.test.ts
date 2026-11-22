@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { getZoomFactor, isFullscreen, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
-import { $, addDisposableListener, append, EventType, registerWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, append, EventType, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -13,7 +13,7 @@ import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -21,17 +21,40 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLayoutService, TestMenuService, TestWorkspacesService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { canShowApplicationMenu, SESSIONS_SHOW_APPLICATION_MENU_SETTING } from '../../browser/parts/applicationMenu.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { IUpdateService, StateType } from '../../../platform/update/common/update.js';
+import { CustomMenubarControl } from '../../../workbench/browser/parts/titlebar/menubarControl.js';
 // eslint-disable-next-line local/code-import-patterns -- Test the title-bar styling supplied by the Modern UI contribution.
 import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
 // eslint-disable-next-line local/code-import-patterns -- Use the rendered command center's sizing and border.
 import '../../contrib/sessions/browser/media/sessionsTitleBarWidget.css';
 import '../../browser/media/workbench.css';
+// eslint-disable-next-line local/code-import-patterns -- Include the production styles of the right-hand title-bar controls.
+import '../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
+// eslint-disable-next-line local/code-import-patterns, local/code-layering -- Include the shared remote-connections control's CSS without its Electron implementation.
+import '../../../workbench/contrib/chat/electron-browser/media/tunnelHost.css';
+// eslint-disable-next-line local/code-import-patterns -- Include the production account control's styling.
+import '../../contrib/accountMenu/browser/media/accountTitleBarWidget.css';
+
+// On web, the first menu bar lazily registers a global focus action that is never unregistered. Create one before the
+// suite snapshots the registries so it is not reported as a leak.
+{
+	const disposables = new DisposableStore();
+	const instantiationService = workbenchInstantiationService(undefined, disposables);
+	stubMenubarServices(instantiationService);
+	disposables.add(instantiationService.createInstance(CustomMenubarControl));
+	disposables.dispose();
+}
 
 suite('Sessions - Titlebar Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -207,19 +230,69 @@ suite('Sessions - Titlebar Part', () => {
 
 		const lastIs = (name: string, inset: number) => ({ last: [name], insets: name === 'layout' ? { session: '0px', layout: `${inset}px` } : { session: `${inset}px` }, edge: inset });
 		assert.deepStrictEqual({ inTitleBar, inStrip, backInTitleBar, mainMarked: mainPart.element.querySelectorAll('.titlebar-last-actions').length }, {
-			inTitleBar: { default: lastIs('layout', 12), customWindowControls: lastIs('layout', 8), customWindowControlsFullscreen: lastIs('layout', 12) },
-			inStrip: { default: lastIs('session', 12), customWindowControls: lastIs('session', 8), customWindowControlsFullscreen: lastIs('session', 12) },
-			backInTitleBar: lastIs('layout', 12),
+			inTitleBar: { default: lastIs('layout', 8), customWindowControls: lastIs('layout', 8), customWindowControlsFullscreen: lastIs('layout', 8) },
+			inStrip: { default: lastIs('session', 8), customWindowControls: lastIs('session', 8), customWindowControlsFullscreen: lastIs('session', 8) },
+			backInTitleBar: lastIs('layout', 8),
 			mainMarked: 0,
 		});
 	});
 
 	for (const platform of ['mac', 'windows', 'linux', 'web']) {
+		test(`uses the tighter ${platform} title-bar inset whenever right-side window controls take no space`, () => {
+			const { part } = createTitlebar();
+			const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
+			store.add(toDisposable(() => root.remove()));
+			root.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px;';
+			const content = append(append(root, $('.part.titlebar')), $('.titlebar-container.sessions-titlebar-container.has-center'));
+			const left = append(content, $('.titlebar-left'));
+			append(content, $('.titlebar-center'));
+			const right = append(content, $('.titlebar-right'));
+			const toolbar = append(right, $('.titlebar-actions-container.titlebar-right-layout-container'));
+			const controls = append(right, $('.window-controls-container'));
+			controls.style.width = '138px';
+			Reflect.set(part, 'rootContainer', content);
+			Reflect.set(part, 'rightContent', right);
+			const read = () => {
+				updateTitleBarToolBarOverflow.call(part);
+				return {
+					hasControls: right.classList.contains('has-window-controls'),
+					inset: mainWindow.getComputedStyle(toolbar).paddingRight,
+				};
+			};
+			const shown = read();
+			controls.style.display = 'none';
+			const hidden = read();
+			controls.style.display = '';
+			controls.style.width = '0px';
+			const emptyOverlay = read();
+			controls.style.width = '138px';
+			const restored = read();
+			root.classList.add('fullscreen');
+			const fullscreen = read();
+			root.classList.remove('fullscreen');
+			const exitedFullscreen = read();
+			left.appendChild(controls);
+			const controlsOnLeft = read();
+			right.appendChild(controls);
+			const controlsOnRight = read();
+
+			assert.deepStrictEqual({ shown, hidden, emptyOverlay, restored, fullscreen, exitedFullscreen, controlsOnLeft, controlsOnRight }, {
+				shown: { hasControls: true, inset: '8px' },
+				hidden: { hasControls: false, inset: '4px' },
+				emptyOverlay: { hasControls: false, inset: '4px' },
+				restored: { hasControls: true, inset: '8px' },
+				fullscreen: { hasControls: false, inset: '4px' },
+				exitedFullscreen: { hasControls: true, inset: '8px' },
+				controlsOnLeft: { hasControls: false, inset: '4px' },
+				controlsOnRight: { hasControls: true, inset: '8px' },
+			});
+		});
+
 		for (const auxiliary of [false, true]) {
 			test(`optically centers ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar contents in default density`, () => {
 				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
 				store.add(toDisposable(() => root.remove()));
-				root.style.cssText = 'width: 800px; --vscode-spacing-size20: 2px; --vscode-spacing-size80: 8px; --vscode-commandCenter-border: transparent;';
+				root.style.cssText = 'width: 800px; --vscode-spacing-size20: 2px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-commandCenter-border: transparent;';
 				const grid = auxiliary ? root : append(root, $('.monaco-grid-view'));
 				const titlebar = append(grid, $('.part.titlebar'));
 				const content = append(titlebar, $('.titlebar-container.sessions-titlebar-container.has-center'));
@@ -262,7 +335,7 @@ suite('Sessions - Titlebar Part', () => {
 				});
 
 				const expected = (height: number, offset: number) => actions.map((_, index) => {
-					const gap = (height - (index === 2 ? 24 : 22)) / 2;
+					const gap = (height - (index === 2 || index >= 4 ? 24 : 22)) / 2;
 					return { top: gap + offset, bottom: gap - offset };
 				});
 				const defaultDensity = expected(44, 1);
@@ -274,7 +347,7 @@ suite('Sessions - Titlebar Part', () => {
 			test(`keeps ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar outer spacing unchanged across densities`, () => {
 				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
 				store.add(toDisposable(() => root.remove()));
-				root.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size80: 8px;';
+				root.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size40: 4px;';
 				const grid = auxiliary ? root : append(root, $('.monaco-grid-view'));
 				const titlebar = append(grid, $('.part.titlebar'));
 				titlebar.style.height = '35px';
@@ -289,6 +362,7 @@ suite('Sessions - Titlebar Part', () => {
 				const rightAction = append(rightToolbar, $('.action-label'));
 				rightAction.style.cssText = 'width: 40px; height: 22px; flex-shrink: 0;';
 				const windowControls = platform === 'windows' ? append(right, $('.window-controls-container')) : undefined;
+				right.classList.toggle('has-window-controls', !!windowControls);
 
 				const states = [false, true, false].map(compact => {
 					root.classList.toggle('modern-ui-compact', compact);
@@ -316,7 +390,7 @@ suite('Sessions - Titlebar Part', () => {
 					right: outerInset,
 					center: auxiliary ? 400 : 398,
 					leftAction: 0,
-					rightAction: outerInset + 8 + (windowControls ? 138 : 0),
+					rightAction: outerInset + (windowControls ? 8 + 138 : 4),
 					rightActionWidth: 40,
 					rightActionHeight: 22,
 					windowControlsRight: windowControls ? outerInset : undefined,
@@ -325,6 +399,107 @@ suite('Sessions - Titlebar Part', () => {
 			});
 		}
 	}
+
+	test('aligns right-hand controls across themes and density transitions without resizing shared workbench controls', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = 'width: 800px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-codiconFontSize: 16px;';
+		const titlebar = append(root, $('.part.titlebar'));
+		const content = append(titlebar, $('.titlebar-container.sessions-titlebar-container'));
+		const right = append(content, $('.titlebar-right'));
+		const toolbar = append(right, $('.titlebar-actions-container.titlebar-right-layout-container'));
+		const actions = append(append(append(toolbar, $('.monaco-toolbar')), $('.monaco-action-bar')), $('ul.actions-container'));
+		const changes = append(actions, $('li.action-item.changes-actions-bar'));
+		const buttonBar = store.add(new ButtonBar(changes));
+		const primary = buttonBar.addButton({});
+		primary.label = 'Create PR';
+		const split = buttonBar.addButtonWithDropdown({ actions: [], contextMenuProvider: { showContextMenu: () => { } } });
+		split.label = 'Sync Changes';
+		const secondary = buttonBar.addButton({ secondary: true });
+		secondary.element.classList.add('monaco-text-button', 'codicon');
+		const remote = append(append(actions, $('li.action-item')), $('a.action-label.codicon.tunnel-host-toggle'));
+		append(append(remote, $('span.tunnel-host-icon')), $('span.codicon'));
+		const layout = append(append(actions, $('li.action-item')), $('a.action-label.codicon'));
+		const account = append(actions, $('li.action-item.sessions-account-titlebar-widget'));
+		const avatar = append(account, $('img.sessions-account-titlebar-widget-avatar.visible'));
+		const controls = [primary.element, split.element, secondary.element, remote, layout, account];
+		const read = (element: HTMLElement) => {
+			const bounds = element.getBoundingClientRect();
+			const style = mainWindow.getComputedStyle(element);
+			return { height: bounds.height, radius: style.borderRadius };
+		};
+		const states = ['vs', 'vs-dark', 'hc-black', 'hc-light'].flatMap(theme => {
+			root.classList.add(theme);
+			const states = [false, true, false].map(compact => {
+				root.classList.toggle('modern-ui-compact', compact);
+				titlebar.style.height = `${compact ? 35 : 44}px`;
+				return {
+					controls: controls.map(read),
+					iconWidths: [secondary.element, remote, layout, account].map(element => element.getBoundingClientRect().width),
+					gap: mainWindow.getComputedStyle(actions).gap,
+					avatar: read(avatar),
+					splitCorners: [...split.element.querySelectorAll<HTMLElement>('.monaco-button')].map(element => mainWindow.getComputedStyle(element).borderRadius),
+					splitIconAlignment: mainWindow.getComputedStyle(split.element.querySelector<HTMLElement>('.monaco-dropdown-button')!).justifyContent,
+				};
+			});
+			root.classList.remove(theme);
+			return states;
+		});
+		const shared = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => shared.remove()));
+		shared.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		const sharedActions = append(append(shared, $('.monaco-action-bar')), $('li.action-item'));
+		const sharedAction = append(sharedActions, $('a.action-label.codicon'));
+		const sharedRemote = append(sharedActions, $('a.action-label.codicon.tunnel-host-toggle'));
+		sharedRemote.style.setProperty('--vscode-cornerRadius-small', '4px');
+
+		assert.deepStrictEqual({ states, shared: read(sharedAction), sharedRemoteHeight: sharedRemote.getBoundingClientRect().height }, {
+			states: Array.from({ length: 12 }, () => ({
+				controls: controls.map((_, index) => ({ height: 24, radius: index === 1 ? '0px' : '4px' })),
+				iconWidths: [24, 24, 24, 24],
+				gap: '4px',
+				avatar: { height: 18, radius: '50%' },
+				splitCorners: ['4px 0px 0px 4px', '0px 4px 4px 0px'],
+				splitIconAlignment: 'center',
+			})),
+			shared: { height: 22, radius: '6px' },
+			sharedRemoteHeight: 16,
+		});
+	});
+
+	test('keeps profile feedback immediate and badges stationary across motion settings', () => {
+		const parent = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => parent.remove()));
+		const root = append(parent, $('.monaco-workbench.agent-sessions-workbench'));
+		const account = append(root, $('.action-item.sessions-account-titlebar-widget', { tabindex: '0' }));
+		const parts = [
+			account,
+			append(account, $('.sessions-account-titlebar-widget-icon')),
+			append(account, $('.sessions-account-titlebar-widget-label')),
+			append(account, $('.sessions-account-titlebar-widget-badge')),
+		];
+		const states = [parent, root].flatMap(motionContainer => ['monaco-enable-motion', 'monaco-reduce-motion', 'monaco-enable-motion'].flatMap(motion => {
+			motionContainer.classList.add(motion);
+			const states = [false, true, false].map(menuVisible => {
+				account.classList.toggle('menu-visible', menuVisible);
+				if (menuVisible) {
+					account.focus();
+				} else {
+					account.blur();
+				}
+				return parts.map(element => {
+					const style = mainWindow.getComputedStyle(element);
+					return { transitionDuration: style.transitionDuration, animationName: style.animationName, transform: style.transform };
+				});
+			});
+			motionContainer.classList.remove(motion);
+			return states;
+		}));
+
+		assert.deepStrictEqual(states, Array.from({ length: 18 }, () => parts.map(() => ({
+			transitionDuration: '0s', animationName: 'none', transform: 'none',
+		}))));
+	});
 
 	for (const platform of ['windows', 'linux']) {
 		for (const auxiliary of [false, true]) {
@@ -623,7 +798,107 @@ suite('Sessions - Titlebar Part', () => {
 			expanded: [false, false, false, false, false, false],
 		});
 	});
+
+	class ApplicationMenuTitlebarPart extends TitlebarPart {
+		protected override get showsApplicationMenu(): boolean { return true; }
+	}
+
+	test('shows the application menu first in the left section of a title bar that shows it, while it is enabled, measures the title bar again as it adds or removes the menu, and logs its experiment trigger unless the user chose whether it shows', async () => {
+		const createTitlebarWithApplicationMenu = (shows: boolean, userValue: boolean | undefined) => {
+			const configuration = new TestConfigurationService({ window: { titleBarStyle: 'custom' }, ...(userValue === undefined ? {} : { [SESSIONS_SHOW_APPLICATION_MENU_SETTING]: userValue }) });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+			stubMenubarServices(instantiationService);
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			instantiationService.stub(ITelemetryService, telemetryService);
+			const part = store.add(instantiationService.createInstance(shows ? ApplicationMenuTitlebarPart : TitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+			part.create($('.part.titlebar'));
+			const overflowScheduler = Reflect.get(part, 'titleBarToolBarOverflowScheduler') as AnimationFrameScheduler;
+			// Whether the title bar measures again what fits in it after the setting changes.
+			const setEnabled = async (enabled: boolean) => {
+				overflowScheduler.cancel();
+				await configuration.setUserConfiguration(SESSIONS_SHOW_APPLICATION_MENU_SETTING, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					affectsConfiguration: key => key === SESSIONS_SHOW_APPLICATION_MENU_SETTING,
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([SESSIONS_SHOW_APPLICATION_MENU_SETTING]),
+					change: { keys: [SESSIONS_SHOW_APPLICATION_MENU_SETTING], overrides: [] },
+				});
+				return overflowScheduler.isScheduled();
+			};
+			const read = () => {
+				const left = part.element.querySelector<HTMLElement>('.titlebar-left')!;
+				return [...left.children].filter(child => !child.classList.contains('window-controls-container')).map(child => child.classList.contains('menubar')
+					? `menu (${child.classList.contains('compact') ? 'compact' : 'full'}, ${child.querySelector('.menubar-menu-button')?.getAttribute('aria-label')})`
+					: [...child.classList].find(name => name !== 'has-no-actions')!);
+			};
+			return { setEnabled, read, triggers: telemetryService.triggers };
+		};
+
+		const byDefault = createTitlebarWithApplicationMenu(true, undefined);
+		const shown = byDefault.read();
+		const measuredAfterDisabling = await byDefault.setEnabled(false);
+		const disabled = byDefault.read();
+		const measuredAfterEnabling = await byDefault.setEnabled(true);
+		const enabled = byDefault.read();
+		const userDisabled = createTitlebarWithApplicationMenu(true, false);
+		const notShown = createTitlebarWithApplicationMenu(false, undefined);
+
+		const menu = 'menu (compact, Application Menu)';
+		assert.deepStrictEqual({
+			byDefault: { shown, disabled, enabled, measuredAfterDisabling, measuredAfterEnabling, triggers: byDefault.triggers },
+			userDisabled: { shown: userDisabled.read(), triggers: userDisabled.triggers },
+			notShown: { shown: notShown.read(), triggers: notShown.triggers },
+		}, {
+			byDefault: { shown: [menu, 'left-toolbar-container'], disabled: ['left-toolbar-container'], enabled: [menu, 'left-toolbar-container'], measuredAfterDisabling: true, measuredAfterEnabling: true, triggers: [`config.${SESSIONS_SHOW_APPLICATION_MENU_SETTING}`] },
+			userDisabled: { shown: ['left-toolbar-container'], triggers: [] },
+			notShown: { shown: ['left-toolbar-container'], triggers: [] },
+		});
+	});
+
+	test('the application menu can show only with the custom title bar of Windows and Linux, including with the custom menu style the Agents window uses by default', () => {
+		const canShow = Object.fromEntries(['custom', 'native'].map(titleBarStyle => [titleBarStyle, canShowApplicationMenu(new TestConfigurationService({ window: { titleBarStyle, menuStyle: 'custom' } }))]));
+
+		assert.deepStrictEqual(canShow, { custom: isNative && !isMacintosh, native: false });
+	});
+
+	test('the application menu keeps Open Recent current while window.menuBarVisibility hides the menu bar of other windows', async () => {
+		const configuration = new TestConfigurationService({ window: { titleBarStyle: 'custom', menuBarVisibility: 'hidden' } });
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		stubMenubarServices(instantiationService);
+		const onDidChangeRecentlyOpened = store.add(new Emitter<void>());
+		let requests = 0;
+		instantiationService.stub(IWorkspacesService, new class extends TestWorkspacesService {
+			override onDidChangeRecentlyOpened = onDidChangeRecentlyOpened.event;
+			override getRecentlyOpened() {
+				requests++;
+				return super.getRecentlyOpened();
+			}
+		}());
+		const part = store.add(instantiationService.createInstance(ApplicationMenuTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create($('.part.titlebar'));
+
+		const before = requests;
+		onDidChangeRecentlyOpened.fire();
+		const refreshes = requests - before;
+		await timeout(0);
+
+		assert.deepStrictEqual({ shown: !!part.element.querySelector('.titlebar-left > .menubar.compact'), refreshes }, { shown: true, refreshes: 1 });
+	});
 });
+
+function stubMenubarServices(instantiationService: TestInstantiationService): void {
+	// The menu bar expects the main menu to have at least one (possibly empty) group.
+	instantiationService.stub(IMenuService, new class extends TestMenuService {
+		override createMenu(): IMenu {
+			return { onDidChange: Event.None, dispose: () => undefined, getActions: () => [['', []]] };
+		}
+	}());
+	instantiationService.stub(IUpdateService, new class extends mock<IUpdateService>() {
+		override readonly onStateChange = Event.None;
+		override get state() { return { type: StateType.Uninitialized as const }; }
+	}());
+}
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {
 	const element = mainWindow.document.createElement('div');

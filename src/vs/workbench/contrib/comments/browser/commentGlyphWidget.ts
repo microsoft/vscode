@@ -71,7 +71,8 @@ export class CommentGlyphWidget extends Disposable {
 				position: OverviewRulerLane.Center
 			},
 			collapseOnReplaceEdit: true,
-			linesDecorationsClassName: className
+			linesDecorationsClassName: 'comment-range-glyph comment-thread-bar',
+			firstLineDecorationClassName: className
 		};
 
 		return ModelDecorationOptions.createDynamic(decorationOptions);

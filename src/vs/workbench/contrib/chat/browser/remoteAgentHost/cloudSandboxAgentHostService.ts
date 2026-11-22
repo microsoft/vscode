@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -12,7 +14,8 @@ import { disposableTimeout, raceCancellationError, timeout } from '../../../../.
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostProtocolClient, InitialAuthenticationError, RetryableAuthenticationError } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { sealAgentHostCredential } from '../../../../../platform/agentHost/browser/agentHostCredentialSealing.js';
 import type { AuthenticateParams } from '../../../../../platform/agentHost/common/agent.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -27,10 +30,10 @@ import {
 	cloudSandboxEnvironmentId,
 	CloudSandboxEnabledSettingId,
 	CloudSandboxNetworkError,
+	CloudSandboxAuthenticationRequiredError,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxConnectOptions,
 	ICloudSandboxApiService,
-	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
 	CloudSandboxRequestError,
 	type CloudSandboxConnectResult,
@@ -44,6 +47,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { isSealedEnvironmentToken } from '../../../../../platform/github/common/missionControl/environments.js';
 import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { getCloudSandboxConnectionSurface, ICloudSandboxTelemetryService, type CloudSandboxConnectionSurface, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
@@ -279,6 +283,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				staged.refreshState,
 			));
 			staged.refresher = refresher;
+			store.add(this._powerService.onDidSuspend(() => refresher.suspend()));
+			store.add(this._powerService.onDidResume(() => refresher.resume()));
 			store.add(toDisposable(() => {
 				if (staged.refresher === refresher) {
 					staged.refresher = undefined;
@@ -317,6 +323,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
 				groupValidation: { expected: { cid: staged.creds.token.client_id } },
 				onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
+				onHandshakeProgress: staged.options.environmentKind === 'user-local' ? (handshakeMethod, handshakeState) => diagnosticObserver({
+					operationId: staged.clientId, phase: 'protocol.handshake', outcome: 'info', timestamp: Date.now(), handshakeMethod, handshakeState,
+				}) : undefined,
 				ahpLogger: ahpLoggingEnabled
 					? this._instantiationService.createInstance(AhpJsonlLogger, {
 						logsHome: this._environmentService.logsHome,
@@ -351,7 +360,12 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 							throw new CancellationError();
 						}
 						if (!isMissionControlRecipientTrusted(request, staged.trustedEncryptionKeys)) {
-							const environment = await this._apiService.getEnvironment(staged.options.environmentId, lifetime.token);
+							const environment = await this._apiService.getEnvironment(staged.options.environmentId, lifetime.token).catch(error => {
+								if (!isCancellationError(error) && isRetryableCloudSandboxError(error)) {
+									throw new RetryableAuthenticationError(error);
+								}
+								throw error;
+							});
 							if (environment.id !== staged.options.environmentId) {
 								throw new Error('Mission Control returned a different environment for credential encryption.');
 							}
@@ -366,6 +380,13 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				},
 			);
 			protocolClient = client;
+			if (telemetry && staged.options.environmentKind === 'user-local') {
+				store.add(telemetry.observeSessionSubscriptions(() => new Map(client.getActiveSubscriptions()
+					.filter(subscription => subscription.kind === StateComponents.Session)
+					.map(subscription => [subscription.resource.toString(), subscription.status]))));
+				store.add(addDisposableListener(mainWindow, 'online', () => telemetry.recordNetworkChange(true)));
+				store.add(addDisposableListener(mainWindow, 'offline', () => telemetry.recordNetworkChange(false)));
+			}
 			store.add(client.onDidConnectionDiagnostic(diagnosticObserver));
 			store.add(client.onDidAction(envelope => telemetry?.recordSessionAction(envelope, client.getConnectionDiagnosticState())));
 			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };
@@ -384,19 +405,22 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			throw new CancellationError();
 		}
 		if (staged.options.environmentKind === 'user-local') {
-			return this.resolveUserLocalAuthentication(staged.options.environmentId, GITHUB_COPILOT_PROTECTED_RESOURCE.resource);
+			try {
+				return await this.resolveUserLocalAuthentication(staged.options.environmentId, GITHUB_COPILOT_PROTECTED_RESOURCE.resource);
+			} catch (error) {
+				if (error instanceof CloudSandboxAuthenticationRequiredError || !isRetryableCloudSandboxError(error)) {
+					throw new InitialAuthenticationError(error);
+				}
+				throw error;
+			}
 		}
-		// Throw rather than returning `undefined`: an unusable token must fail
-		// the connection, not produce one that reports connected and then fails
-		// every authenticated request. The protocol client classifies this as an
-		// initial-authentication failure and surfaces it as incompatible.
 		const address = getEntryAddress(staged.entry);
 		const sealedToken = staged.creds.token.encrypted_github_token;
 		if (!sealedToken) {
-			throw new Error(`Mission Control returned no sealed token for ${address}; the session cannot make authenticated requests.`);
+			throw new InitialAuthenticationError(new Error(`Mission Control returned no sealed token for ${address}; the session cannot make authenticated requests.`));
 		}
-		if (!isCloudSandboxSealedToken(sealedToken)) {
-			throw new Error(`Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`);
+		if (!isSealedEnvironmentToken(sealedToken)) {
+			throw new InitialAuthenticationError(new Error(`Refusing to forward a non-sealed token to ${address}; Mission Control did not return a copilot-sealed envelope.`));
 		}
 		staged.lastAuthenticationToken = sealedToken;
 		return { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: sealedToken };
@@ -642,7 +666,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		let rateLimitFailures = 0;
 		let rateLimitedAt: number | undefined;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
-		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isCloudSandboxSealedToken(clientToken.encrypted_github_token); attempt++) {
+		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isSealedEnvironmentToken(clientToken.encrypted_github_token); attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

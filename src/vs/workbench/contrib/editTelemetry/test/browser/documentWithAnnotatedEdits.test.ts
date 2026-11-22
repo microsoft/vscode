@@ -72,6 +72,23 @@ suite('Documents with Annotated Edits', () => {
 		context.disposables.dispose();
 	}));
 
+	test('keeps chat revisions separate after a one-second quiet gap', () => runWithFakedTimers({}, async () => {
+		const context = setup('original');
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(8), 'A'.repeat(100)), chatEdit());
+			await timeout(1500);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(100), 'B'.repeat(100)), chatEdit());
+			await timeout(1500);
+			assert.deepStrictEqual(context.changes.map(change => change.replacements), [
+				[{ start: 0, endExclusive: 8, newText: 'A'.repeat(100) }],
+				[{ start: 0, endExclusive: 100, newText: 'B'.repeat(100) }],
+			]);
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
 	test('preserves ordering when a user edit interrupts streamed chat edits', () => runWithFakedTimers({}, async () => {
 		const context = setup('');
 		await timeout(0);

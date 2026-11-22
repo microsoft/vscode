@@ -34,7 +34,8 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../workbench/
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../workbench/common/chatSessionCommands.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -199,6 +200,7 @@ interface IChatCompositeBarHarness {
 	readonly activeChatResource: ISettableObservable<string>;
 	readonly visible: ISettableObservable<boolean>;
 	readonly showSessionActions: ISettableObservable<boolean>;
+	readonly renamedChats: readonly string[];
 }
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService; readonly providerLookup?: (providerId: string, sessionId?: string) => ISessionsProvider | undefined }): IChatCompositeBarHarness {
@@ -257,8 +259,12 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	});
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(IEditorGroupsService, editorGroupsService);
+	const renamedChats: string[] = [];
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
+		override async renameChat(_session: ISession, chatResource: URI, title: string): Promise<void> {
+			renamedChats.push(`${chatResource.toString()}: ${title}`);
+		}
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -285,7 +291,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, contextMenuService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, contextMenuService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions, renamedChats };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -1248,7 +1254,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('runs the shared Close and read state commands from chat tab menus', async () => {
+	test('runs the shared Close and the sessions list\'s read state commands from chat tab menus, which every window with chat tabs registers, not the agent sessions\' Mark as Unread', async () => {
 		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
@@ -1257,11 +1263,11 @@ suite('Sessions - ChatCompositeBar', () => {
 			tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 			await contextMenuService.delegate?.getActions().find(action => action.id === id)?.run();
 		};
-		await run(tabs[0], MARK_SESSION_UNREAD_COMMAND_ID);
+		await run(tabs[0], SESSIONS_LIST_MARK_UNREAD_COMMAND_ID);
 		await run(tabs[1], CLOSE_CHAT_COMMAND_ID);
 
 		assert.deepStrictEqual(commandService.calls, [
-			{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
+			{ commandId: SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
 			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1], testPaneContext] },
 		]);
 	});
@@ -1591,6 +1597,26 @@ suite('Sessions - ChatCompositeBar', () => {
 			mouseUpDefaultPrevented: false,
 			auxClickDefaultPrevented: false,
 		});
+	});
+
+	test('rename input commits on Enter and on blur, and Escape cancels', () => {
+		const { renamedChats, tabs } = createHarness(disposables);
+		const rename = (title: string, end: (input: HTMLInputElement) => void) => {
+			tabs[1].dispatchEvent(new MouseEvent(EventType.DBLCLICK, { bubbles: true, button: 0, cancelable: true }));
+			const input = tabs[1].querySelector<HTMLInputElement>('.chat-composite-bar-tab-input input')!;
+			input.value = title;
+			end(input);
+		};
+		const pressKey = (input: HTMLInputElement, key: string, keyCode: number) => input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, code: key, keyCode, bubbles: true, cancelable: true }));
+
+		rename('Committed on Enter', input => pressKey(input, 'Enter', 13));
+		rename('Committed on blur', input => input.dispatchEvent(new FocusEvent(EventType.BLUR)));
+		rename('Cancelled with Escape', input => {
+			pressKey(input, 'Escape', 27);
+			input.dispatchEvent(new FocusEvent(EventType.BLUR));
+		});
+
+		assert.deepStrictEqual(renamedChats, ['test-chat://secondary: Committed on Enter', 'test-chat://secondary: Committed on blur']);
 	});
 
 	test('rename input lets clipboard and editing shortcuts reach the workbench keybinding dispatcher without driving the tab', () => {

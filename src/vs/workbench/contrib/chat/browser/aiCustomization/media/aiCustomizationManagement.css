@@ -269,6 +269,7 @@
 .plugin-list-widget > .mcp-list-container,
 .ai-customization-list-widget > .section-title-header,
 .ai-customization-list-widget > .list-search-and-button-container,
+.ai-customization-list-widget > .customization-section-notices,
 .ai-customization-list-widget > .list-container,
 .tools-list-widget > .section-title-header,
 .tools-list-widget > .tools-list-search-and-button-container,
@@ -828,6 +829,131 @@ per-word capitalization does not survive translation. */
 	line-height: 16px;
 }
 
+.plugin-list-widget .plugin-scope-badge.monaco-text-button {
+	width: auto;
+	padding: 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label3);
+	border-radius: var(--vscode-cornerRadius-small);
+	border-color: var(--vscode-contrastBorder, transparent);
+}
+
+/* Tags next to a customization's name: "Managed by your organization" and "Managed by your GitHub Team" */
+.inline-badge.organization-managed-tag,
+.inline-badge.team-provided-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+}
+
+.inline-badge.organization-managed-tag .codicon,
+.inline-badge.team-provided-tag .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Notice explaining an organization restriction on a whole section */
+.organization-policy-notice {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	margin: 0 0 var(--vscode-spacing-size80) 0;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-medium);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	background: var(--vscode-textBlockQuote-background);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-foreground);
+}
+
+.organization-policy-notice .organization-policy-notice-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+}
+
+.organization-policy-notice .organization-policy-notice-message {
+	min-width: 0;
+}
+
+/* Problems with a section's customizations as a whole, such as hook files that failed to load */
+/* Many or long errors scroll rather than push the list out of view */
+.ai-customization-list-widget .customization-section-notices {
+	flex-shrink: 0;
+	max-height: 40%;
+	overflow-y: auto;
+}
+
+.customization-section-notice {
+	margin: 0 0 var(--vscode-spacing-size160) 0;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-medium);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	background: var(--vscode-textBlockQuote-background);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-foreground);
+}
+
+.customization-section-notice .customization-section-notice-summary {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40);
+	list-style: none;
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-section-notice .customization-section-notice-summary::-webkit-details-marker {
+	display: none;
+}
+
+.customization-section-notice .customization-section-notice-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.vscode-high-contrast .customization-section-notice .customization-section-notice-summary:focus-visible {
+	outline-color: var(--vscode-contrastActiveBorder);
+}
+
+.customization-section-notice .customization-section-notice-chevron,
+.customization-section-notice .customization-section-notice-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 1.45;
+}
+
+.customization-section-notice .customization-section-notice-chevron {
+	color: var(--vscode-icon-foreground);
+}
+
+.customization-section-notice[open] .customization-section-notice-chevron {
+	transform: rotate(90deg);
+}
+
+.customization-section-notice.warning .customization-section-notice-icon {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.customization-section-notice.error .customization-section-notice-icon {
+	color: var(--vscode-errorForeground);
+}
+
+.customization-section-notice .customization-section-notice-title {
+	min-width: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* Aligned with the title, after the chevron and the severity icon */
+.customization-section-notice .customization-section-notice-message {
+	margin-top: var(--vscode-spacing-size20);
+	padding-left: calc(2 * (var(--vscode-codiconFontSize) + var(--vscode-spacing-size40)));
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Status icon for remote customization items (loading/loaded/degraded/error) */
 .ai-customization-list-item .item-status-icon {
 	flex-shrink: 0;
@@ -976,6 +1102,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-item:hover .item-right,
 .ai-customization-list-item:focus-within .item-right,
+.ai-customization-list-item.menu-open .item-right,
 .monaco-list-row.focused .ai-customization-list-item .item-right {
 	opacity: 1;
 }
@@ -1232,6 +1359,7 @@ per-word capitalization does not survive translation. */
 /* The scroll hosts reach the pane edge while their content retains the panel inset. */
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .section-title-header,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .customization-section-notices,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-container,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .section-title-header,
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .list-search-and-button-container,
@@ -1436,7 +1564,11 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+.ai-customization-management-editor .copilot-customization-tree-icon {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.disabled :is(.copilot-customization-tree-text, .copilot-customization-tree-icon) {
 	opacity: 0.6;
 }
 
@@ -1872,7 +2004,8 @@ per-word capitalization does not survive translation. */
 /* Embedded plugin detail view */
 .ai-customization-management-editor .marketplace-detail-container,
 .ai-customization-management-editor .plugin-detail-container,
-.ai-customization-management-editor .connector-detail-container {
+.ai-customization-management-editor .connector-detail-container,
+.ai-customization-management-editor .mcp-install-container {
 	position: relative;
 	height: 100%;
 	display: flex;
@@ -2073,6 +2206,22 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail {
 	margin-inline: auto;
+}
+
+/* While an installation is configured, its form takes the place of the current page. */
+.ai-customization-management-editor .content-inner.configuring-installation > :not(.mcp-install-container) {
+	display: none;
+}
+
+/* The install form fills the page's height, so its fields scroll while its title and buttons stay in view. */
+.ai-customization-management-editor .mcp-install-container {
+	align-items: center;
+}
+
+.ai-customization-management-editor .mcp-install-container .mcp-install-form {
+	flex: 1;
+	width: calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400));
+	height: auto;
 }
 
 /* Shared embedded detail component foundation */
@@ -3291,25 +3440,31 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-textPreformat-foreground, var(--vscode-descriptionForeground));
 }
 
-.plugin-list-widget .plugin-list-item-status {
+.plugin-list-widget .plugin-list-item-status-icon {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	line-height: 18px;
-	padding: 0 var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-circle);
-	color: var(--vscode-badge-foreground);
-	background-color: var(--vscode-badge-background);
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
 }
 
-.plugin-list-widget .plugin-list-item-status.running {
-	color: var(--vscode-editor-background);
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
+.plugin-list-widget .plugin-list-item-status-icon.loading {
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
-.plugin-list-widget .plugin-list-item-status.disabled {
-	color: var(--vscode-badge-foreground);
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
+.monaco-reduce-motion .plugin-list-widget .plugin-list-item-status-icon.loading {
+	animation: none;
+}
+
+.plugin-list-widget .plugin-list-item-status-icon.warning {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.plugin-list-widget .plugin-list-item-status-icon.error {
+	color: var(--vscode-errorForeground);
 }
 
 .plugin-list-widget .plugin-list-item-action {
@@ -4349,6 +4504,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .customization-detail-mode .editor-header,
+.ai-customization-management-editor .customization-detail-mode .migration-detail-warning,
 .ai-customization-management-editor .customization-detail-mode .editor-preview-scroll-container,
 .ai-customization-management-editor .customization-detail-mode .embedded-editor-container {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);

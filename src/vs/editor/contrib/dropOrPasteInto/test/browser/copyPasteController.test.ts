@@ -90,12 +90,12 @@ suite('CopyPasteController - paste edit session', () => {
 				// The test editor has no clipboard view, so start the inline paste directly.
 				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
 				controller['doPasteInline']([provider], editor.getSelections(), dataTransfer, undefined, undefined);
-				await controller.finishedPaste();
+				const applied = await controller.finishedPaste();
 				if (endInteraction === 'noSelector' || endInteraction === 'singleEdit') {
-					assert.deepStrictEqual({ text: editor.getValue(), released, resolves }, { text: 'PLAIN', released: 1, resolves: 1 });
+					assert.deepStrictEqual({ text: editor.getValue(), released, resolves, applied }, { text: 'PLAIN', released: 1, resolves: 1, applied: true });
 					return;
 				}
-				assert.deepStrictEqual({ text: editor.getValue(), released, resolves }, { text: 'PLAIN', released: 0, resolves: 1 });
+				assert.deepStrictEqual({ text: editor.getValue(), released, resolves, applied }, { text: 'PLAIN', released: 0, resolves: 1, applied: true });
 
 				controller.changePasteType();
 				assert.ok(selectEdit);
@@ -139,4 +139,37 @@ suite('CopyPasteController - paste edit session', () => {
 			});
 		});
 	}
+
+	test('finishedPaste reports cancellation of an explicit paste', async () => {
+		await withAsyncTestCodeEditor('', {}, async (editor, _viewModel, instantiationService) => {
+			instantiationService.stub(createDecorator<{ add(): () => void }>('IEditorCancelService'), { add: () => () => { } });
+			instantiationService.stub(IBulkEditService, {});
+			instantiationService.stub(IQuickInputService, {});
+			instantiationService.stub(IProgressService, { withProgress: async (_options, task) => task({ report: () => { } }) });
+			const controller = disposables.add(instantiationService.createInstance(CopyPasteController, editor));
+			const entered = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			const provider: DocumentPasteEditProvider = {
+				id: 'test',
+				copyMimeTypes: [],
+				pasteMimeTypes: ['text/plain'],
+				providedPasteEditKinds: [],
+				async provideDocumentPasteEdits() {
+					entered.complete();
+					await finish.p;
+					return undefined;
+				},
+			};
+			const dataTransfer = new VSDataTransfer();
+			dataTransfer.append('text/plain', createStringDataTransferItem('PLAIN'));
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			controller['showPasteAsPick']({ providerId: provider.id! }, [provider], editor.getSelections(), dataTransfer, undefined);
+			await entered.p;
+			const pendingPaste = controller.finishedPaste();
+			editor.getModel().setValue('Changed draft');
+			await finish.complete();
+
+			assert.deepStrictEqual({ text: editor.getValue(), applied: await pendingPaste }, { text: 'Changed draft', applied: false });
+		});
+	});
 });

@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableSignal, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -64,6 +64,8 @@ interface IAgentHostCheckpoint {
  * regardless of how many tool calls it ran. The `stopId` parameters on
  * {@link restoreSnapshot}, {@link getSnapshotUri}, and {@link getSnapshotContents}
  * are accepted for interface compatibility but ignored.
+ * The forward branch remains available for redo until the next prompt commits
+ * the truncation of the host's conversation history.
  *
  * Hydrated by the session handler as turns and tool calls arrive, with
  * optional turn changesets resolved when checkpoint content is needed.
@@ -87,6 +89,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
 		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId) },
 		reader => {
+			this._checkpointOrderChanged.read(reader);
 			const currentIdx = this._currentCheckpointIndex.read(reader);
 			const disabled: IChatRequestDisablement[] = [];
 			for (let i = currentIdx + 1; i < this._checkpoints.length; i++) {
@@ -97,12 +100,17 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	);
 
 	readonly canUndo: IObservable<boolean> = derived(this, r => this._currentCheckpointIndex.read(r) >= 0);
-	readonly canRedo: IObservable<boolean> = derived(this, r => this._currentCheckpointIndex.read(r) < this._checkpoints.length - 1);
+	readonly canRedo: IObservable<boolean> = derived(this, r => {
+		this._checkpointOrderChanged.read(r);
+		return this._currentCheckpointIndex.read(r) < this._checkpoints.length - 1;
+	});
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _checkpoints: IAgentHostCheckpoint[] = [];
+	private _checkpoints: IAgentHostCheckpoint[] = [];
+	private _historyIds = new Set<string>();
+	private readonly _checkpointOrderChanged = observableSignal(this);
 	private readonly _currentCheckpointIndex = observableValue<number>(this, -1);
 	private readonly _undoRedoSequencer = new Sequencer();
 
@@ -174,6 +182,52 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		transaction(tx => {
 			this._currentCheckpointIndex.set(this._checkpoints.length - 1, tx);
 		});
+	}
+
+	/** Reconciles completed turns in transcript order, retaining local checkpoints and the reader's restore boundary. */
+	reconcileHistoryCheckpoints(ids: readonly string[]): ReadonlySet<string> {
+		const previous = this._checkpoints;
+		const existing = new Map(previous.map(cp => [cp.requestId, cp]));
+		const history = new Set(ids);
+		const localsBefore = new Map<string, IAgentHostCheckpoint[]>();
+		let localTail: IAgentHostCheckpoint[] = [];
+		for (const cp of previous) {
+			// A steering turn can reach history before the local request it followed.
+			if (history.has(cp.requestId)) {
+				if (localTail.length) {
+					localsBefore.set(cp.requestId, localTail);
+					localTail = [];
+				}
+			} else if (!this._historyIds.has(cp.requestId)) {
+				localTail.push(cp);
+			}
+		}
+		const toHydrate = new Set<string>();
+		const ordered: IAgentHostCheckpoint[] = [];
+		for (const requestId of history) {
+			const cp = existing.get(requestId);
+			if (!cp || !this._historyIds.has(requestId)) {
+				toHydrate.add(requestId);
+			}
+			ordered.push(...(localsBefore.get(requestId) ?? []));
+			ordered.push(cp ?? { requestId, edits: [], turnEditsResolved: false, seenToolCallIds: new Set<string>() });
+		}
+		ordered.push(...localTail);
+		this._historyIds = history;
+		const index = this._currentCheckpointIndex.get();
+		let nextIndex = ordered.length - 1;
+		if (index < previous.length - 1) {
+			const retained = new Set(ordered);
+			const firstDisabled = previous.slice(index + 1).find(cp => retained.has(cp));
+			const lastEnabled = previous.slice(0, index + 1).findLast(cp => retained.has(cp));
+			nextIndex = firstDisabled ? ordered.indexOf(firstDisabled) - 1 : lastEnabled ? ordered.indexOf(lastEnabled) : nextIndex;
+		}
+		this._checkpoints = ordered;
+		transaction(tx => {
+			this._currentCheckpointIndex.set(nextIndex, tx);
+			this._checkpointOrderChanged.trigger(tx);
+		});
+		return toHydrate;
 	}
 
 	/**
@@ -288,13 +342,30 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	 */
 	private async _navigateToCheckpointIndex(targetIdx: number): Promise<void> {
 		const currentIdx = this._currentCheckpointIndex.get();
+		// Older pages can arrive while the file operations are pending.
+		const boundary = this._checkpoints[Math.max(0, targetIdx)];
 		const crossed = this._checkpoints.slice(Math.min(currentIdx, targetIdx) + 1, Math.max(currentIdx, targetIdx) + 1);
+		const undo = targetIdx < currentIdx;
+		const reviewCheckpoints = undo ? this._checkpoints.slice(targetIdx + 1) : crossed;
+		let order = this._checkpoints;
+		const verifyRestoreRange = () => {
+			if (order === this._checkpoints) {
+				return;
+			}
+			const boundaryIndex = this._checkpoints.indexOf(boundary);
+			const target = targetIdx < 0 ? boundaryIndex - 1 : boundaryIndex;
+			const current = this._currentCheckpointIndex.get();
+			const start = Math.min(current, target) + 1;
+			if (boundaryIndex < 0 || current - target !== currentIdx - targetIdx || !crossed.every((cp, i) => this._checkpoints[start + i] === cp)) {
+				throw new Error(localize('agentHostSnapshot.historyChanged', "The chat history changed while restoring the checkpoint."));
+			}
+			order = this._checkpoints;
+		};
 		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
 		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
-		const undo = targetIdx < currentIdx;
 		const affectedResources = crossed.flatMap(checkpoint => checkpoint.edits.flatMap(edit => edit.originalResource ? [edit.resource, edit.originalResource] : [edit.resource]));
 		const updateReview = await this.checkpointReview.prepareRestore(
-			undo ? this._checkpoints.slice(targetIdx + 1) : crossed,
+			reviewCheckpoints,
 			undo,
 			affectedResources,
 		);
@@ -308,6 +379,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		}
 		const failures: Error[] = [];
 		for (const checkpoint of undo ? [...crossed].reverse() : crossed) {
+			verifyRestoreRange();
 			try {
 				await this._writeCheckpointContent(checkpoint, undo ? 'before' : 'after');
 			} catch (error) {
@@ -319,8 +391,10 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			failures.push(afterRestoreError);
 		}
 
+		verifyRestoreRange();
 		transaction(tx => {
-			this._currentCheckpointIndex.set(targetIdx, tx);
+			const boundaryIndex = this._checkpoints.indexOf(boundary);
+			this._currentCheckpointIndex.set(targetIdx < 0 ? Math.max(-1, boundaryIndex - 1) : boundaryIndex, tx);
 			if (!undo || failures.length === 0) {
 				updateReview(tx);
 			}

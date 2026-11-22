@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Limiter, raceTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -14,10 +14,12 @@ import { autorun, constObservable, derived, IObservable, IReader, observableValu
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { readCloudSandboxProjects } from '../../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -154,6 +156,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly hostGroup?: IAgentHostGroup;
 	/** Source workspace represented by this Dev Container provider. */
 	readonly devContainerSourceWorkspaceUri?: URI;
+	/** Address of the host that runs the Dev Container environment represented by this provider. */
+	readonly devContainerEnvironmentHost?: string;
 	readonly devContainerWorktreeScope?: string;
 	/** Controls the stopped/removed container while this runtime provider remains registered. */
 	readonly devContainerLifecycle?: {
@@ -206,10 +210,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
+	readonly devContainerEnvironmentHost: string | undefined;
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
-	get browseActions(): readonly ISessionWorkspaceBrowseAction[] { return this._browseActions; }
+	/**
+	 * Offered unless the connected host has no folder of its own to start browsing from, such as a host
+	 * that lists sessions but advertises no default directory. A disconnected host keeps it, since
+	 * browsing connects on demand.
+	 */
+	get browseActions(): readonly ISessionWorkspaceBrowseAction[] {
+		return this._connection && !this._folderBrowseUri() ? [] : this._browseActions;
+	}
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 	readonly showConnectionLog?: () => Promise<void>;
@@ -288,6 +300,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private _devContainerIdleSince: number | undefined;
 	private _devContainerIdleCheckRunning = false;
 	private _devContainerArchiveOperations = 0;
+	private readonly _devContainerArchiveLimiter = this._register(new Limiter<void>(1));
 	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
 		void this._stopDevContainerIfIdle().catch(error =>
 			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
@@ -303,6 +316,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * re-announced so the UI can repopulate.
 	 */
 	private _unpublished = false;
+	/** The connection whose session listing the cache last reconciled with; peer chats of sessions are known only from it. */
+	private _listedConnection: IAgentConnection | undefined;
+	/** Whether {@link adoptSession} declined to wait for {@link _listedConnection}, so its listing should prompt another attempt. */
+	private _adoptionAwaitsListing = false;
 	private readonly _detachedWorktreeDeletionTasks = new Map<string, Promise<void>>();
 	private _detachedWorktreeReconciliation = 0;
 
@@ -365,6 +382,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
+		this.devContainerEnvironmentHost = config.devContainerEnvironmentHost;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,
@@ -421,6 +439,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostGroup = config.hostGroup;
 		this._storageKey = config.sessionCacheKey ?? `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
+			supportsOneTimeAutomation: false,
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's client-to-host mapper
 			toHost: resource => fromAgentHostUri(resource),
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's host-to-client mapper
@@ -433,6 +452,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(resource);
 				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === this._connectionAuthority ? identity.backendSession : undefined;
 			},
+			resolveBackendChat: resource => this.getBackendChatResource(resource),
+			conversationFromHost: (session, chat) => this.getAutomationConversation(session, chat),
 			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
 			providerForResourceScheme: scheme => {
@@ -483,22 +504,25 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
-		if (this._devContainerLifecycle) {
-			await this._ensureDevContainerConnection();
-			await this._setDevContainerSessionArchived(sessionId, true);
-			if (this._hasUnarchivedDevContainerSession(sessionId)) {
-				this._scheduleDevContainerStopIfIdle();
-				return;
-			}
-			this._devContainerIdleScheduler.cancel();
-			// Stop rather than remove: the container holds the archived session's Agent Host state.
-			if (await this._devContainerLifecycle.stop()) {
-				await this._setDetachedWorktreeArchived(sessionId, true);
-			} else {
-				this._devContainerIdleSince = undefined;
-				this._scheduleDevContainerStopIfIdle();
-			}
-			return;
+		const devContainerLifecycle = this._devContainerLifecycle;
+		if (devContainerLifecycle) {
+			// Serialize through teardown so optimistic sibling flags cannot stop a host awaiting confirmation.
+			return this._devContainerArchiveLimiter.queue(async () => {
+				await this._ensureDevContainerConnection();
+				await this._setDevContainerSessionArchived(sessionId, true);
+				if (this._hasUnarchivedDevContainerSession(sessionId)) {
+					this._scheduleDevContainerStopIfIdle();
+					return;
+				}
+				this._devContainerIdleScheduler.cancel();
+				// Stop rather than remove: the container holds the archived session's Agent Host state.
+				if (await devContainerLifecycle.stop()) {
+					await this._setDetachedWorktreeArchived(sessionId, true);
+				} else {
+					this._devContainerIdleSince = undefined;
+					this._scheduleDevContainerStopIfIdle();
+				}
+			});
 		}
 		if (!this.connection) {
 			return;
@@ -800,6 +824,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onHostReconciledSessions(rawIds: ReadonlySet<string>): void {
+		this._listedConnection = this.connection;
+		if (this._adoptionAwaitsListing) {
+			this._adoptionAwaitsListing = false;
+			// Callers of `adoptSession` retry on a change of sessions; one fires after this hook only when the listing changed any session.
+			queueMicrotask(() => {
+				if (!this._store.isDisposed) {
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+				}
+			});
+		}
 		const scope = this._devContainerWorktreeScope;
 		if (!scope) {
 			return;
@@ -905,8 +939,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
 	}
 
-	override getSessions(): ISession[] {
-		return this._unpublished ? [] : super.getSessions();
+	override getAllSessions(): ISession[] {
+		return this._unpublished ? [] : super.getAllSessions();
 	}
 
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
@@ -966,6 +1000,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
+		await this._remoteAgentHostService.waitForConnection(this.remoteAddress);
 	}
 
 	reconnectNow(): void {
@@ -1091,7 +1126,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	protected override _mapBackendSessionResource(resource: URI): URI {
+	protected override _mapBackendSessionResource(resource: URI): URI | undefined {
 		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
 	}
 
@@ -1154,6 +1189,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 
+		this._sessionListVersion.set(0, undefined);
 		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
@@ -1195,12 +1231,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
+		this._sessionListVersion.set(0, undefined);
 		this._devContainerIdleScheduler.cancel();
 		this._devContainerIdleSince = undefined;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._listedConnection = undefined;
 		this._passiveRelay.set(false, undefined);
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
@@ -1261,6 +1299,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * entries.
 	 */
 	unpublishCachedSessions(): void {
+		// Abandon a listing in flight, so it can't mark the hidden list ready, then invalidate readiness
+		// before observers can sample the hidden list as an authoritative empty result.
+		this._cancelSessionRefreshRetry();
+		this._sessionListVersion.set(0, undefined);
 		if (this._unpublished) {
 			return;
 		}
@@ -1268,6 +1310,47 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (this._sessionCache.size > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 		}
+	}
+
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, so that open views move to this provider's session.
+	 */
+	adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
+		if (this._unpublished) {
+			return false;
+		}
+		// A cache restored from storage or listed over an earlier connection can lack the session's peer chats.
+		if (!this._connection || this._listedConnection !== this._connection) {
+			this._adoptionAwaitsListing = true;
+			this._ensureSessionCache();
+			return false;
+		}
+		this._ensureSessionCache();
+		const to = this._sessionCache.get(backendSession.toString());
+		if (!to) {
+			return false;
+		}
+		// Chat resources differ between providers; map them through the host's chat resources.
+		const chats = new ResourceMap<URI>();
+		chats.set(from.mainChat.get().resource, to.mainChat.get().resource);
+		if (backendChats?.size) {
+			const ownChats = new ResourceMap<URI>();
+			for (const chat of to.chats.get()) {
+				const backendChat = this.getBackendChatResource(chat.resource);
+				if (backendChat) {
+					ownChats.set(backendChat, chat.resource);
+				}
+			}
+			for (const [chat, backendChat] of backendChats) {
+				const ownChat = ownChats.get(backendChat);
+				if (ownChat) {
+					chats.set(chat, ownChat);
+				}
+			}
+		}
+		this._onDidReplaceSession.fire({ from, to, chats });
+		return true;
 	}
 
 	// -- Session-type sync ---------------------------------------------------
@@ -1315,18 +1398,26 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
-		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
-			return undefined;
-		}
-		// Only claim URIs that belong to *this* connection. Without this
-		// check, every agent-host provider matches every agent-host URI
-		// and the workspace picker's first-match-wins lookup attributes
-		// the folder to whichever provider is iterated first — so a folder
-		// picked from WSL ends up labelled with another host's name.
-		if (repositoryUri.authority !== this._connectionAuthority) {
-			return undefined;
-		}
-		return this._buildWorkspaceFromUri(repositoryUri);
+		return this._isOnThisHost(repositoryUri) ? this._buildWorkspaceFromUri(repositoryUri) : undefined;
+	}
+
+	/**
+	 * Whether a URI is a resource of this connection. Every agent-host provider shares the
+	 * agent-host scheme, so without the authority check the workspace picker's first-match-wins
+	 * lookup would attribute a folder picked on one host to whichever provider is iterated first.
+	 */
+	private _isOnThisHost(uri: URI): boolean {
+		return uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority;
+	}
+
+	/**
+	 * Whether this host clones repositories: a cloud sandbox's agent host, which manages projects, as
+	 * {@link cloneRepository} requires.
+	 */
+	get canCloneRepository(): boolean {
+		const connection = this.connection;
+		const root = connection instanceof AgentHostProtocolClient ? connection.rootState.value : undefined;
+		return !!root && !(root instanceof Error) && readCloudSandboxProjects(root) !== undefined;
 	}
 
 	async cloneRepository(repository: URI, token: CancellationToken): Promise<ISessionWorkspace> {
@@ -1362,17 +1453,24 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	// -- Browse --------------------------------------------------------------
 
-	private _folderBrowseUri(): URI {
+	/**
+	 * Where folder browsing starts: the host's default directory, or else a folder of one of its
+	 * sessions. Folders outside this connection, such as the repository URL a host reports as a
+	 * session's project, are not on the host, and the file dialog would fall back to local files for
+	 * them; a session with such a project still offers its working directory.
+	 */
+	private _folderBrowseUri(): URI | undefined {
 		if (this._defaultDirectory) {
 			return agentHostUri(this._connectionAuthority, this._defaultDirectory);
 		}
 		for (const session of this.getSessions()) {
-			const root = session.workspace.get()?.folders[0]?.root;
-			if (root) {
-				return root;
+			const folder = session.workspace.get()?.folders[0];
+			const start = [folder?.root, folder?.workingDirectory].find(uri => uri && this._isOnThisHost(uri));
+			if (start) {
+				return start;
 			}
 		}
-		return agentHostUri(this._connectionAuthority, '/');
+		return undefined;
 	}
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
@@ -1391,10 +1489,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 
-		if (!this._defaultDirectory && this.getSessions().length === 0) {
+		if (!this._folderBrowseUri()) {
 			await this._refreshSessions();
 		}
 		const defaultUri = this._folderBrowseUri();
+		if (!defaultUri) {
+			this._notificationService.info(localize('noRemoteFolders', "'{0}' does not offer folders to browse.", this.label));
+			return undefined;
+		}
 
 		try {
 			const selected = await this._fileDialogService.showOpenDialog({
@@ -1447,6 +1549,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 
 		const rootAgentHostUri = this._folderBrowseUri();
+		if (!rootAgentHostUri) {
+			return [];
+		}
 
 		// Parse path navigation out of the query. Anything before the
 		// last `/` is a relative directory we descend into; the part

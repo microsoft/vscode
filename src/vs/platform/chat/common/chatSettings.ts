@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
+export const AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING = 'chat.agentsWindowTitleBarIcons.enabled';
+
+/**
+ * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
+ * The mirrored host value is requested configuration; AgentConfigurationService captures its effective value at host construction.
+ */
+export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
 
 /**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
@@ -98,6 +105,13 @@ export function mergeChatSensitiveEditLocations(...locationSets: readonly (reado
 		}
 	}
 	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
+}
+
+/** Reads the sensitive-edit locations of a session config value, skipping malformed entries. */
+export function readChatSensitiveEditLocations(value: unknown): readonly IChatSensitiveEditLocation[] {
+	return Array.isArray(value)
+		? value.filter((location): location is IChatSensitiveEditLocation => typeof location?.path === 'string' && typeof location.isDirectory === 'boolean')
+		: [];
 }
 
 export const enum ChatExternalSessionsMode {

@@ -12,6 +12,21 @@ suite('copilotCliConfig', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('M365 rollout is a default-off boolean root setting', () => {
+		const property = copilotCliConfigSchema.toProtocol().properties[CopilotCliConfigKey.M365Enabled];
+		assert.deepStrictEqual({
+			key: CopilotCliConfigKey.M365Enabled,
+			type: property.type,
+			default: property.default,
+			valid: [true, false, 'true', 1, null, undefined].map(value => copilotCliConfigSchema.validate(CopilotCliConfigKey.M365Enabled, value)),
+		}, {
+			key: 'm365Enabled',
+			type: 'boolean',
+			default: false,
+			valid: [true, true, false, false, false, false],
+		});
+	});
+
 	test('image watermark is an independent default-off preference', () => {
 		const watermark = copilotCliConfigSchema.toProtocol().properties.imageGenerationWatermark;
 		assert.deepStrictEqual({

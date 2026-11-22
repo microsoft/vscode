@@ -23,6 +23,7 @@ const suiteDurations = new Map<string, number>([
 	['Terminal', process.platform === 'linux' ? 10 : 135],
 	['Data Loss (insiders -> insiders)', 100],
 	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 70 : 15], // skips itself without Docker
+	['Agents Window (Dev Container handoff)', process.platform === 'linux' ? 90 : 15], // skips itself without Docker
 	['Agents Window (SSH Dev Container AgentHost)', 50],
 	['Agents Window (Codex)', 45],
 	['Integrated Browser', 40],
@@ -35,9 +36,9 @@ const suiteDurations = new Map<string, number>([
 ]);
 const defaultSuiteDuration = 20;
 
-// Coupled to the PR workflows: pr-darwin-test.yml runs the PAC proxy suites after the last shard.
+// Coupled to the PR workflows: pr-darwin-test.yml runs the PAC, Kerberos and Basic proxy suites after the last shard.
 // The WSL Dev Container suite runs in its own job instead of a shard (see pr-win32-test.yml).
-const lastShardExtraDuration = process.platform === 'darwin' ? 210 : 0;
+const lastShardExtraDuration = process.platform === 'darwin' ? 315 : 0;
 
 /**
  * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`.

@@ -1234,7 +1234,10 @@ suite('ModelCard', () => {
 	});
 
 	test('configuration is applied before animation completes, then accepted without an extra click', async () => {
-		const result = createCard();
+		let refresh = () => { };
+		// The picker refreshes the card as soon as the change is reported, while the selection still slides.
+		const result = createCard({}, { onDidChangeConfiguration: () => refresh() });
+		refresh = () => result.card.refresh();
 		const group = element(result.card.element, '[role="radiogroup"]');
 		const indicator = element(group, '.monaco-radio-selection');
 		const animation = indicator.animate([{ opacity: 1 }, { opacity: 0.9 }], { duration: 160 });
@@ -1425,6 +1428,21 @@ suite('ModelCard', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ duringAnimation, accepted: result.accepted }, {
 			duringAnimation: { selected: [fast.identifier], accepted: 0 }, accepted: 1,
+		});
+	});
+
+	test('what a kind of model adds follows the card\'s own sections, and is replaced when the card renders again', () => {
+		const events: string[] = [];
+		const { card } = createCard({}, {
+			renderAdditionalSections: container => {
+				container.appendChild(mainWindow.document.createElement('footer')).textContent = 'Routes';
+				events.push('render');
+				return toDisposable(() => events.push('dispose'));
+			},
+		});
+		card.refresh();
+		assert.deepStrictEqual({ last: card.element.lastElementChild?.textContent, count: card.element.querySelectorAll('footer').length, events }, {
+			last: 'Routes', count: 1, events: ['render', 'dispose', 'render'],
 		});
 	});
 });

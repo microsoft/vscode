@@ -7,7 +7,18 @@ import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/
 
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
+export const SESSIONS_DRAFTS_ENABLED_SETTING = 'sessions.drafts.enabled';
+export const SESSIONS_SEND_LATER_ENABLED_SETTING = 'sessions.sendLater.enabled';
+
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
+
+export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
+export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floatingDetails';
+
+/** Whether side chats (`/btw`) show as tabs of the desktop Agents window's side pane instead of as chat tabs and sessions list rows. */
+export const SESSIONS_SIDE_CHATS_IN_SIDE_PANE_SETTING = 'sessions.experimental.sideChatsInSidePane';
+
+export type DetailsPosition = 'right' | 'left' | 'top' | 'bottom';
 
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
 export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
@@ -28,6 +39,8 @@ export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.grou
 
 export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
+export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAutoAdvance';
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 
@@ -42,7 +55,6 @@ export const enum AutomationSessionsListMode {
 
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
-export const SESSIONS_LIST_INLINE_ACTIONS_SETTING = 'sessions.list.inlineActions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
@@ -59,6 +71,24 @@ export const enum ExternalSessionApplicationBadgeMode {
 }
 
 export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.separateNavigation';
+
+/**
+ * Whether Customizations keeps its own section below the Sessions list rather than joining the separate navigation
+ * list. Only applies when {@link SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING} is enabled. Not nested under it: a
+ * setting cannot also be the parent of another setting.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING = 'sessions.sidebar.customizationsAtBottom';
+
+/**
+ * Which customization categories the Customizations section below the Sessions list shows.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING = 'sessions.sidebar.customizationsCategories';
+
+export const enum SessionsSidebarCustomizationsCategories {
+	All = 'all',
+	/** Only the categories that are shown when reduced, and a More menu with the others. */
+	Reduced = 'reduced',
+}
 
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 

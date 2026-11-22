@@ -307,7 +307,7 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
-	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined, undefined));
+	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined, undefined, undefined));
 	// Mount and size the row before it gets pills, so it measures its overflow synchronously
 	// instead of on a later native ResizeObserver callback that can escape virtual time.
 	container.appendChild(pills.element);
@@ -342,7 +342,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			}
 			: undefined,
 		decorateInputPart: (inputPart, instantiationService) => {
-			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			const updateChatPillsVisibility = (visible: boolean) => {
 				inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 			};
@@ -663,7 +663,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
-					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);
 				},

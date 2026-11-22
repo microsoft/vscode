@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type IAgentPluginInstallation } from '../../../../platform/agentHost/common/agent.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -19,7 +22,7 @@ import { type CustomizationDisabledReason } from '../../../../platform/agentHost
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
-import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
@@ -72,7 +75,9 @@ export type LocalAgentHostRegistration = 'devTunnel' | 'githubEnvironment';
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.updateRequired', "Update required")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**
@@ -109,6 +114,7 @@ export type AgentHostMcpTool = {
 	readonly name: string;
 	readonly title?: string;
 	readonly description?: string;
+	readonly annotations?: { readonly title?: string };
 };
 
 /**
@@ -151,6 +157,8 @@ export interface IAgentHostMcpServer {
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** The containing plugin's effective activation is unresolved until the session starts. */
+	readonly waitingForSessionStart?: boolean;
 	readonly status: McpServerStatus;
 	/**
 	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
@@ -186,15 +194,27 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
+	readonly setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
+	readonly listPluginInstallations?: (provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>;
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Successful session-list revision for this connection; zero means the host list has not resolved. */
+	readonly sessionListVersion?: IObservable<number>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Opens this host's connection log, including while connecting. */
 	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, present on remote providers. `backendChats` maps the resources of
+	 * `from`'s chats to their host chat resources, so that open chats move to
+	 * this provider's chats. Returns `false` while this provider does not list
+	 * that session.
+	 */
+	adoptSession?(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean;
 	/**
 	 * Set when this provider is one member of a larger user-facing host (see
 	 * {@link IAgentHostGroup}). Members share one host filter entry instead of
@@ -273,6 +293,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
 	readonly devContainerSourceWorkspace?: URI;
+	/** Address of the SSH, Tunnel, or WSL host, or `local` for this computer, that runs this provider's Dev Container environment, if it represents one. */
+	readonly devContainerEnvironmentHost?: string;
 	/** Fires when Dev Container workspace availability should be checked again. */
 	readonly onDidChangeDevContainerAvailability?: Event<void>;
 	/** Whether this workspace supports Dev Container execution. */
@@ -447,10 +469,13 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Returns the agent-host annotations channel for a session so that
 	 * sessions-layer features (e.g. agent feedback) can subscribe to and
 	 * dispatch annotation actions against the session's
-	 * `<sessionUri>/annotations` channel. Returns `undefined` when the
+	 * advertised annotations channel. Returns `undefined` when the
 	 * session is unknown or the host connection is unavailable.
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
+
+	/** Returns this host's current connection, or `undefined` while disconnected. */
+	getAgentConnection?(): IAgentConnection | undefined;
 
 	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
@@ -475,7 +500,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 }
 
-export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+export { LOCAL_AGENT_HOST_PROVIDER_ID };
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;

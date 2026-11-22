@@ -6,14 +6,17 @@
 import '../../../../../browser/actions/listCommands.js';
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
@@ -27,7 +30,7 @@ import { AICustomizationItemNormalizer, IAICustomizationListItem, ICustomization
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationSectionNotice, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -39,6 +42,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
 import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -105,6 +109,29 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
+	test('moves focus that is kept inside a collapsed group to the first visible item', () => {
+		type Entry = { type: 'group-header'; id: string } | { type: 'item'; id: string };
+		const collapsedGroup: Entry = { type: 'group-header', id: 'user' };
+		const hiddenItem: Entry = { type: 'item', id: 'hidden' };
+		const expandedGroup: Entry = { type: 'group-header', id: 'workspace' };
+		const visibleItem: Entry = { type: 'item', id: 'visible' };
+		let focus: Entry[] = [hiddenItem];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+		const isVisible = (entry: Entry) => entry !== hiddenItem;
+
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+
+		assert.deepStrictEqual(focusChanges, [[visibleItem]]);
+	});
+
 	test('keeps editable source sections visible until search filtering starts', () => {
 		assert.deepStrictEqual({
 			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
@@ -157,7 +184,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -188,7 +215,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -941,7 +968,8 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
 
@@ -997,6 +1025,49 @@ suite('aiCustomizationListWidget', () => {
 			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
 		});
 
+		test('shows the section notices between the search box and the list, collapsible, and updates them', async () => {
+			const notices = observableValue<readonly ICustomizationSectionNotice[]>('test', [
+				{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' },
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => observableValue('test', [] as readonly never[]),
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => notices,
+				whenSectionLoaded: async () => { },
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const notice = () => widget.element.querySelector<HTMLDetailsElement>('.customization-section-notice');
+			const rendered = () => [...widget.element.querySelectorAll<HTMLDetailsElement>('.customization-section-notice')].map(element => ({
+				afterSearch: element.parentElement?.previousElementSibling?.classList.contains('list-search-and-button-container'),
+				open: element.open,
+				label: element.querySelector('summary')?.getAttribute('aria-label'),
+				title: element.querySelector('.customization-section-notice-title')?.textContent,
+				message: element.querySelector('.customization-section-notice-message')?.textContent,
+			}));
+
+			await widget.setSection(AICustomizationManagementSection.Hooks);
+			const loaded = rendered();
+			notice()!.open = false;
+			await timeout(0);
+			// A collapsed notice stays collapsed when its errors change.
+			notices.set([{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }], undefined);
+			const collapsedAfterUpdate = rendered();
+			notices.set([], undefined);
+			const fixed = rendered();
+			notices.set([{ severity: 'error', title: 'Couldn\'t load hooks', message: 'SDK hook discovery failed' }], undefined);
+			await widget.setSection(AICustomizationManagementSection.McpServers);
+
+			assert.deepStrictEqual({ loaded, collapsedAfterUpdate, fixed, otherSection: rendered() }, {
+				loaded: [{ afterSearch: true, open: true, label: 'Warning: Some hook files could not be loaded', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json\nInvalid hook configuration in b.json' }],
+				collapsedAfterUpdate: [{ afterSearch: true, open: false, label: 'Warning: Some hook files could not be loaded', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }],
+				fixed: [],
+				otherSection: [],
+			});
+		});
+
 		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
 				id: 'instruction',
@@ -1014,8 +1085,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1058,8 +1130,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1093,6 +1166,97 @@ suite('aiCustomizationListWidget', () => {
 				command: 'npm run lint',
 				commandDisplay: '',
 				pathDisplay: 'none',
+			});
+		});
+
+		test('keeps the overflow action visible while its context menu is open without moving tree focus', async () => {
+			const item: IAICustomizationListItem = {
+				id: 'skill',
+				uri: URI.file('/workspace/.github/skills/review/SKILL.md'),
+				name: 'Review',
+				filename: '.github/skills/review/SKILL.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [item]);
+			let contextMenuDelegate: IContextMenuDelegate | undefined;
+			instaService.stub(IContextMenuService, {
+				onDidShowContextMenu: Event.None,
+				onDidHideContextMenu: Event.None,
+				showContextMenu: delegate => contextMenuDelegate = delegate as IContextMenuDelegate,
+			});
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const selections: string[] = [];
+			disposables.add(widget.onDidSelectItem(selected => selections.push(selected.id)));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const getRow = () => widget.element.querySelector<HTMLElement>('.ai-customization-list-item')!;
+			const initialAction = getRow().querySelector<HTMLElement>('.item-right .action-label')!;
+			const initialFocusedRows = widget.element.querySelectorAll('.monaco-list-row.focused').length;
+			initialAction.click();
+			assert.ok(contextMenuDelegate);
+			const openRow = getRow();
+			const openAction = openRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			const openState = {
+				menuOpen: openRow.classList.contains('menu-open'),
+				hasPopup: openAction.getAttribute('aria-haspopup'),
+				expanded: openAction.getAttribute('aria-expanded'),
+				autoSelectItem: contextMenuDelegate.autoSelectItem,
+				focusedRows: widget.element.querySelectorAll('.monaco-list-row.focused').length,
+			};
+
+			items.set([{ ...item, description: 'Updated review instructions' }], undefined);
+			const refreshedRow = getRow();
+			const refreshedAction = refreshedRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			const refreshedState = {
+				menuOpen: refreshedRow.classList.contains('menu-open'),
+				expanded: refreshedAction.getAttribute('aria-expanded'),
+			};
+
+			contextMenuDelegate.onHide?.(false);
+			const closedRow = getRow();
+			const closedAction = closedRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			assert.deepStrictEqual({
+				initialFocusedRows,
+				openState,
+				refreshedState,
+				closedState: {
+					menuOpen: closedRow.classList.contains('menu-open'),
+					expanded: closedAction.getAttribute('aria-expanded'),
+				},
+				selections,
+			}, {
+				initialFocusedRows: 0,
+				openState: {
+					menuOpen: true,
+					hasPopup: 'menu',
+					expanded: 'true',
+					autoSelectItem: true,
+					focusedRows: 0,
+				},
+				refreshedState: {
+					menuOpen: true,
+					expanded: 'true',
+				},
+				closedState: {
+					menuOpen: false,
+					expanded: 'false',
+				},
+				selections: [],
 			});
 		});
 
@@ -1145,8 +1309,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 2),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1205,8 +1370,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 1),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1268,8 +1434,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 2),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1334,8 +1501,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: section => section === AICustomizationManagementSection.Agents ? agents : skills,
 				getCount: section => observableValue('test', section === AICustomizationManagementSection.Agents ? agents.get().length : skills.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1352,6 +1520,190 @@ suite('aiCustomizationListWidget', () => {
 			assert.deepStrictEqual({ agentRows, skillRows }, {
 				agentRows: ['Agent One'],
 				skillRows: ['Skill One'],
+			});
+		});
+
+		test('toggles scope groups with a single click on the header', async () => {
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
+				id: 'agent-one',
+				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
+				name: 'Agent One',
+				filename: 'agent-one.agent.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const clickWorkspaceHeader = () => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'Workspace')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+
+			const initial = labels();
+			clickWorkspaceHeader();
+			const afterCollapse = labels();
+			clickWorkspaceHeader();
+
+			assert.deepStrictEqual({ initial, afterCollapse, afterExpand: labels() }, {
+				initial: ['Agent One'],
+				afterCollapse: [],
+				afterExpand: ['Agent One'],
+			});
+		});
+
+		test('keeps collapsed groups and focus when the items refresh', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant')!)?.querySelector('.item-name')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.focusList();
+			const collapsed = { labels: labels(), focused: focused() };
+
+			agents.set([...agents.get(), createAgent('local-two', PromptsStorage.local), createAgent('user-two', PromptsStorage.user)], undefined);
+			const afterItemsChange = { labels: labels(), focused: focused() };
+			widget.setSearchQuery('one');
+			const whileSearching = labels();
+			widget.clearSearch();
+
+			assert.deepStrictEqual({ collapsed, afterItemsChange, whileSearching, afterClearingSearch: labels() }, {
+				collapsed: { labels: ['local-one'], focused: 'local-one' },
+				afterItemsChange: { labels: ['local-one', 'local-two'], focused: 'local-one' },
+				whileSearching: ['local-one', 'user-one'],
+				afterClearingSearch: ['local-one', 'local-two'],
+			});
+		});
+
+		test('focuses a visible item when entering a tree whose first group is collapsed', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			const clickGroup = (label: string) => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === label)!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			clickGroup('Workspace');
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const onTab = focused();
+			widget.focusList();
+			const onFocusList = focused();
+			clickGroup('User');
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.focusList();
+			const allCollapsed = focused();
+
+			assert.deepStrictEqual({ onTab, onFocusList, allCollapsed }, {
+				onTab: 'user-one',
+				onFocusList: 'user-one',
+				allCollapsed: 'Workspace',
+			});
+		});
+
+		test('moves focus to the group header when clearing the search hides the focused item', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.setSearchQuery('user-one');
+			widget.focusList();
+			const whileSearching = focused();
+			widget.clearSearch();
+			const afterClearingSearch = focused();
+			list.dispatchEvent(new FocusEvent('focus'));
+
+			assert.deepStrictEqual({ whileSearching, afterClearingSearch, onTab: focused() }, {
+				whileSearching: 'user-one',
+				afterClearingSearch: 'User',
+				onTab: 'User',
 			});
 		});
 
@@ -1379,8 +1731,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', items.get().length),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: async () => { },
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1419,8 +1772,9 @@ suite('aiCustomizationListWidget', () => {
 					getItems: () => items,
 					getCount: () => observableValue('test', 1),
 					getPluginCount: () => observableValue('test', 0),
+					getSectionNotices: () => observableValue('test', [] as readonly never[]),
 					whenSectionLoaded: async () => { },
-					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
+					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
 				});
 				const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 				document.body.appendChild(widget.element);
@@ -1461,8 +1815,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: () => loading,
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);
@@ -1532,8 +1887,9 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => items,
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
+				getSectionNotices: () => observableValue('test', [] as readonly never[]),
 				whenSectionLoaded: () => Promise.resolve(),
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
 			});
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
 			document.body.appendChild(widget.element);

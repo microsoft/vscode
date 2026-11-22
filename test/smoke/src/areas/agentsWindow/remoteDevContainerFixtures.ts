@@ -29,8 +29,9 @@ export interface IRemoteDevContainerFixtureOptions {
 	appOptions: ApplicationOptions;
 	/**
 	 * WSL only: start an Agent Host, without Docker or a Dev Container, that reaches the mock server only through the
-	 * proxy its Windows client resolves for it, with the client's Kerberos tickets and certificates. With `agentHost`, the
-	 * Agents window starts the Agent Host itself. With `server`, an editor window opens {@link IRemoteDevContainerFixture.remoteAuthority}
+	 * Windows client's proxy: the one the client resolves for it, with the client's Kerberos tickets, or the http.proxy
+	 * setting with its credentials, which the client mirrors to it, both with the client's certificates. With `agentHost`,
+	 * the Agents window starts the Agent Host itself. With `server`, an editor window opens {@link IRemoteDevContainerFixture.remoteAuthority}
 	 * through the test resolver, which starts a VS Code server in WSL that spawns the Agent Host.
 	 */
 	wslClientProxy?: 'agentHost' | 'server';
@@ -45,11 +46,22 @@ export interface IRemoteDevContainerFixture {
 	readonly workspacePath?: string;
 	/** The authority of a remote editor window for {@link workspacePath}. */
 	readonly remoteAuthority?: string;
+	/** Whether the remote host runs the client's commit, or, like a client run from sources, a source checkout. */
+	readonly hostMatchesClientCommit?: boolean;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
-	verifyMockServerRouting?(): Promise<void>;
+	/**
+	 * Checks the Agent Host's routing to the mock server. With `credentialedProxy`, also checks that it answered the
+	 * Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting.
+	 */
+	verifyMockServerRouting?(options?: { readonly credentialedProxy?: boolean }): Promise<void>;
+	/** WSL only: the Agent Host's log. */
+	readAgentHostLog?(): Promise<string>;
 	dumpConnectionDiagnostics?(uiState: string): Promise<void>;
 	dispose(): Promise<void>;
 }
+
+/** Logged by the Agent Host when it answers the Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting. */
+export const CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG = /\[Copilot\] Answered the Copilot runtime's Basic challenge for the proxy \S+ with the credentials of the http\.proxy setting/;
 
 const repositoryRoot = path.resolve(__dirname, '../../../../..');
 const startupTimeout = 90_000;
@@ -80,7 +92,11 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 		throw new Error(`Invalid CLI commit: ${product.commit}`);
 	}
 	const commit = product.commit?.toLowerCase();
-	const latestDownload = `curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
+	// The update server can be slow or return 5xx; retry transient failures within a bounded time.
+	// A commit build that was never published still 404s right away and falls back to the latest CLI.
+	// `timeout` caps the wall clock, since curl's retry budget does not stop an attempt already in flight.
+	const curl = (budgetSeconds: number) => `timeout ${budgetSeconds} curl -fsSL --connect-timeout 15 --max-time 45 --retry 6 --retry-delay 5 --retry-max-time ${budgetSeconds}`;
+	const latestDownload = `${curl(150)} "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
 	return [
 		'set -e',
 		'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
@@ -89,7 +105,7 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 		`cli_dir="$HOME/${legacyDirectory}"`,
 		`cli_bin="$cli_dir/${archive}"`,
 		...(commit ? [
-			`if curl -fsSL "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
+			`if ${curl(45)} "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
 			`cli_dir="$HOME/${serverDirectory}"`,
 			`cli_bin="$cli_dir/${archive}-${commit}"`,
 			`echo "Installing ${quality} CLI matching desktop commit ${commit}"`,
@@ -927,13 +943,12 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		}
 	}
 	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/${server ? 'server-main.js' : 'bootstrap-fork.js'}`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
-	if (server && options.appOptions.codePath) {
+	// Clients run from sources and source checkouts have no commit.
+	const clientCommit: string | undefined = options.appOptions.codePath ? JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit : undefined;
+	const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
+	if (server && clientCommit && serverCommit && clientCommit !== serverCommit) {
 		// The server refuses a built client of another commit.
-		const clientCommit: string | undefined = JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit;
-		const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
-		if (clientCommit && serverCommit && clientCommit !== serverCommit) {
-			throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
-		}
+		throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
 	}
 	// Published servers bundle their NLS messages; a source checkout runs in development mode.
 	const sourceCheckout = (await run(`if [ -f ${shellQuote(`${serverPath}/out/nls.messages.json`)} ]; then echo bundled; fi`)) !== 'bundled';
@@ -984,8 +999,8 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	].join(' && '));
 	let networkEnvironment: Record<string, string>;
 	if (clientProxy) {
-		// Only the proxy resolves the mock host, so the Agent Host and the Copilot runtime must use the
-		// client's proxy, Kerberos tickets and certificates; no WSL-side credentials or CA are configured.
+		// Only the proxy resolves the mock host, so the Agent Host and the Copilot runtime must use the client's proxy,
+		// with its credentials or the client's Kerberos tickets, and certificates; no WSL-side credentials or CA are configured.
 		networkEnvironment = {
 			COPILOT_API_URL: options.mockServerUrl, COPILOT_DEBUG_GITHUB_API_URL: options.mockServerUrl,
 			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: options.mockServerUrl,
@@ -1027,9 +1042,11 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			: `exec env -i ${environmentAssignments} ${shellQuote(nodePath)} ${shellQuote(`${root}/packagedAgentHost.cjs`)} ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)} ${shellQuote(`${root}/host-token`)} ${shellQuote(`${root}/user-data`)} --ignore-stdin`,
 	].join(' && ');
 	resources.log(`Using ${distro} ${server ? 'server with a client-proxy Agent Host' : clientProxy ? 'client-proxy Agent Host' : 'source workspace'} ${workspacePath}`);
+	const readAgentHostLog = () => run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
 	return {
 		name: distro,
 		workspacePath,
+		hostMatchesClientCommit: clientCommit === serverCommit,
 		...(server ? {
 			remoteAuthority: `wsl+${distro}`,
 			settings: {},
@@ -1037,8 +1054,9 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		} : {
 			settings: { 'chat.wslRemoteAgentHostCommand': command },
 		}),
-		verifyMockServerRouting: async () => {
-			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
+		readAgentHostLog,
+		verifyMockServerRouting: async verifyOptions => {
+			const logs = await readAgentHostLog();
 			if (clientProxy) {
 				// The pinned server of the pull request CI predates the runtime's network callbacks and forwards the client-resolved
 				// proxy through the runtime's environment instead.
@@ -1046,6 +1064,9 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 					|| logs.includes('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
 				if (!logs.includes(`Using CAPI URL override ${options.mockServerUrl};`) || !routedThroughClient) {
 					throw new Error('The WSL Agent Host did not route the Copilot runtime through the client-resolved proxy.');
+				}
+				if (verifyOptions?.credentialedProxy && !CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(logs)) {
+					throw new Error('The WSL Agent Host did not answer the Copilot runtime\'s Basic proxy challenge with the credentials of the http.proxy setting.');
 				}
 				if (copilotRuntimePath && !logs.includes(`[Copilot] Using configured runtime path: ${copilotRuntimePath}`)) {
 					throw new Error(`The WSL Agent Host did not use the Copilot runtime at ${copilotRuntimePath}.`);

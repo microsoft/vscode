@@ -26,7 +26,6 @@ export const TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID = 'multiDiffEditor.to
 
 export const multiDiffEditorExperimentalVariantSetting = 'multiDiffEditor.experimental.variant';
 export const defaultMultiDiffEditorExperimentalVariant = 'noCards';
-export const multiDiffEditorExperimentalFileListSetting = 'multiDiffEditor.experimental.fileList';
 
 export type MultiDiffEditorExperimentalVariant = 'cards' | 'noCards';
 
@@ -48,34 +47,32 @@ export function observableWorkbenchMultiDiffEditorVariant(
 const multiDiffEditorFileListHiddenStorageKey = 'multiDiffEditor.fileListHidden';
 
 export const MultiDiffEditorFileListAvailableContext = new RawContextKey<boolean>('multiDiffEditorFileListAvailable', false, localize('multiDiffEditorFileListAvailable', "Whether the active multi diff editor supports the changed files list"));
-export const MultiDiffEditorFileListEnabledContext = new RawContextKey<boolean>('multiDiffEditorFileListEnabled', false, localize('multiDiffEditorFileListEnabled', "Whether the changed files list is enabled in the active multi diff editor"));
-/** Whether the file list is currently rendered, including responsive hiding. */
-export const MultiDiffEditorFileListVisibleContext = new RawContextKey<boolean>('multiDiffEditorFileListVisible', false, localize('multiDiffEditorFileListVisible', "Whether the multi diff editor shows the list of changed files"));
+export const MultiDiffEditorFileListEnabledContext = new RawContextKey<boolean>('multiDiffEditorFileListEnabled', false, localize('multiDiffEditorFileListEnabled', "Whether the active multi diff editor shows the changed files list"));
 export const MultiDiffEditorFileListFocusedContext = new RawContextKey<boolean>('multiDiffEditorFileListFocus', true, localize('multiDiffEditorFileListFocus', "Whether focus is in the multi diff editor changed files list"));
 
 /** Whether the active editor is a multi diff editor that supports the changed files list. */
 export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(MULTI_DIFF_EDITOR_ID),
-	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
 	MultiDiffEditorFileListAvailableContext,
 )!;
 
-/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. The chat windows of the Agents window offer it in their editor title menu. */
 export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
 
+/** The Toggle Files split button of the editor title, whose dropdown switches the changed files list between a list and a tree, and puts it on either side of the diffs. */
+export const MultiDiffEditorFileListToggleMenu = new MenuId('MultiDiffEditorFileListToggle');
+
 /**
- * Observes whether the file list should be shown. All multi diff editors share
- * the state, so toggling the list in one editor updates the others.
+ * Observes whether the file list should be shown: while the editor offers it and the user has not hidden it.
+ * All multi diff editors share the hidden state, so toggling the list in one editor updates the others.
  */
-export function observableMultiDiffEditorFileListVisible(owner: object, configurationService: IConfigurationService, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
-	const enabled = observableConfigValue<boolean>(multiDiffEditorExperimentalFileListSetting, false, configurationService);
+export function observableMultiDiffEditorFileListVisible(owner: object, available: IObservable<boolean>, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
 	const hidden = observableMultiDiffEditorFileListHidden(owner, storageService, store);
-	return derived(owner, reader => enabled.read(reader) && !hidden.read(reader));
+	return derived(owner, reader => available.read(reader) && !hidden.read(reader));
 }
 
 /**
- * Observes whether the user has hidden the file list, which all multi diff editors share, also those that show the list
- * regardless of {@link multiDiffEditorExperimentalFileListSetting}.
+ * Observes whether the user has hidden the file list, which all multi diff editors share.
  */
 export function observableMultiDiffEditorFileListHidden(owner: object, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
 	return observableFromEvent(
@@ -204,14 +201,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-		},
-		[multiDiffEditorExperimentalFileListSetting]: {
-			type: 'boolean',
-			default: false,
-			description: localize('multiDiffEditor.experimental.fileList', "Controls whether newly created multi diff editors support a list of the changed files alongside the diffs. Reload the window to apply this change to existing editors."),
-			agentsWindow: { default: true },
-			scope: ConfigurationScope.WINDOW,
-			tags: ['experimental'],
 		},
 	},
 });

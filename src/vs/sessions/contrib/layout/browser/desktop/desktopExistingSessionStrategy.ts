@@ -7,33 +7,36 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ChatEditorInput } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
-import { FilesDetailsState, getFilesDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
+import { FilesDetailsState, getFilesDetailsState, getFloatingMarkdownDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
@@ -46,8 +49,11 @@ const desktopHeaderToggleDetailsOrder = 10;
 /**
  * Whether Toggle Details toggles the changed files list of the multi diff editor shown in
  * the editor area instead of the detail panel. Evaluated against an editor group's context.
+ * The detail panel is hidden while a multi diff editor is active, whether docked or floating.
  */
-const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext)!;
+const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(
+	MainEditorAreaVisibleContext,
+	ActiveMultiDiffEditorHasFileListContext)!;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -66,6 +72,8 @@ const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVi
 export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	/** Whether Details are hidden for a side chat tab of a Quick Chat; see {@link _syncSideChatDetailVisibility}. */
+	private _detailsHiddenForSideChat = false;
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -448,6 +456,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 		const detailVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const floatingDetailsObs = observableFromEvent(this, this._layoutService.onDidChangeAuxiliaryBarFloating, () => this._layoutService.isAuxiliaryBarFloating());
 		let initialized = false;
 		let wasExistingActive = false;
 		let activeSessionKey: string | undefined;
@@ -479,9 +488,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				previousActiveEditor = undefined;
 				previousEditorPartVisible = false;
 				previousEditorSessionKey = undefined;
+				this._syncSideChatDetailVisibility(isQuickChat && activeEditorObs.read(reader) instanceof ChatEditorInput && editorPartVisibleObs.read(reader));
 				return;
 			}
 			previousQuickChatResource = undefined;
+			// The session's own rules decide its Details from now on.
+			this._detailsHiddenForSideChat = false;
 
 			const sessionKey = this._ctx.ownerKeyFor(shown, reader)?.toString();
 			const sessionChanged = activeSessionKey !== undefined && activeSessionKey !== sessionKey;
@@ -523,7 +535,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			previousActiveEditor = activeEditor;
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
-			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
+			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace, floatingDetailsObs.read(reader));
 			if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
 				detailVisibleObs.read(reader);
 			}
@@ -544,6 +556,29 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			pendingOutgoingEditor = undefined;
 			layoutRestored.trigger(undefined);
 		}));
+	}
+
+	/**
+	 * A Quick Chat does not choose its Details by its active tab, but beside a side chat tab, which shows a chat, they have
+	 * nothing to show: they hide while it is the active tab of the shown editor area, and come back once another tab is.
+	 */
+	private _syncSideChatDetailVisibility(sideChatActive: boolean): void {
+		if (this._ctx.isRestoringSessionLayout) {
+			return;
+		}
+		if (sideChatActive) {
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._detailPanel.setHiddenTransiently(true, true);
+				this._detailsHiddenForSideChat = true;
+			}
+			return;
+		}
+		if (this._detailsHiddenForSideChat) {
+			this._detailsHiddenForSideChat = false;
+			if (this._detailPanel.hiddenByEditor && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._detailPanel.setHiddenTransiently(false);
+			}
+		}
 	}
 
 	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {
@@ -570,9 +605,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		this._detailPanel.setHiddenTransiently(false);
 	}
 
-	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
+	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace, floatingDetails: boolean): DetailPanelTarget {
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
+		}
+
+		if (activeEditor && floatingDetails) {
+			switch (getFloatingMarkdownDetailsState(activeEditor, workspace)) {
+				case FilesDetailsState.Active:
+					return DetailPanelTarget.FilesForced;
+				case FilesDetailsState.Available:
+					return editorPartVisible ? DetailPanelTarget.FilesHidden : DetailPanelTarget.Changes;
+			}
 		}
 
 		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
@@ -649,7 +693,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _registerToggleDetailsAction(): IDisposable {
 		const that = this;
-		return registerAction2(class extends Action2 {
+		const action = registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: TOGGLE_DETAILS_COMMAND_ID,
@@ -667,21 +711,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							DesktopLayoutContext)
 					},
-					menu: {
-						id: MenuId.EditorTitleLayout,
+					// The primary action of both split buttons below.
+					menu: [Menus.DetailsToggle, Menus.MultiDiffFileListToggle].map(id => ({
+						id,
 						group: 'navigation',
-						order: desktopHeaderToggleDetailsOrder,
-						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do, or
-						// for a multi diff editor whose file list it toggles instead.
-						when: ContextKeyExpr.and(
-							IsSessionsWindowContext,
-							IsAuxiliaryWindowContext.toNegated(),
-							IsTopRightEditorGroupContext,
-							DesktopLayoutContext,
-							MainEditorAreaVisibleContext,
-							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
-					}
+						order: 1,
+					}))
 				});
 			}
 
@@ -699,5 +734,72 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				that.toggleDetails();
 			}
 		});
+
+		const splitButtonWhen = ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			IsTopRightEditorGroupContext,
+			DesktopLayoutContext,
+			MainEditorAreaVisibleContext);
+
+		return combinedDisposable(
+			action,
+			MenuRegistry.appendMenuItems([
+				// Toggle Details with a dropdown of the details positions, also while the details float.
+				{
+					id: MenuId.EditorTitleLayout, item: {
+						submenu: Menus.DetailsToggle,
+						title: localize2('detailsPosition', "Details Position"),
+						icon: Codicon.listSelection,
+						isSplitButton: { excludePrimaryActionFromDropdown: true },
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						// Not every tab type has a detail panel to show/hide (e.g. browser and
+						// search tabs), so only surface the toggle for tab types that do.
+						when: ContextKeyExpr.and(
+							splitButtonWhen,
+							toggleMultiDiffEditorFileListContext.negate(),
+							ContextKeyExpr.or(
+								HasDockedDetailsContext,
+								// The Changes tab also keeps the toggle while a session switch replaces the
+								// Changes editor, matching the changeset picker in the header.
+								ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+								DesktopChangesEditorTransitionContext))
+					}
+				},
+				// In a multi diff editor with a changed files list, Toggle Details shows or hides that list instead, with a dropdown
+				// that switches the list between a list and a tree, and puts it on either side of the diffs.
+				{
+					id: MenuId.EditorTitleLayout, item: {
+						submenu: Menus.MultiDiffFileListToggle,
+						title: localize2('filesViewAndPosition', "Files View & Position"),
+						icon: Codicon.listSelection,
+						isSplitButton: { excludePrimaryActionFromDropdown: true },
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						when: ContextKeyExpr.and(splitButtonWhen, toggleMultiDiffEditorFileListContext),
+					}
+				},
+				...([
+					['multiDiffEditor.viewFileListAsList', localize2('fileListViewAsList', "View as List"), 'list', 1],
+					['multiDiffEditor.viewFileListAsTree', localize2('fileListViewAsTree', "View as Tree"), 'tree', 2],
+				] as const).map(([id, title, viewMode, order]) => ({
+					id: Menus.MultiDiffFileListToggle, item: {
+						command: { id, title, toggled: MultiDiffEditorFileListViewModeContext.isEqualTo(viewMode) },
+						group: '1_view',
+						order,
+					}
+				})),
+				...([
+					['multiDiffEditor.positionFileListLeft', localize2('fileListPositionLeft', "Left"), 'left', 1],
+					['multiDiffEditor.positionFileListRight', localize2('fileListPositionRight', "Right"), 'right', 2],
+				] as const).map(([id, title, position, order]) => ({
+					id: Menus.MultiDiffFileListToggle, item: {
+						command: { id, title, toggled: MultiDiffEditorFileListPositionContext.isEqualTo(position) },
+						group: '2_organize',
+						order,
+					}
+				})),
+			]));
 	}
 }

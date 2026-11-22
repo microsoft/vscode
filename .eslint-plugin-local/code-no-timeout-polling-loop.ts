@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 const sleepFunctions = new Set(['timeout', 'sleep', 'delay', 'wait']);
 
-type LoopNode = TSESTree.ForStatement | TSESTree.ForOfStatement | TSESTree.ForInStatement | TSESTree.WhileStatement | TSESTree.DoWhileStatement;
+type LoopNode = ESTree.ForStatement | ESTree.ForOfStatement | ESTree.ForInStatement | ESTree.WhileStatement | ESTree.DoWhileStatement;
 
-function unwrap(node: TSESTree.Expression): TSESTree.Expression {
+function unwrap(node: ESTree.Expression): ESTree.Expression {
 	while (node.type === 'TSAsExpression' || node.type === 'TSNonNullExpression' || node.type === 'TSSatisfiesExpression') {
 		node = node.expression;
 	}
 	return node;
 }
 
-function isFunction(node: TSESTree.Node): node is TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression | TSESTree.FunctionDeclaration {
+/** A function with a body, as `FunctionExpression` and `FunctionDeclaration` always have one. */
+type FunctionNode = ESTree.ArrowFunctionExpression | (ESTree.Function & { type: 'FunctionExpression' | 'FunctionDeclaration'; body: ESTree.FunctionBody });
+
+function isFunction(node: ESTree.Node): node is FunctionNode {
 	return node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration';
 }
 
-function isCallTo(node: TSESTree.Node, name: string): node is TSESTree.CallExpression {
+function isCallTo(node: ESTree.Node, name: string): node is ESTree.CallExpression {
 	return node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === name;
 }
 
 /** The single expression of `() => expr` or `() => { expr; }`. */
-function onlyExpression(fn: TSESTree.Node): TSESTree.Node | undefined {
+function onlyExpression(fn: ESTree.Node): ESTree.Node | undefined {
 	if (!isFunction(fn)) {
 		return undefined;
 	}
@@ -42,7 +43,7 @@ function onlyExpression(fn: TSESTree.Node): TSESTree.Node | undefined {
  * `r => setTimeout(r, n)` or `function (r) { setTimeout(() => r(), n); }`.
  * Executors that also subscribe to a signal or do work are not sleeps.
  */
-function isTimerOnlyExecutor(executor: TSESTree.Node): boolean {
+function isTimerOnlyExecutor(executor: ESTree.Node): boolean {
 	const resolve = isFunction(executor) ? executor.params[0] : undefined;
 	const call = onlyExpression(executor);
 	if (resolve?.type !== 'Identifier' || !call || !isCallTo(call, 'setTimeout')) {
@@ -60,7 +61,7 @@ function isTimerOnlyExecutor(executor: TSESTree.Node): boolean {
  * `timeout(n)`, `sleep(n)`, `new Promise(r => setTimeout(r, n))` and the
  * awaited `setTimeout(n)` of `timers/promises`.
  */
-function isTimerSleep(node: TSESTree.Expression): boolean {
+function isTimerSleep(node: ESTree.Expression): boolean {
 	node = unwrap(node);
 	if (node.type === 'CallExpression' && node.callee.type === 'Identifier') {
 		return sleepFunctions.has(node.callee.name) || node.callee.name === 'setTimeout';
@@ -79,7 +80,7 @@ function isReadName(name: string): boolean {
 	return readPrefixes.some(prefix => name === prefix || (name.startsWith(prefix) && /[A-Z]/.test(name.charAt(prefix.length))));
 }
 
-function calleeName(callee: TSESTree.Expression): string | undefined {
+function calleeName(callee: ESTree.Expression): string | undefined {
 	if (callee.type === 'Identifier') {
 		return callee.name;
 	}
@@ -93,7 +94,7 @@ function calleeName(callee: TSESTree.Expression): string | undefined {
  * Whether evaluating `node` only reads state. This is conservative: calls
  * count as reads only by name, and anything unknown counts as work.
  */
-function isRead(node: TSESTree.Node | null | undefined): boolean {
+function isRead(node: ESTree.Node | null | undefined): boolean {
 	if (!node) {
 		return true;
 	}
@@ -137,16 +138,16 @@ function isRead(node: TSESTree.Node | null | undefined): boolean {
 	}
 }
 
-function isAwaitedSleep(statement: TSESTree.Statement): statement is TSESTree.ExpressionStatement & { expression: TSESTree.AwaitExpression } {
+function isAwaitedSleep(statement: ESTree.Statement): statement is ESTree.ExpressionStatement & { expression: ESTree.AwaitExpression } {
 	return statement.type === 'ExpressionStatement' && statement.expression.type === 'AwaitExpression' && isTimerSleep(statement.expression.argument);
 }
 
-function isExit(statement: TSESTree.Statement): boolean {
+function isExit(statement: ESTree.Statement): boolean {
 	return statement.type === 'BreakStatement' || statement.type === 'ContinueStatement' || statement.type === 'ReturnStatement' || statement.type === 'ThrowStatement';
 }
 
 /** `const state = read();`, `state = await read();` */
-function isReadStatement(statement: TSESTree.Statement): boolean {
+function isReadStatement(statement: ESTree.Statement): boolean {
 	if (statement.type === 'VariableDeclaration') {
 		return statement.declarations.every(declaration => isRead(declaration.init));
 	}
@@ -158,7 +159,7 @@ function isReadStatement(statement: TSESTree.Statement): boolean {
  * runs once on the way out, but work before a `continue` runs on every
  * iteration, so such a loop drives an operation instead of only waiting.
  */
-function isExitBranch(statement: TSESTree.Statement): boolean {
+function isExitBranch(statement: ESTree.Statement): boolean {
 	if (statement.type !== 'BlockStatement') {
 		return isExit(statement);
 	}
@@ -170,11 +171,11 @@ function isExitBranch(statement: TSESTree.Statement): boolean {
 }
 
 /** `if (done) { break; }`, `if (Date.now() > deadline) { throw ... }` */
-function isGuard(statement: TSESTree.Statement): boolean {
+function isGuard(statement: ESTree.Statement): boolean {
 	return statement.type === 'IfStatement' && isExitBranch(statement.consequent) && (!statement.alternate || isExitBranch(statement.alternate));
 }
 
-function bodyStatements(loop: LoopNode): TSESTree.Statement[] {
+function bodyStatements(loop: LoopNode): ESTree.Statement[] {
 	return loop.body.type === 'BlockStatement' ? loop.body.body : [loop.body];
 }
 
@@ -183,7 +184,7 @@ function bodyStatements(loop: LoopNode): TSESTree.Statement[] {
  * consists only of awaited timer sleeps, exit guards and reads. Conditions
  * are not classified, since they are the state being polled.
  */
-function pollingSleep(loop: LoopNode): TSESTree.Statement | undefined {
+function pollingSleep(loop: LoopNode): ESTree.Statement | undefined {
 	const statements = bodyStatements(loop);
 	const sleep = statements.find(isAwaitedSleep);
 	const onlyWaits = statements.every(statement => isAwaitedSleep(statement) || isGuard(statement) || isReadStatement(statement) || statement.type === 'EmptyStatement');
@@ -191,7 +192,7 @@ function pollingSleep(loop: LoopNode): TSESTree.Statement | undefined {
 }
 
 /** `runWithFakedTimers({ useFakeTimers: false }, ...)` runs on real time. */
-function disablesFakeTimers(call: TSESTree.CallExpression): boolean {
+function disablesFakeTimers(call: ESTree.CallExpression): boolean {
 	const options = call.arguments[0];
 	return options?.type === 'ObjectExpression' && options.properties.some(property => property.type === 'Property'
 		&& !property.computed
@@ -204,10 +205,10 @@ function disablesFakeTimers(call: TSESTree.CallExpression): boolean {
  * makes polling deterministic. A callback that opts out of fake timers still
  * runs on the virtual time of an enclosing callback, if any.
  */
-function isInFakedTimers(node: TSESTree.Node): boolean {
-	for (let current: TSESTree.Node | undefined = node.parent; current; current = current.parent) {
+function isInFakedTimers(node: ESTree.Node): boolean {
+	for (let current: ESTree.Node | null = node.parent; current; current = current.parent) {
 		const call = current.parent;
-		if (isFunction(current) && call?.type === 'CallExpression' && call.arguments.includes(current as TSESTree.CallExpressionArgument)) {
+		if (isFunction(current) && call?.type === 'CallExpression' && call.arguments.includes(current as ESTree.Argument)) {
 			if (call.callee.type === 'Identifier' && call.callee.name === 'runWithFakedTimers' && !disablesFakeTimers(call)) {
 				return true;
 			}
@@ -216,9 +217,9 @@ function isInFakedTimers(node: TSESTree.Node): boolean {
 	return false;
 }
 
-export default new class NoTimeoutPollingLoop implements eslint.Rule.RuleModule {
+export default new class NoTimeoutPollingLoop implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		messages: {
 			polling: 'Do not wait for a state change by polling a timer in a loop. The time budget depends on timer clamping and machine load, so the test is flaky on slow machines, and a bounded loop that runs out continues with stale state and fails somewhere else. Await a signal for the state change instead, e.g. a `DeferredPromise`, `Event.toPromise(...)`, `waitForState(...)` or the promise of the operation itself, or use `runWithFakedTimers` for code that is driven by timers.',
@@ -232,7 +233,7 @@ export default new class NoTimeoutPollingLoop implements eslint.Rule.RuleModule 
 		}],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const config = context.options[0] as { exclude?: string[] } | undefined;
 		const filename = context.filename.replace(/\\/g, '/');
 		if (config?.exclude?.some(e => filename.endsWith(e))) {
@@ -242,16 +243,16 @@ export default new class NoTimeoutPollingLoop implements eslint.Rule.RuleModule 
 		const check = (loop: LoopNode) => {
 			const sleep = pollingSleep(loop);
 			if (sleep && !isInFakedTimers(loop)) {
-				context.report({ node: sleep as ESTree.Node, messageId: 'polling' });
+				context.report({ node: sleep, messageId: 'polling' });
 			}
 		};
 
 		return {
-			ForStatement: (node: ESTree.Node) => check(node as TSESTree.ForStatement),
-			ForOfStatement: (node: ESTree.Node) => check(node as TSESTree.ForOfStatement),
-			ForInStatement: (node: ESTree.Node) => check(node as TSESTree.ForInStatement),
-			WhileStatement: (node: ESTree.Node) => check(node as TSESTree.WhileStatement),
-			DoWhileStatement: (node: ESTree.Node) => check(node as TSESTree.DoWhileStatement),
+			ForStatement: (node: ESTree.ForStatement) => check(node),
+			ForOfStatement: (node: ESTree.ForOfStatement) => check(node),
+			ForInStatement: (node: ESTree.ForInStatement) => check(node),
+			WhileStatement: (node: ESTree.WhileStatement) => check(node),
+			DoWhileStatement: (node: ESTree.DoWhileStatement) => check(node),
 		};
 	}
 };

@@ -10,7 +10,7 @@ import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -30,6 +30,7 @@ import {
 
 interface RecordedTool {
 	name: string;
+	schema: unknown;
 	handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>;
 	options?: Parameters<IClaudeAgentSdkService['tool']>[4];
 }
@@ -38,9 +39,9 @@ function makeSdk(): { sdk: IClaudeAgentSdkService; recorded: RecordedTool[] } {
 	const recorded: RecordedTool[] = [];
 	const sdk = {
 		createSdkMcpServer: async (options: { name: string }) =>
-			({ name: options.name, instance: { __fake: true } } as unknown as McpSdkServerConfigWithInstance),
-		tool: async (name: string, _desc: string, _schema: unknown, handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>, options?: Parameters<IClaudeAgentSdkService['tool']>[4]) => {
-			const t = { name, handler, options };
+		({ name: options.name, instance: { __fake: true } } as unknown as McpSdkServerConfigWithInstance),
+		tool: async (name: string, _desc: string, schema: unknown, handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>, options?: Parameters<IClaudeAgentSdkService['tool']>[4]) => {
+			const t = { name, schema, handler, options };
 			recorded.push(t);
 			return t as unknown as ReturnType<IClaudeAgentSdkService['tool']>;
 		},
@@ -108,6 +109,25 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			{ name: ArtifactServerToolName.ListArtifactsAndReferences, options: { alwaysLoad: false } },
 			{ name: SessionServerToolName.RenameChat, options: { alwaysLoad: false } },
 			{ name: 'serverToolA', options: undefined },
+		]);
+	});
+
+	test('registers a tool\'s deferred-only schema only when the tool defers', async () => {
+		const { sdk, recorded } = makeSdk();
+		const definition: IAgentServerToolDefinition = {
+			name: 'tool', description: 'Tool',
+			inputSchema: { type: 'object', properties: { model: { type: 'string', description: 'Model.' } }, required: ['model'] },
+			deferredInputSchema: { type: 'object', properties: { model: { type: 'string', description: 'Model. Available models: a, b.' } }, required: ['model'] },
+		};
+		await buildServerToolMcpServer(new FakeServerToolHost(), chatUri, sdk, [
+			{ ...definition, name: 'deferred', deferLoading: true },
+			{ ...definition, name: 'eager', deferLoading: false },
+			{ ...definition, name: 'sdkDefault' },
+		]);
+		assert.deepStrictEqual(recorded.map(tool => ({ name: tool.name, model: (tool.schema as Record<string, { description?: string }>).model.description })), [
+			{ name: 'deferred', model: 'Model. Available models: a, b.' },
+			{ name: 'eager', model: 'Model.' },
+			{ name: 'sdkDefault', model: 'Model.' },
 		]);
 	});
 

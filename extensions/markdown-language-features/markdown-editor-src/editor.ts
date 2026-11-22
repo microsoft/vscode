@@ -459,7 +459,20 @@ class Editor extends Disposable {
 				window.removeEventListener('blur', postEditorFocus);
 			},
 		});
+		// When the webview gets focus, for example right after the editor opens, and nothing in it
+		// has focus yet, put the caret into the document so typing works right away.
+		const focusEditorOnWindowFocus = (): void => {
+			const active = document.activeElement;
+			if (!this.model.readonlyMode.get() && (!active || active === document.body || active === document.documentElement)) {
+				view.focus();
+			}
+		};
+		window.addEventListener('focus', focusEditorOnWindowFocus);
+		this._register({ dispose: () => window.removeEventListener('focus', focusEditorOnWindowFocus) });
 		host.appendChild(view.element);
+		if (document.hasFocus()) {
+			focusEditorOnWindowFocus();
+		}
 		postEditorFocus();
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come

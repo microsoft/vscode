@@ -87,6 +87,7 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			f.workingDirectory ? extUri.getComparisonKey(f.workingDirectory) : '',
 			repo?.branchName ?? '',
 			repo?.baseBranchName ?? '',
+			repo?.baseBranchFullName ?? '',
 			String(repo?.baseBranchProtected ?? ''),
 			String(repo?.hasGitRemote ?? ''),
 			String(repo?.hasGitHubRemote ?? ''),
@@ -96,7 +97,8 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			String(repo?.uncommittedChanges ?? ''),
 		].join('\u0001');
 	});
-	return [workspace.label, ...folderKeys].join('\n');
+	// Working directories can arrive equal to a project the session had without them, which changes only whether it requires trust.
+	return [workspace.label, String(workspace.requiresWorkspaceTrust), ...folderKeys].join('\n');
 }
 
 /** Resolves the GitHub info a session folder reports, by working directory. */
@@ -215,6 +217,7 @@ function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState):
 			isRepository: constObservable(true),
 			branchName: gitState.branchName,
 			baseBranchName: gitState.baseBranchName,
+			baseBranchFullName: gitState.baseBranchFullName,
 			hasGitRemote: gitState.hasGitRemote,
 			hasGitHubRemote: gitState.hasGitHubRemote,
 			upstreamBranchName: gitState.upstreamBranchName,
@@ -239,6 +242,7 @@ function withFolderGitHubInfo(folder: ISessionFolder, gitHubInfo: IObservable<IG
 
 export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectories: readonly URI[] | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
 	const baseBranchName = gitState?.baseBranchName;
+	const baseBranchFullName = gitState?.baseBranchFullName;
 	const baseBranchProtected = baseBranchName !== undefined
 		? matchesAnyBranchProtectionPattern(baseBranchName, options.branchProtectionPatterns)
 		: undefined;
@@ -251,7 +255,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const outgoingChanges = gitState?.outgoingChanges;
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
-	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+	const gitFields = { branchName, baseBranchName, baseBranchFullName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
 	// state / project association. Additional directories carry no per-folder
@@ -276,7 +280,9 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 				description: options.description,
 				gitRepository: { uri: project.uri, workTreeUri, isRepository: constObservable(true), gitHubInfo, ...gitFields },
 			}, ...additionalFolders],
-			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
+			// Trust covers the folders the agent works in. Without working directories, the folder is the
+			// project the host reports, such as a repository URL, which gives the agent no access to anything.
+			requiresWorkspaceTrust: options.requiresWorkspaceTrust && primary !== undefined,
 			isVirtualWorkspace: false,
 			typeIcon: options.typeIcon,
 		};

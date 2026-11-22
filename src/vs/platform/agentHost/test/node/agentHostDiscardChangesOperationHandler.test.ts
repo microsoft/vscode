@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -33,7 +34,7 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { createFileEditDiscardRecord } from '../../node/fileEditDiscard.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs, computeWorkingSetFiles } from '../../node/sessionDiffAggregator.js';
 import { createNoopChangesetService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
@@ -725,6 +726,41 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 		});
 	});
 
+	test('reverts the turn\'s edits when another chat only holds copies of them, as a forked chat does', async () => {
+		const { handler, diskFileService, tracked, trackedDb, channel } = await setupLastTurn();
+		const forkDb = new TestSessionDatabase();
+		for (const record of await trackedDb.getAllFileEdits()) {
+			forkDb.addEdit({ ...record, ...(await trackedDb.readFileEditContent(record.toolCallId, record.filePath))! });
+		}
+		tracked.database = { ...tracked.database!, otherChatDatabases: [forkDb] };
+
+		await handler.invoke({
+			channel,
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.strictEqual((await diskFileService.readFile(target)).value.toString(), 'a\nb\n');
+	});
+
+	test('reverts the turn\'s edits to a file that an earlier turn renamed', async () => {
+		const { handler, diskFileService, trackedDb, stateManager, session } = setup(disposables);
+		const chat = buildDefaultChatUri(session.toString());
+		addTurn(stateManager, chat, 'turn-1');
+		addTurn(stateManager, chat, 'turn-2');
+		trackedDb.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, originalPath: '/repo/src/old.ts', kind: FileEditKind.Rename, addedLines: undefined, removedLines: undefined, beforeContent: undefined, afterContent: undefined });
+		trackedDb.addEdit({ turnId: 'turn-2', toolCallId: 'tc2', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a\nb\n'), afterContent: encodeString('a\nB\n') });
+		await diskFileService.writeFile(target, VSBuffer.fromString('a\nB\n'));
+
+		await handler.invoke({
+			channel: buildTurnChangesetUri(chat, 'turn-2'),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.strictEqual((await diskFileService.readFile(target)).value.toString(), 'a\nb\n');
+	});
+
 	test('deletes a file the last turn created and records the discard', async () => {
 		const harness = setup(disposables);
 		const chat = buildDefaultChatUri(harness.session.toString());
@@ -1217,7 +1253,6 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 				startTurn(stateManager, peer, 'peer-turn-1');
 				return {};
 			},
-			multiRoot: async ({ trackedSession }) => { trackedSession.workingDirectories = [URI.file('/repo').toString(), URI.file('/other').toString()]; return {}; },
 			outsideWorkspace: async () => ({ target: URI.file('/outside/file.ts') }),
 			fileNotInSession: async () => ({ target: URI.file('/repo/src/other.ts') }),
 			outsideFolderScope: async ({ trackedSession }) => { trackedSession.folderScope = [URI.file('/elsewhere')]; return {}; },
@@ -1328,7 +1363,6 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 			missingTarget: rejected(JsonRpcErrorCodes.InvalidParams),
 			turnRunning: rejected(JsonRpcErrorCodes.InvalidParams),
 			turnRunningInOtherChat: rejected(JsonRpcErrorCodes.InvalidParams),
-			multiRoot: rejected(JsonRpcErrorCodes.InvalidParams),
 			outsideWorkspace: rejected(JsonRpcErrorCodes.InvalidParams),
 			fileNotInSession: rejected(JsonRpcErrorCodes.InvalidParams),
 			outsideFolderScope: rejected(JsonRpcErrorCodes.InvalidParams),
@@ -1346,6 +1380,137 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 	});
 });
 
+suite('AgentHostDiscardChangesOperationHandler - multi-root', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const roots = [URI.file('/repo'), URI.file('/other')];
+	const resources = roots.map(root => URI.joinPath(root, 'src/file.ts'));
+	const original = 'a\nb\nc\nd\ne\n';
+	const accepted = 'A\nb\nc\nd\ne\n';
+	const edited = 'A\nb\nc\nd\nE\n';
+	const current = 'A\nb\nC\nd\nE\n';
+
+	for (const [kind, buildChangeset] of [[ChangesetKind.Session, buildSessionChangesetUri], [ChangesetKind.WorkingSet, buildWorkingSetChangesetUri]] as const) {
+		for (const scenario of [
+			{ name: 'first root through the session', separateChats: false, chatScoped: false, targetIndex: 0 },
+			{ name: 'second root through the default chat', separateChats: false, chatScoped: true, targetIndex: 1 },
+			{ name: 'peer root through the session', separateChats: true, chatScoped: false, targetIndex: 1 },
+			{ name: 'peer root through its chat', separateChats: true, chatScoped: true, targetIndex: 1 },
+		]) {
+			test(`discards ${kind} changes in the ${scenario.name} without changing a sibling root`, async () => {
+				const { handler, trackedDb, trackedSession, diskFileService, stateManager, session, discardedTurns, refreshes, gitService } = setup(disposables, { workingDirectories: scenario.separateChats ? [roots[0]] : roots });
+				const defaultChat = buildDefaultChatUri(session.toString());
+				const peer = buildChatUri(session.toString(), 'peer');
+				const peerDb = new TestSessionDatabase();
+				const sources = [{ chat: defaultChat, storage: session.toString(), db: trackedDb }];
+				if (scenario.separateChats) {
+					stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, defaultChat), { workingDirectories: [roots[1].toString()] });
+					sources.push({ chat: peer, storage: peer, db: peerDb });
+				}
+				for (const source of sources) {
+					addTurn(stateManager, source.chat, 'turn-1');
+					addTurn(stateManager, source.chat, 'turn-2');
+				}
+				for (const [index, resource] of resources.entries()) {
+					const db = sources[scenario.separateChats ? index : 0].db;
+					db.addEdit({ turnId: 'turn-1', toolCallId: `tc${index}-1`, filePath: resource.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(original), afterContent: encodeString(accepted) });
+					db.addEdit(createFileEditAcceptRecord('turn-1', resource.fsPath, encodeString(accepted)));
+					db.addEdit({ turnId: 'turn-2', toolCallId: `tc${index}-2`, filePath: resource.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(accepted), afterContent: encodeString(edited) });
+					await diskFileService.writeFile(resource, VSBuffer.fromString(current));
+				}
+				const target = resources[scenario.targetIndex];
+				const sibling = resources[1 - scenario.targetIndex];
+				const source = sources[scenario.separateChats ? scenario.targetIndex : 0];
+				const owner = scenario.chatScoped ? source.chat : session.toString();
+				trackedSession.sources = scenario.chatScoped ? [source] : sources;
+				trackedSession.otherChatDatabases = scenario.chatScoped ? sources.filter(candidate => candidate !== source).map(candidate => candidate.db) : [];
+				trackedSession.folderScope = scenario.chatScoped && scenario.separateChats ? [roots[scenario.targetIndex]] : roots;
+				trackedSession.workingDirectories = trackedSession.folderScope.map(root => root.toString());
+				const beforeRows = await source.db.getAllFileEdits();
+				const siblingDb = sources[scenario.separateChats ? 1 - scenario.targetIndex : 0].db;
+				const siblingRows = (await siblingDb.getAllFileEdits()).filter(row => row.filePath === sibling.fsPath);
+
+				await handler.invoke({
+					channel: buildChangeset(owner),
+					operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+					target: makeResourceTarget(target),
+				}, CancellationToken.None);
+
+				const diffService = new InProcessDiffComputeService();
+				const diffs = kind === ChangesetKind.WorkingSet
+					? await computeWorkingSetDiffs(sources.map(candidate => ({ sessionUri: candidate.storage, db: candidate.db })), diffService)
+					: (await Promise.all(sources.map(candidate => computeSessionDiffs(candidate.storage, candidate.db, diffService)))).flat();
+				assert.deepStrictEqual({
+					content: (await diskFileService.readFile(target)).value.toString(),
+					siblingContent: (await diskFileService.readFile(sibling)).value.toString(),
+					siblingRows: (await siblingDb.getAllFileEdits()).filter(row => row.filePath === sibling.fsPath),
+					remainingFiles: diffs.map(diff => diff.after?.uri ?? diff.before?.uri),
+					recorded: (await source.db.getAllFileEdits()).slice(beforeRows.length).map(row => ({ path: row.filePath, turn: row.turnId, accepted: isFileEditAcceptRecord(row) })),
+					discardedTurns,
+					refreshes,
+					restoreCalls: gitService.restoreCalls,
+				}, {
+					content: kind === ChangesetKind.WorkingSet ? 'A\nb\nC\nd\ne\n' : 'a\nb\nC\nd\ne\n',
+					siblingContent: current,
+					siblingRows,
+					remainingFiles: [sibling.toString()],
+					recorded: kind === ChangesetKind.WorkingSet
+						? [{ path: target.fsPath, turn: 'turn-2', accepted: false }, { path: target.fsPath, turn: 'turn-2', accepted: true }]
+						: [{ path: target.fsPath, turn: 'turn-2', accepted: false }, { path: target.fsPath, turn: 'turn-1', accepted: false }],
+					discardedTurns: [{ owner: source.chat, turnIds: ['turn-1', 'turn-2'] }],
+					refreshes: [owner],
+					restoreCalls: [],
+				});
+			});
+		}
+
+		test(`rejects unsafe ${kind} discards without changing files or records`, async () => {
+			const results = [];
+			for (const reason of ['outsideWorkspace', 'outsideFolderScope', 'otherChat', 'sharedFile', 'overlap'] as const) {
+				const { handler, trackedDb, trackedSession, diskFileService, stateManager, session } = setup(disposables, { workingDirectories: roots });
+				const target = reason === 'outsideWorkspace' ? URI.file('/outside/file.ts') : resources[1];
+				const chat = buildDefaultChatUri(session.toString());
+				addTurn(stateManager, chat, 'turn-1');
+				trackedDb.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(original), afterContent: encodeString(edited) });
+				const content = reason === 'overlap' ? 'AA\nb\nc\nd\nE\n' : edited;
+				await diskFileService.writeFile(target, VSBuffer.fromString(content));
+				if (reason === 'outsideFolderScope') {
+					trackedSession.folderScope = [roots[0]];
+				} else if (reason === 'otherChat' || reason === 'sharedFile') {
+					const peer = buildChatUri(session.toString(), 'peer');
+					stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, chat), { workingDirectories: [roots[1].toString()] });
+					addTurn(stateManager, peer, 'peer-turn');
+					const peerDb = new TestSessionDatabase();
+					peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'peer-tc', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(original), afterContent: encodeString(edited) });
+					if (reason === 'otherChat') {
+						trackedSession.otherChatDatabases.push(peerDb);
+					} else {
+						trackedSession.sources.push({ chat: peer, storage: peer, db: peerDb });
+					}
+				}
+				const beforeRows = await trackedDb.getAllFileEdits();
+				const failure = await handler.invoke({
+					channel: buildChangeset(reason === 'sharedFile' ? session.toString() : chat),
+					operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+					target: makeResourceTarget(target),
+				}, CancellationToken.None).then(() => undefined, (error: Error) => ({ code: error instanceof ProtocolError ? error.code : undefined, message: error.message }));
+				results.push({
+					reason,
+					failure,
+					unchanged: (await diskFileService.readFile(target)).value.toString() === content,
+					recordsUnchanged: JSON.stringify(await trackedDb.getAllFileEdits()) === JSON.stringify(beforeRows),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ reason: 'outsideWorkspace', failure: { code: JsonRpcErrorCodes.InvalidParams, message: 'Changes can only be discarded for files in this session\'s workspace.' }, unchanged: true, recordsUnchanged: true },
+				{ reason: 'outsideFolderScope', failure: { code: JsonRpcErrorCodes.InvalidParams, message: kind === ChangesetKind.WorkingSet ? '\'file.ts\' has no changes that have not been accepted.' : '\'file.ts\' has no changes made by the session.' }, unchanged: true, recordsUnchanged: true },
+				{ reason: 'otherChat', failure: { code: JsonRpcErrorCodes.InvalidParams, message: 'Changes to \'file.ts\' can\'t be discarded because another chat in this session also changed it.' }, unchanged: true, recordsUnchanged: true },
+				{ reason: 'sharedFile', failure: { code: JsonRpcErrorCodes.InvalidParams, message: 'Changes to \'file.ts\' can\'t be discarded because another chat in this session also changed it.' }, unchanged: true, recordsUnchanged: true },
+				{ reason: 'overlap', failure: { code: JsonRpcErrorCodes.InternalError, message: kind === ChangesetKind.WorkingSet ? 'Couldn\'t discard the changes to \'file.ts\' that have not been accepted because the same lines were changed outside of the session.' : 'Couldn\'t discard the session\'s changes to \'file.ts\' because the same lines were changed outside of the session.' }, unchanged: true, recordsUnchanged: true },
+			]);
+		});
+	}
+});
+
 suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const target = URI.file('/repo/src/file.ts');
@@ -1355,30 +1520,30 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		return ['l1', 'l2', 'l3', 'l4', 'l5', 'l6'].map((line, index) => changes[index] ?? line).join('\n') + '\n';
 	}
 
-	function setupWorkingSet() {
-		const harness = setup(disposables);
+	function setupWorkingSet(workingDirectories?: readonly URI[], resource = target) {
+		const harness = setup(disposables, { workingDirectories });
 		harness.gitService.repositoryRoot = undefined;
 		const chat = buildDefaultChatUri(harness.session.toString());
 		addTurn(harness.stateManager, chat, 'turn-1');
 		addTurn(harness.stateManager, chat, 'turn-2');
 		const edit = (turnId: string, toolCallId: string, before: string, after: string) => harness.trackedDb.addEdit({
-			turnId, toolCallId, filePath: target.fsPath, kind: FileEditKind.Edit,
+			turnId, toolCallId, filePath: resource.fsPath, kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
 			beforeContent: encodeString(before), afterContent: encodeString(after),
 		});
-		const accept = (turnId: string, content: string) => harness.trackedDb.addEdit(createFileEditAcceptRecord(turnId, target.fsPath, encodeString(content)));
+		const accept = (turnId: string, content: string) => harness.trackedDb.addEdit(createFileEditAcceptRecord(turnId, resource.fsPath, encodeString(content)));
 		const discard = (range?: { readonly range: TextRange; readonly side?: 'before' | 'after' }, channel = buildWorkingSetChangesetUri(harness.session.toString()), nonce?: string) => harness.handler.invoke({
 			channel,
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			target: {
-				resource: target.toString(),
+				resource: resource.toString(),
 				...(range ? { kind: ChangesetOperationTargetKind.Range, ...range } : { kind: ChangesetOperationTargetKind.Resource }),
 				...(nonce !== undefined ? { nonce } : {}),
 			},
 		}, CancellationToken.None);
 		const diffService = new InProcessDiffComputeService();
 		const describe = async () => ({
-			content: (await harness.diskFileService.readFile(target)).value.toString(),
+			content: (await harness.diskFileService.readFile(resource)).value.toString(),
 			workingSet: (await computeWorkingSetDiffs([{ sessionUri: harness.session.toString(), db: harness.trackedDb }], diffService)).length,
 			session: (await computeSessionDiffs(harness.session.toString(), harness.trackedDb, diffService)).length,
 			turns: [
@@ -1477,6 +1642,28 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 			after: { content: lines({ 0: 'L1', 2: 'U3' }), workingSet: 0, session: 1, turns: [1, 0] },
 			discardedTurns: [{ owner: chat, turnIds: ['turn-1', 'turn-2'] }],
 			message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+		});
+	});
+
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('discards the changes to a file whose edits spell its path differently, with the nonce of its working set file', async () => {
+		const { trackedDb, edit, discard, describe, diskFileService, session } = setupWorkingSet();
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+		trackedDb.addEdit({
+			turnId: 'turn-2', toolCallId: 'tc2', filePath: URI.file('/repo/SRC/file.ts').fsPath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString(lines({ 0: 'L1' })), afterContent: encodeString(lines({ 0: 'L1', 4: 'L5' })),
+		});
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		const shown = (await computeWorkingSetFiles([{ sessionUri: session.toString(), db: trackedDb }], new InProcessDiffComputeService()))
+			.map(file => ({ uri: file.diff.after?.uri, nonce: file.nonce }));
+
+		const result = await discard(undefined, undefined, shown[0].nonce);
+
+		assert.deepStrictEqual({ shown, message: result.message, after: await describe() }, {
+			shown: [{ uri: target.toString(), nonce: 'tc2' }],
+			message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+			after: { content: lines(), workingSet: 0, session: 0, turns: [0, 0] },
 		});
 	});
 
@@ -1644,6 +1831,21 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	});
 
+	test('discards a range in the second root of a multi-root working set, keeping other hunks and user edits', async () => {
+		const secondTarget = URI.file('/other/src/file.ts');
+		const { edit, discard, describe, diskFileService } = setupWorkingSet([URI.file('/repo'), URI.file('/other')], secondTarget);
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+		await diskFileService.writeFile(secondTarget, VSBuffer.fromString(lines({ 0: 'L1', 2: 'U3', 4: 'L5' })));
+		await diskFileService.writeFile(target, VSBuffer.fromString('sibling\n'));
+
+		await discard({ range: lineRange(0) });
+
+		assert.deepStrictEqual({ after: await describe(), sibling: (await diskFileService.readFile(target)).value.toString() }, {
+			after: { content: lines({ 2: 'U3', 4: 'L5' }), workingSet: 1, session: 1, turns: [1, 0] },
+			sibling: 'sibling\n',
+		});
+	});
+
 	test('reverts one hunk of a file whose line endings the session converted, keeping the conversion and the other hunk', async () => {
 		const { edit, discard, describe, diskFileService } = setupWorkingSet();
 		edit('turn-1', 'tc1', 'one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n', 'one\nTWO\nthree\nfour\nFIVE\n');
@@ -1718,6 +1920,50 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	});
 
+	test('discards a file\'s changes after its chat was forked, and after another chat\'s changes to it were accepted', async () => {
+		type Harness = ReturnType<typeof setupWorkingSet>;
+		// A forked chat's database starts as a copy of its parent's rows.
+		const editThenFork = async ({ edit, trackedDb }: Harness, fork: TestSessionDatabase) => {
+			edit('turn-2', 'tc1', lines(), lines({ 0: 'L1' }));
+			for (const record of await trackedDb.getAllFileEdits()) {
+				fork.addEdit({ ...record, ...(await trackedDb.readFileEditContent(record.toolCallId, record.filePath))! });
+			}
+			return lines({ 0: 'L1' });
+		};
+		const cases: Record<string, { readonly sessionChanges?: boolean; arrange(harness: Harness, peer: TestSessionDatabase): Promise<string> }> = {
+			forked: { arrange: editThenFork },
+			forkedSessionChanges: { sessionChanges: true, arrange: editThenFork },
+			otherChatAccepted: {
+				arrange: async ({ edit }, peer) => {
+					peer.addEdit({ turnId: 'peer-turn', toolCallId: 'ptc1', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(lines()), afterContent: encodeString(lines({ 4: 'P5' })) });
+					peer.addEdit(createFileEditAcceptRecord('peer-turn', target.fsPath, encodeString(lines({ 4: 'P5' }))));
+					edit('turn-2', 'tc1', lines({ 4: 'P5' }), lines({ 0: 'L1', 4: 'P5' }));
+					return lines({ 0: 'L1', 4: 'P5' });
+				},
+			},
+		};
+		const results: Record<string, unknown> = {};
+		for (const [name, { sessionChanges, arrange }] of Object.entries(cases)) {
+			const harness = setupWorkingSet();
+			const peer = new TestSessionDatabase();
+			const peerChat = buildChatUri(harness.session.toString(), 'peer');
+			harness.trackedSession.sources.push({ chat: peerChat, storage: peerChat, db: peer });
+			await harness.diskFileService.writeFile(target, VSBuffer.fromString(await arrange(harness, peer)));
+			const sources = harness.trackedSession.sources.map(source => ({ sessionUri: source.storage, db: source.db }));
+			const [shown] = await computeWorkingSetFiles(sources, new InProcessDiffComputeService());
+
+			const error = await (sessionChanges ? harness.discard(undefined, buildSessionChangesetUri(harness.session.toString())) : harness.discard(undefined, undefined, shown.nonce)).then(() => undefined, (err: Error) => err.message);
+
+			results[name] = { error, content: (await harness.diskFileService.readFile(target)).value.toString(), workingSet: (await computeWorkingSetDiffs(sources, new InProcessDiffComputeService())).length };
+		}
+
+		assert.deepStrictEqual(results, {
+			forked: { error: undefined, content: lines(), workingSet: 0 },
+			forkedSessionChanges: { error: undefined, content: lines(), workingSet: 0 },
+			otherChatAccepted: { error: undefined, content: lines({ 4: 'P5' }), workingSet: 0 },
+		});
+	});
+
 	test('rejects a file whose changes were all accepted without changing it', async () => {
 		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
 		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
@@ -1730,13 +1976,76 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		} catch (e) {
 			error = e as ProtocolError;
 		}
+		// A client that still shows the changes names them.
+		const shownBefore = await discard(undefined, undefined, 'tc1').then(() => undefined, (err: ProtocolError) => ({ code: err.code, message: err.message }));
 
-		assert.deepStrictEqual({ code: error?.code, message: error?.message, state: await describe(), rows: (await trackedDb.getAllFileEdits()).length }, {
+		assert.deepStrictEqual({ code: error?.code, message: error?.message, shownBefore, state: await describe(), rows: (await trackedDb.getAllFileEdits()).length }, {
 			code: JsonRpcErrorCodes.InvalidParams,
 			message: '\'file.ts\' has no changes that have not been accepted.',
+			shownBefore: { code: AhpErrorCodes.Conflict, message: 'The changes to \'file.ts\' were updated after they were shown. Try again.' },
 			state: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
 			rows: 2,
 		});
+	});
+
+	for (const owner of ['session', 'fork'] as const) {
+		test(`leaves a file alone when its changes were kept in another chat's database after its unaccepted changes were read (working set of the ${owner})`, async () => {
+			const { edit, discard, diskFileService, trackedDb, trackedSession, stateManager, session, chat } = setupWorkingSet();
+			edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+			// A forked chat's database starts as a copy of its parent's rows. The fork then changes the file too.
+			const fork = new TestSessionDatabase();
+			fork.addEdit({ turnId: 'fork-turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(lines()), afterContent: encodeString(lines({ 0: 'L1' })) });
+			fork.addEdit({ turnId: 'fork-turn-2', toolCallId: 'tc2', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(lines({ 0: 'L1' })), afterContent: encodeString(lines({ 0: 'L1', 4: 'L5' })) });
+			const forkChat = buildChatUri(session.toString(), 'fork');
+			stateManager.addChat(session.toString(), forkChat, creationTimeChatStorageResource(session.toString(), forkChat, chat), {});
+			const forkSource = { chat: forkChat, storage: forkChat, db: fork };
+			if (owner === 'fork') {
+				// A chat's own Working Set is computed from its database, with its parent's among the other chats'.
+				trackedSession.sources = [forkSource];
+				trackedSession.otherChatDatabases = [trackedDb];
+			} else {
+				trackedSession.sources.push(forkSource);
+			}
+			await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+			// Another client keeps the parent's change, in the parent's database, while Undo prepares the revert in the fork's.
+			const storeFileEdits = fork.storeFileEdits.bind(fork);
+			fork.storeFileEdits = (edits, beforeCommit) => {
+				trackedDb.addEdit(createFileEditAcceptRecord('turn-1', target.fsPath, encodeString(lines({ 0: 'L1' }))));
+				return storeFileEdits(edits, beforeCommit);
+			};
+
+			const error = await discard(undefined, owner === 'fork' ? buildWorkingSetChangesetUri(forkChat) : undefined).then(() => undefined, (err: Error) => err.message);
+
+			assert.deepStrictEqual({ error, content: (await diskFileService.readFile(target)).value.toString() }, {
+				error: owner === 'fork'
+					? 'Changes to \'file.ts\' can\'t be discarded because another chat in this session also changed it.'
+					: '\'file.ts\' changed while its changes were being discarded. Try again.',
+				content: lines({ 0: 'L1', 4: 'L5' }),
+			});
+		});
+	}
+
+	test('accepts the records of a chat that deleted the file again, so they do not show as changes after discarding', async () => {
+		const { discard, diskFileService, trackedDb, trackedSession, session } = setupWorkingSet();
+		const record = (turnId: string, toolCallId: string, kind: FileEditKind, before: string | undefined, after: string | undefined) => ({
+			turnId, toolCallId, filePath: target.fsPath, kind, addedLines: undefined, removedLines: undefined,
+			beforeContent: before === undefined ? undefined : encodeString(before), afterContent: after === undefined ? undefined : encodeString(after),
+		});
+		trackedDb.addEdit(record('turn-1', 'tc1', FileEditKind.Create, undefined, 'a\n'));
+		// A forked chat's database starts as a copy of its parent's rows. The fork then deletes the file, and its parent creates it again.
+		const fork = new TestSessionDatabase();
+		fork.addEdit(record('fork-turn-1', 'tc1', FileEditKind.Create, undefined, 'a\n'));
+		fork.addEdit(record('fork-turn-2', 'tc2', FileEditKind.Delete, 'a\n', undefined));
+		trackedDb.addEdit(record('turn-2', 'tc3', FileEditKind.Create, undefined, 'b\n'));
+		const forkChat = buildChatUri(session.toString(), 'fork');
+		trackedSession.sources.push({ chat: forkChat, storage: forkChat, db: fork });
+		await diskFileService.writeFile(target, VSBuffer.fromString('b\n'));
+		const workingSet = async () => (await computeWorkingSetDiffs(trackedSession.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new InProcessDiffComputeService())).length;
+		const before = await workingSet();
+
+		await discard();
+
+		assert.deepStrictEqual({ before, after: await workingSet(), exists: await diskFileService.exists(target) }, { before: 1, after: 0, exists: false });
 	});
 });
 
@@ -1805,25 +2114,34 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 		});
 	});
 
-	test('offers discard on session changes unless they span more than one folder', () => {
-		const { stateManager, session } = setup(disposables);
-		const contribution = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
-		const operationIds = (owner: string) => contribution
-			.getOperations({ sessionKey: session.toString(), changesetUri: buildSessionChangesetUri(owner), changesetKind: ChangesetKind.Session, gitState: { uncommittedChanges: 0 } })
-			.map(operation => operation.id);
+	for (const [kind, buildChangeset] of [[ChangesetKind.Session, buildSessionChangesetUri], [ChangesetKind.WorkingSet, buildWorkingSetChangesetUri]] as const) {
+		test(`offers ${kind} discard in single-folder and multi-root sessions and chats`, () => {
+			const { stateManager, session } = setup(disposables);
+			const contribution = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+			const multiRoot = setup(disposables, { workingDirectories: [URI.file('/repo'), URI.file('/other')] });
+			const multiRootContribution = disposables.add(new AgentHostDiscardChangesOperationContribution(multiRoot.stateManager, new (mock<IInstantiationService>())()));
+			const operations = (owner: string, provider = contribution) => provider
+				.getOperations({ sessionKey: session.toString(), changesetUri: buildChangeset(owner), changesetKind: kind, gitState: { uncommittedChanges: 0 } })
+				.map(operation => ({ id: operation.id, scopes: operation.scopes }));
 
-		const singleFolder = operationIds(session.toString());
-		const peer = buildChatUri(session.toString(), 'peer');
-		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
+			const singleFolder = operations(session.toString());
+			const peer = buildChatUri(session.toString(), 'peer');
+			stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString(), URI.file('/peer-other').toString()] });
+			const expected = [{ id: 'discard-changes', scopes: kind === ChangesetKind.WorkingSet ? ['resource', 'range'] : ['resource'] }];
 
-		assert.deepStrictEqual({
-			singleFolder,
-			sessionAcrossFolders: operationIds(session.toString()),
-			peerChat: operationIds(peer),
-		}, {
-			singleFolder: ['discard-changes'],
-			sessionAcrossFolders: [],
-			peerChat: ['discard-changes'],
+			assert.deepStrictEqual({
+				singleFolder,
+				sessionAcrossFolders: operations(session.toString()),
+				peerChat: operations(peer),
+				multiRootSession: operations(multiRoot.session.toString(), multiRootContribution),
+				multiRootChat: operations(buildDefaultChatUri(multiRoot.session.toString()), multiRootContribution),
+			}, {
+				singleFolder: expected,
+				sessionAcrossFolders: expected,
+				peerChat: expected,
+				multiRootSession: expected,
+				multiRootChat: expected,
+			});
 		});
-	});
+	}
 });

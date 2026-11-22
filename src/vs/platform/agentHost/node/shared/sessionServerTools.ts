@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../base/common/types.js';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -15,7 +16,13 @@ import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/a
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
+import { ContextSizeConfigKey, getContextSizeForTier, modelContextTiers, withExplicitModelConfiguration, type ModelContextTier } from '../../common/agentModelConfiguration.js';
+import { isModelRouterModelId } from '../../common/modelRouter.js';
+import { ReasoningEffortConfigKey, reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import type { JsonPrimitive } from '../../common/state/protocol/state.js';
+import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -124,6 +131,22 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 	},
 };
 
+const createSessionModelProperty = { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' };
+/** `create_session`'s model properties while agents can choose model options (`sessionModelOptions` isn't `off`). */
+const createSessionModelOptionsProperties = {
+	model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model, with its reasoning effort and context size. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+	reasoningEffort: {
+		type: 'string',
+		enum: [...reasoningEffortLevels],
+		description: 'Optional reasoning effort for the new chat\'s model (`xhigh` is shown as Extra High). Supported values depend on the model. Higher effort is slower and can cost more; `ultra` also delegates parts of the task automatically. Omit to keep the current chat\'s effort when `model` is omitted or names the current chat\'s model; otherwise the model\'s default is used.',
+	},
+	contextTier: {
+		type: 'string',
+		enum: [...modelContextTiers],
+		description: 'Optional context window for the new chat\'s model: `long_context` uses the model\'s larger window when it offers one, which can cost more. Omit to keep the current chat\'s context size when `model` is omitted or names the current chat\'s model; otherwise the model\'s default is used.',
+	},
+};
+
 const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
@@ -136,7 +159,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
 		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		model: createSessionModelProperty,
 	},
 	required: ['prompt', 'title'],
 };
@@ -159,21 +182,30 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`.' },
 		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		model: createSessionModelProperty,
 	},
 	required: ['relationship', 'prompt', 'title'],
 };
 
 const createSessionHarnessSentence = ' With `currentSession`, set `harness` to create the chat on another agent, for example to have a different agent review the work.';
 
-/** `create_session` offering `harness`, with the harnesses a chat of the session may use, for a session whose chats may use another agent. */
-function withCreateSessionHarness(definition: IAgentServerToolDefinition, available: readonly AgentProvider[]): IAgentServerToolDefinition {
+/** `create_session` offering `reasoningEffort` and `contextTier`, while agents can choose model options. */
+function withCreateSessionModelOptions(definition: IAgentServerToolDefinition): IAgentServerToolDefinition {
+	const inputSchema = definition.inputSchema ?? { type: 'object' as const };
+	return { ...definition, inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, ...createSessionModelOptionsProperties } } };
+}
+
+/**
+ * `create_session` offering `harness`, with the harnesses a chat of the session may use, for a session whose chats may use another agent.
+ * @param modelOptions Whether agents can choose model options, which the wording then mentions.
+ */
+function withCreateSessionHarness(definition: IAgentServerToolDefinition, available: readonly AgentProvider[], modelOptions: boolean): IAgentServerToolDefinition {
 	const inputSchema = definition.inputSchema ?? { type: 'object' as const };
 	const harness = {
 		type: 'string',
-		description: `Optional harness (agent) for the new chat: one of ${available.map(provider => `\`${toAgentHostChatHarness(provider)}\``).join(', ')}. Only valid with relationship \`currentSession\`. Defaults to the current session's harness. A chat on another harness starts with that harness's defaults; \`model\`, when given, must belong to it.`,
+		description: `Optional harness (agent) for the new chat: one of ${available.map(provider => `\`${toAgentHostChatHarness(provider)}\``).join(', ')}. Only valid with relationship \`currentSession\`. Defaults to the current session's harness. A chat on another harness starts with that harness's defaults; \`model\`, when given, must belong to it${modelOptions ? ', and is needed to set `reasoningEffort` or `contextTier`' : ''}.`,
 	};
-	const model = { ...inputSchema.properties?.model, description: createSessionHarnessModelDescription };
+	const model = { ...inputSchema.properties?.model, description: modelOptions ? createSessionHarnessModelOptionsDescription : createSessionHarnessModelDescription };
 	return {
 		...definition,
 		description: `${definition.description}${createSessionHarnessSentence}`,
@@ -182,6 +214,31 @@ function withCreateSessionHarness(definition: IAgentServerToolDefinition, availa
 }
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
+
+/** Introduces the list of models in `create_session`'s `model` description and in `list_models`' result. */
+const createSessionModelCatalogHeading = 'Available models by agent:';
+
+/** `inputSchema` with {@link text} appended to its `model` description; unchanged without a `model` property. */
+function withModelDescriptionText(inputSchema: ToolDefinition['inputSchema'], text: string): ToolDefinition['inputSchema'] {
+	const model: { readonly description?: unknown } | undefined = inputSchema?.properties?.model;
+	if (inputSchema === undefined || model === undefined) {
+		return inputSchema;
+	}
+	const description = typeof model.description === 'string' ? model.description : '';
+	return { ...inputSchema, properties: { ...inputSchema.properties, model: { ...model, description: `${description}${text}` } } };
+}
+
+/**
+ * `create_session` with the ways it offers models: a pointer to `list_models` while the session offers it, and with
+ * a {@link catalog}, a `model` description that lists the models and their options once the agent loads the tool
+ * through tool search.
+ */
+function withCreateSessionModelDiscovery(definition: IAgentServerToolDefinition, offersListModels: boolean, catalog: string | undefined): IAgentServerToolDefinition {
+	const offered = offersListModels
+		? { ...definition, inputSchema: withModelDescriptionText(definition.inputSchema, ` Call \`${SessionServerToolName.ListModels}\` to see the models and the options each accepts.`) }
+		: definition;
+	return catalog === undefined ? offered : { ...offered, deferredInputSchema: withModelDescriptionText(offered.inputSchema, `\n\n${createSessionModelCatalogHeading}\n${catalog}`) };
+}
 
 /** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
 const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context`, `rename_chat` and `archive_chat`.';
@@ -195,8 +252,9 @@ const sessionChatsHarnessSentences: ReadonlyMap<string, string> = new Map([
 	[SessionServerToolName.ListSessions, 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title`, an `openLink` that names that chat in `send_message`, `get_session_context`, `rename_chat` and `archive_chat`, and a `harness` when it runs on a different agent than its session.'],
 	[SessionServerToolName.GetCurrentSession, 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`, including the `harness` of a nested session that runs on a different agent.'],
 ]);
-/** `create_session`'s `model` description for a session whose chats may use another agent. */
+/** `create_session`'s `model` description for a session whose chats may use another agent, and the one while agents can also choose model options. */
 const createSessionHarnessModelDescription = 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
+const createSessionHarnessModelOptionsDescription = 'Optional model ID or display name. Defaults to the current chat\'s model, with its reasoning effort and context size, when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
 /** Follows a tool's {@link sessionChatsSentences} entry while `move_session` is offered. */
 const moveSessionLinksSentence = ' `move_session` takes these links too.';
 
@@ -316,6 +374,14 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		deferLoading: true,
 	},
 	{
+		name: SessionServerToolName.ListModels,
+		title: 'List Models',
+		description: 'List the models you can pass as `create_session`\'s `model`, grouped by agent, with the `reasoningEffort` values and `contextTier` each accepts. Pass a listed id as `model`.',
+		inputSchema: { type: 'object', properties: {} },
+		annotations: { readOnlyHint: true },
+		deferLoading: true,
+	},
+	{
 		name: SessionServerToolName.RenameChat,
 		title: 'Rename Chat',
 		description: 'Rename one specific chat so it is easy to find later. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
@@ -376,10 +442,18 @@ interface ICreateSessionArgs {
 	readonly prompt?: unknown;
 	readonly title?: unknown;
 	readonly model?: unknown;
+	readonly reasoningEffort?: unknown;
+	readonly contextTier?: unknown;
 	readonly harness?: unknown;
 }
 
-export type IResolvedCreateSessionArgs = {
+/** Options `create_session` sets on the new chat's model. */
+interface ICreateSessionModelOptions {
+	readonly reasoningEffort?: ReasoningEffortLevel;
+	readonly contextTier?: ModelContextTier;
+}
+
+export type IResolvedCreateSessionArgs = ({
 	readonly relationship: 'currentSession';
 	/** Folder for the new chat, added to the session; omitted when the chat shares the session's workspace. */
 	readonly workspace?: URI;
@@ -394,7 +468,7 @@ export type IResolvedCreateSessionArgs = {
 	readonly prompt: string;
 	readonly title: string;
 	readonly model?: IAgentModelInfo;
-};
+}) & ICreateSessionModelOptions;
 
 /** Selects how a repository is attached to a chat's aggregate session. */
 export type IAddSessionWorkingDirectoryOptions = ({
@@ -442,7 +516,14 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getWorktreeRoots: (workspace: URI) => Promise<readonly URI[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
+	/**
+	 * The models of every provider as a caller with `credentials` sees them: each provider's credential-scoped catalog,
+	 * none for a provider without one. Never the shared catalogs, which belong to the host's own account.
+	 */
+	readonly getModelsForCredentials: (credentials: IAgentHostCredentialSource) => Promise<readonly IAgentModelInfo[]>;
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
+	/** Restores the target session and chat before deciding whether a message must be queued. */
+	readonly restoreChat: (session: URI, chat: URI, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	/**
@@ -468,6 +549,13 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
 	/** Whether moving chats is enabled (`chatMoves.enabled`), read on every call. */
 	readonly isChatMoveEnabled: () => boolean;
+	/** Whether agents can choose model options in `create_session`, and how they find models (`sessionModelOptions`), read on every call. */
+	readonly getSessionModelOptions: () => AgentHostSessionModelOptions;
+	/**
+	 * Whether the session's chats run on their own credentials, so `create_session` resolves their models in a
+	 * credential-scoped catalog rather than {@link getModels}.
+	 */
+	readonly usesCredentialScopedModels: (session: URI) => boolean;
 	/** Whether the session's agent supports more than one chat per session, so its chats can move. */
 	readonly supportsChatMoves: (session: URI) => boolean;
 	/**
@@ -672,6 +760,17 @@ function getOptionalString(value: unknown, field: string, toolName: string): str
 	return value;
 }
 
+function getOptionalEnum<T extends string>(value: unknown, field: string, values: readonly T[], toolName: string): T | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const match = values.find(candidate => candidate === value);
+	if (match === undefined) {
+		throw new Error(`Invalid ${toolName} input: ${field} must be one of: ${values.join(', ')}.`);
+	}
+	return match;
+}
+
 function decodeHtmlEntities(value: string): string {
 	const namedEntities: Record<string, string> = {
 		amp: '&',
@@ -732,12 +831,17 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 	}
 }
 
+/** Whether `folder` names a local folder by its path alone: an absolute `file` URI without a query or fragment. */
+function isLocalFolderUri(folder: URI): boolean {
+	return folder.scheme === Schemas.file && folder.path.startsWith('/') && !folder.query && !folder.fragment;
+}
+
 /** Validates and resolves the workspace requested by `set_workspace`. */
 export function getSetWorkspaceArgs(rawArgs: unknown): { readonly workspaceFolder: URI; readonly isolation: boolean } {
 	const args = (rawArgs ?? {}) as { readonly workspaceFolder?: unknown; readonly isolation?: unknown };
 	const input = getRequiredString(args.workspaceFolder, 'workspaceFolder', SessionServerToolName.SetWorkspace);
 	const workspaceFolder = parseWorkspaceUri(input);
-	if (!workspaceFolder || workspaceFolder.scheme !== Schemas.file || !workspaceFolder.path.startsWith('/') || workspaceFolder.query || workspaceFolder.fragment) {
+	if (!workspaceFolder || !isLocalFolderUri(workspaceFolder)) {
 		throw new Error(`Invalid ${SessionServerToolName.SetWorkspace} input: workspaceFolder must be an absolute local path or file URI.`);
 	}
 	return {
@@ -797,7 +901,8 @@ async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, raw
 	}
 }
 
-function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
+/** @param listAvailable Whether the error for a model that isn't found lists the available model ids. */
+function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider, listAvailable = false): IAgentModelInfo | undefined {
 	if (modelName === undefined) {
 		return undefined;
 	}
@@ -806,7 +911,9 @@ function resolveModel(modelName: string | undefined, models: readonly IAgentMode
 	const matches = idMatches.length > 0 ? idMatches : availableModels.filter(candidate => candidate.name === modelName);
 	if (matches.length === 0) {
 		const providerSuffix = provider === undefined ? '' : ` for provider "${provider}"`;
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name${providerSuffix}.`);
+		const ids = listAvailable ? getSelectableModels(availableModels).map(model => model.id) : [];
+		const available = ids.length > 0 ? ` Available model ids: ${ids.join(', ')}.` : '';
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name${providerSuffix}.${available}`);
 	}
 	if (matches.length > 1) {
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${modelName}" is ambiguous; use one of these model ids: ${matches.map(model => model.id).join(', ')}.`);
@@ -833,12 +940,16 @@ function getCreateSessionRelationship(rawArgs: unknown, supportsChatWorkingDirec
 /**
  * Validates and resolves create-session arguments against current sessions and models.
  *
+ * @param models The catalog to resolve `model` in. `undefined` checks every other argument and leaves `model`
+ * unresolved, so mistakes are found before the catalog is read.
  * @param supportsChatWorkingDirectories Whether the current session's provider
  * supports multiple working directories. When `false`, a current-session chat
  * shares the session's workspace, so `workspace` and `worktree` are rejected for
  * it and the relationship is required.
+ * @param modelOptions Whether agents can choose model options. Without them `reasoningEffort` and `contextTier` aren't
+ * offered, so they are ignored.
  */
-export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[], currentProvider?: AgentProvider, supportsChatWorkingDirectories = true): IResolvedCreateSessionArgs {
+export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[] | undefined, currentProvider?: AgentProvider, supportsChatWorkingDirectories = true, modelOptions = false): IResolvedCreateSessionArgs {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
 	const relationship = getCreateSessionRelationship(args, supportsChatWorkingDirectories);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
@@ -847,7 +958,13 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
 	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
-	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
+	const reasoningEffort = modelOptions ? getOptionalEnum(args.reasoningEffort, 'reasoningEffort', reasoningEffortLevels, SessionServerToolName.CreateSession) : undefined;
+	const contextTier = modelOptions ? getOptionalEnum(args.contextTier, 'contextTier', modelContextTiers, SessionServerToolName.CreateSession) : undefined;
+	const model = models === undefined ? undefined : resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined, modelOptions);
+	const requestedOptions: ICreateSessionModelOptions = {
+		...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
+		...(contextTier !== undefined ? { contextTier } : {}),
+	};
 	if (relationship === 'currentSession') {
 		if (!supportsChatWorkingDirectories) {
 			if (workspace !== undefined) {
@@ -860,13 +977,18 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 		if (workspace === undefined && worktree !== undefined) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree requires workspace.`);
 		}
+		const chatWorkspace = workspace !== undefined ? resolveWorkspace(workspace, sessions) : undefined;
+		if (chatWorkspace && !isLocalFolderUri(chatWorkspace)) {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace for relationship "currentSession" must be an absolute local path or file URI.`);
+		}
 		return {
 			relationship,
-			...(workspace !== undefined ? { workspace: resolveWorkspace(workspace, sessions) } : {}),
+			...(chatWorkspace !== undefined ? { workspace: chatWorkspace } : {}),
 			...(worktree !== undefined ? { worktree } : {}),
 			prompt,
 			title,
 			...(model !== undefined ? { model } : {}),
+			...requestedOptions,
 		};
 	}
 	if (workspace === undefined) {
@@ -878,6 +1000,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 			prompt,
 			title,
 			...(model !== undefined ? { model } : {}),
+			...requestedOptions,
 		};
 	}
 	return {
@@ -887,7 +1010,131 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 		prompt,
 		title,
 		...(model !== undefined ? { model } : {}),
+		...requestedOptions,
 	};
+}
+
+/**
+ * The model selection of a chat `create_session` creates on `provider`. An omitted `model` starts from the calling
+ * chat's selection and an explicit one from its own defaults, except that with {@link modelOptions} an explicit
+ * `model` that names the calling chat's model also starts from that chat's selection, so it keeps the chat's effort
+ * and context size. Requested options are then set as explicit choices, once the model's catalog entry shows that it
+ * offers them. `undefined` leaves the model to the provider.
+ *
+ * @param inherited The calling chat's selection, when the new chat uses the calling chat's agent.
+ * @param getModels Reads the catalog the calling chat can use; only called once the options need checking.
+ * @param modelOptions Whether agents can choose model options (`sessionModelOptions` isn't `off`).
+ */
+async function resolveCreatedModelSelection(args: IResolvedCreateSessionArgs, provider: AgentProvider | undefined, inherited: ModelSelection | undefined, getModels: () => Promise<readonly IAgentModelInfo[]>, modelOptions: boolean): Promise<ModelSelection | undefined> {
+	const selection = args.model === undefined || (modelOptions && inherited?.id === args.model.id) ? inherited : { id: args.model.id };
+	if (args.reasoningEffort === undefined && args.contextTier === undefined) {
+		return selection;
+	}
+	const requested = args.reasoningEffort === undefined ? 'contextTier' : args.contextTier === undefined ? 'reasoningEffort' : 'reasoningEffort and contextTier';
+	if (selection === undefined) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: ${requested} needs a model, but the new chat has no model to inherit. Pass \`model\` as well.`);
+	}
+	if (isModelRouterModelId(selection.id)) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${selection.id}" is a model router, which chooses its own models and their options. Omit ${requested}, or pass a model that isn't a router.`);
+	}
+	const model = (await getModels()).find(candidate => candidate.provider === provider && candidate.id === selection.id);
+	if (!model) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: can't check ${requested} because model "${selection.id}" isn't among the available models right now. Retry, or pass \`model\` with an available model.`);
+	}
+	const values: Record<string, JsonPrimitive> = {};
+	if (args.reasoningEffort !== undefined) {
+		const property = model.configSchema?.properties[ReasoningEffortConfigKey];
+		if (!property?.enum?.includes(args.reasoningEffort)) {
+			throw new Error(property?.enum?.length
+				? `Invalid ${SessionServerToolName.CreateSession} input: model "${model.id}" doesn't support reasoningEffort "${args.reasoningEffort}". Use one of: ${describeConfigValues(property)}, or omit reasoningEffort.`
+				: `Invalid ${SessionServerToolName.CreateSession} input: model "${model.id}" has no reasoning effort option. Omit reasoningEffort.`);
+		}
+		assertConfigWritable(property, 'reasoningEffort', model.id);
+		values[ReasoningEffortConfigKey] = args.reasoningEffort;
+	}
+	if (args.contextTier !== undefined) {
+		const property = model.configSchema?.properties[ContextSizeConfigKey];
+		const size = property?.enum && property.enum.length > 1 ? getContextSizeForTier(property, args.contextTier) : undefined;
+		if (property === undefined || size === undefined) {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${model.id}" has a single context window, so contextTier doesn't apply. Omit contextTier, or pass a model with a larger context window.`);
+		}
+		assertConfigWritable(property, 'contextTier', model.id);
+		values[ContextSizeConfigKey] = size;
+	}
+	return withExplicitModelConfiguration(selection, values);
+}
+
+/** Lists a model option's values for the agent, each with its label when the label differs. */
+function describeConfigValues(property: ConfigPropertySchema): string {
+	return (property.enum ?? []).map((value, index) => {
+		const label = property.enumLabels?.[index];
+		return label !== undefined && label !== String(value) ? `${value} (${label})` : String(value);
+	}).join(', ');
+}
+
+function assertConfigWritable(property: ConfigPropertySchema, field: string, modelId: string): void {
+	if (property.readOnly) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: ${field} is locked for model "${modelId}" and can't be changed. Omit ${field}.`);
+	}
+}
+
+/** The models an agent can choose: every catalog model that policy doesn't disable, sorted by id so the list is stable. */
+function getSelectableModels(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+	return models.filter(model => model.policyState !== PolicyState.Disabled).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** The models of agents that can start sessions, which `create_session` can create a chat or session on. */
+function getOfferedModels(accessor: Pick<ISessionServerToolAccessor, 'canCreateSessions'>, models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+	return models.filter(model => accessor.canCreateSessions(model.provider));
+}
+
+/**
+ * The `reasoningEffort` and `contextTier` values `create_session` accepts for a model, as
+ * {@link resolveCreatedModelSelection} checks them: none for a model router or a locked option.
+ */
+function describeCreateSessionModelOptions(model: IAgentModelInfo): string | undefined {
+	if (isModelRouterModelId(model.id)) {
+		return undefined;
+	}
+	const options: string[] = [];
+	const effort = model.configSchema?.properties[ReasoningEffortConfigKey];
+	if (effort?.enum?.length && !effort.readOnly) {
+		const defaultEffort = typeof effort.default === 'string' ? `, default ${effort.default}` : '';
+		options.push(`reasoningEffort ${effort.enum.join('|')}${defaultEffort}`);
+	}
+	const context = model.configSchema?.properties[ContextSizeConfigKey];
+	if (context?.enum && context.enum.length > 1 && !context.readOnly) {
+		options.push('contextTier long_context');
+	}
+	return options.length > 0 ? options.join('; ') : undefined;
+}
+
+/**
+ * Lists the models an agent can pass to `create_session`, grouped by agent, one per line with the options it accepts.
+ * `undefined` when there are none to list.
+ */
+export function formatCreateSessionModelChoices(models: readonly IAgentModelInfo[]): string | undefined {
+	const selectable = getSelectableModels(models);
+	if (selectable.length === 0) {
+		return undefined;
+	}
+	const harnesses = [...new Set(selectable.map(model => model.provider))].sort();
+	return harnesses.flatMap(provider => [
+		`${toAgentHostChatHarness(provider)}:`,
+		...selectable.filter(model => model.provider === provider).map(model => {
+			const options = describeCreateSessionModelOptions(model);
+			return `- ${model.id} (${model.name})${options ? `: ${options}` : ''}`;
+		}),
+	]).join('\n');
+}
+
+/**
+ * Reads the catalog `create_session` resolves and checks models against, at most once: the caller's own when it has
+ * credentials. Reading it can start model discovery for those credentials, so it is read only when a call needs it.
+ */
+function createSessionModelReader(accessor: ISessionServerToolAccessor, credentials: IAgentHostCredentialSource | undefined): () => Promise<readonly IAgentModelInfo[]> {
+	let models: Promise<readonly IAgentModelInfo[]> | undefined;
+	return () => models ??= credentials ? accessor.getModelsForCredentials(credentials) : Promise.resolve(accessor.getModels());
 }
 
 /** Decodes the {@link SessionStatus} bit-flags into readable names for the agent. */
@@ -1138,24 +1385,11 @@ export interface ICreateSessionResult {
 }
 
 /**
- * Whether `chat` is workspace-less in a session described by `metadata`: the session is marked and the chat has
- * no folder of its own or shares the default chat's folder. A chat with its own folder in a marked session is
- * not; unknown chats fail closed as workspace-less.
- */
-export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | undefined, chat: URI | undefined): boolean {
-	if (!readSessionWorkspaceless(metadata?._meta)) {
-		return false;
-	}
-	const folder = metadata?.chats?.find(entry => entry.chat.toString() === chat?.toString())?.workingDirectories?.[0];
-	const defaultFolder = metadata?.chats?.find(entry => entry.kind === 'default')?.workingDirectories?.[0];
-	return folder === undefined || folder === defaultFolder;
-}
-
-/**
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
+	const modelOptions = accessor.getSessionModelOptions() !== 'off';
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
@@ -1164,7 +1398,16 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const harnessProvider = resolveCreateSessionHarness(accessor, rawArgs, currentSession, supportsChatWorkingDirectories);
 	// The agent a current-session chat is created on: the requested harness, else the session's (never the calling chat's).
 	const currentProvider = harnessProvider ?? sessionProvider;
-	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider, supportsChatWorkingDirectories);
+	// Every argument that needs no model catalog is checked first, so a mistake there neither waits for catalog discovery nor is hidden by its failure.
+	const unresolvedArgs = getCreateSessionArgs(rawArgs, sessions, undefined, currentProvider, supportsChatWorkingDirectories, modelOptions);
+	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
+	if (unresolvedArgs.relationship === 'independent' && enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
+		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
+	}
+	const getModels = createSessionModelReader(accessor, credentials);
+	const args = (rawArgs as ICreateSessionArgs | undefined)?.model === undefined
+		? unresolvedArgs
+		: getCreateSessionArgs(rawArgs, sessions, await getModels(), currentProvider, supportsChatWorkingDirectories, modelOptions);
 	if (args.relationship === 'currentSession') {
 		if (!currentSession) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" requires an invoking session.`);
@@ -1172,9 +1415,8 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
-		if (args.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
-		}
+		// The calling chat's model is inherited only by a chat of the same agent.
+		const model = await resolveCreatedModelSelection(args, currentProvider, currentProvider === defaults?.provider ? defaults?.model : undefined, getModels, modelOptions);
 		// A requested folder joins the session and is assigned only to the new chat.
 		const prepared = args.workspace !== undefined
 			? await accessor.prepareChatWorkingDirectory(currentSession, args.workspace, { ...getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt), ...(credentials ? { credentialSource: credentials } : {}) })
@@ -1185,7 +1427,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				session: currentSession,
 				prompt: args.prompt,
 				title: args.title,
-				model: args.model,
+				...(model !== undefined ? { model } : {}),
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
 				...(harnessProvider !== undefined && harnessProvider !== sessionProvider ? { provider: harnessProvider } : {}),
 			}, source, sourceTurnId, prepared?.associateWithChat);
@@ -1196,10 +1438,6 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		return { relationship: args.relationship, ...result };
 	}
 
-	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
-	if (enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
-		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
-	}
 	let workspace = args.workspace;
 	if (workspace !== undefined && args.worktree === false) {
 		const [primaryRoot, ...linkedRoots] = await accessor.getWorktreeRoots(workspace);
@@ -1213,6 +1451,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
+	const model = await resolveCreatedModelSelection(args, provider, args.model === undefined || args.model.provider === defaults?.provider ? defaults?.model : undefined, getModels, modelOptions);
 	let isolation: 'folder' | 'worktree' | undefined;
 	if (workspace !== undefined) {
 		isolation = 'worktree';
@@ -1232,7 +1471,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(credentials ? { credentials } : {}),
 		...(workspace !== undefined ? { workingDirectories: [workspace] } : {}),
 		...(provider !== undefined ? { provider } : {}),
-		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
+		...(model !== undefined ? { model } : {}),
 		...(inheritsSourceProvider && defaults?.activeClient !== undefined ? { activeClient: { ...defaults.activeClient, tools: [] } } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
@@ -1321,6 +1560,14 @@ interface IResolvedCreateChatArgs {
 	readonly prompt: string;
 	readonly title?: string;
 	readonly model?: IAgentModelInfo;
+}
+
+/** A chat to create and start, with its model already resolved. */
+interface ICreateChatRequest {
+	readonly session: URI;
+	readonly prompt: string;
+	readonly title?: string;
+	readonly model?: ModelSelection;
 	readonly workingDirectories?: readonly URI[];
 	/** The agent of the new chat when it differs from its session's. */
 	readonly provider?: AgentProvider;
@@ -1371,19 +1618,15 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
-async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
+async function createChat(accessor: ISessionServerToolAccessor, args: ICreateChatRequest, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
-	const targetProvider = args.provider ?? (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
-	// The calling chat's model is inherited only by a chat of the same agent.
-	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
 	await onChatAllocated?.(chat);
 	await accessor.createChat(args.session, chat, {
 		...(args.provider !== undefined ? { provider: args.provider } : {}),
 		title: args.title,
-		model,
+		model: args.model,
 		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
 	}, credentials);
 	if (args.title !== undefined) {
@@ -1401,7 +1644,12 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
 	const sessions = await accessor.listSessions();
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	return createChat(accessor, getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession), source, sourceTurnId);
+	const { model: requestedModel, ...args } = getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession);
+	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
+	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
+	// The calling chat's model is inherited only by a chat of the same agent.
+	const model = requestedModel !== undefined ? { id: requestedModel.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
+	return createChat(accessor, { ...args, ...(model !== undefined ? { model } : {}) }, source, sourceTurnId);
 }
 
 /** Builds the model-facing `create_chat` result. */
@@ -1604,6 +1852,8 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 	return { ...target, operation: 'cancel', messageId, expectedRevision };
 }
 
+const sendMessageSequencers = new WeakMap<ISessionServerToolAccessor, SequencerByKey<string>>();
+
 export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
 	const credentials = currentChannel ? accessor.getCredentialSource(URI.parse(currentChannel)) : undefined;
 	const sessions = await accessor.listSessions();
@@ -1628,8 +1878,8 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		messageId,
 		revision,
 	} : undefined;
-	const targetState = stateManager?.getChatState(chat.toString());
 	if (args.delivery === 'steer') {
+		const targetState = stateManager?.getChatState(chat.toString());
 		if (!stateManager || !targetState?.activeTurn) {
 			return JSON.stringify({
 				action: 'rejected',
@@ -1652,17 +1902,29 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		}, credentials);
 		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
 	}
-	if (stateManager && targetState && (targetState.activeTurn || getPendingSteeringMessages(targetState).length > 0 || targetState.queuedMessages?.length)) {
-		stateManager.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatPendingMessageSet,
-			kind: PendingMessageKind.Queued,
-			id: messageId,
-			message: createAgentSessionMessage(args.message, delegation),
-		}, credentials);
-		return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
+	let sequencer = sendMessageSequencers.get(accessor);
+	if (!sequencer) {
+		sequencer = new SequencerByKey<string>();
+		sendMessageSequencers.set(accessor, sequencer);
 	}
-	await accessor.startPrompt(session, chat, args.message, delegation, credentials);
-	return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
+	// Hydrated state must not let a later send bypass an earlier send still finishing its restore.
+	return sequencer.queue(chat.toString(), async () => {
+		if (!stateManager?.getChatState(chat.toString())) {
+			await accessor.restoreChat(session, chat, credentials);
+		}
+		const targetState = stateManager?.getChatState(chat.toString());
+		if (stateManager && targetState && (targetState.activeTurn || getPendingSteeringMessages(targetState).length > 0 || targetState.queuedMessages?.length)) {
+			stateManager.dispatchServerAction(chat.toString(), {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Queued,
+				id: messageId,
+				message: createAgentSessionMessage(args.message, delegation),
+			}, credentials);
+			return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
+		}
+		await accessor.startPrompt(session, chat, args.message, delegation, credentials);
+		return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
+	});
 }
 
 function getRequiredPositiveInteger(value: unknown, field: string, toolName: string): number {
@@ -1970,10 +2232,13 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit, responseTurnId, responseOffset = 0 } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
+	if (!snapshot) {
+		throw new Error('The requested chat transcript is unavailable. Use list_sessions to check the session and chat target, then retry.');
+	}
 	const metadata = sessions.find(candidate => candidate.session.toString() === session.toString());
 	const harness = metadata && chatId !== undefined ? chatHarness(metadata, metadata.chats?.find(chat => chat.chat.toString() === chatId || getAgentHostChatId(chat.chat) === chatId)) : undefined;
 	if (responseTurnId !== undefined) {
-		const turn = snapshot?.turns.find(candidate => candidate.id === responseTurnId);
+		const turn = snapshot.turns.find(candidate => candidate.id === responseTurnId);
 		if (!turn) {
 			throw new Error(`The requested response turn is unavailable. Read the session context again for current responseTurnId values.`);
 		}
@@ -1994,19 +2259,6 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 			...(end < assistant.length ? { nextResponseOffset: end } : {}),
 			truncated: end < assistant.length,
 		});
-	}
-	if (!snapshot) {
-		// No live conversation state (e.g. a cold/unsubscribed session): return the
-		// identity + an empty transcript. Metadata is available via list_sessions.
-		return JSON.stringify({
-			session: session.toString(),
-			openLink: buildOpenSessionLinkUri(session, chatId),
-			...(harness !== undefined ? { harness } : {}),
-			detail,
-			transcript: [],
-			hasMoreHistory: false,
-			truncated: false,
-		} satisfies ISerializedSessionContext);
 	}
 	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel ? URI.parse(currentChannel) : undefined, harness);
 }
@@ -2156,6 +2408,11 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 				displayName: localize('toolName.listSessions', "List Sessions"),
 				invocationMessage: localize('toolInvoke.listSessions', "List sessions"),
 			};
+		case SessionServerToolName.ListModels:
+			return {
+				displayName: localize('toolName.listModels', "List Models"),
+				invocationMessage: localize('toolInvoke.listModels', "List models"),
+			};
 		case SessionServerToolName.CreateSession: {
 			// Without arguments (e.g. only the tool name is known) the relationship is unknown.
 			const relationship = args === undefined ? undefined : (args as ICreateSessionArgs).relationship ?? 'currentSession';
@@ -2282,9 +2539,12 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		legacyToolNames: new Map([[SessionServerToolName.CreateChat, SessionServerToolName.CreateChat]]),
 		materializeDefinitions: true,
 		isEnabled(toolName: string, sessionUri?: ProtocolURI): boolean {
+			if (toolName === SessionServerToolName.ListModels) {
+				return accessor?.getSessionModelOptions() === 'tool';
+			}
 			return toolName !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'utility';
 		},
-		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
+		getDefinitionForSession(definition, sessionUri, offeredToolNames): IAgentServerToolDefinition {
 			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
 			// Also only where its session's agent can move chats, as `move_session` itself.
 			// Mentions `harness` only while a chat of this session may use another agent: with that off, these read as before.
@@ -2301,13 +2561,22 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				return { ...definition, deferLoading: false };
 			}
 			if (definition.name === SessionServerToolName.CreateSession) {
+				const session = URI.parse(sessionUri);
 				// Without multi-root support a current-session chat cannot get its own folder.
-				const forSession = accessor?.supportsChatWorkingDirectories(URI.parse(sessionUri)) === false
+				const forSession = accessor?.supportsChatWorkingDirectories(session) === false
 					? { ...definition, description: createSessionWithSharedWorkspaceDescription, inputSchema: createSessionWithSharedWorkspaceInputSchema }
 					: definition;
+				// `reasoningEffort` and `contextTier` are offered only while agents can choose model options; otherwise the schema is unchanged.
+				const modelOptions = accessor !== undefined && accessor.getSessionModelOptions() !== 'off';
+				const withOptions = modelOptions ? withCreateSessionModelOptions(forSession) : forSession;
 				// `harness` is offered only while a chat of this session may use another agent; otherwise the schema is unchanged.
-				const harnesses = accessor?.getChatHarnesses(URI.parse(sessionUri));
-				return harnesses !== undefined ? withCreateSessionHarness(forSession, harnesses) : forSession;
+				const harnesses = accessor?.getChatHarnesses(session);
+				const offered = harnesses !== undefined ? withCreateSessionHarness(withOptions, harnesses, modelOptions) : withOptions;
+				// A session on its own credentials resolves models in a catalog only readable when a call needs it, so it lists none.
+				const catalog = accessor?.getSessionModelOptions() === 'inline' && !accessor.usesCredentialScopedModels(session)
+					? formatCreateSessionModelChoices(getOfferedModels(accessor, accessor.getModels()))
+					: undefined;
+				return withCreateSessionModelDiscovery(offered, offeredToolNames.has(SessionServerToolName.ListModels), catalog);
 			}
 			if (definition.name !== SessionServerToolName.RenameChat) {
 				return definition;
@@ -2359,6 +2628,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						const metadata = await accessor.getSession(currentSession);
 						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
 					}
+				case SessionServerToolName.ListModels: {
+					const models = await createSessionModelReader(accessor, accessor.getCredentialSource(URI.parse(currentChannel)))();
+					const catalog = formatCreateSessionModelChoices(getOfferedModels(accessor, models));
+					return catalog === undefined ? 'No models are available right now.' : `${createSessionModelCatalogHeading}\n${catalog}`;
+				}
 				case SessionServerToolName.SetWorkspace: {
 					return applySetWorkspaceTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
 				}

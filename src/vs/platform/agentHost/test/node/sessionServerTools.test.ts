@@ -13,6 +13,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
+import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
+import { modelRouterModelId } from '../../common/modelRouter.js';
+import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
+import { getCopilotContextTier, getCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -66,6 +72,8 @@ suite('SessionServerTools', () => {
 
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
+	/** The session tools offered by default: `list_models` only with `sessionModelOptions: tool`. */
+	const defaultSessionToolNames = sessionServerToolDefinitions.map(tool => tool.name).filter(name => name !== SessionServerToolName.ListModels);
 
 	/** Defaults to read; tests that care about unread clear the `IsRead` bit. */
 	/** A session's recorded default chat: the default-shaped chat VS Code mints. */
@@ -98,7 +106,9 @@ suite('SessionServerTools', () => {
 			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
+			getModelsForCredentials: overrides?.getModelsForCredentials ?? (async () => []),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
+			restoreChat: overrides?.restoreChat ?? (async () => { }),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
@@ -111,6 +121,8 @@ suite('SessionServerTools', () => {
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			isChatMoveEnabled: overrides?.isChatMoveEnabled ?? (() => true),
+			getSessionModelOptions: overrides?.getSessionModelOptions ?? (() => 'off'),
+			usesCredentialScopedModels: overrides?.usesCredentialScopedModels ?? (() => false),
 			supportsChatMoves: overrides?.supportsChatMoves ?? (() => true),
 			checkChatMove: overrides?.checkChatMove ?? (async () => { }),
 			isKnownSessionLink: overrides?.isKnownSessionLink ?? (() => true),
@@ -135,7 +147,7 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.ListModels, SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up/);
 		const archiveDescription = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ArchiveChat)?.description ?? '';
@@ -356,7 +368,7 @@ suite('SessionServerTools', () => {
 				SessionServerToolName.GetSessionContext,
 				SessionServerToolName.DeleteSession,
 			],
-			enabledTools: sessionServerToolDefinitions.map(tool => tool.name),
+			enabledTools: defaultSessionToolNames,
 		});
 		stateManager.dispose();
 	});
@@ -532,7 +544,7 @@ suite('SessionServerTools', () => {
 			advertisedTools,
 			restoredTools: host.getDefinitionsForSession(session).map(tool => tool.name),
 		}, {
-			advertisedTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
+			advertisedTools: defaultSessionToolNames.filter(name => name !== SessionServerToolName.SetWorkspace),
 			restoredTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
 		});
 		stateManager.dispose();
@@ -678,7 +690,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual({
 			afterUnchanged, afterRefresh, publications,
 			tools: stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name),
-		}, { afterUnchanged: 0, afterRefresh: 2, publications: 3, tools: sessionServerToolDefinitions.map(tool => tool.name) });
+		}, { afterUnchanged: 0, afterRefresh: 2, publications: 3, tools: defaultSessionToolNames });
 	});
 
 	test('re-advertise updates dynamic groups while materialized session tools stay fixed', () => {
@@ -2183,55 +2195,61 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(createdChat, false);
 	});
 
-	test('create_session with currentSession rejects a workspace from a quick chat', async () => {
-		let preparedFolder = false;
-		let createdChat = false;
+	test('create_session with currentSession creates a nested chat in a requested folder from a quick chat', async () => {
+		const preparedFolders: string[] = [];
+		const createdChats: (readonly string[] | undefined)[] = [];
 		const accessor = createAccessor({
 			getSession: async session => session.toString() === 'copilot:/s1'
 				? { ...sessionMeta('s1', SessionStatus.InProgress, workspace), _meta: withSessionWorkspaceless(undefined, true) }
 				: undefined,
+			prepareChatWorkingDirectory: async (_session, directory) => {
+				preparedFolders.push(directory.toString());
+				return prepared(directory);
+			},
+			onCreateChat: (_session, _chat, options) => createdChats.push(options?.workingDirectories?.map(directory => directory.toString())),
+		});
+
+		const result = await applyCreateSessionTool(accessor, {
+			relationship: 'currentSession',
+			workspace: 'file:///workspace/other',
+			prompt: 'do it there',
+			title: 'Other Folder',
+		}, URI.parse(buildDefaultChatUri('copilot:/s1')));
+
+		assert.deepStrictEqual({ relationship: result.relationship, preparedFolders, createdChats }, {
+			relationship: 'currentSession',
+			preparedFolders: ['file:///workspace/other'],
+			createdChats: [['file:///workspace/other']],
+		});
+	});
+
+	test('create_session with currentSession refuses a workspace that is not a plain local folder, and prepares nothing', async () => {
+		let preparedFolder = false;
+		let createdChat = false;
+		const accessor = createAccessor({
 			prepareChatWorkingDirectory: async (_session, directory) => {
 				preparedFolder = true;
 				return prepared(directory);
 			},
 			onCreateChat: () => { createdChat = true; },
 		});
+		const errorOf = async (workspace: string) => {
+			try {
+				await applyCreateSessionTool(accessor, { relationship: 'currentSession', workspace, prompt: 'do it there', title: 'Other Folder' }, URI.parse(buildDefaultChatUri('copilot:/s1')));
+				return undefined;
+			} catch (error) {
+				return (error as Error).message;
+			}
+		};
+		const refusal = 'Invalid create_session input: workspace for relationship "currentSession" must be an absolute local path or file URI.';
 
-		await assert.rejects(applyCreateSessionTool(accessor, {
-			relationship: 'currentSession',
-			workspace: 'file:///workspace/other',
-			prompt: 'do it there',
-			title: 'Other Folder',
-		}, URI.parse('copilot:/s1')), /Use set_workspace to attach a workspace to the quick chat first/);
-
-		assert.deepStrictEqual({ preparedFolder, createdChat }, { preparedFolder: false, createdChat: false });
-	});
-
-	test('create_session with currentSession accepts a workspace from a foldered chat of a quick-chat session', async () => {
-		let createdChat = false;
-		const accessor = createAccessor({
-			getSession: async session => session.toString() === 'copilot:/s1'
-				? {
-					...sessionMeta('s1', SessionStatus.InProgress, workspace),
-					_meta: withSessionWorkspaceless(undefined, true),
-					chats: [
-						{ chat: URI.parse('copilot:/s1-default'), kind: 'default' },
-						{ chat: URI.parse('copilot:/s1'), kind: 'peer', workingDirectories: ['file:///workspace/own'] },
-					],
-				}
-				: undefined,
-			prepareChatWorkingDirectory: async (_session, directory) => prepared(directory),
-			onCreateChat: () => { createdChat = true; },
-		});
-
-		await applyCreateSessionTool(accessor, {
-			relationship: 'currentSession',
-			workspace: 'file:///workspace/other',
-			prompt: 'do it there',
-			title: 'Other Folder',
-		}, URI.parse('copilot:/s1'));
-
-		assert.strictEqual(createdChat, true);
+		assert.deepStrictEqual({
+			query: await errorOf('file:///workspace/other?x=1'),
+			fragment: await errorOf('file:///workspace/other#x'),
+			remote: await errorOf('vscode-remote://host/workspace/other'),
+			preparedFolder,
+			createdChat,
+		}, { query: refusal, fragment: refusal, remote: refusal, preparedFolder: false, createdChat: false });
 	});
 
 	test('create_session without a relationship creates a chat in the current session', async () => {
@@ -2294,6 +2312,330 @@ suite('SessionServerTools', () => {
 			/model must match an available model id or name for provider "copilot"/,
 		);
 		store.dispose();
+	});
+
+	suite('model selection', () => {
+		const createSessionModelDescription = 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
+		const createSessionModelOptionsDescription = 'Optional model ID or display name. Defaults to the current chat\'s model, with its reasoning effort and context size. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
+		const configured: IAgentModelInfo = {
+			provider: 'copilot', id: 'gpt-configured', name: 'GPT Configured', supportsVision: false,
+			configSchema: {
+				type: 'object', properties: {
+					thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high', 'xhigh'], enumLabels: ['Low', 'Medium', 'High', 'Extra High'], default: 'medium' },
+					contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000], default: 200_000 },
+				},
+			},
+		};
+		const other: IAgentModelInfo = { ...configured, id: 'gpt-other', name: 'GPT Other' };
+		const claudeModel: IAgentModelInfo = {
+			provider: 'claude', id: 'claude-opus', name: 'Claude Opus', supportsVision: false,
+			configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high', 'max'] } } },
+		};
+		const autoModel: IAgentModelInfo = {
+			provider: 'copilot', id: 'auto', name: 'Auto', supportsVision: false,
+			configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize For', enum: ['efficiency', 'balance'] } } },
+		};
+		const lockedModel: IAgentModelInfo = {
+			provider: 'copilot', id: 'gpt-locked', name: 'GPT Locked', supportsVision: false,
+			configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['high'], readOnly: true } } },
+		};
+		const routerModel: IAgentModelInfo = { provider: 'copilot', id: modelRouterModelId('daily'), name: 'Daily', supportsVision: false };
+		const allModels = [model, configured, other, claudeModel, autoModel, lockedModel, routerModel];
+		/** The calling chat runs `gpt-configured` at Extra High on its 1M window, its effort picked by default. */
+		const inherited: ModelSelection = { id: 'gpt-configured', config: { thinkingLevel: 'xhigh', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'explicit' } };
+		const source = URI.parse(buildDefaultChatUri('copilot:/s1'));
+
+		function recordingAccessor(overrides: Partial<ISessionServerToolAccessor> = {}) {
+			const calls: string[] = [];
+			const models: (ModelSelection | undefined)[] = [];
+			const accessor = createAccessor({
+				getSessionModelOptions: () => 'inline',
+				getModels: () => allModels,
+				getChatHarnesses: () => ['copilot', 'claude'],
+				getCreationDefaults: () => ({ provider: 'copilot', sessionProvider: 'copilot', model: inherited }),
+				prepareChatWorkingDirectory: async (_session, directory) => { calls.push('prepare'); return prepared(directory); },
+				onCreate: config => { calls.push('createSession'); models.push(config.model); },
+				onCreateChat: (_session, _chat, options) => { calls.push('createChat'); models.push(options?.model); },
+				onPrompt: () => calls.push('startPrompt'),
+				...overrides,
+			});
+			return { accessor, calls, models };
+		}
+
+		async function createdModels(relationship: 'currentSession' | 'independent', requests: readonly Record<string, unknown>[], modelOptions: AgentHostSessionModelOptions = 'inline') {
+			const { accessor, models } = recordingAccessor({ getSessionModelOptions: () => modelOptions });
+			for (const request of requests) {
+				await applyCreateSessionTool(accessor, { relationship, prompt: 'p', title: 'T', ...request }, source);
+			}
+			return models;
+		}
+
+		test('with model options, an explicit model naming the calling chat\'s model keeps its selection; without them, any explicit model starts from its defaults', async () => {
+			const requests = [{}, { model: 'gpt-configured' }, { model: 'GPT Configured' }, { model: 'gpt-other' }];
+			const expected = [inherited, inherited, inherited, { id: 'gpt-other' }];
+			const expectedOff = [inherited, { id: 'gpt-configured' }, { id: 'gpt-configured' }, { id: 'gpt-other' }];
+			assert.deepStrictEqual({
+				independent: await createdModels('independent', requests),
+				currentSession: await createdModels('currentSession', requests),
+				offIndependent: await createdModels('independent', requests, 'off'),
+				offCurrentSession: await createdModels('currentSession', requests, 'off'),
+			}, { independent: expected, currentSession: expected, offIndependent: expectedOff, offCurrentSession: expectedOff });
+		});
+
+		const explicit = (key: string) => ({ [modelConfigurationSourceKey(key)]: 'explicit' });
+
+		test('applies requested options as explicit choices over the inherited or explicit model\'s selection', async () => {
+			const requests = [
+				{ reasoningEffort: 'high' },
+				{ model: 'GPT Configured', contextTier: 'default' },
+				{ model: 'gpt-other', reasoningEffort: 'low', contextTier: 'long_context' },
+			];
+			const expected = [
+				{ id: 'gpt-configured', config: { ...inherited.config, thinkingLevel: 'high', ...explicit('thinkingLevel') } },
+				{ id: 'gpt-configured', config: { ...inherited.config, contextSize: 200_000, ...explicit('contextSize') } },
+				{ id: 'gpt-other', config: { thinkingLevel: 'low', ...explicit('thinkingLevel'), contextSize: 1_000_000, ...explicit('contextSize') } },
+			];
+			assert.deepStrictEqual({
+				independent: await createdModels('independent', requests),
+				currentSession: await createdModels('currentSession', requests),
+			}, { independent: expected, currentSession: expected });
+		});
+
+		test('a chat on another harness takes options only with a model of that harness', async () => {
+			const { accessor, models } = recordingAccessor();
+			await applyCreateSessionTool(accessor, { harness: 'claude', model: 'claude-opus', reasoningEffort: 'max', prompt: 'p', title: 'T' }, source);
+			await applyCreateSessionTool(accessor, { harness: 'claude', prompt: 'p', title: 'T' }, source);
+			await assert.rejects(
+				applyCreateSessionTool(accessor, { harness: 'claude', reasoningEffort: 'max', prompt: 'p', title: 'T' }, source),
+				{ message: 'Invalid create_session input: reasoningEffort needs a model, but the new chat has no model to inherit. Pass `model` as well.' },
+			);
+			assert.deepStrictEqual(models, [{ id: 'claude-opus', config: { thinkingLevel: 'max', ...explicit('thinkingLevel') } }, undefined]);
+		});
+
+		test('an explicit option replaces its legacy alias, so the provider applies it', async () => {
+			const results: { tier: string | undefined; effort: string | undefined; config: ModelSelection['config'] }[] = [];
+			for (const [legacy, contextTier] of [['long_context', 'default'], ['default', 'long_context']] as const) {
+				const { accessor, models } = recordingAccessor({
+					getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-configured', config: { contextTier: legacy, reasoningEffort: 'low', other: 'kept' } } }),
+				});
+				await applyCreateSessionTool(accessor, { relationship: 'independent', contextTier, reasoningEffort: 'xhigh', prompt: 'p', title: 'T' }, source);
+				results.push({ tier: getCopilotContextTier(models[0], 1_000_000), effort: getCopilotReasoningEffort(models[0]), config: models[0]?.config });
+			}
+			assert.deepStrictEqual(results, [
+				{ tier: 'default', effort: 'xhigh', config: { other: 'kept', contextSize: 200_000, ...explicit('contextSize'), thinkingLevel: 'xhigh', ...explicit('thinkingLevel') } },
+				{ tier: 'long_context', effort: 'xhigh', config: { other: 'kept', contextSize: 1_000_000, ...explicit('contextSize'), thinkingLevel: 'xhigh', ...explicit('thinkingLevel') } },
+			]);
+		});
+
+		test('a caller with credentials resolves and checks models in its own catalog, read only when needed', async () => {
+			const credentials: IAgentHostCredentialSource = { getCredential: () => undefined };
+			const sharedOnly: IAgentModelInfo = { ...other, id: 'gpt-shared-only', name: 'GPT Shared Only' };
+			const reads: string[] = [];
+			const { accessor, models } = recordingAccessor({
+				getCredentialSource: () => credentials,
+				getModels: () => { reads.push('shared'); return [sharedOnly]; },
+				getModelsForCredentials: async source => { reads.push(source === credentials ? 'scoped' : 'other'); return [configured]; },
+			});
+			await applyCreateSessionTool(accessor, { relationship: 'independent', prompt: 'p', title: 'T' }, source);
+			await applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-configured', prompt: 'p', title: 'T' }, source);
+			await applyCreateSessionTool(accessor, { relationship: 'independent', reasoningEffort: 'high', prompt: 'p', title: 'T' }, source);
+			await assert.rejects(
+				applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-shared-only', prompt: 'p', title: 'T' }, source),
+				{ message: 'Invalid create_session input: model must match an available model id or name. Available model ids: gpt-configured.' },
+			);
+			assert.deepStrictEqual({ reads, models }, {
+				reads: ['scoped', 'scoped', 'scoped'],
+				models: [inherited, inherited, { id: 'gpt-configured', config: { ...inherited.config, thinkingLevel: 'high', ...explicit('thinkingLevel') } }],
+			});
+		});
+
+		test('a caller with credentials reads no catalog for mistakes found without one', async () => {
+			const reads: string[] = [];
+			let depth = 0;
+			const { accessor, calls } = recordingAccessor({
+				getCredentialSource: () => ({ getCredential: () => undefined }),
+				getModelsForCredentials: async () => { reads.push('scoped'); return [configured]; },
+				getSessionSpawnDepth: () => depth,
+			});
+			const messages: string[] = [];
+			const attempt = async (request: Record<string, unknown>) => {
+				try {
+					await applyCreateSessionTool(accessor, { prompt: 'p', title: 'T', ...request }, source);
+					messages.push('created');
+				} catch (error) {
+					messages.push(error instanceof Error ? error.message : String(error));
+				}
+			};
+			await attempt({ model: 'gpt-configured', worktree: true });
+			await attempt({ model: 'gpt-configured', reasoningEffort: 'extreme' });
+			await attempt({ harness: 'claude', contextTier: 'long_context' });
+			await attempt({ workspace: `${workspace.toString()}?x=1`, model: 'gpt-configured' });
+			depth = 3;
+			await attempt({ relationship: 'independent', model: 'gpt-configured', reasoningEffort: 'high' });
+			assert.deepStrictEqual({ messages, reads, calls }, {
+				messages: [
+					'Invalid create_session input: worktree requires workspace.',
+					'Invalid create_session input: reasoningEffort must be one of: none, minimal, low, medium, high, xhigh, max, ultra.',
+					'Invalid create_session input: contextTier needs a model, but the new chat has no model to inherit. Pass `model` as well.',
+					'Invalid create_session input: workspace for relationship "currentSession" must be an absolute local path or file URI.',
+					'Refusing to create a session: recursion limit reached (max spawn depth 3). This session was itself created 3 level(s) deep.',
+				],
+				reads: [],
+				calls: [],
+			});
+		});
+
+		test('rejects options a model does not offer before creating anything', async () => {
+			const cases: [string, Record<string, unknown>, ReturnType<ISessionServerToolAccessor['getCreationDefaults']>?][] = [
+				['unsupported effort', { model: 'gpt-configured', reasoningEffort: 'max' }],
+				['no effort option', { model: 'gpt-4o', reasoningEffort: 'high' }],
+				['effort on Auto', { model: 'auto', reasoningEffort: 'high' }],
+				['single context window', { model: 'claude-opus', contextTier: 'long_context', relationship: 'independent' }],
+				['locked option', { model: 'gpt-locked', reasoningEffort: 'high' }],
+				['model router', { model: modelRouterModelId('daily'), reasoningEffort: 'high', contextTier: 'default' }],
+				['no model to inherit', { contextTier: 'long_context' }, { provider: 'copilot' }],
+				['inherited model unavailable', { reasoningEffort: 'high' }, { provider: 'copilot', model: { id: 'gpt-retired' } }],
+			];
+			const results: Record<string, string> = {};
+			const calls: string[] = [];
+			for (const [name, request, defaults] of cases) {
+				const recorded = recordingAccessor(defaults ? { getCreationDefaults: () => defaults } : {});
+				try {
+					await applyCreateSessionTool(recorded.accessor, { workspace: workspace.toString(), prompt: 'p', title: 'T', ...request }, source);
+					results[name] = 'created';
+				} catch (error) {
+					results[name] = error instanceof Error ? error.message : String(error);
+				}
+				calls.push(...recorded.calls);
+			}
+			assert.deepStrictEqual({ results, calls }, {
+				results: {
+					'unsupported effort': 'Invalid create_session input: model "gpt-configured" doesn\'t support reasoningEffort "max". Use one of: low (Low), medium (Medium), high (High), xhigh (Extra High), or omit reasoningEffort.',
+					'no effort option': 'Invalid create_session input: model "gpt-4o" has no reasoning effort option. Omit reasoningEffort.',
+					'effort on Auto': 'Invalid create_session input: model "auto" has no reasoning effort option. Omit reasoningEffort.',
+					'single context window': 'Invalid create_session input: model "claude-opus" has a single context window, so contextTier doesn\'t apply. Omit contextTier, or pass a model with a larger context window.',
+					'locked option': 'Invalid create_session input: reasoningEffort is locked for model "gpt-locked" and can\'t be changed. Omit reasoningEffort.',
+					'model router': `Invalid create_session input: model "${modelRouterModelId('daily')}" is a model router, which chooses its own models and their options. Omit reasoningEffort and contextTier, or pass a model that isn't a router.`,
+					'no model to inherit': 'Invalid create_session input: contextTier needs a model, but the new chat has no model to inherit. Pass `model` as well.',
+					'inherited model unavailable': 'Invalid create_session input: can\'t check reasoningEffort because model "gpt-retired" isn\'t among the available models right now. Retry, or pass `model` with an available model.',
+				},
+				calls: [],
+			});
+		});
+
+		test('the retired create_chat keeps its model resolution', async () => {
+			const { accessor, models } = recordingAccessor();
+			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p', model: 'gpt-configured' }, source);
+			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p' }, source);
+			assert.deepStrictEqual(models, [{ id: 'gpt-configured' }, inherited]);
+		});
+
+		test('the error for a model create_session can\'t find lists the available ids only with model options', async () => {
+			const attempt = async (modelOptions: AgentHostSessionModelOptions) => {
+				const { accessor } = recordingAccessor({ getSessionModelOptions: () => modelOptions, getModels: () => [configured, claudeModel] });
+				try {
+					await applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-missing', prompt: 'p', title: 'T' }, source);
+					return 'created';
+				} catch (error) {
+					return error instanceof Error ? error.message : String(error);
+				}
+			};
+			assert.deepStrictEqual({ inline: await attempt('inline'), off: await attempt('off') }, {
+				inline: 'Invalid create_session input: model must match an available model id or name. Available model ids: claude-opus, gpt-configured.',
+				off: 'Invalid create_session input: model must match an available model id or name.',
+			});
+		});
+
+		test('create_session offers and applies reasoningEffort and contextTier only with model options', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const session = 'copilot:/s1';
+			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+			let modelOptions: AgentHostSessionModelOptions = 'off';
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ getSessionModelOptions: () => modelOptions, getChatHarnesses: () => ['copilotcli', 'claude'] }))]);
+			const offered = () => {
+				const properties = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.CreateSession)?.inputSchema?.properties ?? {};
+				const description = (name: string) => (properties[name] as { description?: string } | undefined)?.description;
+				return { properties: Object.keys(properties), model: description('model'), harness: description('harness')?.split('defaults; ')[1] };
+			};
+			const off = offered();
+			modelOptions = 'inline';
+			const inline = offered();
+			const ignored = await createdModels('independent', [{ reasoningEffort: 'high', contextTier: 'long_context' }, { reasoningEffort: 'extreme' }], 'off');
+
+			assert.deepStrictEqual({ off, inline, ignored }, {
+				off: {
+					properties: ['relationship', 'prompt', 'workspace', 'worktree', 'title', 'model', 'harness'],
+					model: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.',
+					harness: '`model`, when given, must belong to it.',
+				},
+				inline: {
+					properties: ['relationship', 'prompt', 'workspace', 'worktree', 'title', 'model', 'reasoningEffort', 'contextTier', 'harness'],
+					model: 'Optional model ID or display name. Defaults to the current chat\'s model, with its reasoning effort and context size, when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.',
+					harness: '`model`, when given, must belong to it, and is needed to set `reasoningEffort` or `contextTier`.',
+				},
+				ignored: [inherited, inherited],
+			});
+		});
+
+		test('with inline model options, create_session lists the models where it loads on demand, and with tool it offers list_models', () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const session = 'copilot:/s1';
+			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+			const disabled: IAgentModelInfo = { ...other, id: 'gpt-disabled', name: 'GPT Disabled', policyState: PolicyState.Disabled };
+			const codexModel: IAgentModelInfo = { provider: 'codex', id: 'codex-model', name: 'Codex Model', supportsVision: false };
+			let modelOptions: AgentHostSessionModelOptions = 'off';
+			let scoped = false;
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
+				getModels: () => [routerModel, lockedModel, configured, disabled, claudeModel, autoModel, codexModel],
+				canCreateSessions: provider => provider !== 'codex',
+				getSessionModelOptions: () => modelOptions,
+				usesCredentialScopedModels: () => scoped,
+			}))]);
+			const modelDescription = (inputSchema: ToolDefinition['inputSchema']) => (inputSchema?.properties?.model as { description?: string } | undefined)?.description;
+			const offer = (value: AgentHostSessionModelOptions, scopedModels = false) => {
+				modelOptions = value;
+				scoped = scopedModels;
+				const definitions = host.getDefinitionsForSession(session);
+				const createSession = definitions.find(tool => tool.name === SessionServerToolName.CreateSession);
+				return {
+					listModels: definitions.some(tool => tool.name === SessionServerToolName.ListModels),
+					model: modelDescription(createSession?.inputSchema),
+					deferredModel: modelDescription(createSession?.deferredInputSchema),
+				};
+			};
+			const off = offer('off');
+			const result = { off, inline: offer('inline'), scopedInline: offer('inline', true), tool: offer('tool') };
+			offer('inline');
+			host.advertise(session);
+			const published = stateManager.getSessionState(session)?.serverTools?.find(tool => tool.name === SessionServerToolName.CreateSession);
+			// The session's tools are now fixed without list_models, so create_session can't point to it.
+			const materializedTool = offer('tool');
+
+			assert.deepStrictEqual({ ...result, materializedTool, published: published && { deferred: Object.keys(published).includes('deferredInputSchema'), model: modelDescription(published.inputSchema) } }, {
+				off: { listModels: false, model: createSessionModelDescription, deferredModel: undefined },
+				inline: {
+					listModels: false,
+					model: createSessionModelOptionsDescription,
+					deferredModel: `${createSessionModelOptionsDescription}\n\nAvailable models by agent:\nclaude:\n- claude-opus (Claude Opus): reasoningEffort low|medium|high|max\ncopilot:\n- auto (Auto)\n- gpt-configured (GPT Configured): reasoningEffort low|medium|high|xhigh, default medium; contextTier long_context\n- gpt-locked (GPT Locked)\n- ${routerModel.id} (Daily)`,
+				},
+				scopedInline: { listModels: false, model: createSessionModelOptionsDescription, deferredModel: undefined },
+				tool: { listModels: true, model: `${createSessionModelOptionsDescription} Call \`list_models\` to see the models and the options each accepts.`, deferredModel: undefined },
+				materializedTool: { listModels: false, model: createSessionModelOptionsDescription, deferredModel: undefined },
+				published: { deferred: false, model: createSessionModelOptionsDescription },
+			});
+		});
+
+		test('list_models lists the calling chat\'s catalog', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const group = createSessionServerToolGroup(createAccessor({
+				getSessionModelOptions: () => 'tool',
+				getCredentialSource: () => ({ getCredential: () => undefined }),
+				getModels: () => [other],
+				getModelsForCredentials: async () => [configured, claudeModel],
+			}));
+			const result = await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.ListModels, {});
+			assert.strictEqual(result, 'Available models by agent:\nclaude:\n- claude-opus (Claude Opus): reasoningEffort low|medium|high|max\ncopilot:\n- gpt-configured (GPT Configured): reasoningEffort low|medium|high|xhigh, default medium; contextTier long_context');
+		});
 	});
 
 	suite('harness', () => {
@@ -2862,6 +3204,52 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedDefaultChat), /expectedRevision/);
 	});
 
+	test('send_message queues concurrent messages after restoring a cold target', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		const restoring = new DeferredPromise<void>();
+		const restored = new DeferredPromise<void>();
+		let restoreCalls = 0;
+		const prompts: string[] = [];
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+			restoreChat: async () => {
+				restoreCalls++;
+				restoring.complete();
+				await restored.p;
+			},
+			onPrompt: (_session, _chat, prompt) => {
+				prompts.push(prompt);
+				stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', prompt));
+			},
+		});
+		const sends = ['first', 'second'].map(message => applySendMessageTool(accessor, { session: targetSession, message }, buildDefaultChatUri('copilot:/s1'), 'turn-1', stateManager));
+		await restoring.p;
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			defaultChat: targetChat,
+		});
+		restored.complete();
+		const results = await Promise.all(sends);
+		assert.deepStrictEqual({
+			restoreCalls,
+			actions: results.map(result => JSON.parse(result).action),
+			prompts,
+			queued: stateManager.getChatState(targetChat)?.queuedMessages?.map(queued => queued.message.text),
+		}, {
+			restoreCalls: 1,
+			actions: ['started', 'queued'],
+			prompts: ['first'],
+			queued: ['second'],
+		});
+	});
+
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -3151,7 +3539,7 @@ suite('SessionServerTools', () => {
 		const md = (content: string): ResponsePart => ({ kind: ResponsePartKind.Markdown, id: 'm', content });
 		const toolPart = (tc: ToolCallState): ResponsePart => ({ kind: ResponsePartKind.ToolCall, toolCall: tc });
 		const turn = (id: string, user: string, parts: ResponsePart[], state = TurnState.Complete): Turn =>
-			({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
+		({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
 
 		const snapshot: IChatContextSnapshot = {
 			turns: [
@@ -3357,7 +3745,7 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {
+		test('execute distinguishes an unavailable transcript from an empty conversation', async () => {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
@@ -3366,8 +3754,10 @@ suite('SessionServerTools', () => {
 			assert.strictEqual(live.transcript.length, 2);
 
 			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
-			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
-				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
+			await assert.rejects(async () => cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }), /requested chat transcript is unavailable/);
+			const empty = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => ({ turns: [], pendingMessages: [], hasMoreHistory: false }) }));
+			assert.deepStrictEqual(JSON.parse(await empty.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
+				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], messagesSentByMe: [], hasMoreHistory: false, truncated: false,
 			});
 			store.dispose();
 		});

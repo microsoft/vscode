@@ -575,7 +575,7 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 
 	declare readonly _serviceBrand: undefined;
 
-	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
+	private backups = new ResourceMap<{ resource: URI; typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
 		const backupResource = this.toBackupResource(identifier);
@@ -586,6 +586,7 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 		this.backups.set(backupResource, {
+			resource: identifier.resource,
 			typeId: identifier.typeId,
 			content: content instanceof VSBuffer ? content : content ? isReadableStream(content) ? await streamToBuffer(content) : readableToBuffer(content) : VSBuffer.fromString(''),
 			meta
@@ -603,7 +604,7 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 	}
 
 	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
-		return Array.from(this.backups.entries()).map(([resource, backup]) => ({ typeId: backup.typeId, resource }));
+		return Array.from(this.backups.values()).map(backup => ({ typeId: backup.typeId, resource: backup.resource }));
 	}
 
 	async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
@@ -629,7 +630,8 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 	}
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
-		return URI.from({ scheme: Schemas.inMemory, path: hashIdentifier(identifier) });
+		// Prevent single-letter URI schemes from being normalised as drive letters.
+		return URI.from({ scheme: Schemas.inMemory, path: `/backup/${identifier.resource.toString()}`, query: JSON.stringify(identifier.typeId) });
 	}
 
 	async joinBackups(): Promise<void> {

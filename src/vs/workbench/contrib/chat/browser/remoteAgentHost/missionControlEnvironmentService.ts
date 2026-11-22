@@ -54,6 +54,7 @@ function isHost(value: unknown): value is IMissionControlHost {
 export class MissionControlEnvironmentService extends Disposable implements IMissionControlEnvironmentService {
 	declare readonly _serviceBrand: undefined;
 	readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+	readonly discoveredOnlineHostIds = observableValue<ReadonlySet<string>>(this, new Set());
 	readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 	private _accountKey: string | undefined;
 	private _generation = 0;
@@ -241,12 +242,16 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				const retained = previous.get(environment.id);
 				next.set(environment.id, {
 					id: environment.id, name: environment.name, kind: 'user-local', status: environment.status,
+					...(environment.lastHeartbeatAt !== undefined ? { lastHeartbeatAt: environment.lastHeartbeatAt } : {}),
+					...(environment.reportedSessionCount !== undefined ? { reportedSessionCount: environment.reportedSessionCount } : {}),
 					displayName: retained?.displayName,
 				});
 			}
 		}
 		this._replaceHosts([...next.values()]);
 		this._persist();
+		// Publish last so automatic attachment cannot observe fresh admission with cached availability.
+		this.discoveredOnlineHostIds.set(new Set([...next.values()].filter(host => host.status === 'online').map(host => host.id)), undefined);
 	}
 
 	async connect(id: string, token: CancellationToken): Promise<void> {
@@ -415,7 +420,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		if (this._accountKey) {
 			const entries: IStorageEntry[] = this.hosts.get().map(host => ({
 				key: `${this._storagePrefix}${host.id}.metadata`,
-				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status }),
+				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status, lastHeartbeatAt: host.lastHeartbeatAt, reportedSessionCount: host.reportedSessionCount }),
 				scope: StorageScope.PROFILE,
 				target: StorageTarget.MACHINE,
 			}));
@@ -442,6 +447,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				}
 				hosts.push({
 					id: host.id, name: host.name, kind: 'user-local', status: host.status,
+					...(typeof host.lastHeartbeatAt === 'number' && Number.isFinite(host.lastHeartbeatAt) && host.lastHeartbeatAt >= 0 ? { lastHeartbeatAt: host.lastHeartbeatAt } : {}),
+					...(typeof host.reportedSessionCount === 'number' && Number.isSafeInteger(host.reportedSessionCount) && host.reportedSessionCount >= 0 ? { reportedSessionCount: host.reportedSessionCount } : {}),
 					displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
 				});
 			}
@@ -475,6 +482,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	private _withdraw(): void {
 		this._generation++;
+		this.discoveredOnlineHostIds.set(new Set(), undefined);
 		this._discoveryCancellation.value?.cancel();
 		this._discoveryCancellation.clear();
 		this._initializing = undefined;

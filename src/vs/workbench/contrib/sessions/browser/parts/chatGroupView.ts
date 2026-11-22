@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatGroupView.css';
 import { $, append, size, trackFocus } from '../../../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -24,10 +26,13 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
-import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
+import { getArchivedChatBannerContent } from './sessionReadOnlyBanner.js';
+import { ChatReadOnlyBanner, IChatReadOnlyBannerContent } from '../../../chat/browser/widget/chatReadOnlyBanner.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
+import { ISessionHost, SessionHost, SessionHostKind, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../../browser/parts/partGrid/partGridGap.js';
 
@@ -86,7 +91,7 @@ export interface IChatGroupContext {
 }
 
 interface IChatGroupSurface {
-	readonly banner: ISessionReadOnlyBannerContent | undefined;
+	readonly banner: IChatReadOnlyBannerContent | undefined;
 	readonly recovery: IRemoteHostUnavailableEmptyStateContent | undefined;
 }
 
@@ -124,7 +129,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _chatHeader: ChatHeader;
 	private readonly _surface: HTMLElement;
 	private readonly _barContainer: HTMLElement;
-	private readonly _readOnlyBanner: SessionReadOnlyBanner;
+	private readonly _readOnlyBanner: ChatReadOnlyBanner;
 	private readonly _contentContainer: HTMLElement;
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
@@ -132,7 +137,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _draftChatResource: URI | undefined;
+	private readonly _context = observableValue<IChatGroupContext | undefined>(this, undefined);
+	private readonly _activeChat = derived(this, reader => {
+		const context = this._context.read(reader);
+		const activeResource = context?.activeChatResource.read(reader);
+		return context?.chats.read(reader).find(c => c.resource.toString() === activeResource);
+	});
 	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _chatViewInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
 	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
 	private readonly _activeChatIsDeletableKey: IContextKey<boolean>;
@@ -182,10 +194,19 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// The group's chat for its chat view, such as its input's pickers. Unregistered, so commands still find the pane.
+		this._chatViewInstantiationService = this._scopedInstantiationService.createChild(new ServiceCollection([ISessionHost, new SessionHost({
+			kind: SessionHostKind.Pane,
+			parent: _sessionHost,
+			session: derived(reader => this._context.read(reader)?.session),
+			chat: this._activeChat,
+			contextKeyService: _sessionHost.contextKeyService,
+		})]));
 		this._activeChatIsClosableKey = SessionActiveChatIsClosableContext.bindTo(scopedContextKeyService);
 		this._activeChatCanArchiveKey = SessionActiveChatCanArchiveContext.bindTo(scopedContextKeyService);
 		this._activeChatIsDeletableKey = SessionActiveChatIsDeletableContext.bindTo(scopedContextKeyService);
@@ -220,7 +241,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		// Single status banner, shown flush below this group's tab bar when the
 		// active chat is non-interactive or its remote host is unavailable.
-		this._readOnlyBanner = this._register(this._instantiationService.createInstance(SessionReadOnlyBanner));
+		this._readOnlyBanner = this._register(this._instantiationService.createInstance(ChatReadOnlyBanner));
 		append(this._barContainer, this._readOnlyBanner.domNode);
 
 		this._contentContainer = append(this._surface, $('.chat-group-view-content'));
@@ -273,6 +294,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	/** Sets (or clears) the group this view renders. */
 	setContext(context: IChatGroupContext | undefined): void {
 		this._contextDisposables.clear();
+		this._context.set(context, undefined);
 		this._connection.setSession(context?.session);
 
 		if (!context) {
@@ -298,15 +320,18 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			return;
 		}
 
-		const activeChat = derived(reader => {
-			const activeResource = context.activeChatResource.read(reader);
-			return context.chats.read(reader).find(c => c.resource.toString() === activeResource);
-		});
+		const activeChat = this._activeChat;
 		this._chatHeader.setChat({
 			session: context.session,
 			chat: activeChat,
 			isDetached: context.isDetached,
 			activate: () => context.activate(),
+			close: () => {
+				const chat = activeChat.get();
+				if (chat) {
+					void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(context.session, chat, this._sessionHost)).catch(onUnexpectedError);
+				}
+			},
 		});
 		this._contextDisposables.add(autorun(reader => {
 			const visible = context.chatHeaderVisible.read(reader);
@@ -428,7 +453,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
+					? this._chatViewFactory.createChatView(this._chatViewInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
@@ -452,7 +477,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}));
 	}
 
-	private _setReadOnlyBanner(content: ISessionReadOnlyBannerContent | undefined): void {
+	private _setReadOnlyBanner(content: IChatReadOnlyBannerContent | undefined): void {
 		if (content) {
 			this._readOnlyBanner.setContent(content);
 		}
@@ -528,6 +553,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
 		return this._currentView.value?.selectNoWorkspace(options) ?? 'notReady';
+	}
+
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		return this._currentView.value?.selectEnvironment(providerId) ?? 'notReady';
 	}
 
 	prefillInput(text: string): void {

@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isWeb, isWindows } from '../../../../../../base/common/platform.js';
 import { basename, extname } from '../../../../../../base/common/resources.js';
@@ -154,7 +154,7 @@ suite('Session Artifacts', () => {
 			chat,
 			browserUrls,
 			gitHubReferences,
-			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
+			{ id: 'test-artifact-details', selected: constObservable(undefined), activeSection: constObservable(undefined), toggle() { }, release() { }, suspend: () => Disposable.None },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
@@ -1094,6 +1094,32 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('lists references in the references pill whatever their group ID, even when an artifact with a pill of its own presents the same resource', async () => {
+		const site = (id: string, isArtifact: boolean): ISessionArtifact => ({ id, kind: SessionArtifactKind.Website, label: id, isArtifact, link: URI.parse(`https://example.test/${id}`) });
+		const snapshots: Record<string, ArtifactSnapshot> = {
+			experiment: integratedSnapshot('experiment', 'experiments', { resourceKey: 'experiment' }),
+			experimentLink: integratedSnapshot('experimentLink', 'experiments', { resourceKey: 'experiment' }),
+			scorecard: integratedSnapshot('scorecard', 'experiments', { resourceKey: 'step' }),
+			otherScorecard: integratedSnapshot('otherScorecard', 'experiments', { resourceKey: 'step' }),
+			commit: integratedSnapshot('commit', undefined, { resourceKey: 'commit' }),
+		};
+		const { presentation } = createPresentation(Object.keys(snapshots).map(id => site(id, id === 'experiment')),
+			undefined, undefined, undefined, false, undefined, false, id => snapshots[id]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			integrated: presentation.integratedEntries.get().map(entry => entry.id),
+			ownPills: derived(reader => Object.keys(snapshots).filter(id => presentation.hasOwnPill(id, reader))).get(),
+			...visibleEntries(presentation),
+		}, {
+			integrated: ['experiment'],
+			ownPills: ['experiment'],
+			artifacts: [],
+			// References bound to the same resource as each other show once.
+			references: ['experimentLink', 'scorecard', 'commit'],
+		});
+	});
+
 	test('retains non-GitHub and noncanonical entries even when their URLs are surfaced', () => {
 		const pullRequest: ISessionArtifact = {
 			id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true,
@@ -1607,7 +1633,7 @@ suite('Session Artifacts', () => {
 			withoutSupport: expected(false),
 			// Every kind gets a remove action once the provider supports it, named for whether it removes an artifact or a reference.
 			withSupport: expected(true),
-			websiteLabels: ['Remove Artifact Site from Session', 'Remove Reference Site from Session'],
+			websiteLabels: ['Remove "Site" Artifact', 'Remove "Site" Reference'],
 		});
 	});
 

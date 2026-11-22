@@ -21,20 +21,20 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionArtifactIntegrationsEnabledContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { logChangesViewViewModeChange } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
@@ -116,7 +116,9 @@ class OpenPullRequestAction extends Action2 {
 				order: 9,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ActiveSessionContextKeys.HasPullRequest)
+					ActiveSessionContextKeys.HasPullRequest,
+					// The pull request artifact opens the pull request.
+					SessionArtifactIntegrationsEnabledContext.negate())
 			}
 		});
 	}
@@ -232,7 +234,7 @@ const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
 );
 
 // The Changes editor shows its diff actions in the header row above its diffs instead of in its tab row: Run Code Review
-// and the More Actions menu in Menus.SessionsEditorHeaderSecondary, then Toggle Files in Menus.SessionsEditorHeaderLayout.
+// and the More Actions menu in Menus.SessionsEditorHeaderSecondary.
 const notChangesEditor = ActiveEditorContext.notEqualsTo(SessionChangesEditor.ID);
 
 const desktopTextEditorTitleVisible = ContextKeyExpr.and(
@@ -394,32 +396,9 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	order: 20,
 	when: ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext, notChangesEditor),
 });
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
-	submenu: Menus.ChangesFilesView,
-	title: localize('filesView', "Files View"),
-	group: 'secondary/z_filesView',
-	order: 20,
-	// The files of the side pane; not where the editor shows its own files list, such as in a chat window
-	when: ContextKeyExpr.and(desktopChangesEditorTitle, AuxiliaryBarVisibleContext, MultiDiffEditorFileListAvailableContext.negate()),
-});
-// Where the Changes editor shows its own files list beside the diffs, such as in a chat window, it offers how the list
-// shows and where, as the multi-diff editors do, with their commands.
-const changesEditorFilesListShown = ContextKeyExpr.and(desktopChangesEditorTitleVisible, MultiDiffEditorFileListAvailableContext);
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
-	submenu: Menus.ChangesFilesViewAndPosition,
-	title: localize('filesViewAndPosition', "Files View & Position"),
-	group: 'secondary/2_viewMode',
-	order: 10,
-	when: changesEditorFilesListShown,
-});
-for (const [id, title, group, order, toggled] of [
-	['multiDiffEditor.viewFileListAsList', localize2('viewFileListAsList', "View as List"), '1_view', 1, MultiDiffEditorFileListViewModeContext.isEqualTo('list')],
-	['multiDiffEditor.viewFileListAsTree', localize2('viewFileListAsTree', "View as Tree"), '1_view', 2, MultiDiffEditorFileListViewModeContext.isEqualTo('tree')],
-	['multiDiffEditor.positionFileListLeft', localize2('positionFileListLeft', "On the Left"), '2_position', 1, MultiDiffEditorFileListPositionContext.isEqualTo('left')],
-	['multiDiffEditor.positionFileListRight', localize2('positionFileListRight', "On the Right"), '2_position', 2, MultiDiffEditorFileListPositionContext.isEqualTo('right')],
-] as const) {
-	MenuRegistry.appendMenuItem(Menus.ChangesFilesViewAndPosition, { command: { id, title, toggled, precondition: changesEditorFilesListShown }, group, order });
-}
+
+// The Changes editor offers how the Changes view shows its files in the dropdown of Toggle Details, above the details positions.
+const changesEditorActive = ActiveEditorContext.isEqualTo(SessionChangesEditor.ID);
 
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
@@ -431,11 +410,16 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
-			menu: {
+			menu: [{
 				id: Menus.ChangesFilesView,
 				group: '1_viewMode',
 				order: 1,
-			}
+			}, {
+				id: Menus.DetailsToggle,
+				group: '1_viewMode',
+				order: 1,
+				when: changesEditorActive,
+			}]
 		});
 	}
 
@@ -457,11 +441,16 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
-			menu: {
+			menu: [{
 				id: Menus.ChangesFilesView,
 				group: '1_viewMode',
 				order: 2,
-			}
+			}, {
+				id: Menus.DetailsToggle,
+				group: '1_viewMode',
+				order: 2,
+				when: changesEditorActive,
+			}]
 		});
 	}
 
@@ -555,27 +544,14 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	order: 30,
 	when: desktopChangesEditorTitleVisible,
 });
-// The Changes editor shows its changed files list beside the diffs where its host enables it, and hides or shows it with
-// the workbench's Toggle Files, last in its header row.
-const changesEditorFileList = ContextKeyExpr.and(desktopChangesEditorActive, MultiDiffEditorFileListAvailableContext)!;
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
-	command: {
-		id: TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID,
-		title: localize2('changesToggleFiles', "Toggle Files"),
-		icon: Codicon.listFlat,
-		toggled: MultiDiffEditorFileListEnabledContext,
-		precondition: changesEditorFileList,
-	},
-	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(desktopChangesEditorTitleVisible, MultiDiffEditorFileListAvailableContext),
-});
+// The main window offers how a multi diff editor shows its files list and where in the dropdown of Toggle Details. A chat
+// window offers neither Toggle Details nor Toggle Files, so its editor title overflow offers them instead.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: '2_viewMode',
 	order: 10,
-	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext),
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext, IsAuxiliaryWindowContext),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,

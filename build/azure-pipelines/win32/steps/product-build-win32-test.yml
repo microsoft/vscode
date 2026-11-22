@@ -15,6 +15,23 @@ parameters:
   - name: VSCODE_RERUN_FAILED_TESTS
     type: boolean
     default: false
+  # Whether the job has the packaged client, server and web server, and builds the extensions and suites of
+  # the integration and smoke tests. A CI test job builds only what its tests use (see product-build-win32-ci.yml).
+  - name: VSCODE_BUILD_CLIENT
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_SERVER
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_SERVER_WEB
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_INTEGRATION_TESTS
+    type: boolean
+    default: true
+  - name: VSCODE_COMPILE_TEST_SUITES
+    type: boolean
+    default: true
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same
@@ -22,13 +39,14 @@ parameters:
 steps:
   - template: ../../common/restore-test-checkpoints.yml@self
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { pnpm -C test/smoke run compile }
-      exec { pnpm -C test/integration/browser run compile }
-    displayName: Compile test suites (non-OSS)
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  - ${{ if eq(parameters.VSCODE_COMPILE_TEST_SUITES, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { pnpm -C test/smoke run compile }
+        exec { pnpm -C test/integration/browser run compile }
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - template: ../../common/restore-playwright-browsers.yml@self
 
@@ -72,66 +90,76 @@ steps:
           displayName: 🧪 Run unit tests (Browser, Chromium)
           timeoutInMinutes: 30
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { pnpm run gulp `
-        compile-extension:configuration-editing `
-        compile-extension:css-language-features-server `
-        compile-extension:emmet `
-        compile-extension:git `
-        compile-extension:git-base `
-        compile-extension:github-authentication `
-        compile-extension:html-language-features-server `
-        compile-extension:ipynb `
-        compile-extension:notebook-renderers `
-        compile-extension:json-language-features-client `
-        compile-extension:json-language-features-server `
-        compile-extension:markdown-language-features `
-        compile-extension-media `
-        compile-extension:microsoft-authentication `
-        compile-extension:typescript-language-features `
-        compile-extension:vscode-api-tests `
-        compile-extension:vscode-colorize-tests `
-        compile-extension:vscode-colorize-perf-tests `
-        compile-extension:vscode-test-resolver `
-      }
-    displayName: Build integration tests
+  - ${{ if eq(parameters.VSCODE_BUILD_INTEGRATION_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { pnpm run gulp `
+          compile-extension:configuration-editing `
+          compile-extension:css-language-features-server `
+          compile-extension:emmet `
+          compile-extension:git `
+          compile-extension:git-base `
+          compile-extension:github-authentication `
+          compile-extension:html-language-features-server `
+          compile-extension:ipynb `
+          compile-extension:notebook-renderers `
+          compile-extension:json-language-features-client `
+          compile-extension:json-language-features-server `
+          compile-extension:markdown-language-features `
+          compile-extension-media `
+          compile-extension:microsoft-authentication `
+          compile-extension:typescript-language-features `
+          compile-extension:vscode-api-tests `
+          compile-extension:vscode-colorize-tests `
+          compile-extension:vscode-colorize-perf-tests `
+          compile-extension:vscode-test-resolver `
+        }
+      displayName: Build integration tests
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics before integration test runs
     continueOnError: true
     condition: succeededOrFailed()
 
-  - powershell: |
-      # Copy client, server and web builds to a separate test directory, to avoid Access Denied errors in codesign
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $TestDir = "$(agent.builddirectory)\test"
-      New-Item -ItemType Directory -Path $TestDir -Force
-      Copy-Item -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)" -Destination "$TestDir\VSCode-win32-$(VSCODE_ARCH)" -Recurse -Force
-      Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)" -Recurse -Force
-      Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)-web" -Recurse -Force
-    displayName: Copy builds to test directory
+  # Only the builds that the job has
+  - ${{ if or(eq(parameters.VSCODE_BUILD_CLIENT, true), eq(parameters.VSCODE_BUILD_SERVER, true), eq(parameters.VSCODE_BUILD_SERVER_WEB, true)) }}:
+    - powershell: |
+        # Copy client, server and web builds to a separate test directory, to avoid Access Denied errors in codesign
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $TestDir = "$(agent.builddirectory)\test"
+        New-Item -ItemType Directory -Path $TestDir -Force
+        ${{ iif(eq(parameters.VSCODE_BUILD_CLIENT, true), 'Copy-Item -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)" -Destination "$TestDir\VSCode-win32-$(VSCODE_ARCH)" -Recurse -Force', '') }}
+        ${{ iif(eq(parameters.VSCODE_BUILD_SERVER, true), 'Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)" -Recurse -Force', '') }}
+        ${{ iif(eq(parameters.VSCODE_BUILD_SERVER_WEB, true), 'Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)-web" -Recurse -Force', '') }}
+      displayName: Copy builds to test directory
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-agent-host-e2e') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-agent-host-e2e
         testStep:
-          powershell: |
-            # Figure out the full absolute path of the product we just built
-            # including the remote server and configure the integration tests
-            # to run with these builds instead of running out of sources.
-            . build/azure-pipelines/win32/exec.ps1
-            $ErrorActionPreference = "Stop"
-            $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
-            $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
-            $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
-            $AppNameShort = $AppProductJson.nameShort
-            $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
-            $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
-            exec { .\scripts\test-agent-host-e2e.bat --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }} }
+          ${{ if eq(parameters.VSCODE_BUILD_CLIENT, true) }}:
+            powershell: |
+              # Figure out the full absolute path of the product we just built
+              # including the remote server and configure the integration tests
+              # to run with these builds instead of running out of sources.
+              . build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+              $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+              $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+              $AppNameShort = $AppProductJson.nameShort
+              $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+              $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
+              exec { .\scripts\test-agent-host-e2e.bat --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }} }
+          # The runner only uses out-build and .build\electron, so it doesn't need the packaged client
+          ${{ else }}:
+            powershell: |
+              . build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              exec { .\scripts\test-agent-host-e2e.bat --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }} }
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run Agent Host E2E tests (Electron)
@@ -198,29 +226,74 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics before smoke test run
       continueOnError: true
       condition: succeededOrFailed()
 
-  # The WSL Dev Container setup only serves the Electron and WSL Kerberos proxy smoke tests, so it is skipped together
-  # with them when they already passed in this run.
-  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'))) }}:
+  # The WSL Dev Container setup only serves the Electron and WSL proxy smoke tests, so it is skipped together with them
+  # when they already passed in this run. The WSL Basic proxy run needs this run's Linux server, so without one it never
+  # records a checkpoint and does not count. The WSL Basic PAC proxy run uses the pinned server without one.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'))) }}:
     - task: Cache@2
       displayName: Restore WSL installer cache
       inputs:
         key: '"wsl-installer" | "win32-x64" | build/checksums/wsl.txt'
         path: $(Build.SourcesDirectory)/.build/wsl-installer
-      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true')))
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
       retryCountOnTaskFailure: 2
+
+    # The cache keeps the distribution that `wslDevContainer.ps1 -Operation Prepare` exports, which Setup imports instead
+    # of building it. The key hashes the files that define the distribution, and the day refreshes what they don't pin,
+    # such as the versions of the apt packages and of the dev container image. The first job of a day, or after a change
+    # to those files, builds the distribution, and the cache saves it at the end of the job, only if the job succeeded.
+    - pwsh: |
+        $day = [DateTime]::UtcNow.ToString('yyyyMMdd')
+        Write-Host "##vso[task.setvariable variable=WSL_DISTRO_CACHE_DAY]$day"
+      displayName: Compute WSL distribution cache key
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
+
+    - task: Cache@2
+      displayName: Restore WSL distribution cache
+      inputs:
+        key: '"wsl-distro" | "v1" | "win32-x64" | test/smoke/wslDevContainer.ps1 | build/checksums/wsl.txt | build/.cachesalt | "$(WSL_DISTRO_CACHE_DAY)"'
+        path: $(Build.SourcesDirectory)/.build/wsl-distro-cache
+        cacheHitVar: WSL_DISTRO_RESTORED
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
+      retryCountOnTaskFailure: 2
+      continueOnError: true
+
+    # Setup moves the VHD that it imports into the distribution. After a cache hit, it takes the restored VHD, as the
+    # cache saves nothing then. Otherwise this step builds the distribution into the cache folder, and Setup imports a
+    # copy. A failure leaves the job succeeded with issues, which keeps the cache from saving an incomplete VHD, and
+    # Setup then builds the distribution itself.
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+        New-Item -ItemType Directory -Force -Path (Split-Path $env:WSL_PREPARED_DISTRO_VHD -Parent) | Out-Null
+        if ($env:WSL_DISTRO_RESTORED -eq 'true') {
+          Move-Item -LiteralPath $env:WSL_DISTRO_CACHE_VHD -Destination $env:WSL_PREPARED_DISTRO_VHD
+        } else {
+          .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Prepare -Destination $env:WSL_DISTRO_CACHE_VHD
+          Copy-Item -LiteralPath $env:WSL_DISTRO_CACHE_VHD -Destination $env:WSL_PREPARED_DISTRO_VHD
+        }
+      displayName: Build WSL distribution if not cached
+      timeoutInMinutes: 20
+      continueOnError: true
+      env:
+        WSL_DISTRO_RESTORED: $(WSL_DISTRO_RESTORED)
+        WSL_DISTRO_CACHE_VHD: $(Build.SourcesDirectory)\.build\wsl-distro-cache\vscode-wsl-smoke.vhdx
+        WSL_PREPARED_DISTRO_VHD: $(Build.SourcesDirectory)\.build\wsl-distro\vscode-wsl-smoke.vhdx
+        WSL_INSTALLER_CACHE_DIR: $(Build.SourcesDirectory)/.build/wsl-installer
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
 
     - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
       displayName: Prepare WSL Dev Container smoke tests
       timeoutInMinutes: 15
       env:
         WSL_INSTALLER_CACHE_DIR: $(Build.SourcesDirectory)/.build/wsl-installer
-      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true')))
+        WSL_PREPARED_DISTRO_VHD: $(Build.SourcesDirectory)\.build\wsl-distro\vscode-wsl-smoke.vhdx
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), and(${{ and(eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
@@ -238,33 +311,34 @@ steps:
           displayName: 🧪 Run smoke tests (Electron)
           timeoutInMinutes: 30
 
-  # The packaged client can only open an editor window on a server of its own commit, so the editor window suite runs
-  # with the Linux server of this run's Linux x64 compile job, and only the Agents Window suite runs without one. The
-  # script configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them.
+  # The packaged client can only open an editor window on a server of its own commit, so the editor window suites run
+  # with the Linux server of this run's Linux x64 compile job. Without one, only the Agents Window suites run, with the
+  # pinned server.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'))) }}:
+    - powershell: node build/azure-pipelines/common/waitForArtifacts.ts "--producer=compilation_linux_x64=Linux (X64) - Compile"
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for the Linux x64 compilation artifact
+      timeoutInMinutes: 65
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true'), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: compilation_linux_x64
+        patterns: builds.tar.gz
+        path: $(Agent.TempDirectory)/compilation-linux-x64
+      displayName: Download the Linux x64 compilation artifact
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true'), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
+
+    - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation AddServer -Distribution $env:WSL_SMOKE_DISTRO -Archive "$(Agent.TempDirectory)\compilation-linux-x64\builds.tar.gz"
+      displayName: Add the Linux x64 server to the WSL distribution
+      timeoutInMinutes: 15
+      env:
+        WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true'), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
+
+  # The script configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them.
   - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy')) }}:
-    - ${{ if eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true) }}:
-      - powershell: node build/azure-pipelines/common/waitForArtifacts.ts "--producer=compilation_linux_x64=Linux (X64) - Compile"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Wait for the Linux x64 compilation artifact
-        timeoutInMinutes: 65
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: compilation_linux_x64
-          patterns: builds.tar.gz
-          path: $(Agent.TempDirectory)/compilation-linux-x64
-        displayName: Download the Linux x64 compilation artifact
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'))
-
-      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation AddServer -Distribution $env:WSL_SMOKE_DISTRO -Archive "$(Agent.TempDirectory)\compilation-linux-x64\builds.tar.gz"
-        displayName: Add the Linux x64 server to the WSL distribution
-        timeoutInMinutes: 15
-        env:
-          WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'))
-
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-wsl-kerberos-proxy
@@ -281,7 +355,39 @@ steps:
           displayName: 🧪 Run WSL Kerberos proxy smoke tests (Electron)
           timeoutInMinutes: 30
 
-  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'))) }}:
+  # Only the editor window suite runs, with the proxy and its credentials in the http.proxy setting. The script trusts a
+  # test CA on the elevated agent and reverts it.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-wsl-basic-proxy
+        testStep:
+          pwsh: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_SMOKE_BUILD_SERVER_PATH --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+          env:
+            WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+            WSL_SMOKE_BUILD_SERVER_PATH: $(WSL_SMOKE_BUILD_SERVER_PATH)
+          displayName: 🧪 Run WSL Basic proxy smoke tests (Electron)
+          timeoutInMinutes: 20
+
+  # Only the Agents Window suites run, with a local Agent Host and with one in WSL, which use the PAC and type the proxy's
+  # credentials into the proxy login dialog. The script trusts a test CA and configures a PAC on the elevated agent and
+  # reverts them.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy')) }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-wsl-basic-pac-proxy
+        testStep:
+          pwsh: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_BASIC_PAC_SERVER_PATH --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+          env:
+            WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+            ${{ if eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true) }}:
+              WSL_BASIC_PAC_SERVER_PATH: $(WSL_SMOKE_BUILD_SERVER_PATH)
+            ${{ else }}:
+              WSL_BASIC_PAC_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
+          displayName: 🧪 Run WSL Basic PAC proxy smoke tests (Electron)
+          timeoutInMinutes: 30
+
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'))) }}:
     - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
       displayName: Clean up WSL Dev Container smoke tests
       condition: and(always(), ne(variables['WSL_SMOKE_ROOT'], ''))
@@ -312,15 +418,15 @@ steps:
           displayName: 🧪 Run smoke tests (Remote)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics after smoke test run
       continueOnError: true
       condition: succeededOrFailed()
 
-  # The copilot ID runs all three checkpointed Copilot tests with shared setup.
+  # The copilot ID runs all the checkpointed Copilot tests with shared setup.
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
+    - template: ../../copilot/product-test-steps.yml@self
       parameters:
         OS: win32
 

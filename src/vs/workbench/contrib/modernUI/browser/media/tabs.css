@@ -127,6 +127,21 @@
 	margin-inline-end: var(--modern-ui-tab-terminal-gutter);
 }
 
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tab.last-tab {
+	/* Reserves the space of the add tab button, which overlaps it, so that the button wraps with the last tab and never forms a row of its own */
+	margin-inline-end: calc(var(--modern-ui-tab-terminal-gutter) * 2 + var(--last-tab-add-tab-width) + var(--last-tab-margin-right));
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tabs-bar-add-tab {
+	margin-inline-start: calc(-1 * (var(--modern-ui-tab-terminal-gutter) + var(--last-tab-add-tab-width) + var(--last-tab-margin-right)));
+}
+
+/* An add tab button on a row of its own aligns with the leading tab of the row above, by the inset the tabs control computes. */
+.modern-ui-tabs.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row .action-label {
+	margin-inline-start: var(--modern-ui-editor-tab-left-inset);
+	margin-inline-end: calc(var(--vscode-spacing-size80) - var(--modern-ui-editor-tab-left-inset));
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
 	border-block: var(--vscode-spacing-size20) solid transparent;
@@ -266,6 +281,11 @@
 	max-width: max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter)));
 }
 
+/* The last tab also reserves the space of the add tab button, see its margin */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tab.sizing-fit.last-tab:not(.sticky-compact) {
+	max-width: max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter) * 2));
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit:not(.sticky-compact) > .tab-label,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit:not(.sticky-compact) > .tab-label > .monaco-icon-label-container {
 	overflow: hidden;
@@ -351,6 +371,11 @@
 	position: sticky;
 	inset-inline-end: 0;
 	z-index: 9;
+}
+
+/* The sticky add tab button would cover the drop indicator after the last tab. */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.has-add-tab:not(.wrapping) .tabs-container > .tab.last-tab.drop-target-left {
+	z-index: 10;
 }
 
 /* Keep 24px fills inside 32px hit targets while avoiding an 8px double gutter
@@ -790,7 +815,8 @@
 	pointer-events: none;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row):not(:last-child)::after {
+/* Between two tabs, the indicator of the tab after it shows; the add tab button can follow the last tab. */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row):not(.last-tab)::after {
 	display: none;
 }
 
@@ -892,7 +918,7 @@
 }
 
 .modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) > .active-item-indicator {
-	background-color: var(--vscode-modernTab-activeBackground) !important;
+	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
 .modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked > .action-label.codicon {
@@ -1017,8 +1043,10 @@
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator,
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
 	background-color: transparent !important;
 }
 
@@ -1029,8 +1057,8 @@
 	outline: none !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before,
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before,
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
 	display: none !important;
 }
 
@@ -1039,8 +1067,8 @@
 	outline: none !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator,
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator {
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
@@ -1061,8 +1089,8 @@
  * Drop the checked underline in favour of the rounded background while retaining
  * the base keyboard-focus indicator.
  */
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before {
+.modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.modern-ui-tabs:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;

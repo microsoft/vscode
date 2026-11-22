@@ -62,6 +62,7 @@ suite('Sessions - Sessions part frame and content registry', () => {
 			override registerPart(): IDisposable { return Disposable.None; }
 			override isVisible(part: Parts) { return part === Parts.SESSIONS_PART; }
 			override isModernUICompact() { return false; }
+			override getPanelSpacing() { return 4; }
 			override isFloatingPanelsEnabled() { return false; }
 		}());
 		instantiationService.stub(ISessionsHostLayoutService, new class extends mock<ISessionsHostLayoutService>() { }());

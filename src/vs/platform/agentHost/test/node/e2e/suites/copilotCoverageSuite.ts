@@ -342,10 +342,11 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					},
 				},
 			}, 100);
-			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
 			const chatUri = newTestChatUri();
 			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
 			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			const turnId = 'turn-root-mcp';
+			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			await context.client.waitForNotification(n => {
 				if (n.method !== 'action') {
 					return false;
@@ -357,8 +358,6 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					&& action.customization.name === 'root_probe_server'
 					&& action.customization.state.kind === McpServerStatus.Ready;
 			}, 30_000);
-			const turnId = 'turn-root-mcp';
-			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			const completion = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.turnId === turnId);

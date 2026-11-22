@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewPaneContainer } from '../../../common/views.js';
-import { FocusedViewContext, getEnabledViewContainerContextKey, getVisbileViewContextKey } from '../../../common/contextkeys.js';
+import { FocusedViewContext, getEnabledViewContainerContextKey, getVisbileViewContextKey, LayoutModeContext } from '../../../common/contextkeys.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -420,7 +420,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						},
 						category: Categories.View,
 						precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
-						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib, when: ContextKeyExpr.and(keybindings.when, LayoutModeContext.negate()) } : undefined,
 						f1: true
 					});
 				}
@@ -659,8 +659,9 @@ export class ViewsService extends Disposable implements IViewsService {
 				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, viewContainerLocation, viewPaneContainerDisposables, this.instantiationService);
 
 				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
+				// `PaneComposite` already forwards `onTitleAreaUpdate`; forwarding it here too rebuilt the title actions twice.
 				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
-					viewPaneContainerDisposables.add(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
+					viewPaneContainerDisposables.add(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews)(() => {
 						// Update title area since there is no better way to update secondary actions
 						this.updateTitleArea();
 					}));

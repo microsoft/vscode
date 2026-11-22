@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../base/common/uuid.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
@@ -26,19 +27,23 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -430,14 +435,28 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	test('restores GitHub issue and pull request attachments from what they say', () => {
+		const sent = getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/pull/345729 and https://github.com/microsoft/vscode/issues/347977');
+		const restored = messageAttachmentsToVariableData([
+			...sent.map(attachment => ({ type: MessageAttachmentKind.Simple as const, label: attachment.name, modelRepresentation: String(attachment.value) })),
+			{ type: MessageAttachmentKind.Simple as const, label: 'Notes', modelRepresentation: `${sent[0].value} was merged` },
+		], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, id, icon, name, value }) => ({ kind, id: id.startsWith('github-context:') ? id : undefined, icon: icon?.id, name, value })), [
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/pull/345729', icon: 'git-pull-request', name: 'microsoft/vscode#345729', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729' },
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/issues/347977', icon: 'issues', name: 'microsoft/vscode#347977', value: 'GitHub context: https://github.com/microsoft/vscode/issues/347977' },
+			{ kind: 'generic', id: undefined, icon: undefined, name: 'Notes', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729 was merged' },
+		]);
+	});
+
 	test('preserves completion and resource mention ranges when restoring attachments', () => {
 		const text = '/skill first\r\nthen /command and #file';
 		const attachments = [{
-			type: MessageAttachmentKind.Simple as const,
+			type: MessageAttachmentKind.Resource as const,
 			label: 'Skill',
 			displayKind: 'skill',
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
-			_meta: { uri: 'custom-skill:/selected' },
+			uri: 'custom-skill:/selected',
 		}, {
 			type: MessageAttachmentKind.Simple as const,
 			label: 'Command',
@@ -464,6 +483,79 @@ suite('stateToProgressAdapter', () => {
 			],
 			[undefined, undefined, undefined],
 		]);
+	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`restores skill identity in client space without changing host metadata (${kind.name})`, () => {
+			const uri = URI.file('/workspace/review/SKILL.md');
+			const metadata = { uri: 'file:///wrong/SKILL.md', opaque: { value: false } };
+			const variables = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Resource,
+				uri: uri.toString(),
+				label: '/review',
+				displayKind: 'skill',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
+				_meta: metadata,
+			}, {
+				type: MessageAttachmentKind.Simple,
+				label: '/compact',
+				displayKind: 'command',
+				_meta: { command: 'compact', uri: uri.toString() },
+			}], 'test', '/review', kind.resourceUris)?.variables;
+
+			assert.deepStrictEqual(variables, [{
+				kind: 'generic',
+				id: kind.toClient(uri).toString(),
+				name: '/review',
+				value: { $mid: 'agentHostCompletion', kind: 'skill' },
+				_meta: metadata,
+				range: { start: 0, endExclusive: 7 },
+			}, {
+				kind: 'generic',
+				id: 'agent-host-command:compact',
+				name: '/compact',
+				value: { $mid: 'agentHostCompletion', kind: 'command' },
+				_meta: { command: 'compact', uri: uri.toString() },
+			}]);
+		});
+	}
+
+	test('restores legacy persisted Simple skills as bound resources', () => {
+		const uri = URI.file('/workspace/review/SKILL.md');
+		const metadata = { uri: uri.toString(), description: 'Review changes' };
+		const variable = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', _meta: metadata,
+		}], 'local')?.variables[0];
+		assert.deepStrictEqual(variable, {
+			kind: 'generic', id: uri.toString(), name: '/review', value: { $mid: 'agentHostCompletion', kind: 'skill' },
+			modelDescription: 'Review changes', _meta: metadata,
+		});
+	});
+
+	test('restores skills without resource URIs as non-resource references', () => {
+		const metadata = [undefined, { uri: 42 }];
+		const variables = messageAttachmentsToVariableData(metadata.map(_meta => ({
+			type: MessageAttachmentKind.Simple,
+			label: '/review',
+			displayKind: 'skill',
+			_meta,
+		})), 'local')?.variables;
+		assert.deepStrictEqual(variables?.map(variable => ({ ...variable, id: isUUID(variable.id) })), metadata.map(_meta => ({
+			kind: 'generic',
+			id: true,
+			name: '/review',
+			value: { $mid: 'agentHostCompletion', kind: 'skill' },
+			_meta,
+		})));
+	});
+
+	test('rejects malformed skill resource URIs instead of treating them as file paths', () => {
+		assert.throws(() => messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Resource,
+			label: '/review',
+			displayKind: 'skill',
+			uri: 'not-a-uri',
+		}], 'local'), /Scheme is missing/);
 	});
 
 	test('restores embedded resources with invalid base64 data without throwing', () => {
@@ -717,6 +809,51 @@ suite('stateToProgressAdapter', () => {
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a shell authentication prompt as a settled password question that says only whether it was answered', () => {
+			const prompt = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: createShellAuthenticationRequest(id, { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command: 'sudo -A true' }),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [prompt('answered', ChatInputResponseKind.Accept), prompt('cancelled', ChatInputResponseKind.Cancel)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'questionCarousel'
+				? { resolveId: part.resolveId, isUsed: part.isUsed, answeredExternally: part.answeredExternally, data: part.data, questions: part.questions.map(question => ({ type: question.type, password: question.password, title: question.title })) }
+				: { kind: part.kind }), [
+				{ resolveId: 'answered', isUsed: true, answeredExternally: true, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+				{ resolveId: 'cancelled', isUsed: true, answeredExternally: false, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+			]);
+		});
+
+		test('keeps a shell authentication command as written, in plain text rather than Markdown', () => {
+			const command = 'sudo -A chown $(whoami) /tmp/x <<\'EOF\'\n\n# Approved by your admin\n[details](https://example.com)\nEOF';
+			const carousel = createShellAuthenticationCarousel('shell-auth', { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command });
+			const [question] = carousel.questions;
+			assert.deepStrictEqual({
+				context: question.context,
+				message: carousel.message,
+				questionMessage: question.message,
+				detailedMessage: question.detailedMessage,
+			}, {
+				context: `Command:\n${command}`,
+				message: undefined,
+				questionMessage: undefined,
+				detailedMessage: undefined,
+			});
+		});
+
+		test('says the same thing about where the answer goes for every kind of prompt', () => {
+			const notes = (['secret', 'text', 'confirm'] as const).map(inputKind => {
+				const [question] = createShellAuthenticationCarousel('shell-auth', { program: 'git', prompt: 'Username for \'https://example.com\': ', inputKind, command: 'git fetch' }).questions;
+				return question.note && { icon: question.note.icon?.id, text: question.note.text };
+			});
+			assert.deepStrictEqual(notes, [
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
 			]);
 		});
 
@@ -1476,7 +1613,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('Fusion footer identification is per-turn, including restored events without a selected model', () => {
-			const usage = { model: 'gpt-5', _meta: { cost: 0 } };
+			const usage = { model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 0 } } };
 			const turns = [
 				createTurn({ message: { ...message('Before usage'), model: { id: 'hydrafusion' } } }),
 				createTurn({
@@ -1562,6 +1699,30 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
+		});
+
+		test('a model router is settled after its first pick for a chat', () => {
+			const picked = createTurn({ id: 'turn-1', usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'opus' } } } });
+			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
+			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
+			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
+			assert.deepStrictEqual({
+				firstTurn: isModelRouterPickSettled([picked], 'turn-1', 'daily'),
+				laterTurn: isModelRouterPickSettled([picked, createTurn({ id: 'turn-2' })], 'turn-3', 'daily'),
+				afterItsOwnUnroutedTurn: isModelRouterPickSettled([picked, selecting('model-router:daily')], 'turn-3', 'daily'),
+				afterItsOwnRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('daily')], 'turn-3', 'daily'),
+				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
+				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
+				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
+				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
+				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, anotherRouter: false, notARouter: false });
+		});
+
+		test('the routing a turn is compared with is the last one before it', () => {
+			const routedTurn = (id: string, chosenModel: string) => createTurn({ id, usage: { _meta: { modelRouted: { router: 'daily', chosenModel } } } });
+			const turns = [routedTurn('turn-1', 'haiku'), createTurn({ id: 'turn-2' }), routedTurn('turn-3', 'opus')];
+			assert.deepStrictEqual(['turn-1', 'turn-3', 'turn-4'].map(turnId => previousModelRouted(turns, turnId)?.chosenModel), [undefined, 'haiku', 'opus']);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -1917,6 +2078,20 @@ suite('stateToProgressAdapter', () => {
 		test('preserves alt text for image tokens', () => {
 			const value = rewriteMarkdownLinks('See ![diagram](file:///a/b.png).', 'my-host');
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
+		});
+
+		test('preserves named chat links instead of rewriting them as file references', () => {
+			const links = [
+				'[Review \\[permissions\\]](ahp-chat:/11111111-1111-5111-8111-111111111111)',
+				'[Legacy child](ahp-chat://subagent/opaque-parent/spawn-id)',
+			];
+			assert.deepStrictEqual(['local', 'remote-host'].flatMap(authority => links.map(link => ({
+				markdown: rewriteMarkdownLinks(`Read agent ${link}`, authority),
+				target: rewriteAgentHostLinkTarget(link.slice(link.indexOf('](') + 2, -1), authority),
+			}))), ['local', 'remote-host'].flatMap(() => links.map(link => ({
+				markdown: `Read agent ${link}`,
+				target: link.slice(link.indexOf('](') + 2, -1),
+			}))));
 		});
 
 		test('error turn produces error details in history', () => {
@@ -2498,6 +2673,22 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('summarizes a view call without a line range by what the host reports its path named', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const fields = { toolName: 'view', toolInput: JSON.stringify({ path: '/workspace/src' }) };
+			const summaries = ['file', 'directory', 'image', undefined].map(viewedResourceType => {
+				const completed = createCompletedToolCall({ ...fields, _meta: { ...nativeToolMeta, 'vscode.viewedResourceType': viewedResourceType } });
+				const live = rawToolCallStateToInvocation(createToolCallState({ ...fields, _meta: nativeToolMeta }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+				return { live: live.summary, restored: completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris).summary };
+			});
+			const resources = [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/src')) }];
+			assert.deepStrictEqual(summaries, [
+				{ kind: 'read', resources }, { kind: 'list', resources }, { kind: 'unknown' }, { kind: 'unknown' },
+			].map(summary => ({ live: summary, restored: summary })));
+		});
+
 		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
 			const session = URI.parse('ahp-session:/unrelated-peer/session-id');
@@ -2557,6 +2748,43 @@ suite('stateToProgressAdapter', () => {
 				'Searched for 1 phrase, 1 unfinished tool call',
 				'Searched for 1 phrase, 1 tool call skipped',
 			]);
+		});
+
+		test('labels calls a hook denied with the hook, and keeps its reason beside the row, in live and restored transcripts', () => {
+			const deniedByHook = (source?: string) => ({ 'vscode.deniedByHook': source ? { hookType: 'preToolUse', source } : { hookType: 'preToolUse' } });
+			const cases: Record<string, { readonly toolName: string; readonly toolInput: string; readonly meta?: Record<string, unknown> }> = {
+				explicit: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook() },
+				crashed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook('.github/hooks/policy.json') },
+				mcp: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: { ...deniedByHook(), mcpServerName: 'docs' } },
+				terminal: { toolName: 'bash', toolInput: '{"command":"rm -rf ./scratch"}', meta: { ...deniedByHook(), toolKind: 'terminal' } },
+				subagent: { toolName: 'task', toolInput: '{"description":"Read the notes","prompt":"Read notes.txt"}', meta: { ...deniedByHook(), toolKind: 'subagent' } },
+				failed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}' },
+			};
+			const results = Object.fromEntries(Object.entries(cases).map(([name, { toolName, toolInput, meta }]) => {
+				const running = createToolCallState({ toolName, displayName: 'Read', toolInput });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success: false, pastTenseMessage: '"Read" failed',
+					error: { message: 'Denied by preToolUse hook: not in this repo (policy R-17).', code: 'denied' }, _meta: meta,
+				});
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+				const views = [live, live.toJSON(), restored].map(tool => JSON.stringify({
+					title: name === 'failed' ? undefined : tool.pastTenseMessage && (typeof tool.pastTenseMessage === 'string' ? tool.pastTenseMessage : renderAsPlaintext(tool.pastTenseMessage)),
+					origin: tool.originMessage,
+					summary: getToolGroupSummary([tool], [], 1, extUri),
+				}));
+				return [name, new Set(views).size === 1 ? JSON.parse(views[0]) : views];
+			}));
+			const reason = 'Denied by preToolUse hook: not in this repo (policy R-17).';
+			assert.deepStrictEqual(results, {
+				explicit: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				crashed: { title: '"Read" blocked because Pre-Tool Use hook .github/hooks/policy.json failed', summary: '1 tool call blocked by a hook' },
+				mcp: { title: '"Read" blocked by Pre-Tool Use hook', origin: `docs (MCP Server) · ${reason}`, summary: '1 tool call blocked by a hook' },
+				terminal: { origin: reason, summary: '1 tool call blocked by a hook' },
+				subagent: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				failed: { summary: '1 tool call failed' },
+			});
 		});
 
 		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
@@ -2738,6 +2966,19 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
 				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
 			), [undefined, undefined, undefined, undefined]);
+		});
+
+		test('MCP origin prefers the server display name and falls back to the server name', () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			assert.deepStrictEqual([
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack' },
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': '  ' },
+				{ mcpServerName: serverName },
+			].map(_meta => toolCallStateToInvocation(createToolCallState({ _meta })).originMessage), [
+				'Slack (MCP Server)',
+				`${serverName} (MCP Server)`,
+				`${serverName} (MCP Server)`,
+			]);
 		});
 
 		test('set_workspace confirmation hides implementation input', () => {
@@ -3379,6 +3620,41 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('model comparison reference', () => {
+		test('reconstructs the same narrowly trusted link for live completion and restored history', () => {
+			const comparisonId = 'comparison-(one)';
+			const tc = createCompletedToolCall({
+				toolName: 'createModelComparison',
+				pastTenseMessage: { markdown: '[untrusted](command:unrelated.command)' },
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify({ comparisonId }) }],
+			});
+			const invocation = toolCallStateToInvocation(createToolCallState({ toolName: tc.toolName }));
+			finalizeToolInvocation(invocation, tc);
+			const expected = {
+				value: `Started model comparison. [Open Comparison](command:${OPEN_SESSION_COMPARISON_COMMAND_ID}?%5B%22comparison-%28one%29%22%5D)`,
+				isTrusted: { enabledCommands: [OPEN_SESSION_COMPARISON_COMMAND_ID] },
+			};
+			const messages = [invocation.pastTenseMessage, completedToolCallToSerialized(tc, undefined, URI.file('/'), 'remote-test').pastTenseMessage];
+			assert.deepStrictEqual(messages.map(message => {
+				assert.ok(message && typeof message !== 'string');
+				return { value: message.value, isTrusted: message.isTrusted };
+			}), [expected, expected]);
+		});
+
+		test('does not trust unrelated, failed or malformed tool output', () => {
+			const messages = [
+				{ toolName: 'otherTool', success: true, text: '{"comparisonId":"comparison"}' },
+				{ toolName: 'createModelComparison', success: false, text: '{"comparisonId":"comparison"}' },
+				{ toolName: 'createModelComparison', success: true, text: 'not JSON' },
+				{ toolName: 'createModelComparison', success: true, text: 'null' },
+				{ toolName: 'createModelComparison', success: true, text: '{"comparisonId":17}' },
+			].map(({ toolName, success, text }) => completedToolCallToSerialized(createCompletedToolCall({
+				toolName, success, content: [{ type: ToolResultContentType.Text, text }],
+			}), undefined, URI.file('/'), 'local').pastTenseMessage);
+			assert.deepStrictEqual(messages, ['Ran test tool', 'Running test tool...', 'Ran test tool', 'Ran test tool', 'Ran test tool']);
+		});
+	});
+
 	suite('addComment reference', () => {
 
 		const commentRange = { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 5 };
@@ -3747,6 +4023,36 @@ suite('stateToProgressAdapter', () => {
 			}, {
 				command: 'npm install --registry=https://registry.npmjs.org',
 				gatePreserved: true,
+			});
+		});
+
+		test('a call the user approves stays visible once it completes, and one they decline is hidden', () => {
+			const running = createToolCallState({ toolCallId: 'tc-grep', toolName: 'grep', displayName: 'Search', invocationMessage: 'Search for `thinkingStyle`', _meta: { toolKind: 'search' } });
+			const pending: AnyToolCallState = { ...running, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow search?' };
+			const settle = (asksFirst: boolean, approved: boolean) => {
+				// Copilot starts a call running and asks for approval later; other hosts can ask first.
+				const invocation = toolCallStateToInvocation(asksFirst ? pending : running);
+				if (!asksFirst) {
+					invocation.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+				}
+				const hiddenWhilePending = IChatToolInvocation.isEffectivelyHidden(invocation);
+				IChatToolInvocation.confirmWith(invocation, { type: approved ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+				finalizeToolInvocation(invocation, approved
+					? createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Searched for `thinkingStyle`' })
+					: { ...running, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied });
+				return { hiddenWhilePending, hidden: IChatToolInvocation.isEffectivelyHidden(invocation) };
+			};
+
+			assert.deepStrictEqual({
+				approvedAfterRunning: settle(false, true),
+				approvedBeforeRunning: settle(true, true),
+				declinedAfterRunning: settle(false, false),
+				declinedBeforeRunning: settle(true, false),
+			}, {
+				approvedAfterRunning: { hiddenWhilePending: false, hidden: false },
+				approvedBeforeRunning: { hiddenWhilePending: false, hidden: false },
+				declinedAfterRunning: { hiddenWhilePending: false, hidden: true },
+				declinedBeforeRunning: { hiddenWhilePending: false, hidden: true },
 			});
 		});
 
@@ -4486,6 +4792,90 @@ suite('stateToProgressAdapter', () => {
 				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
 				text: `${text} Retry`,
 			});
+		});
+
+		test('shows a failed Copilot hook as a warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookFailure = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return {
+					text: rendered.element.textContent,
+					links: rendered.element.querySelectorAll('a').length,
+					keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed,
+					mute: part.mute,
+				};
+			};
+			const crash = { type: 'preToolUse', outcome: AgentHookOutcome.Failed, source: '.github/hooks/policy.json', message: 'Error: Hook command failed with code 1 [x](command:evil)' };
+			const warning = (text: string) => ({
+				text,
+				links: 0,
+				keepVisibleWhenCollapsed: true,
+				mute: { commandId: 'workbench.action.chat.disableHookWarnings', tooltip: 'Disable Hook Warnings' },
+			});
+
+			assert.deepStrictEqual([
+				summarize(hookFailure(crash, true)),
+				// A hook event the client cannot label is shown with the host's text.
+				summarize(hookFailure({ ...crash, type: 'notAHook' }, true)),
+				summarize(hookFailure({ ...crash, type: 'constructor' }, true)),
+				hookFailure(crash, false),
+				hookFailure(crash),
+			], [
+				warning('The Pre-Tool Use hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1 [x](command:evil)'),
+				warning('The host text.'),
+				warning('The host text.'),
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('shows a Copilot hook warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookWarning = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => part?.kind === 'warning'
+				? { text: store.add(renderMarkdown(part.content)).element.textContent, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute?.commandId }
+				: part;
+			const exitCode2 = { type: 'userPromptSubmitted', outcome: AgentHookOutcome.Warned, message: 'This prompt mentions WARNME; check before continuing.' };
+			const shown = (text: string) => ({ text, keepVisibleWhenCollapsed: true, mute: 'workbench.action.chat.disableHookWarnings' });
+
+			assert.deepStrictEqual([
+				summarize(hookWarning(exitCode2, true)),
+				summarize(hookWarning({ ...exitCode2, type: 'notAHook' }, true)),
+				summarize(hookWarning({ outcome: AgentHookOutcome.Warned, message: 'Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.' }, true)),
+				hookWarning(exitCode2, false),
+			], [
+				shown('Warning from the User Prompt Submit hook: This prompt mentions WARNME; check before continuing.'),
+				shown('Warning from the notAHook hook: This prompt mentions WARNME; check before continuing.'),
+				// Without an event there is nothing to relabel, so the host's own text is shown.
+				shown('The host text.'),
+				undefined,
+			]);
+		});
+
+		test('shows a prompt a Copilot hook blocked as an error with the host\'s text, even with hook warnings off', () => {
+			const hostText = 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed [x](command:evil)';
+			const blocked = (showHookFailures?: boolean) => systemNotificationToChatPart(hostText, 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error }),
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed [x](command:evil)' },
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return { text: rendered.element.textContent, links: rendered.element.querySelectorAll('a').length, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute, isError: part.isError };
+			};
+			const shown = { text: hostText, links: 0, keepVisibleWhenCollapsed: true, mute: undefined, isError: true };
+
+			assert.deepStrictEqual([summarize(blocked(true)), summarize(blocked(false))], [shown, shown]);
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
@@ -5891,13 +6281,21 @@ suite('stateToProgressAdapter', () => {
 
 		const auto = { name: 'Auto' };
 
+		test('does not present a model multiplier as measured credits', () => {
+			assert.deepStrictEqual([
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model', pricing: '2x' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0 } } }),
+			], ['Model', 'Model · 2x', 'Model • 0 credits']);
+		});
+
 		test('appends the billed model id when one is supplied', () => {
 			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
 			const result = {
 				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
 				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
-				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
-				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } }),
 				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
 			};
 
@@ -5914,7 +6312,7 @@ suite('stateToProgressAdapter', () => {
 			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
 			const result = {
 				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
-				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
 				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
 			};
 
@@ -5943,6 +6341,16 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('usageInfoToChatUsage', () => {
+		test('reports measured credits without model multipliers', () => {
+			assert.deepStrictEqual([
+				usageInfoToChatUsage({ _meta: { cost: 0 } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2 } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0 } } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 1_500_000_000 } } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })?.copilotCredits,
+			], [undefined, undefined, 0, 1.5, 1.5]);
+		});
+
 		test('carries whole-turn per-model token totals and resolves display names', () => {
 			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
 
