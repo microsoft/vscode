@@ -37,6 +37,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ISharedLayoutStateService } from '../../../workbench/services/layout/common/sharedLayoutState.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
@@ -110,6 +111,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISharedLayoutStateService sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -137,6 +139,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 			configurationService,
+			sharedLayoutStateService,
 		);
 	}
 

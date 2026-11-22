@@ -29,6 +29,7 @@ import { ActionsOrientation, IActionViewItem } from '../../../base/browser/ui/ac
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService, IMenu, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ISharedLayoutStateService } from '../../../workbench/services/layout/common/sharedLayoutState.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -111,6 +112,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISharedLayoutStateService sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super(
 			Parts.AUXILIARYBAR_PART,
@@ -142,6 +144,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 			configurationService,
+			sharedLayoutStateService,
 		);
 
 		this._register(this.layoutService.onDidChangePartVisibility(e => {

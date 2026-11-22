@@ -32,6 +32,7 @@ import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
 import { IPaneCompositeArrangement } from '../../services/panecomposite/browser/panecomposite.js';
+import { distinct } from '../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
@@ -53,6 +54,28 @@ interface IPinnedViewContainer {
 	readonly order?: number;
 	// TODO @sandy081: Remove this after a while. Migrated to visible in IViewContainerWorkspaceState
 	readonly visible: boolean;
+}
+
+/**
+ * Pins, unpins and reorders view containers in the stored value of the pinned view containers
+ * of a bar, like {@link PaneCompositeBar.arrangePaneComposites}. A bar that is created later
+ * shows the arrangement.
+ */
+export function arrangeStoredPinnedViewContainers(value: string, { pinned, order }: IPaneCompositeArrangement): string {
+	const entries: IPinnedViewContainer[] = JSON.parse(value);
+	const orderedIds = distinct(order ?? []);
+	const ids = distinct([
+		...orderedIds,
+		...entries.map(({ id }) => id),
+		// The bar pins view containers that it does not know yet
+		...(pinned?.keys() ?? [])
+	]);
+
+	return JSON.stringify(ids.map(id => {
+		const entry = entries.find(candidate => candidate.id === id) ?? { id, pinned: true, visible: false };
+		const pin = pinned?.get(id);
+		return pin === undefined ? entry : { ...entry, pinned: pin };
+	}));
 }
 
 interface IViewContainerWorkspaceState {

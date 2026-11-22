@@ -143,7 +143,7 @@ MenuRegistry.appendMenuItems([
 			when: NamedLayoutsEnabledContext
 		}
 	}, {
-		// Moved here from the Manage menu while named layouts are enabled
+		// Also in the Manage menu, which is available when the title bar does not show the layout control
 		id: MenuId.NamedLayoutsSubmenu,
 		item: {
 			title: localize('layoutDensity', "Layout Density"),

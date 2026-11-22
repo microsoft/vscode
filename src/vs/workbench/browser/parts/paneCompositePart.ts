@@ -13,8 +13,9 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../common/view
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPaneCompositeVerticalOuterEdges } from '../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../services/layout/common/sharedLayoutState.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
-import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
+import { IPaneCompositeBarOptions, PaneCompositeBar, arrangeStoredPinnedViewContainers } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame, computeScreenAwareSize } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -165,6 +166,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super(
 			notificationService,
@@ -596,7 +598,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
-		this.paneCompositeBar.value?.arrangePaneComposites(arrangement);
+		if (this.paneCompositeBar.value) {
+			this.paneCompositeBar.value.arrangePaneComposites(arrangement);
+			return;
+		}
+
+		// The bar shows the arrangement once it is created
+		const key = this.getCompositeBarOptions().pinnedViewContainersKey;
+		this.sharedLayoutStateService.store(key, arrangeStoredPinnedViewContainers(this.sharedLayoutStateService.get(key, '[]'), arrangement));
 	}
 
 	getActivePaneComposite(): IPaneComposite | undefined {

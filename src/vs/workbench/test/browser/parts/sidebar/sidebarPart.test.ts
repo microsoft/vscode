@@ -10,7 +10,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { SidebarPart } from '../../../../browser/parts/sidebar/sidebarPart.js';
+import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../../../services/layout/common/sharedLayoutState.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 class TestSidebarLayoutService extends TestLayoutService {
@@ -71,6 +73,26 @@ suite('SidebarPart', () => {
 			[false, true],
 			[true, false],
 			[false, false],
+		]);
+	});
+
+	test('stores the arrangement of its view containers while neither it nor the activity bar shows them', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkbenchLayoutService, new TestSidebarLayoutService());
+		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		sharedLayoutStateService.store(ActivitybarPart.pinnedViewContainersKey, JSON.stringify([
+			{ id: 'explorer', pinned: true, visible: true },
+			{ id: 'search', pinned: true, visible: true }
+		]));
+
+		const part = store.add(instantiationService.createInstance(SidebarPart));
+		part.arrangePaneComposites({ pinned: new Map([['explorer', false]]), order: ['search', 'chat'] });
+
+		assert.deepStrictEqual(JSON.parse(sharedLayoutStateService.get(ActivitybarPart.pinnedViewContainersKey, '[]')), [
+			{ id: 'search', pinned: true, visible: true },
+			{ id: 'chat', pinned: true, visible: false },
+			{ id: 'explorer', pinned: false, visible: true }
 		]);
 	});
 });

@@ -320,8 +320,16 @@ export class ActivitybarPart extends Part {
 		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
 	}
 
-	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
-		this.compositeBar.value?.arrangePaneComposites(arrangement);
+	/**
+	 * Pins, unpins and reorders view containers in the activity bar. Returns `false` if the activity bar is hidden.
+	 */
+	arrangePaneComposites(arrangement: IPaneCompositeArrangement): boolean {
+		if (!this.compositeBar.value) {
+			return false;
+		}
+
+		this.compositeBar.value.arrangePaneComposites(arrangement);
+		return true;
 	}
 
 	focus(): void {

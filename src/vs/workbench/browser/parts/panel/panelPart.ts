@@ -9,6 +9,7 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/co
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../../services/layout/common/sharedLayoutState.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -81,7 +82,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ISharedLayoutStateService sharedLayoutStateService: ISharedLayoutStateService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -109,6 +111,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 			configurationService,
+			sharedLayoutStateService,
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
