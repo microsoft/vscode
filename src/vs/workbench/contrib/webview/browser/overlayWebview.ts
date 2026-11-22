@@ -313,12 +313,23 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			}));
 
 			if (this._isFirstLoad) {
-				this._firstLoadPendingMessages.forEach(async msg => {
-					msg.resolve(await webview.postMessage(msg.message, msg.transfer));
-				});
+				this._isFirstLoad = false;
+				const pending = Array.from(this._firstLoadPendingMessages);
+				this._firstLoadPendingMessages.clear();
+				(async () => {
+					for (const msg of pending) {
+						if (this._isDisposed) {
+							msg.resolve(false);
+							continue;
+						}
+						try {
+							msg.resolve(await webview.postMessage(msg.message, msg.transfer));
+						} catch {
+							msg.resolve(false);
+						}
+					}
+				})();
 			}
-			this._isFirstLoad = false;
-			this._firstLoadPendingMessages.clear();
 		}
 
 		// https://github.com/microsoft/vscode/issues/157424

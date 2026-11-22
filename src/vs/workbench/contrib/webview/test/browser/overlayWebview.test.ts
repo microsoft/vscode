@@ -6,14 +6,16 @@
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { OverlayWebview } from '../../browser/overlayWebview.js';
-import { IWebviewService } from '../../browser/webview.js';
+import { IWebviewElement, IWebviewService } from '../../browser/webview.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { ISizeService } from '../../../../../platform/theme/common/sizeService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -25,10 +27,10 @@ import { registerTestIframe } from '../../../../../base/test/browser/testWindow.
 suite('OverlayWebview', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createOverlay(root: HTMLElement, onDidChangeSizes = Event.None): OverlayWebview {
+	function createOverlay(root: HTMLElement, onDidChangeSizes = Event.None, webviewServiceStub?: Partial<IWebviewService>): OverlayWebview {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchLayoutService, { getContainer: () => root });
-		instantiationService.stub(IWebviewService, {});
+		instantiationService.stub(IWebviewService, webviewServiceStub ?? {});
 		instantiationService.stub(IContextKeyService, {});
 		instantiationService.stub(ISizeService, { onDidChangeSizes });
 		instantiationService.stub(IThemeService, { onDidColorThemeChange: Event.None });
@@ -217,5 +219,74 @@ suite('OverlayWebview', () => {
 			radii.push(overlay.container.style.borderRadius);
 		}
 		assert.deepStrictEqual(radii, ['7px', '0px', '2px']);
+	});
+
+	test('delivers pending first-load messages sequentially in FIFO order and handles rejections', async () => {
+		const root = document.createElement('div');
+		const deliveryLog: string[] = [];
+		const webviewServiceStub: Partial<IWebviewService> = {
+			createWebviewElement: () => {
+				return {
+					mountTo: () => { },
+					onDidFocus: Event.None,
+					onDidBlur: Event.None,
+					onDidClickLink: Event.None,
+					onMessage: Event.None,
+					onMissingCsp: Event.None,
+					onDidWheel: Event.None,
+					onFatalError: Event.None,
+					intrinsicContentSize: observableValue('test', undefined),
+					onDidScroll: Event.None,
+					onDidUpdateState: Event.None,
+					postMessage: async (message: unknown) => {
+						deliveryLog.push(`start:${message}`);
+						await timeout(1);
+						deliveryLog.push(`end:${message}`);
+						if (message === 'fail') {
+							throw new Error('postMessage failed');
+						}
+						return true;
+					},
+					dispose: () => { },
+				} as unknown as IWebviewElement;
+			}
+		};
+
+		const overlay = createOverlay(root, Event.None, webviewServiceStub);
+
+		const p1 = overlay.postMessage('first');
+		const p2 = overlay.postMessage('second');
+		const p3 = overlay.postMessage('fail');
+
+		overlay.claim('testOwner', mainWindow);
+
+		const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+
+		assert.deepStrictEqual(deliveryLog, [
+			'start:first',
+			'end:first',
+			'start:second',
+			'end:second',
+			'start:fail',
+			'end:fail',
+		]);
+		assert.strictEqual(r1, true);
+		assert.strictEqual(r2, true);
+		assert.strictEqual(r3, false);
+	});
+
+	test('resolves pending first-load messages to false when disposed before mount', async () => {
+		const root = document.createElement('div');
+		const overlay = createOverlay(root);
+
+		const p1 = overlay.postMessage('first');
+		const p2 = overlay.postMessage('second');
+
+		overlay.dispose();
+
+		const [r1, r2] = await Promise.all([p1, p2]);
+
+		assert.strictEqual(r1, false);
+		assert.strictEqual(r2, false);
 	});
 });
