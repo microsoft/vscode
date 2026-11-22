@@ -2145,6 +2145,7 @@
     "test-markdown-editor-package-json": "node --test ./scripts/updateMarkdownEditorPackageJson.test.mts",
     "test-editor-title": "node --test ./scripts/editorTitle.test.mts",
     "test-markdown-editor-clipboard": "node --test ./scripts/clipboardMedia.test.mts ./scripts/markdownEditorMediaTransfer.test.mts",
+    "test-markdown-editor-shortcuts-browser": "node --test ./scripts/markdownEditorShortcuts.browser.test.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",

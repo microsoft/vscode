@@ -150,4 +150,5 @@ packageExtensions:
     dependencies:
       '@microsoft/applicationinsights-common': ^3.3.4
 patchedDependencies:
+  '@vscode/markdown-editor@0.0.2-179': build/npm/patches/markdown-editor-shortcuts.patch
   foundry-local-sdk: build/npm/patches/foundry-local-sdk.patch

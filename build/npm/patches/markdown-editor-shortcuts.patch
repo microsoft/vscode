@@ -1,0 +1,59 @@
+diff --git a/dist/index.js b/dist/index.js
+index 6d1dda0..2d7cc39 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -9545,7 +9545,7 @@ class bh extends X {
+   }
+ }
+ function yh(n, e) {
+-  return n.key.toLowerCase() === "f" && !n.shiftKey && !n.altKey && (e === "macos" ? n.metaKey && !n.ctrlKey : n.ctrlKey && !n.metaKey);
++  return Mi(n).key.toLowerCase() === "f" && !n.shiftKey && !n.altKey && (e === "macos" ? n.metaKey && !n.ctrlKey : n.ctrlKey && !n.metaKey);
+ }
+ function kn(n) {
+   n.preventDefault(), n.stopPropagation();
+@@ -9665,7 +9665,7 @@ class Cu {
+         return;
+       }
+       if (!ze(u.target, e.element))
+-        switch (u.key.toLowerCase()) {
++        switch (Mi(u).key.toLowerCase()) {
+           case "c": {
+             const g = e.copy();
+             if (g === void 0)
+@@ -9712,7 +9712,7 @@ function ze(n, e) {
+   return s instanceof HTMLMediaElement && e.contains(s);
+ }
+ function Ch(n, e, t) {
+-  switch (n.key.toLowerCase()) {
++  switch (Mi(n).key.toLowerCase()) {
+     case "c": {
+       const s = Li(e);
+       if (s === void 0)
+@@ -9794,14 +9794,24 @@ function Th(n) {
+   return n.includes("Macintosh") || n.includes("Mac OS X") ? "macos" : n.includes("Windows") ? "windows" : "linux";
+ }
+ function Mi(n) {
++  let { key, code } = n;
++  const altGraphKey = n.getModifierState("AltGraph");
++  if (n.isComposing || n.keyCode === 229 || altGraphKey) {
++    key = "";
++    code = "";
++  } else if ((n.ctrlKey || n.metaKey) && /^\p{L}$/u.test(key) && !/^[a-z]$/i.test(key)) {
++    // Windows webviews can omit code but still report a letter virtual key.
++    const fallback = n.keyCode >= 65 && n.keyCode <= 90 ? String.fromCharCode(n.keyCode) : key;
++    key = Mh(code) ?? fallback;
++  }
+   return {
+-    key: n.key,
+-    code: n.code,
++    key,
++    code,
+     shiftKey: n.shiftKey,
+     altKey: n.altKey,
+     ctrlKey: n.ctrlKey,
+     metaKey: n.metaKey,
+-    altGraphKey: n.getModifierState("AltGraph")
++    altGraphKey
+   };
+ }
+ function Oi(n, e, t = In) {
