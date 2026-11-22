@@ -441,7 +441,6 @@ export function setup(logger: Logger, quality: Quality) {
 
 				try {
 					const requestsBefore = handoff.mockServer.getRequests().length;
-					// The remote session tools register late in startup; a session started after the warm-up has them.
 					await warmUpAgentHostModel(app, logger, 'Agents Window (Dev Container handoff)');
 					await app.workbench.agentsWindow.submitNewSessionPrompt(`continue in a Dev Container [scenario:${DEV_CONTAINER_HANDOFF_SCENARIO_ID}]`);
 					await app.workbench.agentsWindow.waitForActiveSessionView();
