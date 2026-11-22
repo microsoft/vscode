@@ -60,7 +60,7 @@ import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -92,7 +92,7 @@ import { getComputerUseActivationAnswers, withComputerUseActivationCard, withCom
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -106,6 +106,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, ty
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostHookWarnings.js';
 import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -1236,6 +1237,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeHooks = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
 		override readonly onDidChangeAgentInstructions = Event.None;
 
@@ -10403,6 +10405,60 @@ suite('AgentHostChatContribution', () => {
 			const warnings = collected.flat().filter(part => part.kind === 'warning');
 			assert.deepStrictEqual(warnings.map(part => part.content.value), ['Worktree creation failed']);
 		}));
+
+		for (const showWarnings of [true, false]) {
+			test(`a hook failure response part becomes a live warning only when hook warnings are shown (${showWarnings})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.HooksShowWarnings]: showWarnings } });
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+				fire({
+					type: 'chat/responsePart',
+					session,
+					turnId,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: 'The sessionStart hook from .github/hooks/session.json failed: Error: spawn /bin/bash ENOENT',
+						_meta: toAgentSystemNotificationMeta({
+							kind: AgentSystemNotificationKind.Hook,
+							severity: AgentSystemNotificationSeverity.Warning,
+							hook: { type: 'sessionStart', outcome: AgentHookOutcome.Failed, source: '.github/hooks/session.json', message: 'Error: spawn /bin/bash ENOENT' },
+						}),
+					},
+				} as ChatAction);
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+
+				assert.deepStrictEqual(collected.flat().flatMap(part => part.kind === 'hook' || part.kind === 'warning' || part.kind === 'systemNotification'
+					? [{ kind: part.kind, namesHook: part.kind === 'warning' && part.content.value.includes('Session Start hook') }] : []), showWarnings
+					? [{ kind: 'warning', namesHook: true }]
+					: []);
+			}));
+		}
+
+		for (const workspaceValue of [undefined, true]) {
+			test(`Disable Hook Warnings turns hook warnings off where they are set and opens the setting (workspace value ${workspaceValue})`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const updates: unknown[][] = [];
+				instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+					override inspect<T>(key: string): IConfigurationValue<T> {
+						return { ...super.inspect<T>(key), workspaceValue: workspaceValue as T | undefined };
+					}
+					override updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> {
+						updates.push([key, value, ...rest]);
+						return Promise.resolve();
+					}
+				}());
+				const commandService = new MockCommandService();
+				instantiationService.stub(ICommandService, commandService);
+
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID)!.handler(accessor));
+
+				assert.deepStrictEqual({ updates, commands: commandService.calls }, {
+					updates: [[ChatConfiguration.HooksShowWarnings, false, workspaceValue === undefined ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE]],
+					commands: [{ commandId: 'workbench.action.openSettings', args: [ChatConfiguration.HooksShowWarnings] }],
+				});
+			});
+		}
 
 		test('Auto model routing metadata becomes a live resolution part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([

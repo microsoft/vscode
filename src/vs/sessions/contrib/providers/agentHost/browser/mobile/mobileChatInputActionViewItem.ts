@@ -5,14 +5,13 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IModePickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
+import { renderModelChipChevron } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 
 /** The mobile composer uses a model label and chevron, without mode or provider icons. */
@@ -42,7 +41,7 @@ export class MobileChatInputActionViewItem extends BaseActionViewItem {
 		trigger.setAttribute('aria-haspopup', 'dialog');
 		trigger.setAttribute('aria-expanded', 'false');
 		const label = dom.append(trigger, dom.$('span.chat-input-picker-label'));
-		dom.append(trigger, renderIcon(Codicon.chevronDown)).classList.add('chat-phone-input-chip-chevron');
+		dom.append(trigger, renderModelChipChevron());
 		this.renderDisposables.add(autorun(reader => {
 			const mode = this.mode.currentMode.read(reader).label.read(reader);
 			const name = this.model.currentModel.read(reader)?.metadata.name ?? localize('auto', "Auto");

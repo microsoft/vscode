@@ -125,6 +125,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.onDidArchive?.(session);
 	}
 
+	override archiveSessions(sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]> {
+		return Promise.allSettled(sessions.map(session => this.archiveSession(session)));
+	}
+
 	readonly unarchived: ISession[] = [];
 
 	override async unarchiveSession(session: ISession): Promise<void> {

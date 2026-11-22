@@ -67,7 +67,7 @@ import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICopilotExtensionsService } from '../../../../contrib/chat/browser/aiCustomization/copilotExtensionsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationOrganizationControl, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationOrganizationControl, ICustomizationSectionNotice, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -218,6 +218,7 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override async fetchProviderItems() { return []; }
 		override async fetchAICustomizationItems(_promptType: PromptsType) { return []; }
 		override async fetchSourceFolders(_promptType: PromptsType) { return []; }
+		override async fetchSectionNotices(_promptType: PromptsType) { return []; }
 	}();
 
 	return new class extends mock<IAICustomizationItemsModel>() {
@@ -225,6 +226,7 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override getActiveItemSource() { return itemSource; }
 		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
 		override getPluginCount(): IObservable<number> { return constObservable(0); }
+		override getSectionNotices(_section: ItemsModelSection): IObservable<readonly ICustomizationSectionNotice[]> { return constObservable([]); }
 		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
 	}();
 }

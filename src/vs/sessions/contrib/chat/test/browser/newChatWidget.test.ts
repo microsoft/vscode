@@ -1307,7 +1307,7 @@ suite('NewChatWidget', () => {
 			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true });
 			assert.deepStrictEqual({ localSelection, containerSelection: picked.get() }, {
 				localSelection: first,
-				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container', icon: Codicon.remote },
+				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container for Folder', icon: Codicon.remote },
 			});
 		});
 

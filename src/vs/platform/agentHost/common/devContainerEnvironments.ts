@@ -15,9 +15,29 @@ export const devContainerEnvironmentImage = 'mcr.microsoft.com/devcontainers/bas
 /** Images that hosts accept for Dev Container environments. */
 export const devContainerEnvironmentImages: readonly string[] = [devContainerEnvironmentImage];
 
+/** Where an environment's Docker volume is mounted in its container. */
+export const devContainerEnvironmentVolumeTarget = '/workspaces';
+
+/** A folder in a Docker volume, by which the Dev Containers extension identifies the container it opens the folder in. */
+export interface IDevContainerVolumeFolder {
+	readonly volumeName: string;
+	readonly folder: string;
+}
+
+/** The workspace folder of an environment: like New Dev Container, a folder in its volume that is named like the volume. */
+export function getDevContainerEnvironmentWorkspaceFolder(volumeName: string): string {
+	return `${devContainerEnvironmentVolumeTarget}/${volumeName}`;
+}
+
+/** Reads the volume and folder of an environment from its workspace folder, see {@link getDevContainerEnvironmentWorkspaceFolder}. */
+export function parseDevContainerEnvironmentWorkspaceFolder(workspaceFolder: string): IDevContainerVolumeFolder | undefined {
+	const name = /^\/workspaces\/(?<name>[a-zA-Z0-9][a-zA-Z0-9_.-]*)$/.exec(workspaceFolder)?.groups?.name;
+	return name ? { volumeName: name, folder: name } : undefined;
+}
+
 /** Identifies a standalone Dev Container that is not created for a workspace folder. */
 export interface IDevContainerEnvironmentReference {
-	/** Client-chosen identifier that names the container's Docker volume and identity label. */
+	/** Client-chosen identifier that labels the container's Docker volumes. */
 	readonly environmentId: string;
 }
 

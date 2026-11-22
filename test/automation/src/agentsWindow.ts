@@ -148,8 +148,33 @@ export class AgentsWindow {
 	async showSessionPreparationLog(): Promise<void> {
 		const page = this.code.driver.currentPage;
 		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await this.waitForDevContainerLogAndClose();
+	}
+
+	/**
+	 * Clicks a link in the active session's response that runs `commandId`, accepting tool confirmations until it
+	 * renders, and waits for the Dev Container log that it opens.
+	 */
+	async showDevContainerLogFromLink(commandId: string, timeoutMs = 5 * 60 * 1000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const link = page.locator(`${ACTIVE_SESSION} .interactive-response a[data-href^="command:${commandId}"]`).first();
+		const deadline = Date.now() + timeoutMs;
+		while (!await link.isVisible()) {
+			if (Date.now() > deadline) {
+				throw new Error(`Timed out waiting for a link that runs ${commandId}`);
+			}
+			await acceptToolConfirmationIfPresent(this.code);
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+		await link.click();
+		await this.waitForDevContainerLogAndClose();
+	}
+
+	private async waitForDevContainerLogAndClose(): Promise<void> {
+		const page = this.code.driver.currentPage;
 		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
-		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		// The log of a Dev Container environment starts with its Docker commands, before the Dev Containers CLI writes to it.
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:|\$\s*docker/.test(text.replace(/\u00a0/g, ' ')));
 		await this.quickaccess.runCommand('workbench.action.closePanel');
 	}
 
@@ -454,7 +479,7 @@ export class AgentsWindow {
 			try {
 				await picker.click();
 				if (usesEnvironmentPicker) {
-					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container', { exact: true }) });
+					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container for Folder', { exact: true }) });
 					await container.waitFor({ state: 'visible', timeout: 5_000 });
 					await container.click();
 				} else {

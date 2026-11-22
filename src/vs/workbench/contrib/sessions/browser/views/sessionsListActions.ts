@@ -71,9 +71,18 @@ async function archiveSessionsWithUndo(
 		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
 		.map(comparison => [comparison.groupId, comparison.id]));
 	try {
-		for (const entry of candidates) {
-			await sessionsManagementService.archiveSession(entry.session);
-			archived.push(entry);
+		const results = await sessionsManagementService.archiveSessions(candidates.map(entry => entry.session));
+		for (const [index, result] of results.entries()) {
+			if (result.status === 'fulfilled') {
+				archived.push(candidates[index]);
+			}
+		}
+		const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+		if (errors.length === 1) {
+			throw errors[0];
+		}
+		if (errors.length > 1) {
+			throw new AggregateError(errors, toErrorMessage(errors));
 		}
 	} finally {
 		// A partially completed batch must remain undoable even when a later archive fails.
@@ -194,12 +203,13 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				group: id === SessionSectionToolbarMenuId ? 'navigation' : '1_state',
 				order: id === SessionSectionToolbarMenuId ? 1 : 2,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
-				// Also not on Automations.
+				// Also not on Automations or Canvases.
 				when: ContextKeyExpr.and(
 					InboxModeContext.negate(),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'canvases'),
 				),
 			}))
 		});
@@ -1498,6 +1508,8 @@ function createSessionsListActions(): DisposableStore {
 			const now = new Date();
 			const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 9).getTime();
 			const picked = await quickInput.pick([
+				{ label: localize('snoozeTenMinutes', "In 10 Minutes"), value: now.getTime() + 10 * 60 * 1000 },
+				{ label: localize('snoozeThirtyMinutes', "In 30 Minutes"), value: now.getTime() + 30 * 60 * 1000 },
 				{ label: localize('snoozeHour', "In One Hour"), value: now.getTime() + 60 * 60 * 1000 },
 				{ label: localize('snoozeTomorrow', "Tomorrow Morning"), value: morning(1) },
 				{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },
