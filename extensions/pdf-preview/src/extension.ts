@@ -332,7 +332,7 @@ function getHtml(webview: vscode.Webview, root: vscode.Uri): string {
 <html lang="${vscode.env.language}">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}' 'wasm-unsafe-eval'; worker-src blob:; connect-src ${webview.cspSource}; img-src ${webview.cspSource} blob: data:; style-src ${webview.cspSource}; font-src data:">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; worker-src blob:; connect-src ${webview.cspSource}; img-src ${webview.cspSource} blob: data:; style-src ${webview.cspSource}; font-src data:">
 	<link rel="stylesheet" href="${rootUri}/index.css">
 </head>
 <body>

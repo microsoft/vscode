@@ -26,7 +26,7 @@ const container = document.getElementById('viewerContainer') as HTMLDivElement;
 const message = document.getElementById('message')!;
 
 // The worker can't load files through the service worker of the webview, so start it from its
-// source and let pdf.js load CMaps, fonts and image decoders on the page (`useWorkerFetch: false`)
+// source and let pdf.js load CMaps and fonts on the page (`useWorkerFetch: false`)
 const workerStarted = fetch(`${assets}pdf.worker.min.mjs`).then(response => response.text()).then(source => {
 	GlobalWorkerOptions.workerPort = new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })), { type: 'module' });
 });
@@ -62,11 +62,12 @@ async function load(data: Uint8Array, id: number): Promise<void> {
 	if (id !== latestLoad) {
 		return; // A newer version of the file arrived meanwhile
 	}
+	// No `wasmUrl`: the preview doesn't ship the image decoders (see esbuild.webview.mts), so JPEG
+	// 2000 and JBIG2 images don't show, but the rest of the page does
 	const task = loadingTask = getDocument({
 		data,
 		cMapUrl: `${assets}cmaps/`,
 		standardFontDataUrl: `${assets}standard_fonts/`,
-		wasmUrl: `${assets}wasm/`,
 		useWorkerFetch: false,
 		enableXfa: false,
 	});

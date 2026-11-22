@@ -12,15 +12,16 @@ const outDir = path.join(import.meta.dirname, 'preview-out');
 
 /**
  * Copies the files that pdf.js loads while it runs: its worker, the CMaps for CJK text, the Symbol
- * and ZapfDingbats fonts (it takes the other standard fonts from the system), the JPEG 2000 and JBIG2
- * image decoders, the icons of annotations, and the page loading indicator.
+ * and ZapfDingbats fonts (it takes the other standard fonts from the system), the icons of
+ * annotations, and the page loading indicator. The preview targets generated documents, such as the
+ * ones agents create, so it leaves out the JPEG 2000 and JBIG2 image decoders of scanned documents.
  */
 function copyPdfJsFiles(outDir: string): void {
 	const pdfjsDir = resolvePackageDirectory(import.meta.dirname, 'pdfjs-dist');
 	const copy = (from: string, to: string) => fs.cpSync(path.join(pdfjsDir, from), path.join(outDir, to), { recursive: true });
 	copy('build/pdf.worker.min.mjs', 'pdfjs/pdf.worker.min.mjs');
 	copy('cmaps', 'pdfjs/cmaps');
-	for (const file of ['standard_fonts/FoxitSymbol.pfb', 'standard_fonts/FoxitDingbats.pfb', 'standard_fonts/LICENSE_FOXIT', 'wasm/openjpeg.wasm', 'wasm/jbig2.wasm', 'wasm/LICENSE_OPENJPEG', 'wasm/LICENSE_JBIG2', 'wasm/LICENSE_PDFJS_OPENJPEG', 'wasm/LICENSE_PDFJS_JBIG2']) {
+	for (const file of ['standard_fonts/FoxitSymbol.pfb', 'standard_fonts/FoxitDingbats.pfb', 'standard_fonts/LICENSE_FOXIT']) {
 		copy(file, `pdfjs/${file}`);
 	}
 	for (const file of fs.readdirSync(path.join(pdfjsDir, 'web/images')).filter(name => name.startsWith('annotation-') || name === 'loading-icon.gif')) {
