@@ -1269,6 +1269,21 @@ suite('ListView', function () {
 			});
 		});
 
+		test('does not render unselected rows for a copy', async () => {
+			const { listView, selectRows, renderedIndexes } = createSelectableList(1000);
+			selectRows(0, 3);
+			listView.setScrollTop(500 * rowHeight);
+
+			listView.domElement(500)!.dispatchEvent(new ClipboardEvent('copy', { bubbles: true }));
+			const duringCopy = renderedIndexes();
+			await timeout(0);
+
+			assert.deepStrictEqual({ duringCopy, afterCopy: renderedIndexes() }, {
+				duringCopy: [0, 1, 2, 3, 500, 501, 502],
+				afterCopy: [0, 3, 500, 501, 502]
+			});
+		});
+
 		test('reads the whole selection without leaving its rows rendered', () => {
 			const { listView, selectRows, renderedIndexes } = createSelectableList(30);
 			selectRows(0, 26);

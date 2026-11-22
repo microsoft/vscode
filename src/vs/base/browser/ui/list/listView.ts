@@ -1449,14 +1449,31 @@ export class ListView<T> implements IListView<T> {
 		}
 	}
 
+	/**
+	 * Toggles only the rows inside the selection, so an unselected gap to the viewport stays virtualized.
+	 */
 	private setFullSelectionRendered(rendered: boolean): void {
-		if (rendered === this.isFullSelectionRendered) {
+		if (!this.currentSelectionBounds || rendered === this.isFullSelectionRendered) {
 			return;
 		}
 
-		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		this.isFullSelectionRendered = rendered;
-		this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined);
+
+		const { start, end } = this.currentSelectionBounds;
+		const visibleRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		// Walk backwards because each row is inserted before the one after it.
+		for (let index = end - 1; index > start; index--) {
+			const isVisible = index >= visibleRange.start && index < visibleRange.end;
+			if (isVisible) {
+				continue;
+			}
+
+			if (!rendered) {
+				this.removeItemFromDOM(index);
+			} else if (!this.items[index].row) {
+				this.insertItemInDOM(index);
+			}
+		}
 	}
 
 	/**
@@ -1757,14 +1774,7 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
-		const range = this.getVisibleRange(renderTop, renderHeight);
-		if (this.currentSelectionBounds && this.isFullSelectionRendered) {
-			const max = this.rangeMap.count;
-			range.start = Math.min(range.start, this.currentSelectionBounds.start, max);
-			range.end = Math.min(Math.max(range.end, this.currentSelectionBounds.end + 1), max);
-		}
-
-		return range;
+		return this.getVisibleRange(renderTop, renderHeight);
 	}
 
 	/**
