@@ -31,7 +31,8 @@ import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING
 export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _isFirstLoad = true;
-	private readonly _firstLoadPendingMessages = new Set<{ readonly message: unknown; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
+	private _isDrainingFirstLoad = false;
+	private readonly _firstLoadPendingMessages: Array<{ readonly message: unknown; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }> = [];
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -103,7 +104,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		for (const msg of this._firstLoadPendingMessages) {
 			msg.resolve(false);
 		}
-		this._firstLoadPendingMessages.clear();
+		this._firstLoadPendingMessages.length = 0;
 
 		this._onDidDispose.fire();
 
@@ -314,19 +315,23 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			if (this._isFirstLoad) {
 				this._isFirstLoad = false;
-				const pending = Array.from(this._firstLoadPendingMessages);
-				this._firstLoadPendingMessages.clear();
+				this._isDrainingFirstLoad = true;
 				(async () => {
-					for (const msg of pending) {
-						if (this._isDisposed) {
-							msg.resolve(false);
-							continue;
+					try {
+						while (this._firstLoadPendingMessages.length > 0) {
+							const msg = this._firstLoadPendingMessages.shift()!;
+							if (this._isDisposed || this._webview.value !== webview) {
+								msg.resolve(false);
+								continue;
+							}
+							try {
+								msg.resolve(await webview.postMessage(msg.message, msg.transfer));
+							} catch {
+								msg.resolve(false);
+							}
 						}
-						try {
-							msg.resolve(await webview.postMessage(msg.message, msg.transfer));
-						} catch {
-							msg.resolve(false);
-						}
+					} finally {
+						this._isDrainingFirstLoad = false;
 					}
 				})();
 			}
@@ -415,14 +420,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
 	public async postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
-		if (this._webview.value) {
+		if (this._webview.value && !this._isDrainingFirstLoad) {
 			return this._webview.value.postMessage(message, transfer);
 		}
 
-		if (this._isFirstLoad) {
+		if (this._isFirstLoad || this._isDrainingFirstLoad) {
 			let resolve: (x: boolean) => void;
 			const p = new Promise<boolean>(r => resolve = r);
-			this._firstLoadPendingMessages.add({ message, transfer, resolve: resolve! });
+			this._firstLoadPendingMessages.push({ message, transfer, resolve: resolve! });
 			return p;
 		}
 
