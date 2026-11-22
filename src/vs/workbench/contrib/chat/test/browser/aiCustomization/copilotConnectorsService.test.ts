@@ -376,6 +376,44 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('uses vendor author as publisher and routes source links to Copilot source page', async () => {
+		const fixture = createFixture([{
+			body: {
+				plugins: [
+					createConnectorPlugin({
+						name: 'amplitude',
+						homepage: 'https://amplitude.com',
+						author: { name: 'Amplitude', url: 'https://amplitude.com' },
+						repository: 'https://github.com/amplitude/connector',
+						metadata: { displayName: 'Amplitude' },
+					}),
+					createConnectorPlugin({
+						name: 'unattributed',
+						homepage: 'https://example.com/unattributed',
+						author: { name: '', url: '' },
+						metadata: { displayName: 'Unattributed' },
+					}),
+				],
+			},
+		}]);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
+		const page = await source.query({}, CancellationToken.None);
+
+		assert.strictEqual(page.items.length, 2);
+		const amplitude = page.items[0];
+		assert.strictEqual(amplitude.publisher, 'Amplitude');
+		assert.strictEqual(amplitude.publisherUrl?.toString(), 'https://amplitude.com/');
+		assert.strictEqual(amplitude.url?.toString(), 'https://github.com/features/copilot');
+		assert.strictEqual(amplitude.externalUrl, 'https://github.com/features/copilot');
+		assert.strictEqual(amplitude.repository?.toString(), 'https://github.com/amplitude/connector');
+
+		const unattributed = page.items[1];
+		assert.strictEqual(unattributed.publisher, 'GitHub Copilot');
+		assert.strictEqual(unattributed.publisherUrl?.toString(), 'https://github.com/features/copilot');
+		assert.strictEqual(unattributed.url?.toString(), 'https://github.com/features/copilot');
+		assert.strictEqual(unattributed.externalUrl, 'https://github.com/features/copilot');
+	});
+
 	test('projects top-level service metadata and public endpoints', async () => {
 		const fixture = createFixture([{
 			body: {

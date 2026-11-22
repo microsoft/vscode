@@ -1075,8 +1075,13 @@ function scoreConnectorField(word: string, value: string): number | undefined {
 	return best;
 }
 
+const copilotConnectorsSourcePageUri = URI.parse('https://github.com/features/copilot');
+
 export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {
-	const publisherUrl = connector.homepage ?? connector.author?.url;
+	const publisher = connector.author?.name || localize('copilotConnectors.publisher', "GitHub Copilot");
+	const publisherUrl = connector.author?.name
+		? (connector.author.url ?? connector.homepage)
+		: ((connector.homepage?.authority.toLowerCase() === 'github.com' ? connector.homepage : undefined) ?? copilotConnectorsSourcePageUri);
 	return {
 		identifier: connector.name,
 		displayName: connector.displayName,
@@ -1086,10 +1091,11 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		capabilities: connector.capabilities,
 		representativeQueries: connector.representativeQueries,
 		connectorIds: [...new Set([connector.name, ...connector.mcpServers.map(server => server.name)])],
-		url: connector.documentation,
-		externalUrl: connector.documentation?.toString(true),
+		url: copilotConnectorsSourcePageUri,
+		externalUrl: copilotConnectorsSourcePageUri.toString(true),
+		...(connector.repository ? { repository: connector.repository } : {}),
 		icon: connector.icon,
-		publisher: localize('copilotConnectors.publisher', "GitHub Copilot"),
+		publisher,
 		...(publisherUrl ? { publisherUrl } : {}),
 		installation: { kind: 'copilotConnector', name: connector.name },
 	};
