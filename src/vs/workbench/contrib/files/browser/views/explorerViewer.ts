@@ -1209,9 +1209,23 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			}
 		}));
 		this.toDispose.push(this.fileService.onDidFilesChange(async e => {
-			// Check to see if the update contains any of the ignoreFileResources
+			// Process deletions synchronously across all roots before awaiting updates
+			let didDelete = false;
 			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
-				let didDelete = false;
+				for (const ignoreResource of Array.from(ignoreFileResourceSet)) {
+					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
+						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
+						ignoreFileResourceSet.delete(ignoreResource);
+						didDelete = true;
+					}
+				}
+			}
+			if (didDelete) {
+				this._onDidChange.fire();
+			}
+
+			// Process updates sequentially
+			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
 				for (const ignoreResource of Array.from(ignoreFileResourceSet)) {
 					if (e.contains(ignoreResource, FileChangeType.UPDATED)) {
 						try {
@@ -1220,14 +1234,6 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 							// ignore file read errors on updated ignore file
 						}
 					}
-					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
-						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
-						ignoreFileResourceSet.delete(ignoreResource);
-						didDelete = true;
-					}
-				}
-				if (didDelete) {
-					this._onDidChange.fire();
 				}
 			}
 		}));
