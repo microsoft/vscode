@@ -77,7 +77,7 @@ import { IChatWidget } from '../../../chat/browser/chat.js';
 import type { IChatPetPlatformOccupation } from '../../../chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { ChatModeKind } from '../../../chat/common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
@@ -230,6 +230,11 @@ export class NewChatWidget extends Disposable {
 	private readonly _newWorktree: NewWorktreeChoice | undefined;
 	/** Whether the composer offers New Worktree as a checkbox beside its workspace picker, instead of in the picker. */
 	private readonly _newWorktreeCheckboxVisible: IObservable<boolean>;
+	/**
+	 * Whether worktree support of editor windows is on ({@link ChatConfiguration.EditorWindowEnableWorktree}): a composer restricted
+	 * to its folders, such as an editor window's, offers New Worktree only then, as its other entry points do.
+	 */
+	private readonly _worktreeSettingEnabled: IObservable<boolean>;
 	private _changingEnvironment = false;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _inputController: INewSessionInputController | undefined;
@@ -448,6 +453,7 @@ export class NewChatWidget extends Disposable {
 		// sheet on phone-layout viewports. On Electron desktop, the regular
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const draftHostAllowedFolders = this._draftHost?.allowedFolders;
+		this._worktreeSettingEnabled = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, this.configurationService);
 		this._newWorktree = draftHostAllowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session, derived(this, reader => draftHostAllowedFolders.read(reader).length > 0));
 		this._newWorktreeCheckboxVisible = this._createNewWorktreeCheckboxVisible(this._newWorktree, draftHostAllowedFolders);
 		// Restricted to its folders, the composer offers New Worktree itself, in its folder picker or as a checkbox
@@ -1647,7 +1653,7 @@ export class NewChatWidget extends Disposable {
 	/** New Worktree in the workspace picker: not while the checkbox beside it offers it. */
 	private _getPickerNewWorktree(newWorktree: NewWorktreeChoice): IWorkspacePickerNewWorktreeOption {
 		return {
-			isAvailable: () => !this._newWorktreeCheckboxVisible.get() && newWorktree.isAvailable(),
+			isAvailable: () => this._worktreeSettingEnabled.get() && !this._newWorktreeCheckboxVisible.get() && newWorktree.isAvailable(),
 			isSelected: () => newWorktree.isSelected(),
 			setSelected: selected => this._setNewWorktreeByUser(newWorktree, selected),
 		};
@@ -1669,8 +1675,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * Whether a composer restricted to its folders offers New Worktree as a checkbox: where AI features are on, none of its
-	 * folders has a worktree to pick from, its draft can work in a new worktree, and the Chat view shows the sessions list
+	 * Whether a composer restricted to its folders offers New Worktree as a checkbox: with worktree support on, where AI features
+	 * are on, none of its folders has a worktree to pick from, its draft can work in a new worktree, and the Chat view shows the sessions list
 	 * that has no No Workspace of its own.
 	 */
 	private _createNewWorktreeCheckboxVisible(newWorktree: NewWorktreeChoice | undefined, allowedFolders: IObservable<readonly URI[]> | undefined): IObservable<boolean> {
@@ -1681,7 +1687,7 @@ export class NewChatWidget extends Disposable {
 		// The Sessions list of the Chat view, by the setting's ID, as the Chat view's own New Worktree checkbox reads it
 		const sessionsListEnabled = observableConfigValue<boolean>('chat.viewSessions.sessionsList.enabled', false, this.configurationService);
 		return derived(this, reader => {
-			if (!chatEnabled.read(reader) || sessionsListEnabled.read(reader)) {
+			if (!this._worktreeSettingEnabled.read(reader) || !chatEnabled.read(reader) || sessionsListEnabled.read(reader)) {
 				return false;
 			}
 			this._environmentWorkspaceChanged.read(reader);
@@ -1699,7 +1705,7 @@ export class NewChatWidget extends Disposable {
 			}
 			// Not persisted: the main composer's last workspace stays its own.
 			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, ...(target.requireDevContainer ? { preferDevContainer: true } : {}), persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
-			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId, isPreference: target.placementIsPreference } : undefined;
+			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' && this._worktreeSettingEnabled.get() ? { folderUri: target.folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId, isPreference: target.placementIsPreference } : undefined;
 			this._pendingWorktreePlacement.set(placement, undefined);
 			const creation = this._createNewSession(target.folderUri, pick);
 			if (placement) {
@@ -1744,7 +1750,7 @@ export class NewChatWidget extends Disposable {
 	 */
 	private async _handleWorktreeSendChoice(request: IChatSubmitRequest): Promise<boolean> {
 		const session = this._session.get();
-		if (!session || !isEqual(request.sessionResource, session.resource)) {
+		if (!session || !isEqual(request.sessionResource, session.resource) || !this._worktreeSettingEnabled.get()) {
 			return false;
 		}
 		if (this._askingWorktreeOnSend.has(session.sessionId)) {

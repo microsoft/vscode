@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, runOnChange } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -21,20 +21,9 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
-import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../../common/constants.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
-
-/**
- * Whether the sessions whose project is a folder of the window, such as those in its worktrees, are listed too: with worktree
- * support, and while the chats of the Chat view's sessions open in the chat area, whose composer offers New Worktree.
- */
-export function observeMatchProjectRoot(configurationService: IConfigurationService): IObservable<boolean> {
-	const worktreeSupport = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, configurationService);
-	const openChatIn = observableConfigValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn, ChatViewSessionsOpenChatIn.ChatPanel, configurationService);
-	const orientation = observableConfigValue<unknown>(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide', configurationService);
-	return derived(reader => !!worktreeSupport.read(reader) || (openChatIn.read(reader) === ChatViewSessionsOpenChatIn.ChatArea && orientation.read(reader) !== 'stacked'));
-}
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
@@ -92,7 +81,8 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 			return;
 		}
 		this._initialized = true;
-		const matchProjectRoot = observeMatchProjectRoot(this._configurationService);
+		// With worktree support, also the sessions whose project is a folder of the window, such as those in its worktrees
+		const matchProjectRoot = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, this._configurationService);
 		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), matchProjectRoot }));
 		this._sessionListStore = sessionListStore;
 
