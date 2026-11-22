@@ -800,6 +800,40 @@ suite('AgentSessionsDataSource', () => {
 			]);
 		});
 
+		for (const activeStatus of [ChatSessionStatus.InProgress, ChatSessionStatus.NeedsInput]) {
+			test(`capped grouping collapses history when only a pinned session is active (${activeStatus})`, () => {
+				let status = activeStatus;
+				const pinned: IAgentSession = {
+					...createMockSession({ id: 'pinned', isPinned: true, startTime: 1 }),
+					get status() { return status; },
+				};
+				const history = Array.from({ length: 5 }, (_, index) => createMockSession({
+					id: `history-${index}`, startTime: 10 - index,
+				}));
+				const dataSource = disposables.add(new AgentSessionsDataSource(
+					createMockFilter({ groupBy: AgentSessionsGrouping.Capped }), new AgentSessionsSorter(),
+				));
+				const model = createMockModel([...history, pinned]);
+				const snapshot = () => {
+					const result = Array.from(dataSource.getChildren(model));
+					return {
+						visible: result.filter(isAgentSession).map(session => session.label),
+						more: getSectionsFromResult(result).find(section => section.section === AgentSessionSection.More)?.sessions.map(session => session.label),
+					};
+				};
+
+				assert.deepStrictEqual(snapshot(), {
+					visible: ['Session pinned'],
+					more: history.map(session => session.label),
+				});
+				status = ChatSessionStatus.Completed;
+				assert.deepStrictEqual(snapshot(), {
+					visible: ['Session pinned', 'Session history-0', 'Session history-1', 'Session history-2'],
+					more: ['Session history-3', 'Session history-4'],
+				});
+			});
+		}
+
 		test('capped grouping updates visibility through repeated long-session state changes', (): void => {
 			const history: IAgentSession[] = Array.from({ length: 1000 }, (_, index: number): IAgentSession => createMockSession({
 				id: `history-${index}`, startTime: 2000 - index,
