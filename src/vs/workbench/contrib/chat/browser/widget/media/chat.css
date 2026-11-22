@@ -1098,6 +1098,8 @@ following list content ends up with no space above it. Add a matching top margin
 have to be updated for changes to the rules above, or to support more deeply nested lists. */
 .interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
 	margin-left: -24px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ul ul .interactive-result-code-block {
@@ -1106,6 +1108,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .value .rendered-markdown ol .interactive-result-code-block {
 	margin-left: -28px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ol ol .interactive-result-code-block {

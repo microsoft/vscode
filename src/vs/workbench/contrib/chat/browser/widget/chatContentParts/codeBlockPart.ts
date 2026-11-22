@@ -494,6 +494,7 @@ export class CodeBlockPart extends Disposable {
 
 	render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
+		this.element.classList.toggle('chat-request-code-block', isRequestVM(data.element));
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
