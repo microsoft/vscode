@@ -33,7 +33,7 @@ import { IPathService } from '../../path/common/pathService.js';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from '../../workingCopy/common/workingCopyFileService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, WORKSPACE_EXTENSION } from '../../../../platform/workspace/common/workspace.js';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from '../common/encoding.js';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind, isLossyEncoding, SUPPORTED_ENCODINGS } from '../common/encoding.js';
 import { consumeStream, ReadableStream } from '../../../../base/common/stream.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -534,6 +534,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 						(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
 						(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
 					) {
+
+						// Do not delete the target when saving would replace characters
+						// that its encoding cannot represent: the save would be refused
+						if (!options?.ignoreEncodingLoss) {
+							const { encoding } = await this.encoding.getWriteEncoding(target, { encoding: sourceModelEncoding });
+							const sourceTextModel = sourceModel instanceof BaseTextEditorModel ? sourceModel.textEditorModel : sourceModel as ITextModel;
+							if (sourceTextModel && await isLossyEncoding(sourceTextModel.createSnapshot(), encoding)) {
+								throw new TextFileOperationError(localize('lossyEncoding', "Some characters cannot be represented in the encoding '{0}'.", SUPPORTED_ENCODINGS[encoding]?.labelShort ?? encoding), TextFileOperationResult.FILE_ENCODING_LOSSY, { encoding });
+							}
+						}
+
 						await this.fileService.del(target);
 
 						return this.doSaveAsTextFile(sourceModel, source, target, options);

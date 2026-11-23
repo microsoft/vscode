@@ -141,8 +141,17 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const encoding = error.options?.encoding ?? model.getEncoding() ?? '';
 			message = localize({ key: 'lossyEncodingSaveError', comment: ['{0} is the resource that failed to save and {1} the name of an encoding'] }, "Failed to save '{0}': Some characters cannot be represented in the encoding '{1}' and would be replaced. Select 'Save Anyway' to replace them, or save with a different encoding.", basename(resource), SUPPORTED_ENCODINGS[encoding]?.labelShort ?? encoding);
 
-			primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreEncodingLossAction, model, options));
-			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model));
+			// When "Save As" failed, the model is the target and `from` the source
+			// that the user edits: act on the source so that it is reverted and
+			// its editor replaced once saved, as for any "Save As"
+			const saveAsSource = (options as ITextFileSaveAsOptions).from;
+			if (saveAsSource) {
+				primaryActions.push(this.instantiationService.createInstance(SaveAsIgnoreEncodingLossAction, saveAsSource, model.resource, options));
+				primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, saveAsSource));
+			} else {
+				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreEncodingLossAction, model, options));
+				primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model.resource));
+			}
 			primaryActions.push(this.instantiationService.createInstance(RevertModelAction, model));
 		}
 
@@ -169,7 +178,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			}
 
 			// Save As
-			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model));
+			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model.resource));
 
 			// Revert
 			primaryActions.push(this.instantiationService.createInstance(RevertModelAction, model));
@@ -334,42 +343,40 @@ class RevertModelAction extends Action {
 	}
 }
 
+function findEditorToSaveAs(editorService: IEditorService, resource: URI): IEditorIdentifier | undefined {
+	let preferredMatchingEditor: IEditorIdentifier | undefined;
+
+	const editors = editorService.findEditors(resource, { supportSideBySide: SideBySideEditor.PRIMARY });
+	for (const identifier of editors) {
+		if (identifier.editor instanceof FileEditorInput) {
+			// We prefer a `FileEditorInput` for "Save As", but it is possible
+			// that a custom editor is leveraging the text file model and as
+			// such we need to fallback to any other editor having the resource
+			// opened for running the save.
+			preferredMatchingEditor = identifier;
+			break;
+		} else if (!preferredMatchingEditor) {
+			preferredMatchingEditor = identifier;
+		}
+	}
+
+	return preferredMatchingEditor;
+}
+
 class SaveModelAsAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel,
+		private resource: URI,
 		@IEditorService private editorService: IEditorService
 	) {
 		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL.value);
 	}
 
 	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			const editor = this.findEditor();
-			if (editor) {
-				await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
-			}
+		const editor = findEditorToSaveAs(this.editorService, this.resource);
+		if (editor) {
+			await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
 		}
-	}
-
-	private findEditor(): IEditorIdentifier | undefined {
-		let preferredMatchingEditor: IEditorIdentifier | undefined;
-
-		const editors = this.editorService.findEditors(this.model.resource, { supportSideBySide: SideBySideEditor.PRIMARY });
-		for (const identifier of editors) {
-			if (identifier.editor instanceof FileEditorInput) {
-				// We prefer a `FileEditorInput` for "Save As", but it is possible
-				// that a custom editor is leveraging the text file model and as
-				// such we need to fallback to any other editor having the resource
-				// opened for running the save.
-				preferredMatchingEditor = identifier;
-				break;
-			} else if (!preferredMatchingEditor) {
-				preferredMatchingEditor = identifier;
-			}
-		}
-
-		return preferredMatchingEditor;
 	}
 }
 
@@ -417,6 +424,37 @@ class SaveModelIgnoreEncodingLossAction extends Action {
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ ...this.options, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT });
+		}
+	}
+}
+
+class SaveAsIgnoreEncodingLossAction extends Action {
+
+	constructor(
+		private source: URI,
+		private target: URI,
+		private options: ITextFileSaveOptions,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService
+	) {
+		super('workbench.files.action.saveAsIgnoreEncodingLoss', localize('saveAnyway', "Save Anyway"));
+	}
+
+	override async run(): Promise<void> {
+		const editor = findEditorToSaveAs(this.editorService, this.source);
+
+		const { from, ...options } = this.options as ITextFileSaveAsOptions;
+		const target = await this.textFileService.saveAs(from ?? this.source, this.target, { ...options, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT });
+		if (!target || !editor) {
+			return;
+		}
+
+		// Show the target where the source was, as "Save As" does
+		const replacement = { resource: target, options: { pinned: true } };
+		if (!editor.editor.isDisposed()) {
+			await this.editorService.replaceEditors([{ editor: editor.editor, replacement }], editor.groupId);
+		} else {
+			await this.editorService.openEditor(replacement, editor.groupId); // untitled editors close when their model reverts
 		}
 	}
 }
