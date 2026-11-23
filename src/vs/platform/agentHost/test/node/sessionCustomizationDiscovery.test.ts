@@ -9,7 +9,6 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -508,13 +507,13 @@ suite('SessionCustomizationDiscovery', () => {
 
 	test('with chat.useHooks off, lists repository hooks and custom agent files that declare hooks as turned off, and keeps user and policy hooks', async () => {
 		const guard = await seed('/workspace/.github/agents/guard.agent.md', '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
-		const seededFilesChanged = Event.toPromise(Event.once(fileService.onDidFilesChange));
 		const helper = await seed('/home/.copilot/agents/helper.agent.md', '---\nname: helper\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
-		await seededFilesChanged;
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		let changes = 0;
-		disposables.add(discovery.onDidChange(() => changes++));
+		const changeListener = discovery.onDidChange(() => changes++);
 		configurationService.updateRootConfig({ [AgentHostHooksEnabledConfigKey]: false });
+		// The seeded files' change events can arrive once discovery watches their folders.
+		changeListener.dispose();
 		const client = hookDiscoveryClient(async () => ({
 			hooks: [
 				{ id: 'repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, definitionFileUri: URI.file('/workspace/.github/hooks/a.json').toString(), enabled: true },
