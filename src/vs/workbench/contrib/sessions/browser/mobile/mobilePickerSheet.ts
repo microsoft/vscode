@@ -220,6 +220,8 @@ export interface IMobileContentSheetApi {
 
 	/** Update the body's tab stops when opting into focus containment. */
 	setBodyFocusTargets(targets: readonly HTMLElement[]): void;
+	/** Keep focus inside the sheet when a refreshed body no longer contains the focused item. */
+	focusHeader(): void;
 
 	/** Dismiss the sheet (plays the close animation). Idempotent. */
 	close(): void;
@@ -229,6 +231,8 @@ export interface IMobileContentSheetApi {
  * Options for {@link showMobileContentSheet}.
  */
 export interface IMobileContentSheetOptions {
+	/** Present a full-screen reading page with a leading Back button. */
+	readonly navigationPage?: boolean;
 	/**
 	 * Optional caption shown beneath the title (single-line, muted).
 	 * Mirrors {@link IMobilePickerSheetOptions.caption}.
@@ -725,6 +729,7 @@ export function showMobileContentSheet(
 			caption: options?.caption,
 			headerActions: options?.headerActions,
 			doneLabel: options?.doneLabel,
+			navigationPage: options?.navigationPage,
 			hideDoneButton: options?.hideDoneButton,
 			iconClose: options?.iconClose,
 			trapFocus: options?.trapFocus,
@@ -739,6 +744,7 @@ export function showMobileContentSheet(
 		const api: IMobileContentSheetApi = {
 			bodyContainer, close, sheet: shell.sheet, overlay: shell.overlay,
 			setBodyFocusTargets: targets => shell.setBodyFocusTargets(targets),
+			focusHeader: () => shell.focusHeader(),
 		};
 		const bodyDisposable = renderBody(bodyContainer, api);
 		if (bodyDisposable) {
@@ -749,6 +755,7 @@ export function showMobileContentSheet(
 
 /** Options consumed by {@link buildMobileSheetShell}. */
 interface IMobileSheetShellOptions {
+	readonly navigationPage?: boolean;
 	readonly caption?: string;
 	readonly headerActions?: readonly IMobilePickerSheetHeaderAction[];
 	readonly doneLabel?: string;
@@ -780,6 +787,7 @@ interface IMobileSheetShell {
 	/** Disposable store tied to the sheet's lifetime; cleared on close. */
 	readonly disposables: DisposableStore;
 	setBodyFocusTargets(targets: readonly HTMLElement[]): void;
+	focusHeader(): void;
 	/**
 	 * Play the close animation, dispose listeners, and remove the DOM
 	 * node after the animation completes. Idempotent — subsequent
@@ -817,6 +825,7 @@ function buildMobileSheetShell(
 	sheet.setAttribute('aria-modal', 'true');
 	sheet.setAttribute('aria-label', title);
 	sheet.classList.toggle('compact-header', !!options.iconClose);
+	sheet.classList.toggle('mobile-navigation-page', !!options.navigationPage);
 
 	const activeElement = DOM.getActiveElement();
 	const entry: IMobileSheetStackEntry = {
@@ -914,7 +923,13 @@ function buildMobileSheetShell(
 		const closeLabel = localize('mobilePickerSheet.doneAriaLabel', "Close {0}", title);
 		headerFocusTargets.push(doneBtn);
 		doneBtn.setAttribute('aria-label', closeLabel);
-		if (options.iconClose) {
+		if (options.navigationPage) {
+			titleRow.prepend(doneBtn);
+			doneBtn.setAttribute('aria-label', localize('mobilePickerSheet.back', "Back"));
+			DOM.append(doneBtn, $('span', { 'aria-hidden': 'true' })).classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronLeft));
+			DOM.append(doneBtn, $('span')).textContent = localize('mobilePickerSheet.back', "Back");
+			doneBtn.focus();
+		} else if (options.iconClose) {
 			doneBtn.classList.add('mobile-picker-sheet-header-action');
 			const icon = DOM.append(doneBtn, $('span.mobile-picker-sheet-header-action-icon-glyph', { 'aria-hidden': 'true' }));
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
@@ -946,7 +961,7 @@ function buildMobileSheetShell(
 	const backdropTap = DOM.addDisposableListener(backdrop, TouchEventType.Tap, () => options.onDismiss());
 	disposables.add(backdropTap);
 
-	const keyHandler = DOM.addDisposableListener(win, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+	const keyHandler = DOM.addDisposableListener(options.navigationPage ? sheet : win, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 		if (e.key === 'Escape' && !e.defaultPrevented && sheets.at(-1) === entry) {
 			e.preventDefault();
 			e.stopImmediatePropagation();
@@ -1035,7 +1050,7 @@ function buildMobileSheetShell(
 		options.onDismiss();
 	}));
 
-	return { overlay, backdrop, sheet, disposables, close, setBodyFocusTargets: targets => { bodyFocusTargets = targets; } };
+	return { overlay, backdrop, sheet, disposables, close, setBodyFocusTargets: targets => { bodyFocusTargets = targets; }, focusHeader: () => headerFocusTargets[0]?.focus({ preventScroll: true }) };
 }
 
 /** Mutable bookkeeping passed through {@link renderRow} so we can track section dividers and the row to focus. */

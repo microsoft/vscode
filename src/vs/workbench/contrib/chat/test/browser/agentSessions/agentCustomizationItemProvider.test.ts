@@ -12,7 +12,7 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -25,8 +25,9 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type HookCustomization, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpServerStatus, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { type SessionCustomizationInventory } from '../../../common/customizationHarnessService.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -57,6 +58,65 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('projects only confirmed session children and updates on delayed snapshots and subscription errors', () => {
+		const changed = disposables.add(new Emitter<SessionState>());
+		const failed = disposables.add(new Emitter<Error>());
+		const selected = URI.parse('agent-host-copilot:/b');
+		let confirmed: SessionState | undefined;
+		let failure: Error | undefined;
+		const optimistic = upcastPartial<SessionState>({ customizations: [] });
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'p', name: 'Shared', uri: 'file:///other-client/private', clientId: 'other' };
+		const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'this', resourceUris: createAgentHostResourceUriMapper('host') }, undefined, undefined,
+			upcastPartial<IFileService>({}), new NullLogService(), new class extends NullAgentHostCustomizationService {
+				acquireSessionCustomizationState(uri: URI) {
+					assert.ok(isEqual(uri, selected));
+					return {
+						dispose() { }, object: {
+							get verifiedValue() { return confirmed; }, get value() { return failure ?? optimistic; },
+							onDidChange: changed.event, onDidError: failed.event, onDidApplyAction: Event.None, onWillApplyAction: Event.None,
+						}
+					};
+				}
+			}(), makePromptsService(), labelService));
+		provider.setDraftCustomizations(observableValue('draft', [{ ...plugin, id: 'not-in-session', name: 'Ambient' }]));
+		const inventory = derived(reader => provider.observeSessionCustomizations(selected, reader)).flatten();
+		const states: SessionCustomizationInventory[] = [];
+		disposables.add(autorun(reader => states.push(inventory.read(reader))));
+		const publish = (customizations?: Customization[]) => {
+			failure = undefined;
+			confirmed = upcastPartial<SessionState>({ customizations, workingDirectories: ['file:///b'] });
+			changed.fire(confirmed);
+		};
+		publish();
+		publish([plugin]);
+		const server: McpServerCustomization = { type: CustomizationType.McpServer, id: 's', name: 'Server', uri: 'mcp-config:/s', state: { kind: McpServerStatus.Ready } };
+		const agent: AgentCustomization = { type: CustomizationType.Agent, id: 'known', name: 'Known', uri: 'agent-discovery:/known' };
+		publish([server, { ...plugin, children: [agent] }]);
+		publish([{ ...plugin, children: [server, agent] }]);
+		publish([{ ...server, children: [] }, { ...plugin, children: [agent, { ...server, children: [] }] }]);
+		publish([{
+			...plugin, children: [
+				{ type: CustomizationType.Agent, id: 'agent', name: 'Review B', uri: 'file:///host/cache/b.agent.md', _meta: { 'vscode.sourceUri': 'file:///other-client/private/b.md' } },
+				{
+					...server, children: [
+						{ type: CustomizationType.Skill, id: 'skill', name: 'Check B', uri: 'agent-discovery:/skill', enabled: false },
+					]
+				},
+			]
+		}]);
+		failure = new Error('Disconnected');
+		failed.fire(failure);
+		publish([]);
+		const known = [['Known', true, undefined, undefined]];
+		assert.deepStrictEqual(states.map(state => state.kind === 'ready' ? [state.incomplete, state.items.map(item =>
+			[item.name, item.enabled, hasReadableCustomizationContent(item.uri) ? item.uri.toString() : undefined, item.pluginUri?.toString()])] : state.kind), [
+			'loading', 'unavailable', [true, []],
+			[true, known], [true, known], [false, known],
+			[false, [['Review B', true, toAgentHostUri(URI.file('/host/cache/b.agent.md'), 'host').toString(), undefined], ['Check B', false, undefined, undefined]]],
+			'error', [false, []],
+		]);
+	});
 
 	test('keeps runtime enablement explanations on controls rather than plugin status badges', async () => {
 		let ready = false;

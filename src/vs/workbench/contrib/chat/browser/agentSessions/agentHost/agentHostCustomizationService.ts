@@ -6,7 +6,7 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { UriTemplate } from '../../../../../../base/common/uriTemplate.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
@@ -14,7 +14,7 @@ import { cancelOnDispose, CancellationToken } from '../../../../../../base/commo
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey, IPermissionsValue } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readMcpServerLogsChannelTemplate } from '../../../../../../platform/agentHost/common/otlp/mcpServerLogsChannel.js';
@@ -76,6 +76,8 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+	/** Holds the host snapshot of an existing session without loading its chat or draft. */
+	acquireSessionCustomizationState?(sessionResource: URI, reader: IReader): IReference<IAgentSubscription<SessionState>> | undefined;
 	/** Projects runtime plugin activation for the selected, host-advertised chat rather than the default chat. */
 	resolveRuntimePluginEnablement?(sessionResource: URI, customizations: readonly Customization[]): Promise<readonly Customization[]>;
 	/** Returns this client's plugin source, never a foreign client's filesystem resource. */

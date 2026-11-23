@@ -61,6 +61,40 @@
 	animation: mobile-picker-sheet-slide-down 180ms ease-in forwards;
 }
 
+.mobile-picker-sheet.mobile-navigation-page {
+	box-sizing: border-box;
+	height: 100%;
+	max-height: none;
+	padding-top: env(safe-area-inset-top);
+	border-radius: 0;
+	box-shadow: none;
+	background: var(--mobile-surface-page, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	animation: none;
+}
+
+.mobile-navigation-page > .mobile-picker-sheet-handle {
+	display: none;
+}
+
+.mobile-navigation-page > .mobile-picker-sheet-title-row {
+	display: grid;
+	grid-template-columns: 1fr minmax(0, auto) 1fr;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	border-bottom: var(--vscode-strokeThickness) solid var(--mobile-separator, var(--vscode-widget-border));
+}
+
+.mobile-navigation-page .mobile-picker-sheet-done {
+	justify-self: start;
+	padding: 0;
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.mobile-navigation-page .mobile-content-sheet-body {
+	flex: 1;
+	min-height: 0;
+}
+
 /* iOS-style drag handle ("grabber") at the top of the sheet. iOS HIG
  * specifies 36 × 5 pt at ~30% opacity, centered with ~6 pt of top
  * inset. Decorative only — actual drag-to-dismiss is not wired up. */

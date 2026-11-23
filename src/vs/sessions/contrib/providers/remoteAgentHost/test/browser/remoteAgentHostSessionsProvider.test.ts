@@ -1037,6 +1037,38 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('inspecting customizations subscribes to the attached task backend without acquiring an unattached task', () => {
+		const task = { taskId: 'work-item', sessionId: 'execution', environmentId: 'environment', name: 'Connected' };
+		const backend = URI.parse('ahp-session://tenant/execution');
+		const { catalog, runtime } = createTaskCatalog([task]);
+		catalog.setTasks([task, { taskId: 'offline', name: 'Offline' }]);
+		connection.setAgents([{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] }]);
+		const meta = createSession(task.sessionId, { session: backend, provider: 'copilot' });
+		connection.addSession(meta);
+		runtime.setConnection(connection);
+		runtime.seedSessions([meta]);
+		catalog.attach(task.taskId, runtime, task);
+		const subscribed = sinon.spy(connection, 'getSubscription');
+		const results = catalog.getSessions().map(row => {
+			const owner = catalog.getSessionProvider(row.sessionId) ?? catalog;
+			const harness = owner.sessionTypes.find(type => type.id === row.sessionType)?.chatSessionType;
+			let available = false;
+			const inspection = autorun(reader => {
+				const ref = owner.acquireSessionCustomizationState(row.sessionId, reader);
+				available = !!ref;
+				if (ref) {
+					reader.store.add(ref);
+				}
+			});
+			inspection.dispose();
+			return [row.resource.toString(), harness, available];
+		});
+		assert.deepStrictEqual({ results, subscriptions: subscribed.args.map(([kind, uri]) => [kind, uri.toString()]) }, {
+			results: [['cloud-sandbox-task:/work-item', 'remote-localhost__4321-copilot', true], ['cloud-sandbox-task:/offline', undefined, false]],
+			subscriptions: [[StateComponents.Session, backend.toString()]],
+		});
+	});
+
 	test('resolves an acquired task working directory through its environment resource alias', () => {
 		const resolvers = new Map<string, Parameters<IAgentHostSessionWorkingDirectoryResolver['registerResolver']>[1]>();
 		const resolver = upcastPartial<IAgentHostSessionWorkingDirectoryResolver>({

@@ -11,6 +11,18 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { IAquariumService } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
@@ -36,6 +48,7 @@ import { SessionsChatAccessibilityHelp } from '../../chat/browser/sessionsChatAc
 import './mobileAttachmentContext.js';
 import './mobileBackgroundNotifier.js';
 import { mobileConfigurationDefaults } from './mobileConfigurationDefaults.js';
+import { MobileCustomizationsFocus, MobileCustomizationsInspector } from './mobileCustomizationsInspector.js';
 
 // Phone design language. Imported here, at the end of the mobile entry point,
 // so these stylesheets are evaluated after every shared stylesheet: a phone rule
@@ -78,3 +91,48 @@ registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Del
 registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp(undefined, false));
+
+registerAction2(class extends Action2 {
+	constructor() {
+		const when = ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext);
+		super({
+			id: 'sessions.mobile.inspectCustomizations',
+			title: localize2('inspectCustomizations', "Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(when, SessionItemIsMultiSelectionContext.negate()),
+			menu: { id: Menus.SessionItemContextMenu, group: 'navigation', order: 6, when },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
+		if (!session) {
+			throw new Error(localize('inspectOneSession', "Select a single session to inspect its customizations."));
+		}
+		await accessor.get(IInstantiationService).createInstance(MobileCustomizationsInspector).open(session);
+	}
+});
+
+for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
+	AccessibleViewRegistry.register({
+		name: 'mobileSessionCustomizations',
+		priority: 110,
+		type,
+		when: MobileCustomizationsFocus,
+		getProvider: () => {
+			const focused = getActiveElement();
+			const page = focused?.closest<HTMLElement>('.mobile-navigation-page');
+			if (!page || !isHTMLElement(focused)) {
+				return undefined;
+			}
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.MobileSessionCustomizations, { type },
+				() => type === AccessibleViewType.Help
+					? localize('mobileCustomizationsHelp', "Inspect the selected session's instructions, skills, and agents. Tab between items and press Enter to read one. Use Back or Escape to return without changing sessions.")
+					: page.innerText,
+				() => focused.focus(),
+				AccessibilityVerbositySettingId.CustomizationDiscovery,
+			);
+		},
+	});
+}

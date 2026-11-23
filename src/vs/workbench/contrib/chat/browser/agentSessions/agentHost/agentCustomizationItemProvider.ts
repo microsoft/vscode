@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { shorten } from '../../../../../../base/common/labels.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableFromEvent, type IObservable, type IReaderWithStore } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname, extUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { getCustomizationDisabledReason, getSkillCustomizations, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -20,7 +20,7 @@ import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, ty
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { type CustomizationSourceFolderReadiness, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSectionNotice, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
+import { type CustomizationSourceFolderReadiness, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSectionNotice, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry, type SessionCustomizationInventory } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -176,7 +176,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean, workingDirectories: readonly string[]): ICustomizationItem[] {
+	private toDirectoryItems(customization: DirectoryCustomization, workingDirectories: readonly string[]): ICustomizationItem[] {
+		const discoveredSource = getAgentHostCustomizationSource(customization);
+		const scope = discoveredSource !== undefined ? AICustomizationScopes.fromSource(discoveredSource) : undefined;
+		const source = discoveredSource ?? (isAgentBuiltinCustomizationUri(URI.parse(customization.uri))
+			? AICustomizationSources.builtin
+			: isUnderAnyRoot(workingDirectories, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user);
 		const items: ICustomizationItem[] = [];
 		if (!customization.children?.length && customization.contents === CustomizationType.Hook && customization.enabled === false
 			&& !hasReadableCustomizationContent(URI.parse(customization.uri))
@@ -194,7 +199,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const notRunningMessage = customization.enabled === false && customization.load?.kind === CustomizationLoadStatus.Degraded ? customization.load.message : undefined;
 		for (const child of customization.children ?? []) {
 			const childSource = scope !== undefined || source === AICustomizationSources.builtin ? source : getDirectoryChildSource(workingDirectories, child.uri, source);
-			const item = this.toDirectoryChildItem(child, childSource, scope, isRemote);
+			const item = this.toChildItem(child, childSource, scope, customization.clientId !== undefined);
 			if (item) {
 				items.push(notRunningMessage && child.type === CustomizationType.Hook && child.enabled === false ? {
 					...item,
@@ -208,7 +213,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return items;
 	}
 
-	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean): ICustomizationHookItem | undefined {
+	private toChildItem(child: ChildCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean): ICustomizationHookItem | undefined {
 		const type = toPromptsType(child.type);
 		if (!type) {
 			return undefined;
@@ -415,6 +420,71 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return notices;
 	}
 
+	observeSessionCustomizations(sessionResource: URI, reader: IReaderWithStore): IObservable<SessionCustomizationInventory> {
+		const reference = this._customAgentsService.acquireSessionCustomizationState?.(sessionResource, reader);
+		if (!reference) {
+			return constObservable({ kind: 'unavailable' });
+		}
+		const sub = reader.store.add(reference).object;
+		const changed = Event.any(Event.signal(sub.onDidChange), Event.signal(sub.onDidError ?? Event.None));
+		const snapshot = observableFromEvent(this, changed, () => sub.value instanceof Error ? sub.value : sub.verifiedValue);
+		const inventory = snapshot.map(state => state instanceof Error || !state ? state : state.customizations ?? null);
+		const roots = snapshot.map(state => state instanceof Error ? undefined : state?.workingDirectories);
+		return derived(reader => {
+			const published = inventory.read(reader);
+			if (published instanceof Error) {
+				return { kind: 'error', error: published };
+			}
+			if (!published) {
+				return { kind: published === null ? 'unavailable' : 'loading' };
+			}
+			return this.publishedInventory(published, roots.read(reader) ?? []);
+		});
+	}
+
+	private publishedInventory(customizations: readonly Customization[], roots: readonly string[]): SessionCustomizationInventory {
+		const items: ICustomizationItem[] = [];
+		let incomplete = false;
+		for (const container of customizations) {
+			if (container.type === CustomizationType.McpServer) {
+				incomplete ||= !container.children;
+				continue;
+			}
+			if (container.type === CustomizationType.Directory && !isInspectedType(container.contents)) {
+				continue;
+			}
+			incomplete ||= !container.children || container.load?.kind === CustomizationLoadStatus.Error || container.load?.kind === CustomizationLoadStatus.Degraded || container.load?.kind === CustomizationLoadStatus.Loading;
+			if (container.type === CustomizationType.Directory) {
+				for (const child of this.toDirectoryItems(container, roots)) {
+					items.push({ ...child, enabled: container.enabled && child.enabled !== false });
+				}
+			} else {
+				const scope = AICustomizationScopes.fromSource(getAgentHostCustomizationSource(container) ?? AICustomizationSources.plugin);
+				for (const child of container.children ?? []) {
+					if (child.type === CustomizationType.McpServer) {
+						incomplete ||= !child.children;
+					}
+					if (isInspectedType(child.type)) {
+						const item = this.toChildItem(child, AICustomizationSources.plugin, scope, container.clientId !== undefined);
+						if (item) {
+							items.push({ ...item, pluginUri: getAgentHostCustomizationUri(URI.parse(container.uri), this._connection, container), pluginLabel: container.name, enabled: isCustomizationEnabled(container) && item.enabled !== false });
+						}
+					}
+				}
+			}
+		}
+		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			if (container.type === CustomizationType.McpServer) {
+				const source = getMcpCustomizationSource(readMcpServerSource(container));
+				const item = this.toChildItem(skill, source, AICustomizationScopes.fromSource(source), false);
+				if (item) {
+					items.push({ ...item, enabled: containerEnabled && skill.enabled !== false });
+				}
+			}
+		}
+		return { kind: 'ready', items, incomplete };
+	}
+
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationSkillItem>();
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
@@ -497,13 +567,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const discoveredSource = getAgentHostCustomizationSource(sessionCustomization);
-			const scope = discoveredSource !== undefined ? AICustomizationScopes.fromSource(discoveredSource) : undefined;
-			const source = discoveredSource ?? (isAgentBuiltinCustomizationUri(URI.parse(sessionCustomization.uri))
-				? AICustomizationSources.builtin
-				: isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user);
-			const isRemote = sessionCustomization.clientId !== undefined;
-			for (const child of this.toDirectoryItems(sessionCustomization, source, scope, isRemote, workingDirectories)) {
+			for (const child of this.toDirectoryItems(sessionCustomization, workingDirectories)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
 					...child,
 					status: toStatusString(sessionCustomization.load),
@@ -853,6 +917,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return children;
 	}
 }
+function isInspectedType(type: ChildCustomization['type']): boolean {
+	return type === CustomizationType.Agent || type === CustomizationType.Skill || type === CustomizationType.Rule;
+}
+
 function isParentOrEqual(folderURI: string, childURI: string): boolean {
 	try {
 		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(childURI), URI.parse(folderURI));

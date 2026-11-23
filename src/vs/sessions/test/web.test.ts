@@ -10,7 +10,7 @@ import { DesktopWorkbench as SessionsWorkbench } from '../browser/desktopWorkben
 import { SessionsBrowserMain } from '../browser/web.main.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
-import { IObservable, observableValue } from '../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../base/common/observable.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, ICopilotTokenInfo, IPolicyData } from '../../base/common/defaultAccount.js';
@@ -36,6 +36,18 @@ import { IChatSessionFileChange } from '../../workbench/common/chatSessionFileCh
 import { SessionsWorkbenchFactory } from '../browser/workbenchFactory.js';
 import { IAgentHostFilterService } from '../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../workbench/contrib/chat/common/languageModels.js';
+import { mainWindow } from '../../base/browser/window.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { ICustomizationHarnessService, ICustomizationItem } from '../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ICloudSandboxModelCatalogService } from '../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
+
+const previewCustomizations = new URLSearchParams(mainWindow.location.search).has('sample-customizations');
+const previewInstruction = URI.parse('mock-fs://sample/mobile-notes/.github/copilot-instructions.md');
+const previewSkill = URI.parse('mock-fs://sample/mobile-notes/.github/skills/test-mobile/SKILL.md');
+const previewFiles: readonly [URI, string][] = [
+	[previewInstruction, '---\napplyTo: "**"\n---\nKeep the notes app usable on a phone, even when the network drops.\n\n## Working on the interface\n\n- Preserve an unsent note when navigating back.\n- Give every icon button a readable label.\n- Test the narrow layout before changing a shared component.\n\n## Before you finish\n\nRun the focused tests for the screen you changed. If a change affects navigation, also try it with an unsent draft.'],
+	[previewSkill, '## Test a phone layout\n\nOpen the smallest supported viewport. Use touch to navigate to the changed screen, then repeat with a keyboard.'],
+];
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the
@@ -64,6 +76,11 @@ function registerMockFileSystemProvider(serviceCollection: ServiceCollection): v
 	for (const [filePath, content] of Object.entries(MOCK_FS_FILES)) {
 		const uri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: filePath });
 		fileService.writeFile(uri, VSBuffer.fromString(content));
+	}
+	if (previewCustomizations) {
+		for (const [uri, content] of previewFiles) {
+			void fileService.writeFile(uri, VSBuffer.fromString(content));
+		}
 	}
 	console.log('[Sessions Web Test] Registered mock-fs:// provider with pre-seeded files');
 }
@@ -259,6 +276,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		super();
 		this._register(this._itemsChangedEmitter);
@@ -367,7 +385,12 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			};
 
 			try {
-				this._register(this.chatAgentService.registerDynamicAgent(agentData, agentImpl));
+				if (previewCustomizations && agentData.isDefault) {
+					this._register(this.chatAgentService.registerAgent(agentId, agentData));
+					this._register(this.chatAgentService.registerAgentImplementation(agentId, agentImpl));
+				} else {
+					this._register(this.chatAgentService.registerDynamicAgent(agentData, agentImpl));
+				}
 				console.log(`[Sessions Web Test] Registered mock agent: ${agentId}`);
 			} catch (err) {
 				console.warn(`[Sessions Web Test] Failed to register agent ${agentId}:`, err);
@@ -378,6 +401,31 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	private registerMockSessionProvider(): void {
 		const schemes = ['copilotcli', 'copilot-cloud-agent'];
 		const self = this;
+		const previewSessions: IChatSessionItem[] = [];
+		if (previewCustomizations) {
+			for (const [id, title, repo] of [['notes', 'Polish the notes screen', 'mobile-notes'], ['api', 'Review the API changes', 'notes-api']]) {
+				const resource = URI.from({ scheme: 'copilot-cloud-agent', path: `/${id}` });
+				const now = Date.now();
+				previewSessions.push({ resource, label: title, timing: { created: now, lastRequestStarted: now, lastRequestEnded: now }, status: ChatSessionStatus.Completed, metadata: { repositoryNwo: `sample/${repo}` } });
+				this._sessionHistory.set(resource.toString(), [
+					{ type: 'request', prompt: title, participant: 'copilot' },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: { value: 'Ready for your next change.', isTrusted: false } }], participant: 'copilot' },
+				]);
+			}
+			const items: ICustomizationItem[] = [
+				{ name: 'Repository instructions', type: 'instructions', source: 'local', uri: previewInstruction, extensionId: undefined, pluginUri: undefined },
+				{ name: 'Test a phone layout', type: 'skill', source: 'local', uri: previewSkill, extensionId: undefined, pluginUri: undefined },
+				{ name: 'Code reviewer', type: 'agent', source: 'builtin', uri: URI.parse('agent-builtin:/reviewer'), description: 'Reviews changes for correctness and missing tests.', extensionId: undefined, pluginUri: undefined },
+			];
+			this._register(this.harnessService.registerExternalHarness({
+				id: 'copilot-cloud-agent', label: 'Sample provider', icon: Codicon.cloud,
+				itemProvider: {
+					onDidChange: Event.None,
+					provideChatSessionCustomizations: async resource => resource.path === '/notes' ? items : [],
+					observeSessionCustomizations: resource => constObservable({ kind: 'ready', items: resource.path === '/notes' ? items : [] }),
+				},
+			}));
+		}
 		for (const scheme of schemes) {
 			try {
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
@@ -419,7 +467,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				// copilot-cloud-agent controller must return an empty array to
 				// prevent it from overwriting sessions with the wrong providerType
 				// during a full model resolve.
-				const controllerItems = scheme === 'copilotcli' ? this._sessionItems : [];
+				const controllerItems = scheme === 'copilotcli' ? this._sessionItems : previewSessions;
 				this._register(this.chatSessionsService.registerChatSessionItemController(scheme, {
 					onDidChangeChatSessionItems: this._itemsChangedEmitter.event,
 					get items() { return controllerItems; },
@@ -593,6 +641,14 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 			[IDefaultAccountService, new SyncDescriptor(MockDefaultAccountService)],
 			[IGitService, new SyncDescriptor(MockGitService)],
 		];
+		if (previewCustomizations) {
+			overrides.push([ICloudSandboxModelCatalogService, new SyncDescriptor(class implements ICloudSandboxModelCatalogService {
+				declare readonly _serviceBrand: undefined;
+				readonly onDidChange = Event.None;
+				readonly catalog = { models: [] };
+				load(): void { /* The sample sessions use the local mock language model. */ }
+			})]);
+		}
 		for (const [serviceId, mockDescriptor] of overrides) {
 			const idx = registry.findIndex(([id]) => id === serviceId);
 			if (idx !== -1) {

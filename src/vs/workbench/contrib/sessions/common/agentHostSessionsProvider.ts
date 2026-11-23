@@ -6,7 +6,7 @@
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -17,7 +17,8 @@ import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../
 import { type AgentProvider, type IAgentPluginInstallation } from '../../../../platform/agentHost/common/agent.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type SessionState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -434,6 +435,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Returns the full set of customizations.
 	 */
 	getCustomizations(sessionId: string): readonly Customization[];
+
+	/** Holds a passive session subscription while inspecting its host-published customizations. */
+	acquireSessionCustomizationState?(sessionId: string, reader: IReader): IReference<IAgentSubscription<SessionState>> | undefined;
 
 	/**
 	 * Returns the host-provided working directory, tracking updates when a reader is supplied.

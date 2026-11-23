@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReaderWithStore, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -403,6 +403,11 @@ export function getCustomizationDisabledLabel(reason: CustomizationDisabledReaso
 	}
 }
 
+export type SessionCustomizationInventory =
+	| { readonly kind: 'loading' | 'unavailable' }
+	| { readonly kind: 'error'; readonly error: Error }
+	| { readonly kind: 'ready'; readonly items: readonly ICustomizationItem[]; readonly incomplete?: boolean };
+
 /**
  * Provider interface for extension-contributed harnesses that supply
  * customization items directly from their SDK.
@@ -421,6 +426,9 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
+
+	/** Observes only what this session publishes, without management-editor additions or activating the chat. */
+	observeSessionCustomizations?(sessionResource: URI, reader: IReaderWithStore): IObservable<SessionCustomizationInventory>;
 
 	/**
 	 * Provide the custom agents this harness supports.

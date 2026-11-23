@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mobile-navigation-page .mobile-customizations {
+	padding: var(--vscode-spacing-size200);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: var(--mobile-line-height-body);
+	overflow-wrap: anywhere;
+}
+
+.mobile-customizations-target,
+.mobile-customizations-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+}
+
+.mobile-customizations-target,
+.mobile-customizations-source,
+.mobile-customizations-path,
+.mobile-customizations-message,
+.mobile-customizations-row small,
+.mobile-customizations-row > .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-customizations-target,
+.mobile-customizations-path,
+.mobile-customizations-source,
+.mobile-customizations-row small {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: var(--mobile-line-height-label);
+}
+
+.mobile-customizations-message:empty {
+	display: none;
+}
+
+.mobile-customizations-list section {
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.mobile-customizations-list h2 {
+	margin: 0 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.mobile-customizations-row {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: var(--mobile-row);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size40);
+	background: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	border-bottom: var(--vscode-strokeThickness) solid var(--mobile-separator);
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+}
+
+.mobile-customizations-row:active {
+	background: var(--mobile-surface-pressed);
+}
+
+.mobile-customizations-labels {
+	flex: 1;
+	min-width: 0;
+	display: grid;
+}
+
+.mobile-customizations > h1 {
+	font-size: var(--vscode-fontSize-heading1);
+	line-height: 1.2;
+	margin: var(--vscode-spacing-size80) 0;
+}
+
+.mobile-customizations-content {
+	margin-top: var(--vscode-spacing-size240);
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.mobile-customizations-content :is(h1, h2, h3, h4, h5, h6) {
+	font-size: var(--vscode-fontSize-heading2);
+	line-height: 1.3;
+	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size80);
+}
+
+.mobile-customizations-content :is(ol, ul) {
+	padding-inline-start: var(--vscode-spacing-size240);
+}
+
+.mobile-customizations-content pre {
+	white-space: pre-wrap;
+}

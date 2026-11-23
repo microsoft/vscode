@@ -7867,6 +7867,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.customizations ?? [];
 	}
 
+	acquireSessionCustomizationState(sessionId: string, reader: IReader): IReference<IAgentSubscription<SessionState>> | undefined {
+		this._connectionChanged.read(reader);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		if (!rawId || this._store.isDisposed || this._isSessionDisabledByPolicy(sessionId) || readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
+			return undefined;
+		}
+		const cached = this._sessionCache.get(rawId);
+		return cached && this.connection?.getSubscription(StateComponents.Session, cached.backendUri, 'SessionCustomizations');
+	}
+
 	getWorkingDirectory(sessionId: string, reader?: IReader): string | undefined {
 		this._backendSessionsChanged.read(reader);
 		const sessionState = this._lastSessionStates.get(sessionId);

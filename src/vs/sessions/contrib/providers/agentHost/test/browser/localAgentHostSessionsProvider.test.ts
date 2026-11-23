@@ -2035,6 +2035,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
+	test('inspecting customizations holds only the selected advertised session, never adopts a legacy row, and releases on policy change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const setting = 'chat.agentHost.claudeAgent.enabled';
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const result = super.inspect<T>(key);
+				return { ...result, policyValue: key === setting ? result.value : undefined };
+			}
+		}({ [setting]: true });
+		const backend = URI.parse('ahp-session://tenant/opaque/b');
+		const chat = URI.parse('ahp-chat:/unrelated-primary');
+		agentHost.addSession({ ...createSession('b', { summary: 'B', chats: [{ chat, kind: 'default' }] }), session: backend, provider: 'claude' });
+		agentHost.addSession(createSession('legacy', { summary: 'Legacy', adoptable: true }));
+		const provider = createRefreshableProvider(disposables, agentHost, { configurationService, isSessionsWindow: true });
+		await provider.refreshForTest();
+		const rows = provider.getSessions();
+		const before = agentHost.wireOps.length;
+		const available = new Map<string, boolean>();
+		for (const title of ['Legacy', 'B']) {
+			const row = rows.find(candidate => candidate.title.get() === title);
+			assert.ok(row, `Expected a listed session named ${title}`);
+			disposables.add(autorun(reader => {
+				const ref = provider.acquireSessionCustomizationState(row.sessionId, reader);
+				if (ref) {
+					reader.store.add(ref);
+				}
+				available.set(title, !!ref);
+			}));
+		}
+		const subscribed = agentHost.wireOps.slice(before);
+		const releases = agentHost.sessionUnsubscribeCounts.get(backend.toString()) ?? 0;
+		await configurationService.setUserConfiguration(setting, false);
+		fireConfigChange(configurationService, setting);
+		assert.deepStrictEqual({ subscribed, available: [...available], released: (agentHost.sessionUnsubscribeCounts.get(backend.toString()) ?? 0) - releases }, {
+			subscribed: [`subscribe:${backend}`], available: [['Legacy', false], ['B', false]], released: 1,
+		});
+	}));
+
 	test('feedback follows advertised annotation resources and gracefully handles their absence', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
 		const resource = URI.parse('ahp-session:/opaque-session');

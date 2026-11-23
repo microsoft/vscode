@@ -24,6 +24,7 @@ export const enum AccessibleViewProviderId {
 	ChatHtmlPreview = 'chatHtmlPreview',
 	CustomizationMigrations = 'customizationMigrations',
 	CustomizationDiscovery = 'customizationDiscovery',
+	MobileSessionCustomizations = 'mobileSessionCustomizations',
 	Remotes = 'remotes',
 	McpServerConfiguration = 'mcpServerConfiguration',
 	ChatTerminalOutput = 'chatTerminalOutput',
