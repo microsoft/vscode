@@ -2288,6 +2288,21 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
+      '@types/glob':
+        specifier: ^5.0.38
+        version: 5.0.38
+      '@types/minimatch':
+        specifier: ^3.0.3
+        version: 3.0.3
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
       '@vscode/v8-heap-parser':
         specifier: ^0.1.0
         version: 0.1.0
@@ -5278,6 +5293,9 @@ packages:
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
+
+  '@types/glob@5.0.38':
+    resolution: {integrity: sha512-rTtf75rwyP9G2qO5yRpYtdJ6aU1QqEhWbtW55qEgquEDa6bXW0s2TWZfDm02GuppjEozOWG/F2UnPq5hAQb+gw==}
 
   '@types/glob@7.1.1':
     resolution: {integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==}
@@ -15808,6 +15826,11 @@ snapshots:
       '@types/serve-static': 2.2.0
 
   '@types/geojson@7946.0.16': {}
+
+  '@types/glob@5.0.38':
+    dependencies:
+      '@types/minimatch': 3.0.3
+      '@types/node': 24.12.4
 
   '@types/glob@7.1.1':
     dependencies:

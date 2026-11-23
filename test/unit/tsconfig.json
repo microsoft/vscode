@@ -14,11 +14,12 @@
 		"allowImportingTsExtensions": true,
 		"skipLibCheck": true,
 		"strict": true,
+		"exactOptionalPropertyTypes": false,
+		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
 	"include": [
-		"node/**/*.ts",
-		"typings/**/*.d.ts"
+		"node/**/*.ts"
 	]
 }

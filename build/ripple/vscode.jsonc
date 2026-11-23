@@ -35,8 +35,7 @@
 		// reaches one of them runs every unit test.
 		"runners": [
 			"test/unit/**/*.js",
-			"test/unit/**/*.ts",
-			"!test/unit/**/*.d.ts"
+			"test/unit/**/*.ts"
 		]
 	},
 
