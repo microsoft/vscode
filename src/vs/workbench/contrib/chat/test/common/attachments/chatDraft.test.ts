@@ -99,6 +99,30 @@ suite('Chat draft handoff serialization', () => {
 		});
 	});
 
+	test('remaps the source of an image attachment kept as bytes, along with its id and the mentions of it, and keeps its bytes', () => {
+		const wsl = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project/shot.png' });
+		const range = new Range(1, 1, 1, 10);
+		const bytes = new Uint8Array([0x89, 0x50, 0x4E, 0x47]);
+		const draft: IChatDraft = {
+			inputText: '#shot.png',
+			attachments: [{ kind: 'image', id: wsl.toString(), name: 'shot.png', value: bytes, references: [{ kind: 'reference', reference: wsl }] }],
+			references: [{ id: wsl.toString(), range, isAttachmentReference: true, data: undefined }],
+		};
+		const remapped = remapChatDraftResources(draft, resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined);
+		const [image] = remapped.attachments;
+		assert.deepStrictEqual({
+			id: image.id,
+			references: image.references?.map(entry => URI.isUri(entry.reference) ? entry.reference.toString() : entry.reference),
+			mentions: remapped.references?.map(reference => reference.id),
+			keptBytes: image.value === bytes,
+		}, {
+			id: 'vscode-agent-host://env/file/-/project/shot.png',
+			references: ['vscode-agent-host://env/file/-/project/shot.png'],
+			mentions: ['vscode-agent-host://env/file/-/project/shot.png'],
+			keptBytes: true,
+		});
+	});
+
 	test('snapshots resolved extension context instead of transferring a window-local handle', () => {
 		const draft = reviveChatDraft(serializeChatDraft({
 			inputText: '',

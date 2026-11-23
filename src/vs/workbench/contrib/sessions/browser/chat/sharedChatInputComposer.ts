@@ -208,6 +208,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _boundResource: URI | undefined;
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
+	/** Remaps of the draft's resources made before its input is restored, which the saved input it restores needs too; `undefined` once restored. */
+	private _remapsBeforeRestore: ((resource: URI) => URI | undefined)[] | undefined = [];
 	private readonly _sending = observableValue(this, false);
 	/** Blocks duplicate sends without showing progress while confirming a send or choosing a send time. */
 	private readonly _suppressSendProgress = observableValue(this, false);
@@ -778,6 +780,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
 		}
 		this._restoreDraftState();
+		this._remapsBeforeRestore = undefined;
 		// Only once the host's input is restored and the queued context is merged into it, so neither overwrites it.
 		if (this.options.inputSnapshot || this.options.onDidChangeDraft) {
 			this._register(this._trackInputSnapshot(widget));
@@ -861,6 +864,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 		}
 		if (draft) {
+			for (const mapResource of this._remapsBeforeRestore ?? []) {
+				draft = remapChatDraftResources(draft, mapResource);
+			}
 			this.setInputValue(draft.inputText);
 			if (draft.attachments.length) {
 				this._widget?.attachmentModel.addContext(...draft.attachments);
@@ -928,10 +934,14 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	 * workspace moves to another connection of its agent host, after which the source's resources cannot be read.
 	 */
 	remapDraftResources(mapResource: (resource: URI) => URI | undefined): void {
-		const widget = this._widget;
-		if (!widget) {
+		if (this._remapsBeforeRestore) {
+			// Its queued context and saved input are restored into the input as it renders.
+			this._remapsBeforeRestore.push(mapResource);
 			const { attachments } = remapChatDraftResources({ inputText: '', attachments: this._pendingAttachments }, mapResource);
 			this._pendingAttachments.splice(0, this._pendingAttachments.length, ...attachments);
+		}
+		const widget = this._widget;
+		if (!widget) {
 			return;
 		}
 		const draft = this.getDraft();

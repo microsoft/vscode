@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
+import { IChatContentReference } from '../chatService/chatService.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
@@ -83,13 +84,16 @@ export function remapChatDraftResources(draft: IChatDraft, mapResource: (resourc
 	const attachments = draft.attachments.map(attachment => {
 		const remapped = remapResourceValue(attachment.value, mapResource);
 		const uri = hasKey(attachment, { uri: true }) && URI.isUri(attachment.uri) ? mapResource(attachment.uri) : undefined;
-		if (!remapped && !uri) {
+		// An image keeps its bytes and records the resource it came from in its references.
+		const contentReferences = remapContentReferences(attachment.references, mapResource);
+		if (!remapped && !uri && !contentReferences) {
 			return attachment;
 		}
 		changed = true;
-		const id = remapped ? remapResourceId(attachment.id, remapped) : attachment.id;
+		const source = remapped ?? contentReferences;
+		const id = source ? remapResourceId(attachment.id, source) : attachment.id;
 		ids.set(attachment.id, id);
-		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {});
+		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {}, contentReferences ? { references: contentReferences.references } : {});
 	});
 	const references = draft.references?.map(reference => {
 		const remapped = remapResourceValue(reference.data, mapResource);
@@ -113,6 +117,18 @@ function remapResourceValue(value: unknown, mapResource: (resource: URI) => URI 
 		return to && { from: value.uri, to, value: { ...value, uri: to } };
 	}
 	return undefined;
+}
+
+/** Remaps the resources of an attachment's references, with the first one that maps, or `undefined` when none map. */
+function remapContentReferences(references: readonly IChatContentReference[] | undefined, mapResource: (resource: URI) => URI | undefined): { readonly references: IChatContentReference[]; readonly from: URI; readonly to: URI } | undefined {
+	let first: { readonly from: URI; readonly to: URI } | undefined;
+	const result: IChatContentReference[] = [];
+	for (const entry of references ?? []) {
+		const remapped = remapResourceValue(entry.reference, mapResource);
+		first ??= remapped;
+		result.push(remapped ? { ...entry, reference: remapped.value } : entry);
+	}
+	return first && { references: result, from: first.from, to: first.to };
 }
 
 function remapResourceId(id: string, { from, to }: { readonly from: URI; readonly to: URI }): string {

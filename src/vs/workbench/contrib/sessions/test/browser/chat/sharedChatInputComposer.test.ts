@@ -697,6 +697,7 @@ suite('SharedChatInputComposer', () => {
 			const queued = [toFileVariableEntry(wsl('/b.ts')), context];
 			const unrendered = createSnapshotComposer({}, snapshot, queued);
 			Reflect.set(unrendered, '_widget', undefined);
+			Reflect.set(unrendered, '_remapsBeforeRestore', []);
 			unrendered.remapDraftResources(mapResource);
 
 			assert.deepStrictEqual({
@@ -707,6 +708,28 @@ suite('SharedChatInputComposer', () => {
 				input: { text: 'Fix #a.ts', attachments: ['vscode-agent-host://env/file/-/project/a.ts', 'context'], references: ['vscode-agent-host://env/file/-/project/a.ts', 'c'] },
 				snapshot: { text: 'Fix #a.ts', attachments: ['vscode-agent-host://env/file/-/project/a.ts', 'context'], references: ['vscode-agent-host://env/file/-/project/a.ts', 'c'] },
 				queued: ['vscode-agent-host://env/file/-/project/b.ts', 'context'],
+			});
+		});
+
+		test('remaps the saved input it restores as it renders by a remap before rendering, and writes it to the snapshot', () => {
+			const wsl = (path: string) => URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: `/file/-/project${path}` });
+			const file = toFileVariableEntry(wsl('/a.ts'));
+			const snapshot = new ComposerInputSnapshot({ input: { inputText: 'Fix #a.ts', attachments: [file], references: [{ id: file.id, range: new Range(1, 5, 1, 10), isAttachmentReference: true, data: undefined }] } });
+			const { widget, state } = createEventfulWidget('', [], []);
+			const composer = createSnapshotComposer({}, snapshot, [toFileVariableEntry(wsl('/b.ts'))]);
+			Reflect.set(composer, '_widget', undefined);
+			Reflect.set(composer, '_remapsBeforeRestore', []);
+			composer.remapDraftResources(resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined);
+			Reflect.set(composer, '_widget', widget);
+			Reflect.get(SharedChatInputComposer.prototype, '_restoreInput').call(composer, widget);
+
+			const env = (path: string) => `vscode-agent-host://env/file/-/project${path}`;
+			assert.deepStrictEqual({
+				input: { text: state.text, attachments: state.attachments.map(entry => entry.id), references: state.references.map(entry => entry.id) },
+				snapshot: { text: snapshot.get().input.inputText, attachments: snapshot.get().input.attachments.map(entry => entry.id), references: ids(snapshot.get().input) },
+			}, {
+				input: { text: 'Fix #a.ts', attachments: [env('/b.ts'), env('/a.ts')], references: [env('/a.ts')] },
+				snapshot: { text: 'Fix #a.ts', attachments: [env('/b.ts'), env('/a.ts')], references: [env('/a.ts')] },
 			});
 		});
 
