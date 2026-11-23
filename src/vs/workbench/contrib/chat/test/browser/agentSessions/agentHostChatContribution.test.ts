@@ -6523,6 +6523,16 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 
+			test('a change of the project of a session is reported, as wrappers filter the items by it', async () => {
+				const { sessions, reported, change } = await createListedSessions();
+				const project = (uri: string) => ({ project: { uri, displayName: 'project' } });
+				change(sessions[1], project('https://github.com/example/project'));
+				change(sessions[1], project('https://github.com/example/project'));
+				change(sessions[1], project('https://gitlab.com/example/project'));
+
+				assert.deepStrictEqual(reported, [['+Session b'], ['+Session b']]);
+			});
+
 			test('a session that is removed and added again unchanged is reported', async () => {
 				const { listController, agentHostService, sessions, reported } = await createListedSessions();
 				const summary = {

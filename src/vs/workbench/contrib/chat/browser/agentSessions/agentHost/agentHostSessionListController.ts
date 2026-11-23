@@ -299,7 +299,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			}
 			const key = entry.summary.resource;
 			const converted = this._convert(entry, canArchiveChat);
-			const signature = JSON.stringify(converted.item);
+			// The project is read from the store by wrappers that filter this controller's items by it, so a change of it is a change of the list
+			const signature = JSON.stringify([converted.item, entry.summary.project]);
 			const reported = this._reportedItems.get(key);
 			if (reported?.signature === signature) {
 				// Nothing the item shows changed, such as a summary change of the session's metadata only: it is not a change of the list
