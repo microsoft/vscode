@@ -4347,6 +4347,15 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('shutdown asks the git service to report its telemetry before the host flushes the collector', async () => {
+		const calls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.flushTelemetry = () => { calls.push('git telemetry flushed'); };
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		await localService.shutdown();
+		assert.deepStrictEqual(calls, ['git telemetry flushed']);
+	});
+
 	for (const operation of ['resolveSessionConfig', 'createSession'] as const) {
 		test(`${operation} resolves provider and worktree configuration concurrently`, async () => {
 			const workingDirectory = URI.file('/workspace/repo');
@@ -23971,6 +23980,7 @@ suite('AgentService (node dispatcher)', () => {
 				hasUncommittedChanges: async () => false,
 				createStash: async () => { },
 				commitAll: async () => { },
+				commit: async () => { },
 				mergeBranch: async () => '',
 				restore: async () => { },
 				hasUpstream: async () => false,
@@ -24090,6 +24100,7 @@ suite('AgentService (node dispatcher)', () => {
 				hasUncommittedChanges: async () => false,
 				createStash: async () => { },
 				commitAll: async () => { },
+				commit: async () => { },
 				mergeBranch: async () => '',
 				hasUpstream: async () => false,
 				fetch: async () => { },

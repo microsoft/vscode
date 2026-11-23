@@ -73,6 +73,8 @@ import { IWorkbenchThemeService } from '../../../services/themes/common/workbenc
 import { GettingStartedIndexList } from './gettingStartedList.js';
 import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
+import { GettingStartedFocusOutline } from './gettingStartedFocusOutline.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
@@ -177,6 +179,7 @@ export class GettingStartedPage extends EditorPane {
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
 	private readonly categoriesSlideDisposables: DisposableStore;
+	private readonly focusOutline: GettingStartedFocusOutline;
 	private readonly categoriesSlideShown = observableValue<boolean>(this, false);
 	private layoutAgentsWindowGraphic: (() => void) | undefined;
 	private showFeaturedWalkthrough = true;
@@ -213,6 +216,7 @@ export class GettingStartedPage extends EditorPane {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@ISizeService sizeService: ISizeService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -223,6 +227,7 @@ export class GettingStartedPage extends EditorPane {
 				tabindex: 0,
 				'aria-label': localize('welcomeAriaLabel', "Overview of how to get up to speed with your editor.")
 			});
+		this.focusOutline = this._register(new GettingStartedFocusOutline(this.container, sizeService, themeService));
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
 
@@ -1317,6 +1322,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 950);
 		this.layoutAgentsWindowGraphic?.();
+		this.focusOutline.update();
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();

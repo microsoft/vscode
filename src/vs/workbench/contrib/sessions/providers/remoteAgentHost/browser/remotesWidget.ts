@@ -31,6 +31,7 @@ import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost
 import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../platform/extensions/common/extensions.js';
@@ -40,6 +41,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { WorkbenchTable } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -105,6 +107,7 @@ export class RemotesWidget extends Disposable {
 	private readonly tableContainer: HTMLElement;
 	private readonly tableInner: HTMLElement;
 	private emptyRowWidth = 0;
+	private sandboxProfilesEnabled = false;
 	private readonly message: HTMLElement;
 	private readonly heading: HTMLElement;
 	private readonly headingTitle: HTMLElement;
@@ -168,6 +171,7 @@ export class RemotesWidget extends Disposable {
 		@ISessionsProvidersService private readonly providersService: ISessionsProvidersService,
 		@INewSessionComposerService private readonly composerService: INewSessionComposerService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IAgentHostConnectionsService connections: IAgentHostConnectionsService,
 	) {
 		super();
 		this._register(model);
@@ -268,7 +272,9 @@ export class RemotesWidget extends Disposable {
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
 
-		let label = localize('remotes.tableLabel', "Remote environments. Name, Status, Last Activity, System, Type, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.");
+		let label = configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxProfilesEnabled) === true
+			? localize('remotes.tableLabel', "Remote environments. Name, Status, Last Activity, System, Type, Sandbox Profile, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.")
+			: localize('remotes.tableLabelWithoutSandboxProfile', "Remote environments. Name, Status, Last Activity, System, Type, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
@@ -277,6 +283,7 @@ export class RemotesWidget extends Disposable {
 		const methodHidden = () => this.tableContainer.classList.contains('remotes-hide-method');
 		const activityHidden = () => this.tableContainer.classList.contains('remotes-hide-activity');
 		const systemHidden = () => this.tableContainer.classList.contains('remotes-hide-system');
+		const sandboxProfileHidden = () => this.tableContainer.classList.contains('remotes-hide-sandbox-profile');
 		const groupedByType = () => this.tableContainer.classList.contains('remotes-group-by-type');
 		const groupedByStatus = () => this.tableContainer.classList.contains('remotes-group-by-status');
 		const columnDefinitions = [
@@ -285,11 +292,12 @@ export class RemotesWidget extends Disposable {
 			{ id: 'activity', label: lastActivityLabel, weight: 160, get minimumWidth() { return activityHidden() ? 0 : 136; }, get maximumWidth() { return activityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, get minimumWidth() { return systemHidden() ? 0 : 100; }, get maximumWidth() { return systemHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 160; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'sandboxProfile', label: localize('remotes.sandboxProfileColumn', "Sandbox Profile"), weight: 180, get minimumWidth() { return sandboxProfileHidden() ? 0 : 140; }, get maximumWidth() { return sandboxProfileHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : 224; }, get maximumWidth() { return this.minimumWidth; } },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
-			instantiationService, hoverService, openerService, () => Math.max(0, this.tableContainer.clientWidth - 24 - scrollbarGutterWidth),
+			instantiationService, hoverService, openerService, connections, this.storageService, contextViewService, () => Math.max(0, this.tableContainer.clientWidth - 24 - scrollbarGutterWidth),
 		));
 		const emptyRowMeasure = dom.$('.remotes-empty-row-measure', { 'aria-hidden': 'true', inert: '' });
 		const emptyRow = dom.append(emptyRowMeasure, dom.$('div'));
@@ -360,7 +368,7 @@ export class RemotesWidget extends Disposable {
 		// eslint-disable-next-line eslint-js/no-restricted-syntax -- Table does not expose a header renderer.
 		const headers = this.table.getHTMLElement().querySelectorAll<HTMLElement>('.monaco-table-th');
 		columnDefinitions.forEach((column, index) => {
-			if (column.id === 'actions') {
+			if (column.id === 'actions' || column.id === 'sandboxProfile') {
 				return;
 			}
 			const header = headers[index];
@@ -415,6 +423,13 @@ export class RemotesWidget extends Disposable {
 		}));
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesWidget', () => this.layout(), dom.getWindow(this.domNode)));
 		this._register(resizeObserver.observe(this.domNode));
+		this.sandboxProfilesEnabled = configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxProfilesEnabled) === true;
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled)) {
+				this.sandboxProfilesEnabled = configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxProfilesEnabled) === true;
+				this.layout();
+			}
+		}));
 		this._register(autorun(reader => {
 			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
@@ -1368,6 +1383,7 @@ export class RemotesWidget extends Disposable {
 			this.tableContainer.classList.toggle('remotes-hide-method', width < 1000);
 			this.tableContainer.classList.toggle('remotes-hide-activity', width < 720);
 			this.tableContainer.classList.toggle('remotes-hide-system', width < 520);
+			this.tableContainer.classList.toggle('remotes-hide-sandbox-profile', width < 520 || !this.sandboxProfilesEnabled);
 			if (dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.classList.contains('remotes-sort-header') && !activeElement.offsetWidth) {
 				this.table.domFocus();
 			}

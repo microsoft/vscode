@@ -1163,6 +1163,36 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			);
 		});
 
+		test('inserts terminal MCP choices without submitting when draft text follows the cursor', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'mcp',
+					description: 'Manage MCP servers',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: { hint: '[list]', choices: [{ name: 'list', description: 'List MCP servers' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: `/mLet's go`,
+				offset: '/m'.length,
+			}, { chat: undefined }, CancellationToken.None);
+
+			assert.deepStrictEqual(items.map(item => ({
+				insertText: item.insertText,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
+			})), [
+				{ insertText: '/mcp ', rangeStart: 0, rangeEnd: 2, submitOnAccept: false },
+				{ insertText: '/mcp list ', rangeStart: 0, rangeEnd: 2, submitOnAccept: false },
+			]);
+		});
+
 		test('includes a bare command item when a choice has an empty name', async () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
