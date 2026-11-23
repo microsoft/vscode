@@ -1524,6 +1524,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			this.mostRecentActiveGroups = groupViews.map(group => group.id);
 		}
 
+		for (const groupView of groupViews) {
+			groupView.setVisible?.(gridWidget.isViewVisible(groupView));
+		}
+
 		// Set it
 		this.doSetGridWidget(gridWidget);
 	}

@@ -2313,6 +2313,61 @@ suite('EditorGroupsService', () => {
 		});
 	});
 
+	test('applying a layout restores visibility of reused maximized-away panes', async () => {
+		const [part] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const rootPane = await rootGroup.openEditor(createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID));
+		const rightPane = await rightGroup.openEditor(createTestFileEditorInput(URI.file('foo/right'), TEST_EDITOR_INPUT_ID));
+		assert.ok(rootPane);
+		assert.ok(rightPane);
+
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rightGroup);
+		part.applyLayout({ groups: [{}, {}], orientation: GroupOrientation.VERTICAL });
+
+		assert.deepStrictEqual({
+			maximized: part.hasMaximizedGroup(),
+			reused: [rootGroup.activeEditorPane === rootPane, rightGroup.activeEditorPane === rightPane],
+			visible: [rootPane.isVisible(), rightPane.isVisible()]
+		}, {
+			maximized: false,
+			reused: [true, true],
+			visible: [true, true]
+		});
+	});
+
+	test('restoring a saved maximized layout hides its inactive groups panes', async () => {
+		const [part, instantiationService] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+		for (const group of [rootGroup, rightGroup, downGroup]) {
+			await group.openEditor(createTestFileEditorInput(URI.file(`foo/${group.id}`), TEST_EDITOR_INPUT_ID), { pinned: true });
+		}
+		part.activateGroup(rightGroup);
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rightGroup);
+		part.testSaveState();
+		part.dispose();
+
+		const [restoredPart] = await createPart(instantiationService);
+		const groups = [rootGroup, rightGroup, downGroup].map(group => restoredPart.getGroup(group.id)!);
+		await Promise.all(groups.map(group => group.whenRestored));
+		const maximized = restoredPart.hasMaximizedGroup();
+		const visible = groups.map(group => group.activeEditorPane?.isVisible());
+		restoredPart.toggleMaximizeGroup();
+		restoredPart.clearState();
+
+		assert.deepStrictEqual({
+			maximized,
+			visible,
+			restored: groups.map(group => group.activeEditorPane?.isVisible())
+		}, {
+			maximized: true,
+			visible: [false, true, false],
+			restored: [true, true, true]
+		});
+	});
+
 	test('editor pane visibility requires both the part and group to be visible', async () => {
 		const [part] = await createPart();
 		const rootGroup = part.activeGroup;
