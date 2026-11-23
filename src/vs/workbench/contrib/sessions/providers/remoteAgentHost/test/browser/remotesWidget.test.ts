@@ -3728,6 +3728,37 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('the details pages scroll content that does not fit', async () => {
+		const results: Record<string, { fitsViewport: boolean; scrolledToEnd: boolean; sliderFollowsNativeScroll: boolean }> = {};
+		for (const page of ['troubleshoot', 'locationPreference']) {
+			const { parent, widget, model } = createWidget();
+			model.troubleshootingInfo = { ssh: { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, hasSavedHostKey: true } };
+			runMenuAction(parent, 'ssh:build', page);
+			await timeout(0);
+			parent.style.height = '200px';
+			widget.layout();
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			const viewport = details.querySelector<HTMLElement>(':scope > .monaco-scrollable-element')!;
+			const body = viewport.querySelector<HTMLElement>('.remotes-details-body')!;
+			const slider = viewport.querySelector<HTMLElement>(':scope > .scrollbar.vertical > .slider')!;
+			const wheel = new WheelEvent('wheel', { deltaY: 10000, bubbles: true, cancelable: true });
+			// Chromium gives synthetic legacy deltas the wrong sign; keep both representations consistent.
+			Object.defineProperty(wheel, 'wheelDeltaY', { value: -10000 });
+			body.dispatchEvent(wheel);
+			const fitsViewport = body.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom + 1;
+			const scrolledToEnd = body.scrollTop > 0 && Math.abs(body.scrollTop - (body.scrollHeight - body.clientHeight)) <= 1;
+			const sliderTopAtEnd = slider.offsetTop;
+			// Moving focus scrolls the body natively, as this does.
+			body.scrollTop = 0;
+			body.dispatchEvent(new Event('scroll'));
+			results[page] = { fitsViewport, scrolledToEnd, sliderFollowsNativeScroll: sliderTopAtEnd > 0 && slider.offsetTop === 0 };
+		}
+		assert.deepStrictEqual(results, {
+			troubleshoot: { fitsViewport: true, scrolledToEnd: true, sliderFollowsNativeScroll: true },
+			locationPreference: { fitsViewport: true, scrolledToEnd: true, sliderFollowsNativeScroll: true },
+		});
+	});
+
 	test('shows refresh warnings on the failed groups, with simple tooltips and accessible labels', async () => {
 		const { parent, model, widget, hoverContents } = createWidget();
 		model.failedKinds = ['ssh', 'tunnel'];
