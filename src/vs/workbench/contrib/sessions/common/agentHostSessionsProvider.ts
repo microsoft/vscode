@@ -201,6 +201,17 @@ export interface IAgentHostSuccessor {
 }
 
 /**
+ * Another provider whose host an agent host provider takes over
+ * ({@link IAgentHostSessionsProvider.predecessor}).
+ */
+export interface IAgentHostPredecessor {
+	/** The provider whose new session selections move to the provider taking over. */
+	readonly providerId: string;
+	/** Maps a folder of {@link providerId} to the same folder on the provider taking over, or `undefined` when it is not one. */
+	mapFolder(folderUri: URI): URI | undefined;
+}
+
+/**
  * Extended sessions provider for agent host providers (local and remote).
  * Adds remote connection properties and dynamic session configuration.
  */
@@ -292,6 +303,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * again: a new session selected on this provider moves to it.
 	 */
 	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	/**
+	 * Set while this provider takes over another provider's host, such as a shared remote's GitHub environment while
+	 * the remote is disconnected with Keep Sharing: a new session selected on that provider moves to this one.
+	 */
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 

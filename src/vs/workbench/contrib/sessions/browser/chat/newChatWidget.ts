@@ -892,20 +892,41 @@ export class NewChatWidget extends Disposable {
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
 
-		// Move to the provider that continues the selected workspace's host, such as a shared remote's direct connection
-		// that is connected again, whose GitHub environment then becomes unavailable.
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			workspacePickerSelectionChanged.read(reader);
-			const folderUri = this._workspacePicker.selectedFolderUri;
-			const providerId = this._workspacePicker.selectedResolved?.providerId;
-			const provider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
-			const successor = provider && isAgentHostProvider(provider) ? provider.successor?.read(reader) : undefined;
-			const successorFolderUri = folderUri && successor?.mapFolder(folderUri);
-			if (folderUri && providerId && successor && successorFolderUri) {
-				void this._followSuccessor(folderUri, providerId, successorFolderUri, successor.providerId);
+			const continuation = this._readContinuation(reader);
+			if (continuation) {
+				void this._followSuccessor(continuation.folderUri, continuation.providerId, continuation.successorFolderUri, continuation.successorProviderId);
 			}
 		}));
+	}
+
+	/**
+	 * The provider that continues the selected workspace's host, such as a shared remote's direct connection that is
+	 * connected again, whose GitHub environment then becomes unavailable, or the GitHub environment that takes over a
+	 * remote disconnected with Keep Sharing.
+	 */
+	private _readContinuation(reader: IReader): { folderUri: URI; providerId: string; successorFolderUri: URI; successorProviderId: string } | undefined {
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		const providerId = this._workspacePicker.selectedResolved?.providerId;
+		if (!folderUri || !providerId) {
+			return undefined;
+		}
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		const successor = provider && isAgentHostProvider(provider) ? provider.successor?.read(reader) : undefined;
+		const successorFolderUri = successor?.mapFolder(folderUri);
+		if (successor && successorFolderUri) {
+			return { folderUri, providerId, successorFolderUri, successorProviderId: successor.providerId };
+		}
+		for (const candidate of this.sessionsProvidersService.getProviders()) {
+			const predecessor = candidate.id !== providerId && isAgentHostProvider(candidate) ? candidate.predecessor?.read(reader) : undefined;
+			const candidateFolderUri = predecessor?.providerId === providerId ? predecessor.mapFolder(folderUri) : undefined;
+			if (candidateFolderUri) {
+				return { folderUri, providerId, successorFolderUri: candidateFolderUri, successorProviderId: candidate.id };
+			}
+		}
+		return undefined;
 	}
 
 	private _trackSessionPreparation(): IDisposable {
@@ -2858,8 +2879,8 @@ export class NewChatWidget extends Disposable {
 
 	/**
 	 * Moves the selected workspace to the provider that continues its host, such as a shared remote's direct connection
-	 * once it is connected again, keeping the input, the agent and a Dev Container where the new provider offers them.
-	 * It happens in the background: focus stays where it is.
+	 * once it is connected again or the GitHub environment of a remote disconnected with Keep Sharing, keeping the input,
+	 * the agent and a Dev Container where the new provider offers them. It happens in the background: focus stays where it is.
 	 */
 	private async _followSuccessor(folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string): Promise<void> {
 		const session = this._session.get();

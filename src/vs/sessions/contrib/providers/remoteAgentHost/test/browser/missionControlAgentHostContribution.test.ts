@@ -463,6 +463,38 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
+	test('points a remote disconnected with Keep Sharing at its environment until the remote is gone, instead of the environment at the remote', () => {
+		const { hosts, sharedRemoteEnvironmentIds, shares, created, providersService, setAddressStatus, keepSharing } = fixture();
+		shares.set(new Map([['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
+		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
+		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
+		const remote = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
+		const registration = providersService.registerProvider(remote);
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
+		const folder = URI.from({ scheme: 'file', path: '/home/project' });
+		const remoteFolder = toAgentHostUri(folder, agentHostAuthority('ssh:kept'));
+		const environmentFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:kept'));
+		const { successor, predecessor } = created[0].options;
+		const read = () => {
+			const continued = predecessor!.get();
+			return {
+				successor: successor!.get()?.providerId,
+				predecessor: continued && { providerId: continued.providerId, folder: continued.mapFolder(remoteFolder)?.toString(), other: continued.mapFolder(environmentFolder)?.toString() },
+			};
+		};
+		const connected = read();
+		keepSharing('ssh:kept', 'kept');
+		const keptSharing = read();
+		sharedRemoteEnvironmentIds.set(new Set(), undefined);
+		registration.dispose();
+		setAddressStatus('ssh:kept', undefined);
+		assert.deepStrictEqual({ connected, keptSharing, disconnected: read() }, {
+			connected: { successor: remote.id, predecessor: undefined },
+			keptSharing: { successor: undefined, predecessor: { providerId: remote.id, folder: environmentFolder.toString(), other: undefined } },
+			disconnected: { successor: undefined, predecessor: undefined },
+		});
+	});
+
 	test('publishes native sessions only while connected and hides them again after connection loss or explicit disconnect', async () => {
 		const { hosts, created, setConnectionStatus } = fixture();
 		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };

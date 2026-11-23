@@ -71,7 +71,7 @@ import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/s
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostPredecessor, IAgentHostSessionsProvider, IAgentHostSuccessor, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { INewSessionTargetLabels, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
@@ -1598,6 +1598,31 @@ suite('NewChatWidget', () => {
 				});
 			});
 		}
+
+		test('continues the selected host with its successor first, otherwise with a provider that declares it its predecessor', () => {
+			const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
+			const environmentFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'env', path: '/file/-/project' });
+			const successor = observableValue<IAgentHostSuccessor | undefined>('successor', undefined);
+			const predecessors = new Map(['agenthost-env', 'agenthost-other'].map(id => [id, observableValue<IAgentHostPredecessor | undefined>(id, undefined)]));
+			const providers = ['agenthost-wsl', ...predecessors.keys()].map(id => upcastPartial<IAgentHostSessionsProvider>({ id, successor: id === 'agenthost-wsl' ? successor : undefined, predecessor: predecessors.get(id) }));
+			const selected = { providerId: 'agenthost-wsl' };
+			const read = () => {
+				const continuation = (Reflect.get(NewChatWidget.prototype, '_readContinuation') as (this: unknown, reader: IReader | undefined) => { successorFolderUri: URI; successorProviderId: string } | undefined).call({
+					_workspacePicker: { selectedFolderUri: directFolder, selectedResolved: selected },
+					sessionsProvidersService: { getProviders: () => providers, getProvider: (id: string) => providers.find(provider => provider.id === id) },
+				}, undefined);
+				return continuation && `${continuation.successorProviderId} ${continuation.successorFolderUri.authority}`;
+			};
+			const states = [read()];
+			predecessors.get('agenthost-other')!.set({ providerId: 'agenthost-ssh', mapFolder: () => environmentFolder }, undefined);
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapFolder: () => undefined }, undefined);
+			states.push(read());
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapFolder: () => environmentFolder }, undefined);
+			states.push(read());
+			successor.set({ providerId: 'agenthost-other', mapFolder: () => directFolder }, undefined);
+			states.push(read());
+			assert.deepStrictEqual(states, [undefined, undefined, 'agenthost-env env', 'agenthost-other wsl']);
+		});
 
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {
 			const remote: ISessionCreationEnvironment = { id: 'agenthost-ssh', kind: 'remote', label: 'SSH', icon: Codicon.remote, providerIds: ['agenthost-ssh'] };
