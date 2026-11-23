@@ -137,7 +137,17 @@ suite('Language Configuration Parsing', () => {
 });
 
 suite('Auto-Indentation - Ruby', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('indent after a block with a hash in a quoted argument', () => {
 		const instantiationService = disposables.add(createModelServices(disposables));
