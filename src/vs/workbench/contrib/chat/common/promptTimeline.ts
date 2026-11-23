@@ -23,5 +23,14 @@ export type PromptTimelineRailStyle = 'off' | 'ruler' | 'gutter';
 /** The selectable rail-style values, for the setting's `enum`. */
 export const PROMPT_TIMELINE_RAIL_STYLES: readonly PromptTimelineRailStyle[] = ['off', 'ruler', 'gutter'];
 
+/** What the prompt timeline offers the rest of the workbench (its widget contribution implements it). */
+export interface IPromptTimelineReveal {
+	/**
+	 * Reveals the prompt the timeline shows a note written at `timestamp` under (the last prompt sent by
+	 * then, or the first one), as choosing that prompt on the timeline does. False when the timeline is off.
+	 */
+	revealPromptAt(timestamp: number): boolean;
+}
+
 /** Minimum number of user prompts before the timeline rail is shown. */
 export const MIN_RAIL_PROMPTS = 2;

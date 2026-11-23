@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
@@ -18,8 +18,10 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { IChatDraft } from '../attachments/chatDraft.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
-import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { ChatRequestTextPart, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ChatModel, ChatRequestModel, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
 
@@ -308,7 +310,15 @@ export interface IChatPendingDividerViewModel {
 	readonly isComplete: true;
 	readonly dividerKind: ChatRequestQueueKind | 'scheduled';
 	readonly isSystemInitiated?: boolean;
+	/** For a draft: its label, the reason line, and a warning. */
+	readonly draft?: { readonly id: string; readonly label: string; readonly detail?: string; readonly warning?: string };
 	currentRenderedHeight: number | undefined;
+}
+
+/** Suggested drafts for a session (proposed API `chatDraftRequests`), supplied by the widget. */
+export interface IChatViewModelDraftSource {
+	getDrafts(session: URI): readonly { readonly id: string; readonly text: string; readonly label: string; readonly detail?: string; readonly warning?: string; readonly createdAt: number }[];
+	readonly onDidChangeDrafts: Event<URI>;
 }
 
 export interface IChatViewModelOptions {
@@ -390,6 +400,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			this._onDidDisposeModel.fire();
 		}));
 		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
+		this._register(this._draftListener);
 		this._register(autorun(reader => {
 			_model.pendingRequestHandoffs.read(reader);
 			if (!modelDisposed) {
@@ -468,6 +479,32 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._onDidChange.fire(null);
 	}
 
+	private _draftSource: IChatViewModelDraftSource | undefined;
+	private readonly _draftListener = new MutableDisposable();
+	private readonly _draftRequests = new Map<string, ChatRequestModel>();
+
+	setDraftSource(source: IChatViewModelDraftSource | undefined): void {
+		this._draftSource = source;
+		this._draftListener.value = source?.onDidChangeDrafts(uri => {
+			if (uri.toString() === this._model.sessionResource.toString()) {
+				this._onDidChange.fire(null);
+			}
+		});
+		this._onDidChange.fire(null);
+	}
+
+	private draftRequest(d: { id: string; text: string; createdAt: number }): ChatRequestModel {
+		let r = this._draftRequests.get(d.id);
+		if (!r || r.message.text !== d.text) {
+			r = new ChatRequestModel({
+				session: this._model as ChatModel, restoredId: d.id, timestamp: d.createdAt, variableData: { variables: [] },
+				message: { text: d.text, parts: [new ChatRequestTextPart(new OffsetRange(0, d.text.length), new Range(1, 1, 1, d.text.length + 1), d.text)] },
+			});
+			this._draftRequests.set(d.id, r);
+		}
+		return r;
+	}
+
 	getItems(): readonly ChatViewModelItem[] {
 		return this._visibleItemsCache ??= this.computeItems();
 	}
@@ -530,6 +567,14 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items.push({ kind: 'pendingDivider', id: 'pending-divider-scheduled', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: 'scheduled', currentRenderedHeight: undefined });
 			items.push(...this._scheduledRequests);
 		}
+
+		// Drafts last, each under its own labeled divider; never part of the model's queue.
+		const drafts = this._options?.latestRequestOnly ? [] : this._draftSource?.getDrafts(this._model.sessionResource) ?? [];
+		for (const d of drafts) {
+			items.push({ kind: 'pendingDivider', id: `pending-divider-draft-${d.id}`, sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Draft, draft: { id: d.id, label: d.label, ...(d.detail ? { detail: d.detail } : {}), ...(d.warning ? { warning: d.warning } : {}) }, currentRenderedHeight: undefined });
+			items.push(this.instantiationService.createInstance(ChatRequestViewModel, this.draftRequest(d), ChatRequestQueueKind.Draft));
+		}
+
 		return items;
 	}
 

@@ -9,6 +9,7 @@
 	"chatPlugins",
 	"chatPromptFiles",
 	"chatResources",
+	"chatSessionPanels",
 	"chatSessions",
 	"chatSkills",
 	"chatViewsWelcome",

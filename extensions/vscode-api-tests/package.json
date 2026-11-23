@@ -59,7 +59,8 @@
     "devDeviceId",
     "languageModelProxy",
     "agentSessionsWorkspace",
-    "linkPresentation"
+    "linkPresentation",
+    "chatSessionObserver"
   ],
   "private": true,
   "activationEvents": [],

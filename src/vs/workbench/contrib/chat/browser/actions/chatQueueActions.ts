@@ -19,7 +19,9 @@ import { ChatRequestQueueKind, IChatService } from '../../common/chatService/cha
 import { IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService, unwrapChatContextMenuActionContext } from '../chat.js';
+import { IChatWidget, IChatWidgetService, unwrapChatContextMenuActionContext } from '../chat.js';
+import { ActiveChatSessionHost, IChatDraftRequestService } from '../../common/sessionObserver/chatSessionObserver.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { captureSideChatSelection } from '../chatSideChat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -374,7 +376,178 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 	}
 }
 
+// ---- Suggested drafts (proposed API `chatDraftRequests`) ----
+
+function draftContext(accessor: ServicesAccessor, args: unknown[]): { id: string; text: string; session: URI } | undefined {
+	const [context] = args;
+	if (!isRequestVM(context) || context.pendingKind !== ChatRequestQueueKind.Draft) {
+		return undefined;
+	}
+	const draft = accessor.get(IChatDraftRequestService).getDraft(context.id);
+	return draft ? { id: draft.id, text: draft.text, session: draft.session } : undefined;
+}
+
+const draftMenu = (order: number, group = 'navigation') => [{
+	id: MenuId.ChatMessageTitle,
+	group,
+	order,
+	when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.isDraftRequest),
+}];
+
+export class ChatEditDraftRequestAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.editDraftRequest';
+	constructor() {
+		super({ id: ChatEditDraftRequestAction.ID, title: localize2('chat.editDraftRequest', "Edit"), icon: Codicon.edit, f1: false, category: CHAT_CATEGORY, menu: draftMenu(1) });
+	}
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const d = draftContext(accessor, args);
+		const widget = d && accessor.get(IChatWidgetService).getWidgetBySessionResource(d.session);
+		if (!d || !widget) {
+			return;
+		}
+		widget.setInput(d.text);
+		widget.focusInput();
+		accessor.get(IChatDraftRequestService).reportDraftState(d.id, 'editing', widgetHost(widget));
+	}
+}
+
+abstract class ChatSendDraftAction extends Action2 {
+	protected abstract readonly queue: ChatRequestQueueKind;
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const d = draftContext(accessor, args);
+		const widget = d && accessor.get(IChatWidgetService).getWidgetBySessionResource(d.session);
+		if (!d || !widget) {
+			return;
+		}
+		// Staged as the session's draft-in-progress, the submission resolves it (steered or queued).
+		accessor.get(IChatDraftRequestService).stageForSubmit(d.id);
+		await widget.acceptInput(d.text, { queue: this.queue, storeToHistory: true });
+	}
+}
+
+export class ChatSteerWithDraftAction extends ChatSendDraftAction {
+	static readonly ID = 'workbench.action.chat.steerWithDraft';
+	protected readonly queue = ChatRequestQueueKind.Steering;
+	constructor() {
+		super({ id: ChatSteerWithDraftAction.ID, title: localize2('chat.steerWithDraft', "Steer Now"), icon: Codicon.send, f1: false, category: CHAT_CATEGORY, menu: draftMenu(2) });
+	}
+}
+
+export class ChatQueueDraftAction extends ChatSendDraftAction {
+	static readonly ID = 'workbench.action.chat.queueDraft';
+	protected readonly queue = ChatRequestQueueKind.Queued;
+	constructor() {
+		super({ id: ChatQueueDraftAction.ID, title: localize2('chat.queueDraft', "Queue"), icon: Codicon.listOrdered, f1: false, category: CHAT_CATEGORY, menu: draftMenu(3) });
+	}
+}
+
+export class ChatDiscardDraftAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.discardDraft';
+	constructor() {
+		super({ id: ChatDiscardDraftAction.ID, title: localize2('chat.discardDraft', "Discard"), icon: Codicon.closeSmall, f1: false, category: CHAT_CATEGORY, menu: draftMenu(4) });
+	}
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const d = draftContext(accessor, args);
+		if (d) {
+			accessor.get(IChatDraftRequestService).resolveDraft(d.id, 'discarded');
+		}
+	}
+}
+
+export class ChatDiscardDraftWithReasonAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.discardDraftWithReason';
+	constructor() {
+		super({ id: ChatDiscardDraftWithReasonAction.ID, title: localize2('chat.discardDraftWithReason', "Discard With Reason..."), icon: Codicon.feedback, f1: false, category: CHAT_CATEGORY, menu: draftMenu(5) });
+	}
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const d = draftContext(accessor, args);
+		if (!d) {
+			return;
+		}
+		const drafts = accessor.get(IChatDraftRequestService);
+		const pick = await accessor.get(IQuickInputService).pick([
+			{ id: 'wrong', label: localize('draftWrong', "Wrong") },
+			{ id: 'not_now', label: localize('draftNotNow', "Not now") },
+			{ id: 'already_handled', label: localize('draftHandled', "Already handled") },
+			{ id: 'too_pushy', label: localize('draftPushy', "Too pushy") },
+		], { placeHolder: localize('draftDiscardReason', "Why discard this suggestion?") });
+		if (pick) {
+			drafts.resolveDraft(d.id, 'discarded', { reason: pick.id });
+		}
+	}
+}
+
+/** The newest draft on the focused widget's session, with that widget. */
+function focusedDraft(accessor: ServicesAccessor): { widget: IChatWidget; id: string; text: string } | undefined {
+	const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+	const session = widget?.viewModel?.sessionResource;
+	const draft = session ? accessor.get(IChatDraftRequestService).getDrafts(session).at(-1) : undefined;
+	return widget && draft ? { widget, id: draft.id, text: draft.text } : undefined;
+}
+
+/** Draft keys act only from an empty, focused chat input with no ghost text or suggest widget showing. */
+const draftKeyWhen = ContextKeyExpr.and(
+	ChatContextKeys.inChatInput,
+	ChatContextKeys.hasDraftRequest,
+	ChatContextKeys.inputHasText.negate(),
+	ContextKeyExpr.not('inlineSuggestionVisible'),
+	ContextKeyExpr.not('suggestWidgetVisible'),
+	ChatContextKeys.currentlyEditing.negate(),
+	ChatContextKeys.currentlyEditingInput.negate(),
+);
+
+/** Tab takes the session's suggested draft into the input to edit; it is never sent for the user. */
+export class ChatTakeDraftIntoInputAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.takeDraftIntoInput';
+	constructor() {
+		super({
+			id: ChatTakeDraftIntoInputAction.ID, title: localize2('chat.takeDraftIntoInput', "Edit Suggested Draft"), f1: false, category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.hasDraftRequest,
+			keybinding: { primary: KeyCode.Tab, when: draftKeyWhen, weight: KeybindingWeight.WorkbenchContrib },
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		const d = focusedDraft(accessor);
+		if (!d) {
+			return;
+		}
+		d.widget.setInput(d.text);
+		d.widget.focusInput();
+		accessor.get(IChatDraftRequestService).reportDraftState(d.id, 'editing', widgetHost(d.widget));
+	}
+}
+
+/** Escape in an empty chat input discards the session's suggested draft. */
+export class ChatDismissDraftAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.dismissDraft';
+	constructor() {
+		super({
+			id: ChatDismissDraftAction.ID, title: localize2('chat.dismissDraft', "Discard Suggested Draft"), f1: false, category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.hasDraftRequest,
+			keybinding: { primary: KeyCode.Escape, when: draftKeyWhen, weight: KeybindingWeight.WorkbenchContrib },
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		const d = focusedDraft(accessor);
+		if (d) {
+			accessor.get(IChatDraftRequestService).resolveDraft(d.id, 'discarded', { reason: 'escape' });
+		}
+	}
+}
+
+function widgetHost(widget: IChatWidget): ActiveChatSessionHost {
+	const ctx = widget.viewContext as { viewId?: string; isQuickChat?: boolean };
+	return ctx.viewId ? 'chatView' : ctx.isQuickChat ? 'quickChat' : 'chatEditor';
+}
+
 export function registerChatQueueActions(): void {
+	registerAction2(ChatEditDraftRequestAction);
+	registerAction2(ChatSteerWithDraftAction);
+	registerAction2(ChatQueueDraftAction);
+	registerAction2(ChatDiscardDraftAction);
+	registerAction2(ChatDiscardDraftWithReasonAction);
+	registerAction2(ChatTakeDraftIntoInputAction);
+	registerAction2(ChatDismissDraftAction);
 	registerAction2(ChatQueueMessageAction);
 	registerAction2(ChatSteerWithMessageAction);
 	registerAction2(ChatAskInSideChatAction);

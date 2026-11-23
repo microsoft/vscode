@@ -353,6 +353,9 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		}
 	}
 
+	// The ruler places prompts by scroll position and blooms on engagement; it doesn't draw annotations.
+	setAnnotations(): void { }
+
 	setScrollLayout(layout: IPromptScrollLayout | undefined): void {
 		const prevScrollTop = this._lastScrollTop;
 		this._layout = layout;

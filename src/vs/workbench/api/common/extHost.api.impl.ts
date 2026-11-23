@@ -41,6 +41,8 @@ import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
 import { ExtHostChatArtifactIntegrations } from './extHostChatArtifactIntegrations.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
+import { ExtHostChatSessionObserver } from './extHostChatSessionObserver.js';
+import { ExtHostUserActivity } from './extHostUserActivity.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
 import { ExtHostChatQuota } from './extHostChatQuota.js';
 import { ExtHostChatInputNotification } from './extHostChatInputNotification.js';
@@ -251,6 +253,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
+	const extHostChatSessionObserver = rpcProtocol.set(ExtHostContext.ExtHostChatSessionObserver, new ExtHostChatSessionObserver(rpcProtocol, extHostWebviewViews));
+	const extHostUserActivity = rpcProtocol.set(ExtHostContext.ExtHostUserActivity, new ExtHostUserActivity(rpcProtocol));
 	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, accessor.get(IExtHostTesting));
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
@@ -1033,12 +1037,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeActiveColorTheme(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostTheming.onDidChangeActiveColorTheme)(listener, thisArg, disposables);
 			},
+			onDidRecordUserActivity(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'userActivity');
+				return _asExtensionEvent(extHostUserActivity.onDidRecordUserActivity)(listener, thisArg, disposables);
+			},
 			registerWebviewViewProvider(viewId: string, provider: vscode.WebviewViewProvider, options?: {
 				webviewOptions?: {
 					retainContextWhenHidden?: boolean;
 				};
 			}) {
 				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
+			},
+			registerChatSessionPanelProvider(id: string, provider: vscode.ChatSessionPanelProvider, options?: { readonly webviewOptions?: { readonly retainContextWhenHidden?: boolean } }) {
+				checkProposedApiEnabled(extension, 'chatSessionPanel');
+				return extHostChatSessionObserver.registerChatSessionPanelProvider(extension, id, provider, options);
 			},
 			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
 				return extHostNotebook.activeNotebookEditor;
@@ -1748,6 +1760,74 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chatregisterMcpServerDefinitionProvider
 		const chat: typeof vscode.chat = {
+			getChatSessions(filter?: { readonly activeSince?: number }) {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return extHostChatSessionObserver.getChatSessions(filter);
+			},
+			onDidChangeChatSessions: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return _asExtensionEvent(extHostChatSessionObserver.onDidChangeChatSessions)(listener, thisArgs, disposables);
+			},
+			observeChatSession(resource: vscode.Uri, options?: { readonly fromSeq?: number }) {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return extHostChatSessionObserver.observeChatSession(resource, options);
+			},
+			get activeChatSessions() {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return extHostChatSessionObserver.activeChatSessions;
+			},
+			onDidChangeActiveChatSessions: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return _asExtensionEvent(extHostChatSessionObserver.onDidChangeActiveChatSessions)(listener, thisArgs, disposables);
+			},
+			openChatSession(resource: vscode.Uri) {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return extHostChatSessionObserver.openChatSession(resource);
+			},
+			revealChatSessionEvent(resource: vscode.Uri, eventId: string) {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return extHostChatSessionObserver.revealChatSessionEvent(resource, eventId);
+			},
+			openChatSessionEditDiff(resource: vscode.Uri, eventId: string) {
+				checkProposedApiEnabled(extension, 'chatSessionObserver');
+				return extHostChatSessionObserver.openChatSessionEditDiff(resource, eventId);
+			},
+			setChatSessionAnnotations(session: vscode.Uri, annotations: readonly vscode.ChatSessionAnnotation[]) {
+				checkProposedApiEnabled(extension, 'chatSessionAnnotations');
+				return extHostChatSessionObserver.setChatSessionAnnotations(session, annotations);
+			},
+			revealChatSessionPromptAt(session: vscode.Uri, timestamp: number) {
+				checkProposedApiEnabled(extension, 'chatSessionAnnotations');
+				return extHostChatSessionObserver.revealChatSessionPromptAt(session, timestamp);
+			},
+			getChatLinkTooltips(hrefs: readonly string[]) {
+				checkProposedApiEnabled(extension, 'chatSessionAnnotations');
+				return extHostChatSessionObserver.getChatLinkTooltips(hrefs);
+			},
+			setChatSessionAttention(session: vscode.Uri, attention: vscode.ChatSessionAttention | undefined) {
+				checkProposedApiEnabled(extension, 'chatSessionAttention');
+				return extHostChatSessionObserver.setChatSessionAttention(session, attention);
+			},
+			notifyChatSession(session: vscode.Uri, notification: vscode.ChatSessionNotification) {
+				checkProposedApiEnabled(extension, 'chatSessionAttention');
+				return extHostChatSessionObserver.notifyChatSession(session, notification);
+			},
+			setChatInputSuggestion(session: vscode.Uri, suggestion: vscode.ChatInputSuggestion | undefined) {
+				checkProposedApiEnabled(extension, 'chatInputSuggestion');
+				return extHostChatSessionObserver.setChatInputSuggestion(session, suggestion);
+			},
+			onDidChangeChatInputSuggestion: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatInputSuggestion');
+				return _asExtensionEvent(extHostChatSessionObserver.onDidChangeChatInputSuggestion)(listener, thisArgs, disposables);
+			},
+			onDidSendChatRequest: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatInputSuggestion');
+				return _asExtensionEvent(extHostChatSessionObserver.onDidSendChatRequest)(listener, thisArgs, disposables);
+			},
+			addChatDraftRequest(session: vscode.Uri, draft: vscode.ChatDraftRequest) {
+				checkProposedApiEnabled(extension, 'chatDraftRequests');
+				return extHostChatSessionObserver.addChatDraftRequest(session, draft);
+			},
 			registerArtifactIntegrationProvider(id: string, provider: vscode.ChatArtifactIntegrationProvider) {
 				checkProposedApiEnabled(extension, 'chatArtifactIntegrations');
 				return extHostChatArtifactIntegrations.registerProvider(extension, id, provider);
@@ -2305,6 +2385,39 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
+			ChatSessionObservedStatus: extHostTypes.ChatSessionObservedStatus,
+			ChatSessionReasoningFidelity: extHostTypes.ChatSessionReasoningFidelity,
+			ChatSessionToolOutputFidelity: extHostTypes.ChatSessionToolOutputFidelity,
+			ChatSessionDiffFidelity: extHostTypes.ChatSessionDiffFidelity,
+			ChatSessionTimestampFidelity: extHostTypes.ChatSessionTimestampFidelity,
+			ChatSessionAttachmentKind: extHostTypes.ChatSessionAttachmentKind,
+			ChatSessionEventKind: extHostTypes.ChatSessionEventKind,
+			ChatSessionTurnTrigger: extHostTypes.ChatSessionTurnTrigger,
+			ChatSessionMessageOrigin: extHostTypes.ChatSessionMessageOrigin,
+			ChatSessionSubmitKind: extHostTypes.ChatSessionSubmitKind,
+			ChatSessionReasoningAvailability: extHostTypes.ChatSessionReasoningAvailability,
+			ChatSessionToolOutputStream: extHostTypes.ChatSessionToolOutputStream,
+			ChatSessionToolResultStatus: extHostTypes.ChatSessionToolResultStatus,
+			ChatSessionEditOperation: extHostTypes.ChatSessionEditOperation,
+			ChatSessionEditDecision: extHostTypes.ChatSessionEditDecision,
+			ChatSessionQuestionKind: extHostTypes.ChatSessionQuestionKind,
+			ChatSessionAnswerActor: extHostTypes.ChatSessionAnswerActor,
+			ChatSessionPermissionDecision: extHostTypes.ChatSessionPermissionDecision,
+			ChatSessionTodoStatus: extHostTypes.ChatSessionTodoStatus,
+			ChatSessionSubagentStatus: extHostTypes.ChatSessionSubagentStatus,
+			ChatSessionCompactionTrigger: extHostTypes.ChatSessionCompactionTrigger,
+			ChatSessionPullRequestAction: extHostTypes.ChatSessionPullRequestAction,
+			ChatSessionTurnOutcome: extHostTypes.ChatSessionTurnOutcome,
+			ChatSessionCanceller: extHostTypes.ChatSessionCanceller,
+			ChatSessionPendingKind: extHostTypes.ChatSessionPendingKind,
+			ChatSessionHost: extHostTypes.ChatSessionHost,
+			ChatSessionWindowKind: extHostTypes.ChatSessionWindowKind,
+			ChatInputSuggestionState: extHostTypes.ChatInputSuggestionState,
+			ChatRequestSubmissionKind: extHostTypes.ChatRequestSubmissionKind,
+			ChatDraftRequestState: extHostTypes.ChatDraftRequestState,
+			ChatDraftRequestOutcome: extHostTypes.ChatDraftRequestOutcome,
+			ChatSessionNotificationSkipReason: extHostTypes.ChatSessionNotificationSkipReason,
+			UserActivityKind: extHostTypes.UserActivityKind,
 			ChatSessionCustomizationType: extHostTypes.ChatSessionCustomizationType,
 			ChatDebugLogLevel: extHostTypes.ChatDebugLogLevel,
 			ChatDebugToolCallResult: extHostTypes.ChatDebugToolCallResult,

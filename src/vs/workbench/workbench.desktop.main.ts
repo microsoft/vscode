@@ -181,6 +181,7 @@ import './contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import './contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/userActivity/electron-browser/userActivity.contribution.js';
 import './contrib/canvases/electron-browser/editorCanvases.contribution.js';
 
 // Splash

@@ -41,6 +41,8 @@ export namespace ChatContextKeys {
 	export const contextMenuHasResponseSelection = new RawContextKey<boolean>('chatContextMenuHasResponseSelection', false, { type: 'boolean', description: localize('chatContextMenuHasResponseSelection', "Whether the chat context menu has selected assistant response text.") });
 	export const isFirstRequest = new RawContextKey<boolean>('chatFirstRequest', false, { type: 'boolean', description: localize('chatFirstRequest', "The chat item is the first request in the session.") });
 	export const isPendingRequest = new RawContextKey<boolean>('chatRequestIsPending', false, { type: 'boolean', description: localize('chatRequestIsPending', "True when the chat request item is pending in the queue.") });
+	export const isDraftRequest = new RawContextKey<boolean>('chatRequestIsDraft', false, { type: 'boolean', description: localize('chatRequestIsDraft', "True when the chat request item is a suggested draft in the pending list.") });
+	export const hasDraftRequest = new RawContextKey<boolean>('chatSessionHasDraftRequest', false, { type: 'boolean', description: localize('chatSessionHasDraftRequest', "True when the chat widget's session has a suggested draft in its pending list.") });
 	export const itemId = new RawContextKey<string>('chatItemId', '', { type: 'string', description: localize('chatItemId', "The id of the chat item.") });
 	export const lastItemId = new RawContextKey<string[]>('chatLastItemId', [], { type: 'string', description: localize('chatLastItemId', "The id of the last chat item.") });
 

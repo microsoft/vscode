@@ -477,6 +477,21 @@
 		}
 	}
 
+	/* An extension calling the user to the session (proposed API chatSessionAttention), e.g. a draft
+	 * to review: in the indicators' colour, with its reason on hover. */
+	.monaco-list-row .session-attention-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
+		font-size: 12px;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
 	.session-inline-rename-input {
 		display: none;
 		flex: 1;
@@ -891,7 +906,8 @@
 		.session-title,
 		.session-compact-hover-description,
 		.session-search-hint-title,
-		.session-pending-voice-indicator {
+		.session-pending-voice-indicator,
+		.session-attention-indicator {
 			display: none;
 		}
 

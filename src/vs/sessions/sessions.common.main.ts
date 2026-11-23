@@ -138,6 +138,7 @@ import '../workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import '../workbench/services/treeSitter/browser/treeSitter.contribution.js';
 import '../workbench/services/userActivity/common/userActivityService.js';
 import '../workbench/services/userActivity/browser/userActivityBrowser.js';
+import '../workbench/services/userActivity/browser/userActivityCaptureService.js';
 import '../workbench/services/lifecycle/common/unattendedRestart.js';
 import '../workbench/services/userAttention/browser/userAttentionBrowser.js';
 import '../workbench/services/editor/browser/editorPaneService.js';
@@ -349,6 +350,9 @@ import '../workbench/contrib/output/browser/outputView.js';
 // Terminal
 import '../workbench/contrib/terminal/terminal.all.js';
 
+// User activity (proposed API userActivity)
+import '../workbench/contrib/userActivity/browser/userActivity.contribution.js';
+
 // External terminal
 import '../workbench/contrib/externalTerminal/browser/externalTerminal.contribution.js';
 
@@ -505,6 +509,8 @@ import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/canvases/browser/pinnedCanvases.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
+import './contrib/chatSessionPanels/browser/chatSessionPanels.contribution.js';
+import './contrib/sessionObserver/browser/sessionObserver.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';

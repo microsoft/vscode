@@ -23,6 +23,7 @@ import { IChatResponseFileChangesService } from '../chatResponseFileChangesServi
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatRequestQueueKind } from '../../common/chatService/chatService.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
 /** Aggregated diff stats for the edits a prompt (or bucket) produced. */
@@ -105,7 +106,8 @@ function itemKind(item: ChatTreeItem): PromptItemKind {
 }
 
 function isPromptTimelineRequest(item: ChatTreeItem): item is IChatRequestViewModel {
-	return isRequestVM(item) && !item.isSystemInitiated;
+	// A suggested draft (proposed API `chatDraftRequests`) was never sent: it is no prompt.
+	return isRequestVM(item) && !item.isSystemInitiated && item.pendingKind !== ChatRequestQueueKind.Draft;
 }
 
 // Content "signal" = a cheap, unit-less size proxy (roughly the rendered line
@@ -222,6 +224,13 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activePromptId(): IObservable<string | undefined> { return this._activePromptId; }
 
+	/**
+	 * The prompt the user jumped to (`reveal`). The active prompt is the one owning the viewport
+	 * top, but the last prompt, followed by a short reply, can't scroll up there: jumped to, it
+	 * stays active while the transcript sits at the bottom with it in view.
+	 */
+	private _revealedId: string | undefined;
+
 	/** True once the active prompt's own row has scrolled above the viewport top (drives the sticky header). */
 	private readonly _scrollPinned: ISettableObservable<boolean> = observableValue<boolean>(this, false);
 	get activePinned(): IObservable<boolean> { return this._scrollPinned; }
@@ -269,7 +278,10 @@ export class PromptTimelineModel extends Disposable {
 			const model = this._activeModel.read(reader);
 			return model?.olderHistoryCursor?.read(reader) !== undefined ? model.loadOlderHistory : undefined;
 		});
-		this._register(this.widget.onDidChangeViewModel(() => this._bindViewModel()));
+		this._register(this.widget.onDidChangeViewModel(() => {
+			this._revealedId = undefined;
+			this._bindViewModel();
+		}));
 		this._register(this.widget.onDidScroll(() => { this._updateActive(); this._triggerScrollLayout(); }));
 		this._register(this.widget.onDidChangeContentHeight(() => this._triggerScrollLayout()));
 		// Re-evaluate the active tick whenever the ticks change.
@@ -434,7 +446,7 @@ export class PromptTimelineModel extends Disposable {
 	}
 
 	/** Recomputes which tick maps to the prompt currently scrolled into view. */
-	private _updateActive(): void {
+	private _updateActive(afterReveal = false): void {
 		const ticks = this._baseTicks.get();
 		const items = this.widget.viewModel?.getItems();
 		if (!items || ticks.length === 0) {
@@ -484,6 +496,25 @@ export class PromptTimelineModel extends Disposable {
 			}
 		}
 
+		// A prompt jumped to that can't reach the viewport top stays active while it is in view at the
+		// bottom. Scrolling elsewhere lets the viewport top decide again.
+		if (this._revealedId !== undefined) {
+			let revealed: IChatRequestViewModel | undefined;
+			for (const item of items) {
+				if (isPromptTimelineRequest(item) && item.id === this._revealedId) {
+					revealed = item;
+				}
+			}
+			const top = revealed ? this.widget.getElementTop(revealed) : undefined;
+			if (revealed && top !== undefined && isScrolledToBottom && top > scrollTop && top < scrollTop + this.widget.viewportHeight) {
+				activeRequestId = revealed.id;
+				activeTimestamp = revealed.timestamp;
+				activeTop = top;
+			} else if (!afterReveal) {
+				this._revealedId = undefined;
+			}
+		}
+
 		if (activeRequestId === undefined) {
 			// Scrolled above the oldest prompt: the oldest tick is the active one
 			// (the loop advances oldest -> newest as you scroll down).
@@ -520,6 +551,8 @@ export class PromptTimelineModel extends Disposable {
 
 	/** Reveals the request with the given id at the top of the transcript. */
 	reveal(requestId: string): void {
+		this._revealedId = requestId;
+		const atBottom = this.widget.scrollTop + this.widget.viewportHeight >= this.widget.scrollHeight - 2;
 		const items = this.widget.viewModel?.getItems();
 		const index = items?.findIndex(i => isRequestVM(i) && i.id === requestId) ?? -1;
 		if (items && index >= 0) {
@@ -529,6 +562,10 @@ export class PromptTimelineModel extends Disposable {
 		// works even when the id is a mid-bucket prompt (picker).
 		const owningTick = this._baseTicks.get().find(t => t.allRequestIds.includes(requestId));
 		this._activeRequestId.set(owningTick?.requestId ?? requestId, undefined);
+		// Already at the bottom, a jump to a prompt there doesn't scroll: decide now, not on a scroll event.
+		if (atBottom) {
+			this._updateActive(true);
+		}
 	}
 
 	/**

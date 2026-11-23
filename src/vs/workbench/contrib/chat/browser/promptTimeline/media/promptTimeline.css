@@ -893,3 +893,148 @@
 	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
 	margin-left: 4px;
 }
+
+/* ---- Annotations (proposed API chatSessionAnnotations): notes such as progress digests, drawn
+ * where they happened in the session. On the handle, a short dash between the prompts' dots: a rule
+ * across the column reads as a break that sums up what came before, apart from the dots by its
+ * orientation, and as wide as the accented dot so the column keeps one width. In the flyout, a row
+ * between the prompt rows, the newest expanded, so the flyout reads as the session's story: what was
+ * asked, and what came of it. Colour follows the dots: grey, and the accent for the notes after the
+ * prompt the transcript is scrolled to. */
+
+.prompt-timeline-gutter-mark {
+	width: calc(var(--prompt-timeline-gutter-dot-size) * 1.5);
+	height: 2px;
+	flex-shrink: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-descriptionForeground);
+	opacity: 0.55;
+	transition: opacity 140ms ease, background-color 140ms ease;
+}
+
+.prompt-timeline-gutter-mark.current {
+	background-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.prompt-timeline-gutter-rest:hover .prompt-timeline-gutter-mark {
+	opacity: 1;
+}
+
+.prompt-timeline-gutter-annotation {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	box-sizing: border-box;
+	border-left: 2px solid var(--vscode-tree-indentGuidesStroke);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.prompt-timeline-gutter-annotation.current {
+	border-left-color: var(--vscode-focusBorder);
+}
+
+.prompt-timeline-gutter-annotation.newest {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.prompt-timeline-gutter-annotation-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 5px 8px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.prompt-timeline-gutter-annotation.newest .prompt-timeline-gutter-annotation-head {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.prompt-timeline-gutter-annotation-head:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.prompt-timeline-gutter-annotation-head:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.prompt-timeline-gutter-annotation-icon {
+	flex: 0 0 auto;
+	font-size: 12px;
+}
+
+.prompt-timeline-gutter-annotation.current .prompt-timeline-gutter-annotation-icon {
+	color: var(--vscode-focusBorder);
+}
+
+.prompt-timeline-gutter-annotation-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.prompt-timeline-gutter-annotation-age {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: normal;
+	color: var(--vscode-descriptionForeground);
+}
+
+.prompt-timeline-gutter-annotation-detail {
+	display: none;
+	padding: 0 10px 6px 26px;
+	font-size: 12px;
+	line-height: 1.45;
+	color: var(--vscode-foreground);
+}
+
+.prompt-timeline-gutter-annotation.expanded .prompt-timeline-gutter-annotation-detail {
+	display: block;
+}
+
+.prompt-timeline-gutter-annotation:not(.newest) .prompt-timeline-gutter-annotation-detail {
+	color: var(--vscode-descriptionForeground);
+}
+
+.prompt-timeline-gutter-annotation-detail ul {
+	margin: 2px 0;
+	padding-left: 14px;
+}
+
+.prompt-timeline-gutter-annotation-detail p {
+	margin: 2px 0;
+}
+
+.prompt-timeline-gutter-annotation-detail a {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* With annotations the flyout carries more: give the rows room to read. */
+.prompt-timeline-rail-gutter.has-annotations .prompt-timeline-gutter-panel {
+	width: 340px;
+}
+
+/* An expanded note shows its whole headline. */
+.prompt-timeline-gutter-annotation.expanded .prompt-timeline-gutter-annotation-head {
+	align-items: flex-start;
+}
+
+.prompt-timeline-gutter-annotation.expanded .prompt-timeline-gutter-annotation-label {
+	white-space: normal;
+}
+
+.prompt-timeline-gutter-annotation.expanded .prompt-timeline-gutter-annotation-icon,
+.prompt-timeline-gutter-annotation.expanded .prompt-timeline-gutter-annotation-age {
+	margin-top: 2px;
+}

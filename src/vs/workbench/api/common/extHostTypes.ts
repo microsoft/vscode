@@ -4355,3 +4355,265 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 
 //#region Chat Prompt Files
 //#endregion
+
+//#region Chat session observer, input suggestions and drafts (proposed)
+
+export enum ChatSessionObservedStatus {
+	Working = 1,
+	Waiting = 2,
+	Question = 3,
+	Finished = 4,
+	Failed = 5,
+	Cancelled = 6,
+}
+
+export enum ChatSessionReasoningFidelity {
+	Full = 1,
+	Summary = 2,
+	None = 3,
+}
+
+export enum ChatSessionToolOutputFidelity {
+	Full = 1,
+	Truncated = 2,
+}
+
+export enum ChatSessionDiffFidelity {
+	PerEdit = 1,
+	PerTurn = 2,
+	Aggregate = 3,
+	None = 4,
+}
+
+export enum ChatSessionTimestampFidelity {
+	PerEvent = 1,
+	PerTurn = 2,
+}
+
+export enum ChatSessionAttachmentKind {
+	File = 1,
+	Selection = 2,
+	Directory = 3,
+	Image = 4,
+	Symbol = 5,
+	Url = 6,
+	PromptFile = 7,
+	Other = 8,
+}
+
+export enum ChatSessionEventKind {
+	TurnStarted = 1,
+	UserMessage = 2,
+	AgentText = 3,
+	Reasoning = 4,
+	ToolCall = 5,
+	ToolOutput = 6,
+	ToolResult = 7,
+	Edit = 8,
+	EditDecision = 9,
+	Question = 10,
+	QuestionAnswer = 11,
+	PlanReview = 12,
+	PlanReviewDecision = 13,
+	Permission = 14,
+	PermissionDecision = 15,
+	Todos = 16,
+	SubagentStarted = 17,
+	SubagentEnded = 18,
+	Compaction = 19,
+	ModelCall = 20,
+	ModelChanged = 21,
+	ModeChanged = 22,
+	Notification = 23,
+	PullRequest = 24,
+	Error = 25,
+	TurnEnded = 26,
+	Pending = 27,
+	Input = 28,
+	TranscriptVisibility = 29,
+}
+
+export enum ChatSessionTurnTrigger {
+	User = 1,
+	System = 2,
+	Autopilot = 3,
+	Steering = 4,
+	Queued = 5,
+}
+
+export enum ChatSessionMessageOrigin {
+	User = 1,
+	System = 2,
+	Autopilot = 3,
+	Notification = 4,
+	Skill = 5,
+	Extension = 6,
+	Agent = 7,
+}
+
+export enum ChatSessionSubmitKind {
+	Send = 1,
+	Steer = 2,
+	Queue = 3,
+}
+
+export enum ChatSessionReasoningAvailability {
+	Full = 1,
+	Summary = 2,
+	Redacted = 3,
+	None = 4,
+}
+
+export enum ChatSessionToolOutputStream {
+	Stdout = 1,
+	Stderr = 2,
+	Content = 3,
+}
+
+export enum ChatSessionToolResultStatus {
+	Completed = 1,
+	Failed = 2,
+	Cancelled = 3,
+	Denied = 4,
+	TimedOut = 5,
+}
+
+export enum ChatSessionEditOperation {
+	Modify = 1,
+	Create = 2,
+	Delete = 3,
+	Rename = 4,
+}
+
+export enum ChatSessionEditDecision {
+	Kept = 1,
+	Undone = 2,
+	ModifiedByUser = 3,
+}
+
+export enum ChatSessionQuestionKind {
+	SingleSelect = 1,
+	MultiSelect = 2,
+	Text = 3,
+}
+
+export enum ChatSessionAnswerActor {
+	User = 1,
+	Auto = 2,
+}
+
+export enum ChatSessionPermissionDecision {
+	Allowed = 1,
+	Denied = 2,
+	Auto = 3,
+}
+
+export enum ChatSessionTodoStatus {
+	NotStarted = 1,
+	InProgress = 2,
+	Completed = 3,
+}
+
+export enum ChatSessionSubagentStatus {
+	Completed = 1,
+	Failed = 2,
+	Cancelled = 3,
+}
+
+export enum ChatSessionCompactionTrigger {
+	Auto = 1,
+	Manual = 2,
+}
+
+export enum ChatSessionPullRequestAction {
+	Opened = 1,
+	Updated = 2,
+	Linked = 3,
+}
+
+export enum ChatSessionTurnOutcome {
+	Completed = 1,
+	NeedsInput = 2,
+	Cancelled = 3,
+	Failed = 4,
+}
+
+export enum ChatSessionCanceller {
+	User = 1,
+	System = 2,
+}
+
+export enum ChatSessionPendingKind {
+	Queued = 1,
+	Steering = 2,
+}
+
+export enum ChatSessionHost {
+	ChatView = 1,
+	ChatEditor = 2,
+	QuickChat = 3,
+	AgentsWindow = 4,
+	Inbox = 5,
+}
+
+export enum ChatSessionWindowKind {
+	Editor = 1,
+	Agents = 2,
+}
+
+export enum ChatInputSuggestionState {
+	Shown = 1,
+	Hidden = 2,
+	Accepted = 3,
+	PartiallyAccepted = 4,
+	Rejected = 5,
+	Superseded = 6,
+	Invalidated = 7,
+}
+
+export enum ChatRequestSubmissionKind {
+	Send = 1,
+	Steer = 2,
+	Queue = 3,
+	Answer = 4,
+	PlanDecision = 5,
+}
+
+export enum ChatDraftRequestState {
+	Shown = 1,
+	Hidden = 2,
+	Editing = 3,
+}
+
+export enum ChatDraftRequestOutcome {
+	Steered = 1,
+	Queued = 2,
+	Sent = 3,
+	Discarded = 4,
+	Expired = 5,
+}
+
+export enum ChatSessionNotificationSkipReason {
+	WindowFocused = 1,
+	Off = 2,
+}
+
+export enum UserActivityKind {
+	Focus = 1,
+	Click = 2,
+	Selection = 3,
+	Type = 4,
+	Copy = 5,
+	Cut = 6,
+	Paste = 7,
+	Command = 8,
+	OpenEditor = 9,
+	SessionSwitch = 10,
+	Browser = 11,
+	Terminal = 12,
+	WindowFocus = 13,
+	Search = 14,
+	Read = 15,
+}
+
+//#endregion

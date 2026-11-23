@@ -13,14 +13,45 @@ interface IBuiltInExtension {
 	readonly metadata: any;
 }
 
+type TrustedAuthAccess = string[] | { [providerId: string]: string[] };
+
 interface OSSProduct {
 	readonly builtInExtensions: IBuiltInExtension[];
 	readonly webBuiltInExtensions?: IBuiltInExtension[];
+	readonly trustedExtensionAuthAccess?: TrustedAuthAccess;
 }
 
 interface Product {
 	readonly builtInExtensions?: IBuiltInExtension[] | { 'include'?: IBuiltInExtension[]; 'exclude'?: string[] };
 	readonly webBuiltInExtensions?: IBuiltInExtension[];
+	readonly trustedExtensionAuthAccess?: TrustedAuthAccess;
+}
+
+/**
+ * The distro's sign-in trust, plus what the OSS product.json trusts the OSS built-in extensions with, so a
+ * built-in this repository adds keeps it (e.g. using the GitHub account VS Code is signed in with, without
+ * asking). Only extensions the OSS product.json builds in, and only per provider.
+ */
+function mergeTrustedAuthAccess(distro: TrustedAuthAccess | undefined, oss: TrustedAuthAccess | undefined, ossBuiltIns: IBuiltInExtension[]): TrustedAuthAccess | undefined {
+	if (!oss || Array.isArray(oss)) {
+		return distro;
+	}
+	if (Array.isArray(distro)) {
+		log('The distro trusts extensions with every sign-in (an array); not adding the OSS built-ins to it');
+		return distro;
+	}
+	const ours = new Set(ossBuiltIns.map(e => e.name.toLowerCase()));
+	const merged: { [providerId: string]: string[] } = { ...(distro ?? {}) };
+	for (const [provider, ids] of Object.entries(oss)) {
+		for (const id of ids.filter(id => ours.has(id.toLowerCase()))) {
+			const list = merged[provider] ?? [];
+			if (!list.some(x => x.toLowerCase() === id.toLowerCase())) {
+				merged[provider] = [...list, id];
+				log(`Trusting built-in ${id} with ${provider} sign-ins`);
+			}
+		}
+	}
+	return merged;
 }
 
 function log(...args: unknown[]): void {
@@ -66,7 +97,8 @@ function main() {
 				log('Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
 			}
 
-			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions };
+			const trustedExtensionAuthAccess = mergeTrustedAuthAccess(distro.trustedExtensionAuthAccess, oss.trustedExtensionAuthAccess, oss.builtInExtensions);
+			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions, ...(trustedExtensionAuthAccess ? { trustedExtensionAuthAccess } : {}) };
 			fs.writeFileSync(ossPath, JSON.stringify(result, null, '\t'), 'utf8');
 		} else {
 			fs.cpSync(distroPath, ossPath, { force: true, recursive: true });

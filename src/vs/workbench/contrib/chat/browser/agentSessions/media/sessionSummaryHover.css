@@ -107,3 +107,8 @@ the glyph box shorter than the text line it sits against. */
 .session-summary-hover-deletions {
 	margin-left: var(--vscode-spacing-size40);
 }
+
+/* An age reads as one unit: "12 mins ago" never splits across lines. */
+.session-summary-hover-age {
+	white-space: nowrap;
+}

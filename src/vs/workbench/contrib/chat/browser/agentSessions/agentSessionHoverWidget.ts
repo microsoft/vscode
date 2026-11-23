@@ -25,9 +25,11 @@ import { ChatListWidget } from '../widget/chatListWidget.js';
 import { getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from './agentSessionsModel.js';
+import { IChatSessionAnnotation } from '../../common/sessionObserver/chatSessionObserver.js';
 import './media/agentSessionHoverWidget.css';
 
 const HEADER_HEIGHT = 60;
+const LATEST_UPDATE_HEIGHT = 22;
 const CHAT_LIST_HEIGHT = 240;
 const CHAT_HOVER_WIDTH = 500;
 
@@ -43,6 +45,8 @@ export class AgentSessionHoverWidget extends Disposable {
 
 	constructor(
 		public readonly session: IAgentSession,
+		/** The session's newest note (proposed API `chatSessionAnnotations`), e.g. its latest progress digest. */
+		public readonly latestUpdate: IChatSessionAnnotation | undefined,
 		@IChatService private readonly chatService: IChatService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -52,7 +56,7 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		this.domNode = dom.$('.agent-session-hover.interactive-session');
 		this.domNode.style.width = `${CHAT_HOVER_WIDTH}px`;
-		this.domNode.style.height = `${HEADER_HEIGHT + CHAT_LIST_HEIGHT}px`;
+		this.domNode.style.height = `${HEADER_HEIGHT + (latestUpdate ? LATEST_UPDATE_HEIGHT : 0) + CHAT_LIST_HEIGHT}px`;
 		this.domNode.style.overflow = 'hidden';
 
 		this.cts = new CancellationTokenSource();
@@ -190,6 +194,17 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		// Details row: Provider icon + Duration/Time • Diff • Status (if not completed)
 		const detailsRow = dom.append(header, dom.$('.agent-session-hover-details'));
+
+		// The newest note an extension left on the session, e.g. its latest progress digest: its headline.
+		if (this.latestUpdate) {
+			const updateRow = dom.append(header, dom.$('.agent-session-hover-details.agent-session-hover-latest-update'));
+			dom.append(updateRow, renderIcon(this.latestUpdate.icon ?? Codicon.pulse));
+			dom.append(updateRow, dom.$('span', undefined, localize('tooltip.latestUpdate', "Latest update")));
+			dom.append(updateRow, dom.$('span.separator', undefined, '•'));
+			dom.append(updateRow, dom.$('span', undefined, fromNow(this.latestUpdate.timestamp, true)));
+			dom.append(updateRow, dom.$('span.separator', undefined, '•'));
+			dom.append(updateRow, dom.$('span.agent-session-hover-latest-update-label', undefined, this.latestUpdate.label));
+		}
 
 		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);

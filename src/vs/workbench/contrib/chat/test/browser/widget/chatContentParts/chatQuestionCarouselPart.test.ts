@@ -9,6 +9,7 @@ import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { Event as BaseEvent } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -19,6 +20,7 @@ import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../..
 import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { IChatInputSuggestionService } from '../../../../common/sessionObserver/chatSessionObserver.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -2135,4 +2137,49 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(submittedAnswers, null, 'Should not submit when required field is empty');
 		});
 	});
+
+	suite('Suggested answers (proposed API chatInputSuggestion)', () => {
+		function stubSuggestions(answer: { selectedOptions?: string[]; freeform?: string }) {
+			const reported: { kind: string; selected: readonly string[]; text: string }[] = [];
+			const interactions: string[] = [];
+			let claims = 0;
+			const service = {
+				getSuggestion: () => ({ id: 's1', owner: 'ext', answer }),
+				claimAnswerSurface: () => { claims++; return toDisposable(() => claims--); },
+				onDidChangeSuggestions: BaseEvent.None,
+				reportAnswer: (_session: URI, a: { kind: string; selected: readonly string[]; text: string }) => reported.push(a),
+				reportAnswerInteraction: (_session: URI, state: string) => interactions.push(state),
+			} as unknown as IChatInputSuggestionService;
+			return { service, reported, interactions, claims: () => claims };
+		}
+
+		test('marks the suggested option without choosing it, and reports the pick', () => {
+			const s = stubSuggestions({ selectedOptions: ['vitest'] });
+			createWidget(createMockCarousel([{
+				id: 'q1', type: 'singleSelect', title: 'Which runner?',
+				options: [{ id: 'a', label: 'mocha', value: 'mocha' }, { id: 'b', label: 'vitest', value: 'vitest' }],
+			}]), undefined, mainWindow.document.body, inst => inst.stub(IChatInputSuggestionService, s.service));
+
+			const items = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-question-list-item')];
+			const suggested = items.filter(i => i.classList.contains('chat-question-list-item-suggested'));
+			assert.deepStrictEqual(suggested.map(i => i.querySelector('.chat-question-list-label')?.textContent), ['vitest']);
+			assert.ok(suggested[0].getAttribute('aria-label')?.endsWith('(suggested)'));
+			assert.ok(!suggested[0].classList.contains('selected') && suggested[0].getAttribute('aria-selected') !== 'true', 'never chosen for the user');
+			assert.deepStrictEqual(s.interactions, ['shown']);
+			assert.strictEqual(s.claims(), 1, 'the open carousel takes the answer from the input');
+
+			suggested[0].click();
+			assert.deepStrictEqual(s.reported, [{ kind: 'answer', selected: ['vitest'], text: '' }]);
+			assert.strictEqual(s.claims(), 0, 'released once answered');
+		});
+
+		test('without the service, renders as before', () => {
+			createWidget(createMockCarousel([{
+				id: 'q1', type: 'singleSelect', title: 'Which runner?',
+				options: [{ id: 'a', label: 'mocha', value: 'mocha' }, { id: 'b', label: 'vitest', value: 'vitest' }],
+			}]));
+			assert.strictEqual(widget.domNode.querySelectorAll('.chat-question-list-item-suggested').length, 0);
+		});
+	});
 });
+

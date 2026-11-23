@@ -527,6 +527,38 @@ suite('PromptTimelineGutterRail', () => {
 			editing: '0px',
 		});
 	});
+
+	test('places annotations where they happened: a dash between the dots, a row between the prompts, the newest expanded; those after the active prompt accented', () => {
+		const rail = createRail([tick(0), tick(10), tick(20)]);
+		const rendered: string[] = [];
+		const note = (id: string, timestamp: number) => ({
+			id, timestamp, label: `note ${id}`,
+			renderDetail: (container: HTMLElement) => { rendered.push(id); container.textContent = `detail ${id}`; return toDisposable(() => { }); },
+		});
+		rail.setAnnotations([note('a', 5), note('b', 25)]);
+
+		const list = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-panel > *')).map((e: HTMLElement) =>
+			e.classList.contains('prompt-timeline-gutter-annotation') ? `note:${e.querySelector('.prompt-timeline-gutter-annotation-label')!.textContent}${e.classList.contains('expanded') ? '+' : ''}` : `prompt:${e.querySelector('.prompt-timeline-gutter-row-label')?.textContent}`);
+		assert.deepStrictEqual(list, ['prompt:0', 'note:note a', 'prompt:10', 'prompt:20', 'note:note b+']);
+		assert.deepStrictEqual(rendered, ['b'], 'only the expanded (newest) note renders its detail');
+
+		const handle = () => Array.from(rail.domNode.querySelector('.prompt-timeline-gutter-rest')!.children).map((e: Element) =>
+			e.classList.contains('prompt-timeline-gutter-mark') ? `mark${e.classList.contains('current') ? '!' : ''}` : `dot${e.classList.contains('active') ? '!' : ''}`);
+		const currentRows = () => Array.from(rail.domNode.querySelectorAll('.prompt-timeline-gutter-annotation.current')).map(e => e.querySelector('.prompt-timeline-gutter-annotation-label')!.textContent);
+		assert.deepStrictEqual(handle(), ['dot', 'mark', 'dot', 'dot', 'mark']);
+		rail.setActive('20');
+		assert.deepStrictEqual(handle(), ['dot', 'mark', 'dot', 'dot!', 'mark!']);
+		assert.deepStrictEqual(currentRows(), ['note b']);
+		rail.setActive('0');
+		assert.deepStrictEqual(handle(), ['dot!', 'mark!', 'dot', 'dot', 'mark']);
+		assert.deepStrictEqual(currentRows(), ['note a']);
+
+		rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-annotation-head')!.click();
+		assert.deepStrictEqual(rendered, ['b', 'a']);
+
+		rail.setAnnotations([]);
+		assert.strictEqual(rail.domNode.querySelectorAll('.prompt-timeline-gutter-mark, .prompt-timeline-gutter-annotation').length, 0);
+	});
 });
 
 suite('restDotCount', () => {
@@ -584,4 +616,6 @@ suite('restDotCount', () => {
 	test('falls back to the fixed cap when the rail has not been measured yet', () => {
 		assert.deepStrictEqual([restDotCount(30, 0), restDotCount(400, 0)], [30, 50]);
 	});
+
 });
+

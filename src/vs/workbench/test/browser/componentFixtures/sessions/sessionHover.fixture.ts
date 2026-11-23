@@ -181,9 +181,14 @@ function renderInHover(ctx: ComponentFixtureContext, content: HTMLElement): void
 }
 
 /** The Agents window path: ISession → hover data → shared widget. */
-function renderSessionHover(ctx: ComponentFixtureContext, spec: ISessionSpec): void {
+function renderSessionHover(ctx: ComponentFixtureContext, spec: ISessionSpec, latestUpdate?: ISessionSummaryHoverData['latestUpdate']): void {
 	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE);
-	renderInHover(ctx, new SessionSummaryHoverWidget(data).domNode);
+	renderInHover(ctx, new SessionSummaryHoverWidget({ ...data, ...(latestUpdate ? { latestUpdate } : {}) }).domNode);
+}
+
+/** An extension's newest note on the session (proposed API `chatSessionAnnotations`), e.g. a progress digest. */
+function latestUpdate(label: string): ISessionSummaryHoverData['latestUpdate'] {
+	return { label, at: new Date(Date.now() - 12 * 60_000) };
 }
 
 /** Any other data source feeding the same widget, e.g. the editor window. */
@@ -290,6 +295,40 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionHover_EditorWindowDataSource: defineComponentFixture({
 		render: ctx => renderHoverData(ctx, {
 			title: 'Fix authentication redirect loop',
+			location: {
+				workspace: '/home/user/projects/vscode',
+				branch: 'fix-auth-redirect',
+				changes: { files: 2, insertions: 132, deletions: 18 },
+			},
+		}),
+	}),
+	// With an extension's latest note (e.g. a progress digest) beside everything else the hover shows.
+	SessionHover_LatestUpdateWithChangesAndPullRequests: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: {
+				root: '/home/user/projects/vscode',
+				worktree: '/home/user/projects/vscode.worktrees/fix-auth-redirect',
+				branch: 'fix-auth-redirect',
+				pullRequests: [
+					pullRequest(241533, 'Fix authentication redirect loop', GitHubPullRequestState.Open),
+					pullRequest(241540, 'Add a regression test for the redirect loop', 'draft'),
+				],
+			},
+			changes: [{ insertions: 96, deletions: 12 }, { insertions: 36, deletions: 6 }],
+		}, latestUpdate('Redirect loop fixed; regression test passes 50 of 50')),
+	}),
+	SessionHover_LatestUpdateLongHeadline: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
+			changes: [{ insertions: 1204, deletions: 863 }],
+		}, latestUpdate('Auth: redirect loop traced to the stale session cookie; fix pushed, CI red on an unrelated lint rule')),
+	}),
+	SessionHover_EditorWindowLatestUpdate: defineComponentFixture({
+		render: ctx => renderHoverData(ctx, {
+			title: 'Fix authentication redirect loop',
+			latestUpdate: latestUpdate('Redirect loop fixed; regression test passes 50 of 50'),
 			location: {
 				workspace: '/home/user/projects/vscode',
 				branch: 'fix-auth-redirect',
