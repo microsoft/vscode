@@ -178,6 +178,20 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		return repository;
 	}
 
+	private async getRepositoryForResource(uri: Uri): Promise<Repository | undefined> {
+		// The root folder of a submodule is a gitlink entry of its parent repository
+		return this.model.getRepositoryForSubmodule(Uri.file(fromGitUri(uri).path)) ?? await this.getOrOpenRepository(uri);
+	}
+
+	private async getSubmoduleCommit(repository: Repository, ref: string, path: string): Promise<string | undefined> {
+		try {
+			const { mode, object } = await repository.getObjectDetails(ref, path);
+			return mode === '160000' ? object : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	watch(): Disposable {
 		return EmptyDisposable;
 	}
@@ -189,7 +203,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		const repository = submoduleOf
 			? await this.getOrOpenRepository(submoduleOf)
-			: await this.getOrOpenRepository(uri);
+			: await this.getRepositoryForResource(uri);
 
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
@@ -241,7 +255,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			}
 		}
 
-		const repository = await this.getOrOpenRepository(uri);
+		const repository = await this.getRepositoryForResource(uri);
 
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);
@@ -253,13 +267,22 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		this.cache.set(uri.toString(), cacheValue);
 
+		const sanitizedRef = sanitizeRef(ref, path, submoduleOf, repository);
+
 		try {
-			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
+			return await repository.buffer(sanitizedRef, path);
 		} catch {
 			// Empty tree
 			if (ref === await repository.getEmptyTree()) {
 				this.logger.warn(`[GitFileSystemProvider][readFile] Empty tree - ${uri.toString()}`);
 				return new Uint8Array(0);
+			}
+
+			// Submodule (gitlink) entries have no content that `git show` can print, so
+			// render the commit that they point to, as `git diff` does
+			const submoduleCommit = await this.getSubmoduleCommit(repository, sanitizedRef, path);
+			if (submoduleCommit) {
+				return new TextEncoder().encode(`Subproject commit ${submoduleCommit}\n`);
 			}
 
 			// File does not exist in git. This could be because the file is untracked or ignored
