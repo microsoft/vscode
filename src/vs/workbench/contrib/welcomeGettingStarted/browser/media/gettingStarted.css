@@ -1111,7 +1111,7 @@
 	grid-template-areas: "header" "agents-banner" "left-column" "right-column" "footer";
 }
 
-/* An accent-tinted surface sets the banner apart. Its text and button sit next to a drawing of the Agents window, centered against it, and the drawing goes when it would crowd the text. */
+/* The walkthrough tiles' surface sets the banner apart, so that its button is its only accent. Its text and button sit next to a drawing of the Agents window, centered against it, and the drawing goes when it would crowd the text. */
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner {
 	grid-area: agents-banner;
 	container-type: inline-size;
@@ -1122,7 +1122,14 @@
 	width: auto;
 	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size200);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-welcomePage-tileBackground);
+}
+
+/* With the tint surface (`chat.welcomePage.cardSurface`), an accent-tinted surface sets the banner apart instead. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-welcome-card-surface="tint"][data-agents-window-graphic="banner"] > .agents-banner {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
 }
