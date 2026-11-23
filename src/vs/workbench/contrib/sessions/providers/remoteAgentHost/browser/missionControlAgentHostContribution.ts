@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IMissionControlEnvironmentService, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -55,13 +55,14 @@ interface IKeptSharing {
 	readonly providerId: string;
 }
 
-/** Maps a resource of the agent host at `fromAddress` to the same resource on the one at `toAddress`, or `undefined` when it is not one. */
+/**
+ * Maps a resource of the agent host at `fromAddress` to the same resource on the one at `toAddress`, or `undefined` when it is
+ * not one. Only its connection changes, so it keeps what its URI records, such as its display path or being a `ContentRef`.
+ */
 function mapHostResource(fromAddress: string, toAddress: string): (resource: URI) => URI | undefined {
-	const from = createAgentHostResourceUriMapper(agentHostAuthority(fromAddress));
-	const to = createAgentHostResourceUriMapper(agentHostAuthority(toAddress));
-	return resource => resource.scheme === AGENT_HOST_SCHEME && isEqualAuthority(resource.authority, from.connectionAuthority)
-		? to.fromAgentHost(from.toAgentHost(resource))
-		: undefined;
+	const from = agentHostAuthority(fromAddress);
+	const to = agentHostAuthority(toAddress);
+	return resource => resource.scheme === AGENT_HOST_SCHEME && isEqualAuthority(resource.authority, from) ? resource.with({ authority: to }) : undefined;
 }
 
 /** User-local MC hosts use the native provider, never the sandbox's task-history adapter. */

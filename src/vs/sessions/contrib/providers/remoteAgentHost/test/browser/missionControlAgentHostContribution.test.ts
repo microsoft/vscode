@@ -18,7 +18,7 @@ import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId,
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -432,7 +432,7 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('points a shared remote\'s environment at its direct connection while connected, mapping only the environment\'s folders, also when another address shares it', () => {
+	test('points a shared remote\'s environment at its direct connection while connected, mapping only the environment\'s resources and keeping their metadata, also when another address shares it', () => {
 		const { hosts, sharedRemoteEnvironmentIds, shares, created, providersService, setAddressStatus } = fixture();
 		// The remote added again under another address shares the same environment.
 		shares.set(new Map([['ssh:old', { state: 'enabled', environmentId: 'kept' }], ['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
@@ -440,10 +440,14 @@ suite('Mission Control native provider inventory', () => {
 		const folder = URI.from({ scheme: 'file', path: '/home/project' });
 		const environmentFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:kept'));
 		const otherFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:other'));
+		// An attached snapshot is read with `resourceRead` and shows its file's path.
+		const content = URI.from({ scheme: 'ahp-session', path: '/session/changeset/1' });
+		const file = URI.joinPath(folder, 'a.ts');
+		const environmentSnapshot = toAgentHostContentUri(content, agentHostAuthority('cloudsandbox:kept'), file);
 		const successor = created[0].options.successor!;
 		const read = () => {
 			const value = successor.get();
-			return value && { providerId: value.providerId, folder: value.mapResource(environmentFolder)?.toString(), other: value.mapResource(otherFolder)?.toString() };
+			return value && { providerId: value.providerId, folder: value.mapResource(environmentFolder)?.toString(), snapshot: value.mapResource(environmentSnapshot)?.toString(), other: value.mapResource(otherFolder)?.toString() };
 		};
 		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
 		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
@@ -458,7 +462,7 @@ suite('Mission Control native provider inventory', () => {
 		assert.deepStrictEqual({ unregistered, connecting, connected, disconnected: read() }, {
 			unregistered: undefined,
 			connecting: undefined,
-			connected: { providerId: remote.id, folder: toAgentHostUri(folder, agentHostAuthority('ssh:kept')).toString(), other: undefined },
+			connected: { providerId: remote.id, folder: toAgentHostUri(folder, agentHostAuthority('ssh:kept')).toString(), snapshot: toAgentHostContentUri(content, agentHostAuthority('ssh:kept'), file).toString(), other: undefined },
 			disconnected: undefined,
 		});
 	});
