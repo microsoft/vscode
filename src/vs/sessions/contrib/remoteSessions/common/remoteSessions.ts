@@ -95,6 +95,13 @@ export interface ICreatedRemoteSession {
 	readonly status: 'started';
 }
 
+/** A host named for people, as in the Environment picker. */
+export interface IRemoteSessionHostName {
+	readonly label: string;
+	/** For a Dev Container environment, the name of the host that runs the container. */
+	readonly containerHost?: string;
+}
+
 export const IRemoteSessionService = createDecorator<IRemoteSessionService>('remoteSessionService');
 
 export interface IRemoteSessionService {
@@ -105,6 +112,11 @@ export interface IRemoteSessionService {
 	 * workspace's existence and trust; empty when it would.
 	 */
 	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
+	/**
+	 * Names the host that the options pin, by `hostId` or by the authority of an Agent Host workspace URI.
+	 * Undefined when placement selects the host, or when the pinned host is not available in this window.
+	 */
+	getRequestedHostName(options: ICreateRemoteSessionOptions): IRemoteSessionHostName | undefined;
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 

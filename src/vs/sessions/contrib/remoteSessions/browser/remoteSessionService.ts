@@ -27,10 +27,11 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { LocalDevContainerEnvironmentHost } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -83,6 +84,27 @@ export class RemoteSessionService implements IRemoteSessionService {
 			return [localize('remoteSessions.hostUnavailable', "The host is not available in this Agents window.")];
 		}
 		return this.getCandidate(provider, { prompt: '', hostId, requirements: {}, workspace }).reasons;
+	}
+
+	getRequestedHostName(options: ICreateRemoteSessionOptions): IRemoteSessionHostName | undefined {
+		const providers = this.remoteProviders();
+		const workspace = options.workspace?.uri;
+		const provider = options.hostId !== undefined
+			? providers.find(provider => provider.id === options.hostId)
+			: workspace?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === workspace.authority) : undefined;
+		if (!provider) {
+			return undefined;
+		}
+		const containerHost = provider.devContainerEnvironmentHost;
+		if (containerHost === undefined) {
+			return { label: provider.label };
+		}
+		return {
+			label: provider.label,
+			containerHost: containerHost === LocalDevContainerEnvironmentHost
+				? localize('remoteSessions.thisComputer', "This Computer")
+				: providers.find(host => host.remoteAddress === containerHost)?.label ?? containerHost,
+		};
 	}
 
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession> {

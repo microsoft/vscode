@@ -38,6 +38,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IChat, ISession, ISessionGitRepository, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { RemoteSessionService } from '../../browser/remoteSessionService.js';
+import { LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { parseCreateRemoteSessionOptions, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { IRemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 
@@ -562,6 +563,29 @@ suite('RemoteSessionService', () => {
 		const ready = new RemoteProvider('ready', 2);
 		const { create } = setup([unavailable, ready]);
 		assert.strictEqual((await create()).host.id, ready.id);
+	});
+
+	test('names the host that an ID or a remote workspace pins, with the host that runs a Dev Container environment', () => {
+		const build = new RemoteProvider('build');
+		const localContainer = Object.assign(new RemoteProvider('container-1'), { label: 'Dev Container 3', devContainerEnvironmentHost: LocalDevContainerEnvironmentHost });
+		const remoteContainer = Object.assign(new RemoteProvider('container-2'), { label: 'Dev Container 4', devContainerEnvironmentHost: build.remoteAddress });
+		const { service } = setup([build, localContainer, remoteContainer]);
+		const name = (input: object) => service.getRequestedHostName(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
+		assert.deepStrictEqual({
+			byId: name({ hostId: build.id }),
+			localContainer: name({ hostId: localContainer.id }),
+			remoteContainerByWorkspace: name({ workspace: { uri: remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu')).toString() } }),
+			localWorkspace: name({ workspace: { uri: 'file:///repo' } }),
+			automatic: name({}),
+			unknown: name({ hostId: 'agenthost-missing' }),
+		}, {
+			byId: { label: 'build' },
+			localContainer: { label: 'Dev Container 3', containerHost: 'This Computer' },
+			remoteContainerByWorkspace: { label: 'Dev Container 4', containerHost: 'build' },
+			localWorkspace: undefined,
+			automatic: undefined,
+			unknown: undefined,
+		});
 	});
 
 	test('remote workspace URIs pin the matching host and configure a fresh branch', async () => {
