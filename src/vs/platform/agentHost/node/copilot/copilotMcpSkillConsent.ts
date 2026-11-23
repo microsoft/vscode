@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionConfig } from '@github/copilot-sdk';
+import type { CreateSessionOptions } from '@microsoft/copilot-sdk';
 
-type UserInputRequest = Parameters<NonNullable<SessionConfig['onUserInputRequest']>>[0];
+type UserInputRequest = Parameters<NonNullable<NonNullable<CreateSessionOptions['interaction']>['onUserInputRequest']>>[0];
 
 export interface ICopilotMcpSkillConsentRequest {
 	readonly action: 'load' | 'execute' | 'cross-origin-read';

@@ -70,6 +70,24 @@ Agents, skill, and instruction files located in custom locations defined by sett
 
 Handle only items reported under `configuredLocations` and not already handled under another inventory category. Do not re-ask about files the user explicitly skipped. Treat copying/moving a file, deleting its old copy, and clearing or changing the location setting as separate actions requiring separate approval.
 
+## Hooks
+
+A Local-format hook file uses capitalised event names (for example `PreToolUse` or `Stop`). The destination harness accepts those names but sends such hooks a different input and reads a different answer than the Local harness did, so a hook can load and silently do nothing. Migrate it to the native format described in the [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference).
+
+Work on one hook file at a time:
+
+1. Read the hook file and every script its commands run, including helper files those scripts load. Note what each hook is for: what it watches for, and what effect it has (deny, add context, keep the agent going, log, rewrite arguments).
+2. Check whether it already has its effect in the selected harness (step 4 explains how). If it does, say so and offer a careful migration or none for now.
+3. Rewrite the hook file and its scripts together to the native format. Edit in place only the hook file and the scripts listed as backed up with it; for any other file, explain that recovery cannot restore it and ask first. Use `"version": 1`, camelCase event names, and the input fields and answers that the reference documents for each event. Keep each script's location, language, and scope. Keep platform-specific commands for each platform.
+4. Confirm against the harness wherever possible. The reference can be incomplete:
+   - Observe the real input: in a scratch copy of the repository, add a temporary hook that appends its standard input to a log file for the events in use, and run a short session that makes the agent do what the hook watches for. Tool names and argument shapes differ between model families, so check with more than one model family when a hook depends on tool arguments.
+   - Test the migrated hook in a scratch copy with inputs that should trigger it, not only harmless ones. A guard only acts on what it watches for.
+   - Show the commands and ask before running them. If no way to run a session is available, say that the hook was not checked.
+5. Explain each behavior difference and ask before applying it. Treat a hook that blocks or stops a submitted prompt as having no exact equivalent: explain the closest option and ask.
+6. Check effects outside the session, such as a log file or an external service, and compare them with the original hook's.
+
+Do not rewrite hooks in `.claude` folders, plugin hooks, or administrator (policy) hooks. A migrated hook no longer works in the Local harness; do not keep a second copy for Local.
+
 ## Verification
 
 After each migration group:

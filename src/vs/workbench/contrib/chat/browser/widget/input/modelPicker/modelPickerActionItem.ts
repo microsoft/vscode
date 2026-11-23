@@ -21,15 +21,20 @@ import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../c
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
+import { getModelRouterWarning } from './modelPickerItemPrimitives.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
 import { IAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 
 export interface IModelPickerPresentationOptions {
+	/** Offered models come from a live provider catalog, not the language model startup cache. */
+	readonly hasLiveModelCatalog?: boolean;
 	readonly showManageModelsAction: boolean;
 	readonly showUnavailableFeatured: boolean;
 	readonly showAutoModel: boolean;
 	readonly showModelIcon: boolean;
+	/** Use one labeled trigger for a picker that presents model and configuration together. */
+	readonly singleButton?: boolean;
 }
 
 export interface IModelPickerDelegate {
@@ -73,6 +78,12 @@ export interface IModelPickerDelegate {
 	 * the Manage Models editor to that harness's Copilot models.
 	 */
 	getSessionType?(): string | undefined;
+	/**
+	 * Starts the prompt input that owns the picker with the given text, keeping what is already
+	 * written after it, and moves focus there, so the picker can hand the user to a slash command.
+	 * Owners with no prompt to write in omit it.
+	 */
+	startPromptWith?(text: string): void;
 	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
 	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**
@@ -254,8 +265,9 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (selectedModel) {
 			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, this._pickerWidget.fusionDisplayName ?? getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
 		}
-		if (statusIcon && tooltip) {
-			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
+		const status = selectedModel && getModelRouterWarning(selectedModel) || tooltip;
+		if (statusIcon && status) {
+			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, status);
 		}
 		const organizationDefaultDescription = this._pickerWidget.organizationDefaultDescription;
 		const hover = organizationDefaultDescription

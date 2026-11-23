@@ -33,7 +33,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
-import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -168,6 +168,8 @@ interface IMcpServerItemEntry {
 interface IMcpSessionServerItemEntry {
 	readonly type: 'session-server-item';
 	readonly server: AgentHostMcpServer;
+	/** The catalog name of the server's installation, when it differs from the server's configuration key. */
+	readonly label?: string;
 }
 
 /**
@@ -205,8 +207,16 @@ export interface IMcpProviderItemEntry {
 	readonly localServer?: undefined;
 }
 
-export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[]): readonly IMcpSessionServerItemEntry[] {
-	return servers.map(server => ({ type: 'session-server-item', server }));
+/**
+ * Creates the rows of servers only the active session knows. A row is named after its installation
+ * in {@link installations} when that has a catalog name, and matches {@link query} by either name.
+ */
+export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[], installations?: ICustomizationMarketplaceInstallationSnapshot, query = ''): readonly IMcpSessionServerItemEntry[] {
+	return servers.map((server): IMcpSessionServerItemEntry => {
+		// A server that reports its own display name keeps it.
+		const label = server.displayName === undefined ? installations?.findByTarget({ kind: 'mcp', id: server.id })?.resource.displayName : undefined;
+		return label && label !== server.name ? { type: 'session-server-item', server, label } : { type: 'session-server-item', server };
+	}).filter(entry => customizationSearchMatchesAny(query, [entry.server.name, entry.server.displayName, entry.label]));
 }
 
 export function isMcpServerCollectionVisible(collectionId: string, hiddenCollectionIds: readonly string[] | undefined): boolean {
@@ -574,7 +584,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		if (element.type === 'session-server-item') {
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
-			templateData.name.textContent = formatDisplayName(getMcpServerDisplayLabel(element.server));
+			templateData.name.textContent = formatDisplayName(getMcpEntryLabel(element));
 			this.updateActiveSessionStatus(templateData, element);
 			return;
 		}
@@ -1222,6 +1232,42 @@ export function getAgentHostMcpServerGroup(server: AgentHostMcpServer): McpEntry
 }
 
 /**
+ * Returns the MCP Servers page entry for a server the client bundled for the agent host. The bundle
+ * is an internal delivery plugin, so the server is presented by the VS Code configuration or
+ * extension it came from instead. Matches like the MCP Servers page: configured servers first.
+ */
+export function getClientBundledMcpServerEntry(server: AgentHostMcpServer, localServers: readonly IWorkbenchMcpServer[], runtimeServers: readonly IMcpServer[], collections: readonly Pick<McpCollectionDefinition, 'id' | 'source'>[]): IMcpInstalledEntry | undefined {
+	if (!server.isClientBundled) {
+		return undefined;
+	}
+	// Like the MCP Servers page, a configuration shadowed by another with the same name claims a server only
+	// through its own runtime definition.
+	const candidates = localServers.filter(candidate => getWorkbenchServerMatchKeys(candidate).includes(server.name));
+	const local = candidates.length === 1 ? candidates[0] : candidates.find(candidate => runtimeServers.some(runtimeServer => runtimeServer.definition.id === candidate.id));
+	if (local) {
+		return { type: 'server-item', server: local, activeSessionServer: server, localServer: runtimeServers.find(candidate => candidate.definition.id === local.id) };
+	}
+	const runtimeServer = runtimeServers.find(candidate => getRuntimeServerMatchKeys(candidate).includes(server.name));
+	if (!runtimeServer) {
+		return undefined;
+	}
+	const source = collections.find(collection => collection.id === runtimeServer.collection.id)?.source;
+	return createBuiltinEntry(runtimeServer, server, source instanceof ExtensionIdentifier ? source : undefined);
+}
+
+/**
+ * Resolves the source of a client-bundled server like the MCP Servers page: its configuration file,
+ * extension, or plugin. A configuration file source opens the file.
+ */
+export function getClientBundledMcpServerSource(entry: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService: IExtensionsWorkbenchService, openPlugin?: (plugin: IAgentPlugin) => void, openFile?: (uri: URI) => void): ReturnType<typeof getMcpEntrySource> {
+	const source = getMcpEntrySource(entry, labelService, agentPluginService, extensionsWorkbenchService, openPlugin);
+	const sourceUri = getMcpEntrySourceUri(entry);
+	return source && !source.open && sourceUri && openFile
+		? { ...source, ariaLabel: localize('openMcpServerSource', "Open {0}", source.label), open: () => openFile(sourceUri) }
+		: source;
+}
+
+/**
  * Returns the origin an installed MCP server is subgrouped under within its
  * scope group, or `undefined` for servers configured directly in the scope.
  */
@@ -1240,7 +1286,10 @@ export function getMcpEntryOrigin(entry: IMcpInstalledEntry): { readonly id: str
 				: { id: `extension:${entry.extensionId.value.toLowerCase()}`, kind: 'extension', label: undefined };
 		}
 	}
-	const activeSessionServer = getActiveSessionServer(entry);
+	// A server the client bundled is presented by its own VS Code configuration, not by the
+	// internal bundle the host reports as its plugin.
+	const hostServer = getActiveSessionServer(entry);
+	const activeSessionServer = entry.type !== 'session-server-item' && hostServer?.isClientBundled ? undefined : hostServer;
 	switch (activeSessionServer?.source) {
 		case 'plugin':
 			return activeSessionServer.sourcePluginName ? { id: `plugin:${activeSessionServer.sourcePluginName}`, kind: 'plugin', label: activeSessionServer.sourcePluginName } : undefined;
@@ -1303,7 +1352,7 @@ function getMcpEntryLabel(element: IMcpInstalledEntry): string {
 		case 'server-item':
 			return element.server.label;
 		case 'session-server-item':
-			return getMcpServerDisplayLabel(element.server);
+			return element.label ?? getMcpServerDisplayLabel(element.server);
 		case 'builtin-item':
 		case 'connector-item':
 		case 'provider-item':
@@ -1320,7 +1369,7 @@ function getMcpEntryName(element: IMcpInstalledEntry): string {
 			: getMcpEntryLabel(element);
 }
 
-function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
+export function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 	switch (element.type) {
 		case 'server-item':
 			return element.server.local?.mcpResource;
@@ -1329,7 +1378,8 @@ function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 		case 'connector-item':
 			return element.activeSessionServer?.sourceUri;
 		case 'builtin-item':
-			return element.activeSessionServer?.sourceUri
+			// A client-bundled server's host-reported file is in the internal bundle, not its own configuration.
+			return (element.activeSessionServer?.isClientBundled ? undefined : element.activeSessionServer?.sourceUri)
 				?? element.localServer?.readDefinitions().get().server?.presentation?.origin?.uri
 				?? element.localServer?.collection?.presentation?.origin;
 		case 'provider-item':
@@ -3686,8 +3736,7 @@ export class McpListWidget extends Disposable {
 				]))
 				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.takeConnector([server.serverName], [server.connector.name, server.connector.displayName])))
 			: [];
-		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
-		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
+		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionMatcher.unmatched(''), marketplaceInstallations, query);
 		this.installedEntries = [
 			...groups.flatMap(group => group.entries.map(entry => ({ entry }))),
 			...pluginServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),

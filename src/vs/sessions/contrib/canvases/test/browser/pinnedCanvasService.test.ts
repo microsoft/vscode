@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,10 +21,11 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { getCanvasInputResource } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasExtensionConsentDeniedError } from '../../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -76,7 +79,7 @@ suite('PinnedCanvasService', () => {
 		return { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: canvas.resource };
 	}
 
-	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void> }) {
+	function createHarness(options: { readonly sessions: readonly ISession[]; readonly storage?: InMemoryStorageService; readonly activeSession?: ITestSessionWithChat; readonly observesChatCanvases?: boolean; readonly closeCompleted?: Promise<void>; readonly openCanvas?: () => Promise<void> }) {
 		const disposables = store.add(new DisposableStore());
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = disposables.add(new Emitter<IChatDeletedEvent>());
@@ -87,9 +90,11 @@ suite('PinnedCanvasService', () => {
 		const live = new Map<string, ISettableObservable<ICanvas | undefined>>();
 		const openedChats: string[] = [];
 		const notifications: string[] = [];
+		const notificationActions: IAction[] = [];
 		/** Membership the provider publishes for chats observed directly, by chat resource. */
 		const chatCanvases = new Map<string, ISettableObservable<readonly ICanvas[] | undefined>>();
 		const chatObservations: string[] = [];
+		const openedCanvases: string[] = [];
 
 		const storage = options.storage ?? disposables.add(new InMemoryStorageService());
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -117,6 +122,10 @@ suite('PinnedCanvasService', () => {
 				chatCanvases.set(key, value);
 				return { object: value, dispose: () => chatObservations.push(`release ${key}`) };
 			},
+			openCanvas: async (_session, chat, canvas, instanceId, openOptions) => {
+				openedCanvases.push(`${chat.resource} ${canvas.extensionId}/${canvas.canvasId}#${instanceId}${openOptions?.retryDeniedConsent ? ' (retry declined consent)' : ''}`);
+				await options.openCanvas?.();
+			},
 			closeCanvas: async (session, chat, canvas) => {
 				await options.closeCompleted;
 				canvasClosed.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
@@ -128,9 +137,10 @@ suite('PinnedCanvasService', () => {
 		}));
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
-			override info(message: NotificationMessage): INotificationHandle {
-				notifications.push(String(message));
-				return super.info(message);
+			override notify(notification: INotification): INotificationHandle {
+				notifications.push(String(notification.message));
+				notificationActions.push(...notification.actions?.primary ?? []);
+				return super.notify(notification);
 			}
 		}());
 		const configurationService = new TestConfigurationService({ [CanvasesEnabledSettingId]: true });
@@ -157,7 +167,7 @@ suite('PinnedCanvasService', () => {
 			canvas: entry.reference.get()?.canvas.toString(),
 		}));
 		return {
-			service, storage, customViewService, observed, released, openedChats, notifications, contextKeyService, chatObservations,
+			service, storage, customViewService, observed, released, openedChats, openedCanvases, notifications, notificationActions, contextKeyService, chatObservations,
 			sessionsChanged, chatDeleted, sessionArchived, canvasClosed, setLive, setChatCanvases, setCanvasesEnabled, snapshot,
 			dispose: () => disposables.dispose(),
 		};
@@ -326,6 +336,35 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
+	test('keeps a pin while its session archive is pending, through a rejected archive, until an archive is confirmed', () => {
+		const canvas = createCanvas('pending');
+		const { chat } = createChat('chat:/pending', [canvas]);
+		// An agent host main chat shares its session's archived state.
+		const isArchived = chat.isArchived as ISettableObservable<boolean>;
+		const archivePending = observableValue('archivePending', false);
+		const session = upcastPartial<ISession>({ providerId: 'local-agent-host', resource: URI.parse('session:/pending'), chats: observableValue('chats', [chat]), isArchived, archivePending });
+		const harness = createHarness({ sessions: [session] });
+		harness.service.pin(reference(session, chat, canvas));
+		const titles = () => harness.service.entries.get().map(entry => entry.title.get());
+		const setArchiveState = (archived: boolean, pending: boolean) => transaction(tx => {
+			isArchived.set(archived, tx);
+			archivePending.set(pending, tx);
+		});
+
+		setArchiveState(true, true);
+		const whilePending = titles();
+		setArchiveState(false, false);
+		const afterRejection = titles();
+		setArchiveState(true, true);
+		setArchiveState(true, false);
+
+		assert.deepStrictEqual({ whilePending, afterRejection, afterConfirmation: titles() }, {
+			whilePending: ['Canvas pending'],
+			afterRejection: ['Canvas pending'],
+			afterConfirmation: [],
+		});
+	});
+
 	test('removes a pin whose chat its session stops listing, but not one whose chat it has not listed yet', () => {
 		const [planCanvas, laterCanvas] = [createCanvas('plan'), createCanvas('later')];
 		const plan = createChat('chat:/plan', [planCanvas]);
@@ -477,7 +516,7 @@ suite('PinnedCanvasService', () => {
 	});
 
 	/** Pins `canvas`, then restores the pin in a new window whose chat has not published its canvases. */
-	function createRestoredHarness(canvas: ICanvas, options?: { readonly observesChatCanvases?: boolean }) {
+	function createRestoredHarness(canvas: ICanvas, options?: { readonly observesChatCanvases?: boolean; readonly openCanvas?: () => Promise<void> }) {
 		const original = createChat('chat:/a', [canvas]);
 		const session = createSession('session:/a', [original.chat]);
 		const storage = store.add(new InMemoryStorageService());
@@ -485,10 +524,10 @@ suite('PinnedCanvasService', () => {
 		before.service.pin(reference(session, original.chat, canvas));
 		before.dispose();
 		const restored = createChat('chat:/a', undefined);
-		const restoredSession = createSession('session:/a', [restored.chat]);
-		const harness = createHarness({ sessions: [restoredSession], storage, observesChatCanvases: options?.observesChatCanvases });
+		const sessions = [createSession('session:/a', [restored.chat])];
+		const harness = createHarness({ sessions, storage, observesChatCanvases: options?.observesChatCanvases, openCanvas: options?.openCanvas });
 		const [entry] = harness.service.entries.get();
-		return { harness, entry, chat: restored.chat, membership: restored.membership };
+		return { harness, entry, sessions, chat: restored.chat, membership: restored.membership };
 	}
 
 	test('reconnects a restored pin on its page through its chat canvases, without showing its chat', async () => {
@@ -518,24 +557,190 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
-	test('marks a restored pin unavailable on its page when its chat no longer lists its canvas', async () => {
+	test('reopens a shown pin through its chat when its chat no longer lists its canvas, and binds once the chat publishes it after unrelated changes', async () => {
+		const opened = new DeferredPromise<void>();
+		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => opened.p });
+
+		await harness.service.show(entry);
+		// After a restart the chat lists only the canvases opened since.
+		harness.setChatCanvases(chat.resource, [createCanvas('other')]);
+		const whileOpening = { state: entry.state.get(), reconnecting: entry.reconnecting.get() };
+		// The chat may answer before it publishes the canvas.
+		opened.complete();
+		await timeout(0);
+		harness.setChatCanvases(chat.resource, [createCanvas('other'), createCanvas('unrelated')]);
+		const whileUnpublished = { state: entry.state.get(), reconnecting: entry.reconnecting.get() };
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [createCanvas('other'), createCanvas('unrelated'), reopened]);
+		harness.setLive(reopened, reopened.resource);
+
+		assert.deepStrictEqual({
+			whileOpening,
+			whileUnpublished,
+			reopened: { state: entry.state.get(), reconnecting: entry.reconnecting.get(), canvas: entry.reference.get()?.canvas.toString() },
+			openedCanvases: harness.openedCanvases,
+			page: harness.customViewService.activeCustomView.get()?.id,
+			openedChats: harness.openedChats,
+			notifications: harness.notifications,
+		}, {
+			whileOpening: { state: PinnedCanvasState.Pending, reconnecting: true },
+			whileUnpublished: { state: PinnedCanvasState.Pending, reconnecting: true },
+			reopened: { state: PinnedCanvasState.Live, reconnecting: false, canvas: 'ahp-canvas:/chat/plan-reopened' },
+			openedCanvases: ['chat:/a user:canvases/plan#plan'],
+			page: PINNED_CANVAS_PAGE_ID,
+			openedChats: [],
+			notifications: [],
+		});
+	});
+
+	test('marks a pin unavailable when its chat does not publish the canvas it reopened in time, and reopens it when it is shown again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'));
 
 		await harness.service.show(entry);
-		harness.setChatCanvases(chat.resource, [createCanvas('other')]);
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		const whileUnpublished = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: [...harness.chatObservations] };
+		// Longer than the pin waits for the chat to publish the canvas.
+		await timeout(60_000);
+		const settled = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: [...harness.chatObservations] };
+		await harness.service.show(entry);
 
-		assert.deepStrictEqual({
-			state: entry.state.get(),
-			reconnecting: entry.reconnecting.get(),
-			page: harness.customViewService.activeCustomView.get()?.id,
-			chatObservations: harness.chatObservations,
-			openedChats: harness.openedChats,
-		}, {
+		assert.deepStrictEqual({ whileUnpublished, settled, openedCanvases: harness.openedCanvases, notifications: harness.notifications }, {
+			whileUnpublished: { state: PinnedCanvasState.Pending, reconnecting: true, chatObservations: ['observe chat:/a'] },
+			settled: { state: PinnedCanvasState.Unavailable, reconnecting: false, chatObservations: ['observe chat:/a', 'release chat:/a'] },
+			openedCanvases: ['chat:/a user:canvases/plan#plan', 'chat:/a user:canvases/plan#plan'],
+			notifications: [],
+		});
+	}));
+
+	test('abandons reopening when its session goes away, ignores the late answer, and reopens once the session returns', async () => {
+		const answers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		let opens = 0;
+		const { harness, entry, sessions, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => answers[opens++].p });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, []);
+		// A reconnecting provider hides its sessions; the request it was handling fails.
+		const [session] = sessions.splice(0);
+		harness.sessionsChanged.fire({ added: [], removed: [], changed: [] });
+		answers[0].error(new Error('Connection closed.'));
+		await timeout(0);
+		const whileGone = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), notifications: [...harness.notifications] };
+		sessions.push(session);
+		harness.sessionsChanged.fire({ added: [session], removed: [], changed: [] });
+		answers[1].complete();
+		await timeout(0);
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [reopened]);
+		harness.setLive(reopened, reopened.resource);
+
+		assert.deepStrictEqual({ whileGone, state: entry.state.get(), canvas: entry.reference.get()?.canvas.toString(), openedCanvases: harness.openedCanvases, notifications: harness.notifications }, {
+			whileGone: { state: PinnedCanvasState.Pending, reconnecting: true, notifications: [] },
+			state: PinnedCanvasState.Live,
+			canvas: 'ahp-canvas:/chat/plan-reopened',
+			openedCanvases: ['chat:/a user:canvases/plan#plan', 'chat:/a user:canvases/plan#plan'],
+			notifications: [],
+		});
+	});
+
+	test('stops waiting for a reopened canvas in time even while another canvas of its chat never loads', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'));
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		harness.setChatCanvases(chat.resource, [createCanvas('loading', { instanceId: undefined })]);
+		await timeout(60_000);
+
+		assert.deepStrictEqual({ state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: harness.chatObservations }, {
 			state: PinnedCanvasState.Unavailable,
 			reconnecting: false,
-			page: PINNED_CANVAS_PAGE_ID,
 			chatObservations: ['observe chat:/a', 'release chat:/a'],
+		});
+	}));
+
+	test('abandons reopening through a replaced session object, ignores the late answer, and reopens through its replacement', async () => {
+		const answers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		let opens = 0;
+		const { harness, entry, sessions, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => answers[opens++].p });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, []);
+		// The replacement has not loaded its chat's canvases yet when the replaced session's request fails.
+		harness.setChatCanvases(chat.resource, undefined);
+		const replacement = createSession('session:/a', [createChat('chat:/a', undefined).chat]);
+		sessions.splice(0, 1, replacement);
+		harness.sessionsChanged.fire({ added: [replacement], removed: [], changed: [] });
+		answers[0].error(new Error('Connection closed.'));
+		await timeout(0);
+		const whileLoading = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), notifications: [...harness.notifications] };
+		harness.setChatCanvases(chat.resource, []);
+		answers[1].complete();
+		await timeout(0);
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [reopened]);
+		harness.setLive(reopened, reopened.resource);
+
+		assert.deepStrictEqual({ whileLoading, state: entry.state.get(), canvas: entry.reference.get()?.canvas.toString(), openedCanvases: harness.openedCanvases, notifications: harness.notifications }, {
+			whileLoading: { state: PinnedCanvasState.Pending, reconnecting: true, notifications: [] },
+			state: PinnedCanvasState.Live,
+			canvas: 'ahp-canvas:/chat/plan-reopened',
+			openedCanvases: ['chat:/a user:canvases/plan#plan', 'chat:/a user:canvases/plan#plan'],
+			notifications: [],
+		});
+	});
+
+	test('marks a pin unavailable and tells the user when its chat cannot reopen its canvas, and retries when it is shown again', async () => {
+		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: async () => { throw new Error('Canvases are disabled for this session.'); } });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		const failed = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), notifications: [...harness.notifications] };
+		// Its chat still lists no canvases, so showing it again retries at once.
+		await harness.service.show(entry);
+		await timeout(0);
+
+		assert.deepStrictEqual({ failed, openedCanvases: harness.openedCanvases, page: harness.customViewService.activeCustomView.get()?.id, openedChats: harness.openedChats }, {
+			failed: {
+				state: PinnedCanvasState.Unavailable,
+				reconnecting: false,
+				notifications: ['Could not reopen canvas Canvas plan: Canvases are disabled for this session.'],
+			},
+			openedCanvases: ['chat:/a user:canvases/plan#plan', 'chat:/a user:canvases/plan#plan'],
+			page: PINNED_CANVAS_PAGE_ID,
 			openedChats: [],
+		});
+	});
+
+	test('marks a pin unavailable when its canvas extension is declined, and asks again and shows the pin from the warning', async () => {
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		const consent = { id: 'consent', kind: 'environment', extensionName: 'user:canvases', displayName: 'Canvases', items: ['TOKEN'], persistable: true } as const;
+		let opens = 0;
+		let publish = () => { };
+		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), {
+			openCanvas: async () => {
+				if (opens++ === 0) {
+					throw new CanvasExtensionConsentDeniedError(consent, true);
+				}
+				publish();
+			},
+		});
+		publish = () => harness.setChatCanvases(chat.resource, [reopened]);
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		const declined = { state: entry.state.get(), actions: harness.notificationActions.map(action => action.label) };
+		await harness.notificationActions[0].run();
+		harness.setLive(reopened, reopened.resource);
+
+		assert.deepStrictEqual({ declined, state: entry.state.get(), canvas: entry.reference.get()?.canvas.toString(), openedCanvases: harness.openedCanvases, notifications: harness.notifications.length }, {
+			declined: { state: PinnedCanvasState.Unavailable, actions: ['Try Again'] },
+			state: PinnedCanvasState.Live,
+			canvas: 'ahp-canvas:/chat/plan-reopened',
+			openedCanvases: ['chat:/a user:canvases/plan#plan', 'chat:/a user:canvases/plan#plan (retry declined consent)'],
+			notifications: 1,
 		});
 	});
 

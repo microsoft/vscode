@@ -12,6 +12,7 @@ import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../.
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { toAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -69,6 +70,8 @@ export interface ILocalCustomizationFile {
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
+	/** Display name of the contributing extension, when {@link extensionId} is set. */
+	readonly extensionLabel?: string;
 }
 
 /**
@@ -137,6 +140,7 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
+						extensionLabel: file.extension ? file.extension.displayName || file.extension.identifier.value : undefined,
 						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
@@ -285,12 +289,14 @@ export async function resolveLocalCustomAgents(
 			let name = pluginAgent?.name ?? basename(agent.uri, '.agent.md');
 			let description = pluginAgent?.description;
 			let disableUserInvocation: boolean | undefined;
+			let welcomeMessage: string | undefined;
 			try {
 				const content = await fileService.readFile(agent.uri);
 				const header = parser.parse(agent.uri, content.value.toString()).header;
 				name = header?.name ?? name;
 				description = header?.description ?? description;
 				disableUserInvocation = header?.userInvocable === false || undefined;
+				welcomeMessage = header?.welcomeMessage;
 			} catch {
 				// The host will parse the full agent after session creation. Keep the
 				// discovery metadata as a best-effort draft fallback if the file moved.
@@ -302,6 +308,7 @@ export async function resolveLocalCustomAgents(
 				name,
 				description,
 				disableUserInvocation,
+				...(welcomeMessage ? { _meta: toAgentCustomizationMeta({ 'vscode.welcomeMessage': welcomeMessage }) } : {}),
 			});
 		})());
 	}
@@ -357,7 +364,8 @@ function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
- * belonging to installed plugins are de-duped to a single plugin ref;
+ * belonging to client-provided plugins are de-duped to a single plugin ref;
+ * Copilot discovers its SDK-managed installations natively;
  * remaining loose files are bundled into a synthetic Open Plugin. Standalone
  * user and workspace skills and agents, together with the MCP servers that
  * VS Code forwards (user, workspace, or extension-contributed), go into a
@@ -392,6 +400,7 @@ export async function resolveCustomizationRefs(
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
 		if (plugin.copilotCliInstallation && isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType)) {
+			// Native installations use SDK enablement; legacy client decisions are not migrated.
 			return;
 		}
 		const key = plugin.uri.toString();
@@ -433,7 +442,7 @@ export async function resolveCustomizationRefs(
 			}
 			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, extensionLabel: entry.extensionLabel, pluginUri: entry.pluginUri });
 		}
 	}
 

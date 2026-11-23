@@ -197,6 +197,15 @@
 	margin-inline-end: 0;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tab.last-tab {
+	/* Reserves the space of the add tab button, which overlaps it, so that the button wraps with the last tab and never forms a row of its own */
+	margin-inline-end: calc(var(--last-tab-add-tab-width) + var(--last-tab-margin-right));
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tabs-bar-add-tab {
+	margin-inline-start: calc(-1 * (var(--last-tab-add-tab-width) + var(--last-tab-margin-right)));
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.last-in-row:not(:last-child) {
 	border-right: 0 !important; /* ensure no border for every last tab in a row except last row (#115046) */
 }
@@ -614,6 +623,6 @@
 	right: -2px; /* -2 to connect with drop-target-right */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(.last-tab)::after {
 	right: 0;
 }

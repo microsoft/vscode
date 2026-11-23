@@ -23,7 +23,7 @@ import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVar
 import { IChatModelReference, IChatService } from '../../chat/common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../chat/common/chatUsage.js';
 import { setChatNotificationResource } from '../../chat/common/chatNotification.js';
-import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, isSessionArchiveConfirmed, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
@@ -1041,9 +1041,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (comparison.archivedAt !== undefined || comparison.launching) {
 				continue;
 			}
-			if (comparison.sessionResource && this.sessionsManagementService.getSession(comparison.sessionResource)?.isArchived.get()) {
-				this.archiveComparison(comparison.id);
-				continue;
+			if (comparison.sessionResource) {
+				const session = this.sessionsManagementService.getSession(comparison.sessionResource);
+				if (session && isSessionArchiveConfirmed(session)) {
+					this.archiveComparison(comparison.id);
+					continue;
+				}
 			}
 			const participantResources = comparison.participants
 				.flatMap(participant => participant.sessionResource ? [{ participant, resource: participant.sessionResource }] : []);
@@ -1055,7 +1058,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (
 				sessions.length === 0
 				|| participantSessions.some(({ participant, session }) => !session && !participant.launchError)
-				|| sessions.some(session => !session.isArchived.get())
+				|| sessions.some(session => !isSessionArchiveConfirmed(session))
 			) {
 				continue;
 			}

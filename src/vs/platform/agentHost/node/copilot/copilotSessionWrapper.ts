@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, CreateSessionOptions, SessionEvent, SessionEventPayload, SessionEventType } from '@microsoft/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -87,7 +87,11 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchImageGenerationEnabled: boolean,
 		readonly launchImageGenerationWatermark: boolean,
 		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
-		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
+		readonly launchWorkingDirectoryTrust: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'],
+		/** Whether the SDK session was launched with the hooks of custom agents, which requires every session folder to be trusted. */
+		readonly launchCustomAgentHooksEnabled: boolean,
+		/** Whether VS Code's `chat.useHooks` setting allowed hooks when the SDK session was launched. */
+		readonly launchHooksEnabled: boolean,
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
 		readonly launchMcpSkillsEnabled: boolean,
@@ -384,11 +388,6 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolUserRequested ??= this._sdkEvent('tool.user_requested');
 	}
 
-	private _onToolPartialResult: Event<SessionEventPayload<'tool.execution_partial_result'>> | undefined;
-	get onToolPartialResult(): Event<SessionEventPayload<'tool.execution_partial_result'>> {
-		return this._onToolPartialResult ??= this._sdkEvent('tool.execution_partial_result');
-	}
-
 	private _onToolShellOutput: Event<SessionEventPayload<'tool.shell_output'>> | undefined;
 	get onToolShellOutput(): Event<SessionEventPayload<'tool.shell_output'>> {
 		return this._onToolShellOutput ??= this._sdkEvent('tool.shell_output');
@@ -462,6 +461,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;
 	get onMcpServersLoaded(): Event<SessionEventPayload<'session.mcp_servers_loaded'>> {
 		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
+	}
+
+	private _onCustomAgentsUpdated: Event<SessionEventPayload<'session.custom_agents_updated'>> | undefined;
+	get onCustomAgentsUpdated(): Event<SessionEventPayload<'session.custom_agents_updated'>> {
+		return this._onCustomAgentsUpdated ??= this._sdkEvent('session.custom_agents_updated');
 	}
 
 	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;

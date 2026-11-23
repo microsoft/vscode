@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { CopilotModelRouterCatalog, findModelRouter, UserModelRouterSource, type IModelRouterFile, type IModelRouterSource } from '../../node/copilot/copilotModelRouterCatalog.js';
+import { CopilotModelRouterCatalog, describeSkippedModelRoutes, findModelRouter, UserModelRouterSource, type IModelRouterFile, type IModelRouterSource } from '../../node/copilot/copilotModelRouterCatalog.js';
 
 const router = (description: string) => `version: 1\ndescription: ${description}\nroutes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n`;
 
@@ -83,5 +83,32 @@ suite('CopilotModelRouterCatalog', () => {
 		await write(agentsFolder, 'daily.model-router.yaml', router('New.'));
 		await changed;
 		assert.deepStrictEqual(catalog.snapshot?.files.map(f => f.name), ['daily']);
+	});
+
+	test('says which routes are left out, after what is wrong with the models they name', () => {
+		assert.deepStrictEqual({
+			none: describeSkippedModelRoutes([]),
+			routes: describeSkippedModelRoutes([
+				{
+					route: { models: ['claude', 'lab', 'acme/haiku', 'max'] }, index: 1, reason: 'unavailable', unusable: [
+						{ kind: 'ambiguousFamily', reference: 'claude', candidates: ['claude-opus', 'claude-sonnet'] },
+						{ kind: 'experimental', reference: 'lab', candidates: ['acme-lab-1'] },
+						{ kind: 'ambiguousModel', reference: 'acme/haiku', candidates: ['acme/Work/haiku', 'acme/Home/haiku'] },
+						{ kind: 'disabledByPolicy', model: 'Acme Max' },
+					],
+				},
+				{ route: { name: 'quick', models: ['b'] }, index: 2, reason: 'sharedKey', key: 'quick' },
+			]),
+		}, {
+			none: undefined,
+			routes: [
+				'Route 2: `claude` matches more than one model family; use one of `claude-opus`, `claude-sonnet`.',
+				'Route 2: `lab` matches only experimental models, which a family never picks; use the id of one, such as `acme-lab-1`.',
+				'Route 2: `acme/haiku` matches more than one model; use one of `acme/Work/haiku`, `acme/Home/haiku`.',
+				'Route 2: Acme Max is disabled by policy.',
+				'Route 2 (claude, lab, acme/haiku, max) is skipped: none of its models are available on this account.',
+				'Route `quick` is skipped: `quick` is the name of one route and the model of another.',
+			].join(' '),
+		});
 	});
 });

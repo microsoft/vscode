@@ -203,6 +203,15 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('it opens on its checked item, scrolling only where that item is out of view, so the items above it in view still show', () => {
+		const checked: IActionListItem<ITestActionItem> = { kind: ActionListItemKind.Action, label: 'current', item: { id: 'current', checked: true } };
+		// More items than its height shows, as a picker of many choices has
+		const widget = createActionListWidget(disposables, { items: [action('first'), separator(), checked, ...Array.from({ length: 30 }, (_, index) => action(`other-${index}`))] });
+		const row = (index: number) => widget.domNode.querySelector<HTMLElement>(`.monaco-list-row[data-index="${index}"]`);
+
+		assert.deepStrictEqual({ firstShows: !!row(0), focused: row(2)?.classList.contains('focused') }, { firstShows: true, focused: true });
+	});
+
 	test('the footer name is independently keyboard-operable without selecting a row', () => {
 		let renames = 0;
 		let selections = 0;
@@ -884,6 +893,25 @@ suite('ActionListWidget', () => {
 			assert.deepStrictEqual({ selected, opened, keyboardFocused, retained, elapsed, closedOnCompletion: panel.style.display === 'none' }, {
 				selected: [], opened: true, keyboardFocused: true, retained: true, elapsed: true, closedOnCompletion: true,
 			});
+		});
+	}
+
+	for (const zoom of [1, 1.25]) {
+		test(`fractional hover content fits its panel at ${zoom} zoom`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('details'), hover: { content: 'Details about this action', expandable: true } }],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.style.zoom = String(zoom);
+			widget.domNode.style.fontFamily = 'monospace';
+			widget.domNode.style.letterSpacing = '0.01px';
+			widget.domNode.style.setProperty('--vscode-editorHoverWidget-border', 'transparent');
+			widget.focus();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const paragraph = widget.domNode.querySelector('.action-list-submenu-hover-header p')!;
+			const range = document.createRange();
+			range.selectNodeContents(paragraph);
+			assert.strictEqual(range.getClientRects().length, 1);
 		});
 	}
 
@@ -4011,7 +4039,7 @@ suite('ActionListWidget', () => {
 			content.style.height = '100px';
 			await settleLayout();
 
-			const expected = { rowVisible: true, centeredOnRow: true, expanded: 'true', focused: 'active' };
+			const expected = { rowVisible: true, centeredOnRow: true, expanded: null, focused: 'active' };
 			assert.deepStrictEqual({ before, after: measure() }, { before: expected, after: expected });
 		});
 	}

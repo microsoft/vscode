@@ -171,11 +171,15 @@ suite('AgentHostClientTools', () => {
 			onChange: Event.None,
 			whenInitialLocalMcpServersLoaded: Promise.resolve(),
 		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService);
+		let fullReferenceNameSnapshots = 0;
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
 			getTool: id => (registeredTools ?? tools.get()).find(tool => tool.id === id),
-			getFullReferenceName: tool => fullReferenceNames?.get(tool.id) ?? tool.id,
+			createFullReferenceNameResolver: () => {
+				fullReferenceNameSnapshots++;
+				return tool => fullReferenceNames?.get(tool.id) ?? tool.id;
+			},
 		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
 		instantiationService.stub(IAgentHostToolSetEnablementService, {
 			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
@@ -185,7 +189,7 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return { service, fileService, getPromptListings: () => promptListings.length, promptListings };
+		return { service, fileService, getPromptListings: () => promptListings.length, promptListings, getFullReferenceNameSnapshots: () => fullReferenceNameSnapshots };
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -574,6 +578,39 @@ suite('AgentHostClientTools', () => {
 		}, { local: expected, remote: expected, other: expected });
 	});
 
+	test('computes full reference names once per client tool update rather than once per tool', async () => {
+		const extensionTools = [1, 2, 3].map((index): IToolData => ({
+			id: `publisher.extension.tool${index}`,
+			toolReferenceName: `tool${index}`,
+			displayName: `Tool ${index}`,
+			modelDescription: `Runs extension tool ${index}`,
+			source: { type: 'extension', label: 'Extension', extensionId: new ExtensionIdentifier('Publisher.Extension') },
+		}));
+		const tools = observableValue<readonly IToolData[]>('tools', extensionTools.slice(0, 2));
+		const extensionToolSet = new class extends mock<IToolSet>() {
+			override readonly id = 'publisher.extension';
+			override readonly deprecated = false;
+			override getTools(): Iterable<IToolData> { return extensionTools; }
+		};
+		const client = createActiveClientService(tools, constObservable([extensionToolSet]), undefined, undefined, new Map(extensionTools.map(tool => [tool.id, `publisher.extension/${tool.toolReferenceName}`])));
+		const scope = disposables.add(client.service.acquireScope('agent-host-claude', []));
+		await scope.whenResolved();
+		const published: (string | undefined)[][] = [];
+		disposables.add(autorun(reader => {
+			published.push(scope.tools.read(reader).map(definition => readAgentToolFullReferenceName(definition)));
+		}));
+
+		tools.set(extensionTools, undefined);
+
+		assert.deepStrictEqual({ published, snapshots: client.getFullReferenceNameSnapshots() }, {
+			published: [
+				['publisher.extension/tool1', 'publisher.extension/tool2'],
+				['publisher.extension/tool1', 'publisher.extension/tool2', 'publisher.extension/tool3'],
+			],
+			snapshots: 2,
+		});
+	});
+
 	// ── toolDataToDefinition ─────────────────────────────────────────────
 
 	suite('toolDataToDefinition', () => {
@@ -936,6 +973,7 @@ suite('AgentHostClientTools', () => {
 				createToolSet: () => { throw new Error('not impl'); },
 				getFullReferenceNames: () => [],
 				getFullReferenceName: () => '',
+				createFullReferenceNameResolver: () => () => '',
 				getFullReferenceNameMap: () => new Map(),
 				getToolByFullReferenceName: () => undefined,
 				getDeprecatedFullReferenceNames: () => new Map(),

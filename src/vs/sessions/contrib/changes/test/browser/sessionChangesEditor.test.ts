@@ -27,7 +27,7 @@ import { MultiDiffEditorFileList } from '../../../../../workbench/contrib/multiD
 import { FocusFileListAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListVisibleContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
@@ -36,18 +36,22 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
-import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { emptyProgressRunner, IEditorProgressService, IProgressRunner, LongRunningOperation } from '../../../../../platform/progress/common/progress.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
+import { EditorProgressIndicator } from '../../../../../workbench/services/progress/browser/progressIndicator.js';
+import { IEditorGroupView } from '../../../../../workbench/browser/parts/editor/editor.js';
+import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
-import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
@@ -55,9 +59,12 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
+import { GroupModelChangeKind, IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
+// The changeset picker, as the Agents window registers it; the editor window registers the same
+import '../../browser/changesView.contribution.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('SessionChangesEditor empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -285,7 +292,6 @@ suite('SessionChangesEditor changed files list', () => {
 			return {
 				available: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListAvailableContext.key),
 				shown: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListEnabledContext.key),
-				visible: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListVisibleContext.key),
 				focusFileListInCommandPalette: hostContextKeyService.contextMatchesRules(new FocusFileListAction().desc.precondition),
 				headerBorder: body.classList.contains('file-list-visible') ? `${headerBorder.top} ${headerBorder.height} ${headerBorder.backgroundColor}` : 'none',
 			};
@@ -304,19 +310,86 @@ suite('SessionChangesEditor changed files list', () => {
 		hostFileList.reset();
 		const offAgain = read();
 
-		const hiddenList = { available: true, shown: false, visible: false, focusFileListInCommandPalette: true, headerBorder: 'none' };
-		const noList = { available: false, shown: false, visible: false, focusFileListInCommandPalette: false, headerBorder: 'none' };
-		const list = { available: true, shown: true, visible: true, focusFileListInCommandPalette: true, headerBorder: '-1px 1px rgb(1, 2, 3)' };
-		assert.deepStrictEqual({ experimentalFileList: instantiationService.get(IConfigurationService).getValue(multiDiffEditorExperimentalFileListSetting) ?? false, off, focusedWhileOff, on, hidden, focused, offAgain, togglesFromHeader: editor.togglesFileListFromEditorHeader, host: isMultiDiffEditorFileListHost(editor) }, {
-			experimentalFileList: false,
+		const hiddenList = { available: true, shown: false, focusFileListInCommandPalette: true, headerBorder: 'none' };
+		const noList = { available: false, shown: false, focusFileListInCommandPalette: false, headerBorder: 'none' };
+		const list = { available: true, shown: true, focusFileListInCommandPalette: true, headerBorder: '-1px 1px rgb(1, 2, 3)' };
+		assert.deepStrictEqual({ off, focusedWhileOff, on, hidden, focused, offAgain, host: isMultiDiffEditorFileListHost(editor) }, {
 			off: noList,
 			focusedWhileOff: { ...noList, calls: [] },
 			on: list,
 			hidden: hiddenList,
 			focused: { ...list, calls: ['focus'] },
 			offAgain: noList,
-			togglesFromHeader: true,
 			host: true,
+		});
+	});
+});
+
+suite('SessionChangesEditor header', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function headerOf(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean) {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
+		hostContextKeyService.createKey(ChatContextKeys.enabled.key, aiEnabled);
+		instantiationService.stub(IContextKeyService, hostContextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		}());
+		stubSessionHosts(instantiationService, store, { session: activeSession });
+		// The header's actions read the changes of the active session, of which there are none
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable(undefined);
+			override readonly activeSessionTypeObs = constObservable(undefined);
+			override readonly activeSessionIsVirtualWorkspaceObs = constObservable(false);
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetsObs = constObservable(undefined);
+			override readonly activeSessionChangesetObs = constObservable(undefined);
+			override readonly activeSessionChangesetLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetOperationsObs = constObservable([]);
+			override readonly activeSessionChangesObs = constObservable([]);
+			override readonly activeSessionLoadingObs = constObservable(false);
+			override readonly activeSessionChangesSummaryObs = constObservable(undefined);
+			override readonly activeSessionStateObs = constObservable(undefined);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, ...host });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		instantiationService.stubInstance(MultiDiffEditorWidget, {
+			viewModel: observableValue<MultiDiffEditorViewModel | undefined>('viewModel', undefined),
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		});
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		const header = parent.querySelector('.session-changes-editor-header-left');
+		return header ? [...header.querySelectorAll('.action-label')].map(label => label.getAttribute('aria-label')) : 'none';
+	}
+
+	test('draws its own header with the changeset picker only where the editor part around it does not, such as in an editor window, and not with AI disabled', () => {
+		assert.deepStrictEqual({
+			agentsWindow: headerOf({}, true),
+			editorWindow: headerOf({ editorPartDrawsEditorHeaders: false }, true),
+			editorWindowWithoutAI: headerOf({ editorPartDrawsEditorHeaders: false }, false),
+		}, {
+			agentsWindow: 'none',
+			editorWindow: ['Versions'],
+			editorWindowWithoutAI: [],
 		});
 	});
 });
@@ -518,7 +591,7 @@ suite('SessionChangesEditor chat changes observation', () => {
 suite('SessionChangesEditor chat changes loading', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('while the chat its input names loads its changes, past the time setInput waits for them, shows its own progress rather than "No Changed Files", only while visible, and the empty state once loaded', async () => {
+	test('while the chat its input names loads its changes, past the time setInput waits for them, shows progress in its editor group, not a bar of its own, rather than "No Changed Files", only while visible, and the empty state once loaded', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
@@ -556,7 +629,11 @@ suite('SessionChangesEditor chat changes loading', () => {
 			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
 		}());
 		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		const groupProgressBar = store.add(new ProgressBar(append(mainWindow.document.body, $('.editor-group-progress'))));
+		store.add(toDisposable(() => groupProgressBar.getContainer().remove()));
+		const onDidGroupModelChange = store.add(new Emitter<IGroupModelChangeEvent>());
+		const groupProgress = store.add(new EditorProgressIndicator(groupProgressBar, upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: onDidGroupModelChange.event })));
+		instantiationService.stub(IEditorProgressService, groupProgress);
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
 		const editorInstantiationService = store.add(new InstantiationService(new ServiceCollection(), false, instantiationService));
@@ -571,36 +648,88 @@ suite('SessionChangesEditor chat changes loading', () => {
 		const input = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/x')));
 		input.getViewModel = async () => viewModel;
 		input.clear = () => { };
+		const otherViewModel = store.add(widget.createViewModel({ documents: ValueWithChangeEvent.const([]) }));
+		const otherInput = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/x?other')));
+		otherInput.getViewModel = async () => otherViewModel;
+		otherInput.clear = () => { };
 		const shown = (selector: string) => {
 			const element = parent.querySelector<HTMLElement>(selector);
 			return !!element && !element.hidden && mainWindow.getComputedStyle(element).display !== 'none';
 		};
+		const groupOperation = store.add(new LongRunningOperation(groupProgress));
+		/** Sets the input as its editor group does, which shows its own progress once setting it takes long. */
+		const setInput = async (toSet: SessionChangesEditorInput) => {
+			const operation = groupOperation.start(800);
+			try {
+				await editor.setInput(toSet, undefined, {}, CancellationToken.None);
+			} finally {
+				operation.stop();
+			}
+		};
+		const progressShown = () => groupProgressBar.getContainer().classList.contains('active') && mainWindow.getComputedStyle(groupProgressBar.getContainer()).display !== 'none';
 		const presentation = async () => {
 			await timeout(250);
 			return {
 				noChangedFilesPlaceholder: shown('.multiDiffEditor .placeholder.visible'),
 				emptyState: shown('.session-changes-editor-empty-state'),
-				progress: shown('.session-changes-editor-progress .monaco-progress-container.active'),
+				progress: progressShown(),
+				ownProgress: !!parent.querySelector('.monaco-progress-container'),
 			};
 		};
 		editor.setVisible(true);
 		// Resolves the empty diffs once it stops waiting for the changes, which are still loading.
-		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await setInput(input);
 		await waitForState(viewModel.isLoading, isLoading => !isLoading);
 		const loading = await presentation();
 		editor.setVisible(false);
 		const loadingHidden = await presentation();
 		editor.setVisible(true);
 		const loadingShownAgain = await presentation();
+		// Opening another input in the group makes it the active editor, which resets the group's progress, before this editor shows it.
+		onDidGroupModelChange.fire({ kind: GroupModelChangeKind.EDITOR_ACTIVE });
+		editor.clearInput();
+		const settingOtherInput = setInput(otherInput);
+		await timeout(50);
+		const otherInputProgressRightAway = progressShown();
+		await settingOtherInput;
+		await waitForState(otherViewModel.isLoading, isLoading => !isLoading);
+		const otherInputLoading = await presentation();
 		changesetLoading.set(false, undefined);
 		const loaded = await presentation();
+		/** An input whose changes loaded, but whose diffs resolve only once let to. */
+		const resolvingInput = (name: string) => {
+			const resolvingViewModel = store.add(widget.createViewModel({ documents: ValueWithChangeEvent.const([]) }));
+			const resolved = new DeferredPromise<void>();
+			const resolving = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse(`session-changes:/x?${name}`)));
+			resolving.getViewModel = async () => { await resolved.p; return resolvingViewModel; };
+			resolving.clear = () => { };
+			return { input: resolving, resolve: () => resolved.complete() };
+		};
+		const resolvingDiffs = resolvingInput('resolving');
+		editor.clearInput();
+		const settingResolvingDiffs = setInput(resolvingDiffs.input);
+		await timeout(400);
+		const diffsResolving = progressShown();
+		const nextResolvingDiffs = resolvingInput('next');
+		onDidGroupModelChange.fire({ kind: GroupModelChangeKind.EDITOR_ACTIVE });
+		editor.clearInput();
+		const settingNextResolvingDiffs = setInput(nextResolvingDiffs.input);
+		await timeout(50);
+		const nextDiffsResolvingRightAway = progressShown();
+		resolvingDiffs.resolve();
+		nextResolvingDiffs.resolve();
+		await Promise.all([settingResolvingDiffs, settingNextResolvingDiffs]);
 		editor.clearInput();
 
-		assert.deepStrictEqual({ loading, loadingHidden, loadingShownAgain, loaded }, {
-			loading: { noChangedFilesPlaceholder: false, emptyState: false, progress: true },
-			loadingHidden: { noChangedFilesPlaceholder: false, emptyState: false, progress: false },
-			loadingShownAgain: { noChangedFilesPlaceholder: false, emptyState: false, progress: true },
-			loaded: { noChangedFilesPlaceholder: false, emptyState: true, progress: false },
+		assert.deepStrictEqual({ loading, loadingHidden, loadingShownAgain, otherInputProgressRightAway, otherInputLoading, loaded, diffsResolving, nextDiffsResolvingRightAway }, {
+			loading: { noChangedFilesPlaceholder: false, emptyState: false, progress: true, ownProgress: false },
+			loadingHidden: { noChangedFilesPlaceholder: false, emptyState: false, progress: false, ownProgress: false },
+			loadingShownAgain: { noChangedFilesPlaceholder: false, emptyState: false, progress: true, ownProgress: false },
+			otherInputProgressRightAway: true,
+			otherInputLoading: { noChangedFilesPlaceholder: false, emptyState: false, progress: true, ownProgress: false },
+			loaded: { noChangedFilesPlaceholder: false, emptyState: true, progress: false, ownProgress: false },
+			diffsResolving: true,
+			nextDiffsResolvingRightAway: true,
 		});
 	});
 
@@ -643,7 +772,9 @@ suite('SessionChangesEditor chat changes loading', () => {
 			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
 		}());
 		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show(): IProgressRunner { return emptyProgressRunner; }
+		}());
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
 		const editorInstantiationService = store.add(new InstantiationService(new ServiceCollection(), false, instantiationService));

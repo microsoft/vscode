@@ -27,7 +27,7 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
@@ -39,7 +39,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
@@ -1701,9 +1701,8 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
 		});
 
-		test('a model router that picks once per chat is settled after its first pick', () => {
-			const routedTurn = (id: string, router: string, firstTurnOnly?: boolean) => createTurn({ id, usage: { _meta: { modelRouted: { router, chosenModel: 'opus', ...(firstTurnOnly ? { firstTurnOnly } : {}) } } } });
-			const picked = routedTurn('turn-1', 'daily', true);
+		test('a model router is settled after its first pick for a chat', () => {
+			const picked = createTurn({ id: 'turn-1', usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'opus' } } } });
 			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
 			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
 			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
@@ -1715,10 +1714,15 @@ suite('stateToProgressAdapter', () => {
 				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
 				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
 				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
-				reroutesEveryTurn: isModelRouterPickSettled([routedTurn('turn-1', 'daily')], 'turn-2', 'daily'),
 				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
 				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
-			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, anotherRouter: false, notARouter: false });
+		});
+
+		test('the routing a turn is compared with is the last one before it', () => {
+			const routedTurn = (id: string, chosenModel: string) => createTurn({ id, usage: { _meta: { modelRouted: { router: 'daily', chosenModel } } } });
+			const turns = [routedTurn('turn-1', 'haiku'), createTurn({ id: 'turn-2' }), routedTurn('turn-3', 'opus')];
+			assert.deepStrictEqual(['turn-1', 'turn-3', 'turn-4'].map(turnId => previousModelRouted(turns, turnId)?.chosenModel), [undefined, 'haiku', 'opus']);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -2074,6 +2078,20 @@ suite('stateToProgressAdapter', () => {
 		test('preserves alt text for image tokens', () => {
 			const value = rewriteMarkdownLinks('See ![diagram](file:///a/b.png).', 'my-host');
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
+		});
+
+		test('preserves named chat links instead of rewriting them as file references', () => {
+			const links = [
+				'[Review \\[permissions\\]](ahp-chat:/11111111-1111-5111-8111-111111111111)',
+				'[Legacy child](ahp-chat://subagent/opaque-parent/spawn-id)',
+			];
+			assert.deepStrictEqual(['local', 'remote-host'].flatMap(authority => links.map(link => ({
+				markdown: rewriteMarkdownLinks(`Read agent ${link}`, authority),
+				target: rewriteAgentHostLinkTarget(link.slice(link.indexOf('](') + 2, -1), authority),
+			}))), ['local', 'remote-host'].flatMap(() => links.map(link => ({
+				markdown: `Read agent ${link}`,
+				target: link.slice(link.indexOf('](') + 2, -1),
+			}))));
 		});
 
 		test('error turn produces error details in history', () => {
@@ -2732,6 +2750,43 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('labels calls a hook denied with the hook, and keeps its reason beside the row, in live and restored transcripts', () => {
+			const deniedByHook = (source?: string) => ({ 'vscode.deniedByHook': source ? { hookType: 'preToolUse', source } : { hookType: 'preToolUse' } });
+			const cases: Record<string, { readonly toolName: string; readonly toolInput: string; readonly meta?: Record<string, unknown> }> = {
+				explicit: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook() },
+				crashed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook('.github/hooks/policy.json') },
+				mcp: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: { ...deniedByHook(), mcpServerName: 'docs' } },
+				terminal: { toolName: 'bash', toolInput: '{"command":"rm -rf ./scratch"}', meta: { ...deniedByHook(), toolKind: 'terminal' } },
+				subagent: { toolName: 'task', toolInput: '{"description":"Read the notes","prompt":"Read notes.txt"}', meta: { ...deniedByHook(), toolKind: 'subagent' } },
+				failed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}' },
+			};
+			const results = Object.fromEntries(Object.entries(cases).map(([name, { toolName, toolInput, meta }]) => {
+				const running = createToolCallState({ toolName, displayName: 'Read', toolInput });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success: false, pastTenseMessage: '"Read" failed',
+					error: { message: 'Denied by preToolUse hook: not in this repo (policy R-17).', code: 'denied' }, _meta: meta,
+				});
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+				const views = [live, live.toJSON(), restored].map(tool => JSON.stringify({
+					title: name === 'failed' ? undefined : tool.pastTenseMessage && (typeof tool.pastTenseMessage === 'string' ? tool.pastTenseMessage : renderAsPlaintext(tool.pastTenseMessage)),
+					origin: tool.originMessage,
+					summary: getToolGroupSummary([tool], [], 1, extUri),
+				}));
+				return [name, new Set(views).size === 1 ? JSON.parse(views[0]) : views];
+			}));
+			const reason = 'Denied by preToolUse hook: not in this repo (policy R-17).';
+			assert.deepStrictEqual(results, {
+				explicit: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				crashed: { title: '"Read" blocked because Pre-Tool Use hook .github/hooks/policy.json failed', summary: '1 tool call blocked by a hook' },
+				mcp: { title: '"Read" blocked by Pre-Tool Use hook', origin: `docs (MCP Server) · ${reason}`, summary: '1 tool call blocked by a hook' },
+				terminal: { origin: reason, summary: '1 tool call blocked by a hook' },
+				subagent: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				failed: { summary: '1 tool call failed' },
+			});
+		});
+
 		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
 			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
 				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });
@@ -2911,6 +2966,19 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
 				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
 			), [undefined, undefined, undefined, undefined]);
+		});
+
+		test('MCP origin prefers the server display name and falls back to the server name', () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			assert.deepStrictEqual([
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack' },
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': '  ' },
+				{ mcpServerName: serverName },
+			].map(_meta => toolCallStateToInvocation(createToolCallState({ _meta })).originMessage), [
+				'Slack (MCP Server)',
+				`${serverName} (MCP Server)`,
+				`${serverName} (MCP Server)`,
+			]);
 		});
 
 		test('set_workspace confirmation hides implementation input', () => {
@@ -4724,6 +4792,90 @@ suite('stateToProgressAdapter', () => {
 				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
 				text: `${text} Retry`,
 			});
+		});
+
+		test('shows a failed Copilot hook as a warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookFailure = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return {
+					text: rendered.element.textContent,
+					links: rendered.element.querySelectorAll('a').length,
+					keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed,
+					mute: part.mute,
+				};
+			};
+			const crash = { type: 'preToolUse', outcome: AgentHookOutcome.Failed, source: '.github/hooks/policy.json', message: 'Error: Hook command failed with code 1 [x](command:evil)' };
+			const warning = (text: string) => ({
+				text,
+				links: 0,
+				keepVisibleWhenCollapsed: true,
+				mute: { commandId: 'workbench.action.chat.disableHookWarnings', tooltip: 'Disable Hook Warnings' },
+			});
+
+			assert.deepStrictEqual([
+				summarize(hookFailure(crash, true)),
+				// A hook event the client cannot label is shown with the host's text.
+				summarize(hookFailure({ ...crash, type: 'notAHook' }, true)),
+				summarize(hookFailure({ ...crash, type: 'constructor' }, true)),
+				hookFailure(crash, false),
+				hookFailure(crash),
+			], [
+				warning('The Pre-Tool Use hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1 [x](command:evil)'),
+				warning('The host text.'),
+				warning('The host text.'),
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('shows a Copilot hook warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookWarning = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => part?.kind === 'warning'
+				? { text: store.add(renderMarkdown(part.content)).element.textContent, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute?.commandId }
+				: part;
+			const exitCode2 = { type: 'userPromptSubmitted', outcome: AgentHookOutcome.Warned, message: 'This prompt mentions WARNME; check before continuing.' };
+			const shown = (text: string) => ({ text, keepVisibleWhenCollapsed: true, mute: 'workbench.action.chat.disableHookWarnings' });
+
+			assert.deepStrictEqual([
+				summarize(hookWarning(exitCode2, true)),
+				summarize(hookWarning({ ...exitCode2, type: 'notAHook' }, true)),
+				summarize(hookWarning({ outcome: AgentHookOutcome.Warned, message: 'Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.' }, true)),
+				hookWarning(exitCode2, false),
+			], [
+				shown('Warning from the User Prompt Submit hook: This prompt mentions WARNME; check before continuing.'),
+				shown('Warning from the notAHook hook: This prompt mentions WARNME; check before continuing.'),
+				// Without an event there is nothing to relabel, so the host's own text is shown.
+				shown('The host text.'),
+				undefined,
+			]);
+		});
+
+		test('shows a prompt a Copilot hook blocked as an error with the host\'s text, even with hook warnings off', () => {
+			const hostText = 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed [x](command:evil)';
+			const blocked = (showHookFailures?: boolean) => systemNotificationToChatPart(hostText, 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error }),
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed [x](command:evil)' },
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return { text: rendered.element.textContent, links: rendered.element.querySelectorAll('a').length, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute, isError: part.isError };
+			};
+			const shown = { text: hostText, links: 0, keepVisibleWhenCollapsed: true, mute: undefined, isError: true };
+
+			assert.deepStrictEqual([summarize(blocked(true)), summarize(blocked(false))], [shown, shown]);
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {

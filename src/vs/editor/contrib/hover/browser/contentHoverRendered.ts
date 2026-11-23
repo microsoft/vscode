@@ -351,7 +351,7 @@ class RenderedContentHoverParts extends Disposable {
 		if (renderedPart.type === 'hoverPart' && !(renderedPart.hoverPart instanceof ColorHover) && !renderedPart.participant.hideCopyButton) {
 			partDisposables.add(new HoverCopyButton(
 				element,
-				() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
+				() => renderedPart.participant.getCopyContent?.(renderedPart.hoverPart) ?? renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
 				this._clipboardService,
 				this._hoverService
 			));

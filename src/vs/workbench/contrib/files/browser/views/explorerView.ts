@@ -275,7 +275,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	get name(): string {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace(), { withLocation: true });
+		// The folder's location shows in the window title and the status bar, not here
+		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
 	override get title(): string {

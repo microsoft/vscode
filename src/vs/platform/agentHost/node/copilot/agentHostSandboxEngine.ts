@@ -21,6 +21,7 @@ import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { resolveAgentHostRootSession } from '../../common/agentHostSubscriptionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
+import { getApplicationSandboxReadRoots } from '../applicationSandboxPaths.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -35,6 +36,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	readonly onDidChangeRoots = this._onDidChangeRoots.event;
 	readonly onDidChangeSandboxSettings: Event<void>;
 	private readonly _sandboxHelper: ISandboxHelperService;
+	private _applicationReadRoots: readonly URI[] = [];
 
 	constructor(
 		private readonly _target: IAgentChatConfigurationTarget,
@@ -65,11 +67,13 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	}
 
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
+		this._applicationReadRoots = await getApplicationSandboxReadRoots(this._environmentService.appRoot, this._environmentService.appBundleRoot);
 		const nodeModulesUri = getAppNodeModulesUri();
 		const appRoot = dirname(nodeModulesUri.fsPath);
 		const runAsNode = !!process.versions['electron'];
 		const nativeModulesDir = basename(nodeModulesUri.fsPath);
-		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
+		const readPaths = this._environmentService.appRoot !== this._environmentService.appBundleRoot ? this._applicationReadRoots.map(root => root.fsPath) : undefined;
+		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir, readPaths };
 	}
 
 	async getUserHome(): Promise<URI | undefined> {
@@ -101,6 +105,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 
 	getReadRoots(): readonly URI[] {
 		return getVSCodeSandboxReadRoots({
+			applicationReadRoots: this._applicationReadRoots,
 			sessionDataDirectories: [resolveAgentHostRootSession(URI.parse(this._target.session)).toString(), ...this._agentConfigurationService.getChatAttachmentScopes(this._target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),

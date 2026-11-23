@@ -30,6 +30,7 @@ import {
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
 	type ITunnelRelayMessage,
+	TUNNEL_DISCOVERY_UNAUTHORIZED,
 } from '../common/tunnelAgentHost.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from '../common/tunnelMessageSocket.js';
 
@@ -221,6 +222,13 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			}
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to enumerate tunnels`, err);
+			const requestError: (Error & { readonly response?: { readonly status?: number } }) | undefined = err instanceof Error ? err : undefined;
+			if (requestError?.response?.status === 401) {
+				const error = new Error(requestError.message);
+				error.name = TUNNEL_DISCOVERY_UNAUTHORIZED;
+				throw error;
+			}
+			throw err;
 		}
 
 		if (additionalTunnelNames) {
@@ -242,6 +250,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 					}
 				} catch (err) {
 					this._logService.warn(`${LOG_PREFIX} Failed to look up tunnel '${tunnelName}'`, err);
+					throw err;
 				}
 			}
 		}

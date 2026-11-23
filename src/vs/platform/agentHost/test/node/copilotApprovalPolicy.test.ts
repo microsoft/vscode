@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { JsonValue, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import type { JsonValue, PermissionMode, SessionEventPayload } from '@microsoft/copilot-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld } from '../../node/copilot/copilotApprovalPolicy.js';
 import { getAvailableSessionApprovalValues, getSessionApprovalProperty } from '../../common/sessionConfigProperties.js';

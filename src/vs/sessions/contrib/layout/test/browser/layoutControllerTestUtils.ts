@@ -43,7 +43,7 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../..
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -497,6 +497,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidChangeSessions = harness.onDidChangeSessions.event;
 		override readonly onDidReplaceSession = harness.onDidReplaceSession.event;
 		override readonly onDidDeleteChat = harness.onDidDeleteChat.event;
+		override readonly onDidDiscardNewSession = Event.None;
 		override readonly onDidReplaceNewDraftSession = harness.onDidReplaceNewDraftSession.event;
 		override getSessions() { return []; }
 	});

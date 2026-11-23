@@ -992,8 +992,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _submenuSide: 'left' | 'right' | undefined;
 	private _submenuPointerOrigin: { readonly x: number; readonly y: number } | undefined;
 	private _submenuPointerGraceDeadline: number | undefined;
-	/** The row currently reporting `aria-expanded`, reset when its panel closes. */
-	private _expandedTrigger: HTMLElement | undefined;
+	private _panelAnchor: HTMLElement | undefined;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -1108,7 +1107,7 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 		if (this._usesSubmenuPointerIntent()) {
 			this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_MOVE, event => {
-				if (dom.isHTMLElement(event.target) && this._expandedTrigger?.contains(event.target)) {
+				if (dom.isHTMLElement(event.target) && this._panelAnchor?.contains(event.target)) {
 					this._updateSubmenuPointer(event);
 				}
 			}));
@@ -2158,7 +2157,7 @@ export class ActionListWidget<T> extends Disposable {
 					const element = this._list.element(i);
 					if (this.focusCondition(element) && (element.item as { id?: string })?.id === initialFocusItemId) {
 						this._list.setFocus([i]);
-						this._list.reveal(i);
+						this._revealOnceLaidOut(i);
 						return;
 					}
 				}
@@ -2167,7 +2166,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (focusedIndex !== undefined) {
 				const focusedElement = this._list.element(focusedIndex);
 				if (focusedElement && this.focusCondition(focusedElement)) {
-					this._list.reveal(focusedIndex);
+					this._revealOnceLaidOut(focusedIndex);
 					return;
 				}
 			}
@@ -2176,7 +2175,7 @@ export class ActionListWidget<T> extends Disposable {
 				const element = this._list.element(i);
 				if (this.focusCondition(element) && (element.item as { checked?: boolean })?.checked) {
 					this._list.setFocus([i]);
-					this._list.reveal(i);
+					this._revealOnceLaidOut(i);
 					return;
 				}
 			}
@@ -2184,7 +2183,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._list.focusFirst(undefined, this.focusCondition);
 			const focused = this._list.getFocus();
 			if (focused.length > 0) {
-				this._list.reveal(focused[0]);
+				this._revealOnceLaidOut(focused[0]);
 			}
 		} finally {
 			this._suppressHover = suppressHover;
@@ -2337,15 +2336,31 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
+	 * Reveals the item at `index` once the list has its height: before, the list would take any item to be out of view, and
+	 * scroll it to the top, hiding the items above it, such as a list's first items above its checked one.
+	 */
+	private _revealOnceLaidOut(index: number): void {
+		if (this._hasLaidOut) {
+			this._list.reveal(index);
+		}
+	}
+
+	/**
 	 * Lays out the list widget with the given explicit dimensions.
 	 */
 	layout(height: number, width?: number): void {
+		const firstLayout = !this._hasLaidOut;
 		this._hasLaidOut = true;
 		if (this._options?.wrapDetails) {
 			this.domNode.style.width = width === undefined ? '' : `${width}px`;
 		}
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
+		// What was focused before the list had its height shows now, scrolling only where it is out of view
+		const [focused] = firstLayout ? this._list.getFocus() : [];
+		if (focused !== undefined && focused < this._list.length) {
+			this._list.reveal(focused);
+		}
 
 		// Keep the filter above the list. Skipped when the caller mounted the filter
 		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
@@ -2876,10 +2891,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._currentSubmenuElement = element;
 		this._clearSubmenuContainer();
 
-		// Marks the row the panel belongs to as open, so a screen reader can tell what
-		// ArrowRight opened. Reset in `_clearSubmenuContainer`.
-		anchor.setAttribute('aria-expanded', 'true');
-		this._expandedTrigger = anchor;
+		this._setPanelAnchor(anchor, element);
 
 		// Set after clearing, which is what removes the previous item's class.
 		this._submenuPanelClassName = element.hover?.panelClassName;
@@ -2986,7 +2998,7 @@ export class ActionListWidget<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 
 		let totalHeight = 0;
-		let maxWidth = hoverHeader ? hoverHeader.offsetWidth : 0;
+		let maxWidth = hoverHeader ? Math.ceil(hoverHeader.getBoundingClientRect().width / dom.getDomNodeZoomLevel(hoverHeader)) : 0;
 		let submenuWidget: ActionListWidget<IAction> | undefined;
 
 		if (hasSubmenuActions) {
@@ -3089,13 +3101,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._hideSubmenu();
 				return;
 			}
-			if (this._expandedTrigger !== row) {
-				if (this._expandedTrigger?.hasAttribute('aria-expanded')) {
-					this._expandedTrigger.setAttribute('aria-expanded', 'false');
-				}
-				this._expandedTrigger = row ?? undefined;
-			}
-			row?.setAttribute('aria-expanded', 'true');
+			this._setPanelAnchor(row ?? undefined, currentElement);
 			const parentRect = this.domNode.getBoundingClientRect();
 			const alignToParent = persistent || currentElement.hover?.alignToParent || currentElement.hover?.alignToParentBottom;
 			const edgeRect = alignToParent
@@ -3312,6 +3318,20 @@ export class ActionListWidget<T> extends Disposable {
 		return submenuItems;
 	}
 
+	private _setPanelAnchor(row?: HTMLElement, element?: IActionListItem<T>): void {
+		if (this._panelAnchor !== row) {
+			this._panelAnchor?.classList.remove('panel-anchor');
+			if (this._panelAnchor?.hasAttribute('aria-haspopup') && this._panelAnchor.ariaExpanded === 'true') {
+				this._panelAnchor.ariaExpanded = 'false';
+			}
+			this._panelAnchor = row;
+		}
+		row?.classList.add('panel-anchor');
+		if (row && element && hasExpandablePanel(element) && row.ariaExpanded !== 'true') {
+			row.ariaExpanded = 'true';
+		}
+	}
+
 	private _hideSubmenu(): void {
 		this._cancelSubmenuHide();
 		this._cancelSubmenuShow();
@@ -3345,12 +3365,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._submenuContainer.removeAttribute('role');
 		this._submenuContainer.removeAttribute('aria-label');
-		// The row that opened the panel is no longer expanded. Skipped when the row has
-		// since been recycled onto an item with no panel, which drops the attribute.
-		if (this._expandedTrigger?.hasAttribute('aria-expanded')) {
-			this._expandedTrigger.setAttribute('aria-expanded', 'false');
-		}
-		this._expandedTrigger = undefined;
+		this._setPanelAnchor();
 		dom.clearNode(this._submenuContainer);
 		this._submenuContainer.style.width = '';
 		this._submenuContainer.style.boxSizing = this._options?.persistentHover ? 'border-box' : '';

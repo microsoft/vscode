@@ -24,6 +24,7 @@ import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageP
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -34,10 +35,12 @@ import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinit
  * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
  */
 export interface ISessionsListingScope {
+	/**
+	 * The folders of the scope, such as an editor window's: a session working in one, or whose root or repository is one, is
+	 * in the scope.
+	 */
 	readonly folders: IObservable<readonly URI[]>;
-	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
-	readonly repositories: IObservable<readonly URI[]>;
-	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
+	/** The GitHub repositories, as `owner/repo`, of the {@link folders}' `origin`, whose sessions on GitHub are in the scope. */
 	readonly gitHubRepositories?: IObservable<readonly string[]>;
 }
 
@@ -290,6 +293,8 @@ export interface ISessionWorktreeConfiguration {
  * the provider or session type.
  */
 export interface ISessionModelPickerOptions {
+	/** The provider's catalog is authoritative even for model IDs not registered with the language models service. */
+	readonly hasLiveModelCatalog?: boolean;
 	/** Whether to surface featured models that are currently unavailable. */
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
@@ -375,6 +380,18 @@ export interface IDeleteChatOptions {
  * A logical sessions provider owns creation targets and may use internal, connection-bound backends for existing sessions.
  * Both implement this contract; only logical providers advertise workspace and session creation choices.
  */
+/**
+ * An unlisted quick chat whose first content will be a canvas. It lists the canvases it can open without being started,
+ * and opening one starts it as a session titled after the canvas. Disposing it before a canvas opens, or a canvas that
+ * does not open, leaves nothing behind.
+ */
+export interface ISessionsProviderCanvasDraft extends IDisposable {
+	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
+	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
+	/** Opens one instance of `canvas` in the draft and resolves to the committed session once the provider lists it. */
+	open(canvas: ISessionCanvasDefinition, instanceId: string): Promise<ISession>;
+}
+
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
 	/** The checked state of the terminal sandbox toggle for this chat, when the provider offers one. */
@@ -580,6 +597,9 @@ export interface ISessionsProvider {
 	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
 	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
 
+	/** Whether {@link cloneRepository} can clone on the host it is connected to now. Absent when it always can. */
+	readonly canCloneRepository?: boolean;
+
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 
@@ -681,7 +701,13 @@ export interface ISessionsProvider {
 	listCanvases?(sessionId: string, chatResource: URI): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas?(sessionId: string, chatResource: URI, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
+
+	/**
+	 * Create an unlisted quick chat, of a session type that runs canvases, that can start a session with a canvas
+	 * instead of a message. See {@link ISessionsProviderCanvasDraft}.
+	 */
+	createCanvasDraft?(): ISessionsProviderCanvasDraft;
 
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
@@ -789,6 +815,9 @@ export interface ISessionsProvider {
 	 */
 	archiveSession(sessionId: string): Promise<void>;
 
+	/** Archives a batch with one settled outcome per input, allowing the provider to merge session-change notifications. */
+	archiveSessions?(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]>;
+
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;
 
@@ -801,8 +830,11 @@ export interface ISessionsProvider {
 	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
-	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
+	/** Whether the connected host supports preparing and scheduling session worktree cleanup. */
+	readonly supportsWorktreeCleanup?: boolean;
+	readonly supportsManagedWorktreeCleanup?: boolean;
 	readonly supportsForceWorktreeCleanup?: boolean;
+	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;

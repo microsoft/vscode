@@ -23,6 +23,7 @@ const suiteDurations = new Map<string, number>([
 	['Terminal', process.platform === 'linux' ? 10 : 135],
 	['Data Loss (insiders -> insiders)', 100],
 	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 70 : 15], // skips itself without Docker
+	['Agents Window (Dev Container handoff)', process.platform === 'linux' ? 90 : 15], // skips itself without Docker
 	['Agents Window (SSH Dev Container AgentHost)', 50],
 	['Agents Window (Codex)', 45],
 	['Integrated Browser', 40],

@@ -15,6 +15,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { PromptTimelineModel } from '../../../browser/promptTimeline/promptTimelineModel.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatRequestViewModel, IChatViewModelChangeEvent } from '../../../common/model/chatViewModel.js';
 
 suite('PromptTimelineModel', () => {
@@ -38,7 +39,9 @@ suite('PromptTimelineModel', () => {
 		const onDidChange = store.add(new Emitter<IChatViewModelChangeEvent>());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		let scrollTop = 0;
+		const olderHistoryUnavailable = observableValue('olderHistoryUnavailable', false);
 		let viewModel = upcastPartial<ChatViewModel>({
+			model: upcastPartial<IChatModel>({ olderHistoryUnavailable }),
 			sessionResource: URI.parse('test:/first'),
 			onDidChange: onDidChange.event,
 			getItems: () => items,
@@ -63,6 +66,7 @@ suite('PromptTimelineModel', () => {
 
 		return {
 			model,
+			olderHistoryUnavailable,
 			setRequests(requests: readonly IChatRequestViewModel[]): void {
 				items.splice(0, items.length, ...requests);
 				onDidChange.fire(null);
@@ -89,6 +93,14 @@ suite('PromptTimelineModel', () => {
 			pinned: model.activePinned.get(),
 		};
 	}
+
+	test('does not present a cached tail as the entire prompt list while the host is unavailable', () => {
+		const { model, olderHistoryUnavailable } = createModel([{ item: request('last', 'Last', 1), top: 0 }]);
+		olderHistoryUnavailable.set(true, undefined);
+		const offline = model.activePrompt.get();
+		olderHistoryUnavailable.set(false, undefined);
+		assert.deepStrictEqual([offline?.text, offline?.total, model.activePrompt.get()?.total], ['Last', undefined, 1]);
+	});
 
 	for (const ticksProperty of ['promptTicks', 'ticks'] as const) {
 		test(`${ticksProperty} only recomputes the changed prompt and suppresses equal diff stats`, () => {

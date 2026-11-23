@@ -369,8 +369,6 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 		installCount.showsInstalledExtensions = true;
 		const ratings = templateDisposables.add(this.instantiationService.createInstance(RatingsWidget, DOM.append(nameRow, $('span.agents-window-extension-rating', { 'aria-hidden': 'true' })), true));
 		ratings.showsInstalledExtensions = true;
-		const warning = DOM.append(nameRow, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
-		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 		const contributions = DOM.append(nameRow, $('span.agents-window-extension-contributions', { 'aria-hidden': 'true' }));
 		const description = DOM.append(details, $('span.agents-window-extension-description'));
 
@@ -381,6 +379,10 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 		runtimeAction.element.classList.add('agents-window-extension-runtime-action');
 		runtimeAction.element.tabIndex = -1;
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(runtimeAction.element, event => DOM.EventHelper.stop(event, true)));
+
+		// Next to the switch, where users decide whether to run the extension in the Agents window.
+		const warning = DOM.append(container, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
+		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 
 		const toggle = templateDisposables.add(new CustomizationToggle({ ariaLabel: '' }));
 		toggle.setTabIndex(-1);

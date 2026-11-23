@@ -133,8 +133,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	}
 
 	/**
-	 * Resolves the location through the providers, waiting for providers to register until the
-	 * deadline. The deadline covers the resolution itself, and results arriving after it are dropped.
+	 * Resolves the location through the providers, waiting for providers to register, or to learn of more locations, until
+	 * the deadline. The deadline covers the resolution itself, and results arriving after it are dropped.
 	 */
 	private async resolve(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {
 		const store = new DisposableStore();
@@ -145,13 +145,15 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 			const stopped = new Promise<undefined>(resolve => store.add(source.token.onCancellationRequested(() => resolve(undefined))));
 
-			// Observed before resolving, so that a provider registering meanwhile is never missed
+			// Observed before resolving, so that a provider registering, or one learning of more locations, meanwhile is never missed
 			let generation = 0;
 			let wake: (() => void) | undefined;
-			store.add(this.folderLocationService.onDidChangeProviders(() => {
+			const onDidChange = () => {
 				generation++;
 				wake?.();
-			}));
+			};
+			store.add(this.folderLocationService.onDidChangeProviders(onDidChange));
+			store.add(this.folderLocationService.onDidChangeLocations(onDidChange));
 
 			while (!source.token.isCancellationRequested) {
 				const seen = generation;
@@ -184,7 +186,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 				label: localize('returnToPrimaryFolderLocation', "Return to Primary Location"),
 				run: () => {
 					if (this.isStillAt(primary, location)) {
-						return this.workspaceEditingService.setFolderLocation(primary).catch(error => this.logService.error('Failed to return the folder to its primary location', error));
+						return this.workspaceEditingService.setFolderLocation(primary, { reason: 'user' }).catch(error => this.logService.error('Failed to return the folder to its primary location', error));
 					}
 					return undefined;
 				}

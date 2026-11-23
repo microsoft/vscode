@@ -73,6 +73,8 @@ export interface IChangesSessionObservables {
 	readonly changesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
 	readonly sectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 	readonly stateObs: IObservable<ActiveSessionState | undefined>;
+	/** The recorded base branch of the chat's primary folder (e.g. `origin/main`), read live and never retained across sessions. */
+	readonly baseBranchFullNameObs: IObservable<string | undefined>;
 }
 
 /** The session a changes view or actions bar acts on, with that session's changes observables. */
@@ -131,6 +133,7 @@ export function getActiveSessionChanges(service: IChangesViewService): IChangesS
 		changesSummaryObs: service.activeSessionChangesSummaryObs,
 		sectionCollapseStateObs: service.activeSessionSectionCollapseStateObs,
 		stateObs: service.activeSessionStateObs,
+		baseBranchFullNameObs: service.activeSessionBaseBranchFullNameObs,
 	};
 }
 
@@ -168,6 +171,8 @@ export interface IChangesViewService {
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
+	/** The recorded base branch of the active chat's primary folder (e.g. `origin/main`), read live and never retained across sessions. */
+	readonly activeSessionBaseBranchFullNameObs: IObservable<string | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 

@@ -5,20 +5,23 @@
 
 import { localize } from '../../../../nls.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+// The Manage actions of the pages of extensions offer copying their details, like in editor windows.
+import '../../../../workbench/contrib/extensions/browser/extensionsCopyActions.js';
 import { AgentsWindowExtensionAutoEnablementExperiment } from './agentsWindowExtensionAutoEnablementExperiment.js';
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
+import { manageExtension } from './agentsWindowExtensionManageCommand.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
 import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, AgentsWindowExtensionPageContext, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
@@ -30,7 +33,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('extensions.experimental.agentsWindowManagement', "When enabled, you can choose which installed extensions run in the Agents window, and install extensions from the Marketplace, from the Extensions section of Agent Customizations. When disabled, extensions that don't support the Agents window stay disabled there, and your previous choices are kept but ignored."),
-			default: product.quality !== 'stable',
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -38,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('extensions.experimental.agentsWindowSuggestions', "When enabled, the Agents window suggests installed extensions that add AI features, such as tools, MCP servers, or skills. The Extensions section of Agent Customizations lists them in an AI Features group, and its entry point shows a badge while they are disabled, until you open the section. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
-			default: product.quality !== 'stable',
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -85,6 +88,7 @@ registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensio
 // Requests the experiment values of extensions as early as possible, so that extensions start with their experiment value.
 registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementExperiment.ID, AgentsWindowExtensionAutoEnablementExperiment, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementTelemetry.ID, AgentsWindowExtensionAutoEnablementTelemetry, WorkbenchPhase.AfterRestored);
+CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, manageExtension);
 
 // Like Go Back, which returns to the previous editor from the Extensions editor in editor windows, with its keybindings. The
 // keybindings run from the page's webviews, which forward their keys to the window, and the section runs them elsewhere on

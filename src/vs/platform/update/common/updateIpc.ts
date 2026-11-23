@@ -30,6 +30,7 @@ export class UpdateChannel implements IServerChannel {
 			case 'isLatestVersion': return this.service.isLatestVersion();
 			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
 			case 'setInternalOrg': return this.service.setInternalOrg(arg);
+			case 'setEarlyStagingDefault': return this.service.setEarlyStagingDefault(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -82,6 +83,10 @@ export class UpdateChannelClient implements IUpdateService {
 
 	setInternalOrg(internalOrg: string | undefined): Promise<void> {
 		return this.channel.call('setInternalOrg', internalOrg);
+	}
+
+	setEarlyStagingDefault(enabled: boolean): Promise<void> {
+		return this.channel.call('setEarlyStagingDefault', enabled);
 	}
 
 	dispose(): void {
