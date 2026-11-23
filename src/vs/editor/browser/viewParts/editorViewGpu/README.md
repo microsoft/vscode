@@ -118,8 +118,9 @@ frame in full, which tells whether a wrong picture comes from it.
 `editor.experimental.editorViewOverscan` (on by default) makes the canvas draw
 a quarter of the viewport's height above and below it. The canvas keeps its
 place while the viewport stays within it and moves with a CSS transform as the
-editor scrolls: a frame that only scrolls draws and presents nothing, and the
-compositor moves the picture as it moves DOM text. Once the viewport leaves
+editor scrolls: a frame in which only the vertical scroll position changed
+neither syncs the renderer nor draws, and the compositor moves the picture as
+it moves DOM text. Once the viewport leaves
 the canvas, the canvas moves to leave the whole margin ahead of the scroll and
 draws only the rows new to it. It applies with WebGPU and incremental
 rendering, at whole-number display scales (a transform of whole CSS pixels then

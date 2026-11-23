@@ -21,6 +21,7 @@ import { TokenizationRegistry } from '../../../common/languages.js';
 import { HorizontalGuidesState } from '../../../common/textModelGuides.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
+import { ViewEventType } from '../../../common/viewEvents.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { HorizontalPosition, HorizontalRange, LineVisibleRanges, type IViewLines, type RenderingContext, type RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
@@ -214,6 +215,13 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _canvasPlacement: { top: number; margin: number } | undefined;
 	/** The scroll position of the last frame. */
 	private _presentedScrollTop: number | undefined;
+	/**
+	 * Whether anything besides the vertical scroll position may have changed
+	 * since the last frame drew; see {@link _moveCanvas}.
+	 */
+	private _changedBesidesScrollTop = true;
+	/** The editor's size and pixel ratio when the last frame drew. */
+	private _presentedSize: { width: number; height: number; dpr: number } | undefined;
 	/**
 	 * Whether lines the canvas draws beyond the viewport lack decorations that
 	 * changed since: a narrow query covers the visible lines only.
@@ -1465,10 +1473,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		if (this.canvas.domNode.width !== backingWidth || this.canvas.domNode.height !== backingHeight) {
 			this._editorView.resize(backingWidth, backingHeight);
 		}
-		// Whole device pixels, so the compositor moves the picture without
-		// resampling it.
-		const offset = (Math.round(canvas.top * dpr) - Math.round(scrollTop * dpr)) / dpr;
-		this.canvas.domNode.style.transform = offset === 0 ? '' : `translate3d(0px, ${offset}px, 0px)`;
+		this._offsetCanvas(canvas.top, scrollTop, dpr);
 
 		this._editorView.setConfig(this._buildConfig());
 		const styleLines = this._rendererLineRange(canvas.top, canvas.height);
@@ -1486,11 +1491,51 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		});
 		this._presentedScrollTop = scrollTop;
 
+		let shown = false;
 		try {
-			this._editorView.render();
+			shown = this._editorView.render();
 		} catch (err) {
 			onUnexpectedError(err);
 		}
+		this._presentedSize = { width, height, dpr };
+		// Until a frame shows, scrolling draws, so the next frame shows.
+		this._changedBesidesScrollTop = !shown;
+	}
+
+	/**
+	 * Show a frame in which only the vertical scroll position changed, and the
+	 * canvas keeps its place, by moving the canvas: what it draws did not
+	 * change, nor did the decorations of the lines it draws beyond the
+	 * viewport, so the frame neither draws nor presents. Returns `false` when
+	 * the frame must be drawn.
+	 */
+	private _moveCanvas(): boolean {
+		const placement = this._canvasPlacement;
+		if (this._changedBesidesScrollTop || this._decorationMarginsStale || !this._editorView || this._disposed || !placement || placement.margin === 0) {
+			return false;
+		}
+		const { width, height, dpr } = this._measure();
+		const size = this._presentedSize;
+		if (!size || size.width !== width || size.height !== height || size.dpr !== dpr) {
+			return false;
+		}
+		// Where `_placeCanvas` keeps the canvas in place.
+		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const margin = this._canOverscan(dpr) ? Math.ceil(height / 4) : 0;
+		if (margin !== placement.margin || scrollTop < placement.top || scrollTop > placement.top + 2 * margin) {
+			return false;
+		}
+		this._offsetCanvas(placement.top, scrollTop, dpr);
+		this._presentedScrollTop = scrollTop;
+		return true;
+	}
+
+	/** Move the canvas, which draws from `top`, to show the viewport at `scrollTop`. */
+	private _offsetCanvas(top: number, scrollTop: number, dpr: number): void {
+		// Whole device pixels, so the compositor moves the picture without
+		// resampling it.
+		const offset = (Math.round(top * dpr) - Math.round(scrollTop * dpr)) / dpr;
+		this.canvas.domNode.style.transform = offset === 0 ? '' : `translate3d(0px, ${offset}px, 0px)`;
 	}
 
 	/**
@@ -1537,7 +1582,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._present();
+		if (!this._moveCanvas()) {
+			this._present();
+		}
 	}
 
 	// --- horizontal metrics (IEditorViewLineWidthProvider) -------------------
@@ -1613,6 +1660,22 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	// --- events --------------------------------------------------------------
+
+	public override handleEvents(events: viewEvents.ViewEvent[]): void {
+		for (const e of events) {
+			if (e.type !== ViewEventType.ViewScrollChanged || e.scrollLeftChanged || e.scrollWidthChanged || e.scrollHeightChanged) {
+				this._changedBesidesScrollTop = true;
+				break;
+			}
+		}
+		super.handleEvents(events);
+	}
+
+	public override forceShouldRender(): void {
+		// A forced frame draws, and presents if asked to (`presentNextFrame`).
+		this._changedBesidesScrollTop = true;
+		super.forceShouldRender();
+	}
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		// Font/layout/tab changes don't alter the model's text or tokens; the
