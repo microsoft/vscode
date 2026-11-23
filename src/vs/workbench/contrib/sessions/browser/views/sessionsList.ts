@@ -8,7 +8,7 @@ import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
-import { SessionRowIndent, setSessionRowIndentGuides } from './sessionsListIndentGuides.js';
+import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
@@ -1160,7 +1160,6 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
 		const comparisonConnectorPosition = element.standalone ? undefined : this.getComparisonConnectorPosition(element.session);
-		setSessionRowIndentGuides(template.container, groupDepth, comparisonConnectorPosition !== undefined ? SessionRowIndent.Comparison : SessionRowIndent.Item);
 		template.container.classList.toggle('session-comparison-chat', comparisonConnectorPosition !== undefined);
 		if (comparisonConnectorPosition === 'middle') {
 			const connector = DOM.append(template.container, $('span.session-comparison-chat-connector', { 'aria-hidden': 'true' }));
@@ -2033,7 +2032,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		} else {
 			delete template.container.dataset.sessionGroupConnector;
 		}
-		setSessionRowIndentGuides(template.container, groupDepth, groupConnectorPosition ? SessionRowIndent.Comparison : SessionRowIndent.Item);
 
 		if (this.options.inlineRename) {
 			template.elementDisposables.add(DOM.addDisposableListener(template.titleRow, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
@@ -3074,7 +3072,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
 		const groupDepth = this.getGroupDepth(element);
 		setSessionGroupDepth(template.container, groupDepth);
-		setSessionRowIndentGuides(template.container, groupDepth, SessionRowIndent.Header);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('session-section-new-session');
@@ -3416,7 +3413,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		setSessionGroupDepth(template.container, element.depth);
 
 		const isComparison = element.comparison !== undefined;
-		setSessionRowIndentGuides(template.container, element.depth, isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Header);
 		template.container.classList.toggle('session-comparison-group', isComparison);
 		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : {
 			id: element.group.icon ?? Codicon.folderLibrary.id,
@@ -3598,10 +3594,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		const container = template.parentElement;
 		if (container) {
-			const groupDepth = this.getGroupDepth(element);
-			setSessionGroupDepth(container, groupDepth);
-			// The show more folders row lists sections, so it lines up with their headers.
-			setSessionRowIndentGuides(container, groupDepth, element.kind === 'sessions' ? SessionRowIndent.Item : SessionRowIndent.Header);
+			setSessionGroupDepth(container, this.getGroupDepth(element));
 		}
 		container?.classList.toggle('session-show-more-folders', element.kind !== 'sessions');
 		template.textContent = getSessionShowMoreLabel(element);
@@ -3640,9 +3633,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 		if (!isSessionPlaceholder(element)) {
 			return;
 		}
-		const groupDepth = this.getGroupDepth(element);
-		setSessionGroupDepth(template.container, groupDepth);
-		setSessionRowIndentGuides(template.container, groupDepth, SessionRowIndent.Item);
+		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.label.textContent = element.label;
 		template.hover.value = element.hover
 			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), template.container, element.hover)
@@ -5423,6 +5414,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this._register(runOnChange(scoped, () => this.update()));
 		}
 
+		const indentGuides = new SessionsListIndentGuides<SessionListItem>(element => this.getRowIndent(element), () => this.tree);
 		this.tree = treeDisposables.add(treeInstantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsListTree',
@@ -5437,7 +5429,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				showMoreRenderer,
 				placeholderRenderer,
 				new PendingSessionRenderer(instantiationService, (item, anchor) => this.showPendingSessionContextMenu(item, anchor), error => this.notificationService.error(error)),
-			],
+			].map((renderer: ITreeRenderer<SessionListItem, FuzzyScore, unknown>) => indentGuides.wrapRenderer(renderer)),
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					scheduledSessionResources: this.options.scheduledSessionResources,
@@ -5571,6 +5563,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 			}
 		));
+		// Collapsing a row, or diffing children, changes the row below a row without rendering it again.
+		treeDisposables.add(this.tree.onDidChangeModel(() => indentGuides.refresh()));
+		treeDisposables.add(this.tree.onDidChangeCollapseState(() => indentGuides.refresh()));
 		this.selectedSessions = observableFromEvent(this, this.tree.onDidChangeSelection,
 			() => this.tree.getSelection().filter((item): item is ISession => !!item && isSessionItem(item)));
 		this.findController = this._register(new SessionsListFindController(this.tree, this.searchFilter, this.contextViewService, {
@@ -5975,6 +5970,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			assignmentRefetchSignal.read(reader);
 			this.updateSessionGroupLimit();
 		}));
+
+		this._register(runOnChange(this.customViewService.activeCustomView, () => this.syncActiveChatSelection(this._mainWindowShown.get())));
 
 		this.refresh();
 		this.syncActiveChatSelection(this._mainWindowShown.get());
@@ -7215,6 +7212,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private syncActiveChatSelection(shown: IShownChat | undefined): void {
+		// A full-page view, such as Automations or a pinned canvas, covers the shown chat and marks its own row as current.
+		if (this.customViewService.activeCustomView.get()) {
+			this.tree.setSelection([]);
+			return;
+		}
 		if (!shown) {
 			return;
 		}
@@ -9944,6 +9946,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isRenderedInCustomGroup(session: ISession): boolean {
 		return this.getRenderedSessionGroup(session) !== undefined;
+	}
+
+	/** How the row of `element` steps in below its header, which decides the indent guides it draws. */
+	private getRowIndent(element: SessionListItem): ISessionRowIndent {
+		if (isPendingSessionItem(element)) {
+			// Pending rows only render in the top-level Drafts section.
+			return { depth: 0, indent: SessionRowIndent.Item };
+		}
+		if (isSessionGroupItem(element)) {
+			return { depth: element.depth, indent: element.comparison !== undefined ? SessionRowIndent.Comparison : SessionRowIndent.Header };
+		}
+		if (isSessionSection(element)) {
+			return { depth: this.getRowGroupDepth(element), indent: SessionRowIndent.Header };
+		}
+		if (isSessionShowMore(element)) {
+			// The show more folders row lists sections, so it lines up with their headers.
+			return { depth: this.getRowGroupDepth(element), indent: element.kind === 'sessions' ? SessionRowIndent.Item : SessionRowIndent.Header };
+		}
+		if (isSessionPlaceholder(element)) {
+			return { depth: this.getRowGroupDepth(element), indent: SessionRowIndent.Item };
+		}
+		// A comparison's attempts and their nested chats step in with the comparison.
+		const session = isSessionChatItem(element) ? element.standalone ? undefined : element.session : element;
+		const isComparison = session !== undefined && this.renderedComparisonParticipantConnectorPositions.has(session.sessionId);
+		return { depth: this.getRowGroupDepth(element), indent: isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Item };
 	}
 
 	/**

@@ -52,7 +52,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enumDescriptions: [
 				localize('chat.viewSessions.openChatIn.chatPanel', "Open the chat of a session in the Chat view."),
 				localize('chat.viewSessions.openChatIn.chatArea', "Open the chat of a session in the chat area beside the Chat view, which then shows only its sessions. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
-				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area. A chat that is already open is revealed instead of opened again."),
+				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area, also from a session link. A chat that is already open is revealed instead of opened again."),
 			],
 			default: ChatViewSessionsOpenChatIn.ChatPanel,
 			tags: ['experimental'],

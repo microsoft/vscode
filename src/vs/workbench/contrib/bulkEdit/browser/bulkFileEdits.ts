@@ -8,7 +8,7 @@ import { WorkspaceFileEditOptions } from '../../../../editor/common/languages.js
 import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from '../../../services/workingCopy/common/workingCopyFileService.js';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation, WorkingCopyFileOperationCancellationError } from '../../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -77,8 +77,22 @@ class RenameOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
-		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
+		let completed = moves.length;
+		try {
+			await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
+		} catch (error) {
+			if (!(error instanceof WorkingCopyFileOperationCancellationError)) {
+				throw error;
+			}
+
+			// only undo the moves that completed before the cancellation
+			completed = error.completed.length;
+			if (completed === 0) {
+				return new Noop();
+			}
+		}
+
+		return new RenameOperation(undoes.slice(0, completed), { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
 	toString(): string {
@@ -126,7 +140,21 @@ class CopyOperation implements IFileOperation {
 		}
 
 		// (2) perform the actual copy and use the return stats to build undo edits
-		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
+		let stats: readonly IFileStatWithMetadata[];
+		try {
+			stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
+		} catch (error) {
+			if (!(error instanceof WorkingCopyFileOperationCancellationError)) {
+				throw error;
+			}
+
+			// only undo the copies that completed before the cancellation
+			stats = error.completed;
+			if (stats.length === 0) {
+				return new Noop();
+			}
+		}
+
 		const undoes: DeleteEdit[] = [];
 
 		for (let i = 0; i < stats.length; i++) {
@@ -414,6 +442,10 @@ export class BulkFileEdits {
 				undoOperations.push(undoOp);
 			}
 			this._progress.report(undefined);
+		}
+
+		if (this._token.isCancellationRequested && undoOperations.every(op => op instanceof Noop)) {
+			return []; // cancelled before anything changed, so there is nothing to undo
 		}
 
 		const undoRedoElement = new FileUndoRedoElement(this._label, this._code, undoOperations, this._confirmBeforeUndo);

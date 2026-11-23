@@ -9750,6 +9750,57 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		for (const kind of agentHostConnectionKinds) {
+			test(`resuming an existing session gates on its persisted folder in client space (${kind.name})`, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+				agentHostService.resourceUris = kind.resourceUris;
+				trustController.result = false;
+
+				// The persisted working directory is a host path. A remote host's
+				// folder must not be trusted (or shown) as a folder on this machine.
+				const hostFolder = URI.file('/home/me/repo');
+				const backendSession = AgentSession.uri('copilot', 'resumed-host');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(),
+						provider: 'copilot',
+						title: 'Resumed',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+						workingDirectories: [hostFolder.toString()],
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					activeClients: [],
+				});
+				agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Resumed', workingDirectories: [hostFolder] });
+
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/resumed-host' });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+
+				const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+				await registered.impl.invoke(
+					makeRequest({ message: 'Hello', sessionResource }),
+					() => { }, [], CancellationToken.None,
+				);
+
+				// Like a new session, a local folder is gated by resource trust and
+				// any other folder by the workspace trust fallback.
+				const clientFolder = kind.toClient(hostFolder);
+				assert.deepStrictEqual({
+					resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+					workspaceTrustCalls: trustController.workspaceTrustCalls,
+				}, clientFolder.scheme === Schemas.file ? {
+					resourcesTrustUris: [clientFolder.toString()],
+					workspaceTrustCalls: 0,
+				} : {
+					resourcesTrustUris: [],
+					workspaceTrustCalls: 1,
+				});
+			});
+		}
+
 		test('does not prompt for trust for an existing workspace-less quick chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
 			// Decline any prompt: a correct skip proceeds without ever prompting; a
