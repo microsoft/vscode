@@ -96,6 +96,7 @@ export type ModelRouterContextSize = 'default' | 'long';
 export interface IModelRouterRoute {
 	/** Model ids in preference order; the first one the user has is used. */
 	readonly models: readonly string[];
+	/** Which requests the route is for. Empty for a router's only route, which has nothing to be told apart from. */
 	readonly when: string;
 	readonly examples: readonly string[];
 	/** A fixed effort for this route, overriding the router's unless that is `off`. */
@@ -340,7 +341,7 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		const seenModels = new Map<string, number>();
 		const seenNames = new Map<string, number>();
 		items.forEach((item, index) => {
-			const route = parseRoute(item, index, report);
+			const route = parseRoute(item, index, items.length === 1, report);
 			if (!route) {
 				return;
 			}
@@ -414,7 +415,7 @@ export function modelRouterRouteLabel(route: Pick<IModelRouterRoute, 'name'>, in
 	return route.name ? `Route \`${route.name}\`` : `Route ${index + 1}`;
 }
 
-function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRouterRoute | undefined {
+function parseRoute(item: YamlNode, index: number, isOnlyRoute: boolean, report: IReporter): IModelRouterRoute | undefined {
 	const position = `Route ${index + 1}`;
 	if (item.type !== 'map') {
 		report.error(`${position} needs \`model\` and \`when\`.`, item);
@@ -443,8 +444,9 @@ function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRou
 	}
 
 	const whenProperty = values.get('when');
-	const when = whenProperty ? scalar(whenProperty.value)?.trim() : undefined;
-	if (!when) {
+	const when = whenProperty ? scalar(whenProperty.value)?.trim() ?? '' : '';
+	// Nothing is decided for a router's only route, so it can leave `when` out.
+	if (!when && (whenProperty || !isOnlyRoute)) {
 		report.error(`${label} needs \`when\`: when to use this model.`, whenProperty?.value ?? item);
 		return undefined;
 	}
