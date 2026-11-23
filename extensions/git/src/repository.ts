@@ -350,9 +350,7 @@ export class Resource implements SourceControlResourceState {
 	}
 }
 
-export interface GitResourceGroup {
-	readonly id: 'merge' | 'index' | 'workingTree' | 'untracked';
-	readonly label: string;
+export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
 }
 
@@ -754,18 +752,14 @@ export class Repository implements Disposable {
 	private _sourceControl!: GitSourceControl;
 	private sourceControlDisposables: IDisposable[] = [];
 	get sourceControl(): SourceControl { return this._sourceControl.sourceControl; }
-	get sourceControlResourceGroups(): SourceControlResourceGroup[] { return this._sourceControl.sourceControlResourceGroups; }
 
 	get inputBox(): SourceControlInputBox { return this._sourceControl.sourceControl.inputBox; }
 	get artifactProvider(): GitArtifactProvider { return this._sourceControl.artifactProvider; }
 
-	readonly mergeGroup: GitResourceGroup = { id: 'merge', label: l10n.t('Merge Changes'), resourceStates: [] };
-	readonly indexGroup: GitResourceGroup = { id: 'index', label: l10n.t('Staged Changes'), resourceStates: [] };
-	readonly workingTreeGroup: GitResourceGroup = { id: 'workingTree', label: l10n.t('Changes'), resourceStates: [] };
-	readonly untrackedGroup: GitResourceGroup = { id: 'untracked', label: l10n.t('Untracked Changes'), resourceStates: [] };
-
-	private _commitTemplate: string | undefined;
-	get commitTemplate(): string | undefined { return this._commitTemplate; }
+	get mergeGroup(): GitResourceGroup { return this._sourceControl.mergeGroup; }
+	get indexGroup(): GitResourceGroup { return this._sourceControl.indexGroup; }
+	get workingTreeGroup(): GitResourceGroup { return this._sourceControl.workingTreeGroup; }
+	get untrackedGroup(): GitResourceGroup { return this._sourceControl.untrackedGroup; }
 
 	private _EMPTY_TREE: string | undefined;
 
@@ -878,7 +872,7 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
-		this._sourceControl.update();
+		this.sourceControl.count = 0;
 	}
 
 	get root(): string {
@@ -1030,7 +1024,6 @@ export class Repository implements Disposable {
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
 				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
-				this._sourceControl.update();
 			}
 		}, undefined, this.sourceControlDisposables);
 
@@ -3036,8 +3029,7 @@ export class Repository implements Disposable {
 			this.mergeInProgress = mergeInProgress;
 			this.cherryPickInProgress = cherryPickInProgress;
 
-			this._commitTemplate = commitTemplate;
-			this._sourceControl.update();
+			this.sourceControl.commitTemplate = commitTemplate;
 
 			// Execute cancellable long-running operation
 			const [resourceGroups, refs] =
@@ -3072,7 +3064,8 @@ export class Repository implements Disposable {
 			this._isWorktreeMigrating = false;
 		}
 
-		this._sourceControl.update();
+		// set count badge
+		this._sourceControl.setCountBadge();
 	}
 
 	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {

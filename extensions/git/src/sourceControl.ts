@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { Disposable, l10n, LogOutputChannel, scm, SourceControl, SourceControlResourceGroup, ThemeIcon, Uri, workspace } from 'vscode';
+import { Disposable, l10n, LogOutputChannel, scm, SourceControl, ThemeIcon, Uri, workspace } from 'vscode';
 import { GitArtifactProvider } from './artifactProvider';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
-import type { GitResourceGroup, IRepositoryResolver, Repository, Resource } from './repository';
+import type { GitResourceGroup, IRepositoryResolver, Repository } from './repository';
 import { dispose, filterEvent, isCopilotWorktreeFolder } from './util';
 import { Status } from './api/git.constants';
 
@@ -30,11 +30,11 @@ export class GitSourceControl implements Disposable {
 	 */
 	readonly parentRoot: string | undefined;
 
-	private readonly resourceGroups: ReadonlyMap<GitResourceGroup, SourceControlResourceGroup>;
-	get sourceControlResourceGroups(): SourceControlResourceGroup[] { return [...this.resourceGroups.values()]; }
+	readonly mergeGroup: GitResourceGroup;
+	readonly indexGroup: GitResourceGroup;
+	readonly workingTreeGroup: GitResourceGroup;
+	readonly untrackedGroup: GitResourceGroup;
 
-	// The resource states last copied into each source control resource group
-	private readonly resourceStates = new Map<GitResourceGroup, readonly Resource[]>();
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -101,20 +101,14 @@ export class GitSourceControl implements Disposable {
 		this.updateInputBoxPlaceholder();
 		this.disposables.push(repository.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
-		const mergeGroup = this.sourceControl.createResourceGroup(repository.mergeGroup.id, repository.mergeGroup.label);
-		const indexGroup = this.sourceControl.createResourceGroup(repository.indexGroup.id, repository.indexGroup.label, { multiDiffEditorEnableViewChanges: true });
-		const workingTreeGroup = this.sourceControl.createResourceGroup(repository.workingTreeGroup.id, repository.workingTreeGroup.label, { multiDiffEditorEnableViewChanges: true });
-		const untrackedGroup = this.sourceControl.createResourceGroup(repository.untrackedGroup.id, repository.untrackedGroup.label, { multiDiffEditorEnableViewChanges: true });
-		this.resourceGroups = new Map([
-			[repository.mergeGroup, mergeGroup],
-			[repository.indexGroup, indexGroup],
-			[repository.workingTreeGroup, workingTreeGroup],
-			[repository.untrackedGroup, untrackedGroup]
-		]);
+		this.mergeGroup = this.sourceControl.createResourceGroup('merge', l10n.t('Merge Changes')) as GitResourceGroup;
+		this.indexGroup = this.sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true }) as GitResourceGroup;
+		this.workingTreeGroup = this.sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true }) as GitResourceGroup;
+		this.untrackedGroup = this.sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'), { multiDiffEditorEnableViewChanges: true }) as GitResourceGroup;
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
-			indexGroup.hideWhenEmpty = !config.get<boolean>('alwaysShowStagedChangesResourceGroup');
+			this.indexGroup.hideWhenEmpty = !config.get<boolean>('alwaysShowStagedChangesResourceGroup');
 		};
 
 		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.alwaysShowStagedChangesResourceGroup', root));
@@ -130,18 +124,17 @@ export class GitSourceControl implements Disposable {
 		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
 		updateInputBoxVisibility();
 
-		mergeGroup.hideWhenEmpty = true;
-		untrackedGroup.hideWhenEmpty = true;
+		this.mergeGroup.hideWhenEmpty = true;
+		this.untrackedGroup.hideWhenEmpty = true;
 
-		this.disposables.push(mergeGroup);
-		this.disposables.push(indexGroup);
-		this.disposables.push(workingTreeGroup);
-		this.disposables.push(untrackedGroup);
+		this.disposables.push(this.mergeGroup);
+		this.disposables.push(this.indexGroup);
+		this.disposables.push(this.workingTreeGroup);
+		this.disposables.push(this.untrackedGroup);
 
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
-		onDidChangeCountBadge(this.updateCount, this, this.disposables);
-
-		this.update();
+		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
+		this.setCountBadge();
 	}
 
 	/**
@@ -160,38 +153,26 @@ export class GitSourceControl implements Disposable {
 	 * Copies the repository model into the source control: each changed
 	 * resource group, the commit template, and the count badge.
 	 */
-	update(): void {
-		for (const [group, sourceControlGroup] of this.resourceGroups) {
-			if (this.resourceStates.get(group) !== group.resourceStates) {
-				sourceControlGroup.resourceStates = group.resourceStates;
-				this.resourceStates.set(group, group.resourceStates);
-			}
-		}
-
-		this.sourceControl.commitTemplate = this.repository.commitTemplate;
-		this.updateCount();
-	}
-
-	private updateCount(): void {
+	setCountBadge(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
 		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 
 		let count =
-			this.repository.mergeGroup.resourceStates.length +
-			this.repository.indexGroup.resourceStates.length +
-			this.repository.workingTreeGroup.resourceStates.length;
+			this.mergeGroup.resourceStates.length +
+			this.indexGroup.resourceStates.length +
+			this.workingTreeGroup.resourceStates.length;
 
 		switch (countBadge) {
 			case 'off': count = 0; break;
 			case 'tracked':
 				if (untrackedChanges === 'mixed') {
-					count -= this.repository.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
+					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
 				}
 				break;
 			case 'all':
 				if (untrackedChanges === 'separate') {
-					count += this.repository.untrackedGroup.resourceStates.length;
+					count += this.untrackedGroup.resourceStates.length;
 				}
 				break;
 		}
