@@ -907,8 +907,12 @@ interface ICanvasOpenOperation {
 	readonly stopwatch: StopWatch;
 	/** How many consent requests for the open's extension people had been shown when it started. */
 	readonly consentShownBefore: number;
+	/** Reads the open's extension as the runtime lists it just before the open. */
+	readonly extensionRead: Promise<CanvasOpenExtension | undefined>;
 	/** The open's extension as the runtime listed it just before the open. */
 	extension?: CanvasOpenExtension;
+	/** Whether the client was asked a consent request this open waited for. */
+	consentShown?: boolean;
 	/** Whether telemetry reported how the open ended, which it does once. */
 	reported?: boolean;
 }
@@ -5561,7 +5565,11 @@ export class CopilotAgentSession extends Disposable {
 			this._answerExtensionConsent(answer.consentId, answer.optionId);
 			return this._awaitCanvasOpen(shownFor);
 		}
-		const operation: ICanvasOpenOperation = { request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId) };
+		const operation: ICanvasOpenOperation = {
+			request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId),
+			// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
+			extensionRead: this._readCanvasOpenExtension(this._wrapper, request.extensionId),
+		};
 		// A client that stops waiting, for example while it asks for consent, must not leave the failure unhandled.
 		operation.outcome.p.catch(() => undefined);
 		this._canvasOpens.add(operation);
@@ -5589,12 +5597,14 @@ export class CopilotAgentSession extends Disposable {
 	/** Shows the client consent the open waits for, or waits for the open, bounded like other control-plane requests while nobody is asked. */
 	private async _awaitCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
 		await operation.ready;
+		const extension = await operation.extensionRead;
 		while (true) {
-			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenDependsOn(operation.request, candidate));
+			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenWaitsFor(operation.request, extension, candidate));
 			if (gate) {
 				const unattended = this._unattendedExtensionConsent();
 				if (!unattended) {
 					gate.presentedToClient = true;
+					operation.consentShown = true;
 					this._noteExtensionConsentShown(gate.consent.extensionName);
 					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
 					return { kind: 'consentRequired', consent: gate.consent };
@@ -5629,6 +5639,31 @@ export class CopilotAgentSession extends Disposable {
 		return !request.extensionId || request.extensionId === gate.consent.extensionName;
 	}
 
+	/**
+	 * Whether an open waits for a consent request, so the client must be asked it. An open that starts its extension waits
+	 * for any: the runtime does not finish starting an extension while another one waits for consent.
+	 */
+	private _canvasOpenWaitsFor(request: IAgentCanvasOpenRequest, extension: CanvasOpenExtension | undefined, gate: IExtensionConsentGate): boolean {
+		return this._canvasOpenDependsOn(request, gate) || extension?.status !== 'running';
+	}
+
+	/**
+	 * Waits, before an open starts its extension, until no other extension waits for consent. The runtime would not finish
+	 * starting the open's extension until then, and fails the start when the person takes long to answer.
+	 */
+	private async _awaitOtherExtensionConsents(operation: ICanvasOpenOperation): Promise<void> {
+		if (operation.extension?.status === 'running') {
+			return;
+		}
+		while (true) {
+			const pending = [...this._extensionConsentGates.values()].filter(gate => !gate.decision.isSettled && !this._canvasOpenDependsOn(operation.request, gate));
+			if (!pending.length) {
+				return;
+			}
+			await raceCancellationError(Promise.race(pending.map(gate => gate.decision.p)), this._lifetimeCts.token);
+		}
+	}
+
 	private async _runCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
 		const { request } = operation;
 		if (this._deferredCanvasCloseInstanceIds.has(request.instanceId)) {
@@ -5638,8 +5673,6 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
-		const extension = this._readCanvasOpenExtension(wrapper, request.extensionId);
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
@@ -5652,7 +5685,8 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			// A failed permission mode sync fails the open before it starts, never as a consent denial.
 			await operation.ready;
-			operation.extension = await extension;
+			operation.extension = await operation.extensionRead;
+			await this._awaitOtherExtensionConsents(operation);
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
 				canvas = await wrapper.session.rpc.canvas.open(request);
@@ -5719,7 +5753,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		operation.reported = true;
-		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
+		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, operation.consentShown === true || this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
 	}
 
 	private _noteExtensionConsentShown(extensionName: string): void {
@@ -10467,7 +10501,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Decides whether a Copilot extension may load with privileged capabilities or read sensitive environment variables.
 	 * The runtime asks while the extension starts, never for a tool call. A stored or session decision answers at once;
 	 * otherwise the request waits, without blocking resumes or turns, to be shown in the next turn or to a client opening
-	 * one of the extension's canvases, whichever answers first.
+	 * one of the extension's canvases, or a canvas whose extension must start, which the runtime holds back until then.
 	 */
 	private async _handleExtensionConsentRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.

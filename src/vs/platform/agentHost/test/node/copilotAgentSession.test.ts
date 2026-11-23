@@ -21716,6 +21716,38 @@ Use the attached image as context.
 				});
 			});
 
+			test('shows an open that starts its extension the request another starting extension waits on, but not an open of a running one', async () => {
+				const { session, runtime, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10 });
+				mockSession.extensions.push(
+					{ id: 'user:lazy', name: 'lazy', source: 'user', status: 'dormant' },
+					{ id: 'user:live', name: 'live', source: 'user', status: 'running' },
+				);
+				// The runtime does not finish starting an extension while another one waits for consent.
+				const otherAnswer = runtime.handlePermissionRequest(envRequest('user:other'));
+				const runtimeOpens: string[] = [];
+				mockSession.rpc.canvas.open = async params => {
+					runtimeOpens.push(params.extensionId ?? '');
+					if (params.extensionId === 'user:lazy') {
+						await otherAnswer;
+					}
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const live = await session.openCanvas(canvasRequest('user:live'));
+				const asked = await session.openCanvas(canvasRequest('user:lazy'));
+				const runtimeOpensBeforeAnswer = [...runtimeOpens];
+				const opened = asked.kind === 'consentRequired'
+					? await session.openCanvas(canvasRequest('user:lazy'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow })
+					: asked;
+				assert.deepStrictEqual({ live, asked: withoutId(asked), runtimeOpensBeforeAnswer, opened, otherAnswer: await otherAnswer }, {
+					live: { kind: 'opened' },
+					asked: { kind: 'consentRequired', consent: { ...consent('user:other', true), displayName: 'other' } },
+					// The runtime fails a start that waits too long, so the open starts the extension only once the person answered.
+					runtimeOpensBeforeAnswer: ['user:live'],
+					opened: { kind: 'opened' },
+					otherAnswer: { kind: 'approve-once' },
+				});
+			});
+
 			test('never remembers a project extension, reports Not Now as retryable and a stored Never as final', async () => {
 				const project = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [`project:demo (environment variables: ${variable})`]: 'allow' } } });
 				useLazyCanvas(project.mockSession, project.runtime);
