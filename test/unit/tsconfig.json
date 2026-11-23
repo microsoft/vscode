@@ -18,7 +18,7 @@
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		// read the types of fullJsonStreamReporter.js, and of the npm packages that have no type packages, from their JavaScript
+		// read the types of the npm packages that have no type packages from their JavaScript
 		"allowJs": true,
 		"maxNodeModuleJsDepth": 1
 	},

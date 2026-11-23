@@ -6,7 +6,7 @@
 import mocha from 'mocha';
 import { createRequire } from 'module';
 import * as path from 'path';
-import FullJsonStreamReporter from './fullJsonStreamReporter.js';
+import FullJsonStreamReporter from './fullJsonStreamReporter.mts';
 
 const require = createRequire(import.meta.url);
 

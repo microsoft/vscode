@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { constants } = require('mocha/lib/runner');
-const BaseRunner = require('mocha/lib/reporters/base');
+import mocha from 'mocha';
 
 const {
 	EVENT_TEST_BEGIN,
@@ -12,7 +11,7 @@ const {
 	EVENT_TEST_FAIL,
 	EVENT_RUN_BEGIN,
 	EVENT_RUN_END,
-} = constants;
+} = mocha.Runner.constants;
 
 /**
  * Similar to the mocha JSON stream, but includes additional information
@@ -21,8 +20,10 @@ const {
  *
  * Writes a superset of the data that json-stream normally would.
  */
-module.exports = class FullJsonStreamReporter extends BaseRunner {
-	constructor(runner, options) {
+export default class FullJsonStreamReporter extends mocha.reporters.Base {
+	private lastEvent: Promise<void> | undefined;
+
+	constructor(runner: mocha.Runner, options?: mocha.MochaOptions) {
 		super(runner, options);
 
 		const total = runner.total;
@@ -30,21 +31,22 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 		runner.once(EVENT_RUN_END, () => this.writeEvent(['end', this.stats]));
 
 		// custom coverage events:
-		runner.on('coverage init', (c) => this.writeEvent(['coverageInit', c]));
-		runner.on('coverage increment', (context, coverage) => this.writeEvent(['coverageIncrement', { ...context, coverage }]));
+		runner.on('coverage init', (c: unknown) => this.writeEvent(['coverageInit', c]));
+		runner.on('coverage increment', (context: object, coverage: unknown) => this.writeEvent(['coverageIncrement', { ...context, coverage }]));
 
 		runner.on(EVENT_TEST_BEGIN, test => this.writeEvent(['testStart', clean(test)]));
 		runner.on(EVENT_TEST_PASS, test => this.writeEvent(['pass', clean(test)]));
 		runner.on(EVENT_TEST_FAIL, (test, err) => {
-			test = clean(test);
-			test.actual = err.actual;
-			test.expected = err.expected;
-			test.actualJSON = err.actualJSON;
-			test.expectedJSON = err.expectedJSON;
-			test.snapshotPath = err.snapshotPath;
-			test.err = err.message;
-			test.stack = err.stack || null;
-			this.writeEvent(['fail', test]);
+			this.writeEvent(['fail', {
+				...clean(test),
+				actual: err.actual,
+				expected: err.expected,
+				actualJSON: err.actualJSON,
+				expectedJSON: err.expectedJSON,
+				snapshotPath: err.snapshotPath,
+				err: err.message,
+				stack: err.stack || null,
+			}]);
 		});
 	}
 
@@ -52,14 +54,15 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 		return Promise.resolve(this.lastEvent);
 	}
 
-	writeEvent(event) {
-		this.lastEvent = new Promise(r => process.stdout.write(JSON.stringify(event) + '\n', r));
+	writeEvent(event: [string, unknown]) {
+		this.lastEvent = new Promise(r => process.stdout.write(JSON.stringify(event) + '\n', () => r()));
 	}
-};
+}
 
-const clean = test => ({
+const clean = (test: mocha.Test) => ({
 	title: test.title,
 	fullTitle: test.fullTitle(),
 	duration: test.duration,
-	currentRetry: test.currentRetry()
+	// public in mocha, but protected in its type package
+	currentRetry: (test as unknown as { currentRetry(): number }).currentRetry()
 });
