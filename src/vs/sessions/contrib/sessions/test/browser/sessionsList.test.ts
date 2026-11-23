@@ -16385,7 +16385,7 @@ suite('Sessions - SessionsList', () => {
 				list.layout(300, 400);
 				setSessionChatsExpanded(container, true, 'Session');
 
-				// The inactive stroke is translucent, so painting the stem in both pseudo-elements makes it darker.
+				// The inactive stroke is translucent, so painting the stem in both pseudo-elements makes it more opaque.
 				assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
 					.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
 					.flatMap(row => [...row.querySelectorAll<HTMLElement>('.session-chat-item')])

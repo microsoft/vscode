@@ -1337,7 +1337,7 @@
 	/*
 	 * `::before` already draws the vertical guide past a branching chat, so the
 	 * elbow clips its own vertical stroke. Otherwise the translucent inactive
-	 * stroke is painted twice where they overlap and looks darker.
+	 * stroke is painted twice where they overlap and looks more opaque.
 	 */
 	&:not(.last-chat)::after {
 		clip-path: inset(0 0 0 var(--vscode-strokeThickness));
