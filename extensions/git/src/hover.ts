@@ -122,7 +122,7 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
 	}
 
 	// Subject | Message (escape image syntax, HTML tags)
-	markdownString.appendMarkdown(`${emojify(escapeHtmlTags(message).replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}`);
+	markdownString.appendMarkdown(emojify(formatCommitMessage(message)));
 	markdownString.appendMarkdown(`\n\n---\n\n`);
 }
 
@@ -132,6 +132,29 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
  * blocks, and autolinks are left untouched as they are already rendered as expected.
  */
 export function escapeHtmlTags(message: string): string {
+	return escapeHtmlTagsInLines(message).map(({ line }) => line).join('\n');
+}
+
+/**
+ * Formats a commit message as markdown: every line is rendered on its own line, blank lines
+ * between paragraphs are preserved, and HTML tags and image syntax are escaped.
+ */
+export function formatCommitMessage(message: string): string {
+	const lines = escapeHtmlTagsInLines(message)
+		.map(({ line, isCode }) => !isCode && line.trim() === '' ? '&nbsp;' : line);
+
+	// Leading and trailing blank lines
+	while (lines.length > 0 && lines[0] === '&nbsp;') {
+		lines.shift();
+	}
+	while (lines.length > 0 && lines[lines.length - 1] === '&nbsp;') {
+		lines.pop();
+	}
+
+	return lines.join('\n\n').replace(/!\[/g, '&#33;&#91;');
+}
+
+function escapeHtmlTagsInLines(message: string): { line: string; isCode: boolean }[] {
 	let fence: string | undefined;
 
 	return message.split(/\r\n|\r|\n/).map(line => {
@@ -141,22 +164,25 @@ export function escapeHtmlTags(message: string): string {
 			if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) {
 				fence = undefined;
 			}
-			return line;
+			return { line, isCode: true };
 		}
 		if (fenceMatch) {
 			fence = fenceMatch[1];
-			return line;
+			return { line, isCode: true };
 		}
 
 		// Indented code block
 		if (/^( {4}|\t)/.test(line)) {
-			return line;
+			return { line, isCode: true };
 		}
 
 		// Skip backslash escapes (ex: \<div>), code spans, and autolinks (ex: <https://example.com>, <user@example.com>)
-		return line.replace(/\\[\s\S]|(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|<(?=[a-zA-Z/!?])(?![a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*>|[^\s<>@]+@[^\s<>]+>)/g,
-			match => match === '<' ? '&lt;' : match);
-	}).join('\n');
+		return {
+			line: line.replace(/\\[\s\S]|(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|<(?=[a-zA-Z/!?])(?![a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*>|[^\s<>@]+@[^\s<>]+>)/g,
+				match => match === '<' ? '&lt;' : match),
+			isCode: false
+		};
+	});
 }
 
 function appendShortStats(markdownString: MarkdownString, shortStats: { files: number; insertions: number; deletions: number }): void {
