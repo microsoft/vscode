@@ -103,13 +103,20 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	getFocusedCodeEditor(): ICodeEditor | null {
 		let editorWithWidgetFocus: ICodeEditor | null = null;
+		let candidateWithTextFocus: ICodeEditor | null = null;
 
 		const editors = this.listCodeEditors();
 		for (const editor of editors) {
 
 			if (editor.hasTextFocus()) {
-				// bingo!
-				return editor;
+				const domNode = editor.getDomNode();
+				if (domNode && dom.isAncestorOfActiveElement(domNode)) {
+					// Active element is inside this editor
+					return editor;
+				}
+				if (!candidateWithTextFocus) {
+					candidateWithTextFocus = editor;
+				}
 			}
 
 			if (editor.hasWidgetFocus()) {
@@ -117,7 +124,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			}
 		}
 
-		return editorWithWidgetFocus;
+		return candidateWithTextFocus || editorWithWidgetFocus;
 	}
 
 
