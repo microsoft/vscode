@@ -87,13 +87,15 @@ export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
 
 /**
  * Returns an additional class for the twistie of an element. Files and symbols open when clicked, so they expand only
- * through their twistie, and expandable ones keep it when the file icon theme hides arrows, like file nests in the Explorer.
+ * through their twistie, and expandable files keep it when the file icon theme hides arrows, like file nests in the
+ * Explorer. Structural rows always show an icon, so they all keep the twistie space, even when they cannot expand, to
+ * indent children under their parent's icon like in the Outline view.
  */
 export function getSCMTreeTwistieCssClass(element: unknown, dataSource: SCMTreeDataSource): string | undefined {
 	if (isSCMActionButton(element) || isSCMInput(element)) {
 		return 'force-no-twistie';
 	}
-	if ((isSCMResource(element) || isSCMStructuralDiffElement(element)) && dataSource.hasChildren(element)) {
+	if (isSCMStructuralDiffElement(element) || (isSCMResource(element) && dataSource.hasChildren(element))) {
 		return 'force-twistie';
 	}
 	return undefined;
