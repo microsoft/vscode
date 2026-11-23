@@ -95,6 +95,45 @@ function registerTokenizationSupport(instantiationService: TestInstantiationServ
 	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
+function registerStringTokenizationSupport(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
+	const languageService = instantiationService.get(ILanguageService);
+	const templateState: IState = {
+		clone: () => templateState,
+		equals: other => other === templateState
+	};
+	return TokenizationRegistry.register(languageId, {
+		getInitialState: () => NullState,
+		tokenize: undefined!,
+		tokenizeEncoded: (line, hasEOL, state) => {
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const result: number[] = [];
+			let quote = state === templateState ? '`' : '';
+			let escaped = false;
+			let previousType: StandardTokenType | undefined;
+			for (let i = 0; i < line.length; i++) {
+				const character = line[i];
+				const wasInString = !!quote;
+				if (!quote && (character === '"' || character === '`')) {
+					quote = character;
+				}
+				const type = quote ? StandardTokenType.String : StandardTokenType.Other;
+				if (type !== previousType) {
+					result.push(i, (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET) | (type << MetadataConsts.TOKEN_TYPE_OFFSET));
+					previousType = type;
+				}
+				if (wasInString && !escaped && character === quote) {
+					quote = '';
+				}
+				escaped = !!quote && !escaped && character === '\\';
+			}
+			if (result.length === 0) {
+				result.push(0, (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET) | ((quote ? StandardTokenType.String : StandardTokenType.Other) << MetadataConsts.TOKEN_TYPE_OFFSET));
+			}
+			return new EncodedTokenizationResult(new Uint32Array(result), [], quote === '`' ? templateState : NullState);
+		}
+	});
+}
+
 suite('Language Configuration Parsing', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Folding markers support object regex syntax with flags', () => {
@@ -452,6 +491,56 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		forceTokenizationFromLineToLine(model, 1, 4);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
+	});
+
+	test('Issue #255500: reindent lines beginning with string literals', () => {
+		const configPath = join(FileAccess.asFileUri('').fsPath, '..', 'extensions', 'json', 'language-configuration.json');
+		const config = <ILanguageConfiguration>parse(fs.readFileSync(configPath, { encoding: 'utf-8' }), []);
+		disposables.add(languageConfigurationService.register(languageId, LanguageConfigurationFileHandler.extractValidConfig(languageId, config), 100));
+		disposables.add(registerStringTokenizationSupport(instantiationService, languageId));
+		const cases = [
+			{
+				lines: ['{', '    "level1": {', '"level2": "foo"', '    }', '}'],
+				expected: ['{', '    "level1": {', '        "level2": "foo"', '    }', '}']
+			},
+			{
+				lines: ['{', '"level1": {', '"level2": "{value}"', '}', '    "next": [', '"item"', ']', '}'],
+				expected: ['{', '    "level1": {', '        "level2": "{value}"', '    }', '    "next": [', '        "item"', '    ]', '}']
+			},
+			{
+				lines: ['{', '    "level1": {', '            "level2": "foo"', '    }', '}'],
+				expected: ['{', '    "level1": {', '        "level2": "foo"', '    }', '}']
+			}
+		];
+		for (const { lines, expected } of cases) {
+			const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId, { tabSize: 4, insertSpaces: true }));
+			model.tokenization.forceTokenization(model.getLineCount());
+			model.applyEdits(getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount()));
+			assert.deepStrictEqual(model.getLinesContent(), expected);
+		}
+	});
+
+	test('Reindent preserves unindented multiline string contents', () => {
+		disposables.add(registerStringTokenizationSupport(instantiationService, languageId));
+		const lines = ['function f() {', 'const value = `text', 'unindented {', '', '  indented', '`;', '"other";', '}'];
+		const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId, { tabSize: 4, insertSpaces: true }));
+		model.tokenization.forceTokenization(model.getLineCount());
+		model.applyEdits(getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount()));
+		assert.deepStrictEqual(model.getLinesContent(), ['function f() {', '    const value = `text', 'unindented {', '', '  indented', '`;', '    "other";', '}']);
+	});
+
+	test('Reindent selected lines with tabs and string literals', () => {
+		disposables.add(registerStringTokenizationSupport(instantiationService, languageId));
+		const lines = ['{', '\t"level1": {', '"level2": {', '"value": "foo"', '}', '\t}', '}'];
+		const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId, { tabSize: 4, indentSize: 4, insertSpaces: false }));
+		model.applyEdits(getReindentEditOperations(model, languageConfigurationService, 2, 4));
+		assert.deepStrictEqual(model.getLinesContent(), ['{', '\t"level1": {', '\t\t"level2": {', '\t\t\t"value": "foo"', '}', '\t}', '}']);
+	});
+
+	test('Reindent empty lines without tokenization support', () => {
+		const model = disposables.add(instantiateTextModel(instantiationService, 'function f() {\n\n}', languageId, { tabSize: 4, insertSpaces: true }));
+		model.applyEdits(getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount()));
+		assert.deepStrictEqual(model.getLinesContent(), ['function f() {', '    ', '}']);
 	});
 
 	// Failing tests inferred from the current regexes...

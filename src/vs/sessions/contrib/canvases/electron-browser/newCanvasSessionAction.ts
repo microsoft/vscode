@@ -13,7 +13,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
 import { notifyCanvasOpenFailure } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
@@ -45,6 +45,13 @@ function getPickItems(canvases: readonly ISessionCanvasDefinition[]): (ICanvasPi
 		{ type: 'separator', label: localize('newCanvasSession.discoverMore', "Discover More") },
 		...discoverCanvasEntries.map((discover): ICanvasPickItem => ({ discover, label: `$(${discover.icon.id}) ${discover.title}` })),
 	];
+}
+
+function isSamePickItem(a: ICanvasPickItem, b: ICanvasPickItem): boolean {
+	if (a.canvas && b.canvas) {
+		return a.canvas.extensionId === b.canvas.extensionId && a.canvas.canvasId === b.canvas.canvasId;
+	}
+	return a.discover !== undefined && a.discover === b.discover;
 }
 
 /**
@@ -98,7 +105,12 @@ class NewCanvasSessionAction extends Action2 {
 		picker.matchOnDescription = true;
 		picker.matchOnDetail = true;
 		// The remembered canvases show at once; the draft lists the installed ones, which replace them.
-		picker.items = getPickItems(catalogService.entries.get());
+		const remembered = catalogService.entries.get();
+		if (remembered.length === 0) {
+			// Until a canvas is listed, nothing is active, so Enter cannot run a Discover More entry by accident.
+			picker.itemActivation = ItemActivation.NONE;
+		}
+		picker.items = getPickItems(remembered);
 		picker.busy = true;
 		draft.canvases.then(canvases => {
 			// Extensions that did not settle in time leave the remembered canvases in place.
@@ -106,7 +118,14 @@ class NewCanvasSessionAction extends Action2 {
 				catalogService.replace(canvases);
 			}
 			if (!store.isDisposed) {
-				picker.items = getPickItems(catalogService.entries.get());
+				// Keep the entry the user moved to while the canvases were listed, so Enter still runs it.
+				const active = picker.activeItems[0];
+				const items = getPickItems(catalogService.entries.get());
+				picker.items = items;
+				const kept = active && items.find((item): item is ICanvasPickItem => item.type !== 'separator' && isSamePickItem(item, active));
+				if (kept) {
+					picker.activeItems = [kept];
+				}
 				picker.busy = false;
 			}
 		}, error => {
@@ -117,7 +136,11 @@ class NewCanvasSessionAction extends Action2 {
 		});
 		const picked = await new Promise<ICanvasPickItem | undefined>(resolve => {
 			store.add(picker.onDidAccept(() => {
-				resolve(picker.selectedItems[0]);
+				const [item] = picker.selectedItems;
+				if (!item) {
+					return;
+				}
+				resolve(item);
 				picker.hide();
 			}));
 			store.add(picker.onDidHide(() => resolve(undefined)));

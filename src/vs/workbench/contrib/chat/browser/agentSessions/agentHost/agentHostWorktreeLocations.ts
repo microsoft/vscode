@@ -105,7 +105,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	/**
 	 * Fires as the worktrees of a folder asked about change: as sessions load, start, are archived or deleted, or work, or
 	 * report a branch, elsewhere; as the folder's real path is known to differ, which can make more of them known; and as a
-	 * local agent host's sessions become available, so that a location that was unknown can be resolved again.
+	 * local agent host's sessions become available, so that a location that was unknown can be resolved again, as it becomes
+	 * {@link isReady ready}.
 	 */
 	readonly onDidChangeLocations = this._onDidChangeLocations.event;
 
@@ -123,6 +124,7 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 				this._sessions.clear();
 				this._listed = false;
 				this._checkOffered();
+				this._onDidChangeLocations.fire();
 			}
 		}));
 		// The agents the local agent host has, whose sessions alone count, change; as it starts, any can have changed
@@ -133,7 +135,7 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 			agents = this._advertisedAgents();
 			// Only as its agents change, such as as it becomes available: then the folders asked about can have worktrees among
 			// the sessions of the agents it has now, which it lists where it has not, such as after a listing that failed
-			if (agents !== previous) {
+			if (agents !== previous || _agentHostService.rootState.value instanceof Error) {
 				this._checkOffered(this._offered.size > 0);
 				this._onDidChangeLocations.fire();
 			}
@@ -147,6 +149,14 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}));
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => this._retireFolders()));
 		this._register(_workspaceContextService.onDidChangeWorkbenchState(() => this._retireFolders()));
+	}
+
+	/**
+	 * Once it has listed the local agent host's sessions, or there are none to list: where the local agent host is disabled or
+	 * failed to start. A worktree that it does not know before may still become known.
+	 */
+	get isReady(): boolean {
+		return this._listed || this._agentHostService.rootState.value instanceof Error || !this._agentHostEnablementService.enabled.get();
 	}
 
 	/**
