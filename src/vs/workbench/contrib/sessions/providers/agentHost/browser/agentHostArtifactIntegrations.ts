@@ -32,7 +32,9 @@ import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCust
 
 export interface IArtifactWorkspaceConfigurationContext {
 	readonly chat: string;
+	/** The working directory of {@link chat}, as the host addresses it. */
 	readonly workingDirectory: string;
+	/** The same working directory, as this window addresses it. */
 	readonly resource: URI;
 }
 

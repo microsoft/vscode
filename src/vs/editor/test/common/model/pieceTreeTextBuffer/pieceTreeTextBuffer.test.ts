@@ -2122,4 +2122,20 @@ suite('chunk based search', () => {
 		assert.strictEqual(ret.length, 1);
 		assert.deepStrictEqual(ret[0].range, new Range(2, 2, 2, 3));
 	});
+
+	test('#348942. Search should not read buffer text past the end of the search range', () => {
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+		const searchData = new SearchData(/foo/g, null, 'foo');
+
+		pieceTable.insert(0, 'abc foo');
+		const beforeRangeEnd = pieceTable.findMatchesLineByLine(new Range(1, 1, 1, 7), searchData, false, 1000);
+
+		// The deleted 'o' stays in the change buffer right after the remaining text
+		pieceTable.delete(6, 1);
+		const afterDeletion = pieceTable.findMatchesLineByLine(new Range(1, 1, 1, 7), searchData, false, 1000);
+
+		assert.deepStrictEqual([beforeRangeEnd, afterDeletion], [[], []]);
+	});
 });

@@ -10,12 +10,13 @@ import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEv
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ISelectOptionItem, SelectBox, SeparatorSelectOption } from '../../../../../../base/browser/ui/selectBox/selectBox.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
 import { Action, Separator, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -26,7 +27,14 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { assignHostSandboxProfile, fromHostSandboxProfile, readHostSandboxProfile, watchHostSandboxProfile } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
+import type { ISandboxProfileAssignment } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
+import { ISandboxProfile, readSandboxProfiles, watchSandboxProfiles, writeSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { defaultButtonStyles, defaultCountBadgeStyles, defaultSelectBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { getAgentHostConnectionStatusLabel } from '../../../common/agentHostSessionsProvider.js';
 import { canConnectToRemote, ICustomizationRemote, RemoteKind, remoteKindLabels } from './remotesModel.js';
 
@@ -68,7 +76,7 @@ export interface IRemoteTableRow {
 	readonly entry: RemoteTableEntry;
 }
 
-type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'actions';
+type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'sandboxProfile' | 'actions';
 export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
@@ -79,6 +87,7 @@ type RemoteCellTemplate = {
 } & (
 		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
+		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; readonly picker: HTMLElement; options: readonly SandboxProfileOption[] }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
@@ -92,6 +101,18 @@ const remoteKindIcons: Record<RemoteKind, ThemeIcon> = {
 };
 
 const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
+
+/** An entry of a host's Sandbox Profile dropdown. */
+type SandboxProfileOption =
+	| { readonly kind: 'default' }
+	| { readonly kind: 'assign'; readonly profile: ISandboxProfile }
+	| { readonly kind: 'separator' }
+	/** The host's profile, assigned from another device; choosing it changes nothing. */
+	| { readonly kind: 'host' }
+	| { readonly kind: 'save'; readonly assignment: ISandboxProfileAssignment };
+
+/** Keys a closed select box handles natively; they must not also move focus in the table. */
+const selectNavigationKeys = new Set([KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End, KeyCode.PageUp, KeyCode.PageDown]);
 
 export const remoteStatusGroups = [
 	{ key: 'ready', label: localize('remotes.ready', "Connected"), icon: Codicon.circleFilled, description: localize('remotes.ready.detail', "Connected from this window and ready to start or continue sessions.") },
@@ -333,6 +354,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
+		private readonly connections: IAgentHostConnectionsService,
+		private readonly storage: IStorageService,
+		private readonly contextViewService: IContextViewService,
 		private readonly emptyContentWidth?: () => number,
 	) {
 		this.templateId = `remotes.${column}`;
@@ -344,6 +368,20 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		const base = { container, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 		let template: RemoteCellTemplate;
 		switch (this.column) {
+			case 'sandboxProfile': {
+				const select = disposables.add(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { useCustomDrawn: true, hideSelectedOptionHover: true }));
+				// The select box draws its chevron at the right edge of the element it renders into, so give it its own sized container.
+				const picker = dom.append(container, dom.$('.remotes-sandbox-profile-picker'));
+				select.render(picker);
+				template = { ...base, column: 'sandboxProfile', select, picker, options: [] };
+				disposables.add(select.onDidSelect(({ index }) => {
+					if (template.row?.entry.type === 'remote' && template.column === 'sandboxProfile') {
+						this.onDidSelectSandboxProfile(template.row.entry.remote.id, template.options[index]);
+					}
+				}));
+				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
+				break;
+			}
 			case 'type':
 			case 'system':
 			case 'status':
@@ -479,7 +517,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, event => {
 			if (event.target !== container) {
 				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
+				if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter || this.column === 'sandboxProfile' && selectNavigationKeys.has(keyboardEvent.keyCode)) {
 					keyboardEvent.stopPropagation();
 				}
 			}
@@ -493,6 +531,59 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		template.row = row;
 		const entry = row.entry;
 		switch (template.column) {
+			case 'sandboxProfile': {
+				template.container.classList.toggle('remotes-cell-action-hidden', entry.type !== 'remote');
+				if (entry.type === 'remote') {
+					const { id, name } = entry.remote;
+					const hostWatch = template.elementDisposables.add(new MutableDisposable<DisposableStore>());
+					let connection: IAgentConnection | undefined;
+					let tooltip = '';
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.picker, () => ({ content: tooltip, style: HoverStyle.Pointer }), { groupId: this.hoverGroupId }));
+					const refresh = () => {
+						const current = this.connections.getConnectionByAddress(id);
+						if (current !== connection) {
+							connection = current;
+							const store = new DisposableStore();
+							if (current) {
+								watchHostSandboxProfile(current, store, refresh);
+							}
+							hostWatch.value = store;
+						}
+						const assigned = connection && readHostSandboxProfile(connection);
+						const supported = assigned !== undefined;
+						const library = supported ? readSandboxProfiles(this.storage) : [];
+						const options: SandboxProfileOption[] = [{ kind: 'default' }, ...library.map(profile => ({ kind: 'assign' as const, profile }))];
+						const items: ISelectOptionItem[] = [{ text: localize('remotes.defaultSandboxProfile', "Default") }, ...library.map(profile => ({ text: profile.name }))];
+						let selected = assigned ? options.findIndex(option => option.kind === 'assign' && option.profile.id === assigned.id) : 0;
+						if (assigned && selected === -1) {
+							// Assigned from another device: keep showing it, and offer to save it to this machine's profiles.
+							options.push({ kind: 'separator' }, { kind: 'host' });
+							items.push(SeparatorSelectOption, { text: localize('remotes.hostSandboxProfile', "{0} (on host)", assigned.name) });
+							selected = options.length - 1;
+							options.push({ kind: 'save', assignment: assigned });
+							items.push({ text: localize('remotes.saveHostSandboxProfile', "Save \"{0}\" to My Profiles", assigned.name) });
+						}
+						template.options = options;
+						template.select.setOptions(items, selected);
+						template.select.setEnabled(supported);
+						template.picker.classList.toggle('disabled', !supported);
+						tooltip = supported
+							? localize('remotes.sandboxProfileTooltip', "Sandbox profile for new sessions on {0}: {1}", name, items[selected]?.text ?? '')
+							: connection
+								? localize('remotes.sandboxProfileUnsupportedTooltip', "The server on {0} doesn't support sandbox profiles yet. It needs a newer server version.", name)
+								: localize('remotes.sandboxProfileUnavailableTooltip', "Connect to {0} to see or choose its sandbox profile.", name);
+						template.select.setAriaLabel(supported
+							? localize('remotes.selectSandboxProfile', "Sandbox profile for {0}", name)
+							: connection
+								? localize('remotes.sandboxProfileUnsupported', "Sandbox profile for {0}. This host doesn't support sandbox profiles.", name)
+								: localize('remotes.sandboxProfileUnavailable', "Sandbox profile for {0}. Connect to {0} to see or choose one.", name));
+					};
+					watchSandboxProfiles(this.storage, template.elementDisposables, refresh);
+					template.elementDisposables.add(this.connections.onDidChangeConnections(refresh));
+					refresh();
+				}
+				break;
+			}
 			case 'status': {
 				const remote = entry.type === 'remote' ? entry.remote : undefined;
 				const group = remote ? remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote)) : undefined;
@@ -858,9 +949,38 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		}
 	}
 
+	private onDidSelectSandboxProfile(address: string, option: SandboxProfileOption | undefined): void {
+		const connection = this.connections.getConnectionByAddress(address);
+		if (!connection || readHostSandboxProfile(connection) === undefined || !option) {
+			return;
+		}
+		switch (option.kind) {
+			case 'default':
+				assignHostSandboxProfile(connection, undefined);
+				break;
+			case 'assign':
+				assignHostSandboxProfile(connection, option.profile);
+				break;
+			case 'save': {
+				// Keeps the assignment; the dropdown then lists the profile with this machine's profiles.
+				const library = readSandboxProfiles(this.storage);
+				const profile = fromHostSandboxProfile(option.assignment);
+				const names = new Set(library.map(existing => existing.name.toLowerCase()));
+				let name = profile.name;
+				for (let index = 2; names.has(name.toLowerCase()); index++) {
+					name = `${profile.name} (${index})`;
+				}
+				writeSandboxProfiles(this.storage, [...library, { ...profile, name }]);
+				break;
+			}
+		}
+	}
+
 	private updateFocus(template: RemoteCellTemplate): void {
 		const focused = template.row?.id === this.focusedId;
-		if (template.column === 'actions') {
+		if (template.column === 'sandboxProfile') {
+			template.select.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
+		} else if (template.column === 'actions') {
 			template.toolbar.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
 			if (template.column === 'actions') {
 				template.connect.element.tabIndex = focused && !template.connect.element.hidden ? 0 : -1;

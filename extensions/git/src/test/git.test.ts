@@ -33,6 +33,29 @@ suite('git', () => {
 			assert.match(result.stdout, /^git version /);
 		});
 
+		test('reads stash messages as UTF-8 when i18n.logOutputEncoding is set', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-stash-'));
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Stash Tester']);
+				await git.exec(directory, ['config', 'user.email', 'stash@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				await git.exec(directory, ['commit', '--allow-empty', '-m', 'initial']);
+				await fs.promises.writeFile(path.join(directory, 'file.txt'), 'sample\n');
+				await git.exec(directory, ['add', 'file.txt']);
+				await git.exec(directory, ['config', 'i18n.logOutputEncoding', 'EUC-JP']);
+				await git.exec(directory, ['stash', 'push', '-m', 'テスト stash']);
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+				const stashes = await repository.getStashes();
+
+				assert.deepStrictEqual(stashes.map(stash => stash.description), ['テスト stash']);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
+		});
+
 		test('stages and unstages a file whose name contains glob characters without matching other files', async () => {
 			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-pathspec-'));
 			try {

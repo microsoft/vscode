@@ -876,7 +876,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 		const sessionsList = getSessionsList(accessor);
 		// Like a drop on the list, reveal and select the new session in the list once it shows it.
 		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
-			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+			watch: sessionsList && (watched => sessionsList.watchMove(watched)),
 		});
 	}
 });
@@ -915,7 +915,7 @@ function getMoveRunner(accessor: ServicesAccessor): (move: SessionsListMove) => 
 	const logService = accessor.get(ILogService);
 	const sessionsList = getSessionsList(accessor);
 	return move => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
-		watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+		watch: sessionsList && (watched => sessionsList.watchMove(watched)),
 	});
 }
 

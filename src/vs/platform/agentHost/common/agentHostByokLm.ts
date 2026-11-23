@@ -143,6 +143,7 @@ export interface IByokLmChatResult {
 	readonly responseId?: string;
 	readonly usage?: {
 		readonly inputTokens?: number;
+		readonly cachedTokens?: number;
 		readonly outputTokens?: number;
 		readonly reasoningTokens?: number;
 	};

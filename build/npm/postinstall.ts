@@ -80,10 +80,12 @@ async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<vo
 		// The container gets the pinned pnpm in the mounted musl Node.js and keeps its own store
 		// inside the mounted repository, so it never writes to the host's pnpm store.
 		const storeDir = '/root/vscode/.build/pnpm-store-container';
+		const containerPlatform = process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_PLATFORM'];
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
 		run('sudo', [
 			'docker', 'run',
+			...(containerPlatform ? ['--platform', containerPlatform] : []),
 			'-e', 'GITHUB_TOKEN',
 			'-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`,
 			'-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.gitconfig-distro:/root/.gitconfig`,

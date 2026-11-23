@@ -24,6 +24,7 @@ import { CopilotSlashCommandCompletionProvider } from '../../node/copilot/copilo
 import { MockAgent } from './mockAgent.js';
 import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { withRuntimePluginEnablement, type IRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
@@ -552,6 +553,38 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
 	});
 
+	test('offers skills of runtime plugins waiting for session start when the user intends them enabled', async () => {
+		function runtimePlugin(name: string, runtime: Partial<IRuntimePluginEnablement>, load: PluginCustomization['load'] = { kind: CustomizationLoadStatus.Loading }): PluginCustomization {
+			return {
+				...plugin(name, [skill(`${name}-skill`)], runtime.effectiveEnabled === true),
+				load,
+				_meta: withRuntimePluginEnablement(undefined, { provider: 'mock', plugin: `${name}@marketplace`, globalEnabled: true, repositorySupported: true, ...runtime }),
+			};
+		}
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			runtimePlugin('pending', {}),
+			runtimePlugin('pending-globally-disabled', { globalEnabled: false }),
+			runtimePlugin('pending-repository-enabled', { globalEnabled: false, repositoryEnabled: true }),
+			runtimePlugin('pending-repository-disabled', { repositoryEnabled: false }),
+			runtimePlugin('pending-repository-inherited', { repositoryEnabled: null }),
+			runtimePlugin('pending-managed-disabled', { managedDesiredEnabled: false }),
+			runtimePlugin('inventory-unavailable', {}, { kind: CustomizationLoadStatus.Error, message: 'unavailable' }),
+			runtimePlugin('settled-disabled', { effectiveEnabled: false }, { kind: CustomizationLoadStatus.Loaded }),
+			runtimePlugin('settled-enabled', { effectiveEnabled: true }, { kind: CustomizationLoadStatus.Loaded }),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/pending:pending-skill ',
+			'/pending-repository-enabled:pending-repository-enabled-skill ',
+			'/pending-repository-inherited:pending-repository-inherited-skill ',
+			'/settled-enabled:settled-enabled-skill ',
+		]);
+	});
+
 	test('returns an empty list when the agent has no session customizations hook', async () => {
 		const agent = new MockAgent('mock');
 		const provider = createProvider(agent);
@@ -608,6 +641,29 @@ suite('AgentHostSkillCompletionProvider', () => {
 			{ insertText: '/skills:alpha ', rangeStart: 4, rangeEnd: 5 },
 			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 5 },
 		]);
+	});
+
+	test('filters skills by the text before the cursor when a slash is typed before existing text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('pstack', [skill('poteto-mode'), skill('review')])];
+		const provider = createProvider(agent);
+		const draft = `Let's rebase, get Astra 6 review and address it.`;
+
+		const afterSlash = await run(provider, `/${draft}`, 1);
+		const afterPrefix = await run(provider, `/pot${draft}`, '/pot'.length);
+
+		assert.deepStrictEqual({
+			afterSlash: afterSlash.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+			afterPrefix: afterPrefix.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+		}, {
+			afterSlash: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: 1 },
+				{ insertText: '/pstack:review ', rangeStart: 0, rangeEnd: 1 },
+			],
+			afterPrefix: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: '/pot'.length },
+			],
+		});
 	});
 
 	test('does not complete slash tokens embedded in non-whitespace text', async () => {

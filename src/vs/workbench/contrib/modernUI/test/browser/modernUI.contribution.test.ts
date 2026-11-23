@@ -7,6 +7,7 @@ import assert from 'assert';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { CenteredViewLayout } from '../../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -15,7 +16,7 @@ import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Color } from '../../../../../base/common/color.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -3297,6 +3298,53 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('editor tab-strip clipping follows the inside of the floating frame', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = 'position: absolute; left: 20px; top: 20px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-editorGroup-border: #778899; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(appendElement(root, 'monaco-grid-view'), 'part editor');
+		editor.style.cssText = 'width: 200px; height: 100px;';
+		const content = appendElement(editor, 'content');
+		content.style.cssText = 'width: 100%; height: 100%;';
+		const group = appendElement(content, 'editor-group-container');
+		store.add(new CenteredViewLayout(content, {
+			element: group,
+			minimumWidth: 0,
+			maximumWidth: Number.POSITIVE_INFINITY,
+			minimumHeight: 0,
+			maximumHeight: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: () => { },
+		}));
+		const title = appendElement(group, 'title tabs');
+		const strip = appendElement(title, 'tabs-and-actions-container');
+		strip.style.cssText = 'width: 100%; height: 32px;';
+		const targetWindow = getWindow(root);
+		const states = [];
+		for (const zoom of [1, 1.25, 1.5]) {
+			root.style.zoom = `${zoom}`;
+			root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio * zoom));
+			for (const radius of [0, 1, 8, 16]) {
+				root.style.setProperty('--vscode-editorArea-cornerRadius', `${radius}px`);
+				for (const compact of [false, true, false]) {
+					root.classList.toggle('modern-ui-compact', compact);
+					const frame = targetWindow.getComputedStyle(editor);
+					const outerRadius = parseFloat(frame.borderTopLeftRadius);
+					const borderInset = Math.min(parseFloat(frame.borderLeftWidth), outerRadius);
+					const contentStyle = targetWindow.getComputedStyle(content);
+					const innerRadius = parseFloat(contentStyle.borderTopLeftRadius);
+					states.push({
+						zoom, radius, compact,
+						concentric: Math.abs(innerRadius + borderInset - outerRadius) < 0.001,
+						overflow: contentStyle.overflow,
+						tabStripPresent: content.contains(strip),
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(states, states.map(state => ({ ...state, concentric: true, overflow: 'hidden', tabStripPresent: true })));
+	});
+
 	test('compact auxiliary window editors keep their outer radius', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact';
@@ -3340,7 +3388,7 @@ suite('ModernUIContribution', () => {
 			auxiliaryBar: ['8px', '8px', '12px', '8px'],
 			panel: ['8px', '8px', '12px', '12px'],
 			editor: ['8px', '8px', '12px', '12px'],
-			editorContent: ['8px', '8px', '11px', '11px'],
+			editorContent: ['7px', '7px', '11px', '11px'],
 			webview: ['8px', '8px', '11px', '11px'],
 			modalWebview: ['8px', '8px', '8px', '8px'],
 			internalPanel: ['8px', '8px', '8px', '8px'],

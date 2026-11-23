@@ -3123,7 +3123,7 @@ export class Repository {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
+		const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
 	}
 

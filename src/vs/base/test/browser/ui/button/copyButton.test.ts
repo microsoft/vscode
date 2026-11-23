@@ -168,4 +168,17 @@ suite('CopyFeedback', () => {
 
 		assert.deepStrictEqual(states, [true]);
 	});
+
+	test('clearing feedback cancels its reset and permits subsequent success', () => {
+		const clock = sinon.useFakeTimers();
+		const states: boolean[] = [];
+		const feedback = store.add(new CopyFeedback(copied => states.push(copied)));
+		feedback.show();
+		feedback.clear();
+		clock.tick(1200);
+		feedback.show();
+		clock.tick(1200);
+
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
 });

@@ -98,6 +98,7 @@ import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import type { ICopilotCreatedWorktree, ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
@@ -127,7 +128,7 @@ import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool.js';
 import { reportComputerUseActivation, reportComputerUseState } from './copilotComputerUseTelemetry.js';
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, getViewedResourceType, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, getViewedResourceType, getSdkToolCallError, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { COPILOT_VIRTUAL_SESSION_STATE_PATH, copilotSdkPathToUri, createCopilotSdkPathMapper, resolveCopilotSdkPath, toCopilotWorkspace, type ICopilotSdkPathMapper } from './copilotWorkspace.js';
 import { toAgentClientUri } from '../../common/agentClientUri.js';
@@ -2175,6 +2176,10 @@ export class CopilotAgentSession extends Disposable {
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _mcpServerLogs: CopilotMcpServerLogs;
+	/** Workspace-trust reconciliations in flight, which {@link destroySession} lets finish before disconnecting. */
+	private readonly _projectExtensionTrustReconciliations = new Set<Promise<void>>();
+	/** Set once {@link destroySession} starts: trust reconciliation sends a retiring runtime no further requests. */
+	private _retiring = false;
 	private readonly _wrapperDisposables = this._register(new DisposableStore());
 	/** Session error reports deferred while this session is an unclaimed pre-warmed session. */
 	private _heldSessionErrorReports: (() => void)[] | undefined;
@@ -4664,6 +4669,17 @@ export class CopilotAgentSession extends Disposable {
 		};
 	}
 
+	/** The folder a workspace-less chat was launched in: the scratch folder the host allocated for it. */
+	get workspacelessFolder(): URI | undefined {
+		return this._launchPlan.workspaceless ? this._launchPlan.workingDirectory : undefined;
+	}
+
+	/** The worktree the host created as this session's working directory, with the repository whose trust it inherits. */
+	get createdWorktree(): ICopilotCreatedWorktree | undefined {
+		const { workingDirectory, worktreeRepository } = this._launchPlan;
+		return workingDirectory && worktreeRepository ? { worktree: workingDirectory, repository: worktreeRepository } : undefined;
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}
@@ -5423,7 +5439,33 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async listCanvases(): Promise<AgentCanvasDefinitionSnapshot> {
+	/**
+	 * Lists the canvases once the runtime's extensions have settled, waiting at most `timeoutMs` for them, and then lists
+	 * the canvases registered so far. Nothing asks a draft that has not started to list its canvases again, so an
+	 * unsettled snapshot, which an extension that never finishes starting would cause, would leave its caller with none.
+	 */
+	async listSettledCanvases(timeoutMs: number): Promise<AgentCanvasDefinitionSnapshot> {
+		const deadline = Date.now() + timeoutMs;
+		while (true) {
+			const changed = Event.toPromise(Event.any(Event.signal(this._wrapper.onExtensionsLoaded), Event.signal(this._wrapper.onCanvasRegistryChanged)));
+			try {
+				const remaining = deadline - Date.now();
+				const snapshot = await this.listCanvases({ includeStarting: remaining <= 0 });
+				if (snapshot !== undefined || this._store.isDisposed) {
+					return snapshot;
+				}
+				await raceTimeout(changed, Math.max(0, deadline - Date.now()));
+			} finally {
+				changed.cancel();
+			}
+		}
+	}
+
+	/**
+	 * Lists the canvases the runtime registered. While an extension is starting the snapshot is unsettled, `undefined`,
+	 * unless `includeStarting` asks for the canvases registered so far.
+	 */
+	async listCanvases(options?: { readonly includeStarting?: boolean }): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
@@ -5436,11 +5478,14 @@ export class CopilotAgentSession extends Disposable {
 			this.publishCanvases();
 			return undefined;
 		}
-		if (extensions.extensions.some(extension => extension.status === 'starting')) {
+		const starting = extensions.extensions.some(extension => extension.status === 'starting');
+		if (starting && !options?.includeStarting) {
 			this._markCanvasRegistryUnsettled();
 			return undefined;
 		}
-		this._publishSettledCanvasRegistry();
+		if (!starting) {
+			this._publishSettledCanvasRegistry();
+		}
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
 		const definitions = await Promise.all(result.canvases.map(async canvas => {
 			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);
@@ -5465,7 +5510,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
-		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list());
+		return this._listExtensions(this._wrapper);
+	}
+
+	private async _listExtensions(wrapper: CopilotSessionWrapper): Promise<readonly IAgentExtensionInfo[]> {
+		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', wrapper.session.rpc.extensions.list());
 		if (!result || !Array.isArray(result.extensions)) {
 			throw new Error('Copilot returned an invalid live extension inventory.');
 		}
@@ -7207,6 +7256,87 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Applies a workspace-trust change to this session's project extensions. The SDK consults the launch provider only
+	 * when it starts an extension, so: a running extension whose launch lost trust is stopped by a reload, which
+	 * relaunches only those still allowed, and refused (`failed`) ones are retried once trust expands.
+	 * Sessions without affected project extensions are left alone. Throws only when a revocation fails; a failed retry
+	 * leaves refused extensions refused, and is logged.
+	 */
+	async reconcileProjectExtensionsAfterTrustChange(reconciliation: ICopilotProjectExtensionTrustReconciliation): Promise<void> {
+		if (!reconciliation.expanded && reconciliation.revokedExtensionNames.size === 0) {
+			return;
+		}
+		const run = this._reconcileProjectExtensionsAfterTrustChange(reconciliation, this._wrapper);
+		this._projectExtensionTrustReconciliations.add(run);
+		try {
+			await run;
+		} finally {
+			this._projectExtensionTrustReconciliations.delete(run);
+		}
+	}
+
+	private async _reconcileProjectExtensionsAfterTrustChange(reconciliation: ICopilotProjectExtensionTrustReconciliation, wrapper: CopilotSessionWrapper): Promise<void> {
+		// Configuration refresh resumes the same SDK session in a new runtime, which RPCs addressed to this one would reach.
+		const isCurrent = () => !this._store.isDisposed && !this._retiring && this._wrapper === wrapper && wrapper.lifecycleState === 'active';
+		const listProjectExtensions = async () => (await this._listExtensions(wrapper)).filter(extension => extension.source === 'project');
+		if (!isCurrent()) {
+			return;
+		}
+		let projectExtensions: readonly IAgentExtensionInfo[];
+		try {
+			projectExtensions = await listProjectExtensions();
+		} catch (error) {
+			if (!isCurrent()) {
+				return;
+			}
+			// Without the inventory, a revoked extension may still run here.
+			if (reconciliation.revokedExtensionNames.size > 0) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${this.sessionId}] Skipping the retry of refused project extensions after workspace trust expanded: ${getErrorMessage(error)}`);
+			return;
+		}
+		if (!isCurrent()) {
+			return;
+		}
+		// The runtime names a project extension after its folder, as the policy recorded its revoked launch.
+		const revoked = projectExtensions.filter(extension => (extension.status === 'running' || extension.status === 'starting') && reconciliation.revokedExtensionNames.has(extension.name));
+		if (revoked.length) {
+			this._logService.info(`[Copilot:${this.sessionId}] Reloading extensions after workspace trust was revoked for ${revoked.map(extension => extension.id).join(', ')}`);
+			this._recordRuntimeMutation('extensionsReload');
+			await this._awaitControlPlaneRpc('rpc.extensions.reload', wrapper.session.rpc.extensions.reload());
+			if (!reconciliation.expanded || !isCurrent()) {
+				return;
+			}
+			try {
+				projectExtensions = await listProjectExtensions();
+			} catch (error) {
+				if (isCurrent()) {
+					this._logService.warn(`[Copilot:${this.sessionId}] Skipping the retry of refused project extensions after workspace trust expanded: ${getErrorMessage(error)}`);
+				}
+				return;
+			}
+			if (!isCurrent()) {
+				return;
+			}
+		}
+		if (!reconciliation.expanded || !projectExtensions.some(extension => extension.status === 'failed')) {
+			return;
+		}
+		// Host-only and not persisted: it retries refused launches under the session's current enablement, and leaves
+		// running extensions alone.
+		this._logService.info(`[Copilot:${this.sessionId}] Reconciling extensions after workspace trust expanded`);
+		try {
+			await this._awaitControlPlaneRpc('rpc.extensions.reconcile', wrapper.session.rpc.extensions.reconcile());
+		} catch (error) {
+			// The runtime also reports extensions the launch provider still refuses as a failure; they stay refused.
+			if (isCurrent()) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Retrying refused project extensions after workspace trust expanded did not complete: ${getErrorMessage(error)}`);
+			}
+		}
+	}
+
+	/**
 	 * Build a read-only reminder naming each host-created snapshot attachment
 	 * (pasted content, unsaved editor, git: diff, …) so the model treats the
 	 * on-disk copy as read-only context and does not edit it (#331154). Returns
@@ -8360,6 +8490,10 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
+		this._retiring = true;
+		// A trust reconciliation already in flight finishes against this runtime before it disconnects, so it can't reach a
+		// runtime that resumes the same SDK session afterwards; it issues nothing new once retiring.
+		await Promise.allSettled([...this._projectExtensionTrustReconciliations]);
 		this._clearCanvasProjection();
 		try {
 			await this._editTracker.flushAttribution();
@@ -12106,7 +12240,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
 					resultMetadata: getSdkMcpResultMeta(e.data.result),
-					error: e.data.error,
+					error: getSdkToolCallError(e.data),
 				};
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);

@@ -13,6 +13,7 @@ import { OperatingSystem, OS } from '../../../../../../../base/common/platform.j
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -117,6 +118,11 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			}());
 			reg.defineInstance(IConnectionDiagnosticsService, new class extends mock<IConnectionDiagnosticsService>() {
 				override async getSnapshot() { return { capturedAt: '2026-11-06T10:00:00Z', sections: [], text: 'Connection diagnostics' }; }
+			}());
+			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+				override readonly connections = [];
+				override readonly onDidChangeConnections = Event.None;
+				override getConnectionByAddress() { return undefined; }
 			}());
 		},
 	});
