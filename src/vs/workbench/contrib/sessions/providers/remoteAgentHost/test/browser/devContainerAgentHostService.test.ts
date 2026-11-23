@@ -229,6 +229,8 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		this.id = `agenthost-${agentHostAuthority(config.address)}`;
 	}
 
+	override get label(): string { return this.config.name; }
+
 	override setConnection(connection: IAgentConnection, defaultDirectory?: string): void {
 		this.wiredConnection = connection;
 		this.defaultDirectory = defaultDirectory;
@@ -306,10 +308,11 @@ suite('Dev Container Agent Host Service', () => {
 			isAvailable: async () => true,
 			isLocalDockerAvailable: async () => !!options.localDocker,
 			showLog: async () => { },
-			createConnection: async (workspaceUri, address) => {
+			createConnection: async (workspaceUri, address, _token, requested) => {
 				createdUris.push(workspaceUri);
 				await options.beforeConnect?.();
-				return { address, name: 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
+				// The host names the connection as requested, as the real connector does.
+				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
 			},
 			removeContainer: async workspaceUri => {
 				removedUris.push(workspaceUri);
@@ -406,6 +409,17 @@ suite('Dev Container Agent Host Service', () => {
 			sources: ['local', 'local', 'local'],
 			environments: [LocalDevContainerEnvironmentHost],
 		});
+	});
+
+	test('names the connection of each environment after the environment, so environments on the same host differ', async () => {
+		const { service, remoteService } = setupEnvironments(undefined, { localDocker: true });
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		const connectionNames: (string | undefined)[] = [];
+		for (let index = 0; index < 2; index++) {
+			await service.createEnvironment(LocalDevContainerEnvironmentHost);
+			connectionNames.push(remoteService.stagedEntry?.name);
+		}
+		assert.deepStrictEqual(connectionNames, ['Dev Container', 'Dev Container 2']);
 	});
 
 	test('drops the disposed client of an environment whose relay closed for good, so first use connects again', async () => {

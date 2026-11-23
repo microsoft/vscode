@@ -285,7 +285,8 @@ export class DevContainerEnvironments extends Disposable {
 			return;
 		}
 		await this._removeConnection(state);
-		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true });
+		// Named after the environment rather than its host; a rename applies on top as the address's display name.
+		const connection = await connector.createConnection(state.uri, state.address, token, { resume: true, name: state.stored.name });
 		if (token.isCancellationRequested || !this._isCurrent(state)) {
 			connection.transportDisposable?.dispose();
 			throw new CancellationError();

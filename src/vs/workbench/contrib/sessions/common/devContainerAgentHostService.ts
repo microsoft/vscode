@@ -100,7 +100,11 @@ export interface IDevContainerAgentHostConnector {
 	isAvailable(workspaceUri: URI): Promise<boolean>;
 	/** Whether Docker is available on this computer, regardless of settings. */
 	isLocalDockerAvailable?(): Promise<boolean>;
-	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection>;
+	/**
+	 * Creates the container if needed and connects to its Agent Host. `options.name` names the connection of a Dev
+	 * Container environment, which otherwise gets a name for its host.
+	 */
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean; readonly name?: string }): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
 	showLog(workspaceUri: URI): Promise<void>;
