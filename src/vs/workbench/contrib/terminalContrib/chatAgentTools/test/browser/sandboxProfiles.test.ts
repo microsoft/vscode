@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { assignHostSandboxProfile, readHostSandboxProfile } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
@@ -40,25 +42,48 @@ suite('Sandbox profiles editor', () => {
 		return disposables.add(new TestSandboxProfilesHost());
 	}
 
-	test('saves new profiles from current settings to this machine only, shared by every window', async () => {
+	/** Selects New Profile, then renames the profile and saves it. */
+	async function create(input: SandboxProfilesInput, name: string) {
+		input.createProfile();
+		draft(input).name = name;
+		await input.save();
+		return input.profiles.find(profile => profile.name === name.trim())!;
+	}
+
+	function draft(input: SandboxProfilesInput) {
+		assert.ok(input.draft);
+		return input.draft;
+	}
+
+	test('starts with a Default profile from current settings; New Profile saves another to this machine only', async () => {
 		const { storage, config, open } = setup();
 		const input = open();
-		input.draft.name = ' Remote ';
-		const list = input.draft.settings[domains];
+		const initial = { selected: draft(input).name, profiles: input.profiles.map(p => [p.name, p.settings[domains]]) };
+		// Editing Default changes only the profile, not the user's settings.
+		draft(input).settings[domains] = ['default-edit.example'];
+		await input.save();
+		input.createProfile();
+		const created = { name: draft(input).name, saved: input.profiles.map(p => p.name), dirty: input.isDirty() };
+		const list = draft(input).settings[domains];
 		assert.ok(Array.isArray(list));
 		list.push('new.example');
+		draft(input).name = ' Remote ';
 		await input.save();
-		input.draft.name = 'Unsaved';
-		await input.revert();
+		input.createProfile();
 		const otherWindow = open();
+		otherWindow.select(otherWindow.profiles.find(p => p.name === 'Remote'));
 		assert.deepStrictEqual({
-			name: input.draft.name,
-			otherWindow: [otherWindow.draft.name, otherWindow.draft.settings[domains]],
+			initial,
+			created,
+			next: draft(input).name,
+			otherWindow: [draft(otherWindow).name, draft(otherWindow).settings[domains]],
 			machineScoped: storage.keys(StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE).includes('chat.sandboxProfiles.v1'),
 			synced: storage.keys(StorageScope.APPLICATION_SHARED, StorageTarget.USER).length + storage.keys(StorageScope.PROFILE, StorageTarget.USER).length,
 			settings: config.getValue(domains),
 		}, {
-			name: 'Remote',
+			initial: { selected: 'Default', profiles: [['Default', ['original.example']]] },
+			created: { name: 'sandbox_profile_1', saved: ['Default', 'sandbox_profile_1'], dirty: false },
+			next: 'sandbox_profile_1',
 			otherWindow: ['Remote', ['original.example', 'new.example']],
 			machineScoped: true,
 			synced: 0,
@@ -66,37 +91,40 @@ suite('Sandbox profiles editor', () => {
 		});
 	});
 
-	test('opens new profiles with a unique default name and saved profiles read-only', async () => {
-		const { open } = setup();
+	test('saves valid changes automatically and updates the profile\'s hosts; invalid changes stay unsaved', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const build = host();
+		const { storage, open } = setup({ build });
 		const input = open();
-		const first = { name: input.draft.name, editing: input.editing };
-		await input.save();
-		const saved = { name: input.draft.name, editing: input.editing };
-		input.edit();
-		const editing = input.editing;
-		input.select();
-		assert.deepStrictEqual({ first, saved, editing, next: input.draft.name }, {
-			first: { name: 'sandbox_profile_1', editing: true },
-			saved: { name: 'sandbox_profile_1', editing: false },
-			editing: true,
-			next: 'sandbox_profile_2',
+		const strict = await create(input, 'Strict');
+		assignHostSandboxProfile(build, strict);
+		draft(input).settings[domains] = ['edited.example'];
+		input.changed();
+		const library = () => readSandboxProfiles(storage).find(p => p.id === strict.id)?.settings[domains];
+		const pending = { dirty: input.isDirty(), library: library() };
+		await timeout(500);
+		const saved = { dirty: input.isDirty(), library: library(), host: readHostSandboxProfile(build)?.sandbox.allowedNetworkDomains };
+		draft(input).name = '';
+		input.changed();
+		await timeout(500);
+		assert.deepStrictEqual({ pending, saved, invalid: { dirty: input.isDirty(), library: readSandboxProfiles(storage).map(p => p.name) } }, {
+			pending: { dirty: false, library: ['original.example'] },
+			saved: { dirty: false, library: ['edited.example'], host: ['edited.example'] },
+			invalid: { dirty: true, library: ['Default', 'Strict'] },
 		});
-	});
+	}));
 
 	test('rejects duplicate names and updates by stable ID', async () => {
 		const { open } = setup();
 		const input = open();
-		input.draft.name = 'Local';
-		await input.save();
-		const id = input.draft.id;
-		input.select();
-		input.draft.name = ' local ';
+		const local = await create(input, 'Local');
+		input.createProfile();
+		draft(input).name = ' local ';
 		await assert.rejects(input.save());
-		input.select(input.profiles[0]);
-		input.edit();
-		input.draft.name = 'Renamed';
+		await input.revert();
+		input.select(local);
+		draft(input).name = 'Renamed';
 		await input.save();
-		assert.deepStrictEqual(open().profiles.map(p => [p.id, p.name]), [[id, 'Renamed']]);
+		assert.deepStrictEqual(open().profiles.map(p => [p.id, p.name]), [[input.profiles[0].id, 'Default'], [local.id, 'Renamed'], [input.profiles[2].id, 'sandbox_profile_1']]);
 	});
 
 	test('saving pushes the edit to connected hosts using the profile, not to other or disconnected hosts', async () => {
@@ -104,21 +132,15 @@ suite('Sandbox profiles editor', () => {
 		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build, other, unassigned, offline: undefined };
 		const { open } = setup(hosts);
 		const input = open();
-		input.draft.name = 'Strict';
-		await input.save();
-		const strict = input.profiles[0];
-		input.select();
-		input.draft.name = 'Open';
-		await input.save();
-		const openProfile = input.profiles[1];
+		const strict = await create(input, 'Strict');
+		const openProfile = await create(input, 'Open');
 		const offline = host();
 		for (const [connection, profile] of [[build, strict], [other, openProfile], [offline, strict]] as const) {
 			assignHostSandboxProfile(connection, profile);
 		}
 		input.select(strict);
-		input.edit();
-		input.draft.name = 'Strict v2';
-		input.draft.settings[domains] = ['edited.example'];
+		draft(input).name = 'Strict v2';
+		draft(input).settings[domains] = ['edited.example'];
 		await input.save();
 		hosts.offline = offline;
 		const read = (connection: TestSandboxProfilesHost) => {
@@ -140,47 +162,41 @@ suite('Sandbox profiles editor', () => {
 		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build, other: host(), offline: undefined };
 		const { storage, open } = setup(hosts);
 		const input = open();
-		input.draft.name = 'Strict';
-		await input.save();
-		const strict = input.profiles[0];
+		const strict = await create(input, 'Strict');
 		assignHostSandboxProfile(build, strict);
 		assignHostSandboxProfile(offline, strict);
 		const inUse = { hosts: input.hostsUsingProfile(strict.id), deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage).map(p => p.name) };
 		assignHostSandboxProfile(build, undefined);
-		const unassigned = { deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage) };
+		const unassigned = { deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage).map(p => p.name), selected: input.draft?.name };
 		hosts.offline = offline;
 		assert.deepStrictEqual({ inUse, unassigned, offlineCopy: readHostSandboxProfile(offline)?.name }, {
-			inUse: { hosts: ['build'], deleted: false, library: ['Strict'] },
-			unassigned: { deleted: true, library: [] },
+			inUse: { hosts: ['build'], deleted: false, library: ['Default', 'Strict'] },
+			unassigned: { deleted: true, library: ['Default'], selected: 'Default' },
 			// Only connected hosts are checked; a host that was disconnected keeps using its own copy.
 			offlineCopy: 'Strict',
 		});
 	});
-	test('a draft of a profile deleted in another window cannot be saved and does not bring it back', async () => {
+
+	test('edits of a profile deleted in another window are not saved and do not bring it back', async () => {
 		const build = host();
 		const { storage, open } = setup({ build });
 		const editor = open();
-		editor.draft.name = 'Strict';
-		await editor.save();
-		const strict = editor.profiles[0];
+		const strict = await create(editor, 'Strict');
 		assignHostSandboxProfile(build, strict);
-		editor.edit();
-		editor.draft.name = 'Strict v2';
+		draft(editor).name = 'Strict v2';
 		editor.changed();
 		const otherWindow = open();
 		otherWindow.deleteProfile(strict.id); // blocked: build uses it
 		assignHostSandboxProfile(build, undefined);
 		otherWindow.deleteProfile(strict.id);
-		await assert.rejects(editor.save());
-		assert.deepStrictEqual({ library: readSandboxProfiles(storage), host: readHostSandboxProfile(build), error: !!editor.saveError }, { library: [], host: null, error: true });
+		editor.flush();
+		assert.deepStrictEqual({ library: readSandboxProfiles(storage).map(p => p.name), host: readHostSandboxProfile(build), selected: editor.draft?.name }, { library: ['Default'], host: null, selected: 'Default' });
 	});
 
 	test('invalid JSON text is an unsaved change that blocks saving until fixed or discarded', async () => {
 		const { storage, open } = setup();
 		const input = open();
-		input.draft.name = 'Strict';
-		await input.save();
-		input.edit();
+		await create(input, 'Strict');
 		const key = Sandbox.AgentSandboxUserConfiguredPaths;
 		input.setInvalidText(key, '{ "readwritePaths": [');
 		const invalid = { dirty: input.isDirty(), text: input.invalidText(key), error: !!input.saveError };
@@ -189,21 +205,21 @@ suite('Sandbox profiles editor', () => {
 		assert.deepStrictEqual({ invalid, reverted: { dirty: input.isDirty(), text: input.invalidText(key), error: input.saveError }, library: readSandboxProfiles(storage).map(p => p.name) }, {
 			invalid: { dirty: true, text: '{ "readwritePaths": [', error: true },
 			reverted: { dirty: false, text: undefined, error: undefined },
-			library: ['Strict'],
+			library: ['Default', 'Strict'],
 		});
 	});
+
 	test('shows library changes from another window without discarding an edit in progress', async () => {
 		const { open } = setup();
 		const input = open();
-		input.draft.name = 'Shared';
-		await input.save();
+		const shared = await create(input, 'Shared');
 		const viewer = open();
 		const editor = open();
-		editor.edit();
-		editor.draft.name = 'Local edit';
-		input.edit();
-		input.draft.name = 'Renamed';
+		viewer.select(shared);
+		editor.select(shared);
+		draft(editor).name = 'Local edit';
+		draft(input).name = 'Renamed';
 		await input.save();
-		assert.deepStrictEqual([viewer.draft.name, editor.draft.name, editor.editing], ['Renamed', 'Local edit', true]);
+		assert.deepStrictEqual([draft(viewer).name, draft(editor).name], ['Renamed', 'Local edit']);
 	});
 });
