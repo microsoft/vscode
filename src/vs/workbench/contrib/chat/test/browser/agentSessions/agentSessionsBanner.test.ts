@@ -789,7 +789,7 @@ suite('AgentsBanner sign-in card', () => {
 		const cardTriggers = [styleTreatment, signInCardSurfaceTreatment];
 		assert.deepStrictEqual(states, [
 			{ style: 'button', ...button },
-			{ style: 'copilotCard', card: 'copilotCard', text: 'Build software with GitHub Copilot agentsHand off tasks to powerful agents that plan, code and testRun several agents at once in the new Agents windowTry the free GitHub Copilot features', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
+			{ style: 'copilotCard', card: 'copilotCard', text: 'Build software with GitHub Copilot agentsTry the free GitHub Copilot featuresHand off tasks to powerful agents that plan, code and testRun several agents at once in the new Agents window', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
 			{ style: 'githubCard', card: 'githubCard', text: 'Connect VS Code to GitHubWork with your pull requests and issuesClone and publish your repositoriesUse GitHub Copilot to chat, edit and run agents', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
 			{ style: 'compactCard', card: 'compactCard', text: 'Sign in with GitHub to use GitHub Copilot and work with your pull requests, issues and repositories.', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
 			// Values that are no longer supported show the button.

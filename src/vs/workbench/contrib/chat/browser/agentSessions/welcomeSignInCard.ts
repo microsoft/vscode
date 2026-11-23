@@ -76,9 +76,9 @@ export function renderWelcomeSignInCardContent(style: WelcomeSignInCardStyle): H
 		? {
 			title: localize('welcomeSignIn.copilot.buildTitle', "Build software with GitHub Copilot agents"),
 			benefits: [
+				[Codicon.copilotCompact, localize('welcomeSignIn.copilot.free', "Try the free GitHub Copilot features")],
 				[Codicon.agentCompact, localize('welcomeSignIn.copilot.handOffTasks', "Hand off tasks to powerful agents that plan, code and test")],
 				[Codicon.windowCompact, localize('welcomeSignIn.copilot.agentsWindow', "Run several agents at once in the new Agents window")],
-				[Codicon.copilotCompact, localize('welcomeSignIn.copilot.free', "Try the free GitHub Copilot features")],
 			] as const,
 		}
 		: {
