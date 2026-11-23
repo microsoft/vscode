@@ -10,11 +10,7 @@ on:
       - main
       - 'release/*'
 
-permissions:
-  contents: read
-  statuses: write
-  pull-requests: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: component-fixtures-${{ github.event.pull_request.number || github.sha }}
@@ -24,6 +20,8 @@ jobs:
   playwright:
     name: Playwright Fixture Tests
     runs-on: vscode-large-runners-ubuntu-8-core
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,6 +95,10 @@ jobs:
   screenshots:
     name: Screenshots
     runs-on: vscode-large-runners-ubuntu-8-core
+    permissions:
+      contents: read
+      pull-requests: write # Create or update the screenshot report comment
+      id-token: write # Request the screenshot service OIDC token
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -457,6 +459,7 @@ jobs:
         run: |
           echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
           exit 1
+      # Re-enabling this step requires adding `statuses: write` to this job's permissions.
       # - name: Set check title
       #   env:
       #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -498,6 +501,7 @@ jobs:
       - playwright
       - screenshots
     runs-on: vscode-large-runners-ubuntu-8-core
+    permissions: {}
     steps:
       - name: Verify fixture test results
         run: |
