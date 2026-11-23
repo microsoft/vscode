@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { joinPath } from '../../../base/common/resources.js';
+import type { URI } from '../../../base/common/uri.js';
 import { parse, type YamlNode, type YamlParseError, type YamlScalarNode } from '../../../base/common/yaml.js';
 import type { IAgentModelInfo } from './agent.js';
 import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
@@ -70,6 +72,11 @@ export const MODEL_ROUTER_MODEL_ID_PREFIX = 'model-router:';
 export const MODEL_ROUTER_FILE_SUFFIXES: readonly string[] = ['.model-router.yaml', '.model-router.yml'];
 /** Folder, under `~/.agents` or `~/.copilot`, that holds router files. */
 export const MODEL_ROUTER_FOLDER = 'model-routers';
+
+/** The folder that holds a user's routers: `~/.agents/model-routers`. */
+export function userModelRouterFolder(userHome: URI): URI {
+	return joinPath(userHome, '.agents', MODEL_ROUTER_FOLDER);
+}
 /** The only file-format version this build reads. */
 export const MODEL_ROUTER_VERSION = 1;
 
