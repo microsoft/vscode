@@ -1118,14 +1118,22 @@ suite('CreatePullRequestWidget', () => {
 		};
 	}
 
-	test('a remembered Agent Merge choice selects Autopilot where artifact integrations replace it, also while loading', async () => {
+	test('Autopilot is offered only once preparation confirms it, and a remembered Agent Merge choice then selects it', async () => {
 		const generation = new DeferredPromise<ISessionPullRequestDetails>();
-		const { widget } = createWidget({ prepare: () => generation.p }, undefined, { artifactIntegrations: true, preferences: { mergeMode: 'agent' } });
+		const sent: ISessionPullRequestChatOptions[] = [];
+		const { widget } = createWidget({ prepare: () => generation.p }, undefined, {
+			artifactIntegrations: true,
+			preferences: { mergeMode: 'agent', primaryAction: 'sendToChat' },
+			sendToChat: async options => { sent.push(options); },
+		});
 		const loading = modes(widget);
+		element(widget, '.create-pr-submit').click();
+		await timeout(0);
 		await generation.complete(autopilotDetails);
 		await widget.ready;
-		assert.deepStrictEqual({ loading, loaded: modes(widget), state: autopilotState(widget) }, {
-			loading: ['Merge Manually', 'Autopilot (selected)', 'Auto-Merge'],
+		assert.deepStrictEqual({ loading, sent, loaded: modes(widget), state: autopilotState(widget) }, {
+			loading: ['Merge Manually (selected)', 'Auto-Merge'],
+			sent: [{ draft: false, agentMerge: false }],
 			loaded: ['Merge Manually', 'Autopilot (selected)', 'Auto-Merge'],
 			state: {
 				hidden: false,

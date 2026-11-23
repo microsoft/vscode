@@ -71,8 +71,8 @@ export interface ICreatePullRequestWidgetOptions {
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
 	/**
-	 * Whether artifact integrations apply to the session, in which case its host offers Autopilot instead of Agent
-	 * Merge. Used only until preparation reports the host's actual capabilities.
+	 * Whether artifact integrations apply to the session, in which case Agent Merge is unavailable and is not offered
+	 * while preparation is loading. Autopilot is offered only once preparation confirms the host supports it.
 	 */
 	readonly artifactIntegrations?: boolean;
 	readonly initialDraft?: boolean;
@@ -565,9 +565,9 @@ export class CreatePullRequestWidget extends Disposable {
 	private updateMergeOptions(): void {
 		const focusedRadio = [this.mergeModeRadio, this.mergeMethodRadio].find(radio => radio.domNode.contains(dom.getActiveElement()));
 		const autoMergeAllowed = (this.details?.autoMergeAllowed ?? this.loading) && !this.draftCheckbox.checked && this.mergeMethods.length > 0;
-		const expectsAutopilot = this.options.artifactIntegrations === true;
-		const agentMergeAvailable = this.details?.agentMergeAvailable ?? (this.loading && !expectsAutopilot);
-		const autopilotAvailable = this.details ? this.details.autopilotAvailable === true : this.loading && expectsAutopilot;
+		const agentMergeAvailable = this.details?.agentMergeAvailable ?? (this.loading && this.options.artifactIntegrations !== true);
+		// Older hosts ignore Autopilot choices, and hosts without integrations reject them.
+		const autopilotAvailable = this.details?.autopilotAvailable === true;
 		const autoMergeUnavailableReason = autoMergeAllowed && !this.loading ? undefined : this.getAutoMergeUnavailableReason();
 		this.mergeMode = this.preferredMergeMode;
 		// Autopilot replaces Agent Merge where artifact integrations are enabled, so either stands in for the other.

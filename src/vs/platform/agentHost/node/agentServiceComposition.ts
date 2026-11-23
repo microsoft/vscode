@@ -218,6 +218,7 @@ export function createAgentServiceComposition(
 			? { ...report, clientContext: turnTracker.getClientTelemetryContext(report.chat, report.turnId), telemetryContext: turnTracker.getTelemetryContext(report.chat, report.turnId) }
 			: report;
 		const artifactIntegrationDirectory = accessor.get(IAgentHostArtifactIntegrationDirectory);
+		const artifactEventService = accessor.get(IAgentHostArtifactEventService);
 		// The artifact runtime is created after the server-tool host, so its tools bind it late.
 		const hostArtifactIntegrations: { value: IArtifactIntegrationAccess | undefined } = { value: undefined };
 		const isArtifactIntegrationsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true;
@@ -268,6 +269,7 @@ export function createAgentServiceComposition(
 						}
 					},
 					reportArtifactRecorded: report => telemetryReporter.artifactRecorded(withTurnTelemetry(report)),
+					didRecordArtifacts: recorded => artifactEventService.acceptRecordedArtifacts(recorded),
 					reportArtifactRemoved: report => telemetryReporter.artifactRemoved(withTurnTelemetry(report)),
 				},
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
@@ -349,7 +351,7 @@ export function createAgentServiceComposition(
 					}
 				},
 			},
-			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
+			accessor.get(IArtifactIntegrationRegistry), artifactEventService, stateManager, configurationService, logService,
 		));
 		hostArtifactIntegrations.value = artifactRuntime.integrations;
 		services.set(IAgentHostPullRequestAutopilotService, new AgentHostPullRequestAutopilotService(artifactRuntime.integrations, isArtifactIntegrationsEnabled));

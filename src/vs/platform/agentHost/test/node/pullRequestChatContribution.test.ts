@@ -25,6 +25,7 @@ import { TurnAdmissionContribution } from '../../node/chatContributions/turnAdmi
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { IAgentHostPullRequestAutopilotService, type IPullRequestAutopilotResult } from '../../node/agentHostPullRequestAutopilot.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 
 suite('PullRequestChatContribution', () => {
@@ -37,6 +38,7 @@ suite('PullRequestChatContribution', () => {
 	function setup(selected: IPullRequestChatOptions = options, archived = false, otherFolder?: string, autopilotAvailable = false) {
 		const log = new NullLogService();
 		const autopilotCalls: { session: string; artifactId: string; options: IPullRequestAutopilotOptions }[] = [];
+		const artifactEvents = store.add(new AgentHostArtifactEventService());
 		const autopilotService: IAgentHostPullRequestAutopilotService = {
 			_serviceBrand: undefined,
 			isAvailable: () => autopilotAvailable,
@@ -64,6 +66,7 @@ suite('PullRequestChatContribution', () => {
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log], [IAgentConfigurationService, config], [IAgentHostStateManager, state], [IAgentHostChatOwnershipService, createTestChatOwnershipService(state)],
 			[IAgentHostPullRequestAutopilotService, autopilotService],
+			[IAgentHostArtifactEventService, artifactEvents],
 		), true));
 		const contributions: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(contributions.registerContribution(TurnAdmissionContribution));
@@ -79,7 +82,7 @@ suite('PullRequestChatContribution', () => {
 		const start = () => state.dispatchServerAction(chat, {
 			type: ActionType.ChatTurnStarted, turnId: turn.turnId, startedAt: new Date().toISOString(), message: turn.message,
 		});
-		return { contributions, state, config, turn, incoming, start, autopilotCalls };
+		return { contributions, state, config, turn, incoming, start, autopilotCalls, artifactEvents };
 	}
 
 	test('admission is read-only and configuration is applied only to the active creation turn', async () => {
@@ -184,32 +187,46 @@ suite('PullRequestChatContribution', () => {
 		assert.deepStrictEqual([disabled.contributions.incomingRequest(disabled.incoming).kind, enabled.contributions.incomingRequest(enabled.incoming).kind], ['reject', 'accept']);
 	});
 
-	test('Autopilot turns on for the pull requests the creation turn recorded once it ends', async () => {
-		const { contributions, state, turn, start, autopilotCalls } = setup(autopilotOptions, false, undefined, true);
+	function pullRequest(id: string, chat: string, turnId: string, isArtifact = true): ISessionArtifact {
+		return { id, chat, type: SessionArtifactType.PullRequest, label: id, isArtifact, link: `https://github.com/microsoft/vscode/pull/${id}`, origin: { chat, turnId } };
+	}
+
+	test('Autopilot turns on for the pull requests the creation turn recorded in its chat, including promoted and recorded again ones', async () => {
+		const { contributions, state, turn, start, autopilotCalls, artifactEvents } = setup(autopilotOptions, false, undefined, true);
+		const peerChat = buildChatUri(turn.session, 'peer');
 		start();
 		await contributions.outgoingTurn(turn);
-		const pullRequest = (id: string, turnId: string, isArtifact = true): ISessionArtifact => ({
-			id, type: SessionArtifactType.PullRequest, label: id, isArtifact, link: `https://github.com/microsoft/vscode/pull/${id}`, origin: { chat: turn.chat, turnId },
-		});
 		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [
-			pullRequest('1', turn.turnId),
-			pullRequest('2', 'earlier-turn'),
-			pullRequest('3', turn.turnId, false),
+			pullRequest('earlier', turn.chat, 'earlier-turn'),
+			pullRequest('new', turn.chat, turn.turnId),
+			pullRequest('unrelated', turn.chat, 'earlier-turn'),
+			pullRequest('reference', turn.chat, turn.turnId, false),
+			pullRequest('peer', peerChat, turn.turnId),
 		]));
+		artifactEvents.acceptRecordedArtifacts({ session: turn.session, chat: turn.chat, turnId: turn.turnId, artifactIds: ['earlier', 'new', 'reference'] });
+		artifactEvents.acceptRecordedArtifacts({ session: turn.session, chat: peerChat, turnId: turn.turnId, artifactIds: ['peer'] });
+		// A turn with the same ID in another chat neither consumes nor uses the creation turn's choices.
+		contributions.turnEnd({ session: turn.session, channel: peerChat, turnId: turn.turnId, reason: { kind: 'success' } });
+		const afterPeerTurn = [...autopilotCalls];
 		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
 		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
-		assert.deepStrictEqual(autopilotCalls, [{ session: turn.session, artifactId: '1', options: autopilot }]);
+		assert.deepStrictEqual({ afterPeerTurn, calls: autopilotCalls }, {
+			afterPeerTurn: [],
+			calls: [
+				{ session: turn.session, artifactId: 'earlier', options: autopilot },
+				{ session: turn.session, artifactId: 'new', options: autopilot },
+			],
+		});
 	});
 
 	test('a resumable error keeps the Autopilot choices for the pull request the resumed turn records', async () => {
-		const { contributions, state, turn, start, autopilotCalls } = setup(autopilotOptions, false, undefined, true);
+		const { contributions, state, turn, start, autopilotCalls, artifactEvents } = setup(autopilotOptions, false, undefined, true);
 		start();
 		await contributions.outgoingTurn(turn);
 		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'error', error: { errorType: 'network', message: 'Disconnected' }, resumable: true } });
 		const afterError = [...autopilotCalls];
-		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [{
-			id: '1', type: SessionArtifactType.PullRequest, label: '1', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', origin: { chat: turn.chat, turnId: turn.turnId },
-		}]));
+		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [pullRequest('1', turn.chat, turn.turnId)]));
+		artifactEvents.acceptRecordedArtifacts({ session: turn.session, chat: turn.chat, turnId: turn.turnId, artifactIds: ['1'] });
 		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
 		assert.deepStrictEqual({ afterError, afterResume: autopilotCalls }, {
 			afterError: [],
@@ -218,10 +235,9 @@ suite('PullRequestChatContribution', () => {
 	});
 
 	test('a turn that was never sent does not turn on Autopilot', () => {
-		const { contributions, state, turn, autopilotCalls } = setup(autopilotOptions, false, undefined, true);
-		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [{
-			id: '1', type: SessionArtifactType.PullRequest, label: '1', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', origin: { chat: turn.chat, turnId: turn.turnId },
-		}]));
+		const { contributions, state, turn, autopilotCalls, artifactEvents } = setup(autopilotOptions, false, undefined, true);
+		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [pullRequest('1', turn.chat, turn.turnId)]));
+		artifactEvents.acceptRecordedArtifacts({ session: turn.session, chat: turn.chat, turnId: turn.turnId, artifactIds: ['1'] });
 		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
 		assert.deepStrictEqual(autopilotCalls, []);
 	});
