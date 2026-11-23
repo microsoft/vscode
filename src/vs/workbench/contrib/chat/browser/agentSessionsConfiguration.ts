@@ -165,6 +165,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.Co
 	migrateFn: () => ({ value: undefined }),
 }, {
 	key: legacyOpenSessionsInEditorSetting,
+	migrateUserSettingsSeparately: true,
 	migrateFn: (value, accessor) => {
 		const pairs: ConfigurationKeyValuePairs = [[legacyOpenSessionsInEditorSetting, { value: undefined }]];
 		if (value === true && accessor(ChatConfiguration.ChatViewSessionsOpenChatIn) === undefined) {

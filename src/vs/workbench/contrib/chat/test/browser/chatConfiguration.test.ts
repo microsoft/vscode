@@ -463,10 +463,12 @@ suite('Chat configuration', () => {
 		const key = 'chat.agentSessions.openInEditor';
 		const migration = migrations.find(migration => migration.key === key);
 		assert.deepStrictEqual({
+			migrateUserSettingsSeparately: migration?.migrateUserSettingsSeparately,
 			enabled: await migration?.migrateFn(true, () => undefined),
 			enabledWithOpenChatInSet: await migration?.migrateFn(true, () => ChatViewSessionsOpenChatIn.ChatArea),
 			disabled: await migration?.migrateFn(false, () => undefined),
 		}, {
+			migrateUserSettingsSeparately: true,
 			enabled: [[key, { value: undefined }], [ChatConfiguration.ChatViewSessionsOpenChatIn, { value: ChatViewSessionsOpenChatIn.EditorArea }]],
 			enabledWithOpenChatInSet: [[key, { value: undefined }]],
 			disabled: [[key, { value: undefined }]],
