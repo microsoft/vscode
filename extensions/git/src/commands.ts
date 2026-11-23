@@ -2439,8 +2439,12 @@ export class CommandCenter {
 				}
 			}
 
+			// a merge/rebase can be continued as is when its only unstaged changes are untracked files
+			const canContinueWithoutStaging = (repository.mergeInProgress || repository.rebaseCommit !== undefined)
+				&& repository.workingTreeGroup.resourceStates.every(r => r.type === Status.UNTRACKED);
+
 			// no changes, and the user has not configured to commit all in this case
-			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend && !canContinueWithoutStaging) {
 				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 				if (!suggestSmartCommit) {
