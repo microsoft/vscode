@@ -2940,7 +2940,6 @@ export default [
 			'extensions/copilot/src/util/common/chatResponseStreamImpl.ts',
 			'extensions/copilot/src/util/common/debounce.ts',
 			'extensions/copilot/src/util/common/debugValueEditorGlobals.ts',
-			'extensions/copilot/src/util/common/diff.ts',
 			'extensions/copilot/src/util/common/progress.ts',
 			'extensions/copilot/src/util/common/test/shims/chatTypes.ts',
 			'extensions/copilot/src/util/common/test/shims/editing.ts',
