@@ -28,6 +28,20 @@
 	outline-offset: -1px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.focus-outline-rounded:focus-visible {
+	outline: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.focus-outline-rounded:focus-visible::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: var(--getting-started-focus-outline-radius);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	pointer-events: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer.loading {
 	display: none;
 }
