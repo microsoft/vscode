@@ -449,7 +449,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getAllSessions()) {
+		// The first request can use a chat before its provider publishes the session.
+		for (const session of [...this._getAllSessions(), ...this.getInFlightNewSessionRequests()]) {
 			const chat = getSessionChatOfResource(session, resource, this.uriIdentityService.extUri);
 			if (chat) {
 				return { session, chat };

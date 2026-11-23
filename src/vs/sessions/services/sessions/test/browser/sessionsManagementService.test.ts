@@ -5474,6 +5474,39 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('getSessionForChatResource resolves an unpublished session during its first request', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///first-request') };
+		const session = stubSession({
+			sessionId: 'draft',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+			mainChat: constObservable(chat),
+		});
+		let duringRequest: { session: ISession; chat: IChat } | undefined;
+		let unknownDuringRequest: { session: ISession; chat: IChat } | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return []; }
+			override async sendRequest(): Promise<ISession> {
+				duringRequest = service.getSessionForChatResource(chat.resource);
+				unknownDuringRequest = service.getSessionForChatResource(URI.parse('test:///unknown'));
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.sendNewChatRequest(session, { query: 'Open a browser page' });
+
+		assert.deepStrictEqual({
+			duringRequest,
+			unknownDuringRequest,
+			afterRequest: service.getSessionForChatResource(chat.resource),
+		}, {
+			duringRequest: { session, chat },
+			unknownDuringRequest: undefined,
+			afterRequest: undefined,
+		});
+	});
+
 	test('restoreVisibleSessions still waits for the session while a custom-view composer prepares', async () => {
 		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());

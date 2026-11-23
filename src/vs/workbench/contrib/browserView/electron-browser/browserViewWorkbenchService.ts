@@ -887,10 +887,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	 */
 	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): Promise<void> {
 		// Give registered handlers a chance to prevent the editor from opening.
-		for (const handler of this._openHandlers) {
-			if (!handler.shouldOpenEditor(view, owner, options)) {
-				return;
-			}
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
 		}
 
 		// Resolve target group: auxiliary window, parent's group, or default
@@ -933,13 +931,20 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 
 		// The active session may have changed while resolving the target group.
-		for (const handler of this._openHandlers) {
-			if (!handler.shouldOpenEditor(view, owner, options)) {
-				return;
-			}
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
 		}
 
 		void this.editorService.openEditor(view, editorOptions, group);
+	}
+
+	private _shouldOpenEditor(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): boolean {
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, options)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
