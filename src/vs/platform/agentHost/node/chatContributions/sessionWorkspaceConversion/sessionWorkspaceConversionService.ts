@@ -24,7 +24,7 @@ import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDa
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionIsolatedChatWorktrees, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
@@ -133,6 +133,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	private readonly _quarantinedChats = new Set<string>();
 	private readonly _restoringChats = new Map<string, symbol>();
 	private readonly _isolatedChats = new Set<string>();
+	/** Where each isolated chat works, the worktree the host created for it, and its session: listed in its session's summary. */
+	private readonly _isolationDirectories = new Map<string, { readonly session: string; readonly directory: string }>();
 	/** Owning session of every chat tracked above, recorded when tracking starts. */
 	private readonly _trackedChatOwners = new Map<string, string>();
 	/** Each session's default chat, captured at registration so session removal can still clear its state. */
@@ -166,10 +168,23 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					this._serverToolHost.advertise(session);
 				}
 			}
+			// The worktrees of its isolated chats that a session lists follow its folders, also as those become known after a restore
+			if (envelope.action.type === ActionType.SessionReady && !isAhpChatChannel(envelope.channel) && this._hasIsolatedChats(envelope.channel)) {
+				this._publishIsolatedChatWorktrees(envelope.channel);
+			}
+		}));
+		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => {
+			if (this._hasIsolatedChats(session)) {
+				this._publishIsolatedChatWorktrees(session);
+			}
 		}));
 		this._register(this._chatOwnership.onDidRegisterChat(({ session, chat }) => {
 			if (this._chatOwnership.isDefaultChat(session, chat)) {
 				this._defaultChats.set(session, chat);
+			}
+			// An isolated chat restored before it was registered, such as its session's default chat: its session lists it now
+			if (this._isolationDirectories.has(chat)) {
+				this._publishIsolatedChatWorktrees(session);
 			}
 		}));
 		// Isolation state follows a moved chat to its new owner instead of being cleared with the previous one.
@@ -214,8 +229,55 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const changed = [this._pending.delete(chat), this._quarantined.delete(chat), this._quarantinedChats.delete(chat)].some(Boolean);
 		this._restoringChats.delete(chat);
 		this._isolatedChats.delete(chat);
+		this._setIsolationDirectory(chat, undefined);
 		if (changed) {
 			this._onDidChangePending.fire(chat);
+		}
+	}
+
+	/**
+	 * Records where the isolated `chat` of `session` works, or that it is no isolated chat (`undefined`), and lists the
+	 * worktrees of its session's isolated chats in the session's summary.
+	 */
+	private _setIsolationDirectory(chat: ProtocolURI, isolation: { readonly session: string; readonly directory: string } | undefined): void {
+		const previous = this._isolationDirectories.get(chat);
+		if (isolation) {
+			this._isolationDirectories.set(chat, isolation);
+		} else {
+			this._isolationDirectories.delete(chat);
+		}
+		for (const session of new Set([previous && this._isolationOwner(chat, previous.session), isolation && this._isolationOwner(chat, isolation.session)])) {
+			if (session !== undefined) {
+				this._publishIsolatedChatWorktrees(session);
+			}
+		}
+	}
+
+	/** The session an isolated chat is of now, as its owner records it once registered; else as its isolation was recorded with. */
+	private _isolationOwner(chat: ProtocolURI, recorded: string): string {
+		return this._chatOwnership.getChatOwner(chat) ?? recorded;
+	}
+
+	private _hasIsolatedChats(session: string): boolean {
+		return [...this._isolationDirectories].some(([chat, entry]) => this._isolationOwner(chat, entry.session) === session);
+	}
+
+	/**
+	 * Lists in the summary of `session` the worktrees of its isolated chats that it still works in, other than its first
+	 * folder: as they change, and as its state and folders become known, such as after its chats' isolation was restored.
+	 */
+	private _publishIsolatedChatWorktrees(session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		if (!state) {
+			return;
+		}
+		const sessionDirectories = this._stateManager.getSessionSummary(session)?.workingDirectories ?? [];
+		const worktrees = [...this._isolationDirectories]
+			.filter(([chat, entry]) => this._isolationOwner(chat, entry.session) === session && entry.directory !== sessionDirectories[0] && sessionDirectories.includes(entry.directory))
+			.map(([, entry]) => entry.directory);
+		const meta = withSessionIsolatedChatWorktrees(state._meta, [...new Set(worktrees)]);
+		if (!equals(meta, state._meta)) {
+			this._stateManager.setSessionMeta(session, meta);
 		}
 	}
 
@@ -332,6 +394,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					} else {
 						this._isolatedChats.delete(chat);
 					}
+					this._setIsolationDirectory(chat, directory ? { session, directory } : undefined);
 					if (quarantined !== 'true') {
 						this._quarantinedChats.delete(chat);
 						this._onDidChangePending.fire(chat);
@@ -647,6 +710,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			} else {
 				this._isolatedChats.delete(chat.toString());
 			}
+			this._setIsolationDirectory(chat.toString(), pending.isolation ? { session: session.toString(), directory: prepared.directory.toString() } : undefined);
 			if (this._chatOwnership.isDefaultChat(session.toString(), chat.toString())) {
 				this._stateManager.setSessionMeta(session.toString(), withSessionHasWorkspaceTransitions(this._stateManager.getSessionState(session.toString())?._meta, true));
 			}
@@ -1226,6 +1290,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		this._quarantinedChats.clear();
 		this._restoringChats.clear();
 		this._isolatedChats.clear();
+		this._isolationDirectories.clear();
 		this._trackedChatOwners.clear();
 		super.dispose();
 	}
