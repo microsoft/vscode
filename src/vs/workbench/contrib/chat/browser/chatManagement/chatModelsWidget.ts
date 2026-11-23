@@ -11,7 +11,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ILanguageModelsService, ILanguageModelProviderDescriptor, resolveProviderDeprecationLink } from '../../../chat/common/languageModels.js';
+import { getModelContextWindowTotal, ILanguageModelsService, ILanguageModelProviderDescriptor, resolveProviderDeprecationLink } from '../../../chat/common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -165,10 +165,10 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		}
 	}
 
-	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
-		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
+	const totalTokens = getModelContextWindowTotal(model.metadata);
+	if (totalTokens) {
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
+		markdown.appendText(formatTokenCount(totalTokens));
 		markdown.appendText(`\n`);
 	}
 
@@ -190,6 +190,48 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	}
 
 	return markdown;
+}
+
+/**
+ * Builds the screen reader label for a model row in the Language Models editor.
+ */
+export function getModelAriaLabel(model: ILanguageModel): string {
+	const ariaLabels = [];
+	ariaLabels.push(model.hidden
+		? localize('model.name.hidden', '{0} from {1} (hidden)', model.metadata.name, getManageModelsProviderLabel(model))
+		: localize('model.name', '{0} from {1}', model.metadata.name, getManageModelsProviderLabel(model)));
+	const totalTokens = getModelContextWindowTotal(model.metadata);
+	if (totalTokens) {
+		ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
+	}
+	if (model.metadata.capabilities) {
+		ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(model.metadata.capabilities).join(', ')));
+	}
+	const pricingText = model.metadata.pricing ?? '-';
+	if (pricingText !== '-') {
+		ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
+	}
+	if (model.metadata.inputCost !== undefined) {
+		ariaLabels.push(model.metadata.inputCost === 1
+			? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", model.metadata.inputCost)
+			: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", model.metadata.inputCost));
+	}
+	if (model.metadata.cacheCost !== undefined) {
+		ariaLabels.push(model.metadata.cacheCost === 1
+			? localize('cacheCost.ariaLabel.singular', "Cache read cost: {0} credit per 1M tokens", model.metadata.cacheCost)
+			: localize('cacheCost.ariaLabel.plural', "Cache read cost: {0} credits per 1M tokens", model.metadata.cacheCost));
+	}
+	if (model.metadata.cacheWriteCost !== undefined) {
+		ariaLabels.push(model.metadata.cacheWriteCost === 1
+			? localize('cacheWriteCost.ariaLabel.singular', "Cache write cost: {0} credit per 1M tokens", model.metadata.cacheWriteCost)
+			: localize('cacheWriteCost.ariaLabel.plural', "Cache write cost: {0} credits per 1M tokens", model.metadata.cacheWriteCost));
+	}
+	if (model.metadata.outputCost !== undefined) {
+		ariaLabels.push(model.metadata.outputCost === 1
+			? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", model.metadata.outputCost)
+			: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", model.metadata.outputCost));
+	}
+	return ariaLabels.join('. ');
 }
 
 /**
@@ -790,7 +832,7 @@ interface ITokenLimitsColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly tokenLimitsElement: HTMLElement;
 }
 
-class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsColumnTemplateData> {
+export class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'tokenLimits';
 
 	readonly templateId: string = TokenLimitsColumnRenderer.TEMPLATE_ID;
@@ -827,14 +869,14 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
 		const { model: modelEntry } = entry;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
-			const totalTokens = (modelEntry.metadata.maxInputTokens ?? 0) + (modelEntry.metadata.maxOutputTokens ?? 0);
+		const totalTokens = getModelContextWindowTotal(modelEntry.metadata);
+		if (totalTokens) {
 			const tokenDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
 			const tokenText = DOM.append(tokenDiv, $('span'));
 			tokenText.textContent = formatTokenCount(totalTokens);
 
 			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-			markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
+			markdown.appendText(formatTokenCount(totalTokens));
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
@@ -1458,42 +1500,7 @@ export class ChatModelsWidget extends Disposable {
 						} else if (isStatusEntry(e)) {
 							return localize('status.ariaLabel', 'Status: {0}', e.message);
 						}
-						const ariaLabels = [];
-						ariaLabels.push(e.model.hidden
-							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, getManageModelsProviderLabel(e.model))
-							: localize('model.name', '{0} from {1}', e.model.metadata.name, getManageModelsProviderLabel(e.model)));
-						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
-							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
-							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
-						}
-						if (e.model.metadata.capabilities) {
-							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
-						}
-						const pricingText = e.model.metadata.pricing ?? '-';
-						if (pricingText !== '-') {
-							ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
-						}
-						if (e.model.metadata.inputCost !== undefined) {
-							ariaLabels.push(e.model.metadata.inputCost === 1
-								? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", e.model.metadata.inputCost)
-								: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", e.model.metadata.inputCost));
-						}
-						if (e.model.metadata.cacheCost !== undefined) {
-							ariaLabels.push(e.model.metadata.cacheCost === 1
-								? localize('cacheCost.ariaLabel.singular', "Cache read cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
-								: localize('cacheCost.ariaLabel.plural', "Cache read cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
-						}
-						if (e.model.metadata.cacheWriteCost !== undefined) {
-							ariaLabels.push(e.model.metadata.cacheWriteCost === 1
-								? localize('cacheWriteCost.ariaLabel.singular', "Cache write cost: {0} credit per 1M tokens", e.model.metadata.cacheWriteCost)
-								: localize('cacheWriteCost.ariaLabel.plural', "Cache write cost: {0} credits per 1M tokens", e.model.metadata.cacheWriteCost));
-						}
-						if (e.model.metadata.outputCost !== undefined) {
-							ariaLabels.push(e.model.metadata.outputCost === 1
-								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
-								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
-						}
-						return ariaLabels.join('. ');
+						return getModelAriaLabel(e.model);
 					},
 					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', 'Language Models')
 				},
