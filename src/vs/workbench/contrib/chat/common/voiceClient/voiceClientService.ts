@@ -613,27 +613,6 @@ export interface IVoicePriorTimelineEntry {
 	readonly codingStatus?: string;
 }
 
-/**
- * Payload sent to the backend for a user-initiated feedback submission.
- */
-export interface IVoiceFeedbackPayload {
-	readonly feedbackText: string;
-	readonly machineId: string;
-	readonly userId: string;
-	readonly sessionId: string;
-	readonly submissionId: string;
-	readonly transcriptHistory: readonly IVoiceFeedbackTranscriptTurn[];
-	readonly clientSessionState: Record<string, unknown>;
-	readonly clientEnvironment: Record<string, unknown>;
-	readonly timestamp: string;
-}
-
-export interface IVoiceFeedbackTranscriptTurn {
-	readonly role: 'user' | 'assistant';
-	readonly text: string;
-	readonly timestamp: string;
-}
-
 export interface IVoicePttStartOptions {
 	readonly hasActiveSession: boolean;
 	readonly passive?: boolean;
@@ -708,9 +687,6 @@ export interface IVoiceClientService {
 	prepareForInputTargetChange(): void;
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void;
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void;
-
-	// --- Feedback ---
-	submitFeedback(payload: IVoiceFeedbackPayload): Promise<{ ok: boolean; error?: string }>;
 
 	// --- Inbound events ---
 	readonly onTranscription: Event<IVoiceTranscription>;

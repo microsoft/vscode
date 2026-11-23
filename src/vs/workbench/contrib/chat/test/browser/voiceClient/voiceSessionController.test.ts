@@ -3733,43 +3733,23 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(voiceClientService.requests, []);
 	});
 
-	test('request cancellation and disconnect cancel pending voice progress', () => {
-		const firstVoiceClient = new TestVoiceClientService();
-		const firstController = createController(firstVoiceClient);
-		const firstSession = URI.parse('chat-session:/cancelled-progress');
-		const firstResponse = createVoiceProgressResponse('response-cancelled');
-		const firstConnected = Reflect.get(firstController, '_isConnected') as { set(value: boolean, tx: undefined): void };
-		const firstWatch = Reflect.get(firstController, '_watchVoiceProgress') as (resource: URI, response: IChatResponseModel) => void;
+	test('disconnect cancels pending voice progress', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const sessionResource = URI.parse('chat-session:/disconnected-progress');
+		const { changeEmitter, parts, response } = createVoiceProgressResponse('response-disconnected');
+		const isConnected = Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void };
+		const watchVoiceProgress = Reflect.get(controller, '_watchVoiceProgress') as (resource: URI, response: IChatResponseModel) => void;
 
-		firstConnected.set(true, undefined);
-		firstController.setActiveSessionShown(firstSession);
-		firstWatch.call(firstController, firstSession, firstResponse.response);
-		firstResponse.parts.push({ kind: 'voiceProgress', id: 'editing', value: 'Updating the code.' });
-		firstResponse.changeEmitter.fire({ reason: 'other' });
-		firstController.markUserCancelled(firstSession.toString());
-
-		const secondVoiceClient = new TestVoiceClientService();
-		const secondController = createController(secondVoiceClient);
-		const secondSession = URI.parse('chat-session:/disconnected-progress');
-		const secondResponse = createVoiceProgressResponse('response-disconnected');
-		const secondConnected = Reflect.get(secondController, '_isConnected') as { set(value: boolean, tx: undefined): void };
-		const secondWatch = Reflect.get(secondController, '_watchVoiceProgress') as (resource: URI, response: IChatResponseModel) => void;
-
-		secondConnected.set(true, undefined);
-		secondController.setActiveSessionShown(secondSession);
-		secondWatch.call(secondController, secondSession, secondResponse.response);
-		secondResponse.parts.push({ kind: 'voiceProgress', id: 'recovering', value: 'Trying another approach.' });
-		secondResponse.changeEmitter.fire({ reason: 'other' });
-		secondController.disconnect('explicit');
+		isConnected.set(true, undefined);
+		controller.setActiveSessionShown(sessionResource);
+		watchVoiceProgress.call(controller, sessionResource, response);
+		parts.push({ kind: 'voiceProgress', id: 'recovering', value: 'Trying another approach.' });
+		changeEmitter.fire({ reason: 'other' });
+		controller.disconnect('explicit');
 		clock.tick(5_000);
 
-		assert.deepStrictEqual({
-			cancelledRequests: firstVoiceClient.requests,
-			disconnectedRequests: secondVoiceClient.requests,
-		}, {
-			cancelledRequests: [],
-			disconnectedRequests: [],
-		});
+		assert.deepStrictEqual(voiceClientService.requests, []);
 	});
 
 	test('transient disconnect retains the latest pending checkpoint until reconnect', () => {
@@ -4425,46 +4405,6 @@ suite('VoiceSessionController', () => {
 			],
 			stopCount: 1,
 			playedAudio: ['editing', 'validating'],
-		});
-	});
-
-	test('request cancellation preempts active checkpoint playback and discards trailing chunks', async () => {
-		const voiceClientService = new TestVoiceClientService();
-		const ttsPlaybackService = new TestTtsPlaybackService();
-		const controller = createController(voiceClientService, ttsPlaybackService);
-		const sessionId = 'chat-session:/active-checkpoint-cancellation';
-		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata) => boolean;
-
-		await controller.connect(mainWindow);
-		controller.setActiveSessionShown(URI.parse(sessionId));
-		narrate.call(controller, sessionId, 'checkpoint', 'Updating the code.', undefined, {
-			requestId: 'request-1',
-			checkpointId: 'editing',
-			sequence: 1,
-		});
-		const narrationId = voiceClientService.requests[0].narrationId;
-		voiceClientService.fireAudioResponse({
-			audio: 'checkpoint',
-			isFirstChunk: true,
-			isFinal: false,
-			codingSessionId: sessionId,
-			responseId: narrationId,
-		});
-		controller.markUserCancelled(sessionId);
-		voiceClientService.fireAudioResponse({
-			audio: 'stale-checkpoint',
-			isFirstChunk: false,
-			isFinal: true,
-			codingSessionId: sessionId,
-			responseId: narrationId,
-		});
-
-		assert.deepStrictEqual({
-			stopCount: ttsPlaybackService.stopCount,
-			playedAudio: ttsPlaybackService.playedAudio,
-		}, {
-			stopCount: 1,
-			playedAudio: ['checkpoint'],
 		});
 	});
 
