@@ -16,8 +16,8 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { addDisposableListener, EventType, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { addDisposableListener, EventType, getActiveWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -33,10 +33,36 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { applyZoom, zoomIn, zoomOut } from '../../../../platform/window/electron-browser/window.js';
-import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import { IIssueFormService, IssueReporterData, IssueReporterLayout, issueReporterLayoutSettingId } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
 import { IssueReporterController } from './issueReporterController.js';
 import { localize } from '../../../../nls.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
+import { IScreenshotToolService } from '../../screenshotTool/browser/screenshotTool.js';
+
+/** How long a reporter window gets to take focus before a dialog about its report opens in whichever window has focus. */
+const REPORTER_FOCUS_TIMEOUT = 500;
+
+const REPORTER_WINDOW_WIDTH = 800;
+const REPORTER_WINDOW_HEIGHT = 900;
+
+/**
+ * Places a reporter window at the bottom right of the window it reports on, which keeps that window's center visible.
+ * In a window smaller than the reporter, the reporter starts at that window's top left corner instead, so that it
+ * does not reach above or left of it. The main process moves a window that would leave its display.
+ */
+export function getReporterWindowBounds(sourceWindow: Pick<CodeWindow, 'screenX' | 'screenY' | 'outerWidth' | 'outerHeight'>): IRectangle {
+	return {
+		x: Math.max(sourceWindow.screenX, sourceWindow.screenX + sourceWindow.outerWidth - REPORTER_WINDOW_WIDTH),
+		y: Math.max(sourceWindow.screenY, sourceWindow.screenY + sourceWindow.outerHeight - REPORTER_WINDOW_HEIGHT),
+		width: REPORTER_WINDOW_WIDTH,
+		height: REPORTER_WINDOW_HEIGHT,
+	};
+}
 
 class ReporterWindow extends DisposableStore {
 	readonly ready = new DeferredPromise<void>();
@@ -89,6 +115,8 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
 		this._register(lifecycleService.onBeforeShutdown(event => {
@@ -176,7 +204,18 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			}
 		}
 
-		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data);
+		const layout = this.getReporterLayout();
+		const sourceWindow = getActiveWindow();
+		// The simple layout attaches what the user was looking at, so it is captured before the reporter covers it.
+		const screenshot = layout === 'simple' ? await this.screenshotToolService.captureWindow(sourceWindow, { afterRepaint: true }) : undefined;
+		if (this._store.isDisposed) {
+			return;
+		}
+		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data, layout);
+		if (screenshot) {
+			input.automaticScreenshot = { id: generateUuid(), kind: 'screenshot', screenshot: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height } };
+			input.savedAttachments = [input.automaticScreenshot];
+		}
 		let auxiliaryWindow: IAuxiliaryWindow | undefined;
 		let reporterWindow: ReporterWindow | undefined;
 		try {
@@ -189,7 +228,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			auxiliaryWindow = await this.auxiliaryWindowService.open({
 				mode: AuxiliaryWindowMode.Normal,
 				nativeTitlebar: true,
-				bounds: { width: 800, height: 900 },
+				bounds: getReporterWindowBounds(sourceWindow),
 			});
 			if (this._store.isDisposed) {
 				return;
@@ -209,7 +248,8 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 					return;
 				}
 				if (input.closeHandler.showConfirm()) {
-					event.veto(localize('issueReporterUnsavedChanges', "The issue report has unsaved changes. Confirm whether to discard them to close the window."));
+					// The reporter asks whether to discard the report, so the window must not explain the veto in another dialog.
+					event.vetoSilently();
 					void this.closeReporterWindow(window).catch(error => {
 						this.logService.error('[IssueReporter] Close failed:', error);
 						void this.dialogService.error(localize('issueReporterCloseFailed', "The issue reporter could not be closed. Please try again."))
@@ -258,6 +298,12 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 				auxiliaryWindow?.dispose();
 			}
 		}
+	}
+
+	/** Reads the layout of a new report, after logging the trigger of the experiment that sets it. */
+	private getReporterLayout(): IssueReporterLayout {
+		logSettingExperimentTrigger(this.telemetryService, issueReporterLayoutSettingId);
+		return this.configurationService.getValue<string>(issueReporterLayoutSettingId) === 'simple' ? 'simple' : 'detailed';
 	}
 
 	private registerReporterWindowKeys(window: ReporterWindow): void {
@@ -368,10 +414,34 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 
 	private async doConfirmReporterWindow(window: ReporterWindow): Promise<boolean> {
 		await window.ready.p;
+		if (window.isDisposed || window.input.isDisposed() || !window.input.closeHandler.showConfirm()) {
+			return true;
+		}
+		// Dialogs open in the focused window, so the reporter window takes focus to ask about its report itself.
+		await this.focusReporterWindow(window);
 		if (window.isDisposed || window.input.isDisposed()) {
 			return true;
 		}
-		return !window.input.closeHandler.showConfirm() || await window.input.closeHandler.confirm([]) !== ConfirmResult.CANCEL;
+		return await window.input.closeHandler.confirm([]) !== ConfirmResult.CANCEL;
+	}
+
+	/** Brings a reporter window to the front, and waits until its document has focus, which decides where dialogs open. */
+	private async focusReporterWindow(window: ReporterWindow): Promise<void> {
+		const targetWindow = window.auxiliaryWindow.window;
+		if (targetWindow.document.hasFocus()) {
+			return;
+		}
+		const focused = new DeferredPromise<void>();
+		const listener = addDisposableListener(targetWindow, EventType.FOCUS, () => void focused.complete());
+		try {
+			await this.hostService.focus(targetWindow);
+			await raceTimeout(focused.p, REPORTER_FOCUS_TIMEOUT);
+		} catch (error) {
+			// The dialog still opens, in whichever window has focus.
+			this.logService.error('[IssueReporter] Focusing the reporter window failed:', error);
+		} finally {
+			listener.dispose();
+		}
 	}
 
 	/**

@@ -86,6 +86,21 @@ suite('SettingsChangeRelauncher', () => {
 		assert.deepStrictEqual({ confirmCount, restartCount }, { confirmCount: 1, restartCount: 1 });
 	});
 
+	test('does not prompt to restart when chat.viewSessions.sessionsList.enabled is turned on or off, which applies live', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.viewSessions.sessionsList.enabled',
+			() => ({ chat: { viewSessions: { sessionsList: { enabled: false } } } }),
+			c => c.chat.viewSessions.sessionsList.enabled = true);
+		const turnedOn = { confirmCount, restartCount };
+		await changeSetting(
+			'chat.viewSessions.sessionsList.enabled',
+			() => ({ chat: { viewSessions: { sessionsList: { enabled: true } } } }),
+			c => c.chat.viewSessions.sessionsList.enabled = false);
+
+		assert.deepStrictEqual({ turnedOn, turnedOff: { confirmCount, restartCount } }, { turnedOn: { confirmCount: 0, restartCount: 0 }, turnedOff: { confirmCount: 0, restartCount: 0 } });
+	});
+
 	test('does not prompt to restart when chat.agentHost.codexAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(

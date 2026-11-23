@@ -256,6 +256,11 @@ suite('WorkbenchSizeService', () => {
 			const editor = append(grid, $('.part.editor'));
 			const content = append(editor, $('.content'));
 			const rail = append(grid, $('.part.activitybar.left'));
+			const strokeProbe = append(root, $('div'));
+			strokeProbe.style.borderStyle = 'solid';
+			strokeProbe.style.borderWidth = 'var(--modern-ui-floating-card-stroke-width)';
+			const editorStrokeWidth = parseFloat(getWindow(strokeProbe).getComputedStyle(strokeProbe).borderTopWidth);
+			const contentRadius = `${Math.max(0, radius - editorStrokeWidth)}px`;
 			const read = () => [sidebar, panel, editor, content, rail].map(element => {
 				const css = getWindow(element).getComputedStyle(element);
 				return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius];
@@ -271,7 +276,7 @@ suite('WorkbenchSizeService', () => {
 					['0px', '2px', '2px', '0px'],
 					[`${radius}px`, `${radius}px`, `${radius}px`, `${radius}px`],
 					[`${radius}px`, `${radius}px`, `${radius}px`, `${radius}px`],
-					[`${radius}px`, `${radius}px`, `${radius}px`, `${radius}px`],
+					[contentRadius, contentRadius, contentRadius, contentRadius],
 					['2px', '0px', '0px', '2px'],
 				],
 				compact: Array.from({ length: 5 }, () => ['0px', '0px', '0px', '0px']),

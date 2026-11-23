@@ -118,6 +118,28 @@ suite('XtermTerminal', () => {
 	});
 
 	for (const buffer of ['normal', 'alternate'] as const) {
+		test(`setBufferLineWrapped updates the active ${buffer} buffer`, async () => {
+			xterm.raw.resize(5, 3);
+			if (buffer === 'alternate') {
+				await write('\x1b[?1049h');
+			}
+			await write('12345678901');
+			const before = Array.from({ length: 3 }, (_, lineIndex) => xterm.raw.buffer.active.getLine(lineIndex)?.isWrapped);
+			xterm.setBufferLineWrapped(1, false);
+			const after = Array.from({ length: 3 }, (_, lineIndex) => xterm.raw.buffer.active.getLine(lineIndex)?.isWrapped);
+			deepStrictEqual({
+				activeBuffer: xterm.raw.buffer.active.type,
+				before,
+				after
+			}, {
+				activeBuffer: buffer,
+				before: [false, true, true],
+				after: [false, false, true]
+			});
+		});
+	}
+
+	for (const buffer of ['normal', 'alternate'] as const) {
 		test(`clearBuffer should ${buffer === 'normal' ? 'clear rich and partial command history including scrollback' : 'preserve normal-buffer command history and decorations when clearing the alternate buffer'}`, async () => {
 			class TestTerminal extends XTermBaseCtor {
 				override registerDecoration(options: IDecorationOptions): IDecoration | undefined {

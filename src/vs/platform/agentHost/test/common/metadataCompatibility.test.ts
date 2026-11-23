@@ -13,6 +13,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling, readAgentModelPrici
 import { AgentPermissionRequestKind, readAgentPermissionRequestMeta, withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { readAgentToolOutputDelta, readToolCallMeta, withAgentToolPreferences } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentContextUsage, readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import { readCustomizationTeamProvided, withCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { MessageAttachmentKind, MessageKind, type Message, type ToolDefinition } from '../../common/state/protocol/state.js';
 
 function readerMatrix<T>(name: string, read: (meta: Record<string, unknown> | undefined) => T, absent: T, cases: { name: string; meta: Record<string, unknown>; expected: T }[]): void {
@@ -198,6 +199,25 @@ suite('Metadata compatibility', () => {
 			attachment: { opaque: false, 'copilot.attachmentDetail': attachment },
 			tool: { opaque: 0, 'copilot.toolDefer': 'never', 'copilot.toolAvailability': 'userChats' },
 			noPreference: true,
+		});
+	});
+
+	const teamKey = 'vscode.customizationTeam';
+	readerMatrix('customization Team provenance', meta => readCustomizationTeamProvided({ _meta: meta }), false, [
+		{ name: 'provided', meta: JSON.parse(JSON.stringify(withCustomizationTeamProvided(undefined, true))), expected: true },
+		{ name: 'explicitly not provided', meta: { [teamKey]: false }, expected: false },
+		{ name: 'malformed', meta: { [teamKey]: 'true' }, expected: false },
+	]);
+
+	test('customization Team provenance writer preserves siblings and publishes nothing when there is nothing to say', () => {
+		assert.deepStrictEqual({
+			set: withCustomizationTeamProvided({ opaque: false }, true),
+			cleared: withCustomizationTeamProvided({ opaque: false, [teamKey]: true }, false),
+			nothing: withCustomizationTeamProvided(undefined, undefined),
+		}, {
+			set: { opaque: false, [teamKey]: true },
+			cleared: { opaque: false },
+			nothing: undefined,
 		});
 	});
 });

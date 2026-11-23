@@ -68,6 +68,7 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@anthropic-ai/*'
   - '@github/copilot*'
+  - '@microsoft/copilot-sdk*'
   - '@openai/codex*'
   - '@playwright/*'
   - '@typescript/*'
@@ -81,7 +82,13 @@ minimumReleaseAgeExclude:
 strictDepBuilds: true
 sideEffectsCache: false
 verifyDepsBeforeRun: false
-pmOnFail: ignore
+# Every pnpm command in the repository runs with the pnpm version that `packageManager` in
+# package.json pins: another pnpm downloads it (once, into $PNPM_HOME) and runs the command with
+# it. The first YAML document of each pnpm-lock.yaml locks that version. To update pnpm, change
+# `packageManager` in package.json, build/package.json and remote/package.json, run `pnpm install`
+# in the root, build and remote, and commit the three pnpm-lock.yaml files. build and remote use
+# the same setting.
+pmOnFail: download
 skills:
   dirs: []
 optimisticRepeatInstall: false
@@ -99,7 +106,6 @@ allowBuilds:
   '@vscode/ripgrep@1.17.1': true
   '@vscode/spdlog@0.15.8': true
   '@vscode/sqlite3@5.1.12-vscode': true
-  '@vscode/vsce-sign@2.1.0': true
   '@vscode/windows-ca-certs@0.3.4': true
   '@vscode/windows-mutex@0.5.3': true
   '@vscode/windows-process-tree@0.8.0': true
@@ -132,7 +138,7 @@ overrides:
   yauzl: ^3.3.1
   vscode-css-languageservice>vscode-languageserver-types: 3.18.3
   lodash-es: 4.18.1
-  '@vscode/web-editors@0.0.2-76>@vscode/hubrpc': 0.0.2-20
+  '@vscode/web-editors@0.0.2-150>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar

@@ -32,7 +32,7 @@ import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js'
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
-import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactPartPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactMainPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
@@ -117,6 +117,16 @@ export type IconPathDto =
 	| UriComponents
 	| { light: UriComponents; dark: UriComponents }
 	| ThemeIcon;
+
+export interface IWorkspaceFolderLocationDto {
+	uri: UriComponents;
+	name: string;
+}
+
+export interface IWorkspaceFolderLocationsDto {
+	folder: UriComponents;
+	locations: IWorkspaceFolderLocationDto[];
+}
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -539,6 +549,7 @@ export interface IInlineCompletionChangeHintDto {
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
+	$registerStructuralDiffProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void;
@@ -2017,6 +2028,8 @@ export interface ResourceTrustRequestOptionsDto {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
+	/** Starts resolving, and keeping current, the locations of the workspace folders. */
+	$getWorkspaceFolderLocations(): void;
 	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
@@ -2222,6 +2235,7 @@ export interface SCMArtifactDto {
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
+	$setSourceControlsHidden(changes: [handle: number, isHidden: boolean][]): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void>;
@@ -2400,7 +2414,7 @@ export interface ChatArtifactActionDto extends ArtifactActionDescriptor {
 
 export type ChatArtifactResourceMatchDto =
 	| { readonly kind: 'matched'; readonly resource: UriComponents; readonly key: string; readonly credentialScope: string }
-	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactPartPresentation };
+	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactMainPresentation };
 
 export interface ChatArtifactActionContextDto {
 	readonly runId: string;
@@ -2417,7 +2431,7 @@ export type ChatArtifactRunDto = Pick<ArtifactRun, 'id' | 'actionId' | 'source' 
 
 export interface ChatArtifactAutomationSnapshotDto {
 	readonly revision: number;
-	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants'> & { readonly enabledAt: Readonly<Record<string, number>> };
+	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants' | 'disabledBy'> & { readonly enabledAt: Readonly<Record<string, number>> };
 	readonly state: { readonly revision: number; readonly value?: string };
 	readonly runs: readonly ChatArtifactRunDto[];
 }
@@ -2432,6 +2446,19 @@ export interface ChatArtifactIntegrationProviderMetadataDto {
 	readonly groupLabel?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	readonly canSignIn: boolean;
+}
+
+export interface RemoteAgentHostDto {
+	readonly extensionId: string;
+	readonly extensionDisplayName: string;
+	readonly name: string;
+	readonly address: string;
+	readonly connectionToken?: string;
+}
+
+export interface MainThreadRemoteAgentHostsShape extends IDisposable {
+	$registerRemoteAgentHost(handle: number, host: RemoteAgentHostDto): void;
+	$unregisterRemoteAgentHost(handle: number): void;
 }
 
 export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
@@ -2639,6 +2666,7 @@ export interface ExtHostTreeViewsShape {
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
+	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
 	$onDidChangeWorkspaceTrustedFolders(): void;
@@ -3084,6 +3112,7 @@ export interface IDocumentDropEditDto {
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<languages.DocumentSymbol[] | undefined>;
+	$provideStructuralDiff(handle: number, originalResource: UriComponents, originalVersion: number, modifiedResource: UriComponents, modifiedVersion: number, context: languages.StructuralDiffContext, token: CancellationToken): Promise<languages.StructuralDiff | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
 	$resolveCodeLens(handle: number, symbol: ICodeLensDto, token: CancellationToken): Promise<ICodeLensDto | undefined>;
 	$releaseCodeLenses(handle: number, id: number): void;
@@ -4346,6 +4375,7 @@ export const MainContext = {
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
 	MainThreadChatDebug: createProxyIdentifier<MainThreadChatDebugShape>('MainThreadChatDebug'),
 	MainThreadBrowsers: createProxyIdentifier<MainThreadBrowsersShape>('MainThreadBrowsers'),
+	MainThreadRemoteAgentHosts: createProxyIdentifier<MainThreadRemoteAgentHostsShape>('MainThreadRemoteAgentHosts'),
 };
 
 export const ExtHostContext = {

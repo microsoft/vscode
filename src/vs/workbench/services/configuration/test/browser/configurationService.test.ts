@@ -60,7 +60,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { ExperimentalSettingsService } from '../../common/experimentalSettings.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 
 suite('ConfigurationDefaultOverridesContribution', () => {
 
@@ -1085,12 +1085,13 @@ suite('WorkspaceContextService - Folder', () => {
 
 	const folderName = 'Folder A';
 	let folder: URI;
+	let folderFileService: FileService;
 	let testObject: WorkspaceService;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		const logService = new NullLogService();
-		const fileService = disposables.add(new FileService(logService));
+		const fileService = folderFileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
@@ -1216,6 +1217,132 @@ suite('WorkspaceContextService - Folder', () => {
 	});
 
 	test('workspace is complete', () => testObject.getCompleteWorkspace());
+
+	test('a window started at a persisted alternate location keeps the opened folder as uri', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+
+		const alternate = joinPath(ROOT, 'Alternate');
+		await fileService.createFolder(folder);
+
+		const environmentService = TestEnvironmentService;
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		const userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		const restored = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			userDataProfileService,
+			userDataProfilesService,
+			fileService,
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			uriIdentityService,
+			new NullLogService(),
+			new NullPolicyService()));
+		await restored.initialize(convertToWorkspacePayload(folder), alternate);
+
+		const workspace = restored.getWorkspace();
+		assert.deepStrictEqual(
+			{ id: workspace.id, folder: workspace.folders[0].uri.toString(), uri: workspace.uri, isCurrent: restored.isCurrentWorkspace(folder) },
+			{ id: convertToWorkspacePayload(folder).id, folder: alternate.toString(), uri: folder, isCurrent: true });
+	}));
+
+	test('uri is the opened folder and survives a switch to an alternate location', async () => {
+		const initial = testObject.getWorkspace();
+		const opened = { uri: initial.uri, folder: initial.folders[0].uri.toString() };
+
+		const alternate = joinPath(ROOT, 'Alternate');
+		await testObject.setFolderLocation(alternate);
+		const restored = testObject.getWorkspace();
+
+		assert.deepStrictEqual(
+			{ opened, restored: { uri: restored.uri, folder: restored.folders[0].uri.toString(), isCurrent: testObject.isCurrentWorkspace(folder) } },
+			{ opened: { uri: folder, folder: folder.toString() }, restored: { uri: folder, folder: alternate.toString(), isCurrent: true } });
+	});
+
+	test('setFolderLocation() loads the destination with its own trust, never applying restricted settings of an untrusted destination', async () => {
+		const settingKey = 'configurationService.folder.restrictedSetting';
+		const alternate = joinPath(ROOT, 'Alternate');
+		await folderFileService.writeFile(joinPath(alternate, '.vscode', 'settings.json'), VSBuffer.fromString(`{ "${settingKey}": "alternateValue" }`));
+		await folderFileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString(`{ "${settingKey}": "primaryValue" }`));
+		await testObject.reloadConfiguration();
+		testObject.updateWorkspaceTrust(true);
+
+		const published: unknown[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(() => published.push(testObject.getValue(settingKey, { resource: testObject.getWorkspace().folders[0].uri }))));
+		let unflagged = 0;
+		disposables.add(testObject.onWillChangeWorkspaceFolders(e => { if (!e.isFolderLocationChange) { unflagged++; } }));
+
+		await testObject.setFolderLocation(alternate, { trusted: false });
+		const untrusted = testObject.getValue(settingKey, { resource: alternate });
+		await testObject.setFolderLocation(folder, { trusted: true });
+		await testObject.setFolderLocation(alternate, { trusted: true });
+		const trusted = testObject.getValue(settingKey, { resource: alternate });
+
+		assert.deepStrictEqual({ untrusted, trusted, published, unflagged }, { untrusted: undefined, trusted: 'alternateValue', published: [undefined, 'primaryValue', 'alternateValue'], unflagged: 0 });
+	});
+
+	test('setFolderLocation() skips a queued switch that became stale while an earlier edit was running', async () => {
+		const first = joinPath(ROOT, 'Alternate');
+		const second = joinPath(ROOT, 'Alternate2');
+		const hold = new DeferredPromise<void>();
+		let held = false;
+		disposables.add(testObject.onWillChangeWorkspaceFolders(e => { if (!held) { held = true; e.join(hold.p); } }));
+		const folders: string[] = [];
+		disposables.add(testObject.onDidChangeWorkspaceFolders(() => folders.push(testObject.getWorkspace().folders[0].uri.toString())));
+
+		let stale = false;
+		const holder = testObject.setFolderLocation(first);
+		const queued = testObject.setFolderLocation(second, { isCurrent: () => !stale });
+		stale = true;
+		hold.complete();
+		const applied = [await holder, await queued];
+
+		assert.deepStrictEqual({ applied, folders }, { applied: [true, false], folders: [first.toString()] });
+	});
+
+	test('setFolderLocation() reports a failing onApplied callback and still applies the switch', async () => {
+		const first = joinPath(ROOT, 'Alternate');
+		const second = joinPath(ROOT, 'Alternate2');
+		const errors: unknown[] = [];
+		const previous = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(e => errors.push(e));
+		disposables.add(toDisposable(() => setUnexpectedErrorHandler(previous)));
+		const failure = new Error('onApplied failed');
+
+		const applied = await testObject.setFolderLocation(first, { onApplied: () => { throw failure; } });
+		const next = await testObject.setFolderLocation(second);
+
+		assert.deepStrictEqual(
+			{ applied, next, folder: testObject.getWorkspace().folders[0].uri.toString(), errors },
+			{ applied: true, next: true, folder: second.toString(), errors: [failure] });
+	});
+
+	test('setFolderLocation() switches the folder and keeps the identity', async () => {
+		const alternate = joinPath(ROOT, 'Alternate');
+		const workspaceId = testObject.getWorkspace().id;
+		const target = sinon.spy();
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+
+		await testObject.setFolderLocation(alternate);
+
+		const actual = testObject.getWorkspace();
+		assert.deepStrictEqual(
+			{ id: actual.id, folder: actual.folders[0].uri.toString(), uri: actual.uri, name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ id: workspaceId, folder: alternate.toString(), uri: folder, name: folderName, events: 1, isCurrent: true });
+
+		const second = joinPath(ROOT, 'Alternate2');
+		await testObject.setFolderLocation(second);
+		await testObject.setFolderLocation(folder);
+
+		const restored = testObject.getWorkspace();
+		assert.deepStrictEqual(
+			{ folder: restored.folders[0].uri.toString(), uri: restored.uri, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ folder: folder.toString(), uri: folder, events: 3, isCurrent: true });
+	});
 });
 
 suite('WorkspaceContextService - Workspace', () => {
@@ -1853,6 +1980,20 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		workspaceService.acquireInstantiationService(instantiationService);
+	});
+
+	test('setFolderLocation() keeps memory settings', async () => {
+		const folder = testObject.getWorkspace().folders[0].uri;
+		const resource = joinPath(folder, 'a.txt');
+		await testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
+		await testObject.updateValue('configurationService.folder.testSetting', 'memoryResourceValue', { resource }, ConfigurationTarget.MEMORY);
+
+		await testObject.setFolderLocation(joinPath(ROOT, 'alternate'));
+		await testObject.setFolderLocation(folder);
+
+		assert.deepStrictEqual(
+			{ global: testObject.getValue('configurationService.folder.testSetting'), resource: testObject.getValue('configurationService.folder.testSetting', { resource }) },
+			{ global: 'memoryValue', resource: 'memoryResourceValue' });
 	});
 
 	test('defaults', () => {

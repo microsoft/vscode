@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -19,7 +21,11 @@ suite('ChatReadOnlyBanner', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
-		return store.add(instantiation.createInstance(ChatReadOnlyBanner, undefined));
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner));
+		mainWindow.document.body.appendChild(banner.domNode);
+		store.add(toDisposable(() => banner.domNode.remove()));
+		banner.setVisible(true);
+		return banner;
 	}
 
 	test('a pending refresh cannot block or re-enable another action after switching chats', async () => {
@@ -27,9 +33,9 @@ suite('ChatReadOnlyBanner', () => {
 		const refresh = new DeferredPromise<void>();
 		const migration = new DeferredPromise<void>();
 		const calls: string[] = [];
-		banner.setAction({ label: 'Refresh', run: () => { calls.push('refresh'); return refresh.p; } });
+		banner.setContent({ message: 'Couldn\'t refresh', action: { label: 'Refresh', run: () => { calls.push('refresh'); return refresh.p; } } });
 		const refreshing = banner.runAction();
-		banner.setAction({ label: 'Move to Copilot', run: () => { calls.push('migration'); return migration.p; } });
+		banner.setContent({ message: 'Read-only', action: { label: 'Move to Copilot', run: () => { calls.push('migration'); return migration.p; } } });
 		const enabledOnSwitch = banner.domNode.querySelector('a')!.getAttribute('aria-disabled');
 		const migrating = banner.runAction();
 		await refresh.complete();
@@ -42,19 +48,52 @@ suite('ChatReadOnlyBanner', () => {
 		});
 	});
 
-	test('repeated updates do not re-enable or announce a running Refresh action', async () => {
+	test('Refresh is keyboard accessible, coalesces repeated activations and preserves focus and announcements', async () => {
 		const banner = createBanner();
 		const pending = new DeferredPromise<void>();
 		let calls = 0;
-		const action = { label: 'Refresh', run: () => { calls++; return pending.p; } };
-		banner.setAction(action);
-		const node = banner.domNode.querySelector('a')!.firstChild;
-		const refreshing = banner.runAction();
-		banner.setAction(action);
+		const content = {
+			message: 'Couldn\'t refresh this conversation. Recent messages may be missing.',
+			action: { label: 'Refresh', run: () => { calls++; return pending.p; } },
+		};
+		banner.setContent(content);
+		const link = banner.domNode.querySelector<HTMLElement>('.chat-readonly-banner-action .monaco-link')!;
+		const announcement = banner.domNode.querySelector('.chat-readonly-banner-announcement')!.firstChild;
+		const labelNode = link.firstChild;
+		link.focus();
+		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		banner.setContent(content);
+		link.click();
 		await banner.runAction();
-		const running = { calls, disabled: banner.domNode.querySelector('a')!.getAttribute('aria-disabled'), sameNode: banner.domNode.querySelector('a')!.firstChild === node };
+		const running = { calls, disabled: link.getAttribute('aria-disabled'), focused: mainWindow.document.activeElement === link, sameLabel: link.firstChild === labelNode };
 		await pending.complete();
-		await refreshing;
-		assert.deepStrictEqual(running, { calls: 1, disabled: 'true', sameNode: true });
+		await timeout(0);
+		assert.deepStrictEqual({
+			running, enabled: link.getAttribute('aria-disabled'), role: banner.domNode.getAttribute('role'),
+			sameAnnouncement: banner.domNode.querySelector('.chat-readonly-banner-announcement')!.firstChild === announcement,
+			visibleActions: banner.domNode.querySelectorAll('.chat-readonly-banner-action:not([hidden])').length,
+		}, {
+			running: { calls: 1, disabled: 'true', focused: true, sameLabel: true }, enabled: 'false', role: 'status',
+			sameAnnouncement: true, visibleActions: 1,
+		});
+	});
+
+	test('keeps archive recovery available beside Refresh and safely disposes a pending action', async () => {
+		const banner = createBanner();
+		const pending = new DeferredPromise<void>();
+		let restores = 0;
+		banner.setContent({
+			message: 'Recent messages may be missing. Archived sessions are read-only.',
+			action: { label: 'Refresh', run: () => pending.p },
+			secondaryAction: { label: 'Restore', run: () => { restores++; } },
+		});
+		const links = [...banner.domNode.querySelectorAll<HTMLAnchorElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')];
+		links[0].click();
+		links[1].click();
+		const actions = links.map(link => link.textContent);
+		banner.dispose();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ actions, restores }, { actions: ['Refresh', 'Restore'], restores: 1 });
 	});
 });

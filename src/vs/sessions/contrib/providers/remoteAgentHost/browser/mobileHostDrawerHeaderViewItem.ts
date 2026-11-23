@@ -20,13 +20,7 @@ import { describeComputerStatus, MobileHostPickerSheet } from './mobileHostPicke
 
 const $ = dom.$;
 
-/**
- * The row at the top of the phone sessions drawer that names the place the
- * list is scoped to — "Cloud · GitHub Sandboxes", or one of the user's
- * computers with its connection state — and opens the
- * {@link MobileHostPickerSheet} on tap. Living in the drawer makes switching
- * reachable from an open session, where the title bar belongs to the session.
- */
+/** Shows where sessions run and opens the host picker from the phone drawer. */
 export class MobileHostDrawerHeaderViewItem extends BaseActionViewItem {
 
 	private readonly _sheet: MobileHostPickerSheet;
@@ -53,7 +47,7 @@ export class MobileHostDrawerHeaderViewItem extends BaseActionViewItem {
 		}
 		this.element.classList.add('host-drawer-header');
 
-		const button = this._row = dom.append(this.element, $('button.host-drawer-header-row', { type: 'button' })) as HTMLButtonElement;
+		const button = this._row = dom.append(this.element, $('button.host-drawer-header-row.agent-sessions-interactive.agent-sessions-interactive-list', { type: 'button' })) as HTMLButtonElement;
 		button.setAttribute('aria-haspopup', 'dialog');
 		this._tile = dom.append(button, $('span.host-drawer-header-tile'));
 		const text = dom.append(button, $('span.host-drawer-header-text'));
@@ -110,7 +104,9 @@ export class MobileHostDrawerHeaderViewItem extends BaseActionViewItem {
 			this._tile.append(...renderLabelWithIcons(`$(${selected.icon.id})`));
 			this._title.textContent = selected.label;
 			this._subtitle.textContent = selected.description ?? '';
-			row.setAttribute('aria-label', localize('hostDrawer.place.aria', "Sessions run in {0}, {1}. Change where sessions run.", selected.label, selected.description ?? ''));
+			row.setAttribute('aria-label', selected.description
+				? localize('hostDrawer.place.aria', "Sessions run in {0}, {1}. Change where sessions run.", selected.label, selected.description)
+				: localize('hostDrawer.place.short.aria', "Sessions run in {0}. Change where sessions run.", selected.label));
 			return;
 		}
 

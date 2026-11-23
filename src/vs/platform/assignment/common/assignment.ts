@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
 import type { IExperimentationFilterProvider } from 'tas-client';
+import { COPILOT_INTEGRATION_ID } from '../../endpoint/common/licenseAgreement.js';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -190,10 +191,10 @@ function formatReleaseDate(iso: string): string {
 
 /**
  * userParam names for the new TAS assignments API (POST /api/v1/assignments), emitted by
- * {@link VSCodeCoreAssignmentsFilterProvider}. These replace the legacy header keys and
- * are sent only to the new endpoint.
+ * {@link VSCodeCoreAssignmentsFilterProvider}. These are sent only in the new endpoint's JSON body.
  */
 export enum AssignmentsFilters {
+	IntegratorId = 'integratorid',
 	ApplicationVersion = 'vscode_core_appversion',
 	Build = 'vscode_core_build',
 	DeveloperDeviceId = 'devdeviceid',
@@ -206,8 +207,7 @@ export enum AssignmentsFilters {
 }
 
 /**
- * Emits the generic VS Code core filters for the new TAS assignments API using the new
- * userParam key names, so the assignments endpoint never receives the legacy header keys.
+ * Emits the shared integrator and VS Code core userParams for the new TAS assignments API.
  */
 export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilterProvider {
 	constructor(
@@ -221,6 +221,8 @@ export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilt
 
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
+			case AssignmentsFilters.IntegratorId:
+				return COPILOT_INTEGRATION_ID;
 			case AssignmentsFilters.ApplicationVersion:
 				return trimVersionSuffix(this.version);
 			case AssignmentsFilters.Build:

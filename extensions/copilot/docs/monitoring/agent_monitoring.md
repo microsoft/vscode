@@ -497,7 +497,7 @@ These metrics track activity and outcomes reported through the Copilot Chat exte
 
 **`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`)
 
-**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`createPullRequest`/`sessionActivated`), `success`
+**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`followUp`/`createPullRequest`), `success`
 
 **`copilot_chat.cloud.operation.duration` attributes:** `operation`
 

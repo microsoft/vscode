@@ -133,6 +133,15 @@ export function isSessionCreated(session: Pick<ISession, 'status'> | undefined, 
 }
 
 /**
+ * Whether `session` is archived and its provider has confirmed the archive. Consumers that discard state of an archived
+ * session, such as its group membership, pins or terminals, use this rather than {@link ISession.isArchived}: a provider
+ * can show a session as archived before its host confirms the archive, and restores the session when the host rejects it.
+ */
+export function isSessionArchiveConfirmed(session: Pick<ISession, 'isArchived' | 'archivePending'>, reader?: IReader): boolean {
+	return session.isArchived.read(reader) && !session.archivePending?.read(reader);
+}
+
+/**
  * Whether `chat` of `session` is a workspace-less quick chat, or, without a chat, whether `session` is a quick chat. A chat
  * of a quick chat that works in a folder of its own is not: the UI of the conversation that shows it treats it as a chat of
  * a workspace session.
@@ -203,6 +212,8 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
+	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	readonly baseBranchFullName?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
 	/** Whether the repository has any Git remote. */
@@ -609,6 +620,18 @@ export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
 export const SESSION_CHANGES_CHANGESET_ID = 'session';
 
 /**
+ * The default changeset of a nested chat. One working in its session's main chat's primary working directory
+ * shares that checkout, so it shows its own Session Changes; one working elsewhere (another worktree or
+ * repository) shows the Branch Changes of its own folder.
+ */
+export function getNestedChatDefaultChangesetId(chatWorkspace: ISessionWorkspace | undefined, mainChatWorkspace: ISessionWorkspace | undefined): typeof BRANCH_CHANGES_CHANGESET_ID | typeof SESSION_CHANGES_CHANGESET_ID {
+	const workingDirectory = chatWorkspace?.folders[0]?.workingDirectory;
+	return workingDirectory && !isEqual(workingDirectory, mainChatWorkspace?.folders[0]?.workingDirectory)
+		? BRANCH_CHANGES_CHANGESET_ID
+		: SESSION_CHANGES_CHANGESET_ID;
+}
+
+/**
  * Well-known id of the changeset that holds the diff made during the session's
  * **last turn** only (as opposed to the cumulative session diff). Consumers that
  * want to reflect just the most recent turn — e.g. the chat input status pills —
@@ -798,6 +821,8 @@ export interface ISessionCanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as its host sends it, a PNG data URI. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
 }
 
@@ -836,6 +861,11 @@ export interface IChat {
 
 	/** The effective workspace available to this chat. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/**
+	 * The working directories the chat sets itself, in place of its session's: the folders of its {@link workspace} are then
+	 * its own. `undefined` or empty while it works in its session's folders. Providers that cannot tell omit the observable.
+	 */
+	readonly ownWorkingDirectories?: IObservable<readonly URI[] | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */
@@ -1012,6 +1042,8 @@ export interface ISession {
 	readonly isQuickChat?: IObservable<boolean>;
 	/** Whether this session is associated with an automation run. Absent means `false`. */
 	readonly isAutomation?: IObservable<boolean>;
+	/** Whether the automation dispatched a user-authored scheduled chat, which is listed like an ordinary session. */
+	readonly isScheduledChat?: IObservable<boolean>;
 	/** Whether this session is still treated as external to the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
 	/** Connection state of the backing remote host. Absent when the session has no remote host. */
@@ -1056,6 +1088,12 @@ export interface ISession {
 	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
+	/**
+	 * Whether {@link isArchived} shows an archive that the provider's host has not confirmed yet. The provider restores the
+	 * session if the host rejects it, so use {@link isSessionArchiveConfirmed} before discarding the session's state. Absent
+	 * means `false`.
+	 */
+	readonly archivePending?: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
 	/** Status description shown while the session is active (e.g., current agent action). */
@@ -1140,8 +1178,9 @@ export interface ISessionCapabilities {
 	/**
 	 * Whether this session supports creating a side chat from a turn (via
 	 * `/btw`). Side chats inherit the source chat's model/agent and are shown
-	 * as ordinary peer chats in the session's standard chat tabs. Defaults to
-	 * falsy (no side chat) when omitted.
+	 * as ordinary peer chats in the session's standard chat tabs, or as tabs of
+	 * the Agents window's side pane while `sessions.experimental.sideChatsInSidePane`
+	 * is on. Defaults to falsy (no side chat) when omitted.
 	 */
 	readonly supportsSideChat?: boolean;
 	/**
@@ -1193,6 +1232,11 @@ export function getUntitledSessionTitle(isQuickChat: boolean): string {
 		: localize('agentSessions.newSession', "New Session");
 }
 
+export interface ISessionWorkspaceBrowseOptions {
+	readonly recentFolders: readonly URI[];
+	readonly token: CancellationToken;
+}
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
@@ -1222,7 +1266,7 @@ export interface ISessionWorkspaceBrowseAction {
 	 * if cancelled. The current execution workspace is provided so context
 	 * pickers can scope results to its repository.
 	 */
-	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
+	run(currentWorkspace?: ISessionWorkspace, options?: ISessionWorkspaceBrowseOptions): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
@@ -1399,6 +1443,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchFullName === b.baseBranchFullName
 		&& a.baseBranchProtected === b.baseBranchProtected
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote

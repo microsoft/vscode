@@ -34,7 +34,8 @@
 		// `` `${outDir}/vs/platform/protocol/electron-main/protocolMainService.js` ``: a change that
 		// reaches one of them runs every unit test.
 		"runners": [
-			"test/unit/**/*.js"
+			"test/unit/**/*.js",
+			"test/unit/**/*.ts"
 		]
 	},
 

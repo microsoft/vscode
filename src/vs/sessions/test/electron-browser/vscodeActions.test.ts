@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable, isFolderToOpen } from '../../../platform/window/common/window.js';
 import { constObservable } from '../../../base/common/observable.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
 import { IChat, ISession, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
@@ -20,7 +21,6 @@ import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LabelService } from '../../../workbench/services/label/common/labelService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,6 +28,7 @@ import { IAgentHostConnectionsService } from '../../../platform/agentHost/common
 import { remoteAgentHostSessionTypeId } from '../../../platform/agentHost/common/agentHostSessionType.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { PathStyle } from '../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { ISSHAgentHostConnection, ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TunnelGatewayServerType } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 
@@ -247,14 +248,15 @@ suite('VS Code Actions', () => {
 		[{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' }, 'editor', undefined],
 		[{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' }, undefined, undefined],
 		[{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' }, undefined, undefined],
+		[{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:environment', environmentId: 'environment', volume: { volumeName: 'ubuntu', folder: 'ubuntu' }, hostAuthority: 'ssh-remote+build' }, undefined, undefined],
 	] satisfies [IRemoteAgentHostEntry['connection'], TunnelGatewayServerType | undefined, RemoteAgentHostLocationPreference | undefined][]) {
-		test(`preserves supported ${connection.type} workspace and hands off chats from shared hosts (${selectedServerType ?? 'unspecified'}, ${preference ?? 'no preference'})`, async () => {
+		test(`preserves supported ${connection.type}${hasKey(connection, { environmentId: true }) ? ' environment' : ''} workspace and hands off chats from shared hosts (${selectedServerType ?? 'unspecified'}, ${preference ?? 'no preference'})`, async () => {
 			const calls: { folders?: { uri: URI; label: string | undefined }[]; options?: IOpenWindowOptions }[] = [];
 			const entry: IRemoteAgentHostEntry = { name: 'Remote host', connection };
 			const address = getEntryAddress(entry);
 			const folder = toAgentHostUri(URI.file('/remote/project'), agentHostAuthority(address));
 			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: address });
-			const formatter = agentHostLabelFormatter(folder.authority, OperatingSystem.Linux);
+			const formatter = agentHostLabelFormatter(folder.authority, PathStyle.Posix);
 			disposables.add(labelService.registerFormatter({
 				...formatter,
 				formatting: { ...formatter.formatting, workspaceSuffix: entry.name },
@@ -296,7 +298,7 @@ suite('VS Code Actions', () => {
 		const calls: { uri: URI; label: string | undefined; title: string | undefined }[][] = [];
 		const authority = agentHostAuthority('test:host');
 		const folders = ['/c:/remote/project', '/d:/other/repository'].map(path => toAgentHostUri(URI.from({ scheme: 'file', path }), authority));
-		const formatter = agentHostLabelFormatter(authority, OperatingSystem.Windows);
+		const formatter = agentHostLabelFormatter(authority, PathStyle.Windows);
 		disposables.add(labelService.registerFormatter({
 			...formatter,
 			formatting: { ...formatter.formatting, workspaceSuffix: 'Windows dev box' },

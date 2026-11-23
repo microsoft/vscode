@@ -16,6 +16,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -30,6 +31,7 @@ import { enumerateLocalCustomizationsForHarness } from '../../../../../workbench
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ICustomizationSyncProvider } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsConfig } from '../../../../../workbench/contrib/chat/common/promptSyntax/config/config.js';
@@ -44,6 +46,7 @@ import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import '../../browser/chatBackground.contribution.js';
 
 const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING];
@@ -56,6 +59,8 @@ suite('Sessions - Appearance tools', () => {
 			[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: enabled,
 			[ChatConfiguration.HtmlPreviewEnabled]: htmlPreviewEnabled,
 			[PromptsConfig.USE_AGENT_SKILLS]: true,
+			[DevContainerAgentHostEnabledSettingId]: true,
+			[RemoteAgentHostsEnabledSettingId]: true,
 		});
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const files = disposables.add(new FileService(new NullLogService()));
@@ -92,7 +97,7 @@ suite('Sessions - Appearance tools', () => {
 			findAgentSkills: async () => localSkills,
 		});
 		await Promise.all([
-			...['automate', 'commit', 'generate-chat-background', 'html-preview'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
+			...['automate', 'commit', 'dev-container-handoff', 'generate-chat-background', 'html-preview', 'vscode-ui'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
 			...localSkills.map(skill => ({ name: skill.name, uri: skill.uri })),
 		].map(({ name, uri }) => files.writeFile(uri, VSBuffer.fromString(`---\nname: ${name}\ndescription: A test skill.\n---\nTest instructions.`))));
 
@@ -136,6 +141,28 @@ suite('Sessions - Appearance tools', () => {
 			})));
 		});
 	}
+
+	test('the vscode-ui skill is offered only where native components render, following their setting and AI enablement', async () => {
+		const fixture = await setup(false, undefined, true);
+		const visible = async () => Object.fromEntries(Object.entries(await fixture.snapshot()).map(([key, names]) => [key, names?.includes('vscode-ui') === true]));
+		await fixture.setSetting(ChatConfiguration.NativeComponentsEnabled, true);
+		// An entry without the renderer, such as the phone bundle, would show the skill's blocks as source.
+		const snapshots = [await visible()];
+		disposables.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		for (const [setting, value] of [
+			[ChatConfiguration.NativeComponentsEnabled, false],
+			[ChatConfiguration.NativeComponentsEnabled, true],
+			[ChatConfiguration.HtmlPreviewEnabled, false],
+			[ChatAIDisabledSettingId, true],
+			[ChatAIDisabledSettingId, false],
+		] as const) {
+			await fixture.setSetting(setting, value);
+			snapshots.push(await visible());
+		}
+		assert.deepStrictEqual(snapshots, [false, false, true, true, false, true].map(offered => ({
+			skills: offered, slashCommands: offered, allFiles: offered, builtinFiles: offered, forwarded: offered,
+		})));
+	});
 
 	for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
 		test(`an html-preview ${storage} override takes precedence without being removed by the rendering setting`, async () => {
@@ -183,6 +210,24 @@ suite('Sessions - Appearance tools', () => {
 			enabled: { skills: true, slashCommands: true, allFiles: true, builtinFiles: true, forwarded: true },
 			aiDisabled: { skills: false, slashCommands: false, allFiles: false, builtinFiles: false, forwarded: false },
 		});
+	});
+
+	test('the dev-container-handoff skill follows its setting, Dev Container environment and AI enablement across discovery, slash commands, and harness sync', async () => {
+		const fixture = await setup(false);
+		// One value per step when all discovery surfaces agree.
+		const visible = async () => [...new Set(Object.values(await fixture.snapshot()).map(names => names?.includes('dev-container-handoff') === true))];
+		const snapshots = [await visible()];
+		await fixture.setSetting(DevContainerHandoffEnabledSettingId, true);
+		snapshots.push(await visible());
+		await fixture.setSetting(DevContainerEnvironmentsEnabledSettingId, true);
+		snapshots.push(await visible());
+		await fixture.setSetting(ChatAIDisabledSettingId, true);
+		snapshots.push(await visible());
+		await fixture.setSetting(ChatAIDisabledSettingId, false);
+		snapshots.push(await visible());
+		await fixture.setSetting(DevContainerAgentHostEnabledSettingId, false);
+		snapshots.push(await visible());
+		assert.deepStrictEqual(snapshots, [[false], [false], [true], [false], [true], [false]]);
 	});
 
 	test('is advanced, experiment-controlled, and disabled by default', () => {

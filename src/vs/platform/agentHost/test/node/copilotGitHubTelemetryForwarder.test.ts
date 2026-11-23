@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
+import type { GitHubTelemetryNotification } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotGitHubTelemetryForwarder } from '../../node/copilot/copilotGitHubTelemetryForwarder.js';
 
 class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | undefined> {
@@ -26,6 +27,27 @@ class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | un
 
 suite('CopilotGitHubTelemetryForwarder', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('enriches response and late bridge with host lineage and rejects runtime-provided lineage', () => {
+		const telemetry = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetry);
+		const notification: GitHubTelemetryNotification = {
+			sessionId: 'sdk', restricted: false,
+			event: { kind: 'response.success', properties: { originalTurnId: 'forged', steeredFromTurn: 'forged', interaction_id: 'interaction' }, metrics: {} },
+		};
+		forwarder.forward(notification, 'b', { ahCorrelationOutcome: 'mappingAvailable', originalTurnId: 'a', steeredFromTurn: 'a' });
+		forwarder.forward(notification, undefined, { ahCorrelationOutcome: 'waitExpired' });
+		forwarder.recordModelCallTurnCorrelation('sdk', 'call', 'b', 'late', {
+			sdkSessionId: 'sdk', originalTurnId: 'a', steeredFromTurn: 'a', interactionIds: ['interaction'], interactionIdsTruncated: false,
+		});
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			event: event.eventName, turn: event.data?.turnId, original: event.data?.originalTurnId, from: event.data?.steeredFromTurn,
+		})), [
+			{ event: 'copilotSdk/response.success', turn: 'b', original: 'a', from: 'a' },
+			{ event: 'copilotSdk/response.success', turn: undefined, original: undefined, from: undefined },
+			{ event: 'agentHost.modelCallTurnCorrelated', turn: 'b', original: 'a', from: 'a' },
+		]);
+	});
 
 	test('forwards a standard event to VS Code telemetry', () => {
 		const telemetryService = new TestTelemetryService();
@@ -73,6 +95,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				copilot_tracking_id: 'tracking-id',
 				kind: 'tool_call_executed',
 				restricted: false,
+				initiatorClientType: 'unknown',
 				'feature.featureA': 'enabled',
 			},
 		}]);
@@ -159,6 +182,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				copilot_tracking_id: undefined,
 				kind: 'extension_startup',
 				restricted: false,
+				initiatorClientType: 'unknown',
 			},
 		}]);
 	});
@@ -191,6 +215,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				copilot_tracking_id: undefined,
 				kind: 'extension_startup',
 				restricted: false,
+				initiatorClientType: 'unknown',
 			},
 		})));
 	});
@@ -300,6 +325,30 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		]);
 	});
 
+	test('stamps the initiating client type on every forwarded kind instead of a runtime value', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+		const notification = (kind: string): GitHubTelemetryNotification => ({
+			sessionId: 'sdk-session',
+			restricted: false,
+			event: { kind, properties: { initiatorClientType: 'runtime-value' }, metrics: {} },
+		});
+		const turnScopedKinds = ['response.success', 'response.error', 'tool_call_executed', 'model_call_cancelled', 'hydrafusion_route'];
+		for (const kind of turnScopedKinds) {
+			forwarder.forward(notification(kind), 'host-turn', undefined, undefined, AgentHostClientType.AgentsWindow);
+		}
+		forwarder.forwardCompaction(notification('session_compaction_complete'), { turnId: 'host-turn', outcome: 'mappingAvailable' }, undefined, AgentHostClientType.EditorWindow);
+		forwarder.forward(notification('extension_startup'));
+		forwarder.forwardCompaction(notification('session_compaction_start'), { turnId: undefined, outcome: 'noOwningTurn' });
+
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({ eventName, initiatorClientType: data?.initiatorClientType })), [
+			...turnScopedKinds.map(kind => ({ eventName: `copilotSdk/${kind}`, initiatorClientType: 'agents_window' })),
+			{ eventName: 'copilotSdk/session_compaction_complete', initiatorClientType: 'editor_window' },
+			{ eventName: 'copilotSdk/extension_startup', initiatorClientType: 'unknown' },
+			{ eventName: 'copilotSdk/session_compaction_start', initiatorClientType: 'unknown' },
+		]);
+	});
+
 	test('drops restricted usage copies from generic telemetry instead of double counting standard metrics', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
@@ -337,6 +386,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				copilot_tracking_id: undefined,
 				kind: 'assistant_usage',
 				restricted: false,
+				initiatorClientType: 'unknown',
 			},
 		}]);
 	});
@@ -458,6 +508,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 					copilot_tracking_id: undefined,
 					kind: 'tgrep_startup',
 					restricted: false,
+					initiatorClientType: 'unknown',
 				},
 			},
 			{
@@ -475,6 +526,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 					copilot_tracking_id: undefined,
 					kind: 'tgrep_incremental_indexing',
 					restricted: false,
+					initiatorClientType: 'unknown',
 				},
 			},
 		]);

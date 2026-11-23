@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { suite, suiteSetup, test } from 'mocha';
+import { before, suite, test } from 'node:test';
 import { createMatcher, createSchemaClient, RequestOptions } from './schemaRequestTestUtils';
 
 const disguisedHost = 'https://attacker.example%5Cfake.trusted.example/schema.json';
@@ -12,7 +12,7 @@ const encodedSeparators = ['%252F', '%252f'];
 
 suite('JSON schema URL matching', () => {
 	let matches: Awaited<ReturnType<typeof createMatcher>>;
-	suiteSetup(async () => { matches = await createMatcher(); });
+	before(async () => { matches = await createMatcher(); });
 
 	test('regression: a decoded backslash cannot grant a scoped wildcard domain allowance', () => {
 		assert.strictEqual(matches(disguisedHost, { 'https://*.trusted.example': true }), false);

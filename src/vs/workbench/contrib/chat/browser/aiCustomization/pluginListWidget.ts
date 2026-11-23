@@ -12,12 +12,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
@@ -37,7 +37,8 @@ import { ContributionEnablementState, IEnablementModel, isContributionEnabled } 
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
-import { OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
+import { getOrganizationManagedTooltip, OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
+import { getTeamProvidedPluginTooltip, isTeamProvidedVisible, TeamProvidedTag, withTeamProvidedPluginAriaLabel } from './customizationTeamProvenance.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -45,7 +46,7 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction, type ICustomizationOrganizationControl } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -62,7 +63,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
-import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup, isCustomizationTreeEntryVisible } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
@@ -266,6 +267,7 @@ interface IPluginInstalledItemTemplateData {
 	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
 	readonly managedTag: OrganizationManagedTag;
+	readonly teamTag: TeamProvidedTag;
 	readonly location: MiddleEllipsisPathLabel;
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
@@ -274,7 +276,7 @@ interface IPluginInstalledItemTemplateData {
 	currentItemId: string | undefined;
 }
 
-class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
+export class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
 	readonly templateId = 'pluginInstalledItem';
 	private readonly _templates = new Set<IPluginInstalledItemTemplateData>();
 	private _focusedItemId: string | undefined;
@@ -283,6 +285,9 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		private readonly _harnessService: ICustomizationHarnessService,
 		private readonly _hoverService: IHoverService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
+		private readonly _getOrganizationControl: (item: IInstalledPluginItem, reader: IReader) => ICustomizationOrganizationControl | undefined,
+		private readonly _isTeamProvided: (item: IInstalledPluginItem, reader: IReader) => boolean,
+		private readonly _isEnabled: (item: IInstalledPluginItem, reader: IReader) => boolean,
 		private readonly _showSyncToggle = true,
 	) { }
 
@@ -295,13 +300,14 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		const templateDisposables = new DisposableStore();
 		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
+		const teamTag = templateDisposables.add(new TeamProvidedTag(nameRow, this._hoverService));
 		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, syncToggleContainer, name, managedTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, managedTag, teamTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -311,10 +317,8 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.currentItemId = element.item.plugin.uri.toString();
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
-		templateData.disposables.add(autorun(reader => {
-			const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
-			templateData.managedTag.update(policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
-		}));
+		templateData.disposables.add(autorun(reader => templateData.managedTag.update(this._getOrganizationControl(element.item, reader))));
+		templateData.disposables.add(autorun(reader => templateData.teamTag.update(this._isTeamProvided(element.item, reader) ? getTeamProvidedPluginTooltip() : undefined)));
 
 		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
@@ -324,10 +328,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		// inline status badge ("Enabled"/"Disabled") is intentionally omitted —
 		// items are already grouped under "Enabled Locally" / "Disabled Locally"
 		// section headers, and the row's aria-label conveys state to screen readers.
-		templateData.disposables.add(autorun(reader => {
-			const enabled = isContributionEnabled(element.item.plugin.enablement.read(reader));
-			templateData.container.classList.toggle('disabled', !enabled);
-		}));
+		templateData.disposables.add(autorun(reader => templateData.container.classList.toggle('disabled', !this._isEnabled(element.item, reader))));
 
 		const syncProvider = this._showSyncToggle ? this._harnessService.getActiveDescriptor().syncProvider : undefined;
 		if (syncProvider) {
@@ -374,6 +375,7 @@ interface IPluginRemoteItemTemplateData {
 	readonly name: HTMLElement;
 	readonly badge: HTMLElement;
 	readonly managedTag: OrganizationManagedTag;
+	readonly teamTag: TeamProvidedTag;
 	readonly description: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly statusIcon: HTMLElement;
@@ -381,6 +383,11 @@ interface IPluginRemoteItemTemplateData {
 	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
+}
+
+/** Whether to show an Agent Host plugin as provided by the user's GitHub Team. */
+function isRemotePluginTeamProvided(item: Pick<ICustomizationItem, 'teamProvided' | 'organizationControl'>): boolean {
+	return isTeamProvidedVisible(item.teamProvided, item.organizationControl !== undefined);
 }
 
 function getRemotePluginDescription(item: ICustomizationItem): string | undefined {
@@ -391,7 +398,7 @@ function getRemotePluginDescription(item: ICustomizationItem): string | undefine
 	return getCustomizationContributionSourceLabel('organization', sourceLabel);
 }
 
-class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
+export class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
 	readonly templateId = 'pluginRemoteItem';
 	private readonly _templates = new Set<IPluginRemoteItemTemplateData>();
 	private _focusedItemId: string | undefined;
@@ -410,13 +417,14 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 		const templateDisposables = new DisposableStore();
 		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
+		const teamTag = templateDisposables.add(new TeamProvidedTag(nameRow, this._hoverService));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const statusIcon = DOM.append(container, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, managedTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, managedTag, teamTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -436,6 +444,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.badge.title = '';
 		}
 		templateData.managedTag.update(element.item.organizationControl);
+		templateData.teamTag.update(isRemotePluginTeamProvided(element.item) ? getTeamProvidedPluginTooltip() : undefined);
 
 		const description = getRemotePluginDescription(element.item);
 		if (description) {
@@ -775,7 +784,7 @@ function getRemotePluginAriaLabel(item: ICustomizationItem): string {
 		: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
 	const reason = item.actions?.find(action => action.checked !== undefined && action.enabled === false)?.tooltip;
 	const enablementLabel = reason ? localize('pluginEnablementUnavailableAria', "{0}. {1}", label, reason) : label;
-	return withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl);
+	return withTeamProvidedPluginAriaLabel(withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl), isRemotePluginTeamProvided(item));
 }
 
 function getInstalledPluginContributionSummary(item: IInstalledPluginItem): string | undefined {
@@ -822,7 +831,7 @@ export class PluginListWidget extends Disposable {
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private browseCustomizationsButton!: Button;
-	private marketplaceActionsButton!: Button;
+	private manageMarketplacesButton!: Button;
 	private marketplaceBackContainer!: HTMLElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -852,11 +861,15 @@ export class PluginListWidget extends Disposable {
 
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
+	/** The session's plugins before the search filter. A runtime-installed row pairs with one of these even when only the row matches the search. */
+	private readonly sessionPluginItems = observableValue<readonly ICustomizationItem[]>(this, []);
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IPluginListEntry>[] = [];
 	private browseMode: boolean = false;
+	/** Groups the user collapsed, restored whenever the tree is re-rendered without a search or browsing the marketplace. */
+	private readonly collapsedGroups = new Set<string>();
 	private visible = false;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private narrowLayout = false;
@@ -958,20 +971,16 @@ export class PluginListWidget extends Disposable {
 		}));
 		this.browseCustomizationsButton.label = browseLabel;
 		this._register(this.browseCustomizationsButton.onDidClick(() => this._onDidRequestBrowse.fire()));
-		const moreLabel = localize('moreMarketplaceActions', "More Marketplace Actions");
-		this.marketplaceActionsButton = this._register(new Button(titleActions, {
+		const manageLabel = localize('manageMarketplaces', "Manage Marketplaces");
+		this.manageMarketplacesButton = this._register(new Button(titleActions, {
 			...defaultButtonStyles,
 			secondary: true,
 			small: true,
-			supportIcons: true,
-			title: moreLabel,
-			ariaLabel: moreLabel,
+			title: manageLabel,
+			ariaLabel: manageLabel,
 		}));
-		this.marketplaceActionsButton.element.classList.add('section-title-more-action');
-		this.marketplaceActionsButton.element.setAttribute('aria-haspopup', 'menu');
-		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
-		this.marketplaceActionsButton.icon = Codicon.ellipsis;
-		this._register(this.marketplaceActionsButton.onDidClick(() => this.showMarketplaceActions()));
+		this.manageMarketplacesButton.label = manageLabel;
+		this._register(this.manageMarketplacesButton.onDidClick(() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID)));
 		this.updateHeaderActions();
 		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
@@ -1104,7 +1113,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), (item, reader) => this.isInstalledPluginTeamProvided(item, reader), (item, reader) => this.isInstalledPluginEnabled(item, reader), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
@@ -1161,8 +1170,18 @@ export class PluginListWidget extends Disposable {
 			remoteRenderer.setFocusedItemId(entry?.type === 'remote-item' ? getRemotePluginEntryId(entry) : undefined);
 			marketplaceRenderer.setFocusedItemId(entry?.type === 'marketplace-item' ? getMarketplacePluginEntryId(entry) : undefined);
 		}));
+		this._register(this.list.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (entry?.type === 'group-header' && !this.isFilteringPluginTree()) {
+				if (event.node.collapsed) {
+					this.collapsedGroups.add(entry.group);
+				} else {
+					this.collapsedGroups.delete(entry.group);
+				}
+			}
+		}));
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header');
+			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header', entry => isCustomizationTreeEntryVisible(this.list, entry));
 		}));
 
 		// Handle context menu
@@ -1390,11 +1409,13 @@ export class PluginListWidget extends Disposable {
 			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
 			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
 			return derived(this, reader => {
-				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
+				const label = this.isInstalledPluginEnabled(element.item, reader)
 					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
 					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
-				const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
-				return withOrganizationManagedAriaLabel(label, policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+				return withTeamProvidedPluginAriaLabel(
+					withOrganizationManagedAriaLabel(label, this.getInstalledPluginOrganizationControl(element.item, reader)),
+					this.isInstalledPluginTeamProvided(element.item, reader),
+				);
 			});
 		}
 		if (element.type === 'remote-item') {
@@ -1512,7 +1533,8 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderRemotePluginToggle(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore, scopeBadges?: HTMLElement[]): HTMLElement | undefined {
-		const action = item.actions?.find(action => action.checked !== undefined);
+		const itemActions = this.getRemotePluginItemActions(item);
+		const action = itemActions.find(action => action.checked !== undefined);
 		if (!action) {
 			return undefined;
 		}
@@ -1520,7 +1542,7 @@ export class PluginListWidget extends Disposable {
 			? localize('pluginWorkspaceEnablementAria', "Plugin enablement for {0}. Workspace scope. {1}", item.name, action.tooltip ?? action.label)
 			: localize('pluginEnablementAria', "Plugin enablement for {0}. {1}", item.name, action.tooltip ?? action.label);
 		let scopeBadge: Button | undefined;
-		const scopeAction = item.actions?.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
+		const scopeAction = itemActions.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
 		if (action.scope === 'workspace') {
 			const badge = disposables.add(new Button(actions, {
 				...getButtonStyles({
@@ -1574,7 +1596,7 @@ export class PluginListWidget extends Disposable {
 		}));
 		const toggle = disposables.add(new CustomizationToggle({
 			ariaLabel: label,
-			checked: action.checked,
+			checked: item.enabled ?? action.checked,
 			disabled: action.enabled === false,
 			title: false,
 		}));
@@ -1600,7 +1622,7 @@ export class PluginListWidget extends Disposable {
 			try {
 				await action.run();
 			} catch (error) {
-				toggle.checked = action.checked ?? false;
+				toggle.checked = item.enabled ?? action.checked ?? false;
 				toggle.disabled = action.enabled === false;
 				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
 			}
@@ -1729,16 +1751,24 @@ export class PluginListWidget extends Disposable {
 		});
 
 		this.cardScrollableNode.style.display = 'none';
+		const isFiltering = this.isFilteringPluginTree();
 		const children: IObjectTreeElement<IPluginListEntry>[] = this.currentTreeGroups.map(group => ({
 			element: group.element,
 			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			collapsed: !isFiltering && this.collapsedGroups.has(group.id),
 			children: group.children.map(element => ({ element })),
 		}));
-		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateToolbarActions();
 		this.updatePluginTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
+	}
+
+	/**
+	 * Whether the tree shows search or marketplace results, which are shown
+	 * with every group expanded.
+	 */
+	private isFilteringPluginTree(): boolean {
+		return this.browseMode || !!this.searchQuery.trim();
 	}
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
@@ -1861,27 +1891,7 @@ export class PluginListWidget extends Disposable {
 	private updateHeaderActions(): void {
 		const visible = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService);
 		this.browseCustomizationsButton.element.style.display = visible ? '' : 'none';
-		this.marketplaceActionsButton.element.style.display = visible ? '' : 'none';
-	}
-
-	private showMarketplaceActions(): void {
-		const disposables = new DisposableStore();
-		const configure = disposables.add(new Action(
-			'plugin.configureMarketplaces',
-			localize('configureMarketplaces', "Configure Marketplaces"),
-			undefined,
-			true,
-			() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID),
-		));
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.marketplaceActionsButton.element,
-			getActions: () => [configure],
-			onHide: () => {
-				this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
-				disposables.dispose();
-			},
-		});
-		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'true');
+		this.manageMarketplacesButton.element.style.display = visible ? '' : 'none';
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
@@ -1954,6 +1964,7 @@ export class PluginListWidget extends Disposable {
 	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem, scopeBadges?: HTMLElement[]): HTMLElement {
 		const sessionItem = this.getSessionPluginItem(item);
 		if (sessionItem) {
+			row.classList.toggle('disabled', !this.isInstalledPluginEnabled(item));
 			return this.renderRemotePluginToggle(sessionItem, parent, this.cardDisposables, scopeBadges)!;
 		}
 		let renderedState = item.plugin.enablement.get();
@@ -2009,6 +2020,7 @@ export class PluginListWidget extends Disposable {
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
+		this.cardDisposables.add(new OrganizationManagedTag(nameRow, this.hoverService)).update(item.organizationControl);
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = getRemotePluginDescription(item) || localize('pluginNoDescription', "No description provided.");
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
@@ -2235,12 +2247,12 @@ export class PluginListWidget extends Disposable {
 					.map(p => installedPluginToItem(p, this.labelService))
 					.filter(item => installedPluginMatchesQuery(item, query))
 					.sort(compareInstalledPluginItems);
-				const remoteItems = [...await this.getRemotePluginItems(query)];
+				const sessionPluginItems = await this.getSessionPluginItems();
 				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
 					return;
 				}
 				this.installedItems = installedItems;
-				this.remoteItems = remoteItems;
+				this.setSessionPluginItems(sessionPluginItems, query);
 			}
 			const filtered = query
 				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
@@ -2292,7 +2304,7 @@ export class PluginListWidget extends Disposable {
 				.map(p => installedPluginToItem(p, this.labelService))
 				.filter(item => installedPluginMatchesQuery(item, query))
 				.sort(compareInstalledPluginItems);
-			const remoteItems = [...await this.getRemotePluginItems(query)];
+			const sessionPluginItems = await this.getSessionPluginItems();
 			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
 				return;
 			}
@@ -2310,7 +2322,7 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			this.installedItems = installedItems;
-			this.remoteItems = remoteItems;
+			this.setSessionPluginItems(sessionPluginItems, query);
 			this.marketplaceItems = marketplaceItems;
 			this.searchInput.hideMessage();
 		} catch {
@@ -2350,20 +2362,24 @@ export class PluginListWidget extends Disposable {
 		this.renderPluginTree();
 	}
 
-	private async getRemotePluginItems(query: string): Promise<readonly ICustomizationItem[]> {
+	/** The plugins the active harness provides for the session, before the search filter. */
+	private async getSessionPluginItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.harnessService.getActiveDescriptor().itemProvider) {
 			return [];
 		}
 
 		try {
 			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
-			return provided.filter(item =>
-				isPluginCustomizationItem(item)
-				&& customizationSearchMatchesAny(query, [item.name, item.description, item.badge])
-			);
+			return provided.filter(isPluginCustomizationItem);
 		} catch {
 			return [];
 		}
+	}
+
+	/** Keeps every session plugin for pairing with runtime-installed rows, and shows those that match `query`. */
+	private setSessionPluginItems(items: readonly ICustomizationItem[], query: string): void {
+		this.sessionPluginItems.set(items, undefined);
+		this.remoteItems = items.filter(item => customizationSearchMatchesAny(query, [item.name, item.description, item.badge]));
 	}
 
 	private async filterPlugins(): Promise<void> {
@@ -2371,11 +2387,11 @@ export class PluginListWidget extends Disposable {
 		const query = this.searchQuery.toLowerCase().trim();
 		const browseMode = this.browseMode;
 		const allPlugins = this.agentPluginService.plugins.get();
-		const remoteItems = [...await this.getRemotePluginItems(query)];
+		const sessionPluginItems = await this.getSessionPluginItems();
 		if (generation !== this.filterGeneration || this.searchQuery.toLowerCase().trim() !== query || this.browseMode !== browseMode) {
 			return;
 		}
-		this.remoteItems = remoteItems;
+		this.setSessionPluginItems(sessionPluginItems, query);
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
@@ -2477,6 +2493,10 @@ export class PluginListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	focusManageMarketplaces(): void {
+		this.manageMarketplacesButton.focus();
+	}
+
 	setSearchQuery(query: string): void {
 		this.searchInput.value = query;
 	}
@@ -2542,20 +2562,52 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			this.list.domFocus();
-			const firstItem = entries.find(entry => entry.type !== 'group-header');
+			const firstItem = entries.find(entry => entry.type !== 'group-header' && isCustomizationTreeEntryVisible(this.list, entry)) ?? entries[0];
 			if (firstItem) {
 				this.list.setFocus([firstItem]);
 			}
 		}
 	}
 
-	private getSessionPluginItem(item: IInstalledPluginItem): ICustomizationItem | undefined {
+	/**
+	 * The session plugin of an installation the runtime owns. The two are paired by resource rather than
+	 * by name, because plugins installed from different marketplaces can share a name.
+	 */
+	private getSessionPluginItem(item: IInstalledPluginItem, reader?: IReader): ICustomizationItem | undefined {
 		if (!item.plugin.copilotCliInstallation) {
 			return undefined;
 		}
-		const matches = this.remoteItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
+		const matches = this.sessionPluginItems.read(reader).filter(remote => isEqual(remote.uri, item.plugin.uri)
 			&& !isSyncedFromClientCustomizationItem(remote) && remote.actions?.some(action => action.checked !== undefined));
 		return matches.length === 1 ? matches[0] : undefined;
+	}
+
+	/**
+	 * The organization's control over an installed plugin. The runtime resolves managed settings for a
+	 * session, so for a plugin the runtime installed only its session plugin reports what is required.
+	 */
+	private getInstalledPluginOrganizationControl(item: IInstalledPluginItem, reader?: IReader): ICustomizationOrganizationControl | undefined {
+		const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
+		return policyEnablement !== undefined ? { requiredEnabled: policyEnablement } : this.getSessionPluginItem(item, reader)?.organizationControl;
+	}
+
+	/**
+	 * Whether to show an installed plugin as provided by the user's GitHub Team. Team assignment follows the
+	 * signed-in account, so either the runtime's installation or the plugin's session plugin may report it.
+	 */
+	isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader?: IReader): boolean {
+		const sessionItem = this.getSessionPluginItem(item, reader);
+		const team = item.plugin.teamProvided?.read(reader) || sessionItem?.teamProvided;
+		return isTeamProvidedVisible(team, this.getInstalledPluginOrganizationControl(item, reader) !== undefined);
+	}
+
+	/**
+	 * Whether an installed plugin is active, which decides whether its row is shown as disabled. For a plugin the
+	 * runtime installed, its session plugin reports the activation that applies to the chat: a GitHub Team
+	 * assignment or a workspace setting can turn on a plugin that the user has not enabled globally.
+	 */
+	isInstalledPluginEnabled(item: IInstalledPluginItem, reader?: IReader): boolean {
+		return this.getSessionPluginItem(item, reader)?.enabled ?? isContributionEnabled(item.plugin.enablement.read(reader));
 	}
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {
@@ -2579,16 +2631,29 @@ export class PluginListWidget extends Disposable {
 		return actions;
 	}
 
+	private getRemotePluginItemActions(item: ICustomizationItem): readonly ICustomizationItemAction[] {
+		const control = item.organizationControl;
+		if (control?.requiredEnabled === undefined) {
+			return item.actions ?? [];
+		}
+		return (item.actions ?? []).map(action => action.checked !== undefined || action.scope !== undefined
+			? { ...action, enabled: false, tooltip: getOrganizationManagedTooltip(control) }
+			: action);
+	}
+
 	private getRemotePluginActions(item: ICustomizationItem): Action[] {
 		const actions: Action[] = [];
 		const busy = this.getPendingPluginScopeChanges().get().has(this.getPluginScopeChangeKey(item));
-		for (const itemAction of item.actions ?? []) {
+		for (const itemAction of this.getRemotePluginItemActions(item)) {
 			const action = new Action(
 				itemAction.id,
 				itemAction.label,
 				itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
 				!busy && itemAction.enabled !== false,
 				() => {
+					if (itemAction.enabled === false) {
+						throw new Error(itemAction.tooltip ?? localize('pluginScopeUnavailable', "Plugin scope cannot be changed right now."));
+					}
 					if (this.getPendingPluginScopeChanges().get().has(this.getPluginScopeChangeKey(item))) {
 						throw new Error(localize('pluginScopeUnavailable', "Plugin scope cannot be changed right now."));
 					}

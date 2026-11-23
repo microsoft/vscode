@@ -8,18 +8,24 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ConnectionDiagnosticBuffer, formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IAgentHostFilterService } from '../../../common/agentHostFilter.js';
 import { ConnectionHostManagementAction, IConnectionDiagnosticsSection, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState } from './connectionDiagnostics.js';
 import { collectConnectionLogs } from './connectionDiagnosticsLogs.js';
+
+/** The file the shared process logs to on desktop, next to the window logs. */
+const sharedProcessLogFileName = 'sharedprocess.log';
 
 interface IDiscoveryAttempt {
 	readonly id: number;
@@ -61,6 +67,8 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IRemoteGitHubEnvironmentSharingService private readonly _remoteSharing: IRemoteGitHubEnvironmentSharingService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
 		super();
 		this._captureConnections();
@@ -101,7 +109,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				this._discoveredTunnels = tunnels.map(tunnel => ({ ...tunnel, tags: [] }));
 			}
 			const dismissed = tunnels.filter(tunnel => this._tunnelService.isTunnelDismissed(tunnel.tunnelId)).length;
-			this._record(localize('diagnostics.discoveryFinished', "Discovery #{0} succeeded in {1} ms: {2} found, {3} with an active host, {4} dismissed.", attempt.id, attempt.finishedAt - attempt.startedAt, tunnels.length, tunnels.filter(tunnel => tunnel.hostConnectionCount > 0).length, dismissed));
+			this._record(localize('diagnostics.discoveryFinished', "Discovery #{0} succeeded in {1} ms: {2} found, {3} with an active host, {4} dismissed.", attempt.id, attempt.finishedAt - attempt.startedAt, tunnels.length, tunnels.filter(tunnel => tunnel.hostConnectionCount !== undefined && tunnel.hostConnectionCount > 0).length, dismissed));
 			return tunnels;
 		} catch (error) {
 			attempt.finishedAt = Date.now();
@@ -185,6 +193,9 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			throw new Error(localize('connectionDiagnostics.hostNotManageable', "The host does not have manual connection controls."));
 		}
 		if (action === 'disconnect') {
+			if (current.address && !await this._remoteSharing.confirmDisconnect(current.address, current.label)) {
+				return;
+			}
 			await this._filterService.disconnect(current.id);
 			return;
 		}
@@ -294,7 +305,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			if (tunnel) {
 				entries.push(
 					{ label: localize('diagnostics.cluster', "Tunnel cluster"), value: safeAddress(tunnel.clusterId) },
-					{ label: localize('diagnostics.activeHostCount', "Active tunnel hosts"), value: String(tunnel.hostConnectionCount) },
+					{ label: localize('diagnostics.activeHostCount', "Active tunnel hosts"), value: tunnel.hostConnectionCount === undefined ? localize('diagnostics.unknownHostCount', "Unknown") : String(tunnel.hostConnectionCount) },
 					{ label: localize('diagnostics.tunnelProtocol', "Tunnel protocol version"), value: String(tunnel.protocolVersion) },
 				);
 			}
@@ -391,7 +402,10 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 						event.error ? formatConnectionDiagnosticError(event.error) : undefined,
 					].filter(value => value !== undefined).join('; '),
 				})),
-		}, await collectConnectionLogs(this._fileService, this._environmentService.logFile), clientSection);
+		}, await collectConnectionLogs(this._fileService, this.isWebPlatform
+			? { window: this._environmentService.logFile }
+			: { window: this._environmentService.logFile, shared: joinPath(this._environmentService.logsHome, sharedProcessLogFileName) },
+			this.isWebPlatform ? undefined : this._pathService.userHome({ preferLocal: true }).fsPath), clientSection);
 		const text = [
 			localize('diagnostics.title', "Connection diagnostics"),
 			...sections.flatMap(section => ['', section.title, ...(section.description ? [section.description] : []), ...section.entries.map(entry => `${entry.label}: ${entry.value}`)]),

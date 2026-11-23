@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { captureAnimationTarget, triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
+import { triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -278,17 +278,16 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
-		const animationTarget = captureAnimationTarget(this.archiveButton.element);
 		if (!this.accessibilityService.isMotionReduced()) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING);
+			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)) {
+				triggerConfettiAnimation(this.archiveButton.element);
+				void this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
+			}
 		}
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();
-			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
-				triggerConfettiAnimation(animationTarget);
-				this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
-			}
 		} catch (error) {
 			this.notificationService.error(this.options.archivesChat
 				? this.markAsDone

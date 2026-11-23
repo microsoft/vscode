@@ -16,11 +16,13 @@ import { isNative } from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingResolver, ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -33,22 +35,56 @@ import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 import { getScreenshotSelectionHint, IScreenshotRect, ScreenshotSelection, ScreenshotSelectionOverlay } from './screenshotSelection.js';
 import { getScreenshotToolImageData, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolActiveContext, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface, toImageCarouselMarkUp } from './screenshotTool.js';
 
-/** How long the window gets to repaint without the overlay before it is captured. */
-const OVERLAY_REMOVAL_DELAY = 100;
+/** How long the window gets to repaint, without the overlay or UI that just closed, before it is captured. */
+const REPAINT_DELAY = 100;
 
 /** How many screenshots attached to chat stay editable, which bounds the memory their originals take. */
 const MAX_EDITABLE_ATTACHMENTS = 10;
+
+/** How long a markup waits for the next chord of a keybinding such as Ctrl+K Ctrl+Z, as long as the workbench waits. */
+const CHORD_TIMEOUT = 5000;
 
 interface ISession extends IDisposable {
 	surface: { focus(): void } | undefined;
 }
 
+/**
+ * Resolves the keys pressed in a markup to the commands of their keybindings, without running them. A markup keeps its keys
+ * from the workbench, which therefore can't follow the chords of keybindings such as Ctrl+K Ctrl+Z, so this follows them.
+ */
+class MarkUpKeybindingResolver {
+
+	private chords: string[] = [];
+	private lastChordTime = 0;
+
+	constructor(
+		private readonly keybindingService: IKeybindingService,
+		private readonly contextKeyService: IContextKeyService,
+	) { }
+
+	/** Returns the command of the keybinding that a key completes where it was pressed, if any. */
+	resolve(event: StandardKeyboardEvent): string | undefined {
+		const [chord] = this.keybindingService.resolveKeyboardEvent(event).getDispatchChords();
+		if (!chord) {
+			return undefined; // a modifier on its own, which doesn't end the chords
+		}
+		const chords = Date.now() - this.lastChordTime > CHORD_TIMEOUT ? [] : this.chords;
+		// Only keybindings that start with the first chord can match.
+		const firstChord = chords[0] ?? chord;
+		const keybindings = this.keybindingService.getKeybindings().filter(keybinding => keybinding.chords[0] === firstChord);
+		const result = new KeybindingResolver(keybindings, [], () => { }).resolve(this.contextKeyService.getContext(event.target), chords, chord);
+		this.chords = result.kind === ResultKind.MoreChordsNeeded ? [...chords, chord] : [];
+		this.lastChordTime = Date.now();
+		return result.kind === ResultKind.KbFound ? result.commandId ?? undefined : undefined;
+	}
+}
+
 type ScreenshotToolCaptureClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports how a screenshot entry point ended.';
-	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The entry point that started the screenshot: chat Add Context, the issue reporter, or an Integrated Browser screenshot action.' };
+	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The entry point that started the screenshot: chat Add Context, the issue reporter, an Integrated Browser screenshot action, or a chat command or Add Context item that captures the window of another app.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the screenshot was attached, cancelled, or failed.' };
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What was captured: the window, an area, a browser page, or a full browser page, or none when nothing was captured.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What was captured: the window, an area, a browser page, a full browser page, or the window of another app, or none when nothing was captured.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from running the entry point to its outcome, including the time the user spent selecting.' };
 };
 
@@ -89,9 +125,10 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.activeContext = ScreenshotToolActiveContext.bindTo(contextKeyService);
@@ -170,16 +207,16 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined> {
+	async captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined> {
 		try {
-			return await this.captureWindowArea(targetWindow, undefined, false);
+			return await this.captureWindowArea(targetWindow, undefined, !!options?.afterRepaint);
 		} catch (error) {
 			this.logService.error('[ScreenshotTool] Capturing the window failed:', error);
 			return undefined;
 		}
 	}
 
-	async edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined> {
+	async edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined> {
 		// The Images Preview opens as a modal editor in the main window, which comes to the front, and focus goes back to a reporter in its own window afterwards.
 		const previousWindow = getActiveWindow();
 		const previousFocus = previousWindow.document.activeElement;
@@ -187,12 +224,12 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		const { data, mimeType } = getScreenshotToolImageData(screenshot.original);
 		const input = new ImageCarouselEditorInput({
 			id: generateUuid(),
-			title: localize('editScreenshot', "Edit Screenshot"),
+			title: name ? localize('editImage', "Edit Image") : localize('editScreenshot', "Edit Screenshot"),
 			sections: [{
 				title: '',
 				images: [{
 					id: generateUuid(),
-					name: localize('screenshot', "Screenshot"),
+					name: name ?? localize('screenshot', "Screenshot"),
 					mimeType,
 					data,
 					markUp: container => {
@@ -240,6 +277,9 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		let focusRequested = false;
 		const markUp: IScreenshotToolMarkUp = {
 			result: result.p,
+			get hasChanges() {
+				return !!editor?.hasChanges;
+			},
 			focus: () => {
 				focusRequested = true;
 				editor?.focus();
@@ -250,6 +290,13 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 				} else {
 					void result.complete(undefined);
 				}
+			},
+			cancel: async () => {
+				if (editor) {
+					return editor.cancel();
+				}
+				void result.complete(undefined);
+				return true;
 			},
 			dispose: () => {
 				void result.complete(undefined);
@@ -269,13 +316,24 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 				return;
 			}
 			editable = loaded;
-			const annotationEditor = editor = new ScreenshotAnnotationEditor(loaded.original, container, loaded.annotationState);
+			const annotationEditor = editor = new ScreenshotAnnotationEditor(loaded.original, container, () => this.confirmDiscardMarkUp(), loaded.annotationState);
 			store.add(toDisposable(() => annotationEditor.dispose()));
+			const keybindings = new MarkUpKeybindingResolver(this.keybindingService, this.contextKeyService);
 			for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
-				// Workbench shortcuts would act on what is underneath the markup and take focus from it.
+				// Workbench shortcuts would act on what is underneath the markup and take focus from it, so the markup runs Undo and Redo itself.
 				store.add(addDisposableListener(annotationEditor.element, type, (e: KeyboardEvent) => {
-					if (!this.isAccessibilityHelpKey(new StandardKeyboardEvent(e))) {
-						e.stopPropagation();
+					const event = new StandardKeyboardEvent(e);
+					if (this.isAccessibilityHelpKey(event)) {
+						return;
+					}
+					e.stopPropagation();
+					const commandId = type === EventType.KEY_DOWN ? keybindings.resolve(event) : undefined;
+					if (commandId === UndoCommand.id) {
+						e.preventDefault();
+						annotationEditor.undo();
+					} else if (commandId === RedoCommand.id) {
+						e.preventDefault();
+						annotationEditor.redo();
 					}
 				}));
 			}
@@ -381,6 +439,17 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return result.kind === ResultKind.KbFound && result.commandId === AccessibilityCommandId.OpenAccessibilityHelp;
 	}
 
+	/** Asks the user whether to discard the changes of a markup that is cancelled. */
+	private async confirmDiscardMarkUp(): Promise<boolean> {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('discardMarkUp', "Discard your changes to this image?"),
+			detail: localize('discardMarkUpDetail', "Your changes will be lost."),
+			primaryButton: localize({ key: 'discardMarkUpButton', comment: ['&& denotes a mnemonic'] }, "&&Discard"),
+		});
+		return confirmed;
+	}
+
 	private getSelectionAnnouncement(): string {
 		const message = localize('screenshotModeAnnouncement', "Screenshot mode. {0}", getScreenshotSelectionHint());
 		if (!this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.ScreenshotTool)) {
@@ -396,9 +465,9 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	 * Captures the window or an area of it, as the user sees it. Native content, such as a browser page, shows as the
 	 * placeholder that the window shows for it.
 	 */
-	private async captureWindowArea(targetWindow: CodeWindow, area: IScreenshotRect | undefined, afterOverlay: boolean): Promise<IScreenshotToolImage | undefined> {
-		if (afterOverlay) {
-			await timeout(OVERLAY_REMOVAL_DELAY);
+	private async captureWindowArea(targetWindow: CodeWindow, area: IScreenshotRect | undefined, afterRepaint: boolean): Promise<IScreenshotToolImage | undefined> {
+		if (afterRepaint) {
+			await timeout(REPAINT_DELAY);
 		}
 		const screenshot = await this.hostService.getScreenshot(undefined, targetWindow);
 		if (!screenshot?.byteLength) {

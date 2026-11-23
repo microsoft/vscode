@@ -27,10 +27,12 @@ export const enum ScreenshotToolEntryPoint {
 	BrowserScreenshot = 'browserScreenshot',
 	BrowserAreaScreenshot = 'browserAreaScreenshot',
 	BrowserFullPageScreenshot = 'browserFullPageScreenshot',
+	/** A command or the Add Context item of chat that attach a screenshot of the window of another app. */
+	ChatAppWindow = 'chatAppWindow',
 }
 
 /** What a screenshot shows; `none` when it was cancelled or failed before anything was captured. */
-export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'none';
+export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'appWindow' | 'none';
 
 export type ScreenshotToolOutcome = 'attached' | 'cancelled' | 'failed';
 
@@ -73,11 +75,15 @@ export interface IScreenshotToolEdit extends IScreenshotToolEditable {
 
 /** The markup of a screenshot, see {@link IScreenshotToolService.markUp}. */
 export interface IScreenshotToolMarkUp extends IDisposable {
-	/** Resolves once the markup ends, with the edited screenshot, or `undefined` when nothing changed. */
+	/** Resolves once the markup ends, with the edited screenshot, or `undefined` when nothing changed or the changes were discarded. */
 	readonly result: Promise<IScreenshotToolEdit | undefined>;
+	/** Whether the markup changed the screenshot, which cancelling it discards. */
+	readonly hasChanges: boolean;
 	focus(): void;
 	/** Ends the markup and keeps its changes, like its Done button does. */
 	finish(): void;
+	/** Ends the markup without its changes, like its Cancel button does, once the user confirms discarding any. Resolves with whether it ended. */
+	cancel(): Promise<boolean>;
 }
 
 export interface IScreenshotToolService {
@@ -95,18 +101,23 @@ export interface IScreenshotToolService {
 	/** Lets the user click or press Enter to capture the window, or drag to capture an area. */
 	capture(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
 
-	/** Captures the whole window, as the user sees it, without letting the user select. */
-	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
-
 	/**
-	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it.
-	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed.
+	 * Captures the whole window, as the user sees it, without letting the user select. With `afterRepaint`, it first
+	 * lets the window repaint, so UI that just closed is not captured.
 	 */
-	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined>;
+	captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined>;
 
 	/**
-	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Escape and Done end it, as does
-	 * `finish`, which keeps its changes. A screenshot that is still loading shows once it has loaded.
+	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it,
+	 * while Cancel discards them. Resolves with the edited screenshot once it closes, or `undefined` when nothing
+	 * changed. `name` names an image that is not a screenshot, such as an image file.
+	 */
+	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined>;
+
+	/**
+	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Done and `finish` end it with its
+	 * changes, while Cancel, Escape and `cancel` end it without them. A screenshot that is still loading shows once it
+	 * has loaded.
 	 */
 	markUp(container: HTMLElement, screenshot: IScreenshotToolEditable | Promise<IScreenshotToolEditable>, surface: ScreenshotToolSurface): IScreenshotToolMarkUp;
 
@@ -148,8 +159,10 @@ export function getScreenshotToolImageData(image: IScreenshotToolImage): { reado
 export function toImageCarouselMarkUp(markUp: IScreenshotToolMarkUp): IImageCarouselMarkUp {
 	return {
 		result: markUp.result.then(edit => edit && getScreenshotToolImageData(edit.image)),
+		get hasChanges() { return markUp.hasChanges; },
 		focus: () => markUp.focus(),
 		finish: () => markUp.finish(),
+		cancel: () => markUp.cancel(),
 		dispose: () => markUp.dispose(),
 	};
 }

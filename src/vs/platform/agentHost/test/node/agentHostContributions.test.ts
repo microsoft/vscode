@@ -12,6 +12,8 @@ import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../..
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { NullLogService, ILogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostChangesetOperationService, IChangesetOperationContribution } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -103,6 +105,7 @@ suite('AgentHostContributions', () => {
 			[IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService())],
 			[ISessionDataService, sessionDataService],
 			[IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)],
+			[IAgentHostTelemetryReporter, new AgentHostTelemetryReporter(NullTelemetryService)],
 			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

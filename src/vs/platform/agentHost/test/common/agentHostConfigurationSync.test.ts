@@ -324,7 +324,14 @@ suite('AgentHostConfigurationSync', () => {
 			'http.webSocketAdditionalSupport',
 			'http.experimental.networkInterfaceCheckInterval',
 		];
-		const syncedProxySettingIds = ['http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
+		const syncedProxySettingIds = [
+			'http.proxy',
+			'http.proxyKerberosServicePrincipal',
+			'http.noProxy',
+			'http.proxySupport',
+			'http.systemCertificates',
+			'http.systemCertificatesNode',
+		];
 		const local = getAgentHostConfigurationSyncEntries(AgentHostConfigurationSyncTarget.Local)
 			.filter(entry => allProxySettingIds.includes(entry.settingId))
 			.map(entry => [entry.settingId, entry.sync.key]);

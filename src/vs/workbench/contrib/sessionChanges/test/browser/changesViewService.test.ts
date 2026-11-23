@@ -76,7 +76,7 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createWorkspace(root: string): ISessionWorkspace {
+	function createWorkspace(root: string, baseBranchFullName?: string): ISessionWorkspace {
 		const uri = URI.file(root);
 		return upcastPartial<ISessionWorkspace>({
 			uri,
@@ -89,6 +89,7 @@ suite('ChangesViewService', () => {
 					uri,
 					branchName: 'feature',
 					baseBranchName: 'main',
+					baseBranchFullName,
 				}),
 			})],
 		});
@@ -1180,6 +1181,35 @@ suite('ChangesViewService', () => {
 			authoritativeEmpty: { changesets: [], catalogueLoading: false, selected: undefined },
 			restored: { changesets: ['branch', 'selected'], catalogueLoading: false, selected: 'selected' },
 			noSession: { changesets: undefined, catalogueLoading: true, selected: undefined },
+		});
+	});
+
+	test('reads the recorded base branch of the chat it switched to while that chat\'s catalogue loads', () => {
+		const nextChat = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/next'),
+			workspace: constObservable(createWorkspace('/next', 'origin/release')),
+			changes: constObservable([]),
+			changesets: constObservable<readonly ISessionChangeset[] | undefined>(undefined),
+		});
+		const nextSession = createSession('next', {
+			activeChat: constObservable(nextChat),
+			mainChat: constObservable(nextChat),
+			chats: constObservable([nextChat]),
+		});
+		const { activeSession, service } = createHarness(createSession('first', { workspace: createWorkspace('/repo', 'origin/main'), changesets: [createChangeset([])] }));
+		const snapshot = () => ({
+			baseBranch: service.activeSessionBaseBranchFullNameObs.get(),
+			catalogueLoading: service.activeSessionChangesetsLoadingObs.get(),
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+		});
+
+		const beforeSwitch = snapshot();
+		activeSession.set(nextSession, undefined);
+		const loadingCatalogue = snapshot();
+
+		assert.deepStrictEqual({ beforeSwitch, loadingCatalogue }, {
+			beforeSwitch: { baseBranch: 'origin/main', catalogueLoading: false, changesets: ['branch'] },
+			loadingCatalogue: { baseBranch: 'origin/release', catalogueLoading: true, changesets: ['branch'] },
 		});
 	});
 

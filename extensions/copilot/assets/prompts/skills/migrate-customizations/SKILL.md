@@ -28,7 +28,7 @@ Read [migration techniques](./references/migration-techniques.md) before proposi
 1. VS Code created and verified a private recovery bundle before starting this workflow. Do not search for, inspect, modify, move, or replace its manifest or backups.
 2. The recovery bundle restores original sources only. It does not remove or revert destination files created or changed during migration.
 3. Call `report_customization_migration` exactly once using the privacy-safe aggregate schema described in Finish. This internal tool is available only in the migration chat and does not require filesystem access.
-4. Approval to migrate a group authorizes destination writes only; it does not authorize deleting source files, removing source MCP entries, or clearing location settings. Preserve sources by default. After the destination is validated, ask separately for explicit approval for each kind of cleanup. If runtime validation is not possible, explain what was and was not verified, keep the source, and ask whether to defer cleanup.
+4. Approval to migrate a group authorizes destination writes only; it does not authorize deleting source files, removing source MCP entries, or clearing location settings. Preserve sources by default. After the destination is validated, ask separately for explicit approval for each kind of cleanup. If runtime validation is not possible, explain what was and was not verified, keep the source, and ask whether to defer cleanup. Exception: hooks are migrated in place. Approval for the hooks group authorizes editing the listed hook files and the scripts listed as backed up with them; the recovery bundle holds their originals. It does not authorize editing any other file in place. Do not create a second copy of a hook.
 5. Stop on an unexpected source change, destination conflict, invalid configuration, or failed validation. Explain the problem instead of guessing.
 6. Never include customization names, paths, contents, MCP configuration, or other user data in telemetry.
 7. Classify each inventory item exactly once using its supplied category and scope. Do not offer the same item again in another group; if groups overlap, explain the overlap and use the item's inventory category to decide where it is handled.
@@ -55,7 +55,8 @@ Classify the supplied inventory by its reported category and scope, then handle 
 1. prompt files that should become skills;
 2. VS Code profile user-data agents, instructions, and skills;
 3. MCP servers;
-4. workspace or user customizations at locations defined by settings `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations`.
+4. workspace or user customizations at locations defined by settings `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations`;
+5. hook files in the deprecated Local hook format.
 
 The groups are mutually exclusive for an inventory item. In particular, a file reported under `configuredLocations` belongs in group 4, not group 2, even if its type is agent, instruction, or skill. If a previously skipped item would otherwise reappear in a later group, do not ask about it again unless the user requests reconsideration.
 
@@ -94,7 +95,25 @@ Files in custom locations defined by `chat.agentSkillsLocations`, `chat.instruct
 
 Handle only items reported as `configuredLocations` and not already handled in another group. Do not re-offer files the user explicitly skipped. Treat moving a file, deleting its old copy, and clearing or changing the location setting as separate actions; obtain explicit approval for each cleanup action after validating the destination.
 
-### 7. Finish
+### 7. Migrate Hooks
+
+Handle only items reported as `hooks`. Each is a hook file in the deprecated Local hook format: it uses capitalised event names such as `PreToolUse`. Explain that these hooks can load in the selected harness but may not have their effect, because the harness sends hooks a different input and reads a different answer. A guard can silently stop blocking.
+
+Follow [migration techniques](./references/migration-techniques.md#hooks). In short:
+
+- Migrate each hook file **together with every script it runs**. Never change only the hook file: renaming an event changes the input its scripts receive. Hooks stay where they are; the target-folder list does not apply to them.
+- Edit in place only the hook file and the scripts listed as backed up with it. Any other file a hook runs or loads, such as a script outside the workspace or a helper a script loads, is not in the recovery bundle. Explain that recovery cannot restore it and ask how to proceed, for example by writing the migrated script as a new file and pointing the hook at it, leaving the original unchanged.
+- Use the published [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) for the destination format, and confirm against the harness itself where you can (see the techniques reference). Use `"version": 1` and native camelCase event names, not the PascalCase aliases.
+- Before rewriting a hook, check whether it already has its effect in the selected harness. If it does, say so and offer a careful migration or none for now, instead of a full rewrite.
+- A hook that blocks or stops a submitted prompt has no exact equivalent you may assume. Explain the closest option the reference describes and how its behavior differs, and ask before applying it.
+- For any other behavior difference, state it and ask before applying the change.
+- Never rewrite hooks in `.claude` folders, plugin hooks, or administrator (policy) hooks; they are not in the inventory. If a hook file references them, explain who owns them.
+- Before running a hook or a test session, show the exact commands and ask. Running hooks runs the user's code.
+- Report which checks ran and which did not. If the harness could not be exercised, say the hook was not checked and keep the original backup.
+
+The migrated hook stops working in the Local harness. This is expected; do not keep a second copy for Local.
+
+### 8. Finish
 
 Before the final summary, call `report_customization_migration` with:
 
@@ -117,9 +136,9 @@ Before the final summary, call `report_customization_migration` with:
 
 Aggregate results by:
 
-- category: `promptFiles`, `userData`, `configuredLocations`, or `mcpServers`;
+- category: `promptFiles`, `userData`, `configuredLocations`, `mcpServers`, or `hooks`;
 - scope: `user` or `workspace`;
-- customization type: `agent`, `instructions`, `skill`, or `mcpServer`;
+- customization type: `agent`, `instructions`, `skill`, `mcpServer`, or `hook`;
 - outcome: `migrated`, `skipped`, or `failed`.
 
 The total reported for each category, scope, and customization type must not exceed the inventory supplied by VS Code. The tool input must never include names, paths, contents, configuration values, error messages, or other user data.
