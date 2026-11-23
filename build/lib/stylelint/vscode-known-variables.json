@@ -1038,6 +1038,7 @@
 		"--session-indent-guides",
 		"--session-indent-guides-indented",
 		"--editor-font-size",
+		"--getting-started-focus-outline-radius",
 		"--background-dark",
 		"--background-light",
 		"--mobile-list-text-inset",
