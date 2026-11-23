@@ -15,8 +15,8 @@ import { getTextPart } from '../../src/platform/chat/common/globalStringUtils';
 import { LogLevel } from '../../src/platform/log/common/logService';
 import { FinishedCallback, ICopilotToolCall, IResponseDelta, OptionalChatRequestParams } from '../../src/platform/networking/common/fetch';
 import { ChoiceLogProbs, rawMessageToCAPI } from '../../src/platform/networking/common/openai';
+import { LcsDiff, LineSequence } from '../../src/util/common/diff';
 import { LockMap } from '../../src/util/common/lock';
-import { ISequence, LcsDiff } from '../../src/util/vs/base/common/diff/diff';
 import { BugIndicatingError } from '../../src/util/vs/base/common/errors';
 import { SyncDescriptor } from '../../src/util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../src/util/vs/platform/instantiation/common/instantiation';
@@ -275,9 +275,9 @@ export class CachingChatMLFetcher extends AbstractChatMLFetcher {
 			}
 
 			const diff = new LcsDiff(
-				toTrimmedLineSequence(request),
-				toTrimmedLineSequence(req.toJSON()),
-			).ComputeDiff(false).changes;
+				new LineSequence(JSON.stringify(request, null, '\t').split('\n')),
+				new LineSequence(JSON.stringify(req.toJSON(), null, '\t').split('\n')),
+			).ComputeDiff();
 
 			let score = 0;
 			for (const d of diff) {
@@ -324,11 +324,6 @@ const repoRootRegex = new RegExp(REPO_ROOT.replace(/[/\\]/g, '[/\\\\]'), 'i');
 
 function containsRepoPath(testString: string): boolean {
 	return repoRootRegex.test(testString);
-}
-
-function toTrimmedLineSequence(value: unknown): ISequence {
-	const lines = JSON.stringify(value, null, '\t').split('\n').map(line => line.trim());
-	return { getElements: () => lines };
 }
 
 class FinishedCallbackWrapper {
