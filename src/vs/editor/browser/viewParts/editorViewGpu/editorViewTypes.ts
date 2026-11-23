@@ -16,6 +16,8 @@ export interface EditorViewConfig {
 	monospaceWidth?: number;
 	/** Newer than 0.0.1, which ignores it. */
 	glyphCache?: 'runs' | 'characters';
+	/** Newer than 0.0.1, which always redraws in full. */
+	incrementalRendering?: boolean;
 	tabSize?: number;
 	indentSize?: number;
 	indentGuides?: boolean;

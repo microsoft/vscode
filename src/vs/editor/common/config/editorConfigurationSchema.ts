@@ -127,6 +127,13 @@ const editorConfiguration: IConfigurationNode = {
 			tags: ['experimental'],
 			included: product.hasEditorView === true,
 		},
+		'editor.experimental.editorViewIncrementalRendering': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('editor.experimental.editorViewIncrementalRendering', "Controls whether the renderer of `#editor.experimentalGpuAcceleration#` `editorView` keeps its pixels between frames and redraws only what changed. When off, it redraws every frame in full."),
+			tags: ['experimental'],
+			included: product.hasEditorView === true,
+		},
 		'editor.experimental.treeSitterTelemetry': {
 			type: 'boolean',
 			default: false,

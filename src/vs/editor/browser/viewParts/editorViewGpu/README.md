@@ -103,6 +103,16 @@ one raster per token run, which other text always uses; it remains to compare
 the two (rasterization while typing and scrolling, pixel fidelity to the DOM)
 and goes away once per-character text has shipped.
 
+## Incremental rendering
+
+`editor.experimental.editorViewIncrementalRendering` (on by default) is sent as
+the renderer's `incrementalRendering` and applies as soon as it changes. On
+WebGPU, the editor, minimap, overview ruler and scrollbar surfaces keep their
+pixels between frames and redraw only the horizontal bands whose content
+changed: typing redraws a line or two, scrolling what scrolls into view, and
+the minimap paints only the lines that changed. Turning it off redraws every
+frame in full, which tells whether a wrong picture comes from it.
+
 ## Guide ownership
 
 The GPU owns both indentation and bracket-pair guides through the shared

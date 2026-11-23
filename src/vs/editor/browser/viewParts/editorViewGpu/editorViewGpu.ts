@@ -197,6 +197,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _foldingControlsHovered = false;
 	/** `editor.experimental.editorViewGlyphCache`, an experiment; see the README. */
 	private _glyphCache: 'runs' | 'characters';
+	/** `editor.experimental.editorViewIncrementalRendering`; see the README. */
+	private _incrementalRendering: boolean;
 	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
 	private _sentGutterLabels: (string | undefined)[] = [];
 	/** 1-based view lines in {@link _decorationWindow} with a `lineNumberClassName` decoration. */
@@ -251,6 +253,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Flat-blink half-period, matching `ViewCursors.BLINK_INTERVAL`. */
 	private static readonly BLINK_INTERVAL = 500;
 	private static readonly GLYPH_CACHE_SETTING = 'editor.experimental.editorViewGlyphCache';
+	private static readonly INCREMENTAL_RENDERING_SETTING = 'editor.experimental.editorViewIncrementalRendering';
 	/** Editor root class while the renderer paints; see editorViewGpu.css. */
 	public static readonly READY_CLASS_NAME = 'editor-view-gpu';
 	/** Editor root class while the renderer paints folding controls; see folding.css. */
@@ -279,10 +282,13 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._editorRoot = editorRoot;
 		this._decorationResolver = new EditorViewDecorationResolver(editorRoot);
 		const readGlyphCache = () => configurationService.getValue(EditorViewGpu.GLYPH_CACHE_SETTING) === 'runs' ? 'runs' : 'characters';
+		const readIncrementalRendering = () => configurationService.getValue(EditorViewGpu.INCREMENTAL_RENDERING_SETTING) !== false;
 		this._glyphCache = readGlyphCache();
+		this._incrementalRendering = readIncrementalRendering();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(EditorViewGpu.GLYPH_CACHE_SETTING)) {
+			if (e.affectsConfiguration(EditorViewGpu.GLYPH_CACHE_SETTING) || e.affectsConfiguration(EditorViewGpu.INCREMENTAL_RENDERING_SETTING)) {
 				this._glyphCache = readGlyphCache();
+				this._incrementalRendering = readIncrementalRendering();
 				this._present();
 			}
 		}));
@@ -472,6 +478,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			fontLigatures,
 			monospaceWidth: !fontLigatures && hasVerifiedAsciiCellWidth ? fontInfo.spaceWidth : undefined,
 			glyphCache: this._glyphCache,
+			incrementalRendering: this._incrementalRendering,
 			// Match the DOM editor's geometry so text/line-numbers land at the
 			// same x offset: reserve exactly the editor's content-left as the
 			// gutter, and expand tabs by the model's tab size.
