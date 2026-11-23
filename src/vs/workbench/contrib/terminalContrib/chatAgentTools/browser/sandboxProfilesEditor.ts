@@ -229,7 +229,12 @@ export class SandboxProfilesEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		this._nameInput?.focus();
+		// The name box is disabled for read-only profiles and can't take focus, so focus the list instead.
+		if (this._profileInput?.editing) {
+			this._nameInput?.focus();
+		} else {
+			this._list.domFocus();
+		}
 	}
 
 	override async setInput(input: SandboxProfilesInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -400,7 +405,7 @@ export class SandboxProfilesEditor extends EditorPane {
 					select.setEnabled(!readOnly);
 					this._controls.add(select.onDidSelect(({ selected }) => { settings[key] = selected; input.changed(); }));
 				} else if (key === Sandbox.AgentSandboxUserConfiguredPaths) {
-					this._jsonRow(label, key, description, schema, value ?? {}, readOnly, validateUserConfiguredPaths, parsed => { settings[key] = parsed as IAgentSandboxUserConfiguredPaths; input.changed(); });
+					this._jsonRow(label, key, description, schema, value ?? {}, readOnly, validateUserConfiguredPaths, parsed => { settings[key] = parsed as IAgentSandboxUserConfiguredPaths; input.changed(); }, input.invalidText(key), text => input.setInvalidText(key, text));
 				} else {
 					const control = this._settingRow(this._body, label, description);
 					this._stringList(control, label, Array.isArray(value) ? value : [], readOnly, items => { settings[key] = items; input.changed(); });
@@ -423,6 +428,11 @@ export class SandboxProfilesEditor extends EditorPane {
 				return;
 			}
 			const created = !input.existing;
+			const error = input.saveError;
+			if (error) {
+				await this._dialogs.error(error);
+				return;
+			}
 			await input.save();
 			status(created ? localize('created', "Sandbox profile created.") : localize('saved', "Sandbox profile saved."));
 		}));
@@ -443,7 +453,7 @@ export class SandboxProfilesEditor extends EditorPane {
 	}
 
 	/** Renders an inline settings.json editor for an object setting that the Settings editor cannot edit directly. */
-	private _jsonRow(label: string, key: string, description: string | undefined, schema: IConfigurationPropertySchema | undefined, value: unknown, readOnly: boolean, validateValue: (value: unknown) => string | undefined, change: (value: unknown) => void): void {
+	private _jsonRow(label: string, key: string, description: string | undefined, schema: IConfigurationPropertySchema | undefined, value: unknown, readOnly: boolean, validateValue: (value: unknown) => string | undefined, change: (value: unknown) => void, invalidText: string | undefined, setInvalidText: (text: string | undefined) => void): void {
 		const control = this._settingRow(this._body, label, description);
 		control.classList.add('setting-item-json');
 		const frame = dom.append(control, $('.json-frame'));
@@ -473,7 +483,7 @@ export class SandboxProfilesEditor extends EditorPane {
 			jsonSchemaRegistry.registerSchema(schemaId, toJsonSchema(schema), schemaStore);
 			schemaStore.add(jsonSchemaRegistry.registerSchemaAssociation(schemaId, resource.toString()));
 		}
-		const model = this._controls.add(this._modelService.createModel(JSON.stringify(value, undefined, 2), this._languageService.createById('json'), resource));
+		const model = this._controls.add(this._modelService.createModel(invalidText ?? JSON.stringify(value, undefined, 2), this._languageService.createById('json'), resource));
 		editor.setModel(model);
 		model.updateOptions({ tabSize: 2, insertSpaces: true });
 		const resize = () => {
@@ -483,7 +493,7 @@ export class SandboxProfilesEditor extends EditorPane {
 		};
 		this._controls.add(editor.onDidContentSizeChange(resize));
 		resize();
-		this._controls.add(model.onDidChangeContent(() => {
+		const validate = () => {
 			const errors: ParseError[] = [];
 			const parsed = parse(model.getValue(), errors, { allowTrailingComma: true, disallowComments: false });
 			let problem: string | undefined;
@@ -495,11 +505,22 @@ export class SandboxProfilesEditor extends EditorPane {
 			}
 			message.textContent = problem ?? '';
 			frame.classList.toggle('invalid', !!problem);
+			return { problem, parsed };
+		};
+		if (invalidText !== undefined) {
+			// Restored unsaved text that is still invalid.
+			this._invalidJson.add(editor);
+			validate();
+		}
+		this._controls.add(model.onDidChangeContent(() => {
+			const { problem, parsed } = validate();
 			if (problem) {
 				this._invalidJson.add(editor);
+				setInvalidText(model.getValue());
 			} else {
 				this._invalidJson.delete(editor);
 				change(parsed);
+				setInvalidText(undefined);
 			}
 		}));
 	}

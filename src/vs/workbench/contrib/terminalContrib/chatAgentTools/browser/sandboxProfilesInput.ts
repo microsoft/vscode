@@ -71,6 +71,8 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	/** Saved profiles open read-only until the user chooses Edit; new profiles open editable. */
 	editing = false;
 	private _dirty = false;
+	/** Text of JSON fields that don't parse or validate, so it survives re-rendering and blocks saving. */
+	private readonly _invalidText = new Map<string, string>();
 
 	constructor(
 		@IStorageService private readonly _storage: IStorageService,
@@ -116,6 +118,7 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		}
 		this._initial = profile;
 		this.draft = deepClone(profile);
+		this._invalidText.clear();
 		this.changed();
 		this._onDidSelect.fire();
 	}
@@ -138,11 +141,37 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	}
 
 	changed(): void {
-		const dirty = !equals(this._initial, this.draft);
+		const dirty = this._invalidText.size > 0 || !equals(this._initial, this.draft);
 		if (dirty !== this._dirty) {
 			this._dirty = dirty;
 			this._onDidChangeDirty.fire();
 		}
+	}
+
+	/** The unsaved invalid text of a JSON field, if any. */
+	invalidText(key: string): string | undefined {
+		return this._invalidText.get(key);
+	}
+
+	/** Records a JSON field's text while it is invalid; `undefined` clears it once the field is valid again. */
+	setInvalidText(key: string, text: string | undefined): void {
+		if (text === undefined) {
+			this._invalidText.delete(key);
+		} else {
+			this._invalidText.set(key, text);
+		}
+		this.changed();
+	}
+
+	/** Why the draft can't be saved, including problems outside the name field. */
+	get saveError(): string | undefined {
+		if (this.existing && !this.profiles.some(profile => profile.id === this.draft.id)) {
+			return localize('deletedElsewhere', "This profile was deleted in another window. Discard your changes, or create a new profile.");
+		}
+		if (this._invalidText.size) {
+			return localize('fixJsonBeforeSave', "Fix the JSON errors before saving.");
+		}
+		return this.validationMessage;
 	}
 
 	override isDirty(): boolean { return this._dirty; }
@@ -160,7 +189,7 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 
 	/** Saves the draft to the library and updates the connected hosts it is assigned to. */
 	override async save(): Promise<this> {
-		const message = this.validationMessage;
+		const message = this.saveError;
 		if (message) {
 			throw new Error(message);
 		}

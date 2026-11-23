@@ -13,6 +13,7 @@ import { TestSandboxProfilesHost } from '../../../../../../platform/agentHost/te
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { readSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
+import { AgentSandboxSettingId as Sandbox } from '../../../../../../platform/sandbox/common/settings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { SandboxProfilesInput } from '../../browser/sandboxProfilesInput.js';
 
@@ -153,6 +154,42 @@ suite('Sandbox profiles editor', () => {
 			unassigned: { deleted: true, library: [] },
 			// Only connected hosts are checked; a host that was disconnected keeps using its own copy.
 			offlineCopy: 'Strict',
+		});
+	});
+	test('a draft of a profile deleted in another window cannot be saved and does not bring it back', async () => {
+		const build = host();
+		const { storage, open } = setup({ build });
+		const editor = open();
+		editor.draft.name = 'Strict';
+		await editor.save();
+		const strict = editor.profiles[0];
+		assignHostSandboxProfile(build, strict);
+		editor.edit();
+		editor.draft.name = 'Strict v2';
+		editor.changed();
+		const otherWindow = open();
+		otherWindow.deleteProfile(strict.id); // blocked: build uses it
+		assignHostSandboxProfile(build, undefined);
+		otherWindow.deleteProfile(strict.id);
+		await assert.rejects(editor.save());
+		assert.deepStrictEqual({ library: readSandboxProfiles(storage), host: readHostSandboxProfile(build), error: !!editor.saveError }, { library: [], host: null, error: true });
+	});
+
+	test('invalid JSON text is an unsaved change that blocks saving until fixed or discarded', async () => {
+		const { storage, open } = setup();
+		const input = open();
+		input.draft.name = 'Strict';
+		await input.save();
+		input.edit();
+		const key = Sandbox.AgentSandboxUserConfiguredPaths;
+		input.setInvalidText(key, '{ "readwritePaths": [');
+		const invalid = { dirty: input.isDirty(), text: input.invalidText(key), error: !!input.saveError };
+		await assert.rejects(input.save());
+		await input.revert();
+		assert.deepStrictEqual({ invalid, reverted: { dirty: input.isDirty(), text: input.invalidText(key), error: input.saveError }, library: readSandboxProfiles(storage).map(p => p.name) }, {
+			invalid: { dirty: true, text: '{ "readwritePaths": [', error: true },
+			reverted: { dirty: false, text: undefined, error: undefined },
+			library: ['Strict'],
 		});
 	});
 	test('shows library changes from another window without discarding an edit in progress', async () => {
