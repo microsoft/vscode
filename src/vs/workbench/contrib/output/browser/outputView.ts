@@ -37,6 +37,7 @@ import { computeEditorAriaLabel } from '../../../browser/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { pushMany } from '../../../../base/common/arrays.js';
 import { LogLevel } from '../../../../platform/log/common/log.js';
 import { IEditorContributionDescription, EditorExtensionsRegistry, EditorContributionInstantiation, EditorContributionCtor } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -412,7 +413,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private filterIncremental(model: ITextModel, fromLineNumber: number): void {
 		const { findMatches, hiddenAreas, categories: sources } = this.compute(model, fromLineNumber);
-		this.hiddenAreas.push(...hiddenAreas);
+		pushMany(this.hiddenAreas, hiddenAreas);
 		this.editor.setHiddenAreas(this.hiddenAreas, this);
 		if (findMatches.length) {
 			this.decorationsCollection.append(findMatches);
