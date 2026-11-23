@@ -9,8 +9,9 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,9 +21,10 @@ import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
-import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, WelcomeSignInStyle } from '../../common/constants.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT, AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AgentsWindowGraphicDesign } from './agentsWindowGraphic.js';
+import { WelcomeSignInCardStyle } from './welcomeSignInCard.js';
 
 
 type AgentsBannerClickedEvent = {
@@ -42,6 +44,8 @@ export interface IAgentsBannerResult {
 	readonly disposables: DisposableStore;
 	/** Whether the banner is shown, that is, whether {@link isAgentsWindowAvailable} holds. */
 	readonly visible: IObservable<boolean>;
+	/** The style of the sign-in card shown before the button, or `undefined` while none is, see {@link IAgentsBannerOptions.signInCard}. */
+	readonly shownSignInCard: IObservable<WelcomeSignInCardStyle | undefined>;
 }
 
 /**
@@ -93,6 +97,21 @@ export interface IAgentsBannerOptions {
 		readonly bannerCopyResolved: IObservable<boolean>;
 		hide(): void;
 	};
+	/**
+	 * Shows the card selected by {@link ChatConfiguration.WelcomePageSignInStyle} before the button while the button offers sign-in,
+	 * unless the style is {@link WelcomeSignInStyle.Button} or the user hid the card. The button is then the card's primary action,
+	 * and the banner's context menu offers to hide the card with `hide`.
+	 *
+	 * The setting's experiment trigger is logged in every experiment arm once the banner is visible and offers sign-in while
+	 * `isExposed` is true, that is, when the user could see the card. It doesn't depend on whether the user hid the card.
+	 */
+	readonly signInCard?: {
+		readonly element: HTMLElement;
+		readonly style: IObservable<WelcomeSignInStyle>;
+		readonly hidden: IObservable<boolean>;
+		readonly isExposed: IObservable<boolean>;
+		hide(): void;
+	};
 }
 
 /**
@@ -113,7 +132,11 @@ export function createAgentsBanner(
 	const icon = $('.codicon.icon-widget', { 'aria-hidden': 'true' });
 	const buttonLabel = $('span.category-title');
 	const button = $<HTMLButtonElement>('button.agents-banner-button', {}, icon, buttonLabel);
-	const element = $(`.${options.cssClass}`, {}, ...(options.graphic ? [options.graphic.element] : []), button);
+	const element = $(`.${options.cssClass}`, {},
+		...(options.graphic ? [options.graphic.element] : []),
+		...(options.signInCard ? [options.signInCard.element] : []),
+		button,
+	);
 	const visible = observableValue<boolean>('agentsBannerVisible', false);
 	const updateVisibility = () => {
 		const isVisible = isAgentsWindowAvailable(chatEntitlementService, configurationService);
@@ -122,6 +145,36 @@ export function createAgentsBanner(
 		visible.set(isVisible, undefined);
 	};
 	updateVisibility();
+	disposables.add(chatEntitlementService.onDidChangeSentiment(updateVisibility));
+	disposables.add(configurationService.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
+			updateVisibility();
+		}
+	}));
+
+	// The default account is `null` until it has been resolved, also for signed-in users, so sign-in is only offered once it has.
+	const signedOut = observableValue<boolean>('agentsBannerSignedOut', false);
+	const updateAccount = () => signedOut.set(defaultAccountService.currentDefaultAccount === null, undefined);
+	disposables.add(defaultAccountService.onDidChangeDefaultAccount(updateAccount));
+	defaultAccountService.getDefaultAccount().then(() => {
+		if (!disposables.isDisposed) {
+			updateAccount();
+		}
+	}).catch(onUnexpectedError);
+	const signInEnabled = observableFromEvent(
+		Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.WelcomePageSignInEnabled)),
+		() => configurationService.getValue<boolean>(ChatConfiguration.WelcomePageSignInEnabled) !== false,
+	);
+	const offerSignIn = derived(reader => signedOut.read(reader) && signInEnabled.read(reader));
+	const shownSignInCard = derived(reader => {
+		const card = options.signInCard;
+		if (!card || !offerSignIn.read(reader) || card.hidden.read(reader)) {
+			return undefined;
+		}
+		const style = card.style.read(reader);
+		return style === WelcomeSignInStyle.Button ? undefined : style;
+	});
+
 	if (options.graphic) {
 		const { design, signedIn, isExposed, bannerCopyResolved } = options.graphic;
 		disposables.add(autorun(reader => {
@@ -141,54 +194,47 @@ export function createAgentsBanner(
 				}
 			}
 		}));
-		registerHideGraphicContextMenu(element, button, options.graphic, contextMenuService, telemetryService, disposables);
 	}
-	disposables.add(chatEntitlementService.onDidChangeSentiment(updateVisibility));
-	disposables.add(configurationService.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
-			updateVisibility();
-		}
-	}));
-	let accountResolved = false;
-	const shouldOfferSignIn = () => accountResolved && defaultAccountService.currentDefaultAccount === null && configurationService.getValue<boolean>(ChatConfiguration.WelcomePageSignInEnabled) !== false;
-	const updateButton = () => {
-		const offerSignIn = shouldOfferSignIn();
-		// The banner's text already introduces the Agents window, so its button is a plain primary action.
-		const isBanner = options.graphic?.shownDesign.get() === AgentsWindowGraphicVariant.Banner;
-		const buttonText = offerSignIn ? localize('agentsBanner.signIn', "Sign in to GitHub") : isBanner ? localize('agentsBanner.openAgentsWindow', "Open Agents Window") : label;
-		button.title = buttonText;
-		buttonLabel.textContent = buttonText;
-		button.classList.toggle('emphasis', isBanner);
-		icon.style.display = isBanner ? 'none' : '';
-		icon.classList.toggle('codicon-github', offerSignIn);
-		icon.classList.toggle('codicon-agent', !offerSignIn);
-	};
-	updateButton();
-	if (options.graphic) {
-		const { shownDesign } = options.graphic;
+	if (options.signInCard) {
+		const { element: cardElement, isExposed } = options.signInCard;
 		disposables.add(autorun(reader => {
-			shownDesign.read(reader);
-			updateButton();
+			setVisibility(shownSignInCard.read(reader) !== undefined, cardElement);
+		}));
+		disposables.add(autorun(reader => {
+			if (visible.read(reader) && offerSignIn.read(reader) && isExposed.read(reader)) {
+				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageSignInStyle);
+			}
 		}));
 	}
-	disposables.add(defaultAccountService.onDidChangeDefaultAccount(() => {
-		accountResolved = true;
-		updateButton();
+
+	disposables.add(autorun(reader => {
+		const signIn = offerSignIn.read(reader);
+		const isBanner = options.graphic?.shownDesign.read(reader) === AgentsWindowGraphicVariant.Banner;
+		// The banner's or card's text already explains the button, so it is their plain primary action.
+		const isPrimary = isBanner || shownSignInCard.read(reader) !== undefined;
+		const buttonText = signIn ? localize('agentsBanner.signIn', "Sign in to GitHub") : isBanner ? localize('agentsBanner.openAgentsWindow', "Open Agents Window") : label;
+		button.title = buttonText;
+		buttonLabel.textContent = buttonText;
+		button.classList.toggle('emphasis', isPrimary);
+		icon.style.display = isPrimary ? 'none' : '';
+		icon.classList.toggle('codicon-github', signIn);
+		icon.classList.toggle('codicon-agent', !signIn);
 	}));
-	disposables.add(configurationService.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration(ChatConfiguration.WelcomePageSignInEnabled)) {
-			updateButton();
+
+	registerHideContextMenu(element, button, () => {
+		const { graphic, signInCard } = options;
+		// The page can also drop the graphic when it doesn't fit.
+		if (graphic && graphic.shownDesign.get() !== undefined && getWindow(element).getComputedStyle(graphic.element).display !== 'none') {
+			return { action: 'hideGraphic', hide: () => graphic.hide() };
 		}
-	}));
-	defaultAccountService.getDefaultAccount().then(() => {
-		if (!disposables.isDisposed) {
-			accountResolved = true;
-			updateButton();
+		if (signInCard && shownSignInCard.get() !== undefined) {
+			return { action: 'hideSignInCard', hide: () => signInCard.hide() };
 		}
-	}).catch(onUnexpectedError);
+		return undefined;
+	}, contextMenuService, telemetryService, disposables);
 
 	disposables.add(addDisposableListener(button, 'click', () => {
-		if (shouldOfferSignIn()) {
+		if (offerSignIn.get()) {
 			telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: 'welcomePage', action: 'signIn' });
 			defaultAccountService.signIn().catch(onUnexpectedError);
 			return;
@@ -198,28 +244,27 @@ export function createAgentsBanner(
 		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.WelcomeTryOut }).catch(onUnexpectedError);
 	}));
 
-	return { element, disposables, visible };
+	return { element, disposables, visible, shownSignInCard };
 }
 
 /**
- * While the graphic is shown, right-clicking the banner, or pressing Shift+F10 or the context menu key in it, offers to hide the graphic.
- * The button stays. When the menu was opened from the keyboard, the button keeps focus, even if the page moves it.
+ * While the banner shows something the user can hide, the graphic or the sign-in card, right-clicking the banner, or pressing Shift+F10
+ * or the context menu key in it, offers to hide it. The button stays. When the menu was opened from the keyboard, the button keeps
+ * focus, even if the page moves it.
  */
-function registerHideGraphicContextMenu(element: HTMLElement, button: HTMLButtonElement, graphic: NonNullable<IAgentsBannerOptions['graphic']>, contextMenuService: IContextMenuService, telemetryService: ITelemetryService, disposables: DisposableStore): void {
-	// The page can also drop the graphic when it doesn't fit.
-	const isGraphicShown = () => graphic.shownDesign.get() !== undefined && getWindow(element).getComputedStyle(graphic.element).display !== 'none';
-	const showContextMenu = (mouseEvent: StandardMouseEvent | undefined) => {
+function registerHideContextMenu(element: HTMLElement, button: HTMLButtonElement, getHideable: () => { readonly action: string; hide(): void } | undefined, contextMenuService: IContextMenuService, telemetryService: ITelemetryService, disposables: DisposableStore): void {
+	const showContextMenu = (hideable: { readonly action: string; hide(): void }, mouseEvent: StandardMouseEvent | undefined) => {
 		const hadFocus = isAncestorOfActiveElement(element);
 		contextMenuService.showContextMenu({
 			getAnchor: () => mouseEvent ?? button,
 			// From the keyboard, select the action so that Enter runs it.
 			autoSelectItem: !mouseEvent,
 			getActions: () => [toAction({
-				id: 'agentsBanner.hideGraphic',
+				id: `agentsBanner.${hideable.action}`,
 				label: localize('agentsBanner.hide', "Hide"),
 				run: () => {
-					telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: 'welcomePage', action: 'hideGraphic' });
-					graphic.hide();
+					telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: 'welcomePage', action: hideable.action });
+					hideable.hide();
 					if (hadFocus) {
 						button.focus();
 					}
@@ -228,17 +273,21 @@ function registerHideGraphicContextMenu(element: HTMLElement, button: HTMLButton
 		});
 	};
 	disposables.add(addDisposableListener(element, EventType.CONTEXT_MENU, e => {
-		if (isGraphicShown()) {
+		const hideable = getHideable();
+		if (hideable) {
 			EventHelper.stop(e, true);
-			showContextMenu(new StandardMouseEvent(getWindow(element), e));
+			showContextMenu(hideable, new StandardMouseEvent(getWindow(element), e));
 		}
 	}));
 	disposables.add(addDisposableListener(element, EventType.KEY_DOWN, e => {
 		const event = new StandardKeyboardEvent(e);
-		if ((event.equals(KeyMod.Shift | KeyCode.F10) || event.equals(KeyCode.ContextMenu)) && isGraphicShown()) {
-			event.preventDefault();
-			event.stopPropagation();
-			showContextMenu(undefined);
+		if (event.equals(KeyMod.Shift | KeyCode.F10) || event.equals(KeyCode.ContextMenu)) {
+			const hideable = getHideable();
+			if (hideable) {
+				event.preventDefault();
+				event.stopPropagation();
+				showContextMenu(hideable, undefined);
+			}
 		}
 	}));
 }

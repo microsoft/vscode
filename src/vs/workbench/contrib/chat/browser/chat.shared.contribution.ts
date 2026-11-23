@@ -76,7 +76,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, WelcomePageCardSurface } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, WelcomePageCardSurface, WelcomeSignInStyle } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -2455,6 +2455,20 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.welcomePage.signIn.enabled', "Controls whether the Welcome page shows a GitHub sign-in button instead of the Agents window button when signed out."),
 			default: true,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageSignInStyle]: {
+			type: 'string',
+			enum: [WelcomeSignInStyle.Button, WelcomeSignInStyle.CopilotCard, WelcomeSignInStyle.GitHubCard, WelcomeSignInStyle.CompactCard],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.signIn.style.button', "Show a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.copilotCard', "Show a card that lists what GitHub Copilot does, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.githubCard', "Show a card that lists what working with GitHub brings, such as pull requests, issues and GitHub Copilot, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.compactCard', "Show a card that sums up what signing in brings in one sentence, with a sign-in button."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.signIn.style', "Controls how the Welcome page asks you to sign in with GitHub when signed out. Applies only while {0} is enabled.", '`#chat.welcomePage.signIn.enabled#`'),
+			default: WelcomeSignInStyle.Button,
+			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {

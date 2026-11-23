@@ -27,7 +27,8 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { createAgentsBanner, isAgentsWindowAvailable } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT, AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
+import { resetWelcomeSignInCardHidden, WelcomeSignInCard } from '../../../browser/agentSessions/welcomeSignInCard.js';
+import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, WelcomeSignInStyle } from '../../../common/constants.js';
 
 suite('AgentsBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -687,5 +688,156 @@ suite('AgentsBanner graphic', () => {
 		store.add(banner.disposables);
 
 		assert.deepStrictEqual({ triggers: telemetryService.triggers, children: [...banner.element.children].map(child => child.className) }, { triggers: [], children: ['agents-banner-button'] });
+	});
+});
+
+suite('AgentsBanner sign-in card', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const styleTreatment = `config.${ChatConfiguration.WelcomePageSignInStyle}`;
+	const account = new class extends mock<IDefaultAccount>() { }();
+
+	/** Records the events other than experiment triggers. */
+	class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+		readonly events: { name: string | undefined; data: object | undefined }[] = [];
+		override publicLog2(eventName?: string, data?: object): void {
+			super.publicLog2(eventName, data);
+			if (eventName !== 'experimentTrigger') {
+				this.events.push({ name: eventName, data });
+			}
+		}
+	}
+
+	/** Creates the banner with the sign-in card, like the Welcome page does. The user is signed out unless `signedIn` is true. */
+	function createBannerWithSignInCard(style: string, options: { signedIn?: boolean; signInEnabled?: boolean; exposed?: boolean; storageService?: InMemoryStorageService } = {}) {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.WelcomePageSignInStyle]: style,
+			[ChatConfiguration.WelcomePageSignInEnabled]: options.signInEnabled ?? true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
+		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
+		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+			override currentDefaultAccount: IDefaultAccount | null = options.signedIn ? account : null;
+			override onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
+			override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+				return this.currentDefaultAccount;
+			}
+		}();
+		const telemetryService = new RecordingTelemetryService();
+		const card = store.add(new WelcomeSignInCard(configurationService, options.storageService ?? store.add(new InMemoryStorageService())));
+		const exposed = observableValue('exposed', options.exposed ?? true);
+		const menus: IContextMenuDelegate[] = [];
+		const banner = createAgentsBanner(
+			{ cssClass: 'agents-banner', signInCard: { element: card.element, style: card.style, hidden: card.hidden, isExposed: exposed, hide: () => card.hide() } },
+			new class extends mock<ICommandService>() { }(),
+			telemetryService,
+			configurationService,
+			new class extends mock<IChatEntitlementService>() {
+				override sentiment = {};
+				override onDidChangeSentiment = Event.None;
+			}(),
+			defaultAccountService,
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					menus.push(delegate);
+				}
+			}(),
+		);
+		store.add(banner.disposables);
+		const button = banner.element.querySelector<HTMLButtonElement>('.agents-banner-button')!;
+		return {
+			telemetryService,
+			setExposed: (value: boolean) => exposed.set(value, undefined),
+			signIn: () => {
+				defaultAccountService.currentDefaultAccount = account;
+				onDidChangeDefaultAccount.fire(account);
+			},
+			rightClick: () => {
+				const count = menus.length;
+				button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				return menus.length > count ? menus[menus.length - 1].getActions().map(action => action.label) : undefined;
+			},
+			runMenuAction: async (label: string) => {
+				await menus[menus.length - 1].getActions().find(action => action.label === label)!.run();
+			},
+			/** Lets the banner resolve the default account, then returns what it shows. */
+			state: async () => {
+				await timeout(0);
+				return {
+					card: banner.shownSignInCard.get(),
+					text: card.element.style.display === 'none' ? '' : card.element.textContent,
+					button: button.textContent,
+					primary: button.classList.contains('emphasis'),
+					triggers: [...telemetryService.triggers],
+				};
+			},
+		};
+	}
+
+	test('shows signed-out users the card of the selected style, and logs the trigger in every arm once the page is shown', async () => {
+		const states = [];
+		for (const style of [WelcomeSignInStyle.Button, WelcomeSignInStyle.CopilotCard, WelcomeSignInStyle.GitHubCard, WelcomeSignInStyle.CompactCard, 'unknown']) {
+			const banner = createBannerWithSignInCard(style, { exposed: false });
+			const beforeExposure = (await banner.state()).triggers;
+			banner.setExposed(true);
+			states.push({ style, beforeExposure, ...await banner.state() });
+		}
+
+		const button = { button: 'Sign in to GitHub', primary: false, text: '', card: undefined, beforeExposure: [], triggers: [styleTreatment] };
+		assert.deepStrictEqual(states, [
+			{ style: 'button', ...button },
+			{ style: 'copilotCard', card: 'copilotCard', text: 'Code faster with GitHub CopilotChat with Copilot about your codeGet code suggestions as you typeLet agents build features and fix bugs for you', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: [styleTreatment] },
+			{ style: 'githubCard', card: 'githubCard', text: 'Connect VS Code to GitHubWork with your pull requests and issuesClone and publish your repositoriesUse GitHub Copilot to chat, edit and run agents', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: [styleTreatment] },
+			{ style: 'compactCard', card: 'compactCard', text: 'Sign in with GitHub to use GitHub Copilot and work with your pull requests, issues and repositories.', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: [styleTreatment] },
+			// Values that are no longer supported show the button.
+			{ style: 'unknown', ...button },
+		]);
+	});
+
+	test('shows no card and logs no trigger while signed in or while sign-in is disabled, and removes the card on sign-in', async () => {
+		const signedOut = createBannerWithSignInCard(WelcomeSignInStyle.GitHubCard);
+		const beforeSignIn = await signedOut.state();
+		signedOut.signIn();
+
+		assert.deepStrictEqual({
+			signedIn: await createBannerWithSignInCard(WelcomeSignInStyle.GitHubCard, { signedIn: true }).state(),
+			signInDisabled: await createBannerWithSignInCard(WelcomeSignInStyle.GitHubCard, { signInEnabled: false }).state(),
+			beforeSignIn: { card: beforeSignIn.card, button: beforeSignIn.button },
+			afterSignIn: await signedOut.state(),
+		}, {
+			signedIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [] },
+			signInDisabled: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [] },
+			beforeSignIn: { card: 'githubCard', button: 'Sign in to GitHub' },
+			// The user was offered sign-in, so the trigger stays logged.
+			afterSignIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [styleTreatment] },
+		});
+	});
+
+	test('hides the card from its context menu in the profile, keeps the sign-in button, and still logs the trigger', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const banner = createBannerWithSignInCard(WelcomeSignInStyle.CopilotCard, { storageService });
+		await banner.state();
+		const menu = banner.rightClick();
+		await banner.runMenuAction('Hide');
+		const afterHide = { ...await banner.state(), menu: banner.rightClick(), events: banner.telemetryService.events };
+		const otherPage = await createBannerWithSignInCard(WelcomeSignInStyle.CompactCard, { storageService }).state();
+		resetWelcomeSignInCardHidden(storageService);
+
+		assert.deepStrictEqual({
+			menu,
+			afterHide,
+			otherPage,
+			afterReset: (await banner.state()).card,
+		}, {
+			menu: ['Hide'],
+			afterHide: {
+				card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment],
+				menu: undefined,
+				events: [{ name: 'agentsBanner.clicked', data: { source: 'welcomePage', action: 'hideSignInCard' } }],
+			},
+			// Hiding the card applies to every style, but doesn't change who counts in the experiment.
+			otherPage: { card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment] },
+			afterReset: 'copilotCard',
+		});
 	});
 });
