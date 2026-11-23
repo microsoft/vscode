@@ -37,18 +37,6 @@ const args = minimist(process.argv.slice(2), {
 		build: false,
 		coverage: false,
 		help: false
-	},
-	description: {
-		build: 'Run from out-build',
-		run: 'Run a single file',
-		runList: 'Only run the tests whose files are listed in a file, one per line',
-		grep: 'Only run tests matching <pattern>',
-		coverage: 'Generate a coverage report',
-		coveragePath: 'Path to coverage report to generate',
-		coverageFormats: 'Coverage formats to generate',
-		timeout: 'Timeout for tests',
-		workers: 'Number of parallel worker processes for a run of all test files, or of those of --runList',
-		help: 'Show help'
 	}
 });
 
