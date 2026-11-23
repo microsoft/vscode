@@ -5,8 +5,9 @@
 
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isLocation } from '../../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
@@ -68,6 +69,54 @@ export function serializeChatDraft(draft: IChatDraft, getTextModel?: (resource: 
 		return IChatRequestVariableEntry.toExport(attachment);
 	});
 	return { inputText: draft.inputText, attachments: stringify(attachments) };
+}
+
+/**
+ * Replaces the resources of a draft's attachments and inline references that `mapResource` maps, such as the files of
+ * an agent host whose draft moves to another connection of it, along with the ids derived from them. Other resources
+ * stay as they are, and so does `draft` when none of them map.
+ */
+export function remapChatDraftResources(draft: IChatDraft, mapResource: (resource: URI) => URI | undefined): IChatDraft {
+	// Mentions of attachments refer to them by their ids.
+	const ids = new Map<string, string>();
+	let changed = false;
+	const attachments = draft.attachments.map(attachment => {
+		const remapped = remapResourceValue(attachment.value, mapResource);
+		const uri = hasKey(attachment, { uri: true }) && URI.isUri(attachment.uri) ? mapResource(attachment.uri) : undefined;
+		if (!remapped && !uri) {
+			return attachment;
+		}
+		changed = true;
+		const id = remapped ? remapResourceId(attachment.id, remapped) : attachment.id;
+		ids.set(attachment.id, id);
+		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {});
+	});
+	const references = draft.references?.map(reference => {
+		const remapped = remapResourceValue(reference.data, mapResource);
+		const id = ids.get(reference.id) ?? (remapped ? remapResourceId(reference.id, remapped) : reference.id);
+		if (!remapped && id === reference.id) {
+			return reference;
+		}
+		changed = true;
+		return { ...reference, id, ...(remapped ? { data: remapped.value } : {}) };
+	});
+	return changed ? { ...draft, attachments, ...(references ? { references } : {}) } : draft;
+}
+
+function remapResourceValue(value: unknown, mapResource: (resource: URI) => URI | undefined): { readonly from: URI; readonly to: URI; readonly value: URI | Location } | undefined {
+	if (URI.isUri(value)) {
+		const to = mapResource(value);
+		return to && { from: value, to, value: to };
+	}
+	if (isLocation(value)) {
+		const to = mapResource(value.uri);
+		return to && { from: value.uri, to, value: { ...value, uri: to } };
+	}
+	return undefined;
+}
+
+function remapResourceId(id: string, { from, to }: { readonly from: URI; readonly to: URI }): string {
+	return id.replaceAll(from.toString(), to.toString());
 }
 
 export function reviveChatDraft(draft: IAgentsWindowDraft): IChatDraft {

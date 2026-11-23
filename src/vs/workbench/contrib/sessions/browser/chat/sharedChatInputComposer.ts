@@ -42,7 +42,7 @@ import { ChatInputNoticeHost } from '../../../chat/browser/widget/input/chatInpu
 import { IChatInputHostModelSelection } from '../../../chat/browser/widget/input/chatInputPart.js';
 import { ModelComparisonAvailableContext } from '../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
+import { IChatDraft, remapChatDraftResources } from '../../../chat/common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -637,16 +637,23 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._bindingModel = true;
 		try {
 			widget.setModel(ref.object);
-			// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
-			if (widget.inputEditor.getValue() !== inputText) {
-				this.setInputValue(inputText);
-			}
-			widget.attachmentModel.clearAndSetContext(...attachments);
-			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
+			this._setInputContext(widget, inputText, attachments, references);
 		} finally {
 			this._bindingModel = false;
 		}
 		this._modelRef.value = ref;
+	}
+
+	/**
+	 * Gives the input `attachments` and `references`. The references refer to `inputText`, the prompt, which differs from
+	 * the input editor's text while it shows inline attachment pills.
+	 */
+	private _setInputContext(widget: ChatWidget, inputText: string, attachments: readonly IChatRequestVariableEntry[], references: readonly IDynamicVariable[]): void {
+		if (widget.inputEditor.getValue() !== inputText) {
+			this.setInputValue(inputText);
+		}
+		widget.attachmentModel.clearAndSetContext(...attachments);
+		widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 	}
 
 	// #endregion
@@ -914,6 +921,24 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._restoreDraftReferences(draft);
 		this.saveState();
 		return true;
+	}
+
+	/**
+	 * Replaces the resources of the draft's attachments and inline references that `mapResource` maps, such as when its
+	 * workspace moves to another connection of its agent host, after which the source's resources cannot be read.
+	 */
+	remapDraftResources(mapResource: (resource: URI) => URI | undefined): void {
+		const widget = this._widget;
+		if (!widget) {
+			const { attachments } = remapChatDraftResources({ inputText: '', attachments: this._pendingAttachments }, mapResource);
+			this._pendingAttachments.splice(0, this._pendingAttachments.length, ...attachments);
+			return;
+		}
+		const draft = this.getDraft();
+		const remapped = remapChatDraftResources(draft, mapResource);
+		if (remapped !== draft) {
+			this._setInputContext(widget, draft.inputText, remapped.attachments, remapped.references ?? []);
+		}
 	}
 
 	// #endregion

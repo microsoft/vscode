@@ -443,7 +443,7 @@ suite('Mission Control native provider inventory', () => {
 		const successor = created[0].options.successor!;
 		const read = () => {
 			const value = successor.get();
-			return value && { providerId: value.providerId, folder: value.mapFolder(environmentFolder)?.toString(), other: value.mapFolder(otherFolder)?.toString() };
+			return value && { providerId: value.providerId, folder: value.mapResource(environmentFolder)?.toString(), other: value.mapResource(otherFolder)?.toString() };
 		};
 		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
 		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
@@ -479,7 +479,7 @@ suite('Mission Control native provider inventory', () => {
 			const continued = predecessor!.get();
 			return {
 				successor: successor!.get()?.providerId,
-				predecessor: continued && { providerId: continued.providerId, folder: continued.mapFolder(remoteFolder)?.toString(), other: continued.mapFolder(environmentFolder)?.toString() },
+				predecessor: continued && { providerId: continued.providerId, folder: continued.mapResource(remoteFolder)?.toString(), other: continued.mapResource(environmentFolder)?.toString() },
 			};
 		};
 		const connected = read();

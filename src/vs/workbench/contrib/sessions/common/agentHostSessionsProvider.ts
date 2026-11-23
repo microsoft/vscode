@@ -196,8 +196,8 @@ export interface IAgentHostMcpServer {
 export interface IAgentHostSuccessor {
 	/** The provider new session selections move to. */
 	readonly providerId: string;
-	/** Maps a folder of the replaced provider to the same folder on {@link providerId}, or `undefined` when it is not one. */
-	mapFolder(folderUri: URI): URI | undefined;
+	/** Maps a resource, such as a folder or file, of the replaced provider to the same resource on {@link providerId}, or `undefined` when it is not one. */
+	mapResource(resource: URI): URI | undefined;
 }
 
 /**
@@ -207,8 +207,8 @@ export interface IAgentHostSuccessor {
 export interface IAgentHostPredecessor {
 	/** The provider whose new session selections move to the provider taking over. */
 	readonly providerId: string;
-	/** Maps a folder of {@link providerId} to the same folder on the provider taking over, or `undefined` when it is not one. */
-	mapFolder(folderUri: URI): URI | undefined;
+	/** Maps a resource, such as a folder or file, of {@link providerId} to the same resource on the provider taking over, or `undefined` when it is not one. */
+	mapResource(resource: URI): URI | undefined;
 }
 
 /**

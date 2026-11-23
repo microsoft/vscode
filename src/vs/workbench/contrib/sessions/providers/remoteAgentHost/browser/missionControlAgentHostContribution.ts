@@ -55,12 +55,12 @@ interface IKeptSharing {
 	readonly providerId: string;
 }
 
-/** Maps a folder of the agent host at `fromAddress` to the same folder on the one at `toAddress`, or `undefined` when it is not one. */
-function mapHostFolder(fromAddress: string, toAddress: string): (folderUri: URI) => URI | undefined {
+/** Maps a resource of the agent host at `fromAddress` to the same resource on the one at `toAddress`, or `undefined` when it is not one. */
+function mapHostResource(fromAddress: string, toAddress: string): (resource: URI) => URI | undefined {
 	const from = createAgentHostResourceUriMapper(agentHostAuthority(fromAddress));
 	const to = createAgentHostResourceUriMapper(agentHostAuthority(toAddress));
-	return folderUri => folderUri.scheme === AGENT_HOST_SCHEME && isEqualAuthority(folderUri.authority, from.connectionAuthority)
-		? to.fromAgentHost(from.toAgentHost(folderUri))
+	return resource => resource.scheme === AGENT_HOST_SCHEME && isEqualAuthority(resource.authority, from.connectionAuthority)
+		? to.fromAgentHost(from.toAgentHost(resource))
 		: undefined;
 }
 
@@ -389,13 +389,13 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		if (address === undefined || !direct) {
 			return undefined;
 		}
-		return { providerId: direct.id, mapFolder: mapHostFolder(cloudSandboxAddress(environmentId), address) };
+		return { providerId: direct.id, mapResource: mapHostResource(cloudSandboxAddress(environmentId), address) };
 	}
 
 	/** The direct connection of the remote being disconnected with Keep Sharing, whose host the GitHub environment takes over. */
 	private _readPredecessor(environmentId: string, reader: IReader): IAgentHostPredecessor | undefined {
 		const kept = this._keptSharing.read(reader).get(environmentId);
-		return kept && { providerId: kept.providerId, mapFolder: mapHostFolder(kept.address, cloudSandboxAddress(environmentId)) };
+		return kept && { providerId: kept.providerId, mapResource: mapHostResource(kept.address, cloudSandboxAddress(environmentId)) };
 	}
 
 	private _isListing(provider: IAgentHostSessionsProvider): boolean {

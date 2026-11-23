@@ -1561,11 +1561,14 @@ suite('NewChatWidget', () => {
 				// The main composer waits for the agent the user picked; a hosted composer, for the one its host requests. The
 				// picker returns only a pick for the composer's current provider.
 				const userPick: IPreferredSessionType = hosted ? { sessionTypeId: 'codex' } : requested ? { providerId: 'agenthost-env', sessionTypeId: requested } : { providerId: 'agenthost-wsl', sessionTypeId: 'codex' };
-				Object.assign(harness._newChatInput, { sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => !userPick.providerId || harness._pickedEnvironment.get()?.providerIds.includes(userPick.providerId) ? userPick : undefined } });
+				Object.assign(harness._newChatInput, {
+					sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => !userPick.providerId || harness._pickedEnvironment.get()?.providerIds.includes(userPick.providerId) ? userPick : undefined },
+					remapDraftResources: (mapResource: (resource: URI) => URI | undefined) => calls.push(`remapDraft:${mapResource(folder)?.authority}`),
+				});
 				if (hosted) {
 					harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
 				}
-				const follow = Reflect.get(NewChatWidget.prototype, '_followSuccessor') as (this: unknown, folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string) => Promise<void>;
+				const follow = Reflect.get(NewChatWidget.prototype, '_followSuccessor') as (this: unknown, folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string, mapResource: (resource: URI) => URI | undefined) => Promise<void>;
 				const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: unknown, options: ISelectWorkspaceOptions) => void;
 				const requestsDevContainer = Reflect.get(NewChatWidget.prototype, '_requestsDevContainer') as (this: unknown, folderUri: URI | undefined) => boolean;
 
@@ -1577,7 +1580,7 @@ suite('NewChatWidget', () => {
 					_reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions) { reconcile.call(this, options); },
 					_requestsDevContainer(folderUri: URI | undefined) { return requestsDevContainer.call(this, folderUri); },
 					_onWorkspaceSelected: async (_folderUri: URI, pick: IPreferredSessionType | undefined, background: boolean | undefined) => { created.push({ pick, background }); calls.push('createDraft'); },
-				}), folder, 'agenthost-env', directFolder, 'agenthost-wsl');
+				}), folder, 'agenthost-env', directFolder, 'agenthost-wsl', resource => extUri.isEqual(resource, folder) ? directFolder : undefined);
 
 				assert.deepStrictEqual({
 					environment: harness._pickedEnvironment.get()?.id,
@@ -1594,7 +1597,7 @@ suite('NewChatWidget', () => {
 					target: hosted ? { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model', ...requestedType } : { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType },
 					selections: [{ origin: WorkspaceSelectionOrigin.User, persist: !hosted }],
 					created: [{ pick: { providerId: 'agenthost-wsl', sessionTypeId: requested ?? 'copilot' }, background: true }],
-					calls: ['saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container' : 'Environment: WSL'],
+					calls: ['remapDraft:wsl', 'saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container' : 'Environment: WSL'],
 				});
 			});
 		}
@@ -1607,21 +1610,24 @@ suite('NewChatWidget', () => {
 			const providers = ['agenthost-wsl', ...predecessors.keys()].map(id => upcastPartial<IAgentHostSessionsProvider>({ id, successor: id === 'agenthost-wsl' ? successor : undefined, predecessor: predecessors.get(id) }));
 			const selected = { providerId: 'agenthost-wsl' };
 			const read = () => {
-				const continuation = (Reflect.get(NewChatWidget.prototype, '_readContinuation') as (this: unknown, reader: IReader | undefined) => { successorFolderUri: URI; successorProviderId: string } | undefined).call({
+				const continuation = (Reflect.get(NewChatWidget.prototype, '_readContinuation') as (this: unknown, reader: IReader | undefined) => { successorFolderUri: URI; successorProviderId: string; mapResource(resource: URI): URI | undefined } | undefined).call({
 					_workspacePicker: { selectedFolderUri: directFolder, selectedResolved: selected },
 					sessionsProvidersService: { getProviders: () => providers, getProvider: (id: string) => providers.find(provider => provider.id === id) },
 				}, undefined);
-				return continuation && `${continuation.successorProviderId} ${continuation.successorFolderUri.authority}`;
+				const mapped = continuation?.mapResource(file);
+				return continuation && `${continuation.successorProviderId} ${continuation.successorFolderUri.authority} ${mapped?.authority}${mapped?.path}`;
 			};
+			const file = directFolder.with({ path: `${directFolder.path}/a.ts` });
+			const toEnvironment = (resource: URI) => resource.with({ authority: environmentFolder.authority });
 			const states = [read()];
-			predecessors.get('agenthost-other')!.set({ providerId: 'agenthost-ssh', mapFolder: () => environmentFolder }, undefined);
-			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapFolder: () => undefined }, undefined);
+			predecessors.get('agenthost-other')!.set({ providerId: 'agenthost-ssh', mapResource: toEnvironment }, undefined);
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapResource: () => undefined }, undefined);
 			states.push(read());
-			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapFolder: () => environmentFolder }, undefined);
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapResource: toEnvironment }, undefined);
 			states.push(read());
-			successor.set({ providerId: 'agenthost-other', mapFolder: () => directFolder }, undefined);
+			successor.set({ providerId: 'agenthost-other', mapResource: resource => resource }, undefined);
 			states.push(read());
-			assert.deepStrictEqual(states, [undefined, undefined, 'agenthost-env env', 'agenthost-other wsl']);
+			assert.deepStrictEqual(states, [undefined, undefined, 'agenthost-env env env/file/-/project/a.ts', 'agenthost-other wsl wsl/file/-/project/a.ts']);
 		});
 
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {

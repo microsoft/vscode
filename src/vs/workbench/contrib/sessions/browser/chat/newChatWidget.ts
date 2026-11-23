@@ -897,7 +897,7 @@ export class NewChatWidget extends Disposable {
 			workspacePickerSelectionChanged.read(reader);
 			const continuation = this._readContinuation(reader);
 			if (continuation) {
-				void this._followSuccessor(continuation.folderUri, continuation.providerId, continuation.successorFolderUri, continuation.successorProviderId);
+				void this._followSuccessor(continuation.folderUri, continuation.providerId, continuation.successorFolderUri, continuation.successorProviderId, continuation.mapResource);
 			}
 		}));
 	}
@@ -907,7 +907,7 @@ export class NewChatWidget extends Disposable {
 	 * connected again, whose GitHub environment then becomes unavailable, or the GitHub environment that takes over a
 	 * remote disconnected with Keep Sharing.
 	 */
-	private _readContinuation(reader: IReader): { folderUri: URI; providerId: string; successorFolderUri: URI; successorProviderId: string } | undefined {
+	private _readContinuation(reader: IReader): { folderUri: URI; providerId: string; successorFolderUri: URI; successorProviderId: string; mapResource: (resource: URI) => URI | undefined } | undefined {
 		const folderUri = this._workspacePicker.selectedFolderUri;
 		const providerId = this._workspacePicker.selectedResolved?.providerId;
 		if (!folderUri || !providerId) {
@@ -915,15 +915,15 @@ export class NewChatWidget extends Disposable {
 		}
 		const provider = this.sessionsProvidersService.getProvider(providerId);
 		const successor = provider && isAgentHostProvider(provider) ? provider.successor?.read(reader) : undefined;
-		const successorFolderUri = successor?.mapFolder(folderUri);
+		const successorFolderUri = successor?.mapResource(folderUri);
 		if (successor && successorFolderUri) {
-			return { folderUri, providerId, successorFolderUri, successorProviderId: successor.providerId };
+			return { folderUri, providerId, successorFolderUri, successorProviderId: successor.providerId, mapResource: resource => successor.mapResource(resource) };
 		}
 		for (const candidate of this.sessionsProvidersService.getProviders()) {
 			const predecessor = candidate.id !== providerId && isAgentHostProvider(candidate) ? candidate.predecessor?.read(reader) : undefined;
-			const candidateFolderUri = predecessor?.providerId === providerId ? predecessor.mapFolder(folderUri) : undefined;
-			if (candidateFolderUri) {
-				return { folderUri, providerId, successorFolderUri: candidateFolderUri, successorProviderId: candidate.id };
+			const candidateFolderUri = predecessor?.providerId === providerId ? predecessor.mapResource(folderUri) : undefined;
+			if (predecessor && candidateFolderUri) {
+				return { folderUri, providerId, successorFolderUri: candidateFolderUri, successorProviderId: candidate.id, mapResource: resource => predecessor.mapResource(resource) };
 			}
 		}
 		return undefined;
@@ -2882,7 +2882,7 @@ export class NewChatWidget extends Disposable {
 	 * once it is connected again or the GitHub environment of a remote disconnected with Keep Sharing, keeping the input,
 	 * the agent and a Dev Container where the new provider offers them. It happens in the background: focus stays where it is.
 	 */
-	private async _followSuccessor(folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string): Promise<void> {
+	private async _followSuccessor(folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string, mapResource: (resource: URI) => URI | undefined): Promise<void> {
 		const session = this._session.get();
 		if (session && isSessionCreated(session)) {
 			return;
@@ -2896,6 +2896,8 @@ export class NewChatWidget extends Disposable {
 			|| extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)
 			|| this._requestsDevContainer(folderUri)
 			|| (!!session && !!sessionProvider && isAgentHostProvider(sessionProvider) && sessionProvider.isDevContainerRequested?.(session.sessionId) === true);
+		// The source's files, such as attached ones, cannot be read once it disconnects.
+		this._newChatInput.remapDraftResources(mapResource);
 		this._newChatInput.saveState();
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
