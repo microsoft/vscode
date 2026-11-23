@@ -169,7 +169,12 @@ interface IAuthorityEntry {
 	 */
 	connections: IRemoteFilesystemConnection[];
 	activeConnectionVersion: number;
-	readonly onDidChangeActiveConnection: Emitter<void>;
+	/**
+	 * Resolved when the active connection changes. Each in-flight operation
+	 * adds one entry and removes it when it settles. This is deliberately not
+	 * an {@link Emitter}, whose leak monitor flags bursts of concurrent reads.
+	 */
+	readonly activeConnectionWaiters: Set<() => void>;
 	/**
 	 * Pending eviction timer; armed while {@link connections} is empty,
 	 * cleared on re-registration or eviction.
@@ -259,7 +264,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			entry = {
 				connections: [connection],
 				activeConnectionVersion: 0,
-				onDidChangeActiveConnection: new Emitter<void>(),
+				activeConnectionWaiters: new Set(),
 				expiry: new MutableDisposable<IDisposable>(),
 			};
 			this._authorities.set(authority, entry);
@@ -294,8 +299,21 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 
 	private _notifyActiveConnectionChanged(authority: string, entry: IAuthorityEntry): void {
 		entry.activeConnectionVersion++;
-		entry.onDidChangeActiveConnection.fire();
+		for (const resolve of entry.activeConnectionWaiters) {
+			resolve();
+		}
 		this._onDidChangeConnection.fire(authority);
+	}
+
+	/**
+	 * Returns a promise that resolves the next time the active connection
+	 * of {@link entry} changes. Dispose the result once no longer waiting.
+	 */
+	private _waitForActiveConnectionChange(entry: IAuthorityEntry): { readonly promise: Promise<void>; dispose(): void } {
+		let resolve!: () => void;
+		const promise = new Promise<void>(r => resolve = r);
+		entry.activeConnectionWaiters.add(resolve);
+		return { promise, dispose: () => entry.activeConnectionWaiters.delete(resolve) };
 	}
 
 	private _expireAuthority(authority: string, entry: IAuthorityEntry): void {
@@ -307,7 +325,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		this._authorities.delete(authority);
 		entry.expiry.dispose();
 		this._notifyActiveConnectionChanged(authority, entry);
-		entry.onDidChangeActiveConnection.dispose();
 	}
 
 	override dispose(): void {
@@ -317,7 +334,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			entry.expiry.dispose();
 			entry.connections.length = 0;
 			this._notifyActiveConnectionChanged(authority, entry);
-			entry.onDidChangeActiveConnection.dispose();
 		}
 		super.dispose();
 	}
@@ -645,16 +661,16 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return { connection: active, entry, version: entry.activeConnectionVersion };
 		}
 		const version = entry.activeConnectionVersion;
-		const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
+		const changed = this._waitForActiveConnectionChange(entry);
 		const current = this._authorities.get(authority);
 		if (current !== entry || current.activeConnectionVersion !== version) {
-			changed.cancel();
+			changed.dispose();
 			return this._getConnectionState(authority);
 		}
 		try {
-			await changed;
+			await changed.promise;
 		} finally {
-			changed.cancel();
+			changed.dispose();
 		}
 		return this._getConnectionState(authority);
 	}
@@ -662,16 +678,16 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	private async _readFromConnection<T>(authority: string, operation: (connection: IRemoteFilesystemConnection) => Promise<T>): Promise<T> {
 		while (true) {
 			const { connection, entry, version } = await this._getConnectionState(authority);
-			const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
+			const changed = this._waitForActiveConnectionChange(entry);
 			const current = this._authorities.get(authority);
 			if (current !== entry || current.activeConnectionVersion !== version) {
-				changed.cancel();
+				changed.dispose();
 				continue;
 			}
 			try {
 				const result = await Promise.race([
 					operation(connection).then(value => ({ kind: 'result' as const, value })),
-					changed.then(() => ({ kind: 'connectionChanged' as const })),
+					changed.promise.then(() => ({ kind: 'connectionChanged' as const })),
 				]);
 				if (result.kind === 'result') {
 					return result.value;
@@ -682,7 +698,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					throw error;
 				}
 			} finally {
-				changed.cancel();
+				changed.dispose();
 			}
 		}
 	}
