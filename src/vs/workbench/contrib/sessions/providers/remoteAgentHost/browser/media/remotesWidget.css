@@ -618,6 +618,9 @@
 }
 
 .remotes-details-body {
+	/* The scrollable element scrolls this body, so it must not grow past its viewport. */
+	box-sizing: border-box;
+	height: 100%;
 	padding-inline-start: var(--vscode-spacing-size320);
 	padding-bottom: var(--vscode-spacing-size160);
 }
