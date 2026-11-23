@@ -2574,7 +2574,7 @@ export class CommandCenter {
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
-		const message = repository.inputBox?.value;
+		const message = repository.inputBox.value;
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 
@@ -2781,10 +2781,7 @@ export class CommandCenter {
 
 	@command('git.restoreCommitTemplate', { repository: true })
 	async restoreCommitTemplate(repository: Repository): Promise<void> {
-		const commitTemplate = await repository.getCommitTemplate();
-		if (repository.inputBox) {
-			repository.inputBox.value = commitTemplate;
-		}
+		repository.inputBox.value = await repository.getCommitTemplate();
 	}
 
 	@command('git.undoCommit', { repository: true })
@@ -2814,9 +2811,7 @@ export class CommandCenter {
 			await this.unstageAll(repository);
 		}
 
-		if (repository.inputBox) {
-			repository.inputBox.value = commit.message;
-		}
+		repository.inputBox.value = commit.message;
 	}
 
 	@command('git.checkout', { repository: true })
@@ -4534,9 +4529,8 @@ export class CommandCenter {
 
 		let message: string | undefined;
 
-		const inputBoxValue = repository.inputBox?.value;
-		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.commitTemplate || inputBoxValue !== repository.commitTemplate)) {
-			message = inputBoxValue;
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.commitTemplate || repository.inputBox.value !== repository.commitTemplate)) {
+			message = repository.inputBox.value;
 		}
 
 		message = await window.showInputBox({
@@ -5086,11 +5080,6 @@ export class CommandCenter {
 	}
 
 	private async _viewResourceGroupChanges(repository: Repository, resourceGroup: GitResourceGroup): Promise<void> {
-		const sourceControl = repository.sourceControl;
-		if (!sourceControl) {
-			return;
-		}
-
 		if (resourceGroup.resourceStates.length === 0) {
 			switch (resourceGroup.id) {
 				case 'index':
@@ -5107,7 +5096,7 @@ export class CommandCenter {
 		}
 
 		await commands.executeCommand('_workbench.openScmMultiDiffEditor', {
-			title: `${sourceControl.label}: ${resourceGroup.label}`,
+			title: `${repository.sourceControl.label}: ${resourceGroup.label}`,
 			repositoryUri: Uri.file(repository.root),
 			resourceGroupId: resourceGroup.id
 		});

@@ -88,17 +88,11 @@ export class ApiRepository implements Repository {
 	constructor(repository: BaseRepository) {
 		this.#repository = repository;
 
-		// The API exposes only the repositories that have a source control
-		const sourceControl = this.#repository.sourceControl;
-		if (!sourceControl) {
-			throw new Error('Repository is detached');
-		}
-
 		this.kind = this.#repository.kind;
 		this.rootUri = Uri.file(this.#repository.root);
-		this.inputBox = new ApiInputBox(sourceControl.inputBox);
+		this.inputBox = new ApiInputBox(this.#repository.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
-		this.ui = new ApiRepositoryUIState(sourceControl);
+		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
 		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(

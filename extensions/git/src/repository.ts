@@ -683,13 +683,13 @@ export class Repository implements Disposable {
 			this.onDidRunOperation as Event<unknown>) as Event<void>;
 	}
 
-	// The source control and the sources that keep the model current. Undefined while the repository is detached.
-	private _attachment: { readonly sourceControl: GitSourceControl; readonly disposables: IDisposable[] } | undefined;
-	get sourceControl(): SourceControl | undefined { return this._attachment?.sourceControl.sourceControl; }
-	get sourceControlResourceGroups(): SourceControlResourceGroup[] { return this._attachment?.sourceControl.sourceControlResourceGroups ?? []; }
+	private readonly _sourceControl: GitSourceControl;
+	private sourceControlDisposables: IDisposable[] = [];
+	get sourceControl(): SourceControl { return this._sourceControl.sourceControl; }
+	get sourceControlResourceGroups(): SourceControlResourceGroup[] { return this._sourceControl.sourceControlResourceGroups; }
 
-	get inputBox(): SourceControlInputBox | undefined { return this.sourceControl?.inputBox; }
-	get artifactProvider(): GitArtifactProvider | undefined { return this._attachment?.sourceControl.artifactProvider; }
+	get inputBox(): SourceControlInputBox { return this._sourceControl.sourceControl.inputBox; }
+	get artifactProvider(): GitArtifactProvider { return this._sourceControl.artifactProvider; }
 
 	readonly mergeGroup: GitResourceGroup = { id: 'merge', label: l10n.t('Merge Changes'), resourceStates: [] };
 	readonly indexGroup: GitResourceGroup = { id: 'index', label: l10n.t('Staged Changes'), resourceStates: [] };
@@ -743,13 +743,10 @@ export class Repository implements Disposable {
 	private _rebaseCommit: Commit | undefined = undefined;
 
 	set rebaseCommit(rebaseCommit: Commit | undefined) {
-		const inputBox = this.inputBox;
-		if (inputBox) {
-			if (this._rebaseCommit && !rebaseCommit) {
-				inputBox.value = '';
-			} else if (rebaseCommit && (!this._rebaseCommit || this._rebaseCommit.hash !== rebaseCommit.hash)) {
-				inputBox.value = rebaseCommit.message;
-			}
+		if (this._rebaseCommit && !rebaseCommit) {
+			this.inputBox.value = '';
+		} else if (rebaseCommit && (!this._rebaseCommit || this._rebaseCommit.hash !== rebaseCommit.hash)) {
+			this.inputBox.value = rebaseCommit.message;
 		}
 
 		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
@@ -813,7 +810,7 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
-		this._attachment?.sourceControl.update();
+		this._sourceControl.update();
 	}
 
 	get root(): string {
@@ -840,7 +837,7 @@ export class Repository implements Disposable {
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
-	get isHidden(): boolean { return (this._attachment?.sourceControl.isHidden ?? false) || this._isWarm; }
+	get isHidden(): boolean { return this._sourceControl.isHidden || this._isWarm; }
 
 	/**
 	 * Whether the repository is kept open, hidden, at a known location of a workspace folder other
@@ -854,18 +851,17 @@ export class Repository implements Disposable {
 	/**
 	 * The root of the repository that this repository is shown under, if any. Closing that one closes this one too.
 	 */
-	get parentRoot(): string | undefined { return this._attachment?.sourceControl.parentRoot; }
+	get parentRoot(): string | undefined { return this._sourceControl.parentRoot; }
 
 	private _onDidChangeWarm = new EventEmitter<boolean>();
 	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
 
 	private didRunFirstStatus!: () => void;
-	private _whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
 	/**
-	 * Resolves once git status ran for the first time since the source control was attached.
+	 * Resolves once git status ran for the first time.
 	 */
-	get whenFirstStatus(): Promise<void> { return this._whenFirstStatus; }
+	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
@@ -919,52 +915,22 @@ export class Repository implements Disposable {
 
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
+
+		this._sourceControl = this.attachSourceControl();
 	}
 
 	/**
-	 * Creates the source control and starts keeping the model current. Calling
-	 * it on an attached repository returns its existing source control.
+	 * Creates the source control, and the file watchers, auto fetch and configuration listeners that keep the model
+	 * current. For now, only the constructor calls it.
 	 */
-	attachSourceControl(): SourceControl {
-		if (this._attachment) {
-			return this._attachment.sourceControl.sourceControl;
-		}
-
-		this.logger.trace(`[Repository][attachSourceControl] Repository: ${this.root}`);
-
-		// The model went stale while the repository was detached
-		this.clearModelState();
-
+	private attachSourceControl(): GitSourceControl {
 		const sourceControl = new GitSourceControl(this, this.commitCommandCenter, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.logger);
-		const disposables: IDisposable[] = [sourceControl];
-		this.watchRepository(disposables);
+		this.sourceControlDisposables.push(sourceControl);
 
-		this._attachment = { sourceControl, disposables };
-		return sourceControl.sourceControl;
-	}
-
-	/**
-	 * Disposes the source control and stops keeping the model current. The
-	 * repository keeps its last model, and runs no git operations until it
-	 * is attached again.
-	 */
-	detachSourceControl(): void {
-		const attachment = this._attachment;
-		if (!attachment) {
-			return;
-		}
-
-		this.logger.trace(`[Repository][detachSourceControl] Repository: ${this.root}`);
-
-		this._attachment = undefined;
-		this.updateModelStateCancellationTokenSource?.cancel();
-		dispose(attachment.disposables);
-	}
-
-	private watchRepository(disposables: IDisposable[]): void {
 		const root = Uri.file(this.repository.root);
+
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(root, '**'));
-		disposables.push(repositoryWatcher);
+		this.sourceControlDisposables.push(repositoryWatcher);
 
 		const onRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
 		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\\|\/)/.test(relativePath(this.repository.root, uri.fsPath)));
@@ -974,7 +940,7 @@ export class Repository implements Disposable {
 		try {
 			const dotGitFileWatcher = new DotGitWatcher(this, this.logger);
 			onRepositoryDotGitFileChange = dotGitFileWatcher.event;
-			disposables.push(dotGitFileWatcher);
+			this.sourceControlDisposables.push(dotGitFileWatcher);
 		} catch (err) {
 			this.logger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
@@ -985,19 +951,19 @@ export class Repository implements Disposable {
 		// 	- any change inside the repository working tree
 		//	- any change within the first level of the `.git` folder, except the folder itself and `index.lock` (repository and worktree)
 		const onFileChange = anyEvent(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange);
-		onFileChange(this.onFileChange, this, disposables);
+		onFileChange(this.onFileChange, this, this.sourceControlDisposables);
 
 		// Relevate repository changes should trigger virtual document change events
-		onRepositoryDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
+		onRepositoryDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.sourceControlDisposables);
 
-		disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, this.logger));
+		this.sourceControlDisposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, this.logger));
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
 				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
-				this._attachment?.sourceControl.update();
+				sourceControl.update();
 			}
-		}, undefined, disposables);
+		}, undefined, this.sourceControlDisposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
 			e.affectsConfiguration('git.branchSortOrder', root)
@@ -1006,42 +972,28 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
 			|| e.affectsConfiguration('git.similarityThreshold', root)
-		)(() => this.updateModelState(), this, disposables);
+		)(() => this.updateModelState(), this, this.sourceControlDisposables);
 
 		// Don't allow auto-fetch in untrusted workspaces
 		if (workspace.isTrusted) {
-			disposables.push(new AutoFetcher(this, this.globalState));
+			this.sourceControlDisposables.push(new AutoFetcher(this, this.globalState));
 		} else {
 			const trustDisposable = workspace.onDidGrantWorkspaceTrust(() => {
 				trustDisposable.dispose();
-				disposables.push(new AutoFetcher(this, this.globalState));
+				this.sourceControlDisposables.push(new AutoFetcher(this, this.globalState));
 			});
-			disposables.push(trustDisposable);
+			this.sourceControlDisposables.push(trustDisposable);
 		}
+
+		return sourceControl;
 	}
 
-	// A detached repository runs no git commands
-	private assertAttached(): void {
-		if (!this._attachment) {
-			throw new Error('Repository is detached');
-		}
-	}
-
-	private clearModelState(): void {
-		this._HEAD = undefined;
-		this._refs = [];
-		this._remotes = [];
-		this._submodules = [];
-		this._worktrees = [];
-		this._commitTemplate = undefined;
-		this._rebaseCommit = undefined;
-		this._mergeInProgress = false;
-		this._cherryPickInProgress = false;
-		this.mergeGroup.resourceStates = [];
-		this.indexGroup.resourceStates = [];
-		this.workingTreeGroup.resourceStates = [];
-		this.untrackedGroup.resourceStates = [];
-		this._whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
+	/**
+	 * Disposes what `attachSourceControl` created. For now, only `dispose` calls it, and the repository keeps returning the
+	 * disposed source control, as it did before.
+	 */
+	private detachSourceControl(): void {
+		this.sourceControlDisposables = dispose(this.sourceControlDisposables);
 	}
 
 	validateInput(text: string, _: number): SourceControlInputBoxValidation | undefined {
@@ -1420,10 +1372,7 @@ export class Repository implements Disposable {
 
 	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
-			const inputTemplate = await this.getInputTemplate();
-			if (this.inputBox) {
-				this.inputBox.value = inputTemplate;
-			}
+			this.inputBox.value = await this.getInputTemplate();
 		}
 		this.closeDiffEditors(indexResources, workingGroupResources);
 
@@ -2271,7 +2220,6 @@ export class Repository implements Disposable {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		this.assertAttached();
 		return await this.repository.getCommit(ref);
 	}
 
@@ -2284,8 +2232,6 @@ export class Repository implements Disposable {
 	}
 
 	async getEmptyTree(): Promise<string> {
-		this.assertAttached();
-
 		if (!this._EMPTY_TREE) {
 			const result = await this.repository.exec(['hash-object', '-t', 'tree', '/dev/null']);
 			this._EMPTY_TREE = result.stdout.trim();
@@ -2810,8 +2756,6 @@ export class Repository implements Disposable {
 			throw new Error('Repository not initialized');
 		}
 
-		this.assertAttached();
-
 		let error: unknown = null;
 
 		this._operations.start(operation);
@@ -2970,20 +2914,11 @@ export class Repository implements Disposable {
 	private async updateModelState(optimisticResourcesGroups?: GitResourceGroups) {
 		this.updateModelStateCancellationTokenSource?.cancel();
 
-		// A detached repository does not keep its model current
-		if (!this._attachment) {
-			return;
-		}
-
 		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
 		await this._updateModelState(optimisticResourcesGroups, this.updateModelStateCancellationTokenSource.token);
 	}
 
 	private async _updateModelState(optimisticResourcesGroups?: GitResourceGroups, cancellationToken?: CancellationToken): Promise<void> {
-		// An update publishes only into the attachment that started it, so a detach (or a detach and an
-		// attach) while git runs drops its results
-		const attachment = this._attachment;
-
 		try {
 			// Optimistically update resource groups
 			if (optimisticResourcesGroups) {
@@ -3001,10 +2936,6 @@ export class Repository implements Disposable {
 					this.isCherryPickInProgress(),
 					this.getInputTemplate(),
 					this.initIsUsingVirtualFileSystem()]);
-
-			if (this._attachment !== attachment) {
-				throw new CancellationError();
-			}
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3026,17 +2957,13 @@ export class Repository implements Disposable {
 			this.cherryPickInProgress = cherryPickInProgress;
 
 			this._commitTemplate = commitTemplate;
-			this._attachment?.sourceControl.update();
+			this._sourceControl.update();
 
 			// Execute cancellable long-running operation
 			const [resourceGroups, refs] =
 				await Promise.all([
 					this.getStatus(cancellationToken),
 					this.getRefs({}, cancellationToken)]);
-
-			if (this._attachment !== attachment) {
-				throw new CancellationError();
-			}
 
 			this._refs = refs;
 			this._updateResourceGroupsState(resourceGroups);
@@ -3065,7 +2992,7 @@ export class Repository implements Disposable {
 			this._isWorktreeMigrating = false;
 		}
 
-		this._attachment?.sourceControl.update();
+		this._sourceControl.update();
 	}
 
 	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {
@@ -3116,10 +3043,7 @@ export class Repository implements Disposable {
 		}
 
 		// Triggers or clears any validation warning
-		const inputBox = this.inputBox;
-		if (inputBox) {
-			inputBox.validateInput = inputBox.validateInput;
-		}
+		this.inputBox.validateInput = this.inputBox.validateInput;
 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
@@ -3302,11 +3226,6 @@ export class Repository implements Disposable {
 	@throttle
 	private async updateWhenIdleAndWait(): Promise<void> {
 		await this.whenIdleAndFocused();
-
-		if (!this._attachment) {
-			return;
-		}
-
 		await this.status();
 		await timeout(5000);
 	}
@@ -3321,7 +3240,7 @@ export class Repository implements Disposable {
 
 		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
 		this._isWarm = isWarm;
-		this._attachment?.sourceControl.setWarm(isWarm);
+		this._sourceControl.setWarm(isWarm);
 		this._onDidChangeWarm.fire(isWarm);
 	}
 
@@ -3507,8 +3426,6 @@ export class Repository implements Disposable {
 	}
 
 	async getUnpublishedCommits(): Promise<Set<string>> {
-		this.assertAttached();
-
 		if (this.unpublishedCommits) {
 			return this.unpublishedCommits;
 		}
@@ -3608,11 +3525,7 @@ export class Repository implements Disposable {
 	}
 
 	dispose(): void {
-		// Closing, unlike detaching, keeps the disposed source control, so that the extensions that still hold
-		// the repository can run operations and read its input box as they could before
-		if (this._attachment) {
-			dispose(this._attachment.disposables.splice(0));
-		}
+		this.detachSourceControl();
 		this.disposables = dispose(this.disposables);
 	}
 }
