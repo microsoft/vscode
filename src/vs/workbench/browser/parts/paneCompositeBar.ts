@@ -555,6 +555,9 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	arrangePaneComposites({ pinned, order }: IPaneCompositeArrangement): void {
+		// Arranges the stored view containers, saving would replace an arrangement of outdated ones
+		this.updateCompositeBarItemsFromStorage(false);
+
 		const items = this.compositeBar.getCompositeBarItems();
 		const orderedItems = (order ?? [])
 			.map(id => items.find(item => item.id === id))
@@ -665,6 +668,10 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private saveCachedViewContainers(): void {
+		// The stored value can change before the bar learns about it, for example when applying a named layout moves a view
+		// container here before the change of the pinned view containers is reported. The stored value wins, as for a change of the bar
+		this.updateCompositeBarItemsFromStorage(false);
+
 		const state: ICachedViewContainer[] = [];
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();

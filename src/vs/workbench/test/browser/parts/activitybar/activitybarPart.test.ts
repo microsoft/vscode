@@ -1159,10 +1159,18 @@ suite('ActivitybarPart', () => {
 		readonly visible: boolean;
 	}
 
+	const viewContainerLocationsKey = 'test.viewContainerLocations';
+
+	function createViewContainer(id: string): ViewContainer {
+		return { id, title: { value: id, original: id }, ctorDescriptor: new SyncDescriptor(ViewPaneContainer) };
+	}
+
 	/**
-	 * Creates a bar for the view containers of the side bar while extensions are not registered yet.
+	 * Creates a bar for the view containers of the side bar while extensions are not registered yet. The given view
+	 * containers are in the side bar unless the given locations say otherwise. Like the view descriptor service, which
+	 * is created before the bars, they move when their stored locations change, before the bar learns about other changes.
 	 */
-	function createPaneCompositeBar(pinned: IStoredPinnedViewContainer[], viewContainers: ViewContainer[] = []) {
+	function createPaneCompositeBar(pinned: IStoredPinnedViewContainer[], viewContainers: ViewContainer[] = [], viewContainerLocations: Record<string, ViewContainerLocation> = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IExtensionService, new class extends TestExtensionService {
 			override whenInstalledExtensionsRegistered(): Promise<boolean> { return new Promise(() => { }); }
@@ -1171,13 +1179,16 @@ suite('ActivitybarPart', () => {
 			override readonly onDidChangeActivity = Event.None;
 			override getViewContainerActivities() { return []; }
 		});
+		const locations = new Map(Object.entries(viewContainerLocations));
+		const getLocation = (viewContainer: ViewContainer) => locations.get(viewContainer.id) ?? ViewContainerLocation.Sidebar;
+		const onDidChangeContainerLocation = disposables.add(new Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>());
 		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
-			override readonly onDidChangeContainerLocation = Event.None;
+			override readonly onDidChangeContainerLocation = onDidChangeContainerLocation.event;
 			override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 			override readonly onDidChangeViewContainers = Event.None;
-			override getViewContainersByLocation() { return viewContainers; }
+			override getViewContainersByLocation(location: ViewContainerLocation) { return viewContainers.filter(viewContainer => getLocation(viewContainer) === location); }
 			override getViewContainerById(id: string) { return viewContainers.find(viewContainer => viewContainer.id === id) ?? null; }
-			override getViewContainerLocation() { return ViewContainerLocation.Sidebar; }
+			override getViewContainerLocation(viewContainer: ViewContainer) { return getLocation(viewContainer); }
 			override getViewContainerModel(viewContainer: ViewContainer) {
 				return new class extends mock<IViewContainerModel>() {
 					override readonly viewContainer = viewContainer;
@@ -1190,38 +1201,62 @@ suite('ActivitybarPart', () => {
 			}
 		});
 		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		disposables.add(sharedLayoutStateService.getValueChangeEvent(viewContainerLocationsKey, disposables)(() => {
+			const storedLocations: Record<string, ViewContainerLocation> = JSON.parse(sharedLayoutStateService.get(viewContainerLocationsKey, '{}'));
+			for (const viewContainer of viewContainers) {
+				const from = getLocation(viewContainer);
+				const to = storedLocations[viewContainer.id] ?? ViewContainerLocation.Sidebar;
+				if (from !== to) {
+					locations.set(viewContainer.id, to);
+					onDidChangeContainerLocation.fire({ viewContainer, from, to });
+				}
+			}
+		}));
+		sharedLayoutStateService.store(viewContainerLocationsKey, JSON.stringify(viewContainerLocations));
 		const storePinned = (entries: IStoredPinnedViewContainer[]) => sharedLayoutStateService.store(ActivitybarPart.pinnedViewContainersKey, JSON.stringify(entries));
 		storePinned(pinned);
 
 		return {
 			bar: disposables.add(instantiationService.createInstance(PaneCompositeBar, ViewContainerLocation.Sidebar, activityBarOptions, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart())),
 			storePinned,
-			getStoredPinned: () => JSON.parse(sharedLayoutStateService.get(ActivitybarPart.pinnedViewContainersKey, '[]'))
+			getStoredPinned: () => JSON.parse(sharedLayoutStateService.get(ActivitybarPart.pinnedViewContainersKey, '[]')),
+			applyLayout: (locations: Record<string, ViewContainerLocation>, pinned: IStoredPinnedViewContainer[]) => sharedLayoutStateService.setLocalState({
+				[viewContainerLocationsKey]: JSON.stringify(locations),
+				[ActivitybarPart.pinnedViewContainersKey]: JSON.stringify(pinned)
+			})
 		};
 	}
 
 	test('a bar follows changes of its pinned view containers before extensions are registered', () => {
-		const { bar, storePinned, getStoredPinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }]);
+		const { bar, storePinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
 
-		// A named layout is applied, then the definition of a layout unpins a view container
+		// A named layout is applied
 		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
-		bar.arrangePaneComposites({ pinned: new Map([['search', false]]) });
 
-		assert.deepStrictEqual(getStoredPinned(), [
-			{ id: 'search', pinned: false, visible: true },
-			{ id: 'explorer', pinned: false, visible: true }
-		]);
+		assert.deepStrictEqual(bar.getPinnedPaneCompositeIds(), ['search']);
 	});
 
 	test('a bar pins a view container that its changed pinned view containers do not have', () => {
-		const viewContainer: ViewContainer = { id: 'test', title: { value: 'Test', original: 'Test' }, ctorDescriptor: new SyncDescriptor(ViewPaneContainer) };
-		const { bar, storePinned, getStoredPinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'test', pinned: false, visible: true }], [viewContainer]);
+		const { bar, storePinned, getStoredPinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'test', pinned: false, visible: true }], [createViewContainer('test')]);
 
 		// The default layout becomes active, which does not have the view container that the named layout unpinned
 		storePinned([{ id: 'explorer', pinned: true, visible: true }]);
 		bar.arrangePaneComposites({ pinned: new Map([['explorer', false]]) });
 
 		assert.deepStrictEqual(getStoredPinned(), [
+			{ id: 'explorer', pinned: false, visible: true },
+			{ id: 'test', pinned: true, visible: false }
+		]);
+	});
+
+	test('a bar that a view container moves to while a named layout is applied keeps the pinned view containers of the layout', () => {
+		const { applyLayout, getStoredPinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('test')], { test: ViewContainerLocation.Panel });
+
+		// The view container moves here, and the bar saves, before it learns about the pinned view containers of the layout
+		applyLayout({}, [{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
+
+		assert.deepStrictEqual(getStoredPinned(), [
+			{ id: 'search', pinned: true, visible: true },
 			{ id: 'explorer', pinned: false, visible: true },
 			{ id: 'test', pinned: true, visible: false }
 		]);
