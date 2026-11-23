@@ -9,7 +9,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatDraft, remapChatDraftResources, reviveChatDraft, serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../../common/attachments/chatDraft.js';
-import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, isExplicitFileOrImageVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IAgentsWindowDraft, isAgentsWindowDraft } from '../../../../../../platform/window/common/window.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -123,24 +123,32 @@ suite('Chat draft handoff serialization', () => {
 		});
 	});
 
-	test('remaps the file that pasted code was copied from', () => {
-		const wsl = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project/a.ts' });
+	test('remaps the resources that pasted code, a diagnostic and extension context keep beside their value, along with the ids and mentions derived from them', () => {
+		const wsl = (path: string) => URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: `/file/-/project${path}` });
 		const range = new Range(2, 1, 3, 5);
+		const diagnostic = IDiagnosticVariableEntryFilterData.toEntry({ filterUri: wsl('/b.ts'), owner: 'typescript', problemMessage: 'Oops', filterRange: range });
 		const draft: IChatDraft = {
-			inputText: '',
-			attachments: [{ kind: 'paste', id: 'a.ts2315', name: 'a.ts 2 lines', value: 'const a = 1;', code: 'const a = 1;', language: 'typescript', pastedLines: '2 lines', fileName: wsl.toString(), copiedFrom: { uri: wsl, range }, references: [{ kind: 'reference', reference: wsl }] }],
+			inputText: '#Oops',
+			attachments: [
+				{ kind: 'paste', id: 'a.ts2315', name: 'a.ts 2 lines', value: 'const a = 1;', code: 'const a = 1;', language: 'typescript', pastedLines: '2 lines', fileName: wsl('/a.ts').toString(), copiedFrom: { uri: wsl('/a.ts'), range }, references: [{ kind: 'reference', reference: wsl('/a.ts') }] },
+				diagnostic,
+				{ kind: 'string', id: 'context', name: 'Context', value: 'Resolved text', uri: URI.parse('context:/item'), resourceUri: wsl('/c.ts'), handle: 1 },
+			],
+			references: [{ id: diagnostic.id, range, isAttachmentReference: true, data: undefined }],
 		};
-		const [pasted] = remapChatDraftResources(draft, resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined).attachments;
-		assert.deepStrictEqual(pasted.kind === 'paste' && {
-			id: pasted.id,
-			copiedFrom: pasted.copiedFrom && [pasted.copiedFrom.uri.toString(), pasted.copiedFrom.range],
-			fileName: pasted.fileName,
-			references: pasted.references?.map(entry => URI.isUri(entry.reference) ? entry.reference.toString() : entry.reference),
+		const remapped = remapChatDraftResources(draft, resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined);
+		const [pasted, problem, context] = remapped.attachments;
+		const toString = (resource: unknown) => URI.isUri(resource) ? resource.toString() : resource;
+		assert.deepStrictEqual({
+			pasted: pasted.kind === 'paste' && [pasted.id, toString(pasted.copiedFrom?.uri), pasted.copiedFrom?.range, pasted.fileName, pasted.references?.map(entry => toString(entry.reference))],
+			problem: problem.kind === 'diagnostic' && [problem.id, toString(problem.filterUri), toString((problem.value as IDiagnosticVariableEntryFilterData).filterUri)],
+			context: context.kind === 'string' && [context.id, toString(context.uri), toString(context.resourceUri)],
+			mentions: remapped.references?.map(reference => reference.id),
 		}, {
-			id: 'a.ts2315',
-			copiedFrom: ['vscode-agent-host://env/file/-/project/a.ts', range],
-			fileName: 'vscode-agent-host://env/file/-/project/a.ts',
-			references: ['vscode-agent-host://env/file/-/project/a.ts'],
+			pasted: ['a.ts2315', 'vscode-agent-host://env/file/-/project/a.ts', range, 'vscode-agent-host://env/file/-/project/a.ts', ['vscode-agent-host://env/file/-/project/a.ts']],
+			problem: ['vscode-agent-host://env/file/-/project/b.ts:typescript::2:1', 'vscode-agent-host://env/file/-/project/b.ts', 'vscode-agent-host://env/file/-/project/b.ts'],
+			context: ['context', 'context:/item', 'vscode-agent-host://env/file/-/project/c.ts'],
+			mentions: ['vscode-agent-host://env/file/-/project/b.ts:typescript::2:1'],
 		});
 	});
 

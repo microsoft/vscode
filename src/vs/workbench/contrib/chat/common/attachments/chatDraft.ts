@@ -5,13 +5,13 @@
 
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { hasKey } from '../../../../../base/common/types.js';
+import { hasKey, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { IChatContentReference } from '../chatService/chatService.js';
-import { ChatPasteAttachmentMetadata, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
 export interface IChatDraft {
@@ -86,15 +86,15 @@ export function remapChatDraftResources(draft: IChatDraft, mapResource: (resourc
 		const uri = hasKey(attachment, { uri: true }) && URI.isUri(attachment.uri) ? mapResource(attachment.uri) : undefined;
 		// An image kept as bytes and pasted code record the resource they came from in their references.
 		const contentReferences = remapContentReferences(attachment.references, mapResource);
-		const pasted = attachment.kind === 'paste' ? remapCopiedFrom(attachment, mapResource) : undefined;
-		if (!remapped && !uri && !contentReferences && !pasted) {
+		const kindResources = remapKindResources(attachment, mapResource);
+		if (!remapped && !uri && !contentReferences && !kindResources) {
 			return attachment;
 		}
 		changed = true;
-		const source = remapped ?? contentReferences;
+		const source = remapped ?? contentReferences ?? kindResources;
 		const id = source ? remapResourceId(attachment.id, source) : attachment.id;
 		ids.set(attachment.id, id);
-		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {}, { ...(contentReferences && { references: contentReferences.references }), ...pasted });
+		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {}, { ...(contentReferences && { references: contentReferences.references }), ...kindResources?.changes });
 	});
 	const references = draft.references?.map(reference => {
 		const remapped = remapResourceValue(reference.data, mapResource);
@@ -132,14 +132,31 @@ function remapContentReferences(references: readonly IChatContentReference[] | u
 	return first && { references: result, from: first.from, to: first.to };
 }
 
-/** Remaps the file that pasted code was copied from, which opening and dragging the attachment use, or `undefined` when it doesn't map. */
-function remapCopiedFrom(attachment: IChatRequestPasteVariableEntry, mapResource: (resource: URI) => URI | undefined): Pick<IChatRequestPasteVariableEntry, 'copiedFrom' | 'fileName'> | undefined {
-	const copiedFrom = attachment.copiedFrom;
-	const uri = copiedFrom && mapResource(copiedFrom.uri);
-	if (!copiedFrom || !uri) {
-		return undefined;
+/**
+ * Remaps the resource that some kinds of attachments keep beside their value, such as the file that pasted code was
+ * copied from or that a diagnostic is in, which opening and dragging the attachment use, or `undefined` when it doesn't map.
+ */
+function remapKindResources(attachment: IChatRequestVariableEntry, mapResource: (resource: URI) => URI | undefined) {
+	switch (attachment.kind) {
+		case 'paste': {
+			const copiedFrom = attachment.copiedFrom;
+			const to = copiedFrom && mapResource(copiedFrom.uri);
+			return copiedFrom && to && { from: copiedFrom.uri, to, changes: { copiedFrom: { ...copiedFrom, uri: to }, fileName: attachment.fileName === copiedFrom.uri.toString() ? to.toString() : attachment.fileName } };
+		}
+		case 'diagnostic': {
+			// Its value is the same filter it keeps beside it.
+			const from = attachment.filterUri;
+			const to = from && mapResource(from);
+			const value = attachment.value;
+			return from && to && { from, to, changes: { filterUri: to, value: isObject(value) ? { ...value, filterUri: to } : value } };
+		}
+		case 'string': {
+			const from = attachment.resourceUri;
+			const to = from && mapResource(from);
+			return from && to && { from, to, changes: { resourceUri: to } };
+		}
 	}
-	return { copiedFrom: { ...copiedFrom, uri }, fileName: attachment.fileName === copiedFrom.uri.toString() ? uri.toString() : attachment.fileName };
+	return undefined;
 }
 
 function remapResourceId(id: string, { from, to }: { readonly from: URI; readonly to: URI }): string {
