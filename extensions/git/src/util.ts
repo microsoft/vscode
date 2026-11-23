@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
-import { basename, dirname, normalize, sep, relative } from 'path';
+import { basename, dirname, normalize, sep, relative, join } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -341,6 +341,28 @@ export function isDescendant(parent: string, descendant: string): boolean {
 
 export function pathEquals(a: string, b: string): boolean {
 	return normalizePath(a) === normalizePath(b);
+}
+
+export async function hasDotGitBetween(parentRoot: string, childPath: string): Promise<boolean> {
+	try {
+		let current = childPath;
+		while (isDescendant(parentRoot, current) && !pathEquals(parentRoot, current)) {
+			try {
+				await fs.lstat(join(current, '.git'));
+				return true;
+			} catch {
+				// .git does not exist at this level
+			}
+			const parent = dirname(current);
+			if (pathEquals(parent, current)) {
+				break;
+			}
+			current = parent;
+		}
+		return false;
+	} catch {
+		return true;
+	}
 }
 
 /**
