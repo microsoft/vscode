@@ -6426,6 +6426,212 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(fired);
 		});
 
+		suite('cached items', () => {
+
+			const chat = (id: string) => `copilot:/chat-${id}`;
+
+			async function createListedSessions(beforeController?: (store: AgentHostSessionListStore, items: () => readonly IChatSessionItem[]) => void) {
+				const { instantiationService, agentHostService } = createTestServices(disposables);
+				const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
+				const store = createSessionListStore(disposables, instantiationService, agentHostService);
+				const created: { controller?: AgentHostSessionListController } = {};
+				beforeController?.(store, () => created.controller!.items);
+				const createController = () => disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', store, undefined, 'local', false));
+				const listController = created.controller = createController();
+				const sessions = ['a', 'b', 'c'].map(id => AgentSession.uri('copilot', id));
+				for (const session of sessions) {
+					const id = AgentSession.id(session);
+					agentHostService.addSession({
+						session, startTime: 1000, modifiedTime: 2000, summary: `Session ${id}`, status: SessionStatus.Idle,
+						chats: [{ chat: URI.parse(chat(`${id}-main`)), kind: 'default' }, { chat: URI.parse(chat(`${id}-peer`)), kind: 'peer', summary: `Peer ${id}` }],
+					});
+				}
+				const reported: string[][] = [];
+				disposables.add(listController.onDidChangeChatSessionItems(delta => reported.push([
+					...(delta.addedOrUpdated ?? []).map(item => `+${item.label}`),
+					...(delta.removed ?? []).map(resource => `-${resource.path}`),
+				])));
+				await listController.refresh(CancellationToken.None);
+				reported.length = 0;
+				const change = (session: URI, changes: Record<string, unknown>) => agentHostService.fireNotification({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: session.toString(), changes });
+				return { listController, store, createController, agentHostService, connections, sessions, reported, change };
+			}
+
+			test('a summary change gives out the items of the other sessions as they were', async () => {
+				const { listController, sessions, change } = await createListedSessions();
+				const before = listController.items;
+				change(sessions[1], { title: 'Renamed' });
+				const after = listController.items;
+
+				assert.deepStrictEqual({ labels: after.map(item => item.label), same: after.map((item, index) => item === before[index]) }, {
+					labels: ['Session a', 'Renamed', 'Session c'],
+					same: [true, false, true],
+				});
+			});
+
+			test('summary changes that show nothing new are not reported', async () => {
+				const { listController, sessions, reported, change } = await createListedSessions();
+				const before = listController.items;
+				for (let i = 0; i < 20; i++) {
+					change(sessions[1], { _meta: { 'vscode.chatUsage': i } });
+					change(sessions[1], { title: 'Session b', modifiedAt: new Date(2000).toISOString() });
+				}
+
+				assert.deepStrictEqual({ reported, same: listController.items.map((item, index) => item === before[index]) }, { reported: [], same: [true, true, true] });
+			});
+
+			test('summary changes that show something new are reported for that session only', async () => {
+				const { sessions, reported, change } = await createListedSessions();
+				change(sessions[0], { status: SessionStatus.InProgress, activity: 'Working' });
+				change(sessions[2], { modifiedAt: new Date(3000).toISOString() });
+				change(sessions[2], { changes: { files: 1, additions: 2, deletions: 3 } });
+				change(sessions[1], { _meta: withSessionGitState(undefined, { branchName: 'feature' }) });
+				change(sessions[1], { _meta: withSessionGitState(undefined, { branchName: 'feature' }) });
+				change(sessions[1], { _meta: withSessionGitState(undefined, { branchName: 'other' }) });
+
+				assert.deepStrictEqual(reported, [['+Session a'], ['+Session c'], ['+Session c'], ['+Session b'], ['+Session b']]);
+			});
+
+			test('a change of a peer chat is reported when it shows, and not when it does not', async () => {
+				const { listController, sessions, reported, change } = await createListedSessions();
+				const peers = (title: string, status: SessionStatus) => ({ defaultChat: chat('a-main'), chats: [{ resource: chat('a-main'), title: 'Main' }, { resource: chat('a-peer'), title, status }] });
+				change(sessions[0], peers('Peer a', SessionStatus.Idle));
+				change(sessions[0], peers('Peer a', SessionStatus.Idle));
+				change(sessions[0], peers('Peer a', SessionStatus.InProgress));
+				change(sessions[0], peers('Peer a', SessionStatus.InProgress));
+
+				assert.deepStrictEqual({ reported, children: listController.items[0].children?.map(child => [child.label, child.status]) }, {
+					reported: [['+Main'], ['+Main']],
+					children: [['Peer a', ChatSessionStatus.InProgress]],
+				});
+			});
+
+			test('a session the host announces again is reported only when it changed', async () => {
+				const { listController, agentHostService, sessions, reported } = await createListedSessions();
+				const before = listController.items;
+				const announce = (session: URI, title: string) => agentHostService.fireNotification({
+					type: 'root/sessionAdded', channel: ROOT_STATE_URI,
+					summary: { resource: session.toString(), provider: 'copilot', title, status: SessionStatus.Idle, createdAt: new Date(1000).toISOString(), modifiedAt: new Date(2000).toISOString() },
+				});
+				announce(sessions[2], 'Session c renamed');
+				announce(sessions[2], 'Session c renamed');
+				const after = listController.items;
+
+				assert.deepStrictEqual({ reported, same: after.map((item, index) => item === before[index]) }, {
+					reported: [['+Session c renamed']],
+					same: [true, true, false],
+				});
+			});
+
+			test('a session that is removed and added again unchanged is reported', async () => {
+				const { listController, agentHostService, sessions, reported } = await createListedSessions();
+				const summary = {
+					resource: sessions[0].toString(), provider: 'copilot', title: 'Session a', status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(), modifiedAt: new Date(2000).toISOString(),
+				};
+				agentHostService.fireNotification({ type: 'root/sessionRemoved', channel: ROOT_STATE_URI, session: sessions[0].toString() });
+				agentHostService.fireNotification({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary });
+
+				assert.deepStrictEqual({ reported, labels: listController.items.map(item => item.label) }, {
+					reported: [['-/a'], ['+Session a']],
+					labels: ['Session b', 'Session c', 'Session a'],
+				});
+			});
+
+			test('a session whose status the host reports for the first time is reported, as its read state is now known', async () => {
+				const { listController, agentHostService } = createContribution(disposables);
+				const session = AgentSession.uri('copilot', 'cold');
+				agentHostService.addSession({ session, startTime: 1000, modifiedTime: 2000, summary: 'Cold' });
+				await listController.refresh(CancellationToken.None);
+				const reported: (boolean | undefined)[] = [];
+				disposables.add(listController.onDidChangeChatSessionItems(delta => reported.push(...(delta.addedOrUpdated ?? []).map(item => item.isRead))));
+				const before = listController.items[0].isRead;
+				agentHostService.fireNotification({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: session.toString(), changes: { status: SessionStatus.Idle } });
+
+				assert.deepStrictEqual({ before, reported, after: listController.items[0].isRead }, { before: undefined, reported: [false], after: false });
+			});
+
+			test('a read of the items while a change is being delivered does not hide the change from the listeners', async () => {
+				let reads: (readonly IChatSessionItem[])[] = [];
+				const { sessions, reported, change } = await createListedSessions((store, items) => {
+					disposables.add(store.onDidChangeSessions(() => reads = [...reads, items()]));
+				});
+				change(sessions[1], { title: 'Renamed' });
+
+				assert.deepStrictEqual({ reported, read: reads.at(-1)?.map(item => item.label) }, { reported: [['+Renamed']], read: ['Session a', 'Renamed', 'Session c'] });
+			});
+
+			test('items follow what the host supports of chats, without a change of the sessions', async () => {
+				const { listController, agentHostService } = await createListedSessions();
+				const canArchive = () => listController.items.map(item => item.children?.map(child => child.canArchive));
+				agentHostService.setHostProtocolVersion('0.8.0');
+				const unsupported = canArchive();
+				agentHostService.setHostProtocolVersion('0.9.0');
+
+				assert.deepStrictEqual({ unsupported, supported: canArchive() }, {
+					unsupported: [[false], [false], [false]],
+					supported: [[true], [true], [true]],
+				});
+			});
+
+			test('items follow the resource a session is registered as, without a change of the sessions', async () => {
+				const { listController, connections, sessions } = await createListedSessions();
+				const before = listController.items[0].resource.toString();
+				const alias = URI.parse('agent-host-copilot:/alias');
+				disposables.add(connections.registerSessionResourceAlias(alias, sessions[0], 'local', 'copilot'));
+
+				assert.deepStrictEqual({ before, after: listController.items[0].resource.toString() }, { before: 'agent-host-copilot:/a', after: alias.toString() });
+			});
+
+			test('the items are those of a full conversion after any sequence of changes', async () => {
+				const { listController, createController, sessions, change, agentHostService } = await createListedSessions();
+				const known = new Map(listController.items.map(item => [item.resource.toString(), item]));
+				disposables.add(listController.onDidChangeChatSessionItems(delta => {
+					for (const item of delta.addedOrUpdated ?? []) {
+						known.set(item.resource.toString(), item);
+					}
+					for (const resource of delta.removed ?? []) {
+						known.delete(resource.toString());
+					}
+				}));
+				let seed = 7;
+				const next = (n: number) => (seed = (seed * 1103515245 + 12345) % 2147483648) % n;
+				const statuses = [SessionStatus.Idle, SessionStatus.InProgress, SessionStatus.Error, SessionStatus.Idle | SessionStatus.IsRead];
+				const byResource = (items: readonly IChatSessionItem[]) => [...items].sort((x, y) => x.resource.toString().localeCompare(y.resource.toString()));
+				const mismatches: { step: number; what: string }[] = [];
+				for (let step = 0; step < 300; step++) {
+					const session = sessions[next(sessions.length)];
+					switch (next(9)) {
+						case 0: change(session, { title: `Title ${next(3)}` }); break;
+						case 1: change(session, { status: statuses[next(statuses.length)] }); break;
+						case 2: change(session, { activity: `Activity ${next(3)}` }); break;
+						case 3: change(session, { modifiedAt: new Date(2000 + next(3)).toISOString() }); break;
+						case 4: change(session, { _meta: { n: next(5) } }); break;
+						case 5: change(session, { changes: { files: next(3), additions: 1, deletions: 1 } }); break;
+						case 6: change(session, { _meta: withSessionGitState(undefined, { branchName: `branch-${next(3)}` }) }); break;
+						case 7: {
+							const id = AgentSession.id(session);
+							change(session, { defaultChat: chat(`${id}-main`), chats: [{ resource: chat(`${id}-main`), title: 'Main' }, { resource: chat(`${id}-peer`), title: `Peer ${next(3)}`, status: statuses[next(statuses.length)] }] });
+							break;
+						}
+						default: {
+							agentHostService.setHostProtocolVersion(next(2) ? '0.8.0' : '0.9.0');
+							await listController.refresh(CancellationToken.None);
+						}
+					}
+					const items = listController.items;
+					if (JSON.stringify(items) !== JSON.stringify(createController().items)) {
+						mismatches.push({ step, what: 'items' });
+					}
+					if (JSON.stringify(byResource(items)) !== JSON.stringify(byResource([...known.values()]).map(item => items.find(candidate => candidate.resource.toString() === item.resource.toString())!))) {
+						mismatches.push({ step, what: 'reported' });
+					}
+				}
+
+				assert.deepStrictEqual(mismatches, []);
+			});
+		});
+
 		test('refresh handles error gracefully', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 
