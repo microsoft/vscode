@@ -76,7 +76,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, OpenInAgentsTitleBarHoverVariant } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -2465,14 +2465,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {
 			type: 'string',
-			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto],
+			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.Banner],
 			enumDescriptions: [
 				nls.localize('chat.welcomePage.agentsWindowGraphic.none', "Show no graphic."),
-				nls.localize('chat.welcomePage.agentsWindowGraphic.windowComparison', "Show the editor window and the Agents window side by side."),
-				nls.localize('chat.welcomePage.agentsWindowGraphic.manyWindowsToOne', "Show how editor windows for several projects become one Agents window."),
-				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.windowComparison', "Show the editor window and the Agents window side by side, above the Agents window button."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.banner', "Show a banner at the top of the page that describes the Agents window next to a picture of it, with a button that opens it."),
 			],
-			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
+			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window on the Welcome page. Graphics are only shown when signed in."),
 			default: AgentsWindowGraphicVariant.WindowComparison,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -2488,7 +2487,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.welcomePage.agentsWindowSectionStyle.band', "Show the section on a subtle surface across the width of the page's content."),
 				nls.localize('chat.welcomePage.agentsWindowSectionStyle.separator', "Separate the section from the rest of the page with lines above and below it."),
 			],
-			description: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while a graphic is shown."),
+			markdownDescription: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while {0} is `windowComparison`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
 			default: AgentsWindowSectionStyle.Outline,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -2497,26 +2496,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
-		},
-		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: {
-			type: 'string',
-			enum: [OpenInAgentsTitleBarHoverVariant.None, OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne, OpenInAgentsTitleBarHoverVariant.WindowComparison],
-			enumDescriptions: [
-				nls.localize('chat.titleBar.openInAgentsWindow.richHover.none', "Show a simple tooltip, and grow the button to show its label."),
-				nls.localize('chat.titleBar.openInAgentsWindow.richHover.manyWindowsToOne', "Show a hover card with a graphic of editor windows for several projects becoming one Agents window, and keep the button an icon."),
-				nls.localize('chat.titleBar.openInAgentsWindow.richHover.windowComparison', "Show a hover card with a graphic of the editor window and the Agents window side by side, and keep the button an icon."),
-			],
-			description: nls.localize('chat.titleBar.openInAgentsWindow.richHover', "Controls whether hovering or focusing the Open in Agents Window button in the title bar shows a hover card that explains the Agents window, and which graphic the card shows. Applies to users who have created fewer than two sessions in the Agents window; other users always see a simple tooltip."),
-			default: OpenInAgentsTitleBarHoverVariant.None,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
-		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.titleBar.openInAgentsWindow.richHoverOnClick', "Controls whether clicking the Open in Agents Window button in the title bar opens its hover card, with focus in it, instead of the Agents window. The card's Open Agents Window button opens the Agents window. Applies only while the button shows a hover card, see {0}.", '`#chat.titleBar.openInAgentsWindow.richHover#`'),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
 		},
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {
