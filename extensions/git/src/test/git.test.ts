@@ -6,6 +6,8 @@
 import 'mocha';
 import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
@@ -29,6 +31,46 @@ suite('git', () => {
 			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
 			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
 			assert.match(result.stdout, /^git version /);
+		});
+
+		test('stages and unstages a file whose name contains glob characters without matching other files', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-pathspec-'));
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Pathspec Tester']);
+				await git.exec(directory, ['config', 'user.email', 'pathspec@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				await fs.promises.writeFile(path.join(directory, 'another.md'), 'one\n');
+				await fs.promises.writeFile(path.join(directory, '*.md'), 'one\n');
+				await git.exec(directory, ['add', '--', 'another.md', ':(literal)*.md']);
+				await git.exec(directory, ['commit', '-m', 'initial']);
+				await fs.promises.writeFile(path.join(directory, 'another.md'), 'two\n');
+				await fs.promises.writeFile(path.join(directory, '*.md'), 'two\n');
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+				const getStaged = async () => (await git.exec(directory, ['diff', '--cached', '--name-only'])).stdout.trim().split('\n').filter(Boolean);
+				const starFile = path.join(directory, '*.md');
+
+				await repository.add([starFile], { update: true });
+				const stagedAfterAdd = await getStaged();
+
+				await repository.add([path.join(directory, 'another.md')], { update: true });
+				await repository.revert('HEAD', [starFile]);
+				const stagedAfterRevert = await getStaged();
+
+				await repository.add([starFile], { update: true });
+				await repository.restore([starFile], { staged: true });
+				const stagedAfterRestore = await getStaged();
+
+				assert.deepStrictEqual({ stagedAfterAdd, stagedAfterRevert, stagedAfterRestore }, {
+					stagedAfterAdd: ['*.md'],
+					stagedAfterRevert: ['another.md'],
+					stagedAfterRestore: ['another.md']
+				});
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
 		});
 	});
 
