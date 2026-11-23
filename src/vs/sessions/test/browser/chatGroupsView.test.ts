@@ -390,11 +390,11 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 }
 
 function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
-	const banner = view.element.querySelector<HTMLElement>('.session-readonly-banner');
+	const banner = view.element.querySelector<HTMLElement>('.chat-readonly-banner');
 	return {
 		visible: !banner?.classList.contains('hidden'),
-		message: banner?.querySelector('.session-readonly-banner-text')?.textContent ?? undefined,
-		action: banner?.querySelector('.session-readonly-banner-action:not([hidden]) .monaco-link')?.textContent ?? undefined,
+		message: banner?.querySelector('.chat-readonly-banner-text')?.textContent ?? undefined,
+		action: banner?.querySelector('.chat-readonly-banner-action:not([hidden]) .monaco-link')?.textContent ?? undefined,
 	};
 }
 
@@ -2573,8 +2573,8 @@ suite('Sessions - ChatGroupsView', () => {
 		};
 		current.historyStatus.set(failure, undefined);
 		const failed = readBanner(view);
-		const announcement = view.element.querySelector('.session-readonly-banner-announcement')?.textContent;
-		const link = view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!;
+		const announcement = view.element.querySelector('.chat-readonly-banner-announcement')?.textContent;
+		const link = view.element.querySelector<HTMLElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')!;
 		link.focus();
 		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		link.click();
@@ -2586,7 +2586,7 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual({
 			quiet, failed, announcement, refreshing,
 			connectionAction: readBanner(view).action !== 'Refresh',
-			bannerCount: view.element.querySelectorAll('.session-readonly-banner:not(.hidden)').length,
+			bannerCount: view.element.querySelectorAll('.chat-readonly-banner:not(.hidden)').length,
 			connectCalls: provider.connectCalls,
 		}, {
 			quiet: false,
@@ -2611,7 +2611,7 @@ suite('Sessions - ChatGroupsView', () => {
 			action: { label: 'Refresh', run: async () => { } },
 		}, undefined);
 		const whileArchived = readBanner(view);
-		const actions = [...view.element.querySelectorAll('.session-readonly-banner-action:not([hidden]) a')].map(link => link.textContent);
+		const actions = [...view.element.querySelectorAll('.chat-readonly-banner-action:not([hidden]) a')].map(link => link.textContent);
 		transaction(tx => {
 			session.isArchived.set(false, tx);
 			chat.interactivity.set(ChatInteractivity.DraftOnly, tx);
@@ -2664,14 +2664,14 @@ suite('Sessions - ChatGroupsView', () => {
 			const quiet = readBanner(view).visible;
 			current.onInput?.();
 			const afterInput = readBanner(view);
-			const link = view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!;
+			const link = view.element.querySelector<HTMLElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')!;
 			link.focus();
 			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 			link.click();
 			const reopening = {
 				banner: readBanner(view),
-				progressIcon: !!view.element.querySelector('.session-readonly-banner-icon .codicon-sync'),
-				announcement: view.element.querySelector('.session-readonly-banner-announcement')?.textContent,
+				progressIcon: !!view.element.querySelector('.chat-readonly-banner-icon .codicon-sync'),
+				announcement: view.element.querySelector('.chat-readonly-banner-announcement')?.textContent,
 				blocked: current.isInputBlocked.get(),
 			};
 			await pending.complete(false);
@@ -2679,7 +2679,7 @@ suite('Sessions - ChatGroupsView', () => {
 			current.onInput?.();
 			const failedAgain = readBanner(view);
 			pending = new DeferredPromise<boolean>();
-			view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!.click();
+			view.element.querySelector<HTMLElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')!.click();
 			await pending.complete(true);
 			await timeout(0);
 			assert.deepStrictEqual({
@@ -2800,7 +2800,7 @@ suite('Sessions - ChatGroupsView', () => {
 		chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 		const hostNotRunning = readBanner(view);
 
-		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')?.click();
+		view.element.querySelector<HTMLElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')?.click();
 		remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
 
 		assert.deepStrictEqual({
@@ -3119,7 +3119,7 @@ suite('Sessions - ChatGroupsView', () => {
 			recovery: readRemoteHostUnavailableState(view).visible,
 		};
 		provider.connectGate = undefined;
-		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')?.click();
+		view.element.querySelector<HTMLElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')?.click();
 		await timeout(0);
 
 		assert.deepStrictEqual({ failed, connects: provider.connectCalls }, {
@@ -3581,7 +3581,7 @@ suite('Sessions - ChatGroupsView', () => {
 
 		view.setSession(paneContent(view, session), options);
 		const banner = readBanner(view);
-		view.element.querySelector<HTMLElement>('.session-readonly-banner-action .monaco-link')?.click();
+		view.element.querySelector<HTMLElement>('.chat-readonly-banner-action .monaco-link')?.click();
 
 		assert.deepStrictEqual({ banner, commands }, {
 			banner: { visible: true, message: 'Archived sessions are read-only.', action: 'Unarchive' },
@@ -3682,7 +3682,7 @@ suite('Sessions - ChatGroupsView', () => {
 
 			await timeout(5_500);
 			const banner = readBanner(view);
-			view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')?.click();
+			view.element.querySelector<HTMLElement>('.chat-readonly-banner-action:not([hidden]) .monaco-link')?.click();
 
 			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
 				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },

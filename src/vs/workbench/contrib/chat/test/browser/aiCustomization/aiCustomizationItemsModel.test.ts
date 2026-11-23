@@ -21,7 +21,7 @@ import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSectionNotice, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -54,6 +54,7 @@ suite('AICustomizationItemsModel', () => {
 		let hooksDidChange: Emitter<void>;
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
+		let providerA_hookNotices: ICustomizationSectionNotice[];
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
 		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
 		let disabledPromptFilesResult: ResourceSet;
@@ -77,6 +78,7 @@ suite('AICustomizationItemsModel', () => {
 			hooksDidChange = disposables.add(new Emitter<void>());
 			providerA_callCount = 0;
 			providerA_items = [];
+			providerA_hookNotices = [];
 			listPromptFilesResult = [];
 			disabledPromptFilesResult = new ResourceSet();
 			marketplaceStates = new Map();
@@ -89,6 +91,7 @@ suite('AICustomizationItemsModel', () => {
 					providerA_callCount++;
 					return Promise.resolve(providerA_items.slice());
 				},
+				provideSectionNotices: (_sessionResource: URI, type: PromptsType) => Promise.resolve(type === PromptsType.hook ? providerA_hookNotices.slice() : []),
 			};
 			const providerB: ICustomizationItemProvider = {
 				onDidChange: Event.None,
@@ -299,6 +302,25 @@ suite('AICustomizationItemsModel', () => {
 				scopedSession: scope.model.getActiveItemSource().sessionResource.toString(),
 				scopedCount: scope.model.getCount(AICustomizationManagementSection.Skills).get(),
 			}, { activeSession: 'A:/session', activeCount: 1, scopedSession: resource.toString(), scopedCount: 0 });
+		});
+
+		test('section notices are fetched with their section and refreshed when the provider changes', async () => {
+			providerA_hookNotices = [{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }];
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			await model.whenSectionLoaded(AICustomizationManagementSection.Hooks);
+			const loaded = model.getSectionNotices(AICustomizationManagementSection.Hooks).get();
+			providerA_hookNotices = [];
+			providerA_didChange.fire();
+			await model.whenSectionLoaded(AICustomizationManagementSection.Hooks);
+			assert.deepStrictEqual({
+				loaded,
+				skills: model.getSectionNotices(AICustomizationManagementSection.Skills).get(),
+				fixed: model.getSectionNotices(AICustomizationManagementSection.Hooks).get(),
+			}, {
+				loaded: [{ severity: 'warning', title: 'Some hook files could not be loaded', message: 'Invalid hook configuration in a.json' }],
+				skills: [],
+				fixed: [],
+			});
 		});
 
 		test('source.onDidChange refetches only previously-observed sections', async () => {

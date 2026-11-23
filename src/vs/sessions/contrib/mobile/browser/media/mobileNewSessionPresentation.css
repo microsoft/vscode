@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench.mobile-workbench .new-chat-widget-container.mobile-new-session {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
+	/* Give the composer up to 304px before spending the full gutter on narrow phones. */
+	padding: var(--vscode-spacing-size80) clamp(var(--vscode-spacing-size80), calc((100% - 304px) / 2), var(--vscode-spacing-size160)) 0;
 	justify-content: flex-start;
 }
 
@@ -103,6 +104,25 @@
 
 .mobile-new-session .new-chat-input-container {
 	flex-shrink: 0;
+}
+
+/* Reserve the full hit area inside the toolbar so its overflow can't clip the compact pill. */
+.mobile-new-session .new-chat-session-controls .sessions-chat-picker-slot {
+	display: flex;
+	align-items: center;
+	min-height: var(--mobile-target);
+}
+
+.mobile-new-session .new-chat-session-controls .sessions-chat-picker-slot > .action-label {
+	position: relative;
+}
+
+.mobile-new-session .new-chat-session-controls .sessions-chat-picker-slot > .action-label::after {
+	content: '';
+	position: absolute;
+	inset: 50% 0 auto;
+	height: var(--mobile-target);
+	transform: translateY(-50%);
 }
 
 .agent-sessions-workbench.phone-layout .mobile-new-session .new-chat-bottom-container.empty {

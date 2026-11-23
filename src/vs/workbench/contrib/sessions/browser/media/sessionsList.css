@@ -546,6 +546,11 @@
 	overflow: hidden;
 }
 
+.sessions-list-search-empty:not(:empty) {
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
 .sessions-list-control.inbox-layout {
 	&:not(.compact) .session-item:not(.quick-chat, .session-comparison-attempt) {
 		padding-top: var(--vscode-spacing-size40);
@@ -1774,7 +1779,7 @@
  * level is the header icon and its gap, so a subgroup's header starts where its
  * parent's label does; the group's sessions and rows line up with its header.
  */
-.sessions-list-control {
+:is(.sessions-list-control, .agent-sessions-navigation-container) {
 	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
 
 	/*

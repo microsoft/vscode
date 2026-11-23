@@ -472,6 +472,10 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		return this._mainService.listRunningDistros();
 	}
 
+	async terminateDistro(distro: string): Promise<void> {
+		return this._mainService.terminateDistro(distro);
+	}
+
 	async connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');

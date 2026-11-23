@@ -84,13 +84,15 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			return [];
 		}
 		const sessionId = AgentSession.id(params.channel);
-		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId, context);
+		// Submitting on accept would also send the draft text after the cursor.
+		const canSubmitOnAccept = !/\S/.test(params.text.slice(params.offset));
+		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId, context, canSubmitOnAccept);
 		if (customizationCompletions) {
 			return customizationCompletions;
 		}
 		const commandArgument = extractSlashCommandArgument(params.text, params.offset);
 		if (commandArgument) {
-			return this._getRuntimeSlashCommandCompletionInfo(sessionId, context, commandArgument.command, commandArgument, false, commandArgument.typed);
+			return this._getRuntimeSlashCommandCompletionInfo(sessionId, context, commandArgument.command, commandArgument, false, canSubmitOnAccept, commandArgument.typed);
 		}
 		const leadingTokenForSkills = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		const leadingTokenForCommands = extractLeadingSlashToken(params.text, params.offset);
@@ -103,10 +105,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// Raw session id is the URI path without the leading slash.
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, context, typed, leading, returnJustSkills);
+		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, context, typed, leading, returnJustSkills, canSubmitOnAccept);
 	}
 
-	private async _getCustomizationCompletions(text: string, offset: number, sessionId: string, context: IAgentHostCompletionContext): Promise<CompletionItem[] | undefined> {
+	private async _getCustomizationCompletions(text: string, offset: number, sessionId: string, context: IAgentHostCompletionContext, canSubmitOnAccept: boolean): Promise<CompletionItem[] | undefined> {
 		const range = getWordRangeAtOffset(text, offset);
 		if (!range) {
 			return undefined;
@@ -126,7 +128,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 							command: 'plugin',
 							description: choice.description,
 							...(choice.name !== 'list' ? { retriggerSuggestions: true } : {}),
-							...(choice.name === 'list' ? { submitOnAccept: true } : {}),
+							...(choice.name === 'list' && canSubmitOnAccept ? { submitOnAccept: true } : {}),
 						}),
 					},
 				}))
@@ -296,8 +298,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return context.customizations ? Promise.resolve(context.customizations) : this._sessionInfo.getSessionCustomizations(sessionId);
 	}
 
-	private async _getKnownSkills(sessionId: string, context: IAgentHostCompletionContext): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
+	private async _getKnownSkills(sessionId: string, context: IAgentHostCompletionContext): Promise<{ readonly known: ReadonlySet<string>; readonly ineligible: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
 		const known = new Set<string>();
+		const ineligible = new Set<string>();
 		const syncedContainerNames = new Set<string>();
 		const customizations = await this._getSessionCustomizations(sessionId, context);
 		for (const c of customizations) {
@@ -306,11 +309,18 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 		}
 		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			const name = this._toSlashCommandCandidate(container, skill).toLowerCase();
 			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
-				known.add(this._toSlashCommandCandidate(container, skill).toLowerCase());
+				known.add(name);
+			} else {
+				ineligible.add(name);
+				if (container.type === CustomizationType.Plugin) {
+					// The runtime may qualify synced skills or disambiguated plugin-root skills.
+					ineligible.add(`${container.name}:${skill.name}`.toLowerCase());
+				}
 			}
 		}
-		return { known, syncedContainerNames };
+		return { known, ineligible, syncedContainerNames };
 	}
 
 	/**
@@ -357,8 +367,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return slashCommandName;
 	}
 
-	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, context: IAgentHostCompletionContext, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
-		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
+	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, context: IAgentHostCompletionContext, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, canSubmitOnAccept: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
+		const [runtimeCommands, { known: knownSkills, ineligible: ineligibleSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId, context)
 		]);
@@ -377,8 +387,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (returnJustSkills && command.kind !== 'skill') {
 				continue;
 			}
-			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
-				// Already surfaced by the generic skill-completion provider.
+			if (command.kind === 'skill' && (ineligibleSkills.has(command.name.toLowerCase()) || this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands))) {
 				continue;
 			}
 			if (command !== copilotSandboxPolicyCommand && (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias)))) {
@@ -439,7 +448,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 									: command.name === 'skills'
 										? option.name === 'info'
 										: command.name === 'plugin' && ['marketplace', 'install', 'enable', 'disable', 'uninstall', 'remove', 'update'].includes(option.name);
-							const submitOnAccept = ['mcp', 'plugin', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
+							const submitOnAccept = canSubmitOnAccept && ['mcp', 'plugin', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
 							addedAliases.add(alias);
 
 							completionItems.push({

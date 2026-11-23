@@ -766,6 +766,9 @@ suite('CopilotChatSessionsProvider', () => {
 			const sessionRepositoryPicker = new class extends mock<ISessionRepositoryPicker>() {
 				override async pickRepository(getRepositories: (query: string, token: CancellationToken) => Promise<readonly string[]>, token: CancellationToken) {
 					steps.push('presentation');
+					if (providerMode === 'sandbox') {
+						steps.push(`recent:${(await getRepositories('', token)).join(',')}`);
+					}
 					const repositories = await getRepositories('https://github.com/microsoft/vscode.git', token);
 					return repositories[0];
 				}
@@ -774,9 +777,12 @@ suite('CopilotChatSessionsProvider', () => {
 				providerMode, gitHubService, sessionRepositoryPicker,
 				repositoryPicker: { pickRepository: async () => assert.fail('Must not open the default picker'), dispose: () => { } },
 			});
-			const workspace = await provider.browseActions[0].run();
+			const workspace = await provider.browseActions[0].run(undefined, providerMode === 'sandbox' ? {
+				recentFolders: [URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/example/recent/HEAD' })],
+				token: CancellationToken.None,
+			} : undefined);
 			assert.deepStrictEqual({ steps, uri: workspace?.uri.toString() }, {
-				steps: ['authenticate', 'presentation', 'search:microsoft/vscode'],
+				steps: ['authenticate', 'presentation', ...(providerMode === 'sandbox' ? ['recent:example/recent'] : []), 'search:microsoft/vscode'],
 				uri: 'https://github.com/microsoft/vscode',
 			});
 		});

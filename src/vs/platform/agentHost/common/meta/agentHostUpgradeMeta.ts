@@ -3,6 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum AgenticParts {
-	PROJECTBAR_PART = 'workbench.parts.projectbar',
-}
+export { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, isNewerAgentHostBuildAvailable, readAgentHostBuild, readAgentHostUpgradeMethod, type IAgentHostBuild } from './vscode/agentHostUpgradeMeta.js';

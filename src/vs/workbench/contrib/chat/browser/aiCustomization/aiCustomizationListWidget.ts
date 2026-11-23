@@ -17,6 +17,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
@@ -55,7 +56,7 @@ import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js
 import { getCustomizationSecondaryText, MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSectionNotice } from '../../common/customizationHarnessService.js';
 import { CustomizationOrganizationPolicyNotice, getOrganizationManagedTooltip, OrganizationManagedTag } from './customizationOrganizationPolicy.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -840,6 +841,11 @@ export class AICustomizationListWidget extends Disposable {
 
 	private currentSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
 	private organizationPolicyNotice!: CustomizationOrganizationPolicyNotice;
+	private sectionNoticesElement!: HTMLElement;
+	private sectionNotices: readonly ICustomizationSectionNotice[] = [];
+	private readonly sectionNoticeDisposables = this._register(new DisposableStore());
+	/** Notices the user collapsed, by severity and title, kept while their messages change. */
+	private readonly collapsedSectionNotices = new Set<string>();
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
@@ -1044,6 +1050,9 @@ export class AICustomizationListWidget extends Disposable {
 		}));
 		this.addButton.element.classList.add('list-add-button');
 		this._register(this.addButton.onDidClick(() => this.executePrimaryCreateAction()));
+
+		// Problems with the section as a whole, such as files that failed to load
+		this.sectionNoticesElement = DOM.append(this.element, $('.customization-section-notices'));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.list-container'));
@@ -1261,6 +1270,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (!modelSection) {
 			this.sectionLoading = false;
 			this.currentSectionSubscription.clear();
+			this.renderSectionNotices([]);
 			this.allItems = [];
 			this.element.classList.remove('show-item-type-icons');
 			const matchCount = this.filterItems();
@@ -1271,8 +1281,10 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		const observable = this.itemsModel.getItems(modelSection);
+		const notices = this.itemsModel.getSectionNotices(modelSection);
 		this.sectionLoading = true;
 		this.currentSectionSubscription.value = autorun(reader => {
+			this.renderSectionNotices(notices.read(reader));
 			const items = observable.read(reader);
 			this.allItems = items;
 			this.element.classList.toggle('show-item-type-icons', items.some(item => !!item.marketplace?.resource.icon));
@@ -1599,7 +1611,54 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private announceItemCount(count: number): void {
 		const isFiltering = this.searchQuery.trim().length > 0;
-		aria.status(getCountAnnouncement(this.currentSection, count, isFiltering));
+		const countAnnouncement = getCountAnnouncement(this.currentSection, count, isFiltering);
+		// The notices are not focusable, so name them with the count that is announced when the section loads.
+		aria.status(this.sectionNotices.length && !isFiltering
+			? localize('countWithSectionNotices', "{0}. {1}", countAnnouncement, this.sectionNotices.map(notice => notice.title).join('. '))
+			: countAnnouncement);
+	}
+
+	/**
+	 * Shows the section's notices, such as files that failed to load, between the search box and the list. Each
+	 * notice can be collapsed to its title.
+	 */
+	private renderSectionNotices(notices: readonly ICustomizationSectionNotice[]): void {
+		if (equals(this.sectionNotices, notices, (a, b) => a.severity === b.severity && a.title === b.title && a.message === b.message)) {
+			return;
+		}
+		this.sectionNotices = notices;
+		this.sectionNoticeDisposables.clear();
+		DOM.clearNode(this.sectionNoticesElement);
+		for (const notice of notices) {
+			const key = `${notice.severity}:${notice.title}`;
+			const element = DOM.append(this.sectionNoticesElement, $<HTMLDetailsElement>(`details.customization-section-notice.${notice.severity}`));
+			element.open = !this.collapsedSectionNotices.has(key);
+			const summary = DOM.append(element, $('summary.customization-section-notice-summary', {
+				'aria-label': notice.severity === 'error'
+					? localize('sectionNoticeError', "Error: {0}", notice.title)
+					: localize('sectionNoticeWarning', "Warning: {0}", notice.title),
+			}));
+			DOM.append(summary, $(`.customization-section-notice-chevron${ThemeIcon.asCSSSelector(Codicon.chevronRight)}`, { 'aria-hidden': 'true' }));
+			DOM.append(summary, $(`.customization-section-notice-icon${ThemeIcon.asCSSSelector(notice.severity === 'error' ? Codicon.error : Codicon.warning)}`, { 'aria-hidden': 'true' }));
+			DOM.append(summary, $('span.customization-section-notice-title')).textContent = notice.title;
+			DOM.append(element, $('.customization-section-notice-message')).textContent = notice.message;
+			this.sectionNoticeDisposables.add(DOM.addDisposableListener(element, 'toggle', () => {
+				if (element.open) {
+					this.collapsedSectionNotices.delete(key);
+				} else {
+					this.collapsedSectionNotices.add(key);
+				}
+				this.relayout();
+			}));
+		}
+		this.relayout();
+	}
+
+	/** Lays the list out again at its last size, after content above it changed height. */
+	private relayout(): void {
+		if (this.lastLayoutHeight > 0 && this.lastLayoutWidth > 0) {
+			this.layout(this.lastLayoutHeight, this.lastLayoutWidth);
+		}
 	}
 
 	/**

@@ -4347,6 +4347,15 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('shutdown asks the git service to report its telemetry before the host flushes the collector', async () => {
+		const calls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.flushTelemetry = () => { calls.push('git telemetry flushed'); };
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		await localService.shutdown();
+		assert.deepStrictEqual(calls, ['git telemetry flushed']);
+	});
+
 	for (const operation of ['resolveSessionConfig', 'createSession'] as const) {
 		test(`${operation} resolves provider and worktree configuration concurrently`, async () => {
 			const workingDirectory = URI.file('/workspace/repo');
@@ -24016,7 +24025,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: { ...gitState, baseBranchFullName: 'main' } }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -24272,7 +24281,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
 				assert.deepStrictEqual(
 					getStateManager(localService).getSessionState(session.toString())?._meta,
-					{ git: gitState },
+					{ git: { ...gitState, baseBranchFullName: 'main' } },
 				);
 			});
 
@@ -44794,6 +44803,39 @@ suite('AgentService (node dispatcher)', () => {
 				[sessionResource.toString()],
 				'GC fired after grace period',
 			);
+		}));
+
+		test('a provisional session its provider materialized before any turn, as opening a canvas does, is not GC-disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			class MaterializingAgent extends MockAgent {
+				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+				}));
+				materialize(session: URI): void {
+					this._onDidMaterializeChat.fire({ chat: URI.parse(buildDefaultChatUri(session)), workingDirectories: undefined, project: undefined });
+				}
+				override dispose(): void {
+					this._onDidMaterializeChat.dispose();
+					super.dispose();
+				}
+			}
+			const agent = new MaterializingAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: agent.id });
+			service.addSubscriber(session, 'client-1');
+			const draftBeforeMaterialize = getStateManager(service).isUnusedDraft(session.toString());
+			agent.materialize(session);
+
+			service.unsubscribe(session, 'client-1');
+			await timeout(30_000);
+
+			assert.deepStrictEqual({
+				draftBeforeMaterialize,
+				draftAfterMaterialize: getStateManager(service).isUnusedDraft(session.toString()),
+				disposals: agent.disposeSessionCalls.length,
+			}, { draftBeforeMaterialize: true, draftAfterMaterialize: false, disposals: 0 });
 		}));
 
 		test('a session with at least one turn is not GC-disposed', () => {

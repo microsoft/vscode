@@ -14,19 +14,25 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 export const RemoteSessionToolsEnabledSettingId = 'chat.remoteSessions.tools.enabled';
 
 export const remoteSessionToolsWhen = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
-	ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+	ContextKeyExpr.or(
+		ContextKeyExpr.equals(`config.${RemoteSessionToolsEnabledSettingId}`, true),
+		// Agents that continue work in a Dev Container start and contact its session with these tools.
+		ContextKeyExpr.equals(`config.${DevContainerHandoffEnabledSettingId}`, true),
+	),
 );
 
 export function areRemoteSessionToolsEnabled(configurationService: IConfigurationService): boolean {
 	return !configurationService.getValue<boolean>('chat.disableAIFeatures')
 		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
-		&& configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true;
+		&& (configurationService.getValue<boolean>(RemoteSessionToolsEnabledSettingId) === true
+			|| configurationService.getValue<boolean>(DevContainerHandoffEnabledSettingId) === true);
 }
 
 export interface IRemoteSessionRequirements {
@@ -94,6 +100,11 @@ export const IRemoteSessionService = createDecorator<IRemoteSessionService>('rem
 export interface IRemoteSessionService {
 	readonly _serviceBrand: undefined;
 	listHosts(): readonly IRemoteSessionHost[];
+	/**
+	 * Why `createSession` would not start a session in the workspace on the host now, apart from the
+	 * workspace's existence and trust; empty when it would.
+	 */
+	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 

@@ -572,6 +572,14 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
+/**
+ * Root config key forwarded from the renderer's `chat.useHooks` setting. When
+ * `false`, Copilot sessions launch without the hooks VS Code controls:
+ * repository hooks, custom agent hooks, and the plugin hooks VS Code runs
+ * itself. VS Code's own SDK callbacks are unaffected.
+ */
+export const AgentHostHooksEnabledConfigKey = 'hooksEnabled';
+
 export interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
@@ -717,6 +725,9 @@ export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled'
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
+/** Root config key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsConfigKey = 'gitCoalesceReads';
+
 /**
  * Root config key forwarded from the renderer's
  * `chat.agentHost.experimental.overlapProviderPreparation` setting. When
@@ -747,7 +758,7 @@ export const agentHostKeepAwakeConfiguration = {
 		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
 		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
 	],
-	default: AgentHostKeepAwakeMode.Always,
+	default: AgentHostKeepAwakeMode.WhenPluggedIn,
 };
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
@@ -987,6 +998,12 @@ export const platformRootSchema = createSchema({
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
 	}),
+	[AgentHostHooksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hooksEnabled.title', "Hooks"),
+		description: localize('agentHost.config.hooksEnabled.description', "Whether VS Code's `chat.useHooks` setting allows hooks. When `false`, Copilot sessions run no repository hooks, custom agent hooks, or plugin hooks that VS Code runs itself."),
+		default: true,
+	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
@@ -1157,6 +1174,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
+	}),
+	[AgentHostGitCoalesceReadsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.gitCoalesceReads.title', "Share Git Reads"),
+		description: localize('agentHost.config.gitCoalesceReads.description', "Whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once."),
+		default: false,
 	}),
 	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

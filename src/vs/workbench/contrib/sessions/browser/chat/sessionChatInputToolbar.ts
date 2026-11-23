@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
-import { CopyFeedback } from '../../../../../base/browser/ui/button/copyFeedback.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -37,7 +36,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../../chat/brow
 import type { IChatBackgroundActivityPillSections } from '../../../chat/browser/chat.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../chat/browser/widget/chatTurnPills.js';
-import { createOpenPullRequestChangesAction, SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { CopyFeedbackActionCache, createOpenPullRequestChangesAction, SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from '../../../chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../browser/chatPills.js';
@@ -75,8 +74,6 @@ import { ChatPillHoverCache, createChatPillHover } from '../../../../browser/cha
 import { EditorsOrder } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
-
-const copiedLabel = localize('sessionChatPills.copied', "Copied");
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData, copy: (value: string) => void): readonly IChatPillSection[] {
@@ -133,7 +130,7 @@ interface IRecordedArtifactActions {
 	recordOpen?(id: string): void;
 }
 
-type CreateCopyAction = (key: string, label: string, copy: () => Promise<void>) => IAction;
+type CreateCopyAction = (key: string, label: string, copy: () => Promise<void>, copyValue: string) => IAction;
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
 export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: ISession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, activatePane: (() => void) | undefined, artifactActions?: IRecordedArtifactActions, hoverCache?: ChatPillHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPullRequestPillSection[] {
@@ -188,6 +185,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
 				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				() => clipboardService.writeText(ref.uri.toString(true)),
+				ref.uri.toString(true),
 			) ?? toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
@@ -264,6 +262,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
 				localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				() => clipboardService.writeText(uri.toString(true)),
+				uri.toString(true),
 			) ?? toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
@@ -360,57 +359,6 @@ function getChangesPillChangesetId(session: ISession | undefined, chat: IChat | 
  * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
  */
 export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = CHAT_INPUT_PILLS_ROW_HEIGHT;
-
-class CopyFeedbackAction extends Action {
-
-	private readonly _feedback = this._register(new CopyFeedback(copied => {
-		this.label = copied ? copiedLabel : this._copyLabel;
-		this.class = ThemeIcon.asClassName(copied ? Codicon.check : Codicon.copy);
-	}));
-
-	constructor(id: string, private _copyLabel: string, private _copy: () => Promise<void>) {
-		super(id, _copyLabel, ThemeIcon.asClassName(Codicon.copy));
-	}
-
-	update(copyLabel: string, copy: () => Promise<void>): void {
-		this._copyLabel = copyLabel;
-		this._copy = copy;
-		if (!this._feedback.copied) {
-			this.label = copyLabel;
-		}
-	}
-
-	override async run(): Promise<void> {
-		await this._copy();
-		this._feedback.show();
-	}
-}
-
-class CopyFeedbackActionCache extends Disposable {
-
-	private readonly _actions = new Map<string, CopyFeedbackAction>();
-
-	get(key: string, label: string, copy: () => Promise<void>): IAction {
-		let action = this._actions.get(key);
-		if (!action) {
-			action = new CopyFeedbackAction(`sessionChatPills.copy.${key}`, label, copy);
-			this._actions.set(key, action);
-			this._register(action);
-		} else {
-			action.update(label, copy);
-		}
-		return action;
-	}
-
-	retain(keys: ReadonlySet<string>): void {
-		for (const [key, action] of this._actions) {
-			if (!keys.has(key)) {
-				action.dispose();
-				this._actions.delete(key);
-			}
-		}
-	}
-}
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
 /** How a {@link SessionChatInputToolbar} shows its Changes pill, such as beside an input that shows the session's changes as its working set. */
@@ -587,7 +535,7 @@ export class SessionChatInputToolbar extends Disposable {
 			const keys = new Set(pullRequests.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`));
 			this._pullRequestCopyActions.retain(keys);
 			this._pullRequestHoverCache.retain(keys, session ? `${session.providerId}/${session.sessionId}` : undefined);
-			return buildSessionPullRequestSections(pullRequests, session, commandService, clipboardService, openerService, activatePane, session ? artifactActions(session, reader) : undefined, this._pullRequestHoverCache, (key, label, copy) => this._pullRequestCopyActions.get(key, label, copy));
+			return buildSessionPullRequestSections(pullRequests, session, commandService, clipboardService, openerService, activatePane, session ? artifactActions(session, reader) : undefined, this._pullRequestHoverCache, (key, label, copy, copyValue) => this._pullRequestCopyActions.get(key, label, copy, copyValue));
 		});
 		const issueRefs = derivedOpts<readonly IGitHubIssueRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).issues);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
@@ -616,7 +564,7 @@ export class SessionChatInputToolbar extends Disposable {
 			const resolvedIssues = issues.read(reader);
 			this._issueCopyActions.retain(new Set(resolvedIssues.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`)));
 			this._issueHoverCache.retain(new Set(resolvedIssues.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`)), session ? `${session.providerId}/${session.sessionId}` : undefined);
-			return buildSessionIssueSections(resolvedIssues, session, commandService, clipboardService, openerService, activatePane, session ? artifactActions(session, reader) : undefined, this._issueHoverCache, (key, label, copy) => this._issueCopyActions.get(key, label, copy));
+			return buildSessionIssueSections(resolvedIssues, session, commandService, clipboardService, openerService, activatePane, session ? artifactActions(session, reader) : undefined, this._issueHoverCache, (key, label, copy, copyValue) => this._issueCopyActions.get(key, label, copy, copyValue));
 		});
 		const issueIcon = derived(this, reader => {
 			const resolved = groupSessionIssues(issues.read(reader));

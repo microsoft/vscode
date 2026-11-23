@@ -87,6 +87,9 @@ suite('git.repositories.deleteWorktree', () => {
 	test('deletes the worktree of the repository it is run on through the main repository', async () => {
 		await openRepository(root);
 		const worktree = await openRepository(worktreePath);
+		// Opening the worktree starts git commands in it. On Windows a running process's current directory can't be
+		// removed, so deleting the worktree before they finish fails with "Permission denied".
+		await worktree.status();
 
 		await commands.executeCommand('git.repositories.deleteWorktree', worktree.rootUri, { id: worktree.rootUri.fsPath });
 

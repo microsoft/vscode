@@ -1527,7 +1527,7 @@ suite('TabbedActionListWidget', () => {
 			body.getAnimations().forEach(animation => animation.finish());
 			await settleLayout();
 			const panelBounds = panel.getBoundingClientRect();
-			const rowBounds = body.querySelector<HTMLElement>('.monaco-list-row[aria-expanded="true"]')!.getBoundingClientRect();
+			const rowBounds = body.querySelector<HTMLElement>('.monaco-list-row.panel-anchor')!.getBoundingClientRect();
 			assert.deepStrictEqual({
 				collapseAnimated,
 				expandAnimated,
