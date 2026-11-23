@@ -1999,6 +1999,12 @@ class InnerMinimap extends Disposable {
 	}
 
 	private _renderSectionHeaders(frame: RecordedFrame, canvasContext: CanvasRenderingContext2D, layout: MinimapLayout) {
+		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
+		if (decorations.length === 0) {
+			return;
+		}
+		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
+
 		const minimapLineHeight = this._model.options.minimapLineHeight;
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
@@ -2028,9 +2034,6 @@ class InnerMinimap extends Disposable {
 		// Measure the labels with the style they are drawn with
 		canvasContext.save();
 		setStyle(canvasContext);
-
-		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
-		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
 
 		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
 			labelAreaWidth - MINIMAP_GUTTER_WIDTH);
