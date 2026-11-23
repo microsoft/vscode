@@ -304,12 +304,14 @@ suite('Dev Container Agent Host Service', () => {
 		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, storage, configurationService));
 		const createdUris: URI[] = [];
 		const removedUris: URI[] = [];
+		const requestedNames: (string | undefined)[] = [];
 		store.add(service.registerConnector({
 			isAvailable: async () => true,
 			isLocalDockerAvailable: async () => !!options.localDocker,
 			showLog: async () => { },
 			createConnection: async (workspaceUri, address, _token, requested) => {
 				createdUris.push(workspaceUri);
+				requestedNames.push(requested?.name);
 				await options.beforeConnect?.();
 				// The host names the connection as requested, as the real connector does.
 				return { address, name: requested?.name ?? 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
@@ -326,7 +328,7 @@ suite('Dev Container Agent Host Service', () => {
 				override async isDockerAvailable() { dockerChecks.push('checked'); return true; }
 			}();
 		}();
-		return { service, remoteService, storage, createdUris, removedUris, createHostConnection, providersService, dockerChecks };
+		return { service, remoteService, storage, createdUris, removedUris, requestedNames, createHostConnection, providersService, dockerChecks };
 	}
 
 	test('checks Docker again on a host that was removed and configured again', async () => {
@@ -412,14 +414,21 @@ suite('Dev Container Agent Host Service', () => {
 	});
 
 	test('names the connection of each environment after the environment, so environments on the same host differ', async () => {
-		const { service, remoteService } = setupEnvironments(undefined, { localDocker: true });
+		const { service, remoteService, requestedNames } = setupEnvironments(undefined, { localDocker: true });
 		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
 		const connectionNames: (string | undefined)[] = [];
+		let address = '';
 		for (let index = 0; index < 2; index++) {
-			await service.createEnvironment(LocalDevContainerEnvironmentHost);
+			address = (await service.createEnvironment(LocalDevContainerEnvironmentHost)).address;
 			connectionNames.push(remoteService.stagedEntry?.name);
 		}
-		assert.deepStrictEqual(connectionNames, ['Dev Container', 'Dev Container 2']);
+		// The connection factory rebuilds a connection, e.g., after its relay closed, with the same name.
+		remoteService.reconnect(address, false);
+		await remoteService.waitForConnection(address);
+		assert.deepStrictEqual({ connectionNames, requestedNames }, {
+			connectionNames: ['Dev Container', 'Dev Container 2'],
+			requestedNames: ['Dev Container', 'Dev Container 2', 'Dev Container 2'],
+		});
 	});
 
 	test('drops the disposed client of an environment whose relay closed for good, so first use connects again', async () => {

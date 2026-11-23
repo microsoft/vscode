@@ -93,6 +93,14 @@ export interface IDevContainerAgentHostConnection {
 	readonly clientProxy?: IAgentHostClientProxyProvider;
 }
 
+/** Options for {@link IDevContainerAgentHostConnector.createConnection}. */
+export interface IDevContainerAgentHostConnectionOptions {
+	readonly resume: boolean;
+	readonly sandboxEnabled?: boolean;
+	/** Names the connection of a Dev Container environment, which otherwise gets a name for its host. */
+	readonly name?: string;
+}
+
 /** Creates a Dev Container and connects to its Agent Host. */
 export interface IDevContainerAgentHostConnector {
 	readonly onDidChangeSandboxSupport?: Event<{ readonly workspaceUri: URI; readonly supported: boolean }>;
@@ -100,11 +108,7 @@ export interface IDevContainerAgentHostConnector {
 	isAvailable(workspaceUri: URI): Promise<boolean>;
 	/** Whether Docker is available on this computer, regardless of settings. */
 	isLocalDockerAvailable?(): Promise<boolean>;
-	/**
-	 * Creates the container if needed and connects to its Agent Host. `options.name` names the connection of a Dev
-	 * Container environment, which otherwise gets a name for its host.
-	 */
-	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean; readonly name?: string }): Promise<IDevContainerAgentHostConnection>;
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: IDevContainerAgentHostConnectionOptions): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
 	showLog(workspaceUri: URI): Promise<void>;
