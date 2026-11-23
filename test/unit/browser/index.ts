@@ -13,7 +13,7 @@ import * as url from 'url';
 import minimatch from 'minimatch';
 import * as fs from 'fs';
 import * as playwright from '@playwright/test';
-import { applyReporter } from '../reporter.js';
+import { applyReporter } from '../reporter.mts';
 import parallel from '../parallel.ts';
 import yaserver from 'yaserver';
 import * as http from 'http';

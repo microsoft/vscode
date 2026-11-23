@@ -3,28 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const mocha = require('mocha');
-const FullJsonStreamReporter = require('./fullJsonStreamReporter');
-const path = require('path');
+import mocha from 'mocha';
+import { createRequire } from 'module';
+import * as path from 'path';
+import FullJsonStreamReporter from './fullJsonStreamReporter.js';
 
-function parseReporterOption(value) {
+const require = createRequire(import.meta.url);
+
+function parseReporterOption(value: string) {
 	const r = /^([^=]+)=(.*)$/.exec(value);
 	return r ? { [r[1]]: r[2] } : {};
 }
 
-exports.importMochaReporter = name => {
+export function importMochaReporter(name: string) {
 	if (name === 'full-json-stream') {
 		return FullJsonStreamReporter;
 	}
 
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
 	return require(reporterPath);
-};
+}
 
-exports.applyReporter = (runner, argv) => {
+export function applyReporter(runner: mocha.Runner, argv: { reporter: string; 'reporter-options': string | string[] }) {
 	let Reporter;
 	try {
-		Reporter = exports.importMochaReporter(argv.reporter);
+		Reporter = importMochaReporter(argv.reporter);
 	} catch (err) {
 		try {
 			Reporter = require(argv.reporter);
@@ -34,9 +37,8 @@ exports.applyReporter = (runner, argv) => {
 		}
 	}
 
-	let reporterOptions = argv['reporter-options'];
-	reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-	reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+	const reporterOptions = argv['reporter-options'];
+	const parsedReporterOptions = (typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions).reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
 
-	return new Reporter(runner, { reporterOptions });
-};
+	return new Reporter(runner, { reporterOptions: parsedReporterOptions });
+}

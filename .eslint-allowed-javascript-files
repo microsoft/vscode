@@ -140,4 +140,3 @@ test/unit/electron/index.js
 test/unit/electron/preload.js
 test/unit/electron/renderer.js
 test/unit/fullJsonStreamReporter.js
-test/unit/reporter.js
