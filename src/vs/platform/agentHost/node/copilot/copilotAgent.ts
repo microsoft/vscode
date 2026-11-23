@@ -200,11 +200,6 @@ function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | unde
 	}
 }
 
-/** The runtime's `decisions.ask`, which the SDK in use may not have yet. */
-interface ICopilotSdkDecisionsRpc {
-	ask(params: IAgentDecisionsRequest & { readonly gitHubToken?: string }): Promise<IAgentDecisionsResult>;
-}
-
 function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
 	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
 	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
@@ -4696,12 +4691,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new AgentDecisionsUnavailableError({ kind: 'unauthenticated' });
 		}
 		const client = await raceCancellationError(this._ensureClient(), token);
-		// Feature-detected until the SDK in use ships `decisions.ask`.
-		const decisions = (client.rpc as { readonly decisions?: Partial<ICopilotSdkDecisionsRpc> }).decisions;
-		const ask = decisions?.ask?.bind(decisions);
-		if (!ask) {
-			throw new AgentDecisionsUnavailableError({ kind: 'unavailable' });
-		}
 		let gates = this._decisionsGates.get(client);
 		if (!gates) {
 			gates = new LRUCache<string, DecisionsGate>(20);
@@ -4710,7 +4699,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let gate = gates.get(gitHubToken);
 		if (!gate) {
 			const accountToken = gitHubToken;
-			gate = new DecisionsGate(decisionsRequest => ask({ ...decisionsRequest, gitHubToken: accountToken }));
+			gate = new DecisionsGate(decisionsRequest => client.rpc.decisions.ask({ ...decisionsRequest, gitHubToken: accountToken }));
 			gates.set(gitHubToken, gate);
 		}
 		return gate.ask(request, token);
