@@ -909,6 +909,37 @@
 				"Trailing actions"
 			],
 			"reason": "A compact resource reference with an optional menu and trailing actions."
+		},
+		{
+			"id": "copy-button",
+			"name": "Copy button",
+			"groups": [
+				"base/copyButton/CopyButton"
+			],
+			"groupLabels": {
+				"base/copyButton/CopyButton": "Copy button"
+			},
+			"file": "src/vs/workbench/test/browser/componentFixtures/copyButton.fixture.ts",
+			"owner": "src/vs/base/browser/ui/button/copyButton.ts",
+			"relatedOwners": [
+				"src/vs/base/browser/ui/button/button.ts",
+				"src/vs/base/browser/ui/button/copyFeedback.ts"
+			],
+			"design": "src/vs/base/browser/ui/button/copy-button.design.md",
+			"api": [
+				"ICopyButtonOptions.copy",
+				"ICopyButtonOptions.copiedStatusMessage",
+				"IButtonOptions.title",
+				"IButtonOptions.ariaLabel",
+				"IButtonOptions.disabled",
+				"CopyButton.copy",
+				"CopyFeedback.show"
+			],
+			"members": [
+				"CopyButton",
+				"CopyFeedback"
+			],
+			"reason": "Copy actions have a distinct success-feedback and announcement contract beyond ordinary button activation."
 		}
 	]
 }

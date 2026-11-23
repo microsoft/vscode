@@ -23,6 +23,7 @@ Runs actions through labeled, icon-only, descriptive, split, or grouped buttons.
 - Use `disabled` for the initial construction state and change `enabled` on an existing button.
 - `ButtonBar.clear()` disposes its buttons. Do not retain and reuse the cleared instances.
 - For working source examples, see the [Button and ButtonBar fixtures](../../../../workbench/test/browser/componentFixtures/baseUI.fixture.ts).
+- For standalone copy actions and their success feedback, see [Copy button](copy-button.design.md).
 
 ## Accessibility
 
