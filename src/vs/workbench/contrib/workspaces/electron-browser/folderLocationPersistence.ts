@@ -195,11 +195,11 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 				if (source.token.isCancellationRequested) {
 					return undefined;
 				}
+				if (generation !== seen) {
+					continue;
+				}
 				if (outcome?.resolved) {
 					return outcome.resolved;
-				}
-				if (!outcome) {
-					continue;
 				}
 
 				while (generation === seen && !(expired && this.folderLocationService.areProvidersReady())) {

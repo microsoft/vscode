@@ -237,6 +237,18 @@ suite('FolderLocationPersistenceContribution', () => {
 		assert.deepStrictEqual({ offered, current: fixture.current()?.label, closed: fixture.prompts[0]?.closed() }, { offered: 1, current: 'Alternate', closed: true });
 	}));
 
+	test('an answer settling as the providers change is dropped for a fresh lookup', async () => {
+		const stale = new DeferredPromise<IResolvedFolderLocation | undefined>();
+		let lookups = 0;
+		const fixture = createFixture({ persisted, resolveLocation: () => ++lookups === 1 ? stale.p : Promise.resolve(undefined) });
+
+		stale.complete(resolvedLocation);
+		fixture.fireProvidersChanged();
+		await settle();
+
+		assert.deepStrictEqual({ current: fixture.current(), lookups }, { current: undefined, lookups: 2 });
+	});
+
 	test('a fresh open at the primary persists nothing and does not notify', async () => {
 		const fixture = createFixture({ folderUri: primary });
 		await settle();
