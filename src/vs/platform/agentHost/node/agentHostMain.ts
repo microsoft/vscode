@@ -584,6 +584,7 @@ async function startAgentHost(): Promise<void> {
 		const registration = protocolIngressDisposables.add(new MissionControlClientRegistration(missionControl.environment, {
 			homeDirectory: os.homedir(),
 			...(wslDistro ? { name: getMissionControlEnvironmentName(productService, `${wslDistro} on ${os.hostname()}`) } : {}),
+			formatClientName: name => getMissionControlEnvironmentName(productService, name),
 		}));
 		protocolIngressDisposables.add(registration.onDidChangeRegistered(registered => githubEnvironmentRegisteredEmitter.fire(registered)));
 		githubEnvironment = registration;

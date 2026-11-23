@@ -43,6 +43,7 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const remotes = new Map<string, { configured: boolean; connected: boolean; connection: IAgentConnection }>();
+		const displayNames = new Map<string, string>();
 		let session: AuthenticationSession = { id: 'session', accessToken: 'token-1', account: { id: 'account', label: 'Account' }, scopes: [] };
 		let signedIn = true;
 		let enabled = true;
@@ -58,8 +59,14 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				return [...remotes].map(([address, remote]) => ({ address, name: address, status: remote.connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected }));
 			}
 			override getConnection(address: string) { return remotes.get(address)?.connection; }
+			override getDisplayNameOverride(address: string) { return displayNames.get(address); }
 			override getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
-				return remotes.get(address)?.configured ? { name: address, connection: { type: RemoteAgentHostEntryType.WSL, address, distro: address } } : undefined;
+				if (!remotes.get(address)?.configured) {
+					return undefined;
+				}
+				return address.startsWith('tunnel:')
+					? { name: address.slice('tunnel:'.length), connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: address, clusterId: 'cluster' } }
+					: { name: address, connection: { type: RemoteAgentHostEntryType.WSL, address, distro: address } };
 			}
 		}();
 		const service = store.add(new RemoteGitHubEnvironmentSharingService(
@@ -110,6 +117,7 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 					held.complete();
 				};
 			},
+			setDisplayName(address: string, name: string) { displayNames.set(address, name); },
 			addRemote(address: string, capable = true) {
 				let instance = 0;
 				let unregisterFails = false;
@@ -125,8 +133,8 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				const connection = new class extends mock<IAgentConnection>() {
 					override readonly initializeResult = initialize;
 					override readonly gitHubEnvironment = status;
-					override async registerGitHubEnvironment(accountId: string, credential: string) {
-						calls.push(`register ${address} ${accountId} ${credential}`);
+					override async registerGitHubEnvironment(accountId: string, credential: string, name?: string) {
+						calls.push(`register ${address} ${accountId} ${credential}${name !== undefined ? ` as ${name}` : ''}`);
 						const current = held;
 						held = undefined;
 						if (current) {
@@ -238,6 +246,23 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				'unregister wsl:Ubuntu account',
 			],
 		});
+	});
+
+	test('registers remotes under the name this window shows, except WSL remotes, which name themselves', async () => {
+		const context = fixture();
+		context.addRemote('tunnel:nov16');
+		context.addRemote('tunnel:renamed');
+		context.addRemote('wsl:Ubuntu');
+		context.setDisplayName('tunnel:renamed', ' My Tunnel ');
+		await context.flush();
+		for (const address of ['tunnel:nov16', 'tunnel:renamed', 'wsl:Ubuntu']) {
+			await context.service.setShared(address, true);
+		}
+		assert.deepStrictEqual(context.calls, [
+			'register tunnel:nov16 account token-1 as nov16',
+			'register tunnel:renamed account token-1 as My Tunnel',
+			'register wsl:Ubuntu account token-1',
+		]);
 	});
 
 	test('asks whether to keep sharing a shared remote before disconnecting it', async () => {
