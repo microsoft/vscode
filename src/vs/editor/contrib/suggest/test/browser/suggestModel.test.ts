@@ -1398,6 +1398,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					editor.runCommand(CoreNavigationCommands.CursorRight, null);
 				} else if (key === 'Escape') {
 					suggestModel.cancel();
+				} else if (key === 'TurnOffReopenOnDelete') {
+					editor.updateOptions({ suggest: { reopenOnDelete: false } });
 				} else {
 					editor.trigger('keyboard', Handler.Type, { text: key });
 				}
@@ -1430,7 +1432,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		});
 	});
 
-	test('reopenOnDelete does not bring back suggestions after Escape, cursor keys, or typing past the text', async function () {
+	test('reopenOnDelete does not bring back suggestions after Escape, cursor keys, typing past the text, or turning it off', async function () {
 		disposables.add(registry.register({ scheme: 'test' }, mentionSupport));
 
 		const options: IEditorOptions = { quickSuggestions: false, suggest: { reopenOnDelete: true } };
@@ -1439,11 +1441,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			cursorKeys: await recordSuggestions(options, ['@', 'i', 'q', 'Left', 'Right', 'Backspace']),
 			typedPast: await recordSuggestions(options, ['@', 'q', ' ', 'a', 'b', 'Backspace']),
 			cursorKeyBackToTriggerCharacter: await recordSuggestions(options, ['@', 'i', 'Left']),
+			turnedOff: await recordSuggestions(options, ['@', 'i', 'q', 'TurnOffReopenOnDelete', 'Backspace']),
 		}, {
 			escape: ['@: abc, index', '@i: index', '@i: closed'],
 			cursorKeys: ['@: abc, index', '@i: index', '@iq: closed'],
 			typedPast: ['@: abc, index', '@q: closed'],
 			cursorKeyBackToTriggerCharacter: ['@: abc, index', '@i: index', '@i: closed'],
+			turnedOff: ['@: abc, index', '@i: index', '@iq: closed'],
 		});
 	});
 });

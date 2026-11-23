@@ -416,7 +416,7 @@ export class SuggestModel implements IDisposable {
 	private _reopenAfterDelete(): void {
 		const closed = this._closedWithoutMatch;
 		this._closedWithoutMatch = undefined;
-		if (!closed || !this._editor.hasModel()) {
+		if (!closed || !this._editor.hasModel() || !this._editor.getOption(EditorOption.suggest).reopenOnDelete) {
 			return;
 		}
 
