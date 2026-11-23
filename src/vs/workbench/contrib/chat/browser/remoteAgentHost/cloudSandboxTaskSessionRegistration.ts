@@ -67,7 +67,8 @@ export class CloudSandboxTaskSessionRegistration extends Disposable {
 			},
 			supportsAutoModel: true,
 			agentHostProviderId: CLOUD_SANDBOX_AGENT_PROVIDER,
-			capabilities: { supportsCheckpoints: true, supportsPromptAttachments: true, supportsImageAttachments: true },
+			requiresEmbeddedFileAttachments: true,
+			capabilities: { supportsCheckpoints: true, supportsPromptAttachments: true, supportsImageAttachments: true, supportsFileAttachments: true },
 		}));
 		this._register(sessionsService.registerChatSessionContentProvider(CLOUD_SANDBOX_TASK_SCHEME, {
 			provideChatSessionContent: (resource, token) => routing.open(resource, token),

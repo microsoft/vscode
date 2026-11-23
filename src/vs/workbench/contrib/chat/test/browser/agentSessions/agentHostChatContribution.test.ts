@@ -2996,6 +2996,25 @@ suite('AgentHostChatContribution', () => {
 				attachments: [{ type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: commandMeta }],
 			});
 		});
+		test('device file snapshots survive the initial turn and a follow-up from restored cloud history', async () => {
+			const { startRequest, implicitReadGrants } = await openWireSession();
+			const entry: IChatRequestVariableEntry = {
+				kind: 'file', id: 'document', name: 'notes.pdf', value: URI.file('/Downloads/notes.pdf'),
+				snapshot: { contentType: 'application/pdf', data: 'AP+A' },
+			};
+			let variables: readonly IChatRequestVariableEntry[] = [entry];
+			for (const requestId of ['initial', 'follow-up']) {
+				const { sent, finish } = await startRequest({ requestId, variables: { variables } });
+				assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+				await finish();
+				assert.deepStrictEqual({ attachments: sent.action.message.attachments, implicitReadGrants }, {
+					attachments: [{ type: MessageAttachmentKind.EmbeddedResource, label: 'notes.pdf', displayKind: 'document', contentType: 'application/pdf', data: 'AP+A' }],
+					implicitReadGrants: [],
+				});
+				variables = messageAttachmentsToVariableData(sent.action.message.attachments, 'test')!.variables;
+			}
+		});
+
 		test('selection attachments retain native VS Code ranges and add captured Copilot detail on the wire', async () => {
 			const { startRequest, modelService } = await openWireSession();
 			const uri = URI.file('/workspace/file.ts');

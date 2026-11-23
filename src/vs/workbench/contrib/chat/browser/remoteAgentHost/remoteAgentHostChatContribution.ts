@@ -451,6 +451,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		};
 		const isNewSession = (sessionResource: URI): boolean => this._workingDirectoryResolver.isNewSession(sessionResource);
 		const customization = this._connectionCustomizations.get(address);
+		const embedFileAttachments = customization?.requiresEmbeddedFileAttachments;
 
 		if (connState.sessionList) {
 			const listController = agentStore.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, connState.sessionList, hostLabel, sanitized, false));
@@ -474,8 +475,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			agentHostProviderId: agent.provider,
 			supportsDelegation: false,
+			requiresEmbeddedFileAttachments: embedFileAttachments,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsFileAttachments: embedFileAttachments,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
 				get terminalCommandPrefix() {

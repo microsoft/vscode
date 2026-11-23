@@ -196,6 +196,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly welcomeTips?: string;
 	readonly inputPlaceholder?: string;
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
+	/** Capture explicitly attached device files on submission when the session cannot read the client's filesystem. */
+	readonly requiresEmbeddedFileAttachments?: boolean;
 	readonly commands?: IChatSessionCommandContribution[];
 	/**
 	 * Chat surfaces where this session type's agent can be selected.

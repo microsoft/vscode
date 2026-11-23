@@ -8583,6 +8583,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			v = { ...v, kind: 'file', name: v.fullName ?? v.name };
 		}
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
+		if (v.kind === 'file' && v.snapshot) {
+			const selection = v.snapshot.selection ? { range: this._toTextRange(v.snapshot.selection) } : undefined;
+			return {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: v.name,
+				displayKind: selection ? 'selection' : 'document',
+				data: v.snapshot.data,
+				contentType: v.snapshot.contentType,
+				...(selection ? { selection } : {}),
+				...(referenceRange ? { range: referenceRange } : {}),
+				...(v._meta ? { _meta: v._meta } : {}),
+			};
+		}
 		// Copilot agents and Codex can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
 		if ((v.kind === 'file' || v.kind === 'implicit') && this._backendInlinesUnsavedEditors()) {
 			const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);

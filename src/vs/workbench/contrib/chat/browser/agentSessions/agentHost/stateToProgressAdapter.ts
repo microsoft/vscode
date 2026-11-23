@@ -1765,6 +1765,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 	}
 
 	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+		if (attachment.displayKind === 'document' || attachment.displayKind === 'selection') {
+			return {
+				kind: 'file', id: generateUuid(), name: attachment.label, value: undefined, _meta: attachment._meta,
+				snapshot: {
+					data: attachment.data, contentType: attachment.contentType,
+					...(attachment.selection ? { selection: textRangeToIRange(attachment.selection.range) } : {}),
+				},
+			};
+		}
 		let bytes: Uint8Array | undefined;
 		try {
 			bytes = decodeBase64(attachment.data).buffer;

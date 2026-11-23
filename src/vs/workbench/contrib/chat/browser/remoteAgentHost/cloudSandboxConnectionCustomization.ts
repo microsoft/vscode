@@ -75,6 +75,7 @@ export function createCloudSandboxConnectionCustomization(
 		return { resource, scopes, token: sealed };
 	};
 	return {
+		requiresEmbeddedFileAttachments: !userLocal,
 		requiresWorkspaceTrust: false,
 		inputPlaceholder: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_INPUT_PLACEHOLDER : undefined,
 		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
