@@ -365,6 +365,11 @@ export interface IViewContainerModel {
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 
+	/**
+	 * All view descriptors in the order in which the view container shows them while their order was not changed.
+	 */
+	readonly allViewDescriptorsInDefaultOrder: ReadonlyArray<IViewDescriptor>;
+
 	readonly activeViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 
@@ -630,6 +635,12 @@ export interface IViewDescriptorService {
 
 	getViewContainerBadgeEnablementState(id: string): boolean;
 	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
+
+	/**
+	 * Fires with the identifiers of the view containers whose badges another window or a named
+	 * layout enabled or disabled. Not fired for {@link setViewContainerBadgeEnablementState}.
+	 */
+	readonly onDidChangeViewContainerBadgeEnablement: Event<readonly string[]>;
 
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;

@@ -15,7 +15,7 @@ import { IPosition } from '../../../../editor/common/core/position.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import * as nls from '../../../../nls.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -28,6 +28,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
+import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { GroupDirection, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, PreferredGroup, SIDE_GROUP } from '../../editor/common/editorService.js';
 import { KeybindingsEditorInput } from './keybindingsEditorInput.js';
@@ -75,7 +76,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -197,6 +198,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const remoteSettingsUri = remoteEnvironment ? remoteEnvironment.settingsPath : null;
 		if (remoteSettingsUri && remoteSettingsUri.toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_REMOTE, uri);
+		}
+
+		if (isEqual(this.configurationService.layoutSettings?.resource, uri)) {
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.LAYOUT, uri);
 		}
 
 		return null;
@@ -336,6 +341,20 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		return this.open(folderSettingsUri, options);
+	}
+
+	openLayoutSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		const layoutSettings = this.configurationService.layoutSettings;
+		if (!layoutSettings) {
+			this.notificationService.info(nls.localize('switchToNamedLayoutFirst', "Switch to a named layout first to change layout settings."));
+			return Promise.resolve(undefined);
+		}
+
+		options = {
+			...options,
+			target: ConfigurationTarget.LAYOUT
+		};
+		return this.open(layoutSettings.resource, options);
 	}
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IOpenKeybindingsEditorOptions): Promise<void> {
@@ -519,6 +538,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (resource) {
 					return this.getFolderSettingsResource(resource);
 				}
+				break;
+			case ConfigurationTarget.LAYOUT:
+				return this.configurationService.layoutSettings?.resource ?? null;
 		}
 		return null;
 	}

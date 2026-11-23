@@ -629,7 +629,8 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		private readonly remoteUserConfiguration: ConfigurationModel,
 		private readonly workspaceConfiguration: ConfigurationModel | undefined,
 		private readonly folderConfigurationModel: ConfigurationModel | undefined,
-		private readonly memoryConfigurationModel: ConfigurationModel
+		private readonly memoryConfigurationModel: ConfigurationModel,
+		private readonly layoutConfigurationModel: ConfigurationModel
 	) {
 	}
 
@@ -785,12 +786,29 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		return this.toInspectValue(this.memoryInspectValue);
 	}
 
+	private _layoutInspectValue: InspectValue<V> | undefined;
+	private get layoutInspectValue(): InspectValue<V> {
+		if (this._layoutInspectValue === undefined) {
+			this._layoutInspectValue = this.layoutConfigurationModel.inspect<V>(this.key, this.overrides.overrideIdentifier);
+		}
+		return this._layoutInspectValue;
+	}
+
+	get layoutValue(): V | undefined {
+		return this.layoutInspectValue.merged;
+	}
+
+	get layout(): IInspectValue<V> | undefined {
+		return this.toInspectValue(this.layoutInspectValue);
+	}
+
 }
 
 export class Configuration {
 
 	private _workspaceConsolidatedConfiguration: ConfigurationModel | null = null;
 	private _foldersConsolidatedConfigurations = new ResourceMap<ConfigurationModel>();
+	private _layoutConfiguration: ConfigurationModel;
 	// Keyed by consolidated model identity, which changes whenever a consolidated cache is invalidated.
 	private _policyAppliedConfigurations = new WeakMap<ConfigurationModel, ConfigurationModel>();
 
@@ -806,6 +824,7 @@ export class Configuration {
 		private _memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
 		private readonly logService: ILogService
 	) {
+		this._layoutConfiguration = ConfigurationModel.createEmptyModel(logService);
 	}
 
 	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): unknown {
@@ -832,7 +851,9 @@ export class Configuration {
 		}
 
 		if (!overrides.resource) {
+			// The configurations of folders contain the memory configuration too
 			this._workspaceConsolidatedConfiguration = null;
+			this._foldersConsolidatedConfigurations.clear();
 		}
 	}
 
@@ -862,7 +883,8 @@ export class Configuration {
 			this.remoteUserConfiguration,
 			workspace ? this._workspaceConfiguration : undefined,
 			folderConfigurationModel ? folderConfigurationModel : undefined,
-			memoryConfigurationModel
+			memoryConfigurationModel,
+			this._layoutConfiguration
 		);
 
 	}
@@ -929,6 +951,12 @@ export class Configuration {
 	deleteFolderConfiguration(resource: URI): void {
 		this.folderConfigurations.delete(resource);
 		this._foldersConsolidatedConfigurations.delete(resource);
+	}
+
+	updateLayoutConfiguration(layoutConfiguration: ConfigurationModel): void {
+		this._layoutConfiguration = layoutConfiguration;
+		this._workspaceConsolidatedConfiguration = null;
+		this._foldersConsolidatedConfigurations.clear();
 	}
 
 	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys?: string[]): IConfigurationChange {
@@ -1018,6 +1046,15 @@ export class Configuration {
 		return { keys: [...added, ...updated, ...removed], overrides };
 	}
 
+	compareAndUpdateLayoutConfiguration(layoutConfiguration: ConfigurationModel): IConfigurationChange {
+		const { added, updated, removed, overrides } = compare(this._layoutConfiguration, layoutConfiguration);
+		const keys = [...added, ...updated, ...removed];
+		if (keys.length) {
+			this.updateLayoutConfiguration(layoutConfiguration);
+		}
+		return { keys, overrides };
+	}
+
 	get defaults(): ConfigurationModel {
 		return this._defaultConfiguration;
 	}
@@ -1053,6 +1090,10 @@ export class Configuration {
 
 	get folderConfigurations(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
+	}
+
+	get layoutConfiguration(): ConfigurationModel {
+		return this._layoutConfiguration;
 	}
 
 	get memoryConfiguration(): ConfigurationModel {
@@ -1106,7 +1147,7 @@ export class Configuration {
 
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
-			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this.applicationConfiguration, this.userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
+			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this.applicationConfiguration, this.userConfiguration, this._workspaceConfiguration, this._layoutConfiguration, this._memoryConfiguration);
 		}
 		return this._workspaceConsolidatedConfiguration;
 	}
@@ -1117,13 +1158,34 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
+				// The layout layer also wins over folder settings, which in a single folder workspace are the workspace settings.
+				// The memory layer still wins over the layout layer
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration, this.getLayoutConfigurationBelowMemory());
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
 			}
 		}
 		return folderConsolidatedConfiguration;
+	}
+
+	/**
+	 * Returns the layout configuration with the values of the memory configuration for the
+	 * keys that both define, so that merging it over other configurations keeps the memory
+	 * configuration on top of the layout configuration.
+	 */
+	private getLayoutConfigurationBelowMemory(): ConfigurationModel {
+		const keysInMemory = this._layoutConfiguration.keys.filter(key => this._memoryConfiguration.getValue(key) !== undefined);
+		if (!keysInMemory.length) {
+			return this._layoutConfiguration;
+		}
+
+		// clone by merging
+		const configuration = this._layoutConfiguration.merge();
+		for (const key of keysInMemory) {
+			configuration.setValue(key, this._memoryConfiguration.getValue(key));
+		}
+		return configuration;
 	}
 
 	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | undefined {
@@ -1175,7 +1237,12 @@ export class Configuration {
 				const { contents, overrides, keys } = this._folderConfigurations.get(folder)!;
 				result.push([folder, { contents, overrides, keys }]);
 				return result;
-			}, [])
+			}, []),
+			layout: {
+				contents: this._layoutConfiguration.contents,
+				overrides: this._layoutConfiguration.overrides,
+				keys: this._layoutConfiguration.keys
+			}
 		};
 	}
 
@@ -1217,7 +1284,7 @@ export class Configuration {
 			result.set(URI.revive(value[0]), this.parseConfigurationModel(value[1], logService));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
-		return new Configuration(
+		const configuration = new Configuration(
 			defaultConfiguration,
 			policyConfiguration,
 			applicationConfiguration,
@@ -1229,6 +1296,10 @@ export class Configuration {
 			new ResourceMap<ConfigurationModel>(),
 			logService
 		);
+		if (data.layout) {
+			configuration.updateLayoutConfiguration(this.parseConfigurationModel(data.layout, logService));
+		}
+		return configuration;
 	}
 
 	private static parseConfigurationModel(model: IConfigurationModel, logService: ILogService): ConfigurationModel {

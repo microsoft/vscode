@@ -13,6 +13,24 @@ import { SINGLE_WINDOW_PARTS } from '../../layout/browser/layoutService.js';
 
 export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
 
+/**
+ * Describes how to arrange the view containers in the bar of a location.
+ * Unknown view containers are ignored.
+ */
+export interface IPaneCompositeArrangement {
+
+	/**
+	 * View containers to pin (`true`) or to unpin (`false`).
+	 */
+	readonly pinned?: ReadonlyMap<string, boolean>;
+
+	/**
+	 * View containers to place first in the bar, in this order. The other
+	 * view containers keep their order.
+	 */
+	readonly order?: readonly string[];
+}
+
 export interface IPaneCompositePartService {
 
 	readonly _serviceBrand: undefined;
@@ -58,6 +76,11 @@ export interface IPaneCompositePartService {
 	 * Returns id of all view containers following visual order.
 	 */
 	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+
+	/**
+	 * Pins, unpins and reorders view containers in the bar of the given location.
+	 */
+	arrangePaneComposites(viewContainerLocation: ViewContainerLocation, arrangement: IPaneCompositeArrangement): void;
 
 	/**
 	 * Returns the progress indicator for the side bar.

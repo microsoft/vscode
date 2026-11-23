@@ -21,12 +21,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IExtensionGalleryService, IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IEditorProgressService, IProgressRunner } from '../../../../../platform/progress/common/progress.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IPreferencesService, ISetting, ISettingsGroup, SettingMatchType } from '../../../../services/preferences/common/preferences.js';
+import { IPreferencesService, ISetting, ISettingsGroup, SettingMatchType, SettingValueType } from '../../../../services/preferences/common/preferences.js';
 import { Settings2EditorModel } from '../../../../services/preferences/common/preferencesModels.js';
 import { IUserDataSyncWorkbenchService } from '../../../../services/userDataSync/common/userDataSync.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -36,10 +36,13 @@ import { isSettingsSearchUpToDate, SettingsEditor2 } from '../../browser/setting
 import { SettingsTree, SettingsTreeFilter, SettingTreeRenderers } from '../../browser/settingsTree.js';
 import { parseQuery, SearchResultIdx, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
 import { TOCTree, TOCTreeModel } from '../../browser/tocTree.js';
-import { SettingsTargetsWidget } from '../../browser/preferencesWidgets.js';
+import { SettingsTarget, SettingsTargetsWidget } from '../../browser/preferencesWidgets.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
+import { ILayoutSettings } from '../../../../services/configuration/common/configuration.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('SettingsEditor2', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +68,7 @@ suite('SettingsEditor2', () => {
 		function createEditor(query = '@tag:expassigned', advanced = false, settingKeys = ['test.assigned', 'test.unassigned']) {
 			const configuration = new class extends TestConfigurationService {
 				readonly onDidChangeRestrictedSettings = Event.None;
+				readonly onDidChangeLayoutSettings = Event.None;
 				isSettingAppliedForAllProfiles(): boolean { return false; }
 			}();
 			store.add(configuration.onDidChangeConfigurationEmitter);
@@ -482,6 +486,60 @@ suite('SettingsEditor2', () => {
 				assignedKeys: ['test.assigned'], hiddenNormally: true, policyVisible: true,
 			});
 		});
+	});
+
+	suite('Layout settings', () => {
+		test('a change is written to the settings target and the named layout that were shown when it was made', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const updates: unknown[][] = [];
+			const configuration = new class extends TestConfigurationService {
+				readonly onDidChangeRestrictedSettings = Event.None;
+				readonly onDidChangeLayoutSettings = Event.None;
+				layoutSettings: ILayoutSettings | undefined = { name: 'Debug', resource: URI.file('/layouts/debug/settings.json'), locked: false };
+				isSettingAppliedForAllProfiles(): boolean { return false; }
+				override async updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> { updates.push([key, value, ...rest]); }
+			}();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+			instantiationService.stub(IPreferencesService, {});
+			instantiationService.stub(IPreferencesSearchService, {});
+			instantiationService.stub(IUserDataSyncWorkbenchService, {});
+			instantiationService.stub(IUserDataSyncEnablementService, {});
+			instantiationService.stub(IExtensionManagementService, { onDidInstallExtensions: Event.None, onDidUninstallExtension: Event.None });
+			instantiationService.stub(IExtensionGalleryService, { isEnabled: () => false });
+			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+			const editor = store.add(instantiationService.createInstance(class extends SettingsEditor2 {
+				override layout(): void { }
+			}, instantiationService.get(IEditorGroupsService).activeGroup));
+			let settingsTarget: SettingsTarget = ConfigurationTarget.LAYOUT;
+			editor['searchWidget'] = new class extends mock<SuggestEnabledInputWithHistory>() { override getValue(): string { return ''; } }();
+			editor['settingsTargetsWidget'] = new class extends mock<SettingsTargetsWidget>() { override get settingsTarget(): SettingsTarget { return settingsTarget; } }();
+			editor['renderTree'] = () => { };
+			editor['reportModifiedSetting'] = () => { };
+
+			// A change made in the Layout tab names the settings file of the layout, so that it is not written to another layout
+			editor['onDidChangeSetting']('test.setting', 'debugValue', SettingValueType.String, false, ConfigurationScope.WINDOW);
+			await timeout(2000);
+
+			// The Default layout becomes active before a change made in the Layout tab is written
+			editor['onDidChangeSetting']('test.setting', 'layoutValue', SettingValueType.String, false, ConfigurationScope.WINDOW);
+			configuration.layoutSettings = undefined;
+			settingsTarget = ConfigurationTarget.USER_LOCAL;
+			await timeout(2000);
+			const afterSwitch = updates.slice(1);
+
+			editor['onDidChangeSetting']('test.setting', 'userValue', SettingValueType.String, false, ConfigurationScope.WINDOW);
+			await timeout(2000);
+
+			assert.deepStrictEqual({ afterSwitch, updates }, {
+				afterSwitch: [],
+				updates: [
+					['test.setting', 'debugValue', { resource: undefined, overrideIdentifiers: undefined }, ConfigurationTarget.LAYOUT, { handleDirtyFile: 'save', layoutSettingsResource: URI.file('/layouts/debug/settings.json') }],
+					['test.setting', 'userValue', { resource: undefined, overrideIdentifiers: undefined }, ConfigurationTarget.USER_LOCAL, { handleDirtyFile: 'save' }]
+				]
+			});
+		}));
 	});
 	/* eslint-enable local/code-no-bracket-notation-for-identifiers */
 

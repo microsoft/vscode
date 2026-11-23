@@ -6,6 +6,7 @@
 import './media/sidebarpart.css';
 import './sidebarActions.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position as SideBarPosition } from '../../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../../services/layout/common/sharedLayoutState.js';
 import { SidebarFocusContext, ActiveViewletContext } from '../../../common/contextkeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -24,6 +25,7 @@ import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
+import { IPaneCompositeArrangement } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ActivityBarCompositeBar, ActivitybarPart } from '../activitybar/activitybarPart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -88,6 +90,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
+		@ISharedLayoutStateService sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -115,6 +118,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 			configurationService,
+			sharedLayoutStateService,
 		);
 
 		// Track visible view containers for auto-hide
@@ -311,6 +315,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	override getPaneCompositeIds(): string[] {
 		return this.shouldShowCompositeBar() ? super.getPaneCompositeIds() : this.activityBarPart.getPaneCompositeIds();
+	}
+
+	override arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
+		// Without a bar of its own, the side bar shows its view containers in the activity bar. If that
+		// is hidden too, the arrangement is stored for the bar that shows them next
+		if (this.shouldShowCompositeBar() || !this.activityBarPart.arrangePaneComposites(arrangement)) {
+			super.arrangePaneComposites(arrangement);
+		}
 	}
 
 	async focusActivityBar(): Promise<void> {

@@ -173,9 +173,10 @@ import { IHostService, IToastOptions, IToastResult } from '../../services/host/b
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService, SharedLayoutStateService } from '../../services/layout/common/sharedLayoutState.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
-import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { IPaneCompositeArrangement, IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../platform/environment/common/copilotHome.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
@@ -312,6 +313,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITextResourceConfigurationService, textResourceConfigurationService);
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(ISharedLayoutStateService, disposables.add(instantiationService.createInstance(SharedLayoutStateService)));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
 	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();
@@ -717,6 +719,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	toggleMaximizedAuxiliaryBar(): void { }
 	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
 	isAuxiliaryBarMaximized(): boolean { return false; }
+	isVisibleWhenAuxiliaryBarNotMaximized(part: Parts.SIDEBAR_PART | Parts.PANEL_PART): boolean { return this.isVisible(part); }
 	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
 	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
@@ -805,6 +808,10 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
+	arrangePaneComposites(viewContainerLocation: ViewContainerLocation, arrangement: IPaneCompositeArrangement): void {
+		this.getPartByLocation(viewContainerLocation).arrangePaneComposites(arrangement);
+	}
+
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertReturnsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -842,6 +849,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
 	getPaneCompositeIds() { return []; }
+	arrangePaneComposites(): void { }
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
@@ -865,6 +873,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
 	getPaneCompositeIds() { return []; }
+	arrangePaneComposites(): void { }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }

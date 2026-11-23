@@ -13,8 +13,9 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../common/view
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPaneCompositeVerticalOuterEdges } from '../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../services/layout/common/sharedLayoutState.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
-import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
+import { IPaneCompositeBarOptions, PaneCompositeBar, arrangeStoredPinnedViewContainers } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame, computeScreenAwareSize } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -24,6 +25,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IPaneCompositeArrangement } from '../../services/panecomposite/browser/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { localize } from '../../../nls.js';
 import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
@@ -104,6 +106,11 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of all view containers following the visual order.
 	 */
 	getPaneCompositeIds(): string[];
+
+	/**
+	 * Pins, unpins and reorders view containers in the bar of the part.
+	 */
+	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void;
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -159,6 +166,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super(
 			notificationService,
@@ -587,6 +595,17 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	getPaneCompositeIds(): string[] {
 		return this.paneCompositeBar.value?.getPaneCompositeIds() ?? [];
+	}
+
+	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
+		if (this.paneCompositeBar.value) {
+			this.paneCompositeBar.value.arrangePaneComposites(arrangement);
+			return;
+		}
+
+		// The bar shows the arrangement once it is created
+		const key = this.getCompositeBarOptions().pinnedViewContainersKey;
+		this.sharedLayoutStateService.store(key, arrangeStoredPinnedViewContainers(this.sharedLayoutStateService.get(key, '[]'), arrangement));
 	}
 
 	getActivePaneComposite(): IPaneComposite | undefined {

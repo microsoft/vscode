@@ -62,6 +62,7 @@ class TestPaneCompositeLayoutService extends TestLayoutService {
 class TestViewDescriptorService extends mock<IViewDescriptorService>() {
 	override readonly onDidChangeViewContainers = Event.None;
 	override readonly onDidChangeContainerLocation = Event.None;
+	override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 
 	override canMoveViews(): boolean {
 		return false;

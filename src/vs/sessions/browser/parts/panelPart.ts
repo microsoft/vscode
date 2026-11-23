@@ -32,6 +32,7 @@ import { Part } from '../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ISharedLayoutStateService } from '../../../workbench/services/layout/common/sharedLayoutState.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -97,7 +98,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ISharedLayoutStateService sharedLayoutStateService: ISharedLayoutStateService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -132,6 +134,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 			configurationService,
+			sharedLayoutStateService,
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

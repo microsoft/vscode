@@ -50,6 +50,8 @@ import { IExtensionService } from '../services/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { DeferredPromise, Promises } from '../../base/common/async.js';
 import { IBannerService } from '../services/banner/browser/bannerService.js';
+import { INamedLayoutsService } from '../services/namedLayouts/common/namedLayouts.js';
+import { ISharedLayoutStateService } from '../services/layout/common/sharedLayoutState.js';
 import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
 import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
@@ -355,6 +357,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
 	private storageService!: IStorageService;
+	private sharedLayoutStateService!: ISharedLayoutStateService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
 	private mainPartEditorService!: IEditorService;
@@ -385,12 +388,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	protected initLayout(accessor: ServicesAccessor): void {
 
+		// Named layouts: restore the settings of the active named layout
+		// before any workbench part is created or reads its settings
+		accessor.get(INamedLayoutsService);
+
 		// Services
 		this.environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 		this.configurationService = accessor.get(IConfigurationService);
 		this.hostService = accessor.get(IHostService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
+		this.sharedLayoutStateService = accessor.get(ISharedLayoutStateService);
 		this.themeService = accessor.get(IThemeService);
 		this.extensionService = accessor.get(IExtensionService);
 		this.logService = accessor.get(ILogService);
@@ -827,7 +835,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.sharedLayoutStateService, this.configurationService, this.contextService, this.environmentService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -2242,10 +2250,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// panel alignment requires the editor part to be visible
 		this.setAuxiliaryBarMaximized(false);
 
-		// Adjust CSS — capture old value before updating state model
-		const oldAlignmentValue = this.getPanelAlignment();
+		// Adjust CSS. The state model already has the new value if another window or a
+		// layout switch changed it, so remove the classes of all alignments
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
-		this.mainContainer.classList.remove(`panel-alignment-${oldAlignmentValue}`);
+		this.mainContainer.classList.remove(...[...this.mainContainer.classList].filter(className => className.startsWith('panel-alignment-')));
 		this.mainContainer.classList.add(`panel-alignment-${alignment}`);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
@@ -2344,6 +2352,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	isAuxiliaryBarMaximized(): boolean {
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED);
+	}
+
+	isVisibleWhenAuxiliaryBarNotMaximized(part: Parts.SIDEBAR_PART | Parts.PANEL_PART): boolean {
+		if (!this.isAuxiliaryBarMaximized()) {
+			return this.isVisible(part);
+		}
+
+		const state = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+		return part === Parts.SIDEBAR_PART ? state.sideBarVisible : state.panelVisible;
 	}
 
 	toggleMaximizedAuxiliaryBar(): void {
@@ -3535,6 +3552,7 @@ class LayoutStateModel extends Disposable {
 
 	constructor(
 		private readonly storageService: IStorageService,
+		private readonly sharedLayoutStateService: ISharedLayoutStateService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
 		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -3658,22 +3676,19 @@ class LayoutStateModel extends Disposable {
 		// Apply all overrides
 		this.applyOverrides(configuration);
 
-		// Register for runtime key changes
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
-			let key: keyof typeof LayoutStateKeys;
-			for (key in LayoutStateKeys) {
-				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
-				if (stateKey instanceof RuntimeStateKey && stateKey.scope === StorageScope.PROFILE && stateKey.target === StorageTarget.USER) {
-					if (`${LayoutStateModel.STORAGE_PREFIX}${stateKey.name}` === storageChangeEvent.key) {
-						const value = this.loadKeyFromStorage(stateKey) ?? stateKey.defaultValue;
-						if (this.stateCache.get(stateKey.name) !== value) {
-							this.stateCache.set(stateKey.name, value);
-							this._onDidChangeState.fire({ key: stateKey, value });
-						}
+		// Register for changes of the state that all windows of the profile share
+		for (key in LayoutStateKeys) {
+			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
+			if (this.isSharedLayoutStateKey(stateKey)) {
+				this._register(this.sharedLayoutStateService.getValueChangeEvent(this.toStorageKey(stateKey), this._store)(() => {
+					const value = this.loadKeyFromStorage(stateKey) ?? stateKey.defaultValue;
+					if (this.stateCache.get(stateKey.name) !== value) {
+						this.stateCache.set(stateKey.name, value);
+						this._onDidChangeState.fire({ key: stateKey, value });
 					}
-				}
+				}));
 			}
-		}));
+		}
 	}
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
@@ -3798,13 +3813,31 @@ class LayoutStateModel extends Disposable {
 		this._onDidChangeState.fire({ key, value });
 	}
 
+	/**
+	 * Runtime state of the profile that is user state, such as the panel alignment, is shared by
+	 * all windows of the profile: a change in one window applies to the others. While a named
+	 * layout is active, the window uses a local copy of it instead.
+	 */
+	private isSharedLayoutStateKey<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): key is RuntimeStateKey<T> {
+		return key instanceof RuntimeStateKey && key.scope === StorageScope.PROFILE && key.target === StorageTarget.USER;
+	}
+
+	private toStorageKey(key: WorkbenchLayoutStateKey<StorageKeyType>): string {
+		return `${LayoutStateModel.STORAGE_PREFIX}${key.name}`;
+	}
+
 	private saveKeyToStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): void {
 		const value = this.stateCache.get(key.name) as T;
-		this.storageService.store(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, typeof value === 'object' ? JSON.stringify(value) : value, key.scope, key.target);
+		const storageValue = typeof value === 'object' ? JSON.stringify(value) : value;
+		if (this.isSharedLayoutStateKey(key)) {
+			this.sharedLayoutStateService.store(this.toStorageKey(key), String(storageValue));
+		} else {
+			this.storageService.store(this.toStorageKey(key), storageValue, key.scope, key.target);
+		}
 	}
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
-		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
+		const value = this.isSharedLayoutStateKey(key) ? this.sharedLayoutStateService.get(this.toStorageKey(key)) : this.storageService.get(this.toStorageKey(key), key.scope);
 		if (value !== undefined) {
 			this.isNew[key.scope] = false; // remember that we had previous state for this scope
 

@@ -34,6 +34,7 @@ import { TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
 import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { NamedLayoutsEnabledContext } from '../../services/namedLayouts/common/namedLayouts.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -180,7 +181,8 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	group: '1_workbench_layout',
 	when: ContextKeyExpr.and(
 		IsAuxiliaryWindowContext.negate(),
-		ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+		ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu'),
+		NamedLayoutsEnabledContext.negate()
 	)
 });
 
@@ -423,7 +425,8 @@ MenuRegistry.appendMenuItems([
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
-				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'),
+				NamedLayoutsEnabledContext.negate()
 			),
 			order: 0
 		}
@@ -442,7 +445,8 @@ MenuRegistry.appendMenuItems([
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
-				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+				NamedLayoutsEnabledContext.negate()
 			),
 			order: 2
 		}
@@ -1501,7 +1505,8 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					when: ContextKeyExpr.and(
 						IsAuxiliaryWindowContext.toNegated(),
 						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-						EditorActionsInTitleBar.negate()
+						EditorActionsInTitleBar.negate(),
+						NamedLayoutsEnabledContext.negate()
 					),
 					group: 'navigation'
 				},
@@ -1510,7 +1515,8 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					when: ContextKeyExpr.and(
 						IsAuxiliaryWindowContext.toNegated(),
 						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-						EditorActionsInTitleBar
+						EditorActionsInTitleBar,
+						NamedLayoutsEnabledContext.negate()
 					),
 					group: '1_layout'
 				}

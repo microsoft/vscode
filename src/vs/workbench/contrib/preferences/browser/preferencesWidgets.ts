@@ -37,6 +37,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { settingsEditIcon, settingsScopeDropDownIcon } from './preferencesIcons.js';
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
@@ -210,7 +211,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export type SettingsTarget = ConfigurationTarget.APPLICATION | ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
+export type SettingsTarget = ConfigurationTarget.APPLICATION | ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | ConfigurationTarget.LAYOUT | URI;
 
 export interface ISettingsTargetsWidgetOptions {
 	enableRemoteSettings?: boolean;
@@ -224,6 +225,7 @@ export class SettingsTargetsWidget extends Widget {
 	private workspaceSettings!: Action;
 	private folderSettingsAction!: Action;
 	private folderSettings!: FolderSettingsActionViewItem;
+	private layoutSettings!: Action;
 	private options: ISettingsTargetsWidgetOptions;
 
 	private _settingsTarget: SettingsTarget | null = null;
@@ -238,13 +240,15 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService
 	) {
 		super();
 		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+		this._register(this.configurationService.onDidChangeLayoutSettings(() => this.onLayoutSettingsChanged()));
 	}
 
 	private resetLabels() {
@@ -254,6 +258,17 @@ export class SettingsTargetsWidget extends Widget {
 		this.userRemoteSettings.label = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
 		this.workspaceSettings.label = this.contextService.getWorkspace().name || localize('workspaceSettings', "Workspace");
 		this.folderSettingsAction.label = localize('folderSettings', "Folder");
+		this.layoutSettings.label = this.getLayoutSettingsLabel();
+	}
+
+	/**
+	 * The label of the tab of the settings of the active named layout, which includes its name.
+	 */
+	private getLayoutSettingsLabel(): string {
+		const layoutName = this.configurationService.layoutSettings?.name;
+		return layoutName
+			? localize({ key: 'layoutSettingsWithName', comment: ['{0} is the name of the active layout'] }, "Layout [{0}]", layoutName)
+			: localize('layoutSettings', "Layout");
 	}
 
 	private create(parent: HTMLElement): void {
@@ -281,10 +296,13 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 		this.folderSettings = this._register(this.instantiationService.createInstance(FolderSettingsActionViewItem, this.folderSettingsAction));
 
+		// Shown only while a named layout is active, whose settings take precedence over all other scopes
+		this.layoutSettings = this._register(new Action('layoutSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.LAYOUT)));
+
 		this.resetLabels();
 		this.update();
 
-		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, this.folderSettingsAction]);
+		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, this.folderSettingsAction, this.layoutSettings]);
 	}
 
 	get settingsTarget(): SettingsTarget | null {
@@ -296,6 +314,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.userLocalSettings.checked = ConfigurationTarget.USER_LOCAL === this.settingsTarget;
 		this.userRemoteSettings.checked = ConfigurationTarget.USER_REMOTE === this.settingsTarget;
 		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
+		this.layoutSettings.checked = ConfigurationTarget.LAYOUT === this.settingsTarget;
 		if (this.settingsTarget instanceof URI) {
 			this.folderSettings.action.checked = true;
 			this.folderSettings.folder = this.contextService.getWorkspaceFolder(this.settingsTarget as URI);
@@ -319,6 +338,13 @@ export class SettingsTargetsWidget extends Widget {
 			}
 
 			this.userLocalSettings.label = label;
+		} else if (settingsTarget === ConfigurationTarget.LAYOUT) {
+			let label = this.getLayoutSettingsLabel();
+			if (count) {
+				label += ` (${count})`;
+			}
+
+			this.layoutSettings.label = label;
 		} else if (settingsTarget instanceof URI) {
 			this.folderSettings.setCount(settingsTarget, count);
 		}
@@ -346,6 +372,14 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
+	private onLayoutSettingsChanged(): void {
+		this.layoutSettings.label = this.getLayoutSettingsLabel();
+		this.update();
+		if (this.settingsTarget === ConfigurationTarget.LAYOUT && !this.configurationService.layoutSettings) {
+			this.updateTarget(ConfigurationTarget.USER_LOCAL);
+		}
+	}
+
 	updateTarget(settingsTarget: SettingsTarget): Promise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget ||
 			settingsTarget instanceof URI &&
@@ -365,8 +399,15 @@ export class SettingsTargetsWidget extends Widget {
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
+		this.layoutSettings.enabled = !!this.configurationService.layoutSettings;
 
 		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");
+		const layoutSettings = this.configurationService.layoutSettings;
+		this.layoutSettings.tooltip = layoutSettings?.lockedByExtension
+			? localize('lockedByExtensionLayoutSettingsTooltip', "Settings of the active layout {0}. The layout is locked by its extension, create a new layout from it to change its settings.", layoutSettings.name)
+			: layoutSettings?.locked
+				? localize('lockedLayoutSettingsTooltip', "Settings of the active layout {0}. The layout is locked, unlock it to change its settings.", layoutSettings.name)
+				: localize('layoutSettingsTooltip', "Settings of the active layout {0}. They take precedence over user and workspace settings in this window.", layoutSettings?.name ?? '');
 	}
 }
 

@@ -27,7 +27,7 @@ import { SettingsTreeSettingElement } from './settingsTreeModels.js';
 
 const $ = DOM.$;
 
-type ScopeString = 'workspace' | 'user' | 'remote' | 'default';
+type ScopeString = 'workspace' | 'user' | 'remote' | 'layout' | 'default';
 
 export interface ISettingOverrideClickEvent {
 	scope: ScopeString;
@@ -328,9 +328,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private getInlineScopeDisplayText(completeScope: string): string {
 		const [scope, language] = completeScope.split(':');
-		const localizedScope = scope === 'user' ?
-			localize('user', "User") : scope === 'workspace' ?
-				localize('workspace', "Workspace") : localize('remote', "Remote");
+		const localizedScope = getLocalizedScope(scope);
 		if (language) {
 			return `${this.languageService.getLanguageName(language)} > ${localizedScope}`;
 		}
@@ -377,6 +375,18 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 			this.scopeOverridesIndicator.label.text = '$(lock) ' + localize('agentsWindowReadOnlyLabelText', "Cannot be changed in Agents window");
 			const content = localize('agentsWindowReadOnlyDescription', "This setting cannot be changed in the Agents window.");
+			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
+				...this.defaultHoverOptions,
+				content,
+			}, { setupKeyboardEvents: true }));
+		} else if (element.isLayoutLocked) {
+			this.scopeOverridesIndicator.element.style.display = 'inline';
+			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
+
+			this.scopeOverridesIndicator.label.text = '$(lock) ' + localize('layoutLockedLabelText', "Layout is locked");
+			const content = this.configurationService.layoutSettings?.lockedByExtension
+				? localize('layoutLockedByExtensionDescription', "The active layout is locked by its extension. Create a new layout from it to change its settings.")
+				: localize('layoutLockedDescription', "The active layout is locked. Unlock the layout to change its settings.");
 			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
 				...this.defaultHoverOptions,
 				content,
@@ -533,11 +543,18 @@ function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): st
 	return sourceToDisplay;
 }
 
+function getLocalizedScope(scope: string): string {
+	switch (scope) {
+		case 'user': return localize('user', "User");
+		case 'workspace': return localize('workspace', "Workspace");
+		case 'layout': return localize('layout', "Layout");
+		default: return localize('remote', "Remote");
+	}
+}
+
 function getAccessibleScopeDisplayText(completeScope: string, languageService: ILanguageService): string {
 	const [scope, language] = completeScope.split(':');
-	const localizedScope = scope === 'user' ?
-		localize('user', "User") : scope === 'workspace' ?
-			localize('workspace', "Workspace") : localize('remote', "Remote");
+	const localizedScope = getLocalizedScope(scope);
 	if (language) {
 		return localize('modifiedInScopeForLanguage', "The {0} scope for {1}", localizedScope, languageService.getLanguageName(language));
 	}
@@ -546,9 +563,7 @@ function getAccessibleScopeDisplayText(completeScope: string, languageService: I
 
 function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languageService: ILanguageService): string {
 	const [scope, language] = completeScope.split(':');
-	const localizedScope = scope === 'user' ?
-		localize('user', "User") : scope === 'workspace' ?
-			localize('workspace', "Workspace") : localize('remote', "Remote");
+	const localizedScope = getLocalizedScope(scope);
 	if (language) {
 		return localize('modifiedInScopeForLanguageMidSentence', "the {0} scope for {1}", localizedScope.toLowerCase(), languageService.getLanguageName(language));
 	}
@@ -578,6 +593,8 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		ariaLabelSections.push(element.policyValueDescription ?? localize('policyDescriptionAccessible', "Managed by your organization; setting value not applied"));
 	} else if (element.isAgentsWindowReadOnly) {
 		ariaLabelSections.push(localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
+	} else if (element.isLayoutLocked) {
+		ariaLabelSections.push(localize('layoutLockedAccessible', "Cannot be changed while the active layout is locked"));
 	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {

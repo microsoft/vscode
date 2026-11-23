@@ -7,6 +7,7 @@ import { localize } from '../../../nls.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../services/layout/common/sharedLayoutState.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
@@ -30,6 +31,8 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../base/commo
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
+import { IPaneCompositeArrangement } from '../../services/panecomposite/browser/panecomposite.js';
+import { distinct } from '../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
@@ -51,6 +54,28 @@ interface IPinnedViewContainer {
 	readonly order?: number;
 	// TODO @sandy081: Remove this after a while. Migrated to visible in IViewContainerWorkspaceState
 	readonly visible: boolean;
+}
+
+/**
+ * Pins, unpins and reorders view containers in the stored value of the pinned view containers
+ * of a bar, like {@link PaneCompositeBar.arrangePaneComposites}. A bar that is created later
+ * shows the arrangement.
+ */
+export function arrangeStoredPinnedViewContainers(value: string, { pinned, order }: IPaneCompositeArrangement): string {
+	const entries: IPinnedViewContainer[] = JSON.parse(value);
+	const orderedIds = distinct(order ?? []);
+	const ids = distinct([
+		...orderedIds,
+		...entries.map(({ id }) => id),
+		// The bar pins view containers that it does not know yet
+		...(pinned?.keys() ?? [])
+	]);
+
+	return JSON.stringify(ids.map(id => {
+		const entry = entries.find(candidate => candidate.id === id) ?? { id, pinned: true, visible: false };
+		const pin = pinned?.get(id);
+		return pin === undefined ? entry : { ...entry, pinned: pin };
+	}));
 }
 
 interface IViewContainerWorkspaceState {
@@ -114,6 +139,7 @@ export class PaneCompositeBar extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super();
 
@@ -242,10 +268,15 @@ export class PaneCompositeBar extends Disposable {
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
+		this._register(this.viewDescriptorService.onDidChangeViewContainerBadgeEnablement(ids => this.compositeBar.refreshBadges(ids)));
 
 		// View Container Visibility Changes
 		this._register(this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true)));
 		this._register(this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false)));
+
+		// Pinned view containers changed by another window or by applying a named layout. Also followed before
+		// extensions are registered, so that the bar never saves the pinned view containers it read before
+		this._register(this.sharedLayoutStateService.getValueChangeEvent(this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 
 		// Extension registration
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -257,7 +288,6 @@ export class PaneCompositeBar extends Disposable {
 				this.updateCompositeBarItemsFromStorage(true);
 				this.saveCachedViewContainers();
 			}));
-			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 
@@ -524,6 +554,25 @@ export class PaneCompositeBar extends Disposable {
 			.map(v => v.id);
 	}
 
+	arrangePaneComposites({ pinned, order }: IPaneCompositeArrangement): void {
+		// Arranges the stored view containers, saving would replace an arrangement of outdated ones
+		this.updateCompositeBarItemsFromStorage(false);
+
+		const items = this.compositeBar.getCompositeBarItems();
+		const orderedItems = (order ?? [])
+			.map(id => items.find(item => item.id === id))
+			.filter((item, index, array): item is ICompositeBarItem => !!item && array.indexOf(item) === index);
+		const arrangedItems = [...orderedItems, ...items.filter(item => !orderedItems.includes(item))]
+			.map(item => ({ id: item.id, name: item.name, order: item.order, visible: item.visible, pinned: pinned?.get(item.id) ?? item.pinned }));
+
+		if (arrangedItems.every((item, index) => item.id === items[index].id && item.pinned === items[index].pinned)) {
+			return;
+		}
+
+		this.compositeBar.setCompositeBarItems(arrangedItems);
+		this.saveCachedViewContainers();
+	}
+
 	getContextMenuActions(): IAction[] {
 		return this.compositeBar.getContextMenuActions();
 	}
@@ -572,7 +621,10 @@ export class PaneCompositeBar extends Disposable {
 				name: cachedViewContainer.name,
 				order: cachedViewContainer.order,
 				pinned: cachedViewContainer.pinned,
-				visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
+				// Until extensions are registered, the bar shows the view containers of extensions from the cache
+				visible: this.hasExtensionsRegistered
+					? cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id)
+					: !this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer),
 			});
 		}
 
@@ -581,12 +633,14 @@ export class PaneCompositeBar extends Disposable {
 			if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
 				const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
 				if (index !== -1) {
+					// A view container that the stored value does not know is pinned like a new one. The bar
+					// may show it unpinned because another named layout was active, which must not carry over
 					const compositeItem = compositeItems[index];
 					newCompositeItems.splice(index, 0, {
 						id: viewContainer.id,
 						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
 						order: compositeItem.order,
-						pinned: compositeItem.pinned,
+						pinned: true,
 						visible: compositeItem.visible,
 					});
 				} else {
@@ -614,6 +668,10 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private saveCachedViewContainers(): void {
+		// The stored value can change before the bar learns about it, for example when applying a named layout moves a view
+		// container here before the change of the pinned view containers is reported. The stored value wins, as for a change of the bar
+		this.updateCompositeBarItemsFromStorage(false);
+
 		const state: ICachedViewContainer[] = [];
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
@@ -721,11 +779,11 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private getStoredPinnedViewContainersValue(): string {
-		return this.storageService.get(this.options.pinnedViewContainersKey, StorageScope.PROFILE, '[]');
+		return this.sharedLayoutStateService.get(this.options.pinnedViewContainersKey, '[]');
 	}
 
 	private setStoredPinnedViewContainersValue(value: string): void {
-		this.storageService.store(this.options.pinnedViewContainersKey, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.sharedLayoutStateService.store(this.options.pinnedViewContainersKey, value);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
