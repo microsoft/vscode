@@ -254,16 +254,18 @@ export interface ISSHRemoteAgentHostService {
 	readonly disconnectedEntries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	/**
-	 * Disconnect an SSH-bootstrapped connection by host address.
-	 * Tears down the SSH tunnel and stops the remote agent host. Removes its
-	 * persisted SSH entry unless `keepEntry` is set, in which case the entry is
-	 * marked as disconnected and is not dialed until the user connects again.
+	 * Disconnect an SSH-bootstrapped connection by its SSH connection key.
+	 * Tears down the SSH tunnel and stops the remote agent host. Removes the
+	 * persisted SSH entries for that key unless `keepEntry` is set, in which
+	 * case they are marked as disconnected and are not dialed until the user
+	 * connects again.
 	 */
 	disconnect(host: string, options?: { readonly keepEntry?: boolean }): Promise<void>;
 
 	/**
-	 * Restore a disconnected SSH entry so it is dialed again. The next dial is
-	 * treated as user-initiated.
+	 * Restore the disconnected SSH entries an entry address or SSH connection
+	 * key identifies, so they are dialed again. The next dial is treated as
+	 * user-initiated.
 	 */
 	clearDisconnected(address: string): void;
 

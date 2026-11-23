@@ -647,24 +647,45 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async disconnect(host: string, options?: { readonly keepEntry?: boolean }): Promise<void> {
-		this._connectionFactory.clearUserRestored(host);
-		if (options?.keepEntry) {
-			setRemoteAgentHostDisconnected(this._storageService, host, true);
-		} else {
-			removeSSHRemoteAgentHostEntry(this._storageService, host);
-			setRemoteAgentHostDisconnected(this._storageService, host, false);
+		for (const address of this._getEntryAddresses(host)) {
+			this._connectionFactory.clearUserRestored(address);
+			if (options?.keepEntry) {
+				setRemoteAgentHostDisconnected(this._storageService, address, true);
+			} else {
+				removeSSHRemoteAgentHostEntry(this._storageService, address);
+				setRemoteAgentHostDisconnected(this._storageService, address, false);
+			}
 		}
 		await this._mainService.disconnect(host);
 	}
 
 	clearDisconnected(address: string): void {
-		if (!readDisconnectedRemoteAgentHostAddresses(this._storageService).has(address)) {
-			return;
+		const disconnected = readDisconnectedRemoteAgentHostAddresses(this._storageService);
+		for (const entryAddress of this._getEntryAddresses(address)) {
+			if (disconnected.has(entryAddress)) {
+				// Mark first: clearing the flag republishes the entry, which can start a
+				// reconciliation dial before the caller's explicit reconnect.
+				this._connectionFactory.markUserRestored(entryAddress);
+				setRemoteAgentHostDisconnected(this._storageService, entryAddress, false);
+			}
 		}
-		// Mark first: clearing the flag republishes the entry, which can start a
-		// reconciliation dial before the caller's explicit reconnect.
-		this._connectionFactory.markUserRestored(address);
-		setRemoteAgentHostDisconnected(this._storageService, address, false);
+	}
+
+	/**
+	 * Addresses of the persisted entries that an entry address or main-process
+	 * SSH key identifies. Entries migrated from settings keep their forwarded
+	 * local address (e.g. `localhost:1234`) instead of the SSH key.
+	 */
+	private _getEntryAddresses(key: string): string[] {
+		const addresses = readSSHRemoteAgentHostEntries(this._storageService)
+			.filter(entry => entry.connection.type === RemoteAgentHostEntryType.SSH && (getEntryAddress(entry) === key || computeSSHConnectionKey({
+				sshConfigHost: entry.connection.sshConfigHost,
+				username: entry.connection.user ?? entry.connection.hostName,
+				host: entry.connection.hostName,
+				port: entry.connection.port,
+			}) === key))
+			.map(getEntryAddress);
+		return addresses.length ? addresses : [key];
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
@@ -713,7 +734,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		const userInitiated = config.userInitiated ?? true;
 		this._connectionFactory.stageConfiguration({ ...config, userInitiated });
 		if (userInitiated) {
-			setRemoteAgentHostDisconnected(this._storageService, address, false);
+			this.clearDisconnected(address);
 		}
 		this._remoteAgentHostService.reconnect(address, userInitiated);
 		await this._remoteAgentHostService.waitForConnection(address);

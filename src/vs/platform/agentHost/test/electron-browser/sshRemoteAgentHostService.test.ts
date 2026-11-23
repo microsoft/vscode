@@ -900,6 +900,32 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		});
 	});
 
+	test('disconnect flags and removes a legacy entry by its saved address while tearing down its SSH key', async () => {
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'Legacy',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:1234', sshConfigHost: 'host', hostName: 'host.example' },
+		});
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		const snapshot = () => ({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+			stored: readSSHRemoteAgentHostEntries(sshStorageService).map(getEntryAddress),
+		});
+
+		await service.disconnect('ssh:host', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		service.clearDisconnected('ssh:host');
+		const afterClear = snapshot();
+		await service.disconnect('ssh:host');
+
+		assert.deepStrictEqual({ afterDisconnect, afterClear, afterRemove: snapshot(), disconnectCalls: mainService.disconnectCalls }, {
+			afterDisconnect: { connectable: [], disconnected: ['localhost:1234'], stored: ['localhost:1234'] },
+			afterClear: { connectable: ['localhost:1234'], disconnected: [], stored: ['localhost:1234'] },
+			afterRemove: { connectable: [], disconnected: [], stored: [] },
+			disconnectCalls: ['ssh:host', 'ssh:host'],
+		});
+	});
+
 	test('connect threads the stored location preference for the stable connection key into the main-process config', async () => {
 		locationPreferenceService.setPreference('ssh:remote.example', 'editor');
 
