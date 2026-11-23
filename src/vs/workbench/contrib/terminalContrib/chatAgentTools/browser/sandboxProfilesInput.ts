@@ -127,6 +127,7 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 				return;
 			}
 		}
+		this.changed();
 		this._onDidChangeProfiles.fire();
 	}
 
