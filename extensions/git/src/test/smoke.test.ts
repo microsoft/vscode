@@ -318,7 +318,8 @@ suite('git smoke test', function () {
 				{ repositories: git.repositories.map(r => r.rootUri.fsPath), closedInputBox: closedRepository.inputBox.value, message: commit.message },
 				{ repositories: [cwd], closedInputBox: 'draft', message: 'initial commit' });
 		} finally {
-			fs.rmSync(repositoryPath, { recursive: true, force: true });
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		}
 	});
 
@@ -355,7 +356,8 @@ suite('git smoke test', function () {
 				{ repositories: git.repositories.map(r => r.rootUri.fsPath), parentOpenWhenWorktreeCloses, message: commit.message },
 				{ repositories: [cwd], parentOpenWhenWorktreeCloses: [true], message: 'initial commit' });
 		} finally {
-			fs.rmSync(base, { recursive: true, force: true });
+			// On Windows, the closed repositories' watchers can hold the folder for a moment
+			await fs.promises.rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		}
 	});
 
