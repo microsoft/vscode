@@ -205,6 +205,8 @@ export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.sho
 export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
 /** Whether pinned canvases are listed in a Canvases section, which can also start a session with a new canvas. */
 export const SESSIONS_LIST_CANVASES_SECTION_SETTING = 'sessions.list.canvasesSection';
+/** Starts a session with a new canvas, which the Canvases section offers. */
+export const NEW_CANVAS_SESSION_COMMAND_ID = 'workbench.action.agentSessions.newCanvasSession';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemInboxStateContext = new RawContextKey<string>('sessionItem.inboxState', '');
@@ -5399,6 +5401,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.showAutomationsContextMenu(e.anchor);
 				} else if (e.element?.pinnedCanvas) {
 					this.showPinnedCanvasContextMenu(e.element.pinnedCanvas, e.anchor);
+				} else if (e.element?.id === CANVASES_SECTION_ID) {
+					this.showHeaderContextMenu(Menus.SessionSectionContext, this.contextKeyService.createOverlay([[SessionSectionTypeContext.key, CANVASES_SECTION_ID]]), e.element, [], e.anchor);
 				}
 			}));
 		}
@@ -6659,17 +6663,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 				children.push(renderSection(automationsSection));
 			}
 		}
+		// The Canvases section follows Automations: as a header and its pins in the navigation list, or as a section in the tree without one.
+		const canvasesSection = this.getCanvasesSection();
+		if (canvasesSection) {
+			if (showNavigationShortcuts) {
+				navigationSections.push(canvasesSection, ...this.getPinnedCanvasSections());
+			} else {
+				children.push(this.renderCanvasesSection(canvasesSection, resolveCollapsed));
+			}
+		}
 		if (this.options.showCustomizations?.() ?? showNavigationShortcuts) {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
 		}
-		if (this.showsCanvasesSection()) {
-			// The Canvases section follows the navigation shortcuts in either layout.
-			this.setNavigationSections(navigationSections);
-			const canvasesSection = this.getCanvasesSection(resolveCollapsed);
-			if (canvasesSection) {
-				children.push(canvasesSection);
-			}
-		} else {
+		if (!this.showsCanvasesSection()) {
 			// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
 			const pinnedCanvasSections = this.getPinnedCanvasSections();
 			if (showNavigationShortcuts) {
@@ -6677,8 +6683,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			} else {
 				children.push(...pinnedCanvasSections.map(section => renderSection(section)));
 			}
-			this.setNavigationSections(navigationSections);
 		}
+		this.setNavigationSections(navigationSections);
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {
@@ -7101,6 +7107,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				break;
 			case AUTOMATIONS_SECTION_ID:
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
+				break;
+			case CANVASES_SECTION_ID:
+				// The navigation list does not collapse, so its Canvases header starts a session with a canvas, like its toolbar action.
+				await this.commandService.executeCommand(NEW_CANVAS_SESSION_COMMAND_ID);
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
 				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');
@@ -9164,14 +9174,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * The Canvases section, which lists the canvases pinned to the sidebar and offers to start a session with a new canvas.
-	 * It shows while chat and canvases are enabled.
+	 * It shows while its setting, chat and canvases are enabled.
 	 */
-	private getCanvasesSection(resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> | undefined {
-		const pinnedCanvases = this.options.pinnedCanvases;
-		if (!pinnedCanvases?.enabled.get() || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
+	private getCanvasesSection(): ISessionSection | undefined {
+		if (!this.showsCanvasesSection() || !this.options.pinnedCanvases?.enabled.get() || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
 			return undefined;
 		}
-		const element: ISessionSection = { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
+		return { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
+	}
+
+	/** The Canvases section in the sessions tree, which collapses and shows a placeholder while nothing is pinned. */
+	private renderCanvasesSection(element: ISessionSection, resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> {
 		const pins: IObjectTreeElement<SessionListItem>[] = this.getPinnedCanvasSections().map(element => ({ element }));
 		return {
 			element,
