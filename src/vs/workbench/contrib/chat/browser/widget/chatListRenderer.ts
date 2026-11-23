@@ -316,21 +316,33 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 	// A final tool call, and the reasoning around it, can separate a detailed answer from its closing summary.
 	let gapStartIndex = index;
 	let toolCount = 0;
+	let bookkeepingCount = 0;
 	while (gapStartIndex > 0) {
 		const previous = content[gapStartIndex - 1];
-		if (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') {
+		if (isBookkeepingToolInvocation(previous)) {
+			bookkeepingCount++;
+		} else if (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') {
 			toolCount++;
 		} else if (previous.kind !== 'thinking') {
 			break;
 		}
 		gapStartIndex--;
 	}
-	if (toolCount !== 1) {
+	const hasTool = toolCount + bookkeepingCount > 0;
+	if (toolCount > 1 || !hasTool) {
 		return index;
 	}
 	const answerStartIndex = getMarkdownRunStartIndex(content, gapStartIndex);
 	// Edit code blocks render as pills among the tool calls, so on their own they are work rather than an answer.
 	return content.slice(answerStartIndex, gapStartIndex).some(part => !isEditOnlyMarkdown(part)) ? answerStartIndex : index;
+}
+
+/** Session tools the agent calls after answering. They show the user nothing and change no files. */
+const bookkeepingToolIds = new Set(['rename_chat', 'update_todo', 'todowrite']);
+
+function isBookkeepingToolInvocation(part: IChatRendererContent): boolean {
+	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+		&& bookkeepingToolIds.has(part.toolId);
 }
 
 function getMarkdownRunStartIndex(content: ReadonlyArray<IChatRendererContent>, index: number): number {

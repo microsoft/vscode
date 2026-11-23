@@ -285,6 +285,33 @@ suite('ChatListRenderer', () => {
 				assert.deepStrictEqual(cases.map(content => getFinalResponseStartIndex(content, true)), [4, 3, 3, 1]);
 			});
 
+			for (const serialized of [false, true]) {
+				test(`completed response folding does not count bookkeeping tools toward the single-tool gap (serialized=${serialized})`, async () => {
+					const createTool = async (id: string) => {
+						const invocation = new ChatToolInvocation(
+							{ invocationMessage: id },
+							{ id, displayName: id, modelDescription: id, source: ToolDataSource.Internal },
+							id, undefined, {},
+						);
+						await invocation.didExecuteTool(undefined);
+						return serialized ? invocation.toJSON() : invocation;
+					};
+					const renameChat = await createTool('rename_chat');
+					const updateTodo = await createTool('update_todo');
+					const readFile = await createTool('read_file');
+					const grep = await createTool('grep');
+					const markdown = { kind: 'markdownContent', content: new MarkdownString('Details') } as const;
+					const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+					const thinking = { kind: 'thinking', value: 'Reasoning' } as const;
+					const cases: IChatRendererContent[][] = [
+						[markdown, renameChat, thinking, updateTodo, summary],
+						[markdown, renameChat, readFile, summary],
+						[markdown, renameChat, readFile, grep, summary],
+					];
+					assert.deepStrictEqual(cases.map(content => getFinalResponseStartIndex(content, true)), [0, 0, 4]);
+				});
+			}
+
 			test('preserves the single-tool answer boundary when session outcomes move', async () => {
 				const outcome = new ChatToolInvocation(
 					{ invocationMessage: 'Created session', toolSpecificData: { kind: 'sessionCreated', openLink: 'agent-host-session://local/created', label: 'Created session' } },
