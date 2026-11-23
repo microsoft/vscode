@@ -398,10 +398,10 @@ suite('Detect Changes', () => {
 	});
 
 	test('the folders that Check ripple treats as not browser tests are the ones the browser runner excludes', () => {
-		const runner = readFileSync(path.join(repositoryRoot, 'test/unit/browser/index.js'), 'utf8');
+		const runner = readFileSync(path.join(repositoryRoot, 'test/unit/browser/index.ts'), 'utf8');
 		const excludeGlob = /const excludeGlob = '(?<glob>[^']+)';/.exec(runner)?.groups!.glob;
 		const folders = /^\*\*\/\{(?<folders>[^{}]+)\}\/\*\*\/\*\.test\.js$/.exec(excludeGlob ?? '')?.groups!.folders;
-		assert.ok(folders, `unexpected excludeGlob in test/unit/browser/index.js: ${excludeGlob}`);
+		assert.ok(folders, `unexpected excludeGlob in test/unit/browser/index.ts: ${excludeGlob}`);
 		const checkRipple = loadWorkflow().jobs.changes.steps?.find(step => step.id === 'ripple');
 		assert.deepStrictEqual(checkRipple?.env?.BROWSER_EXCLUDED_FOLDERS, folders.split(',').join('|'));
 	});

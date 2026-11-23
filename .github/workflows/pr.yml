@@ -204,7 +204,7 @@ jobs:
       # failure for the pull requests that change build/ripple. (A build that times out leaves no
       # binary to plan with.) Only the plan of a working ripple can skip the unit test jobs, by
       # selecting no unit test file, or only files that the browser test runner does not load (it
-      # does not load the test files that match the excludeGlob of test/unit/browser/index.js, which
+      # does not load the test files that match the excludeGlob of test/unit/browser/index.ts, which
       # BROWSER_EXCLUDED_FOLDERS must match), and the node.js integration tests or Agent Host E2E, by
       # selecting none of them. The Agent Host E2E runner runs the integration test files that
       # AGENT_HOST_E2E matches, and scripts/test-integration.sh the others.

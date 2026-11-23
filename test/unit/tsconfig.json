@@ -17,9 +17,12 @@
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true
+		"noUnusedParameters": true,
+		"allowJs": true
 	},
 	"include": [
-		"node/**/*.ts"
+		"node/**/*.ts",
+		"browser/**/*.ts",
+		"typings/**/*.d.ts"
 	]
 }

@@ -135,7 +135,6 @@ test/smoke/extensions/vscode-smoketest-ext-host/extension.js
 test/smoke/test/index.js
 test/unit/analyzeSnapshot.js
 test/unit/assert.js
-test/unit/browser/index.js
 test/unit/coverage.js
 test/unit/electron/index.js
 test/unit/electron/preload.js

@@ -3,50 +3,90 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+import * as path from 'path';
+import glob from 'glob';
+import * as events from 'events';
+import mocha from 'mocha';
+import createStatsCollector from 'mocha/lib/stats-collector.js';
+import MochaJUnitReporter from 'mocha-junit-reporter';
+import * as url from 'url';
+import minimatch from 'minimatch';
+import * as fs from 'fs';
+import * as playwright from '@playwright/test';
+import { applyReporter } from '../reporter.js';
+import parallel from '../parallel.ts';
+import yaserver from 'yaserver';
+import * as http from 'http';
+import type { AddressInfo } from 'net';
+import { randomBytes } from 'crypto';
+import minimist from 'minimist';
+import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
 
-const path = require('path');
-const glob = require('glob');
-const events = require('events');
-const mocha = require('mocha');
-const createStatsCollector = require('mocha/lib/stats-collector');
-const MochaJUnitReporter = require('mocha-junit-reporter');
-const url = require('url');
-const minimatch = require('minimatch');
-const fs = require('fs');
-const playwright = require('@playwright/test');
-const { applyReporter } = require('../reporter');
-const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, createTestFileClaims, trackTestFiles, distributeClaimedTestFiles } = require('../parallel.ts');
-const yaserver = require('yaserver');
-const http = require('http');
-const { randomBytes } = require('crypto');
-const minimist = require('minimist');
-const { promisify } = require('node:util');
-const { execFile } = require('node:child_process');
+interface IWorker {
+	workerId: string;
+	workerDir: string;
+}
 
 /**
- * @type {{
- * run: string;
- * runList: string;
- * grep: string;
- * runGlob: string;
- * browser: string;
- * reporter: string;
- * 'reporter-options': string;
- * tfs: string;
- * 'stall-timeout': string;
- * 'rerun-failed-files': string;
- * workers: string;
- * worker: string;
- * workerDir: string;
- * build: boolean;
- * debug: boolean;
- * sequential: boolean;
- * help: boolean;
- * }}
-*/
-const args = minimist(process.argv.slice(2), {
+ * The failures of a worker, as parallel.ts reports them to the process that started the workers.
+ */
+interface IWorkerReport {
+	failures: { title: string; file: string; type: string }[];
+	unattributedFailures: string[];
+}
+
+/**
+ * How the page of a worker claims the test files it runs, see createTestFileClaims in parallel.ts.
+ */
+interface ITestFileClaims {
+	start(fileCount: number): void;
+	claim(file: string): boolean;
+	claimAll(): boolean;
+	recordRun(files: string[]): void;
+}
+
+/**
+ * The functions of parallel.ts that this runner uses. parallel.ts exports them with
+ * `module.exports`, which TypeScript does not read, so their signatures are repeated here.
+ */
+interface IParallel {
+	getWorkerCount(value: string | undefined): number;
+	getWorkerCountForFiles(count: number, fileCount: number): number;
+	removeArgument(argv: string[], name: string): string[];
+	runInWorkers(options: { name: string; count: number; command: string; args: string[] }): Promise<IWorkerReport>;
+	writeWorkerReport(worker: IWorker, report: IWorkerReport): void;
+	createTestFileClaims(worker: IWorker): ITestFileClaims;
+	trackTestFiles(root: mocha.Suite): Map<string, unknown>;
+	distributeClaimedTestFiles(root: mocha.Suite, files: Map<string, unknown>, claims: ITestFileClaims): void;
+}
+
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, createTestFileClaims, trackTestFiles, distributeClaimedTestFiles } = parallel as IParallel;
+
+interface IArgs extends minimist.ParsedArgs {
+	run?: string | string[];
+	runList?: string;
+	grep?: string;
+	runGlob?: string;
+	browser: string | string[];
+	reporter: string;
+	'reporter-options': string;
+	tfs?: string;
+	'stall-timeout': string;
+	'rerun-failed-files'?: string;
+	workers?: string;
+	worker?: string;
+	workerDir?: string;
+	build: boolean;
+	debug: boolean;
+	sequential: boolean;
+	help: boolean;
+}
+
+/** The Playwright browsers, which the first part of a `--browser` value names */
+type BrowserType = 'chromium' | 'firefox' | 'webkit';
+
+const args = minimist<IArgs>(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
 	string: ['run', 'runList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	default: {
@@ -96,7 +136,7 @@ let workerCount = 1;
 try {
 	workerCount = getWorkerCount(args.workers);
 } catch (error) {
-	console.error(/** @type {Error} */ (error).message);
+	console.error((error as Error).message);
 	process.exit(1);
 }
 const workersApply = args.workers !== undefined && !args.run && !args.runGlob && !args.grep && !isDebug;
@@ -105,7 +145,7 @@ if (workerCount > 1 && !workersApply) {
 }
 
 /** this process is a worker of a parallel run, which only runs the test files it claims */
-const worker = args.worker && args.workerDir ? { workerId: args.worker, workerDir: args.workerDir } : undefined;
+const worker: IWorker | undefined = args.worker && args.workerDir ? { workerId: args.worker, workerDir: args.workerDir } : undefined;
 
 /**
  * With more failed tests and suites than this, a rerun repeats whole test files
@@ -114,35 +154,36 @@ const worker = args.worker && args.workerDir ? { workerId: args.worker, workerDi
 const MAX_RERUN_TARGETS = 50;
 
 const withReporter = (function () {
-	if (args.tfs) {
+	const tfs = args.tfs;
+	if (tfs) {
 		{
 			const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
-			return (browserType, runner, attempt) => {
+			return (browserType: string, runner: mocha.Runner, attempt: number) => {
 				// every attempt and worker writes its own results file, so that reruns do not overwrite earlier failures
 				const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
 				const workerSuffix = worker ? `-worker${worker.workerId}` : '';
 				new mocha.reporters.Dot(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
-						testsuitesTitle: `${args.tfs} ${process.platform}${worker ? ` (worker ${worker.workerId})` : ''}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
+						testsuitesTitle: `${tfs} ${process.platform}${worker ? ` (worker ${worker.workerId})` : ''}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
 						// without a results folder, mocha-junit-reporter writes test-results.xml to the working directory
 						mochaFile: testResultsRoot
-							? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${workerSuffix}${attemptSuffix}-results.xml`)
+							? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${tfs.toLowerCase().replace(/[^\w]/g, '-')}${workerSuffix}${attemptSuffix}-results.xml`)
 							: worker ? `test-results-${browserType}${workerSuffix}.xml` : undefined
 					}
 				});
 			};
 		}
 	} else {
-		return (_, runner) => applyReporter(runner, args);
+		return (_: string, runner: mocha.Runner) => applyReporter(runner, args);
 	}
 })();
 
 const outdir = args.build ? 'out-build' : 'out';
-const rootDir = path.resolve(__dirname, '..', '..', '..');
+const rootDir = path.resolve(import.meta.dirname, '..', '..', '..');
 const out = path.join(rootDir, `${outdir}`);
 
-function ensureIsArray(a) {
+function ensureIsArray<T>(a: T | T[]): T[] {
 	return Array.isArray(a) ? a : [a];
 }
 
@@ -150,7 +191,7 @@ const testModules = (async function () {
 
 	const excludeGlob = '**/{node,electron-browser,electron-main,electron-utility}/**/*.test.js';
 	let isDefaultModules = true;
-	let promise;
+	let promise: Promise<string[]>;
 
 	if (args.run) {
 		// use file list (--run)
@@ -179,7 +220,7 @@ const testModules = (async function () {
 	}
 
 	return promise.then(files => {
-		const modules = [];
+		const modules: string[] = [];
 		for (const file of files) {
 			if (!minimatch(file, excludeGlob)) {
 				modules.push(file.replace(/\.js$/, ''));
@@ -192,9 +233,9 @@ const testModules = (async function () {
 	});
 })();
 
-function consoleLogFn(msg) {
+function consoleLogFn(msg: playwright.ConsoleMessage): (...args: unknown[]) => void {
 	const type = msg.type();
-	const candidate = console[type];
+	const candidate = (console as unknown as Record<string, ((...args: unknown[]) => void) | undefined>)[type];
 	if (candidate) {
 		return candidate;
 	}
@@ -207,18 +248,18 @@ function consoleLogFn(msg) {
 }
 
 /**
- * @param {ReturnType<typeof createTestFileClaims> | undefined} claims how the page of a worker claims the test files it runs
+ * @param claims how the page of a worker claims the test files it runs
  */
-async function createServer(claims) {
+async function createServer(claims: ITestFileClaims | undefined): Promise<{ dispose(): void; url: string }> {
 	// Demand a prefix to avoid issues with other services on the
 	// machine being able to access the test server.
 	const prefix = '/' + randomBytes(16).toString('hex');
 	const serveStatic = await yaserver.createServer({ rootDir });
 
 	/** Handles a request for a remote method call, invoking `fn` and returning the result */
-	const remoteMethod = async (req, response, fn) => {
-		const params = await new Promise((resolve, reject) => {
-			const body = [];
+	const remoteMethod = async <P extends unknown[]>(req: http.IncomingMessage, response: http.ServerResponse, fn: (...params: P) => unknown) => {
+		const params = await new Promise<P>((resolve, reject) => {
+			const body: Buffer[] = [];
 			req.on('data', chunk => body.push(chunk));
 			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
 			req.on('error', reject);
@@ -241,7 +282,7 @@ async function createServer(claims) {
 		// rewrite the URL so the static server can handle the request correctly
 		request.url = request.url.slice(prefix.length);
 
-		function massagePath(p) {
+		function massagePath(p: string) {
 			// TODO@jrieken FISHY but it enables snapshot
 			// in ESM browser tests
 			p = String(p).replace(/\\/g, '/').replace(prefix, rootDir);
@@ -250,31 +291,31 @@ async function createServer(claims) {
 
 		switch (request.url) {
 			case '/remoteMethod/__readFileInTests':
-				return remoteMethod(request, response, p => fs.promises.readFile(massagePath(p), 'utf-8'));
+				return remoteMethod(request, response, (p: string) => fs.promises.readFile(massagePath(p), 'utf-8'));
 			case '/remoteMethod/__writeFileInTests':
-				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(massagePath(p), contents));
+				return remoteMethod(request, response, (p: string, contents: string) => fs.promises.writeFile(massagePath(p), contents));
 			case '/remoteMethod/__readDirInTests':
-				return remoteMethod(request, response, p => fs.promises.readdir(massagePath(p)));
+				return remoteMethod(request, response, (p: string) => fs.promises.readdir(massagePath(p)));
 			case '/remoteMethod/__unlinkInTests':
-				return remoteMethod(request, response, p => fs.promises.unlink(massagePath(p)));
+				return remoteMethod(request, response, (p: string) => fs.promises.unlink(massagePath(p)));
 			case '/remoteMethod/__mkdirPInTests':
-				return remoteMethod(request, response, p => fs.promises.mkdir(massagePath(p), { recursive: true }));
+				return remoteMethod(request, response, (p: string) => fs.promises.mkdir(massagePath(p), { recursive: true }));
 		}
 
 		// see createTestFileClaims in renderer.html, which parses every result, so none is `undefined`
 		if (claims && request.url.startsWith('/testFileClaims/')) {
 			switch (request.url.slice('/testFileClaims/'.length)) {
 				case 'start':
-					return remoteMethod(request, response, fileCount => {
+					return remoteMethod(request, response, (fileCount: number) => {
 						claims.start(fileCount);
 						return null;
 					});
 				case 'claim':
-					return remoteMethod(request, response, file => claims.claim(file));
+					return remoteMethod(request, response, (file: string) => claims.claim(file));
 				case 'claimAll':
 					return remoteMethod(request, response, () => claims.claimAll());
 				case 'recordRun':
-					return remoteMethod(request, response, files => {
+					return remoteMethod(request, response, (files: string[]) => {
 						claims.recordRun(files);
 						return null;
 					});
@@ -288,8 +329,7 @@ async function createServer(claims) {
 		server.listen(0, 'localhost', () => {
 			resolve({
 				dispose: () => server.close(),
-				// @ts-ignore
-				url: `http://localhost:${server.address().port}${prefix}`
+				url: `http://localhost:${(server.address() as AddressInfo).port}${prefix}`
 			});
 		});
 		server.on('error', reject);
@@ -297,12 +337,18 @@ async function createServer(claims) {
 }
 
 /**
+ * What the isolation checks of the page record, see isolationCheck.ts.
+ */
+interface IIsolationGlobals {
+	__vscodeTestIsolationFlush?: () => Promise<void>;
+	__vscodeTestIsolationFindings?: object[];
+}
+
+/**
  * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
  * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several runs end up in one file.
- * @param {import('playwright').Page} page
- * @param {string} browserType
  */
-async function writeIsolationFindings(page, browserType) {
+async function writeIsolationFindings(page: playwright.Page, browserType: string) {
 	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
 	if (!reportPath) {
 		return;
@@ -310,11 +356,11 @@ async function writeIsolationFindings(page, browserType) {
 	const findings = await page.evaluate(async () => {
 		try {
 			// Settles checks that only a later suite would have settled, see flushIsolationChecks in isolationCheck.ts.
-			await globalThis.__vscodeTestIsolationFlush?.();
+			await (globalThis as IIsolationGlobals).__vscodeTestIsolationFlush?.();
 		} catch (error) {
 			console.error(`Failed to flush isolation checks: ${error}`);
 		}
-		return globalThis.__vscodeTestIsolationFindings ?? [];
+		return (globalThis as IIsolationGlobals).__vscodeTestIsolationFindings ?? [];
 	});
 	if (findings.length) {
 		try {
@@ -328,15 +374,8 @@ async function writeIsolationFindings(page, browserType) {
 /**
  * Runs the test modules once in a newly launched browser. Returns the failure message
  * for the console, if any test failed, and which tests passed and failed.
- * @param {string[]} testModules
- * @param browserType the Playwright browser: chromium, firefox or webkit
- * @param {string | undefined} browserChannel
- * @param {string | undefined} grep
- * @param {number} attempt
- * @param {IRerunTarget[] | undefined} rerunTargets
- * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
  */
-async function runTestsInBrowser(testModules, browserType, browserChannel, grep, attempt, rerunTargets) {
+async function runTestsInBrowser(testModules: string[], browserType: BrowserType, browserChannel: string | undefined, grep: string | undefined, attempt: number, rerunTargets: IRerunTarget[] | undefined): Promise<IAttemptResult> {
 	// a worker of a parallel run (see parallel.ts) only runs the test files it claims
 	const claims = worker ? createTestFileClaims(worker) : undefined;
 	const server = await createServer(claims);
@@ -353,14 +392,14 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 	}
 
 	// append CSS modules as query-param
-	await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
+	await promisify(glob)('**/*.css', { cwd: out }).then(async cssModules => {
 		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
 		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
 	});
 
 	const emitter = new events.EventEmitter();
 	const progress = new TestProgress();
-	await page.exposeFunction('mocha_report', (type, data1, data2) => {
+	await page.exposeFunction('mocha_report', (type: string, data1: ISerializedSuite | ISerializedRunnable | undefined, data2: ISerializedError | undefined) => {
 		progress.onEvent(type, data1);
 		emitter.emit(type, data1, data2);
 	});
@@ -387,16 +426,16 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()), attempt);
+	// EchoRunner replays the events of the page's mocha runner
+	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()) as mocha.Runner, attempt);
 
-	/** @type {IFailure[]} failed tests and hooks that belong to a test file */
-	const failures = [];
-	/** @type {IPassed[]} */
-	const passed = [];
-	/** @type {string[]} failures that do not belong to a test file, such as root-level hooks */
-	const unattributedFailures = [];
-	emitter.on('pass', test => passed.push({ titlePath: test.titlePath, file: test.file, ambiguous: test.ambiguous }));
-	emitter.on('fail', test => {
+	/** failed tests and hooks that belong to a test file */
+	const failures: IFailure[] = [];
+	const passed: IPassed[] = [];
+	/** failures that do not belong to a test file, such as root-level hooks */
+	const unattributedFailures: string[] = [];
+	emitter.on('pass', (test: ISerializedRunnable) => passed.push({ titlePath: test.titlePath, file: test.file, ambiguous: test.ambiguous }));
+	emitter.on('fail', (test: ISerializedRunnable) => {
 		if (test.file) {
 			failures.push({ title: test.fullTitle, titlePath: test.titlePath, file: test.file, type: test.type, parentTitlePath: test.parentTitlePath, ambiguous: test.ambiguous });
 		} else {
@@ -405,9 +444,9 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 	});
 
 	// collection failures for console printing
-	const failingModuleIds = [];
-	const failingTests = [];
-	emitter.on('fail', (test, err) => {
+	const failingModuleIds: string[] = [];
+	const failingTests: { title: string; message: string }[] = [];
+	emitter.on('fail', (test: ISerializedRunnable, err: ISerializedError) => {
 		failingTests.push({ title: test.fullTitle, message: err.message });
 
 		if (err.stack) {
@@ -442,7 +481,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 		}
 	}
 
-	let failureMessage;
+	let failureMessage: string | undefined;
 	if (failingTests.length > 0) {
 		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
 
@@ -461,29 +500,27 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
  * report which test or hook was in flight.
  */
 class TestProgress {
-	constructor() {
-		this.lastEventTime = Date.now();
-		this.completed = 0;
-		/** @type {{ title: string; startTime: number } | undefined} */
-		this.currentTest = undefined;
-		/** @type {{ title: string; startTime: number } | undefined} */
-		this.currentHook = undefined;
-		/** @type {string | undefined} */
-		this.lastCompletedTest = undefined;
-	}
+	lastEventTime = Date.now();
+	completed = 0;
+	currentTest: { title: string; startTime: number } | undefined = undefined;
+	currentHook: { title: string; startTime: number } | undefined = undefined;
+	lastCompletedTest: string | undefined = undefined;
 
-	onEvent(type, runnable) {
+	/**
+	 * @param runnable the suite, test or hook of the event, which the start and end events have none of
+	 */
+	onEvent(type: string, runnable: { fullTitle: string } | undefined) {
 		this.lastEventTime = Date.now();
 		switch (type) {
 			case 'test':
-				this.currentTest = { title: runnable.fullTitle, startTime: this.lastEventTime };
+				this.currentTest = { title: runnable!.fullTitle, startTime: this.lastEventTime };
 				break;
 			case 'test end':
 				this.currentTest = undefined;
-				this.lastCompletedTest = runnable.fullTitle;
+				this.lastCompletedTest = runnable!.fullTitle;
 				break;
 			case 'hook':
-				this.currentHook = { title: runnable.fullTitle, startTime: this.lastEventTime };
+				this.currentHook = { title: runnable!.fullTitle, startTime: this.lastEventTime };
 				break;
 			case 'hook end':
 				this.currentHook = undefined;
@@ -503,13 +540,12 @@ class TestProgress {
  * Mocha's per-test timeout cannot fire when the page itself is stuck, which
  * otherwise leaves CI silent until the step timeout.
  */
-function startStallWatchdog(page, browserType, progress) {
+function startStallWatchdog(page: playwright.Page, browserType: string, progress: TestProgress): { dispose(): Promise<void> } {
 	if (!stallTimeoutMs) {
 		return { dispose: async () => { } };
 	}
 
-	/** @type {Promise<void> | undefined} */
-	let diagnostics;
+	let diagnostics: Promise<void> | undefined;
 	progress.lastEventTime = Date.now();
 	const handle = setInterval(() => {
 		if (Date.now() - progress.lastEventTime >= stallTimeoutMs) {
@@ -528,9 +564,12 @@ function startStallWatchdog(page, browserType, progress) {
 	};
 }
 
-async function reportStallAndExit(page, browserType, progress) {
-	const log = message => console.error(`[${browserType}] ${message}`);
-	const ago = time => `${Math.round((Date.now() - time) / 1000)}s ago`;
+/** The document of the page, for the code that runs in it */
+declare const document: { readonly readyState: string };
+
+async function reportStallAndExit(page: playwright.Page, browserType: string, progress: TestProgress) {
+	const log = (message: string) => console.error(`[${browserType}] ${message}`);
+	const ago = (time: number) => `${Math.round((Date.now() - time) / 1000)}s ago`;
 	try {
 		process.stdout.write('\n'); // terminate a partially written reporter line
 		log(`No test progress since ${ago(progress.lastEventTime)}, aborting (--stall-timeout ${stallTimeoutMs / 1000}).`);
@@ -550,11 +589,11 @@ async function reportStallAndExit(page, browserType, progress) {
 	}
 }
 
-function raceTimeout(promise, ms) {
-	let timer;
+function raceTimeout(promise: Promise<unknown>, ms: number): Promise<{ ok: boolean; error: string | undefined }> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	return Promise.race([
 		promise.then(() => ({ ok: true, error: undefined }), err => ({ ok: false, error: String(err?.message ?? err) })),
-		new Promise(resolve => timer = setTimeout(() => resolve({ ok: false, error: `no response within ${ms}ms` }), ms))
+		new Promise<{ ok: boolean; error: string }>(resolve => timer = setTimeout(() => resolve({ ok: false, error: `no response within ${ms}ms` }), ms))
 	]).finally(() => clearTimeout(timer));
 }
 
@@ -563,7 +602,7 @@ function raceTimeout(promise, ms) {
  * loop from a deadlock) and, on macOS, writes native stack samples next to
  * the other CI logs.
  */
-async function dumpBrowserProcesses(browserType, log) {
+async function dumpBrowserProcesses(browserType: string, log: (message: string) => void) {
 	if (process.platform === 'win32') {
 		return;
 	}
@@ -589,7 +628,7 @@ async function dumpBrowserProcesses(browserType, log) {
 		}
 	}
 	pids.delete(process.pid);
-	const installRoots = new Set();
+	const installRoots = new Set<string>();
 	for (const p of all) {
 		const installRoot = pids.has(p.pid) ? /^(.*?[\\/]ms-playwright[\\/][^\\/]+[\\/])/.exec(p.command)?.[1] : undefined;
 		if (installRoot) {
@@ -613,7 +652,7 @@ async function dumpBrowserProcesses(browserType, log) {
 	await Promise.all(processes.map(async ({ pid }) => {
 		const file = path.join(outDir, `${browserType}-${pid}.sample.txt`);
 		try {
-			await execFileAsync('sample', [pid, '3', '-file', file], { timeout: 180_000 }); // symbolication of browser frameworks is slow
+			await execFileAsync('sample', [String(pid), '3', '-file', file], { timeout: 180_000 }); // symbolication of browser frameworks is slow
 			log(`  Wrote native stack sample of pid ${pid} to ${path.relative(rootDir, file)}`);
 		} catch (err) {
 			log(`  Failed to sample pid ${pid}: ${err.message}`);
@@ -621,9 +660,56 @@ async function dumpBrowserProcesses(browserType, log) {
 	}));
 }
 
+/**
+ * A mocha suite as the page reports it, see serializeSuite in renderer.html.
+ */
+interface ISerializedSuite {
+	root: boolean;
+	suites: ISerializedSuite[];
+	tests: ISerializedRunnable[];
+	title: string;
+	fullTitle: string;
+	titlePath: string[];
+	timeout: number;
+	retries: number;
+	slow: number;
+	bail: boolean;
+}
+
+/**
+ * A mocha test or hook as the page reports it, see serializeRunnable in renderer.html.
+ */
+interface ISerializedRunnable {
+	title: string;
+	titlePath: string[];
+	fullTitle: string;
+	async: boolean;
+	slow: number;
+	speed: string | undefined;
+	duration: number | undefined;
+	currentRetry: number;
+	file: string | undefined;
+	type: string;
+	parentTitlePath: string[];
+	ambiguous: boolean;
+}
+
+/**
+ * An error as the page reports it, see serializeError in renderer.html.
+ */
+interface ISerializedError {
+	message: string;
+	stack: string | undefined;
+	actual: unknown;
+	expected: unknown;
+	uncaught: boolean | undefined;
+	showDiff: boolean | undefined;
+	inspect: unknown;
+}
+
 class EchoRunner extends events.EventEmitter {
 
-	constructor(event, title = '') {
+	constructor(event: events.EventEmitter, title = '') {
 		super();
 		createStatsCollector(this);
 		event.on('start', () => this.emit('start'));
@@ -639,7 +725,7 @@ class EchoRunner extends events.EventEmitter {
 		event.on('pending', (test) => this.emit('pending', EchoRunner.deserializeRunnable(test)));
 	}
 
-	static deserializeSuite(suite, titleExtra) {
+	static deserializeSuite(suite: ISerializedSuite, titleExtra: string) {
 		return {
 			root: suite.root,
 			suites: suite.suites,
@@ -654,7 +740,7 @@ class EchoRunner extends events.EventEmitter {
 		};
 	}
 
-	static deserializeRunnable(runnable, titleExtra) {
+	static deserializeRunnable(runnable: ISerializedRunnable, titleExtra?: string) {
 		return {
 			title: runnable.title,
 			fullTitle: () => titleExtra && runnable.fullTitle ? `${runnable.fullTitle} - /${titleExtra}/` : runnable.fullTitle,
@@ -667,7 +753,7 @@ class EchoRunner extends events.EventEmitter {
 		};
 	}
 
-	static deserializeError(err) {
+	static deserializeError(err: ISerializedError) {
 		const inspect = err.inspect;
 		err.inspect = () => inspect;
 		return err;
@@ -676,47 +762,82 @@ class EchoRunner extends events.EventEmitter {
 
 /**
  * A failed test or hook of a test file.
- * @typedef {{ title: string; titlePath: string[]; file: string; type: string; parentTitlePath: string[]; ambiguous: boolean }} IFailure
  */
+interface IFailure {
+	title: string;
+	titlePath: string[];
+	file: string;
+	type: string;
+	parentTitlePath: string[];
+	ambiguous: boolean;
+}
 
 /**
  * A test that passed.
- * @typedef {{ titlePath: string[]; file: string; ambiguous: boolean }} IPassed
  */
+interface IPassed {
+	titlePath: string[];
+	file: string | undefined;
+	ambiguous: boolean;
+}
+
+/**
+ * The result of an attempt: the failure message for the console, if any test failed, and which tests passed and failed.
+ */
+interface IAttemptResult {
+	message: string | undefined;
+	failures: IFailure[];
+	passed: IPassed[];
+	unattributedFailures: string[];
+}
 
 /**
  * What a rerun runs to establish that a failure was flaky: a failed test by its full
  * title, the suite of a failed hook, or the test file of a failed hook outside any suite.
- * @typedef {{ kind: 'test' | 'suite' | 'file'; file: string; titlePath: string[]; label: string; ambiguous: boolean }} IRerunTarget
  */
+interface IRerunTarget {
+	kind: 'test' | 'suite' | 'file';
+	file: string;
+	titlePath: string[];
+	label: string;
+	ambiguous: boolean;
+}
 
 /**
  * The test files that a rerun loads, and the grep that selects their tests.
- * @typedef {{ byTitle: boolean; files: string[]; grep: string | undefined; targets: IRerunTarget[] | undefined }} IRerunPlan
  */
+interface IRerunPlan {
+	byTitle: boolean;
+	files: string[];
+	grep: string | undefined;
+	targets: IRerunTarget[] | undefined;
+}
 
 /**
  * When a rerun target did not pass, and when it passed.
- * @typedef {{ target: IRerunTarget; firstAttempt: number; lastAttempt: number; passedInAttempt?: number }} IRerunRecord
  */
+interface IRerunRecord {
+	target: IRerunTarget;
+	firstAttempt: number;
+	lastAttempt: number;
+	passedInAttempt?: number;
+}
 
 /**
  * Runs the test files once in `count` worker processes. Each worker is a separate
  * instance of this script that runs the test files it claims in its own browser, and does not
  * rerun its failures: this process reruns them in one browser.
- * @param {string} browserName the browser, with its channel if any
- * @param {number} count
- * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
+ * @param browserName the browser, with its channel if any
  */
-async function runFirstAttemptInWorkers(browserName, count) {
+async function runFirstAttemptInWorkers(browserName: string, count: number): Promise<IAttemptResult> {
 	const report = await runInWorkers({
 		name: `Browser unit tests (${browserName})`,
 		count,
 		command: process.execPath,
-		args: [...process.execArgv, __filename, ...removeArgument(removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files'), 'browser'), `--browser=${browserName}`],
+		args: [...process.execArgv, import.meta.filename, ...removeArgument(removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files'), 'browser'), `--browser=${browserName}`],
 	});
 	// as the workers record them in runTestsInBrowser
-	const failures = /** @type {IFailure[]} */ (report.failures);
+	const failures = report.failures as IFailure[];
 	const failed = [...failures.map(failure => failure.title), ...report.unattributedFailures];
 	return {
 		// the workers printed the reasons with their output
@@ -732,30 +853,24 @@ async function runFirstAttemptInWorkers(browserName, count) {
  * Runs the tests in a browser, and reruns the failed ones, each time in a freshly launched
  * browser, up to `--rerun-failed-files` more times. Returns the failure message of the last
  * attempt when failures remain.
- * @param {string[]} modules
- * @param {string} browserType
- * @param {string | undefined} browserChannel
- * @param {number} workers the number of worker processes for the first attempt, which runs in this process with 1
- * @returns {Promise<string | undefined>}
+ * @param workers the number of worker processes for the first attempt, which runs in this process with 1
  */
-async function runTestsWithReruns(modules, browserType, browserChannel, workers) {
+async function runTestsWithReruns(modules: string[], browserType: BrowserType, browserChannel: string | undefined, workers: number): Promise<string | undefined> {
 	// the browser stays open for debugging
 	const maxReruns = isDebug ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 	const browserName = browserChannel ? `${browserType}-${browserChannel}` : browserType;
 
-	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
-	const records = new Map();
-	/** @type {Map<string, IRerunTarget>} the failures that did not pass since they failed */
-	const targets = new Map();
-	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
-	let plan;
+	/** every failure that was a rerun target, by key */
+	const records = new Map<string, IRerunRecord>();
+	/** the failures that did not pass since they failed */
+	const targets = new Map<string, IRerunTarget>();
+	/** what the current attempt reruns, unless it is the first */
+	let plan: IRerunPlan | undefined;
 	let attemptModules = modules;
-	/** @type {string | undefined} */
-	let grep = args.grep;
+	let grep: string | undefined = args.grep;
 
 	for (let attempt = 1; ; attempt++) {
-		/** @type {{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }} */
-		let result;
+		let result: IAttemptResult;
 		if (attempt === 1 && workers > 1) {
 			result = await runFirstAttemptInWorkers(browserName, workers);
 		} else {
@@ -815,15 +930,11 @@ async function runTestsWithReruns(modules, browserType, browserChannel, workers)
 
 /**
  * Returns the rerun targets of the failed tests and hooks, by key.
- * @param {IFailure[]} failures
- * @returns {Map<string, IRerunTarget>}
  */
-function targetsFromFailures(failures) {
-	/** @type {Map<string, IRerunTarget>} */
-	const targets = new Map();
+function targetsFromFailures(failures: IFailure[]): Map<string, IRerunTarget> {
+	const targets = new Map<string, IRerunTarget>();
 	for (const failure of failures) {
-		/** @type {IRerunTarget} */
-		let target;
+		let target: IRerunTarget;
 		if (failure.type !== 'hook') {
 			target = { kind: 'test', file: failure.file, titlePath: failure.titlePath, label: failure.title, ambiguous: failure.ambiguous };
 		} else if (failure.parentTitlePath.length > 0) {
@@ -844,10 +955,8 @@ function targetsFromFailures(failures) {
 /**
  * Plans a rerun attempt: only the failed tests and the suites of failed hooks, or their
  * whole test files when they cannot be selected by title, such as when there are too many.
- * @param {Map<string, IRerunTarget>} targets
- * @returns {IRerunPlan}
  */
-function planRerun(targets) {
+function planRerun(targets: Map<string, IRerunTarget>): IRerunPlan {
 	const files = [...new Set([...targets.values()].map(target => target.file))];
 	// mocha reads a grep of the form /pattern/flags as a regular expression literal, which cannot be combined
 	const byTitle = targets.size <= MAX_RERUN_TARGETS && [...targets.values()].every(target => target.kind !== 'file') && !/^\/.*\/[gimy]{0,4}$/.test(args.grep ?? '');
@@ -865,11 +974,8 @@ function planRerun(targets) {
  * passed the failed test, or a test of the failed hook's suite, so that a failure that
  * the rerun did not select does not count as passing. A failed hook outside any suite
  * passes with its whole test file.
- * @param {Map<string, IRerunTarget>} targets
- * @param {{ failures: IFailure[]; passed: IPassed[] }} result
- * @returns {string[]}
  */
-function findPassedTargets(targets, result) {
+function findPassedTargets(targets: Map<string, IRerunTarget>, result: { failures: IFailure[]; passed: IPassed[] }): string[] {
 	return [...targets].filter(([, target]) => {
 		if (target.ambiguous) {
 			return false;
@@ -884,18 +990,15 @@ function findPassedTargets(targets, result) {
 		if (target.kind === 'test') {
 			return passed.some(test => JSON.stringify(test.titlePath) === JSON.stringify(target.titlePath));
 		}
-		const isInSuite = titlePath => titlePath.length > target.titlePath.length && target.titlePath.every((title, index) => title === titlePath[index]);
+		const isInSuite = (titlePath: string[]) => titlePath.length > target.titlePath.length && target.titlePath.every((title, index) => title === titlePath[index]);
 		return passed.some(test => isInSuite(test.titlePath)) && !failures.some(failure => isInSuite(failure.titlePath));
 	}).map(([key]) => key);
 }
 
 /**
  * Records that the targets did not pass in the attempt.
- * @param {Map<string, IRerunRecord>} records
- * @param {Map<string, IRerunTarget>} targets
- * @param {number} attempt
  */
-function recordNotPassed(records, targets, attempt) {
+function recordNotPassed(records: Map<string, IRerunRecord>, targets: Map<string, IRerunTarget>, attempt: number) {
 	for (const [key, target] of targets) {
 		const record = records.get(key);
 		if (record) {
@@ -910,10 +1013,8 @@ function recordNotPassed(records, targets, attempt) {
 /**
  * Reports the failed tests that passed when they were rerun, as warnings in CI, so that
  * flaky tests stay visible whether or not the run passed.
- * @param {Map<string, IRerunRecord>} records
- * @param {string} browserName
  */
-function reportFlakyTests(records, browserName) {
+function reportFlakyTests(records: Map<string, IRerunRecord>, browserName: string) {
 	const flaky = [...records.values()].filter(record => record.passedInAttempt !== undefined);
 	if (flaky.length === 0) {
 		return;
@@ -935,18 +1036,16 @@ function reportFlakyTests(records, browserName) {
 /**
  * Describes a rerun target on one line, so that a title with line breaks stays in one
  * list entry and one CI annotation.
- * @param {IRerunTarget} target
  */
-function describeTarget(target) {
+function describeTarget(target: IRerunTarget) {
 	return `${target.label.replace(/\s*[\n\r\u2028\u2029]+\s*/g, ' ')} (${target.file})`;
 }
 
 /**
  * Escapes a title for a grep. Line terminators are escaped too, because mocha reads a
  * grep string only up to the first one.
- * @param {string} value
  */
-function escapeRegExp(value) {
+function escapeRegExp(value: string) {
 	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&').replace(/[\n\r\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
@@ -969,19 +1068,19 @@ testModules.then(async modules => {
 	const browsers = Array.isArray(args.browser)
 		? args.browser : [args.browser];
 
-	let messages = [];
+	let messages: (string | undefined)[] = [];
 	let didFail = false;
 
 	try {
 		// The workers of a browser already use the CPUs, so browsers run one at a time with them, also when the cap or a short --runList leaves only one
 		if (args.sequential || workersApply) {
 			for (const browser of browsers) {
-				const [browserType, browserChannel] = browser.split('-');
+				const [browserType, browserChannel] = browser.split('-') as [BrowserType, string | undefined];
 				messages.push(await runTestsWithReruns(modules, browserType, browserChannel, workers));
 			}
 		} else {
 			messages = await Promise.all(browsers.map(async browser => {
-				const [browserType, browserChannel] = browser.split('-');
+				const [browserType, browserChannel] = browser.split('-') as [BrowserType, string | undefined];
 				return await runTestsWithReruns(modules, browserType, browserChannel, 1);
 			}));
 		}

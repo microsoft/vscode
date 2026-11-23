@@ -18,7 +18,7 @@ import { TestCase, TestFile, TestSuite, itemData } from './testTree';
 const escapeRe = (s: string) => s.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&');
 
 const TEST_ELECTRON_SCRIPT_PATH = 'test/unit/electron/index.js';
-const TEST_BROWSER_SCRIPT_PATH = 'test/unit/browser/index.js';
+const TEST_BROWSER_SCRIPT_PATH = 'test/unit/browser/index.ts';
 
 const ATTACH_CONFIG_NAME = 'Attach to VS Code';
 const DEBUG_TYPE = 'pwa-chrome';
