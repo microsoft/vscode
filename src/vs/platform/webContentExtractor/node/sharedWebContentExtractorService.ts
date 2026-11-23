@@ -22,23 +22,35 @@ export class SharedWebContentExtractorService implements ISharedWebContentExtrac
 		}
 	}
 
-	async readImageWithMetadata(uri: URI, token: CancellationToken): Promise<{ data: VSBuffer; mimeType: string } | undefined> {
+	async readImageWithMetadata(uri: URI, token: CancellationToken, timeoutMs: number = 30_000): Promise<{ data: VSBuffer; mimeType: string } | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const response = await fetch(uri.toString(true), {
-			headers: {
-				'Accept': 'image/*',
-				'User-Agent': 'Mozilla/5.0'
+		const controller = new AbortController();
+		const listener = token.onCancellationRequested(() => controller.abort());
+		try {
+			const response = await fetch(uri.toString(true), {
+				headers: {
+					'Accept': 'image/*',
+					'User-Agent': 'Mozilla/5.0'
+				},
+				signal: AbortSignal.any([controller.signal, AbortSignal.timeout(timeoutMs)])
+			});
+			if (!response.ok) {
+				throw new Error(localize('imageRequestFailed', "Image request failed ({0}).", response.status));
 			}
-		});
-		if (!response.ok) {
-			throw new Error(localize('imageRequestFailed', "Image request failed ({0}).", response.status));
+			const mimeType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() || 'application/octet-stream';
+			if (!mimeType.startsWith('image/') && mimeType !== 'application/octet-stream') {
+				throw new Error(localize('imageTypeUnsupported', "The response is not a supported image."));
+			}
+			return { data: VSBuffer.wrap(new Uint8Array(await response.arrayBuffer())), mimeType };
+		} catch (err) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			throw err;
+		} finally {
+			listener.dispose();
 		}
-		const mimeType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() || 'application/octet-stream';
-		if (!mimeType.startsWith('image/') && mimeType !== 'application/octet-stream') {
-			throw new Error(localize('imageTypeUnsupported', "The response is not a supported image."));
-		}
-		return { data: VSBuffer.wrap(new Uint8Array(await response.arrayBuffer())), mimeType };
 	}
 }

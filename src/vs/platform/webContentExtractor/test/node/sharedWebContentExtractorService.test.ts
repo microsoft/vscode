@@ -6,20 +6,22 @@
 import assert from 'assert';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SharedWebContentExtractorService } from '../../node/sharedWebContentExtractorService.js';
 
 suite('Shared web content image extraction', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"/>';
 	let server: Server;
 	let resource: URI;
 	let contentType: string;
 	let statusCode: number;
 	let requests: number;
+	let hangRequest: boolean;
 	let body: string | Uint8Array;
 	const service = new SharedWebContentExtractorService();
 
@@ -28,9 +30,13 @@ suite('Shared web content image extraction', () => {
 		contentType = 'image/svg+xml; charset=utf-8';
 		statusCode = 200;
 		requests = 0;
+		hangRequest = false;
 		body = svg;
 		server = createServer((_request, response) => {
 			requests++;
+			if (hangRequest) {
+				return;
+			}
 			response.writeHead(statusCode, { 'Content-Type': contentType });
 			response.end(body);
 		});
@@ -39,6 +45,7 @@ suite('Shared web content image extraction', () => {
 	});
 
 	teardown(async () => {
+		server.closeAllConnections?.();
 		await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 	});
 
@@ -73,5 +80,26 @@ suite('Shared web content image extraction', () => {
 	test('does not fetch a cancelled image', async () => {
 		const result = await service.readImageWithMetadata(resource, CancellationToken.Cancelled);
 		assert.deepStrictEqual({ result, requests }, { result: undefined, requests: 0 });
+	});
+
+	test('aborts and returns undefined when cancellation token is cancelled mid-request', async () => {
+		hangRequest = true;
+		const requestReceived = new DeferredPromise<void>();
+		server.once('request', () => requestReceived.complete());
+		const cts = disposables.add(new CancellationTokenSource());
+		const promise = service.readImageWithMetadata(resource, cts.token);
+		await requestReceived.p;
+		cts.cancel();
+		const result = await promise;
+		assert.strictEqual(result, undefined);
+		assert.strictEqual(requests, 1);
+	});
+
+	test('aborts image request when timeout is reached', async () => {
+		hangRequest = true;
+		await assert.rejects(
+			service.readImageWithMetadata(resource, CancellationToken.None, 20),
+			err => err instanceof Error
+		);
 	});
 });
