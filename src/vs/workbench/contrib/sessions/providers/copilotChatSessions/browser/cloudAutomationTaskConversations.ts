@@ -15,7 +15,10 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { JsonObject, JsonValue } from '../../../../../../platform/github/common/client/types.js';
+import { ApiRequestError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { isRetryableMissionControlError, missionControlRetryDelay } from '../../../../../../platform/github/common/missionControl/missionControlError.js';
 import { GetTaskResponse, TaskEvent } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { RequestError } from '../../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, SessionType } from '../../../../chat/common/chatSessionsService.js';
 import { IChatProgress } from '../../../../chat/common/chatService/chatService.js';
@@ -50,8 +53,21 @@ function isEventObject(value: JsonValue): value is JsonObject {
 }
 
 function eventContent(event: TaskEvent): string | undefined {
-	if (!event.dismissed && !event.agentId && isEventObject(event.data) && !event.data.parentToolCallId && typeof event.data.content === 'string') {
+	if (!event.pending && !event.dismissed && !event.agentId && isEventObject(event.data) && !event.data.parentToolCallId && typeof event.data.content === 'string') {
 		return event.data.content;
+	}
+	return undefined;
+}
+
+function historyPollRetryDelay(error: unknown, failures: number): number | undefined {
+	if (error instanceof ApiRequestError) {
+		if (!isRetryableMissionControlError(error.statusCode, error.code)) {
+			return undefined;
+		}
+		return Math.max(pollInterval, missionControlRetryDelay(error.code, error.retryAfterSeconds, failures));
+	}
+	if (error instanceof RequestError && ['network', 'timeout', 'overloaded', 'rateLimit', 'server'].includes(error.kind)) {
+		return Math.max(pollInterval, missionControlRetryDelay(undefined, undefined, failures));
 	}
 	return undefined;
 }
@@ -214,20 +230,25 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 			let history = turnHistory(snapshot);
 			const observation = new CancellationTokenSource(lifetime.token);
 			scope.add(toDisposable(() => observation.dispose(true)));
+			let pollFailures = 0;
 			const refresh = scope.add(new RunOnceScheduler(async () => {
+				let delay: number | undefined = pollInterval;
 				try {
 					const current = await this.read(resource, observation.token);
 					CancellationToken.throwIfCanceled(observation.token);
 					snapshot = current;
+					pollFailures = 0;
 					history = turnHistory(current);
 					changed.fire(history);
-					if (active(current.task) && changed.hasListeners()) {
-						refresh.schedule();
-					}
 				} catch (error) {
-					if (!isCancellationError(error)) {
-						this.logService.warn('[CloudAutomations] Could not update open task history', error);
+					if (isCancellationError(error)) {
+						return;
 					}
+					this.logService.warn('[CloudAutomations] Could not update open task history', error);
+					delay = historyPollRetryDelay(error, ++pollFailures);
+				}
+				if (delay !== undefined && !observation.token.isCancellationRequested && active(snapshot.task) && changed.hasListeners()) {
+					refresh.schedule(delay);
 				}
 			}, pollInterval));
 			const changed = scope.add(new Emitter<readonly IChatSessionHistoryItem[]>({
@@ -264,35 +285,40 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 
 	private async followReply(resource: URI, prompt: string, baseline: ITaskSnapshot, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<ITaskSnapshot> {
 		const seen = new Set(baseline.events.map(event => event.id));
-		const priorTurn = baseline.task.sessions?.at(-1)?.id;
+		const priorSessions = new Set(baseline.task.sessions?.map(session => session.id));
 		const start = Date.now();
-		let started = active(baseline.task);
+		let echoId: string | undefined;
+		let receivedAnswer = false;
 		progress([{ kind: 'progressMessage', content: new MarkdownString(localize('cloudAutomationTask.sent', "Reply sent to GitHub.")) }]);
 		for (; ;) {
 			const current = await this.read(resource, token);
-			const fresh = current.events.filter(event => !seen.has(event.id));
-			const echo = fresh.findIndex(event => event.type === 'user.message' && eventContent(event) === prompt && !event.pending && isEventObject(event.data) && event.data.transformedContent !== prompt);
-			// A user echo alone can arrive while GET still reports the previous, completed turn.
-			const replyEvents = !started && echo >= 0 ? fresh.slice(echo + 1) : fresh;
-			started ||= current.task.sessions?.at(-1)?.id !== priorTurn || active(current.task)
-				|| echo >= 0 && replyEvents.some(event => event.type === 'assistant.message' && eventContent(event));
-			if (started) {
-				for (const event of fresh) {
-					seen.add(event.id);
+			let inReply = false;
+			for (const event of current.events) {
+				const content = eventContent(event);
+				if (!content) {
+					continue;
 				}
-				for (const event of replyEvents) {
-					const content = eventContent(event);
-					if (content && event.type === 'assistant.message') {
-						progress([{ kind: 'markdownContent', content: new MarkdownString(content) }]);
+				if (event.type === 'user.message') {
+					if (echoId === undefined && !seen.has(event.id) && content === prompt && isEventObject(event.data) && event.data.transformedContent !== prompt) {
+						echoId = event.id;
 					}
+					inReply = event.id === echoId;
+				} else if (inReply && event.type === 'assistant.message' && !seen.has(event.id)) {
+					receivedAnswer = true;
+					progress([{ kind: 'markdownContent', content: new MarkdownString(content) }]);
 				}
-				if (!active(current.task)) {
-					if (stopped(current.task)) {
-						throw new Error(localize('cloudAutomationTask.stopped', "The GitHub task stopped: {0}.", current.task.state));
-					}
-					return current;
+				seen.add(event.id);
+			}
+			// A confirmed echo may arrive before GET stops reporting the previous, completed session.
+			const latest = current.task.sessions?.at(-1);
+			const replySession = latest && !priorSessions.has(latest.id) && latest.prompt === prompt;
+			if (echoId !== undefined && !active(current.task) && (receivedAnswer || replySession)) {
+				if (stopped(current.task)) {
+					throw new Error(localize('cloudAutomationTask.stopped', "The GitHub task stopped: {0}.", current.task.state));
 				}
-			} else if (Date.now() - start >= 120_000) {
+				return current;
+			}
+			if ((echoId === undefined || !active(current.task)) && Date.now() - start >= 120_000) {
 				throw new Error(localize('cloudAutomationTask.waiting', "GitHub accepted the reply, but its turn has not appeared yet. Reopen this run to check its progress."));
 			}
 			await timeout(pollInterval, token);

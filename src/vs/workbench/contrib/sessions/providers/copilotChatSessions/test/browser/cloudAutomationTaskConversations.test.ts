@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTr
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ApiRequestError } from '../../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { GetTaskResponse, ITasksClient, TaskEvent } from '../../../../../../../platform/github/common/missionControl/tasks.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -89,6 +90,64 @@ suite('Cloud automation task conversations', () => {
 		const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
 		const history = await Event.toPromise(session.onDidChangeHistory!);
 		assert.deepStrictEqual({ reads, failed: history.some(item => item.type === 'response' && !!item.errorDetails), status: controller.items[0].status }, { reads: 2, failed: true, status: ChatSessionStatus.Failed });
+	}));
+
+	test('an observed run recovers from a transient history read without steering or polling past completion', () => runWithFakedTimers({}, async () => {
+		let reads = 0;
+		const { controller } = setup({
+			get: async () => ({ ...original, state: reads < 2 ? 'in_progress' : 'completed' }),
+			getEvents: async () => {
+				if (++reads === 2) {
+					throw new ApiRequestError(503, 'server');
+				}
+				const events = reads === 1 ? [] : [user('answer', 'assistant.message', 'Recovered')];
+				return { data: { events, total: events.length } };
+			},
+			steer: async () => assert.fail('Retrying a read must not steer'),
+		});
+		const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+		const updates: string[] = [];
+		disposables.add(session.onDidChangeHistory!(history => updates.push(...history.flatMap(turn => turn.type === 'response' ? turn.parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : []) : []))));
+		await timeout(60_000);
+		assert.deepStrictEqual({ reads, updates }, { reads: 3, updates: ['Recovered'] });
+	}));
+
+	test('a pending user message does not take output from the confirmed turn', async () => {
+		const pending = { ...user('queued', 'user.message', 'Next'), pending: true };
+		const events = [user('first', 'user.message', 'First'), pending, user('answer', 'assistant.message', 'Still answering First')];
+		const { controller } = setup({
+			get: async () => original, getEvents: async () => ({ data: { events, total: events.length } }), steer: async () => assert.fail('Unexpected write'),
+		});
+		const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+		assert.deepStrictEqual(session.history.map(turn => turn.type === 'request' ? turn.prompt : turn.parts.map(part => part.kind === 'markdownContent' && part.content.value)), [
+			'First', ['Still answering First'],
+		]);
+	});
+
+	test('steering an active task waits past prior completion for the confirmed reply and only streams its output', () => runWithFakedTimers({}, async () => {
+		let polls = 0;
+		let writes = 0;
+		const echo = user('echo', 'user.message', request.message);
+		const old = user('old-answer', 'assistant.message', 'Previous answer');
+		const { controller } = setup({
+			get: async () => ({ ...original, state: writes ? 'completed' : 'in_progress' }),
+			getEvents: async () => {
+				const events = [user('previous-echo', 'user.message', request.message)];
+				if (writes) {
+					polls++;
+					events.push({ ...echo, pending: polls < 3 }, old);
+					if (polls === 3) {
+						events.push(user('new-answer', 'assistant.message', 'New answer'));
+					}
+				}
+				return { data: { events, total: events.length } };
+			},
+			steer: async () => { writes++; },
+		});
+		const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+		const answers: string[] = [];
+		await session.requestHandler!(request, parts => answers.push(...parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : [])), [], CancellationToken.None);
+		assert.deepStrictEqual({ polls, answers, writes }, { polls: 3, answers: ['New answer'], writes: 1 });
 	}));
 
 	test('a user echo on the previous completed turn is not the answer to an accepted reply', () => runWithFakedTimers({}, async () => {
