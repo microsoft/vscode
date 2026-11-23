@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, isSessionArchiveConfirmed } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
 
@@ -993,7 +993,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	private removeArchivedMembership(sessions: readonly ISession[], changed: Set<string>): boolean {
 		let stateChanged = false;
 		for (const session of sessions) {
-			if (session.isArchived.get()) {
+			if (isSessionArchiveConfirmed(session)) {
 				if (this._membership.delete(session.sessionId)) {
 					changed.add(session.sessionId);
 					stateChanged = true;

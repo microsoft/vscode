@@ -13,9 +13,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { IProgress, IProgressStep, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressIndicator, IProgressRunner, IProgressStep, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
+import { IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
 import { IActivityService } from '../../../activity/common/activity.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { NotificationService } from '../../../notification/common/notificationService.js';
@@ -255,4 +256,51 @@ suite('ProgressService notification messages', () => {
 			statusText: 'Show Logs: Check details',
 		});
 	}));
+});
+
+suite('ProgressService view progress', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows progress that the task reports before it returns', async () => {
+		const calls: string[] = [];
+		const progressIndicator = new class extends mock<IProgressIndicator>() {
+			override show(total: true | number): IProgressRunner {
+				calls.push(`show ${total}`);
+				return { total: () => { }, worked: value => calls.push(`worked ${value}`), done: () => calls.push('done') };
+			}
+			override async showWhile(promise: Promise<unknown>): Promise<void> {
+				calls.push('showWhile');
+				await promise;
+			}
+		};
+		const progressService = store.add(new ProgressService(
+			new class extends mock<IActivityService>() { },
+			new class extends mock<IPaneCompositePartService>() { },
+			new class extends mock<IViewDescriptorService>() {
+				override getViewContainerById() { return null; }
+				override getViewDescriptorById() { return new (mock<IViewDescriptor>())(); }
+				override getViewContainerByViewId() { return null; }
+			},
+			new class extends mock<IViewsService>() {
+				override getViewProgressIndicator() { return progressIndicator; }
+			},
+			new class extends mock<INotificationService>() { },
+			new class extends mock<IStatusbarService>() { },
+			new class extends mock<ILayoutService>() { },
+			new class extends mock<IKeybindingService>() { },
+			new class extends mock<IUserActivityService>() {
+				override markActive() { return Disposable.None; }
+			},
+			new class extends mock<IHostService>() { },
+		));
+
+		await progressService.withProgress({ location: 'test.view' }, async progress => {
+			progress.report({ increment: 10, total: 100 });
+			await timeout(0);
+			progress.report({ increment: 20 });
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(calls, ['showWhile', 'show 100', 'worked 10', 'worked 20', 'done']);
+	});
 });

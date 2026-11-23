@@ -31,7 +31,7 @@ export interface INewSessionPresentationController extends IDisposable {
 
 export interface INewSessionPresentation {
 	readonly searchWorkspaceTargetDirectly?: boolean;
-	/** Keep provider controls with repository and status controls instead of in the primary input toolbar. */
+	/** Place notices and the separate provider, repository and status controls row above the prompt. */
 	readonly separateSessionControls?: boolean;
 	getAccessibilityHelp(screenReaderOptimized: boolean, agentPickerInAttachContextMenu: boolean): readonly string[];
 	create(isNewChatInSession: boolean, instantiationService: IInstantiationService): INewSessionPresentationController;

@@ -51,9 +51,13 @@ function ownPersistedTurn(column: string): string {
 	return `(${ROW_OWNER_CHAT_SQL} IS NULL OR ${column} = ${ROW_OWNER_CHAT_SQL})`;
 }
 
-/** SQL subquery: rowid of the own turn with id (or event id) `?1`. */
+/**
+ * SQL subquery: rowid of the own turn addressed by `?1`, its live id or the SDK
+ * event id a restored turn is keyed by. A row with that exact id wins, as in the
+ * fork remap, so the event id only resolves turns no row is keyed by.
+ */
 function ownTurnRowidSql(foreign: boolean): string {
-	return `(SELECT rowid FROM turns WHERE (id = ?1 OR event_id = ?1)${andOwnTurn('id', foreign)} LIMIT 1)`;
+	return `(SELECT rowid FROM turns WHERE (id = ?1 OR event_id = ?1)${andOwnTurn('id', foreign)} ORDER BY (id = ?1) DESC, rowid LIMIT 1)`;
 }
 
 /**
@@ -1023,15 +1027,17 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Delete the target turn and all turns inserted after it (by rowid order).
 			// Turn-owned child records cascade-delete via their foreign keys.
+			// The target resolves as in `getNextTurnEventId`, so a restored turn
+			// addressed by its SDK event id prunes the turns the SDK removed.
 			const foreign = await this._mayHaveForeignTurns(db);
 			await dbRun(db,
 				`DELETE FROM local_turns WHERE ${ownPersistedTurn('chat_uri')} AND turn_id IN (
-					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?1${andOwnTurn('id', foreign)})${andOwnTurn('id', foreign)}
+					SELECT id FROM turns WHERE rowid >= ${ownTurnRowidSql(foreign)}${andOwnTurn('id', foreign)}
 				)`,
 				[turnId],
 			);
 			await dbRun(db,
-				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?1${andOwnTurn('id', foreign)})${andOwnTurn('id', foreign)}`,
+				`DELETE FROM turns WHERE rowid >= ${ownTurnRowidSql(foreign)}${andOwnTurn('id', foreign)}`,
 				[turnId],
 			);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
@@ -1042,15 +1048,17 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Delete all turns inserted after the given turn (by rowid order),
 			// keeping the given turn itself. Turn-owned child records cascade-delete.
+			// The given turn resolves as in `getNextTurnEventId`, so a restored turn
+			// addressed by its SDK event id prunes the turns the SDK removed.
 			const foreign = await this._mayHaveForeignTurns(db);
 			await dbRun(db,
 				`DELETE FROM local_turns WHERE ${ownPersistedTurn('chat_uri')} AND turn_id IN (
-					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?1${andOwnTurn('id', foreign)})${andOwnTurn('id', foreign)}
+					SELECT id FROM turns WHERE rowid > ${ownTurnRowidSql(foreign)}${andOwnTurn('id', foreign)}
 				)`,
 				[turnId],
 			);
 			await dbRun(db,
-				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?1${andOwnTurn('id', foreign)})${andOwnTurn('id', foreign)}`,
+				`DELETE FROM turns WHERE rowid > ${ownTurnRowidSql(foreign)}${andOwnTurn('id', foreign)}`,
 				[turnId],
 			);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);

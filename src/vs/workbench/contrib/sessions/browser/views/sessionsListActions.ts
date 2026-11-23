@@ -54,6 +54,20 @@ import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
 import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
 
+/**
+ * Throws the failures of a batch archive: a single failure as itself, so a cancellation stays
+ * identifiable, and several failures as an `AggregateError` with a concise summary.
+ */
+function throwArchiveErrors(results: readonly PromiseSettledResult<unknown>[]): void {
+	const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason);
+	if (errors.length === 1) {
+		throw errors[0];
+	}
+	if (errors.length > 1) {
+		throw new AggregateError(errors, toErrorMessage(errors));
+	}
+}
+
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
 	wording: ChatSessionArchiveActionWording,
@@ -77,15 +91,9 @@ async function archiveSessionsWithUndo(
 				archived.push(candidates[index]);
 			}
 		}
-		const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
-		if (errors.length === 1) {
-			throw errors[0];
-		}
-		if (errors.length > 1) {
-			throw new AggregateError(errors, toErrorMessage(errors));
-		}
+		throwArchiveErrors(results);
 	} finally {
-		// A partially completed batch must remain undoable even when a later archive fails.
+		// A partially completed batch must remain undoable even when another archive fails.
 		if (archived.length > 0) {
 			const removedComparisonGroups = new Map([...comparisonGroups].filter(([groupId]) => !groupsService.getGroup(groupId)));
 			const restoredGroupIds = new Map<string, string>();
@@ -203,12 +211,13 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				group: id === SessionSectionToolbarMenuId ? 'navigation' : '1_state',
 				order: id === SessionSectionToolbarMenuId ? 1 : 2,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
-				// Also not on Automations.
+				// Also not on Automations or Canvases.
 				when: ContextKeyExpr.and(
 					InboxModeContext.negate(),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'canvases'),
 				),
 			}))
 		});
@@ -434,9 +443,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 		}
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		throwArchiveErrors(await sessionsManagementService.archiveSessions(sessions));
 	}
 }
 

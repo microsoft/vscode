@@ -23,6 +23,7 @@ import { IChatResponseModel } from '../../common/model/chatModel.js';
  * {@link ChatConfiguration.ResponseStats} is the location of this instance. Its element
  * is hidden otherwise. {@link ChatConfiguration.ResponseStatsTokens} selects whether the
  * tokens show as the speed of the latest model call or as the count of the response so far.
+ * Its hover tells what the stats mean, and leads with them in full while a host truncates them.
  */
 export class ChatLiveResponseStats extends Disposable {
 
@@ -43,12 +44,17 @@ export class ChatLiveResponseStats extends Disposable {
 		// Unknown values show the speed.
 		const countsTokens = observableConfigValue<ChatResponseStatsTokens>(ChatConfiguration.ResponseStatsTokens, ChatResponseStatsTokens.Speed, configurationService)
 			.map(tokens => tokens === ChatResponseStatsTokens.Count);
-		this._register(hoverService.setupDelayedHover(this.element, () => ({
-			content: countsTokens.get()
+		this._register(hoverService.setupDelayedHover(this.element, () => {
+			const meaning = countsTokens.get()
 				? localize('chat.liveResponseStats.countHover', "Time spent working and the output tokens of the response so far")
-				: localize('chat.liveResponseStats.hover', "Time spent working and the output speed of the latest model call"),
-			style: HoverStyle.Pointer,
-		})));
+				: localize('chat.liveResponseStats.hover', "Time spent working and the output speed of the latest model call");
+			// Stats that do not fit their host can still be read in full.
+			const truncated = this.element.scrollWidth > this.element.clientWidth;
+			return {
+				content: truncated ? `${this.element.textContent}\n${meaning}` : meaning,
+				style: HoverStyle.Pointer,
+			};
+		}));
 
 		const runningResponse = derived(this, reader => {
 			// The response is only looked up while its stats show here. Unknown values show them nowhere.

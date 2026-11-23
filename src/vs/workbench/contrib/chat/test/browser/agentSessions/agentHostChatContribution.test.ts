@@ -70,7 +70,7 @@ import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PA
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
-import { ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
+import { ChatHookFilesLocationsSettingId, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -9749,6 +9749,57 @@ suite('AgentHostChatContribution', () => {
 				workspaceTrustCalls: 0,
 			});
 		});
+
+		for (const kind of agentHostConnectionKinds) {
+			test(`resuming an existing session gates on its persisted folder in client space (${kind.name})`, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+				agentHostService.resourceUris = kind.resourceUris;
+				trustController.result = false;
+
+				// The persisted working directory is a host path. A remote host's
+				// folder must not be trusted (or shown) as a folder on this machine.
+				const hostFolder = URI.file('/home/me/repo');
+				const backendSession = AgentSession.uri('copilot', 'resumed-host');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(),
+						provider: 'copilot',
+						title: 'Resumed',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+						workingDirectories: [hostFolder.toString()],
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					activeClients: [],
+				});
+				agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Resumed', workingDirectories: [hostFolder] });
+
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/resumed-host' });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+
+				const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+				await registered.impl.invoke(
+					makeRequest({ message: 'Hello', sessionResource }),
+					() => { }, [], CancellationToken.None,
+				);
+
+				// Like a new session, a local folder is gated by resource trust and
+				// any other folder by the workspace trust fallback.
+				const clientFolder = kind.toClient(hostFolder);
+				assert.deepStrictEqual({
+					resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+					workspaceTrustCalls: trustController.workspaceTrustCalls,
+				}, clientFolder.scheme === Schemas.file ? {
+					resourcesTrustUris: [clientFolder.toString()],
+					workspaceTrustCalls: 0,
+				} : {
+					resourcesTrustUris: [],
+					workspaceTrustCalls: 1,
+				});
+			});
+		}
 
 		test('does not prompt for trust for an existing workspace-less quick chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
@@ -20276,6 +20327,128 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual((configChanged?.action as { config?: Record<string, unknown> } | undefined)?.config?.[SessionConfigKey.SensitiveEditLocations], [
 				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			]);
+		}));
+
+		async function createSharedSensitiveEditLocationsSession(name: string, configOverrides: Record<string, unknown>, hostLocations: readonly IChatSensitiveEditLocation[], onAuthenticate?: () => void) {
+			const workspace = URI.file('/workspace');
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, { resolve: () => workspace }, undefined, undefined, undefined, false, undefined, configOverrides, undefined, undefined, undefined, undefined, undefined, undefined, [workspace]);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'shared-locations-agent',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveAuthentication: async () => {
+					onAuthenticate?.();
+					return true;
+				},
+			}));
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+					protectedResources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }],
+				}],
+				activeSessions: 0,
+			});
+			const sessionUri = AgentSession.uri('copilot', name);
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+				config: {
+					schema: { type: 'object', properties: { [SessionConfigKey.SensitiveEditLocations]: { type: 'array', title: 'Sensitive edit locations', readOnly: true, sessionMutable: true } } },
+					values: { [SessionConfigKey.SensitiveEditLocations]: hostLocations },
+				},
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/${name}` });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('shared-locations-agent')!;
+			let serverSeq = 0;
+			const setHostLocations = (locations: unknown) => agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SensitiveEditLocations]: locations } } as SessionAction,
+				serverSeq: ++serverSeq,
+				origin: undefined,
+			});
+			return {
+				/** Another client of the session sets its locations, as the host applies them. */
+				setHostLocations,
+				/** Sends a turn from this client and returns the locations it wrote, which the host then applies. */
+				async sendTurn(requestId: string): Promise<unknown[]> {
+					agentHostService.dispatchedActions.length = 0;
+					const turnCount = agentHostService.turnActions.length;
+					const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'shared-locations-agent', requestId, message: requestId, sessionResource }), () => { }, [], CancellationToken.None);
+					await timeout(10);
+					const turnDispatch = agentHostService.turnActions[turnCount];
+					const turnAction = turnDispatch.action as ITurnStartedAction;
+					agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: ++serverSeq, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+					agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: ++serverSeq, origin: undefined });
+					await turnPromise;
+					const written = agentHostService.dispatchedActions.flatMap(({ action }) => {
+						const config = action.type === ActionType.SessionConfigChanged ? (action as { config: Record<string, unknown> }).config : undefined;
+						return config && Object.hasOwn(config, SessionConfigKey.SensitiveEditLocations) ? [config[SessionConfigKey.SensitiveEditLocations]] : [];
+					});
+					for (const locations of written) {
+						setHostLocations(locations);
+					}
+					return written;
+				},
+			};
+		}
+
+		test('handler keeps another client\'s hook locations when it sends a turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const session = await createSharedSensitiveEditLocationsSession('shared-union', { [ChatHookFilesLocationsSettingId]: { 'custom-hooks/hooks.json': true } }, [{ path: 'other-window-hooks', isDirectory: true }]);
+
+			const first = await session.sendTurn('first');
+			session.setHostLocations([{ path: 'other-window-hooks', isDirectory: true }]);
+			const afterOtherClient = await session.sendTurn('second');
+
+			assert.deepStrictEqual({ first, afterOtherClient }, {
+				first: [[{ path: 'custom-hooks/hooks.json', isDirectory: true }]],
+				afterOtherClient: [[{ path: 'custom-hooks/hooks.json', isDirectory: true }, { path: 'other-window-hooks', isDirectory: true }]],
+			});
+		}));
+
+		test('handler restores its hook locations that another client dropped while the turn waited for authentication', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let dropDuringAuthentication = false;
+			const session = await createSharedSensitiveEditLocationsSession('shared-stale', { [ChatHookFilesLocationsSettingId]: { 'custom-hooks/hooks.json': true } }, [{ path: 'custom-hooks/hooks.json', isDirectory: true }], () => {
+				if (dropDuringAuthentication) {
+					session.setHostLocations([{ path: 'other-window-hooks', isDirectory: true }]);
+				}
+			});
+
+			const first = await session.sendTurn('first');
+			session.setHostLocations([{ path: 'custom-hooks/hooks.json', isDirectory: true }, { path: 'other-window-hooks', isDirectory: true }]);
+			dropDuringAuthentication = true;
+			const afterDropped = await session.sendTurn('second');
+
+			assert.deepStrictEqual({ first, afterDropped }, {
+				first: [],
+				afterDropped: [[{ path: 'custom-hooks/hooks.json', isDirectory: true }, { path: 'other-window-hooks', isDirectory: true }]],
+			});
+		}));
+
+		test('handler sends exactly its hook locations once its settings change, then keeps another client\'s', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const configOverrides: Record<string, unknown> = { [ChatHookFilesLocationsSettingId]: { 'custom-hooks/hooks.json': true, 'old-hooks': true } };
+			const session = await createSharedSensitiveEditLocationsSession('shared-removal', configOverrides, []);
+
+			const first = await session.sendTurn('first');
+			configOverrides[ChatHookFilesLocationsSettingId] = { 'custom-hooks/hooks.json': true, 'old-hooks': false };
+			const afterSettingsChange = await session.sendTurn('second');
+			session.setHostLocations([{ path: 'other-window-hooks', isDirectory: true }]);
+			const afterOtherClient = await session.sendTurn('third');
+
+			assert.deepStrictEqual({ first, afterSettingsChange, afterOtherClient }, {
+				first: [[{ path: 'custom-hooks/hooks.json', isDirectory: true }, { path: 'old-hooks', isDirectory: true }]],
+				afterSettingsChange: [[{ path: 'custom-hooks/hooks.json', isDirectory: true }]],
+				afterOtherClient: [[{ path: 'custom-hooks/hooks.json', isDirectory: true }, { path: 'other-window-hooks', isDirectory: true }]],
+			});
 		}));
 
 		test('handler resolves authentication before sending to an eager-created session', async () => {

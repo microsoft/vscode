@@ -406,7 +406,7 @@ suite('Sessions - Layout Actions', () => {
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],
-				docked: [],
+				docked: ['titleBar'],
 				dockedActivityBarOff: ['titleBar'],
 				dockedEditorMaximized: ['titleBar'],
 				activityBarOff: ['titleBar'],
