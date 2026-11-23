@@ -129,10 +129,11 @@ function renderStructuralChanges(context: ComponentFixtureContext, { width = 360
 function renderStructuralDiffTree(context: ComponentFixtureContext, width: number, elements: readonly SCMStructuralDiffElement[], selection?: SCMStructuralDiffElement): void {
 	const { container, disposableStore, theme, fileIconTheme } = context;
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
-	// The SCM view in list mode hides the twisties of rows that cannot expand when the file icon theme has file icons,
-	// but structural rows keep the twistie space to indent children under their parent's icon
+	// Like the Explorer, the SCM view in tree mode hides the twisties of rows that cannot expand when the file icon theme
+	// has file but no folder icons, like Seti, but structural rows keep the twistie space to indent children under their
+	// parent's icon
 	container.classList.add('scm-view', 'file-icon-themable-tree');
-	container.classList.toggle('align-icons-and-twisties', fileIconTheme.hasFileIcons);
+	container.classList.toggle('align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
 	container.style.width = `${width}px`;
 	container.style.fontSize = 'var(--vscode-fontSize-body1)';
 	setGitDecorationColors(container);

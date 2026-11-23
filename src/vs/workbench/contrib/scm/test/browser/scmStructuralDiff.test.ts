@@ -49,7 +49,7 @@ import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SCMAccessibilityHelp } from '../../browser/scmAccessibilityHelp.js';
-import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, getSCMTreeTwistieCssClass, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
+import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, getSCMTreeTwistieCssClass, isSCMTreeElementCollapsedByDefault, shouldAlignSCMTreeIconsAndTwisties } from '../../browser/scmViewPane.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMViewService, ViewMode } from '../../common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffModel, SCMStructuralDiffNode } from '../../common/scmStructuralDiff.js';
@@ -264,6 +264,27 @@ suite('SCM structural diff tree', () => {
 		const rows = [...container.querySelectorAll('.monaco-list-row')];
 		assert.deepStrictEqual(Object.fromEntries(rows.map(row => [row.textContent, row.querySelector('.monaco-tl-twistie')?.classList.contains('force-twistie')])), {
 			'file.ts': true, Calculator: true, run: true, partial: true, 'notes.md': false,
+		});
+	});
+
+	test('aligns file icons with twisties like the Explorer, except in a list where files can expand, so that all files stay aligned', () => {
+		const themes = {
+			seti: { hasFileIcons: true, hasFolderIcons: false },
+			folderIcons: { hasFileIcons: true, hasFolderIcons: true },
+			noFileIcons: { hasFileIcons: false, hasFolderIcons: false },
+		};
+		const align = (viewMode: ViewMode, canExpandFiles: boolean) => Object.fromEntries(Object.entries(themes)
+			.map(([name, theme]) => [name, shouldAlignSCMTreeIconsAndTwisties(viewMode, theme, canExpandFiles)]));
+		assert.deepStrictEqual({
+			list: align(ViewMode.List, false),
+			listWithExpandableFiles: align(ViewMode.List, true),
+			tree: align(ViewMode.Tree, false),
+			treeWithExpandableFiles: align(ViewMode.Tree, true),
+		}, {
+			list: { seti: true, folderIcons: true, noFileIcons: false },
+			listWithExpandableFiles: { seti: false, folderIcons: false, noFileIcons: false },
+			tree: { seti: true, folderIcons: false, noFileIcons: false },
+			treeWithExpandableFiles: { seti: true, folderIcons: false, noFileIcons: false },
 		});
 	});
 

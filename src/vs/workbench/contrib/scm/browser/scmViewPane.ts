@@ -69,7 +69,7 @@ import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.j
 import { rot } from '../../../../base/common/numbers.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { OpenScmGroupAction } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -99,6 +99,19 @@ export function getSCMTreeTwistieCssClass(element: unknown, dataSource: SCMTreeD
 		return 'force-twistie';
 	}
 	return undefined;
+}
+
+/**
+ * Returns whether the icons of files that cannot expand take the place of their twisties. Like the Explorer, a tree does
+ * that when folders have no icons, to align file icons with folder twisties. A list has no folders, so it does that for
+ * every file icon theme, unless files can expand to show their structural changes. Then all files keep their twistie
+ * space, so that their icons stay aligned whether or not they can expand.
+ */
+export function shouldAlignSCMTreeIconsAndTwisties(viewMode: ViewMode, theme: Pick<IFileIconTheme, 'hasFileIcons' | 'hasFolderIcons'>, canExpandFiles: boolean): boolean {
+	if (!theme.hasFileIcons) {
+		return false;
+	}
+	return viewMode === ViewMode.List ? !canExpandFiles : !theme.hasFolderIcons;
 }
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
@@ -1536,6 +1549,9 @@ export class SCMViewPane extends ViewPane {
 		}
 		this.showStructuralDiffContextKey.set(enabled);
 		this.structuralDiff.setEnabled(enabled);
+		if (this.treeContainer) {
+			this.updateIndentStyles(this.themeService.getFileIconTheme());
+		}
 	}
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
@@ -1720,6 +1736,7 @@ export class SCMViewPane extends ViewPane {
 		this.disposables.add(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
 		this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this, this.disposables);
+		this.disposables.add(runOnChange(this.structuralDiff.hasProvider, () => this.updateIndentStyles(this.themeService.getFileIconTheme())));
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 	}
 
@@ -2189,9 +2206,10 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
+		const canExpandFiles = this.structuralDiff.enabled && this.structuralDiff.hasProvider.get();
 		this.treeContainer.classList.toggle('list-view-mode', this.viewMode === ViewMode.List);
 		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
-		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.treeContainer.classList.toggle('align-icons-and-twisties', shouldAlignSCMTreeIconsAndTwisties(this.viewMode, theme, canExpandFiles));
 		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
