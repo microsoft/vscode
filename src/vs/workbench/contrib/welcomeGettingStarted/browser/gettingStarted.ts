@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, reset } from '../../../../base/browser/dom.js';
+import { $, Dimension, addDisposableListener, append, clearNode, getActiveElement, isAncestorOfActiveElement, isHTMLElement, reset } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -1025,14 +1025,19 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.categoriesSlide, categoriesContainer);
 		this.categoriesPageScrollbar?.scanDomNode();
 
-		// The graphics and section styles differ in height, so fit again whenever either changes
+		// The graphics, the banner's text and the section styles differ in height, so fit again whenever any of them changes
 		this.categoriesSlideDisposables.add(autorun(reader => {
 			const shownGraphic = graphic.read(reader);
+			agentsWindowGraphic.shownBannerCopy.read(reader);
 			// The banner leads the page below its title, while the other graphic sits above the button in the footer.
-			// Only move the element when its place changes, so that its button keeps focus.
+			// Only move the element when its place changes. Moving it blurs its button, so focus it again.
 			const parent = shownGraphic === AgentsWindowGraphicVariant.Banner ? categoriesContainer : footer;
 			if (agentsBanner.element.parentElement !== parent) {
+				const focused = isAncestorOfActiveElement(agentsBanner.element) ? getActiveElement() : undefined;
 				parent.insertBefore(agentsBanner.element, parent === footer ? footer.firstChild : leftColumn);
+				if (isHTMLElement(focused)) {
+					focused.focus();
+				}
 			}
 			categoriesContainer.setAttribute('data-agents-window-graphic', shownGraphic ?? AgentsWindowGraphicVariant.None);
 			categoriesContainer.setAttribute('data-agents-window-section-style', agentsWindowGraphic.sectionStyle.read(reader));

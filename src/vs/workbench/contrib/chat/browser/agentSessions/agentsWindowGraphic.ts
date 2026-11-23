@@ -8,7 +8,7 @@ import { $, reset, setVisibility } from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -65,6 +65,14 @@ export class AgentsWindowGraphic extends Disposable {
 	private readonly _shownDesign = observableValue<AgentsWindowGraphicDesign | undefined>(this, undefined);
 	/** The graphic rendered in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
 	readonly shownDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._shownDesign;
+
+	private readonly _shownBannerCopy = observableValue<IAgentsWindowBannerCopy | undefined>(this, undefined);
+	/**
+	 * The treatment text rendered in the shown {@link AgentsWindowGraphicVariant.Banner}, or `undefined` while the banner shows its
+	 * default text or isn't shown. Changes together with {@link shownDesign}, after the element has been updated, so that the page
+	 * can fit the graphic again when the banner's text, and so its height, changes.
+	 */
+	readonly shownBannerCopy: IObservable<IAgentsWindowBannerCopy | undefined> = this._shownBannerCopy;
 
 	/**
 	 * How the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, its captions and the Agents window button should be set
@@ -133,7 +141,10 @@ export class AgentsWindowGraphic extends Disposable {
 			const bannerCopy = shownDesign === AgentsWindowGraphicVariant.Banner ? this._bannerCopy.read(reader) : undefined;
 			reset(this.element, ...(shownDesign ? [renderAgentsWindowGraphic(shownDesign, bannerCopy)] : []));
 			setVisibility(!!shownDesign, this.element);
-			this._shownDesign.set(shownDesign, undefined);
+			transaction(tx => {
+				this._shownDesign.set(shownDesign, tx);
+				this._shownBannerCopy.set(bannerCopy, tx);
+			});
 		}));
 	}
 

@@ -73,6 +73,7 @@ suite('AgentsWindowGraphic', () => {
 				resolved: graphic.bannerCopyResolved.get(),
 				title: graphic.element.querySelector('.agents-window-banner-title')?.textContent,
 				description: graphic.element.querySelector('.agents-window-banner-description')?.textContent,
+				shown: graphic.shownBannerCopy.get(),
 			}),
 			state: () => ({
 				design: graphic.design.get(),
@@ -161,10 +162,11 @@ suite('AgentsWindowGraphic', () => {
 		const treatmentNames = [AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT];
 		assert.deepStrictEqual(states, [
 			// The window comparison has no title or description, so the treatments aren't read.
-			{ resolved: false, title: undefined, description: undefined, requested: [] },
+			{ resolved: false, title: undefined, description: undefined, shown: undefined, requested: [] },
 			// A blank description is ignored, so the default shows.
-			{ resolved: true, title: 'Treatment title', description: 'Built to make you more productive when working with agents. Run several at the same time, each on its own task, and review their changes independently of each other when they\'re ready.', requested: treatmentNames },
-			{ resolved: true, title: 'Treatment title', description: 'Treatment description', requested: [...treatmentNames, ...treatmentNames] },
+			{ resolved: true, title: 'Treatment title', description: 'Built to make you more productive when working with agents. Run several at the same time, each on its own task, and review their changes independently of each other when they\'re ready.', shown: { title: 'Treatment title', description: undefined }, requested: treatmentNames },
+			// Refetched text is rendered and reported, so that the page fits the banner again.
+			{ resolved: true, title: 'Treatment title', description: 'Treatment description', shown: { title: 'Treatment title', description: 'Treatment description' }, requested: [...treatmentNames, ...treatmentNames] },
 		]);
 	});
 
