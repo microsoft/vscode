@@ -61,22 +61,6 @@ const args = minimist(process.argv.slice(2), {
 		runGlob: ['glob', 'runGrep'],
 		debug: ['debug-browser'],
 		help: 'h'
-	},
-	describe: {
-		build: 'run with build output (out-build)',
-		run: 'only run tests matching <relative_file_path>',
-		runList: 'only run tests whose files are listed in <file>, one per line',
-		grep: 'only run tests matching <pattern>',
-		debug: 'do not run browsers headless',
-		sequential: 'only run suites for a single browser at a time',
-		browser: 'browsers in which tests should run',
-		reporter: 'the mocha reporter',
-		'reporter-options': 'the mocha reporter options',
-		tfs: 'tfs',
-		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
-		'rerun-failed-files': 'rerun the failed tests in a freshly launched browser up to <count> more times',
-		workers: 'run all test files, or those of --runList, in <count> parallel processes, each with its own browser',
-		help: 'show the help'
 	}
 });
 
@@ -356,7 +340,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 	// a worker of a parallel run (see parallel.ts) only runs the test files it claims
 	const claims = worker ? createTestFileClaims(worker) : undefined;
 	const server = await createServer(claims);
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = new URL(server.url + '/test/unit/browser/renderer.html');
