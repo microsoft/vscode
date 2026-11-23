@@ -579,6 +579,7 @@ interface IProviderOwnerHarness {
 	_remoteAgentHostService: { readonly configuredEntries: readonly IRemoteAgentHostEntry[] };
 	_extensionRemoteAgentHostsService: Pick<IExtensionRemoteAgentHostsService, 'hosts'>;
 	_sshService: Pick<ISSHRemoteAgentHostService, 'disconnectedEntries'>;
+	_disconnectedEntries: ISSHRemoteAgentHostService['disconnectedEntries'];
 	_entryType: RemoteAgentHostEntryType;
 	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
 	_providerInstances: Map<string, { readonly label: string; readonly defaultLabel: string }>;
@@ -625,6 +626,7 @@ suite('Remote agent host provider ownership', () => {
 		contribution._remoteAgentHostService = { configuredEntries: entries };
 		contribution._extensionRemoteAgentHostsService = { hosts: constObservable([]) };
 		contribution._sshService = { disconnectedEntries: constObservable([]) };
+		contribution._disconnectedEntries = contribution._sshService.disconnectedEntries;
 		contribution._entryType = entryType;
 		const providerStores = new Map<string, undefined>();
 		contribution._providerStores = Object.assign(providerStores, {

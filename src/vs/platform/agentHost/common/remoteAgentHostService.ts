@@ -652,13 +652,14 @@ export function addSSHRemoteAgentHostEntry(storageService: IStorageService, entr
 	storeSSHRemoteAgentHostEntries(storageService, upsertRemoteAgentHostEntry(readSSHRemoteAgentHostEntries(storageService), entry));
 }
 
-/** Removes an SSH entry from its application storage store. */
+/** Removes an SSH entry from its application storage store, along with its disconnected flag. */
 export function removeSSHRemoteAgentHostEntry(storageService: IStorageService, address: string): void {
 	const normalizedAddress = normalizeRemoteAgentHostAddress(address);
 	storeSSHRemoteAgentHostEntries(
 		storageService,
 		readSSHRemoteAgentHostEntries(storageService).filter(entry => entryAddressKey(entry) !== normalizedAddress),
 	);
+	setRemoteAgentHostDisconnected(storageService, normalizedAddress, false);
 }
 
 /**

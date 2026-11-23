@@ -653,7 +653,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				setRemoteAgentHostDisconnected(this._storageService, address, true);
 			} else {
 				removeSSHRemoteAgentHostEntry(this._storageService, address);
-				setRemoteAgentHostDisconnected(this._storageService, address, false);
 			}
 		}
 		await this._mainService.disconnect(host);

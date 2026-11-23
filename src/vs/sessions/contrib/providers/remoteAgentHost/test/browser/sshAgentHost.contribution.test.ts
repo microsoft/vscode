@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { type IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,6 +16,8 @@ import { getEntryAddress, IRemoteAgentHostService, IRemoteAgentHostSSHConnection
 import { ISSHRemoteAgentHostService, SSHAuthenticationFailedError, SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -250,6 +252,40 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 			calls: harness.calls,
 		}, { initial: 1, afterTimer: 2, afterDisposal: 2, calls: [] });
 	}));
+
+	test('constructs a delayed SSH service once although its factory registration reconciles', () => {
+		const entriesChanged = store.add(new Emitter<void>());
+		let constructions = 0;
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConfiguredEntries = entriesChanged.event;
+			override readonly onDidChangeConnections = Event.None;
+			override readonly connections = [];
+			override readonly configuredEntries = [];
+		}());
+		instantiation.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		class DelayedSSHService extends mock<ISSHRemoteAgentHostService>() {
+			override readonly disconnectedEntries: IObservable<readonly IRemoteAgentHostEntry[]>;
+			constructor() {
+				super();
+				// Like the real service: registering its connection factory fires entry changes before construction completes, and a second registration fails.
+				if (constructions++) {
+					throw new Error('A connection factory is already registered.');
+				}
+				entriesChanged.fire();
+				this.disconnectedEntries = observableValue('disconnectedEntries', []);
+			}
+		}
+		const scoped = store.add(new TestInstantiationService(new ServiceCollection([ISSHRemoteAgentHostService, new SyncDescriptor(DelayedSSHService, [], true)]), false, instantiation, true));
+
+		store.add(scoped.createInstance(SSHAgentHostContribution));
+
+		assert.strictEqual(constructions, 1);
+	});
 });
 
 suite('SSH reconnect state', () => {

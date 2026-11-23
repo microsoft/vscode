@@ -5,7 +5,7 @@
 
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, type IObservable } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, getEntryAddress, getEntryTypeConfig, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, isSSHAuthenticationFailedError, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -33,6 +33,8 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 
 	protected readonly _entryType = RemoteAgentHostEntryType.SSH;
 
+	private readonly _disconnectedEntries: IObservable<readonly IRemoteAgentHostEntry[]>;
+
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@ISSHRemoteAgentHostService private readonly _sshService: ISSHRemoteAgentHostService,
@@ -44,6 +46,11 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(remoteAgentHostService, configurationService, logService, instantiationService, sessionsProvidersService, notificationService);
+
+		// Resolve the lazy SSH service before listening: constructing it registers
+		// its connection factory, which fires entry changes that would reconcile
+		// against the service while it is still constructing.
+		this._disconnectedEntries = this._sshService.disconnectedEntries;
 
 		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
@@ -59,7 +66,7 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 
 		// Disconnecting or connecting a remote again changes which entries are connectable.
 		this._register(autorun(reader => {
-			this._sshService.disconnectedEntries.read(reader);
+			this._disconnectedEntries.read(reader);
 			this._reconcile();
 		}));
 	}
@@ -71,13 +78,13 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 		}
 		// A remote the user disconnected is not dialed, so it has no configured entry; it keeps a provider to connect it from.
 		const configured = new Set(entries.map(entry => getEntryAddress(entry)));
-		const disconnected = this._sshService.disconnectedEntries.get().filter(entry => !configured.has(getEntryAddress(entry)));
+		const disconnected = this._disconnectedEntries.get().filter(entry => !configured.has(getEntryAddress(entry)));
 		return disconnected.length ? [...entries, ...disconnected] : entries;
 	}
 
 	protected override _reconcile(): void {
 		super._reconcile();
-		const disconnected = new Set(this._sshService.disconnectedEntries.get().map(entry => getEntryAddress(entry)));
+		const disconnected = new Set(this._disconnectedEntries.get().map(entry => getEntryAddress(entry)));
 		for (const [address, provider] of this._providerInstances) {
 			// Without a connection nothing reports its status. Like other disconnected remotes, it lists no sessions until connected again.
 			if (disconnected.has(address) && !this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
