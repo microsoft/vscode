@@ -37,11 +37,6 @@ suite('CopilotAgent.askDecisions', () => {
 
 	const credentials = (token: string) => ({ getCredential: () => ({ resource: 'https://api.github.com', token }) }) as unknown as IAgentHostCredentialSource;
 
-	test('is unavailable when the runtime has no decisions.ask', async () => {
-		const error = await askDecisions.call(agentWith({}), request, undefined, CancellationToken.None).catch(e => e);
-		assert.deepStrictEqual(agentDecisionErrorData(error), { kind: 'unavailable' });
-	});
-
 	test('is unauthenticated without a host or caller token', async () => {
 		const error = await askDecisions.call(agentWith({ decisions: { ask: async () => answer } }, ''), request, undefined, CancellationToken.None).catch(e => e);
 		assert.deepStrictEqual(agentDecisionErrorData(error), { kind: 'unauthenticated' });

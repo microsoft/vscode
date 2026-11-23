@@ -136,7 +136,21 @@ function buildRequest(request: IModelRouterPickRequest): { readonly decisions: I
 	const build = (): IAgentDecisionsRequest => ({
 		model: MODEL_ROUTER_DECISION_MODEL,
 		context: followUp
-			? { kind: 'json', value: { request: prompt, ...(situation ? { situation } : {}), ...followUp, recentTurns } }
+			? {
+				kind: 'json',
+				// JSON has no `undefined`, so facts the turn lacks are left out.
+				value: {
+					request: prompt,
+					...(situation ? { situation } : {}),
+					currentModel: followUp.currentModel,
+					...(followUp.currentEffort !== undefined ? { currentEffort: followUp.currentEffort } : {}),
+					recentTurns,
+					turns: followUp.turns,
+					...(followUp.lastTurnState !== undefined ? { lastTurnState: followUp.lastTurnState } : {}),
+					lastTurnToolCalls: followUp.lastTurnToolCalls,
+					lastTurnFailedToolCalls: followUp.lastTurnFailedToolCalls,
+				},
+			}
 			: { kind: 'text', text: `${firstTurnLead}${prompt}${situation ? `\n\n${situationLead}${situation.map(line => `- ${line}`).join('\n')}` : ''}` },
 		questions: questions(),
 		timeoutMs: DECISION_TIMEOUT_MS,
