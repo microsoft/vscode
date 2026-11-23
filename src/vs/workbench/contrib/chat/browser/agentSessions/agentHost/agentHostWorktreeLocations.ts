@@ -15,7 +15,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readFolderScopeGitState, readSessionIsolatedChatWorktrees, readWorkingDirectoryScopeId, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -30,8 +30,10 @@ export const AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID = 'agentHost.sessionWorkt
 /**
  * The worktrees of the local folder `folder` that the local agent host's `sessions` work in, without duplicates: the working
  * directories of the sessions whose project, as the agent host resolves it with git (the primary worktree's root), is
- * `folder`, other than `folder` itself and the folders inside it. Archived sessions and those without a project are left
- * out. Each is described by the branch the session reports, as far as it does.
+ * `folder`, other than `folder` itself and the folders inside it. A session's first working directory counts, and those of
+ * its other working directories that the agent host lists as worktrees it created for single chats of the session it
+ * isolated; an agent host that lists none offers only the first. Archived sessions and those without a project are left
+ * out. Each is described by the branch the session reports for it, as far as it does.
  *
  * `sessions` are the agent host's own session summaries, as it lists them: never of the shared sessions model, which
  * extensions also feed, as a location inherits the folder's trust.
@@ -46,17 +48,30 @@ export function getAgentHostSessionWorktrees(sessions: readonly SessionSummary[]
 	}
 	const result: IFolderLocation[] = [];
 	for (const session of sessions) {
-		const workingDirectory = toFolder(session.workingDirectories?.[0]);
 		const project = toFolder(session.project?.uri);
-		if ((session.status & SessionStatus.IsArchived) === SessionStatus.IsArchived || !workingDirectory || !project
-			|| !forms.some(form => extUriBiasedIgnorePathCase.isEqual(project, form))
-			// The folder itself, or a folder inside it, is no location of it
-			|| forms.some(form => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, form))
-			|| result.some(location => extUriBiasedIgnorePathCase.isEqual(location.uri, workingDirectory))) {
+		if ((session.status & SessionStatus.IsArchived) === SessionStatus.IsArchived || !project
+			|| !forms.some(form => extUriBiasedIgnorePathCase.isEqual(project, form))) {
 			continue;
 		}
-		const branch = readSessionSummaryBranchName(session);
-		result.push({ uri: workingDirectory, label: basename(workingDirectory), description: branch || undefined, icon: Codicon.gitBranchCheckout });
+		// Its first folder, and the worktrees the host created for single chats of it that it isolated, which only it tells
+		const isolated = readSessionIsolatedChatWorktrees(session._meta).map(toFolder);
+		const directories = (session.workingDirectories ?? []).filter((directory, index) => {
+			const folder = index === 0 ? undefined : toFolder(directory);
+			return index === 0 || (!!folder && isolated.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, folder)));
+		});
+		for (const [index, directory] of directories.entries()) {
+			const workingDirectory = toFolder(directory);
+			if (!workingDirectory
+				// The folder itself, or a folder inside it, is no location of it
+				|| forms.some(form => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, form))
+				|| result.some(location => extUriBiasedIgnorePathCase.isEqual(location.uri, workingDirectory))) {
+				continue;
+			}
+			const branch = index === 0
+				? readSessionSummaryBranchName(session)
+				: readFolderScopeGitState(session._meta, readWorkingDirectoryScopeId(session._meta, [directory.toString()]))?.branchName;
+			result.push({ uri: workingDirectory, label: basename(workingDirectory), description: branch || undefined, icon: Codicon.gitBranchCheckout });
+		}
 	}
 	return result;
 }

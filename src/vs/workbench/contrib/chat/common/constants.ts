@@ -168,6 +168,7 @@ export enum ChatConfiguration {
 	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
 	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
+	WelcomePageCardSurface = 'chat.welcomePage.cardSurface',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
@@ -293,6 +294,21 @@ export function getAgentsWindowSectionStyle(configurationService: IConfiguration
 		default:
 			return AgentsWindowSectionStyle.Outline;
 	}
+}
+
+/** The surface of the Welcome page's cards that promote a feature, such as the {@link AgentsWindowGraphicVariant.Banner}. */
+export const enum WelcomePageCardSurface {
+	/** The walkthrough tiles' surface. The default. */
+	Neutral = 'neutral',
+	/** A surface tinted with the accent color. */
+	Tint = 'tint',
+}
+
+/** Reads the card surface, falling back to the setting's default, {@link WelcomePageCardSurface.Neutral}. */
+export function getWelcomePageCardSurface(configurationService: IConfigurationService): WelcomePageCardSurface {
+	return configurationService.getValue<WelcomePageCardSurface>(ChatConfiguration.WelcomePageCardSurface) === WelcomePageCardSurface.Tint
+		? WelcomePageCardSurface.Tint
+		: WelcomePageCardSurface.Neutral;
 }
 
 export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';

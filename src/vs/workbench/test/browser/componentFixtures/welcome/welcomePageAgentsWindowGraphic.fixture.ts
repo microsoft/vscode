@@ -20,7 +20,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { createAgentsBanner } from '../../../../contrib/chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../../contrib/chat/browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, WelcomePageCardSurface } from '../../../../contrib/chat/common/constants.js';
 import '../../../../contrib/welcomeGettingStarted/browser/media/gettingStarted.css';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -51,6 +51,11 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: themes,
 		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 1000),
+	}),
+	BannerTint: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 1000, { cardSurface: WelcomePageCardSurface.Tint }),
 	}),
 	BannerCompact: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -91,8 +96,9 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
  * Renders the Welcome page's Agents window section within the Welcome page's DOM structure: the banner below the page's
  * title, or the footer with the graphic, Agents window button and startup checkbox. Without a section style, the
  * window comparison is styled like the setting's default. Without a layout, the graphic fits with room to spare.
+ * Without a card surface, the banner has the setting's default surface.
  */
-function renderWelcomePageAgentsSection({ container, disposableStore, theme }: ComponentFixtureContext, variant: AgentsWindowGraphicVariant, width: number, options: { sectionStyle?: AgentsWindowSectionStyle; layout?: 'spacious' | 'compact' } = {}): void {
+function renderWelcomePageAgentsSection({ container, disposableStore, theme }: ComponentFixtureContext, variant: AgentsWindowGraphicVariant, width: number, options: { sectionStyle?: AgentsWindowSectionStyle; layout?: 'spacious' | 'compact'; cardSurface?: WelcomePageCardSurface } = {}): void {
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const configurationService = new TestConfigurationService({
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
@@ -146,6 +152,7 @@ function renderWelcomePageAgentsSection({ container, disposableStore, theme }: C
 	const categoriesContainer = $('.gettingStartedCategoriesContainer', {
 		'data-agents-window-graphic': variant,
 		'data-agents-window-section-style': graphic.sectionStyle.get(),
+		'data-welcome-card-surface': options.cardSurface ?? WelcomePageCardSurface.Neutral,
 	}, ...(isBanner ? [banner.element] : []), footer);
 	if (graphic.shownDesign.get()) {
 		categoriesContainer.classList.add('agents-window-graphic-shown', ...(options.layout === 'compact' ? [] : ['agents-window-graphic-spacious']));

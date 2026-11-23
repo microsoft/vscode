@@ -1334,6 +1334,15 @@
 		}
 	}
 
+	/*
+	 * `::before` already draws the vertical guide past a branching chat, so the
+	 * elbow clips its own vertical stroke. Otherwise the translucent inactive
+	 * stroke is painted twice where they overlap and looks more opaque.
+	 */
+	&:not(.last-chat)::after {
+		clip-path: inset(0 0 0 var(--vscode-strokeThickness));
+	}
+
 	/* A done chat listed in the Done section on its own row: aligned with session rows, without hierarchy guides. */
 	&.standalone {
 		padding-left: var(--vscode-spacing-size120);
