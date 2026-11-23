@@ -80,10 +80,15 @@ export class GitHubPullRequestArtifactWorkspaceConfiguration {
 				});
 			}
 		}, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay));
+		const integrated = derived(reader => snapshot.read(reader)?.contributions.some(contribution => contribution.integrationId === gitHubPullRequestArtifactIntegrationId) ?? false);
+		// Every listener receives every session's actions, so only pull request artifacts listen, and they resubscribe only
+		// when the event changes: the provider sets the same connection again on every session change, while a connection
+		// that is still connecting can replace its event.
+		const onDidAction = derived(reader => integrated.read(reader) ? connectionObservable.read(reader)?.onDidAction : undefined);
 		store.add(autorun(reader => {
-			const connection = connectionObservable.read(reader);
-			if (connection) {
-				reader.store.add(connection.onDidAction(envelope => {
+			const event = onDidAction.read(reader);
+			if (event) {
+				reader.store.add(event(envelope => {
 					if (!envelope.rejectionReason && envelope.channel === session && envelope.action.type === ActionType.SessionConfigChanged
 						&& envelope.action.replace && !Object.hasOwn(envelope.action.config, settingsKey)) {
 						lastValue = undefined;
@@ -97,8 +102,8 @@ export class GitHubPullRequestArtifactWorkspaceConfiguration {
 			resync.read(reader);
 			const connection = connectionObservable.read(reader);
 			const context = workspace.read(reader);
-			const integrated = snapshot.read(reader)?.contributions.some(contribution => contribution.integrationId === gitHubPullRequestArtifactIntegrationId) ?? false;
-			if (!isHostSelected() || connection?.connectionAvailable?.read(reader) !== true || !integrated) {
+			const isIntegrated = integrated.read(reader);
+			if (!isHostSelected() || connection?.connectionAvailable?.read(reader) !== true || !isIntegrated) {
 				lastValue = undefined;
 				pending.set(undefined, undefined);
 				reading.set(false, undefined);
