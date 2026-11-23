@@ -16364,6 +16364,40 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
+			test('a branching chat\'s elbow does not repaint the stem guide', () => {
+				const main = createChat('Main chat');
+				const session: ISession = {
+					...createTestSession('Session').session,
+					chats: constObservable([main, createChat('Branching chat', ChatOriginKind.User), createChat('Last chat', ChatOriginKind.User)]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				container.classList.add('agent-sessions-viewpane', 'hovered');
+				container.style.setProperty('--vscode-strokeThickness', '1px');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+					onChatOpen: () => { },
+				}));
+				list.layout(300, 400);
+				setSessionChatsExpanded(container, true, 'Session');
+
+				// The inactive stroke is translucent, so painting the stem in both pseudo-elements makes it darker.
+				assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
+					.flatMap(row => [...row.querySelectorAll<HTMLElement>('.session-chat-item')])
+					.map(item => ({
+						stem: mainWindow.getComputedStyle(item, '::before').display,
+						elbowClip: mainWindow.getComputedStyle(item, '::after').clipPath,
+					})), [
+					{ stem: 'block', elbowClip: 'inset(0px 0px 0px 1px)' },
+					{ stem: 'none', elbowClip: 'none' },
+				]);
+			});
+
 			test('pane hover does not add guides to standalone completed chats', () => {
 				const main = createChat('Main chat');
 				const done: IChat = { ...createChat('Done chat', ChatOriginKind.User), isArchived: constObservable(true) };
