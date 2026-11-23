@@ -490,9 +490,6 @@ importers:
       '@vscode/test-electron':
         specifier: ^2.4.0
         version: 2.4.0
-      '@vscode/test-web':
-        specifier: ^0.0.81
-        version: 0.0.81(kerberos@2.1.1)
       '@webgpu/types':
         specifier: ^0.1.66
         version: 0.1.66
