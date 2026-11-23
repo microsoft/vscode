@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IFileService, FileOperation, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopy } from './workingCopy.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -142,6 +143,18 @@ export interface IMoveOperation {
 export interface ICopyOperation extends IMoveOperation { }
 
 /**
+ * Rejection of a cancelled move or copy. Operations run in order, so the
+ * `completed` results belong to the leading operations that were performed
+ * before the cancellation.
+ */
+export class WorkingCopyFileOperationCancellationError extends CancellationError {
+
+	constructor(readonly completed: readonly IFileStatWithMetadata[]) {
+		super();
+	}
+}
+
+/**
  * Returns the working copies for a given resource.
  */
 type WorkingCopyProvider = (resourceOrFolder: URI) => IWorkingCopy[];
@@ -244,6 +257,10 @@ export interface IWorkingCopyFileService {
 	 *
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 *
+	 * Operations run in order. When the token is cancelled, the remaining operations are
+	 * skipped and the returned promise rejects with a `WorkingCopyFileOperationCancellationError`
+	 * that contains the results of the operations that completed.
 	 */
 	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
@@ -253,6 +270,10 @@ export interface IWorkingCopyFileService {
 	 *
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 *
+	 * Operations run in order. When the token is cancelled, the remaining operations are
+	 * skipped and the returned promise rejects with a `WorkingCopyFileOperationCancellationError`
+	 * that contains the results of the operations that completed.
 	 */
 	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
@@ -416,6 +437,10 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		try {
 			for (const { file: { source, target }, overwrite } of operations) {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				// if source and target are not equal, handle dirty working copies
 				// depending on the operation:
 				// - move: revert both source and target (if any)
@@ -427,15 +452,19 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 				// now we can rename the source to target via file operation
 				if (move) {
-					stats.push(await this.fileService.move(source, target, overwrite));
+					stats.push(await this.fileService.move(source, target, overwrite, undefined, token));
 				} else {
-					stats.push(await this.fileService.copy(source, target, overwrite));
+					stats.push(await this.fileService.copy(source, target, overwrite, token));
 				}
 			}
 		} catch (error) {
 
 			// error event
 			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+
+			if (token.isCancellationRequested) {
+				throw new WorkingCopyFileOperationCancellationError(stats);
+			}
 
 			throw error;
 		}

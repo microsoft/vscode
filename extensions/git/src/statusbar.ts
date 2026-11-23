@@ -56,7 +56,7 @@ class CheckoutStatusBar {
 			command,
 			tooltip: `${label}, ${this.getTooltip()}`,
 			title: `${this.getIcon()} ${label}`,
-			arguments: [this.repository.sourceControl]
+			arguments: [this.repository.sourceControl.sourceControl]
 		};
 	}
 
@@ -77,9 +77,9 @@ class CheckoutStatusBar {
 					return '$(lock)';
 				case this.repository.mergeInProgress || !!this.repository.rebaseCommit:
 					return '$(git-branch-conflicts)';
-				case this.repository.indexGroup.resourceStates.length > 0:
+				case this.repository.sourceControl.indexGroup.resourceStates.length > 0:
 					return '$(git-branch-staged-changes)';
-				case this.repository.workingTreeGroup.resourceStates.length + this.repository.untrackedGroup.resourceStates.length > 0:
+				case this.repository.sourceControl.workingTreeGroup.resourceStates.length + this.repository.sourceControl.untrackedGroup.resourceStates.length > 0:
 					return '$(git-branch-changes)';
 				default:
 					return '$(git-branch)';
@@ -228,7 +228,7 @@ class SyncStatusBar {
 				command,
 				title: `$(cloud-upload)`,
 				tooltip,
-				arguments: [this.repository.sourceControl]
+				arguments: [this.repository.sourceControl.sourceControl]
 			};
 		}
 
@@ -276,7 +276,7 @@ class SyncStatusBar {
 			command,
 			title: [icon, text].join(' ').trim(),
 			tooltip,
-			arguments: [this.repository.sourceControl]
+			arguments: [this.repository.sourceControl.sourceControl]
 		};
 	}
 

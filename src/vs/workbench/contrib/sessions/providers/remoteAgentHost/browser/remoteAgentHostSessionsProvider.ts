@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, raceTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Limiter, raceTimeout, RunOnceScheduler, SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -241,6 +241,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
+	/** Keeps an overlapping archive and unarchive of a session in order, since both await Dev Container work. */
+	private readonly _sessionArchiveSequencer = new SequencerByKey<string>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -501,6 +503,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, true)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._archiveSession(sessionId));
+		}
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, false)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._unarchiveSession(sessionId));
+		}
+	}
+
+	private async _archiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
@@ -533,7 +547,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	override async unarchiveSession(sessionId: string): Promise<void> {
+	private async _unarchiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}

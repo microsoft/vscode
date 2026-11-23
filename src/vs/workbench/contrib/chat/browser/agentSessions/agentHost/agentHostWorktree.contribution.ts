@@ -7,14 +7,18 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun } from '../../../../../../base/common/observable.js';
-import { dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { autorun, derived, observableSignalFromEvent, runOnChange } from '../../../../../../base/common/observable.js';
+import { dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { getSessionChatResource, StateComponents, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -43,6 +47,7 @@ import { AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID } from './agentHostWorktreeLo
 import { IAgentHostWorktreeLocations } from './agentHostWorktreeLocationsService.js';
 import { getWorktreeFilterKey, WorktreeLastSessions } from '../../../common/sessionWorktreeFolders.js';
 import { IAgentHostWorktreeChatResolverService } from './agentHostWorktreeChatResolver.js';
+import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 
 type WorktreeFolderSwitchDirection = 'toAlternate' | 'toPrimary';
 
@@ -52,6 +57,8 @@ interface IShownChat {
 	workingDirectory: URI | undefined;
 	/** A chat that the user opened follows as its working directory first becomes known; one that the view restored does not. */
 	readonly followOnceKnown: boolean;
+	/** Whether the local agent host's state of its session has been known, which tells where each of its chats works. */
+	sessionStateKnown: boolean;
 }
 type WorktreeFolderSwitchOutcome = 'switched' | 'missing' | 'failed' | 'superseded';
 
@@ -104,6 +111,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private _switching = 0;
 	/** An automatic follow that gave way to a switch under way: it follows once that settles, unless a later choice came. */
 	private _followWhenIdle: { readonly shown: IShownChat; readonly request: number } | undefined;
+	/**
+	 * A follow of the shown chat to a folder that is no location of the window's folder yet, such as a worktree its agent host
+	 * lists only after the chat came to work there: it follows once the locations change, unless a later choice came.
+	 */
+	private _followWhenLocated: { readonly shown: IShownChat; readonly request: number } | undefined;
+	/** Counts the changes of the folder's locations, so that a switch tells whether they changed while it resolved its target. */
+	private _locationsChanges = 0;
 	/** The moves it asked the workspace for that have not completed yet. */
 	private _pendingMoves = 0;
 	/** Cancels what switches read, such as whether a folder exists, as it is disposed. */
@@ -116,6 +130,8 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private _shown: IShownChat | undefined;
 	/** Waits for the shown session's working directory to become known or to change. */
 	private readonly _sessionsListener = this._register(new MutableDisposable());
+	/** The shown chat that {@link _sessionsListener} watches, and the local agent host's state of its session with the connection it came from, once held. */
+	private _watched: { readonly shown: IShownChat; sessionState: { readonly subscription: IAgentSubscription<SessionState>; readonly connection: IAgentConnection; readonly backendSession: URI } | undefined } | undefined;
 
 	private readonly _lastSessions = new WorktreeLastSessions(LAST_SESSIONS_LIMIT);
 	/** The remembered sessions the sessions list has listed: one that it no longer lists was deleted. */
@@ -128,6 +144,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IAgentHostWorktreeLocations private readonly _provider: IAgentHostWorktreeLocations,
 		@IAgentHostWorktreeChatResolverService private readonly _chatResolver: IAgentHostWorktreeChatResolverService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -180,7 +197,9 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			this._trace(shown ? `shown ${shown.resource.toString()} (${shown.reason})` : 'shown: none');
 			// A chat opened where the folder stays, such as by a link in the window, is never followed, nor the last chat of where
 			// the folder is
-			this._shown = shown && shown.reason !== 'keepFolder' && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows } : undefined;
+			this._shown = shown && shown.reason !== 'keepFolder' && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows, sessionStateKnown: false } : undefined;
+			// A follow that waited for a location of the chat shown before does not apply to this one
+			this._followWhenLocated = undefined;
 			if (!shown || shown.reason === 'open' || shown.reason === 'keepFolder') {
 				// The user's latest choice: no switch asked for before applies, also where this chat moves nothing
 				this._request++;
@@ -194,8 +213,9 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 				this._follow(this._shown, shown?.reason === 'commit');
 			} else if (this._shown) {
 				// A restored chat moves nothing, but the folder follows it as it comes to work elsewhere
-				this._shown.workingDirectory = this._workingDirectory(this._shown.resource);
 				this._watchWorkingDirectory(this._shown);
+				this._shown.workingDirectory = this._workingDirectory(this._shown.resource);
+				this._shown.sessionStateKnown = this._isSessionStateKnown(this._shown);
 			}
 		}));
 
@@ -225,6 +245,17 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			// The user moved the folder themselves, such as in the window's title: the last chat opened there shows
 			if (!own && e.reason === 'user' && this._enabled) {
 				this._openLastSession(e.folder);
+			}
+		}));
+		this._register(_folderLocationService.onDidChangeLocations(() => {
+			this._locationsChanges++;
+			// A folder the shown chat works in that was no location of the window's folder may be one now
+			const followWhenLocated = this._followWhenLocated;
+			if (followWhenLocated) {
+				this._followWhenLocated = undefined;
+				if (followWhenLocated.shown === this._shown && followWhenLocated.request === this._request) {
+					this._follow(followWhenLocated.shown, true);
+				}
 			}
 		}));
 		this._register(_terminalService.onDidCreateInstance(instance => {
@@ -283,25 +314,55 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	/**
 	 * Where the chat of `resource` works: a chat of the editor window's session layer, such as one the chat part shows, as its
-	 * local agent host session has it; else a local agent host session of the Chat view's list, as the agent sessions model
-	 * has it.
+	 * local agent host session has it; else a chat of the Chat view's list, as the local agent host's state of its session has
+	 * it while the chat shows, else as the agent sessions model has its session.
 	 */
 	private _workingDirectory(resource: URI): URI | undefined {
 		const chat = this._chatResolver.resolve(resource);
 		if (chat) {
-			return chat.workingDirectory;
+			return chat.workingDirectory.get();
 		}
 		if (!isLocalAgentHostTarget(resource.scheme)) {
 			return undefined;
 		}
+		const fromSessionState = this._sessionStateWorkingDirectory(resource);
+		if (fromSessionState) {
+			return fromSessionState;
+		}
 		const path = this._agentSessionsService.getSession(resource)?.metadata?.workingDirectoryPath;
 		return typeof path === 'string' && path ? URI.file(path) : undefined;
+	}
+
+	/**
+	 * Where the shown chat of `resource` works as the local agent host's state of its session has it: where it works on its
+	 * own, such as once only this chat of its session moved to a worktree, else where its session works. The Chat view's list
+	 * has only where the session works, for each of its chats.
+	 */
+	private _sessionStateWorkingDirectory(resource: URI): URI | undefined {
+		const watched = this._watched;
+		const sessionState = watched && extUriBiasedIgnorePathCase.isEqual(watched.shown.resource, resource) ? watched.sessionState : undefined;
+		const state = sessionState?.subscription.value;
+		if (!sessionState || !state || state instanceof Error) {
+			return undefined;
+		}
+		const chat = resource.fragment ? getSessionChatResource(state, resource.fragment, state.defaultChat) : state.defaultChat;
+		const directory = state.chats.find(candidate => candidate.resource.toString() === chat?.toString())?.workingDirectories?.[0] ?? state.workingDirectories?.[0];
+		return directory === undefined ? undefined : sessionState.connection.resourceUris.fromAgentHost(URI.parse(directory.toString()));
+	}
+
+	/** Whether the local agent host's state of the session of the `shown` chat is known. */
+	private _isSessionStateKnown(shown: IShownChat): boolean {
+		const state = this._watched?.shown === shown ? this._watched.sessionState?.subscription.value : undefined;
+		return !!state && !(state instanceof Error);
 	}
 
 	/** Where {@link _workingDirectory} found the working directory of `resource`, for the trace. */
 	private _workingDirectorySource(resource: URI): string {
 		if (this._chatResolver.resolve(resource)) {
 			return 'session layer';
+		}
+		if (this._sessionStateWorkingDirectory(resource)) {
+			return 'agent host session state';
 		}
 		return isLocalAgentHostTarget(resource.scheme) && this._agentSessionsService.getSession(resource) ? 'Chat view sessions list' : 'none';
 	}
@@ -314,23 +375,92 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		return !LocalChatSessionUri.isLocalSession(resource);
 	}
 
-	/** Follows the shown agent host session on its own as its working directory becomes known or changes. */
+	/**
+	 * Follows the shown agent host chat on its own as its working directory becomes known or changes: also where only that
+	 * chat of its session comes to work elsewhere, which its session layer, or the local agent host's state of its session
+	 * held while it shows, tells.
+	 */
 	private _watchWorkingDirectory(shown: IShownChat): void {
-		if (!this._isFollowable(shown.resource)) {
+		if (!this._isFollowable(shown.resource) || this._watched?.shown === shown) {
 			return;
 		}
-		this._sessionsListener.value = Event.any(this._agentSessionsService.model.onDidChangeSessions, this._chatResolver.onDidChange)(() => {
+		const store = new DisposableStore();
+		const watched: { readonly shown: IShownChat; sessionState: { readonly subscription: IAgentSubscription<SessionState>; readonly connection: IAgentConnection; readonly backendSession: URI } | undefined } = { shown, sessionState: undefined };
+		const onDidChange = () => {
+			if (this._shown !== shown) {
+				return;
+			}
+			// The state of its session, known after its listing, tells where the chat works, not that it changed
+			const sessionStateKnown = this._isSessionStateKnown(shown);
+			const firstKnown = sessionStateKnown && !shown.sessionStateKnown;
+			shown.sessionStateKnown = shown.sessionStateKnown || sessionStateKnown;
 			const workingDirectory = this._workingDirectory(shown.resource);
-			if (this._shown !== shown || !workingDirectory || extUriBiasedIgnorePathCase.isEqual(workingDirectory, shown.workingDirectory)) {
+			if (!workingDirectory || extUriBiasedIgnorePathCase.isEqual(workingDirectory, shown.workingDirectory)) {
 				return;
 			}
 			// A restored chat's working directory, first known only as the sessions list loads, is where it works, not a change
-			const change = !!shown.workingDirectory || shown.followOnceKnown;
+			const change = shown.followOnceKnown || (!!shown.workingDirectory && !firstKnown);
 			shown.workingDirectory = workingDirectory;
 			if (change) {
 				this._follow(shown, true);
 			}
-		});
+		};
+		store.add(Event.any<unknown>(this._agentSessionsService.model.onDidChangeSessions, this._chatResolver.onDidChange)(onDidChange));
+		const resolverChanged = observableSignalFromEvent(this, this._chatResolver.onDidChange);
+		store.add(runOnChange(derived(reader => {
+			resolverChanged.read(reader);
+			return this._chatResolver.resolve(shown.resource)?.workingDirectory.read(reader);
+		}), onDidChange));
+		const subscription = store.add(new MutableDisposable<DisposableStore>());
+		/** Holds the local agent host's state of the session the chat resolves to now; whether it holds another than it did. */
+		const subscribe = (): boolean => {
+			const resolution = this._resolveLocalSession(shown.resource);
+			const held = watched.sessionState;
+			if (!resolution || (held && isEqual(held.backendSession, resolution.backendSession) && !(held.subscription.value instanceof Error))) {
+				return false;
+			}
+			const subscriptionStore = new DisposableStore();
+			const sessionState = subscriptionStore.add(resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostWorktreeContribution')).object;
+			subscriptionStore.add(sessionState.onDidChange(onDidChange));
+			// A session its first request just made may not be on its local agent host yet as it shows: it subscribes again once it is
+			subscriptionStore.add(retrySessionConfigSubscriptionOnCreation(resolution.connection, resolution.backendSession, sessionState, () => {
+				if (subscribe()) {
+					onDidChange();
+				}
+			}));
+			subscription.value = subscriptionStore;
+			watched.sessionState = { subscription: sessionState, connection: resolution.connection, backendSession: resolution.backendSession };
+			return true;
+		};
+		subscribe();
+		if (isLocalAgentHostTarget(shown.resource.scheme)) {
+			// A session its first request just made resolves to the session its local agent host advertises only once that is known
+			store.add(this._connectionsService.onDidChangeSessionResolution(() => {
+				if (subscribe()) {
+					onDidChange();
+				}
+			}));
+		}
+		store.add(toDisposable(() => {
+			if (this._watched?.shown === shown) {
+				this._watched = undefined;
+			}
+		}));
+		this._sessionsListener.value = store;
+		this._watched = watched;
+	}
+
+	/**
+	 * The local agent host session that the Chat view's chat of `resource` is, as that host advertises it, with its connection:
+	 * its state tells where each of its chats works. None while only a guess of it is known, such as for a session its first
+	 * request just made, which names no session of the host.
+	 */
+	private _resolveLocalSession(resource: URI): { readonly connection: IAgentConnection; readonly backendSession: URI } | undefined {
+		if (!isLocalAgentHostTarget(resource.scheme)) {
+			return undefined;
+		}
+		const resolution = this._connectionsService.resolveSessionResource(resource.with({ fragment: '' }));
+		return resolution?.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY && resolution.backendSessionIsAdvertised ? resolution : undefined;
 	}
 
 	/** Whether the chat of `resource` is archived, which moves the folder nowhere. */
@@ -351,10 +481,11 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		if (LocalChatSessionUri.isLocalSession(shown.resource)) {
 			target = primary;
 		} else if (this._isFollowable(shown.resource)) {
-			shown.workingDirectory = this._workingDirectory(shown.resource);
-			this._trace(`working directory of ${shown.resource.toString()}: ${shown.workingDirectory?.toString() ?? 'unknown'} (from ${this._workingDirectorySource(shown.resource)})`);
 			// Not listed with its working directory yet, such as a session its first request just started: it follows as it is
 			this._watchWorkingDirectory(shown);
+			shown.workingDirectory = this._workingDirectory(shown.resource);
+			shown.sessionStateKnown = shown.sessionStateKnown || this._isSessionStateKnown(shown);
+			this._trace(`working directory of ${shown.resource.toString()}: ${shown.workingDirectory?.toString() ?? 'unknown'} (from ${this._workingDirectorySource(shown.resource)})`);
 			target = shown.workingDirectory && this._toWindowForm(shown.workingDirectory, [folder.uri, primary]);
 		}
 		// An archived chat moves nothing: the folder does not go to a worktree only archived chats work in. It is still watched,
@@ -405,6 +536,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private async _switch(session: URI, primary: URI, target: URI, foreground: number | undefined): Promise<void> {
 		const automatic = foreground !== undefined;
 		const request = ++this._request;
+		const locationsChanges = this._locationsChanges;
 		let direction: WorktreeFolderSwitchDirection = 'toPrimary';
 		this._switching++;
 		try {
@@ -424,6 +556,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 					target = primary;
 				} else {
 					this._trace(`not switched: ${target.toString()} ${exists ? `is no location of ${primary.toString()}` : 'does not exist'}`);
+					if (exists && request === this._request && this._shown && extUriBiasedIgnorePathCase.isEqual(this._shown.resource, session)) {
+						// Not a location yet: it follows once the locations change, or once this settles where they changed meanwhile
+						if (this._locationsChanges !== locationsChanges) {
+							this._followWhenIdle = { shown: this._shown, request };
+						} else {
+							this._followWhenLocated = { shown: this._shown, request };
+						}
+					}
 					if (!exists) {
 						if (request === this._request && !automatic) {
 							this._notificationService.info(localize('worktree.missing', "The folder {0} of this chat no longer exists.", this._labelService.getUriLabel(target, { noPrefix: true })));

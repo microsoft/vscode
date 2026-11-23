@@ -6878,6 +6878,44 @@ suite('CopilotAgentSession', () => {
 		});
 	}));
 
+	test('lists canvases without waiting for an extension that waits for consent to load', () => runWithFakedTimers({}, async () => {
+		const results: Record<string, { listed: string[] | undefined; waitedMs: number }> = {};
+		for (const asked of ['beforeListing', 'whileListing'] as const) {
+			const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+			let consent: Promise<unknown> | undefined;
+			const askToLoad = () => consent = captureRuntime.current!.handlePermissionRequest({ kind: 'extension-env-access', extensionName: 'user:demo', environmentVariables: ['DEMO_TOKEN'] }, { sessionId: 'test-session-1' });
+			const { session, mockSession } = await createAgentSession(disposables, {
+				captureRuntime,
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'running' }, { id: 'user:demo', name: 'demo', source: 'user', status: 'starting' });
+					mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.' });
+					if (asked === 'beforeListing') {
+						mock.onExtensionList = () => {
+							mock.onExtensionList = undefined;
+							askToLoad();
+						};
+					}
+				},
+			});
+			if (asked === 'whileListing') {
+				// The extension asks only once the listing saw it starting.
+				mockSession.onExtensionList = () => {
+					mockSession.onExtensionList = undefined;
+					setTimeout(askToLoad, 100);
+				};
+			}
+			const start = Date.now();
+			const listed = await session.listSettledCanvases(60_000);
+			results[asked] = { listed: listed?.map(canvas => canvas.canvasId), waitedMs: Date.now() - start };
+			session.dispose();
+			await consent;
+		}
+		assert.deepStrictEqual(results, {
+			beforeListing: { listed: ['board'], waitedMs: 0 },
+			whileListing: { listed: ['board'], waitedMs: 100 },
+		});
+	}));
+
 	test('reports canvas readiness errors with only observed counts and preserves the rejection', async () => {
 		const results = [];
 		for (const stage of ['extensionList', 'canvasList'] as const) {
@@ -21713,6 +21751,38 @@ Use the attached image as context.
 					asked: { kind: 'consentRequired', consent: consent('user:demo', true) }, opened: { kind: 'opened' }, desynchronized: false, actions: [],
 					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
 					nextAnswer: { kind: 'approve-once' },
+				});
+			});
+
+			test('shows an open that starts its extension the request another starting extension waits on, but not an open of a running one', async () => {
+				const { session, runtime, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10 });
+				mockSession.extensions.push(
+					{ id: 'user:lazy', name: 'lazy', source: 'user', status: 'dormant' },
+					{ id: 'user:live', name: 'live', source: 'user', status: 'running' },
+				);
+				// The runtime does not finish starting an extension while another one waits for consent.
+				const otherAnswer = runtime.handlePermissionRequest(envRequest('user:other'));
+				const runtimeOpens: string[] = [];
+				mockSession.rpc.canvas.open = async params => {
+					runtimeOpens.push(params.extensionId ?? '');
+					if (params.extensionId === 'user:lazy') {
+						await otherAnswer;
+					}
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const live = await session.openCanvas(canvasRequest('user:live'));
+				const asked = await session.openCanvas(canvasRequest('user:lazy'));
+				const runtimeOpensBeforeAnswer = [...runtimeOpens];
+				const opened = asked.kind === 'consentRequired'
+					? await session.openCanvas(canvasRequest('user:lazy'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow })
+					: asked;
+				assert.deepStrictEqual({ live, asked: withoutId(asked), runtimeOpensBeforeAnswer, opened, otherAnswer: await otherAnswer }, {
+					live: { kind: 'opened' },
+					asked: { kind: 'consentRequired', consent: { ...consent('user:other', true), displayName: 'other' } },
+					// The runtime fails a start that waits too long, so the open starts the extension only once the person answered.
+					runtimeOpensBeforeAnswer: ['user:live'],
+					opened: { kind: 'opened' },
+					otherAnswer: { kind: 'approve-once' },
 				});
 			});
 

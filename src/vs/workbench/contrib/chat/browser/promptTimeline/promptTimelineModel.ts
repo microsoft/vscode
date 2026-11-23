@@ -183,11 +183,10 @@ export class PromptTimelineModel extends Disposable {
 	get ticks(): IObservable<readonly PromptTick[]> { return this._ticks; }
 
 	/**
-	 * One tick per user prompt — unbucketed and uncapped. The
-	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
-	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
+	 * One navigation target per loaded user prompt. Unlike the ruler's {@link ticks}, the gutter
+	 * must not subscribe to file changes for the entire conversation just to display prompt titles.
 	 */
-	private readonly _basePromptTicks = derived<readonly PromptTick[]>(this, reader => {
+	readonly promptTicks = derived<readonly PromptTick[]>(this, reader => {
 		const prompts = this._prompts.read(reader);
 		return prompts.map((prompt): PromptTick => ({
 			requestId: prompt.requestId,
@@ -198,8 +197,6 @@ export class PromptTimelineModel extends Disposable {
 			ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
 		}));
 	});
-	private readonly _promptTicks = this._withDiffStats(this._basePromptTicks);
-	get promptTicks(): IObservable<readonly PromptTick[]> { return this._promptTicks; }
 
 	private _withDiffStats(ticks: IObservable<readonly PromptTick[]>): IObservable<readonly PromptTick[]> {
 		const ticksWithStats = mapObservableArrayCached(this, ticks, tick => derivedOpts<PromptTick>({
