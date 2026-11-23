@@ -694,14 +694,21 @@ describe('CopilotCLISessionService', () => {
 	});
 
 	describe('CopilotCLISessionService.getAllSessions', () => {
-		async function writeAgentHostMetadata(userDataPath: string, sessionId: string, workingDirectory?: string): Promise<void> {
+		async function writeAgentHostMetadata(userDataPath: string, sessionId: string, workingDirectory?: string, options?: { legacySchemaWithoutTurnId?: boolean }): Promise<void> {
 			const directory = join(userDataPath, 'agentSessionData', sessionId);
 			await mkdir(directory, { recursive: true });
 			const db = new DatabaseSync(join(directory, 'session.db'));
 			try {
-				db.exec('CREATE TABLE IF NOT EXISTS session_metadata (key TEXT, value TEXT, turn_id TEXT)');
-				if (workingDirectory !== undefined) {
-					db.prepare('INSERT INTO session_metadata (key, value, turn_id) VALUES (?, ?, NULL)').run('copilot.workingDirectory', workingDirectory);
+				if (options?.legacySchemaWithoutTurnId) {
+					db.exec('CREATE TABLE IF NOT EXISTS session_metadata (key TEXT, value TEXT)');
+					if (workingDirectory !== undefined) {
+						db.prepare('INSERT INTO session_metadata (key, value) VALUES (?, ?)').run('copilot.workingDirectory', workingDirectory);
+					}
+				} else {
+					db.exec('CREATE TABLE IF NOT EXISTS session_metadata (key TEXT, value TEXT, turn_id TEXT)');
+					if (workingDirectory !== undefined) {
+						db.prepare('INSERT INTO session_metadata (key, value, turn_id) VALUES (?, ?, NULL)').run('copilot.workingDirectory', workingDirectory);
+					}
 				}
 			} finally {
 				db.close();
@@ -714,6 +721,7 @@ describe('CopilotCLISessionService', () => {
 			const globalStorageUri = URI.file(join(tempStateHome, 'User', 'globalStorage', 'github.copilot-chat'));
 			fileSystem.mockDirectory(URI.file(join(tempStateHome, 'agentSessionData')), [
 				['legacy-owned', FileType.Directory],
+				['legacy-v2-owned', FileType.Directory],
 				['deferred-adoption', FileType.Directory],
 				['empty-cwd', FileType.Directory],
 				['missing-db', FileType.Directory],
@@ -721,6 +729,7 @@ describe('CopilotCLISessionService', () => {
 				['not-a-session', FileType.File],
 			]);
 			await writeAgentHostMetadata(tempStateHome, 'legacy-owned', URI.file('/workspace').toString());
+			await writeAgentHostMetadata(tempStateHome, 'legacy-v2-owned', URI.file('/workspace-v2').toString(), { legacySchemaWithoutTurnId: true });
 			await writeAgentHostMetadata(tempStateHome, 'deferred-adoption');
 			await writeAgentHostMetadata(tempStateHome, 'empty-cwd', '');
 			await mkdir(join(tempStateHome, 'agentSessionData', 'missing-db'), { recursive: true });
@@ -734,6 +743,7 @@ describe('CopilotCLISessionService', () => {
 			const sessions = [
 				{ id: 'agent-host', clientName: 'vscode-agent-host' },
 				{ id: 'legacy:owned', clientName: 'vscode' },
+				{ id: 'legacy-v2-owned', clientName: 'vscode' },
 				{ id: 'deferred-adoption', clientName: 'vscode' },
 				{ id: 'empty-cwd', clientName: 'vscode' },
 				{ id: 'missing-db', clientName: 'vscode' },
