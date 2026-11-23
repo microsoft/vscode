@@ -20,7 +20,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
-import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { OS } from '../../../../base/common/platform.js';
@@ -74,7 +74,7 @@ import { IWorkbenchThemeService } from '../../../services/themes/common/workbenc
 import { GettingStartedIndexList } from './gettingStartedList.js';
 import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic, AgentsWindowGraphicDesign } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowGraphicVariant } from '../../chat/common/constants.js';
+import { AgentsWindowGraphicVariant, getWelcomePageCardSurface } from '../../chat/common/constants.js';
 import { GettingStartedFocusOutline } from './gettingStartedFocusOutline.js';
 import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -991,6 +991,10 @@ export class GettingStartedPage extends EditorPane {
 		const footer = $('.footer', {}, ...footerChildren);
 		const categoriesContainer = $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,);
 		const graphic = derived(reader => agentsBanner.visible.read(reader) ? agentsWindowGraphic.shownDesign.read(reader) : undefined);
+		const cardSurface = observableFromEvent(this,
+			this.configurationService.onDidChangeConfiguration,
+			() => getWelcomePageCardSurface(this.configurationService),
+		);
 		const layoutAgentsWindowGraphic = () => this.fitAgentsWindowGraphic(categoriesContainer, graphic.get());
 
 		const layoutLists = () => {
@@ -1041,6 +1045,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 			categoriesContainer.setAttribute('data-agents-window-graphic', shownGraphic ?? AgentsWindowGraphicVariant.None);
 			categoriesContainer.setAttribute('data-agents-window-section-style', agentsWindowGraphic.sectionStyle.read(reader));
+			categoriesContainer.setAttribute('data-welcome-card-surface', cardSurface.read(reader));
 			layoutAgentsWindowGraphic();
 		}));
 		this.layoutAgentsWindowGraphic = layoutAgentsWindowGraphic;

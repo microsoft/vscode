@@ -75,10 +75,11 @@ export interface IAgentsBannerOptions {
 	 * applies to that graphic. It doesn't wait for the page to decide whether the graphic fits, because the
 	 * style changes that decision.
 	 *
-	 * The triggers of {@link AGENTS_WINDOW_BANNER_TITLE_TREATMENT} and {@link AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT}
-	 * are logged in the same moment once `design` is {@link AgentsWindowGraphicVariant.Banner} and `bannerCopyResolved` is
-	 * true, that is, once the banner shows the text of the user's experiment arm. None of the triggers depends on whether
-	 * the user hid the graphic.
+	 * The trigger of {@link ChatConfiguration.WelcomePageCardSurface} is logged in the same moment once `design` is
+	 * {@link AgentsWindowGraphicVariant.Banner}, since the surface applies to the banner. The triggers of
+	 * {@link AGENTS_WINDOW_BANNER_TITLE_TREATMENT} and {@link AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT} are logged once,
+	 * in addition, `bannerCopyResolved` is true, that is, once the banner shows the text of the user's experiment arm.
+	 * None of the triggers depends on whether the user hid the graphic.
 	 *
 	 * While `shownDesign` is {@link AgentsWindowGraphicVariant.Banner}, the button is the banner's primary action.
 	 * While a graphic is shown, the banner's context menu offers to hide it with `hide`.
@@ -132,9 +133,12 @@ export function createAgentsBanner(
 			if (selected === AgentsWindowGraphicVariant.WindowComparison) {
 				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageAgentsWindowSectionStyle);
 			}
-			if (selected === AgentsWindowGraphicVariant.Banner && bannerCopyResolved.read(reader)) {
-				logExperimentTrigger(telemetryService, AGENTS_WINDOW_BANNER_TITLE_TREATMENT);
-				logExperimentTrigger(telemetryService, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT);
+			if (selected === AgentsWindowGraphicVariant.Banner) {
+				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageCardSurface);
+				if (bannerCopyResolved.read(reader)) {
+					logExperimentTrigger(telemetryService, AGENTS_WINDOW_BANNER_TITLE_TREATMENT);
+					logExperimentTrigger(telemetryService, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT);
+				}
 			}
 		}));
 		registerHideGraphicContextMenu(element, button, options.graphic, contextMenuService, telemetryService, disposables);

@@ -1127,6 +1127,13 @@
 	background-color: var(--vscode-welcomePage-tileBackground);
 }
 
+/* With the tint surface (`chat.welcomePage.cardSurface`), an accent-tinted surface sets the banner apart instead. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-welcome-card-surface="tint"][data-agents-window-graphic="banner"] > .agents-banner {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-spacious[data-agents-window-graphic="banner"] > .agents-banner {
 	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size320);
 	padding: var(--vscode-spacing-size200) var(--vscode-spacing-size280);

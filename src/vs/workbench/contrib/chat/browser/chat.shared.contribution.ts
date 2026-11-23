@@ -76,7 +76,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, WelcomePageCardSurface } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -2484,6 +2484,18 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while {0} is `windowComparison`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
 			default: AgentsWindowSectionStyle.Outline,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageCardSurface]: {
+			type: 'string',
+			enum: [WelcomePageCardSurface.Neutral, WelcomePageCardSurface.Tint],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.cardSurface.neutral', "Show the cards on a neutral surface, like the walkthrough tiles."),
+				nls.localize('chat.welcomePage.cardSurface.tint', "Show the cards on a surface tinted with the accent color."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.cardSurface', "Controls the surface of the Welcome page's cards that promote a feature, such as the Agents window banner, which is shown while {0} is `banner`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
+			default: WelcomePageCardSurface.Neutral,
+			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {

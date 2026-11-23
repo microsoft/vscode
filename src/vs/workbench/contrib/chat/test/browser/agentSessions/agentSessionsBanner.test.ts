@@ -381,6 +381,7 @@ suite('AgentsBanner graphic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const graphicTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowGraphic}`;
 	const sectionStyleTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowSectionStyle}`;
+	const cardSurfaceTreatment = `config.${ChatConfiguration.WelcomePageCardSurface}`;
 	const bannerCopyTreatments = [AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT];
 	const account = new class extends mock<IDefaultAccount>() { }();
 	const defaultAccountService = new class extends mock<IDefaultAccountService>() {
@@ -542,11 +543,11 @@ suite('AgentsBanner graphic', () => {
 			createBannerWithGraphic(variant, telemetryService);
 			steps.push(await triggers());
 
-			// The section style only applies to the window comparison, and the copy only to the banner, so their triggers wait for that graphic.
+			// The section style only applies to the window comparison, and the card surface and copy only to the banner, so their triggers wait for that graphic.
 			const shown = [
 				graphicTreatment,
 				...(variant === AgentsWindowGraphicVariant.WindowComparison ? [sectionStyleTreatment] : []),
-				...(variant === AgentsWindowGraphicVariant.Banner ? bannerCopyTreatments : []),
+				...(variant === AgentsWindowGraphicVariant.Banner ? [cardSurfaceTreatment, ...bannerCopyTreatments] : []),
 			];
 			assert.deepStrictEqual(steps, [[], [], shown, shown]);
 		});
@@ -565,7 +566,7 @@ suite('AgentsBanner graphic', () => {
 
 		assert.deepStrictEqual(states, [
 			{ shown: undefined, graphic: 'none', button: 'Sign in to GitHub', triggers: [] },
-			{ shown: 'banner', graphic: '', button: 'Open Agents Window', triggers: [graphicTreatment, ...bannerCopyTreatments] },
+			{ shown: 'banner', graphic: '', button: 'Open Agents Window', triggers: [graphicTreatment, cardSurfaceTreatment, ...bannerCopyTreatments] },
 		]);
 	});
 
@@ -577,7 +578,7 @@ suite('AgentsBanner graphic', () => {
 		await banner.setVariant(AgentsWindowGraphicVariant.WindowComparison);
 		steps.push([...telemetryService.triggers]);
 
-		assert.deepStrictEqual(steps, [[graphicTreatment, ...bannerCopyTreatments], [graphicTreatment, ...bannerCopyTreatments, sectionStyleTreatment]]);
+		assert.deepStrictEqual(steps, [[graphicTreatment, cardSurfaceTreatment, ...bannerCopyTreatments], [graphicTreatment, cardSurfaceTreatment, ...bannerCopyTreatments, sectionStyleTreatment]]);
 	});
 
 	for (const variant of [AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.Banner]) {
@@ -591,7 +592,7 @@ suite('AgentsBanner graphic', () => {
 			// Only users who see a graphic can hide it, so the triggers ignore that it is hidden.
 			assert.deepStrictEqual({ shown: banner.shownDesign(), triggers: telemetryService.triggers }, {
 				shown: undefined,
-				triggers: [graphicTreatment, ...(variant === AgentsWindowGraphicVariant.WindowComparison ? [sectionStyleTreatment] : bannerCopyTreatments)],
+				triggers: [graphicTreatment, ...(variant === AgentsWindowGraphicVariant.WindowComparison ? [sectionStyleTreatment] : [cardSurfaceTreatment, ...bannerCopyTreatments])],
 			});
 		});
 	}
@@ -611,8 +612,8 @@ suite('AgentsBanner graphic', () => {
 			// Until the treatments have been read, every arm shows the default title, so the copy triggers wait for them.
 			const defaultTitle = 'All your agents, across all your projects, in one window';
 			assert.deepStrictEqual({ before, after: { triggers: [...telemetryService.triggers], title: banner.title() } }, {
-				before: { triggers: [graphicTreatment], title: defaultTitle },
-				after: { triggers: [graphicTreatment, ...bannerCopyTreatments], title: title ?? defaultTitle },
+				before: { triggers: [graphicTreatment, cardSurfaceTreatment], title: defaultTitle },
+				after: { triggers: [graphicTreatment, cardSurfaceTreatment, ...bannerCopyTreatments], title: title ?? defaultTitle },
 			});
 		});
 	}
