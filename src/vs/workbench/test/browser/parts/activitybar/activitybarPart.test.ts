@@ -9,7 +9,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { TestStorageService } from '../../../common/workbenchTestServices.js';
+import { TestExtensionService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ActivitybarPart, ActivityBarCompositeBar } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
@@ -17,12 +17,16 @@ import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenc
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
-import { IPaneCompositeBarOptions } from '../../../../browser/parts/paneCompositeBar.js';
+import { IPaneCompositeBarOptions, PaneCompositeBar } from '../../../../browser/parts/paneCompositeBar.js';
+import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { IActivityService } from '../../../../services/activity/common/activity.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -1143,6 +1147,101 @@ suite('ActivitybarPart', () => {
 			{ left: openMenu('left'), right: openMenu('right') },
 			{ left: { opened: true, opensLeftward: false }, right: { opened: true, opensLeftward: true } }
 		);
+	});
+
+	// --- pinned view containers -------------------------------------------------
+
+	interface IStoredPinnedViewContainer {
+		readonly id: string;
+		readonly pinned: boolean;
+		readonly visible: boolean;
+	}
+
+	function createViewContainer(id: string): ViewContainer {
+		return { id, title: { value: id, original: id }, ctorDescriptor: new SyncDescriptor(ViewPaneContainer) };
+	}
+
+	/**
+	 * Creates a bar for the view containers of the side bar while extensions are not registered yet. The given view
+	 * containers are in the side bar unless the given locations say otherwise.
+	 */
+	function createPaneCompositeBar(pinned: IStoredPinnedViewContainer[], viewContainers: ViewContainer[], viewContainerLocations: Record<string, ViewContainerLocation> = {}) {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IExtensionService, new class extends TestExtensionService {
+			override whenInstalledExtensionsRegistered(): Promise<boolean> { return new Promise(() => { }); }
+		}());
+		instantiationService.stub(IActivityService, new class extends mock<IActivityService>() {
+			override readonly onDidChangeActivity = Event.None;
+			override getViewContainerActivities() { return []; }
+		});
+		const locations = new Map(Object.entries(viewContainerLocations));
+		const getLocation = (viewContainer: ViewContainer) => locations.get(viewContainer.id) ?? ViewContainerLocation.Sidebar;
+		const onDidChangeContainerLocation = disposables.add(new Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>());
+		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+			override readonly onDidChangeContainerLocation = onDidChangeContainerLocation.event;
+			override readonly onDidChangeViewContainers = Event.None;
+			override getViewContainersByLocation(location: ViewContainerLocation) { return viewContainers.filter(viewContainer => getLocation(viewContainer) === location); }
+			override getViewContainerById(id: string) { return viewContainers.find(viewContainer => viewContainer.id === id) ?? null; }
+			override getViewContainerLocation(viewContainer: ViewContainer) { return getLocation(viewContainer); }
+			override getViewContainerModel(viewContainer: ViewContainer) {
+				return new class extends mock<IViewContainerModel>() {
+					override readonly viewContainer = viewContainer;
+					override readonly title = viewContainer.title.value;
+					override readonly allViewDescriptors = [];
+					override readonly activeViewDescriptors = [];
+					override readonly onDidChangeContainerInfo = Event.None;
+					override readonly onDidChangeActiveViewDescriptors = Event.None;
+				};
+			}
+		});
+		const storageService = instantiationService.get(IStorageService);
+		const storePinned = (entries: IStoredPinnedViewContainer[]) => storageService.store(ActivitybarPart.pinnedViewContainersKey, JSON.stringify(entries), StorageScope.PROFILE, StorageTarget.USER);
+		storePinned(pinned);
+
+		return {
+			createBar: () => disposables.add(instantiationService.createInstance(PaneCompositeBar, ViewContainerLocation.Sidebar, activityBarOptions, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart())),
+			storageService,
+			storePinned,
+			getStoredPinned: () => JSON.parse(storageService.get(ActivitybarPart.pinnedViewContainersKey, StorageScope.PROFILE, '[]')),
+			moveViewContainer: (viewContainer: ViewContainer, to: ViewContainerLocation) => {
+				const from = getLocation(viewContainer);
+				locations.set(viewContainer.id, to);
+				onDidChangeContainerLocation.fire({ viewContainer, from, to });
+			}
+		};
+	}
+
+	test('a bar follows changes of its pinned view containers before extensions are registered', () => {
+		const { createBar, storePinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
+		const bar = createBar();
+
+		// Another window changes the pinned view containers while this window starts
+		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
+
+		assert.deepStrictEqual(bar.getPinnedPaneCompositeIds(), ['search']);
+	});
+
+	test('a bar that a view container moves to keeps the pinned view containers that another window saved with the move', () => {
+		const viewContainer = createViewContainer('test');
+		const { createBar, storageService, storePinned, getStoredPinned, moveViewContainer } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [viewContainer], { test: ViewContainerLocation.Panel });
+
+		// Storage applies all changes of another window before it reports them, so the view container
+		// can move here before the bar learns about the pinned view containers saved with the move
+		let moved = false;
+		disposables.add(storageService.onDidChangeValue(StorageScope.PROFILE, ActivitybarPart.pinnedViewContainersKey, disposables)(() => {
+			if (!moved) {
+				moved = true;
+				moveViewContainer(viewContainer, ViewContainerLocation.Sidebar);
+			}
+		}));
+		createBar();
+		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
+
+		assert.deepStrictEqual(getStoredPinned(), [
+			{ id: 'search', pinned: true, visible: true },
+			{ id: 'explorer', pinned: false, visible: true },
+			{ id: 'test', pinned: true, visible: false }
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
