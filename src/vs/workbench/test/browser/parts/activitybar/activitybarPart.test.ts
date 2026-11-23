@@ -1177,6 +1177,27 @@ suite('ActivitybarPart', () => {
 		const locations = new Map(Object.entries(viewContainerLocations));
 		const getLocation = (viewContainer: ViewContainer) => locations.get(viewContainer.id) ?? ViewContainerLocation.Sidebar;
 		const onDidChangeContainerLocation = disposables.add(new Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>());
+		class TestViewContainerModel extends mock<IViewContainerModel>() {
+			readonly onDidChangeContainerInfoEmitter = disposables.add(new Emitter<{ title?: boolean }>());
+			override readonly onDidChangeContainerInfo = this.onDidChangeContainerInfoEmitter.event;
+			override readonly allViewDescriptors = [];
+			override readonly activeViewDescriptors = [];
+			override readonly onDidChangeActiveViewDescriptors = Event.None;
+			override title: string;
+			constructor(override readonly viewContainer: ViewContainer) {
+				super();
+				this.title = viewContainer.title.value;
+			}
+		}
+		const viewContainerModels = new Map<string, TestViewContainerModel>();
+		const getViewContainerModel = (viewContainer: ViewContainer) => {
+			let model = viewContainerModels.get(viewContainer.id);
+			if (!model) {
+				model = new TestViewContainerModel(viewContainer);
+				viewContainerModels.set(viewContainer.id, model);
+			}
+			return model;
+		};
 		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 			override readonly onDidChangeContainerLocation = onDidChangeContainerLocation.event;
 			override readonly onDidChangeViewContainers = Event.None;
@@ -1184,16 +1205,7 @@ suite('ActivitybarPart', () => {
 			override getViewContainerById(id: string) { return viewContainers.find(viewContainer => viewContainer.id === id) ?? null; }
 			override getViewContainerLocation(viewContainer: ViewContainer) { return getLocation(viewContainer); }
 			override getViewContainerBadgeEnablementState() { return true; }
-			override getViewContainerModel(viewContainer: ViewContainer) {
-				return new class extends mock<IViewContainerModel>() {
-					override readonly viewContainer = viewContainer;
-					override readonly title = viewContainer.title.value;
-					override readonly allViewDescriptors = [];
-					override readonly activeViewDescriptors = [];
-					override readonly onDidChangeContainerInfo = Event.None;
-					override readonly onDidChangeActiveViewDescriptors = Event.None;
-				};
-			}
+			override getViewContainerModel(viewContainer: ViewContainer) { return getViewContainerModel(viewContainer); }
 		});
 		const storageService = instantiationService.get(IStorageService);
 		const storePinned = (entries: IStoredPinnedViewContainer[]) => storageService.store(ActivitybarPart.pinnedViewContainersKey, JSON.stringify(entries), StorageScope.PROFILE, StorageTarget.USER);
@@ -1206,6 +1218,11 @@ suite('ActivitybarPart', () => {
 			getStoredPinned: () => JSON.parse(storageService.get(ActivitybarPart.pinnedViewContainersKey, StorageScope.PROFILE, '[]')),
 			// What a bar knows about view containers whose extensions are not registered yet
 			storePlaceholders: (placeholders: { id: string; name: string; views: { when?: string }[] }[]) => storageService.store(ActivitybarPart.placeholderViewContainersKey, JSON.stringify(placeholders), StorageScope.PROFILE, StorageTarget.MACHINE),
+			renameViewContainer: (viewContainer: ViewContainer, title: string) => {
+				const model = getViewContainerModel(viewContainer);
+				model.title = title;
+				model.onDidChangeContainerInfoEmitter.fire({ title: true });
+			},
 			moveViewContainer: (viewContainer: ViewContainer, to: ViewContainerLocation) => {
 				const from = getLocation(viewContainer);
 				locations.set(viewContainer.id, to);
@@ -1251,11 +1268,12 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
 	});
 
+	// Like the panel, which measures its items
+	const measuringBarOptions: IPaneCompositeBarOptions = { ...activityBarOptions, orientation: ActionsOrientation.HORIZONTAL, compositeSize: 0, icon: false, overflowActionSize: 20, recomputeSizes: true };
+
 	test('a hidden bar measures the view container of an extension that another window added once it is shown again', () => {
-		// Like the panel, which measures its items
-		const options: IPaneCompositeBarOptions = { ...activityBarOptions, orientation: ActionsOrientation.HORIZONTAL, compositeSize: 0, icon: false, overflowActionSize: 20 };
 		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
-		const bar = createBar(options);
+		const bar = createBar(measuringBarOptions);
 		const parent = document.createElement('div');
 		fixture.appendChild(parent);
 		bar.create(parent);
@@ -1272,6 +1290,30 @@ suite('ActivitybarPart', () => {
 		bar.layout(explorerWidth + searchWidth, 35);
 
 		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
+	});
+
+	test('a hidden bar measures a view container again once it is shown, after its title changed', () => {
+		const search = createViewContainer('search');
+		const { createBar, renameViewContainer } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), search]);
+		const bar = createBar(measuringBarOptions);
+		const parent = document.createElement('div');
+		// Like the workbench styles, which the tests do not load, each item is as wide as its label
+		parent.classList.add('label-sized-items');
+		parent.appendChild(document.createElement('style')).textContent = '.label-sized-items .actions-container { display: flex; }';
+		fixture.appendChild(parent);
+		bar.create(parent);
+		bar.layout(100000, 35);
+		const [explorerWidth, searchWidth] = Array.from(parent.querySelectorAll('.composite-bar .action-item'), item => item.clientWidth);
+
+		// The part is hidden, and keeps the dimension of its bar. Then the title of a view container gets longer
+		parent.style.display = 'none';
+		renameViewContainer(search, 'search with a much longer title');
+
+		// Shown again with room for the two items shown before: the view container with the longer title overflows
+		parent.style.display = '';
+		bar.layout(explorerWidth + searchWidth, 35);
+
+		assert.deepStrictEqual(Array.from(parent.querySelectorAll('.composite-bar .action-item'), item => item.textContent), ['explorer', '']);
 	});
 
 	test('a bar that a view container moves to keeps the pinned view containers that another window saved with the move', () => {

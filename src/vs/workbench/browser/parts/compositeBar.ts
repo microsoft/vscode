@@ -347,8 +347,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			return;
 		}
 
-		// Compute the size of each composite that has none yet by getting the size from the css renderer, for example
-		// all of them on the first layout, or one that was added while the bar was hidden. Size is later used for overflow computation
+		// Compute the size of each composite that has none yet by getting the size from the css renderer, for example all of them
+		// on the first layout, or ones that changed while the bar was hidden. Size is later used for overflow computation
 		const itemsWithoutSize = this.model.visibleItems.filter(item => !this.compositeSizeInBar.has(item.id));
 		if (itemsWithoutSize.length) {
 			this.computeSizes(itemsWithoutSize);
@@ -513,7 +513,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
 		} else {
 			const compositeSwitcherBar = this.compositeSwitcherBar;
-			// The bar keeps its last dimension while its part is hidden, where items cannot be measured. They are measured at the next layout
 			if (compositeSwitcherBar && compositeSwitcherBar.getContainer().getClientRects().length > 0 && this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
 
 				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
@@ -524,6 +523,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					: compositeSwitcherBar.getWidth(currentItemsLength + index)
 				));
 				items.forEach(() => compositeSwitcherBar.pull(compositeSwitcherBar.viewItems.length - 1));
+			} else {
+				// The bar cannot measure while it is not rendered or not displayed, for example while its part is hidden, where it
+				// keeps its last dimension. A size measured before may be outdated, for example after a label changed. The next layout measures the items
+				items.forEach(composite => this.compositeSizeInBar.delete(composite.id));
 			}
 		}
 	}
