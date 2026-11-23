@@ -131,13 +131,6 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
-function getLastCharacter(text: string): string {
-	if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
-		return isHighSurrogate(text.charCodeAt(text.length - 2)) ? text.slice(-2) : '';
-	}
-	return text.charAt(text.length - 1);
-}
-
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
@@ -290,32 +283,39 @@ export class SuggestModel implements IDisposable {
 	 * does. Returns `false` when it isn't a trigger character.
 	 */
 	private _triggerOnLastCharacter(text: string): boolean {
-		const lastChar = getLastCharacter(text);
-		const supports = this._supportsByTriggerCharacter.get(lastChar);
-		if (!supports) {
-			return false;
+		let lastChar = '';
+		if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
+			if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
+				lastChar = text.substr(text.length - 2);
+			}
+		} else {
+			lastChar = text.charAt(text.length - 1);
 		}
 
-		// keep existing items that where not computed by the
-		// supports/providers that want to trigger now
-		const providerItemsToReuse = new Map<CompletionItemProvider, CompletionItem[]>();
-		if (this._completionModel) {
-			for (const [provider, items] of this._completionModel.getItemsByProvider()) {
-				if (!supports.has(provider)) {
-					providerItemsToReuse.set(provider, items);
+		const supports = this._supportsByTriggerCharacter.get(lastChar);
+		if (supports) {
+
+			// keep existing items that where not computed by the
+			// supports/providers that want to trigger now
+			const providerItemsToReuse = new Map<CompletionItemProvider, CompletionItem[]>();
+			if (this._completionModel) {
+				for (const [provider, items] of this._completionModel.getItemsByProvider()) {
+					if (!supports.has(provider)) {
+						providerItemsToReuse.set(provider, items);
+					}
 				}
 			}
-		}
 
-		this.trigger({
-			auto: true,
-			triggerKind: CompletionTriggerKind.TriggerCharacter,
-			triggerCharacter: lastChar,
-			retrigger: Boolean(this._completionModel),
-			clipboardText: this._completionModel?.clipboardText,
-			completionOptions: { providerFilter: supports, providerItemsToReuse }
-		});
-		return true;
+			this.trigger({
+				auto: true,
+				triggerKind: CompletionTriggerKind.TriggerCharacter,
+				triggerCharacter: lastChar,
+				retrigger: Boolean(this._completionModel),
+				clipboardText: this._completionModel?.clipboardText,
+				completionOptions: { providerFilter: supports, providerItemsToReuse }
+			});
+		}
+		return Boolean(supports);
 	}
 
 	// --- trigger/retrigger/cancel suggest
