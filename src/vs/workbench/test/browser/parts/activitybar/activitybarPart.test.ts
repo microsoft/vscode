@@ -1200,7 +1200,7 @@ suite('ActivitybarPart', () => {
 		storePinned(pinned);
 
 		return {
-			createBar: () => disposables.add(instantiationService.createInstance(PaneCompositeBar, ViewContainerLocation.Sidebar, activityBarOptions, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart())),
+			createBar: (options = activityBarOptions) => disposables.add(instantiationService.createInstance(PaneCompositeBar, ViewContainerLocation.Sidebar, options, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart())),
 			storageService,
 			storePinned,
 			getStoredPinned: () => JSON.parse(storageService.get(ActivitybarPart.pinnedViewContainersKey, StorageScope.PROFILE, '[]')),
@@ -1248,6 +1248,29 @@ suite('ActivitybarPart', () => {
 		storePinned([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }]);
 
 		// Three items of 48px do not fit into 100px: the first item and the overflow action are shown
+		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
+	});
+
+	test('a hidden bar measures the view container of an extension that another window added once it is shown again', () => {
+		// Like the panel, which measures its items
+		const options: IPaneCompositeBarOptions = { ...activityBarOptions, orientation: ActionsOrientation.HORIZONTAL, compositeSize: 0, icon: false, overflowActionSize: 20 };
+		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
+		const bar = createBar(options);
+		const parent = document.createElement('div');
+		fixture.appendChild(parent);
+		bar.create(parent);
+		bar.layout(100000, 35);
+		const [explorerWidth, searchWidth] = Array.from(parent.querySelectorAll('.composite-bar .action-item'), item => item.clientWidth);
+
+		// The part is hidden, and keeps the dimension of its bar. Then another window installs an extension with a view container
+		parent.style.display = 'none';
+		storePlaceholders([{ id: 'explorer', name: 'explorer', views: [] }, { id: 'search', name: 'search', views: [] }, { id: 'extension', name: 'Extension', views: [{}] }]);
+		storePinned([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }]);
+
+		// Shown again with room for the two items shown before: the view container of the extension overflows
+		parent.style.display = '';
+		bar.layout(explorerWidth + searchWidth, 35);
+
 		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
 	});
 
