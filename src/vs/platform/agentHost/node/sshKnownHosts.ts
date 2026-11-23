@@ -160,12 +160,17 @@ export function parseKnownHosts(contents: string): IKnownHostsEntry[] {
 }
 
 /**
- * Build the host identifiers OpenSSH would look for. A host on the default
- * port is stored bare (`example.com`); any other port uses the bracketed form
- * (`[example.com]:2222`).
+ * Build the host identifiers OpenSSH would look for. When `isAlias` is true
+ * (e.g. from OpenSSH `HostKeyAlias`), OpenSSH stores and looks up the alias
+ * bare without bracketed port notation even on non-standard ports.
+ * A regular host on the default port is stored bare (`example.com`);
+ * any other port uses the bracketed form (`[example.com]:2222`).
  */
-function hostCandidates(host: string, port: number): string[] {
+function hostCandidates(host: string, port: number, isAlias: boolean = false): string[] {
 	const lower = host.toLowerCase();
+	if (isAlias) {
+		return port === 22 ? [lower] : [lower, `[${lower}]:${port}`];
+	}
 	return port === 22 ? [lower] : [`[${lower}]:${port}`];
 }
 
@@ -233,8 +238,9 @@ export function matchKnownHosts(
 	port: number,
 	keyType: string,
 	keyBlob: Buffer,
+	isAlias: boolean = false,
 ): KnownHostsMatch {
-	const candidates = hostCandidates(host, port);
+	const candidates = hostCandidates(host, port, isAlias);
 	const applicable = entries.filter(entry => entryApplies(entry, candidates));
 
 	// Revocation is resolved in its own pass, before anything can return a

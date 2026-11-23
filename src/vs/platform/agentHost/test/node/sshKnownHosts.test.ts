@@ -157,8 +157,8 @@ suite('sshKnownHosts', () => {
 	});
 
 	suite('matchKnownHosts', () => {
-		const match = (contents: string, host: string, port: number, blob: Buffer) =>
-			matchKnownHosts(parseKnownHosts(contents), host, port, readHostKeyType(blob)!, blob);
+		const match = (contents: string, host: string, port: number, blob: Buffer, isAlias?: boolean) =>
+			matchKnownHosts(parseKnownHosts(contents), host, port, readHostKeyType(blob)!, blob, isAlias);
 
 		test('matches, mismatches and reports unknown hosts', () => {
 			const known = line('example.com', ED25519_A);
@@ -202,6 +202,22 @@ suite('sshKnownHosts', () => {
 					bracketedOnCustomPort: 'match',
 					bracketedOnDefaultPort: 'unknown',
 					bareOnCustomPort: 'unknown',
+				});
+		});
+
+		test('matches bare host aliases on non-default ports without bracket notation', () => {
+			const bare = line('lima-default', ED25519_A);
+			const bracketed = line('[lima-default]:61000', ED25519_A);
+			assert.deepStrictEqual(
+				{
+					bareAliasCustomPort: match(bare, 'lima-default', 61000, ED25519_A, true),
+					bracketedAliasCustomPort: match(bracketed, 'lima-default', 61000, ED25519_A, true),
+					bareNonAliasCustomPort: match(bare, 'lima-default', 61000, ED25519_A, false),
+				},
+				{
+					bareAliasCustomPort: 'match',
+					bracketedAliasCustomPort: 'match',
+					bareNonAliasCustomPort: 'unknown',
 				});
 		});
 

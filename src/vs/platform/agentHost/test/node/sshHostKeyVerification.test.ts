@@ -357,6 +357,27 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			});
 	});
 
+	test('uses HostKeyAlias for known_hosts matching on non-standard ports', async () => {
+		const service = createService();
+		service.hostKeyAlias = 'lima-default';
+		service.knownHostsContents = `lima-default ssh-ed25519 ${HOST_KEY.toString('base64')}`;
+		const { requests } = await connectAnswering(service, true, makeConfig({ port: 61000 }));
+
+		assert.deepStrictEqual(
+			{
+				host: requests[0]?.host,
+				resolvedHost: requests[0]?.resolvedHost,
+				port: requests[0]?.port,
+				knownHostsMatch: requests[0]?.knownHostsMatch,
+			},
+			{
+				host: 'lima-default',
+				resolvedHost: 'test.example.com',
+				port: 61000,
+				knownHostsMatch: 'match',
+			});
+	});
+
 	test('forwards userInitiated so background reconnects can be declined', async () => {
 		const service = createService();
 		const { requests } = await connectAnswering(service, false, makeConfig({ userInitiated: false }));

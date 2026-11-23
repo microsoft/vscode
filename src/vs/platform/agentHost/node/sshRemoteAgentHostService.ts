@@ -2076,7 +2076,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			const hostKeyHost = hostKeyAlias ?? config.host;
-			const knownHostsMatch = matchKnownHosts(entries, hostKeyHost, port, keyType, key);
+			const knownHostsMatch = matchKnownHosts(entries, hostKeyHost, port, keyType, key, Boolean(hostKeyAlias));
 			this._logService.info(`${LOG_PREFIX} Host key for ${displayHost}: ${keyType} ${fingerprint} (known_hosts: ${knownHostsMatch})`);
 
 			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
