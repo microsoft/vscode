@@ -216,6 +216,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/124',
 				isGitHub: true,
+				origin: { chat: buildDefaultChatUri('agent:/session') },
 			}],
 			persisted: [{
 				chat: buildDefaultChatUri('agent:/session'),
@@ -231,6 +232,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/124',
 				isGitHub: true,
+				origin: { chat: buildDefaultChatUri('agent:/session') },
 			}],
 			recorded: [
 				{ ...recorded, outcome: 'promoted' },
@@ -301,7 +303,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			defaultScopeOperations: operationsFor(defaultScopeOwner),
 			peerScopeOperations: operationsFor(peerScopeOwner),
 		}, {
-			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
+			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true, origin: { chat: peerChat } }],
 			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
 			defaultScopeOperations: ['pr-mark-ready'],
 			peerScopeOperations: ['pr-merge'],
@@ -356,6 +358,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/8',
 				isGitHub: true,
+				origin: { chat: peerChat },
 			},
 		]);
 	});

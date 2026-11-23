@@ -13,7 +13,7 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createPullRequestChatMeta, IPullRequestChatOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, IPullRequestAutopilotOptions, IPullRequestChatOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -24,6 +24,8 @@ import { PullRequestChatContribution } from '../../node/chatContributions/pullRe
 import { TurnAdmissionContribution } from '../../node/chatContributions/turnAdmission/turnAdmissionContribution.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { IAgentHostPullRequestAutopilotService, type IPullRequestAutopilotResult } from '../../node/agentHostPullRequestAutopilot.js';
+import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 
 suite('PullRequestChatContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,8 +34,17 @@ suite('PullRequestChatContribution', () => {
 		agentMergeOptions: { addressReviews: true, fixCI: true, resolveConflicts: false, mergePullRequest: 'never' },
 	};
 
-	function setup(selected: IPullRequestChatOptions = options, archived = false, otherFolder?: string) {
+	function setup(selected: IPullRequestChatOptions = options, archived = false, otherFolder?: string, autopilotAvailable = false) {
 		const log = new NullLogService();
+		const autopilotCalls: { session: string; artifactId: string; options: IPullRequestAutopilotOptions }[] = [];
+		const autopilotService: IAgentHostPullRequestAutopilotService = {
+			_serviceBrand: undefined,
+			isAvailable: () => autopilotAvailable,
+			enable: async (session, artifactId, autopilot): Promise<IPullRequestAutopilotResult> => {
+				autopilotCalls.push({ session, artifactId, options: autopilot });
+				return { enabled: [], unavailable: [] };
+			},
+		};
 		const state = store.add(new AgentHostStateManager(log));
 		const config = store.add(new AgentConfigurationService(state, log));
 		const session = 'copilot:/pull-request-chat';
@@ -52,6 +63,7 @@ suite('PullRequestChatContribution', () => {
 		config.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log], [IAgentConfigurationService, config], [IAgentHostStateManager, state], [IAgentHostChatOwnershipService, createTestChatOwnershipService(state)],
+			[IAgentHostPullRequestAutopilotService, autopilotService],
 		), true));
 		const contributions: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(contributions.registerContribution(TurnAdmissionContribution));
@@ -67,7 +79,7 @@ suite('PullRequestChatContribution', () => {
 		const start = () => state.dispatchServerAction(chat, {
 			type: ActionType.ChatTurnStarted, turnId: turn.turnId, startedAt: new Date().toISOString(), message: turn.message,
 		});
-		return { contributions, state, config, turn, incoming, start };
+		return { contributions, state, config, turn, incoming, start, autopilotCalls };
 	}
 
 	test('admission is read-only and configuration is applied only to the active creation turn', async () => {
@@ -161,5 +173,56 @@ suite('PullRequestChatContribution', () => {
 		start();
 		await contributions.outgoingTurn(turn);
 		assert.deepStrictEqual(readAgentMergeSessionState(config.getSessionConfigValues(turn.session))?.injectedConfiguration, injectedConfiguration);
+	});
+
+	const autopilot: IPullRequestAutopilotOptions = { addressReviews: true, fixCI: true, resolveConflicts: true, markReady: false, merge: 'always' };
+	const autopilotOptions: IPullRequestChatOptions = { draft: false, agentMerge: false, autopilot };
+
+	test('Autopilot is rejected at admission while artifact integrations are disabled', () => {
+		const disabled = setup(autopilotOptions);
+		const enabled = setup(autopilotOptions, false, undefined, true);
+		assert.deepStrictEqual([disabled.contributions.incomingRequest(disabled.incoming).kind, enabled.contributions.incomingRequest(enabled.incoming).kind], ['reject', 'accept']);
+	});
+
+	test('Autopilot turns on for the pull requests the creation turn recorded once it ends', async () => {
+		const { contributions, state, turn, start, autopilotCalls } = setup(autopilotOptions, false, undefined, true);
+		start();
+		await contributions.outgoingTurn(turn);
+		const pullRequest = (id: string, turnId: string, isArtifact = true): ISessionArtifact => ({
+			id, type: SessionArtifactType.PullRequest, label: id, isArtifact, link: `https://github.com/microsoft/vscode/pull/${id}`, origin: { chat: turn.chat, turnId },
+		});
+		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [
+			pullRequest('1', turn.turnId),
+			pullRequest('2', 'earlier-turn'),
+			pullRequest('3', turn.turnId, false),
+		]));
+		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
+		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
+		assert.deepStrictEqual(autopilotCalls, [{ session: turn.session, artifactId: '1', options: autopilot }]);
+	});
+
+	test('a resumable error keeps the Autopilot choices for the pull request the resumed turn records', async () => {
+		const { contributions, state, turn, start, autopilotCalls } = setup(autopilotOptions, false, undefined, true);
+		start();
+		await contributions.outgoingTurn(turn);
+		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'error', error: { errorType: 'network', message: 'Disconnected' }, resumable: true } });
+		const afterError = [...autopilotCalls];
+		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [{
+			id: '1', type: SessionArtifactType.PullRequest, label: '1', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', origin: { chat: turn.chat, turnId: turn.turnId },
+		}]));
+		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
+		assert.deepStrictEqual({ afterError, afterResume: autopilotCalls }, {
+			afterError: [],
+			afterResume: [{ session: turn.session, artifactId: '1', options: autopilot }],
+		});
+	});
+
+	test('a turn that was never sent does not turn on Autopilot', () => {
+		const { contributions, state, turn, autopilotCalls } = setup(autopilotOptions, false, undefined, true);
+		state.setSessionMeta(turn.session, withSessionArtifacts(undefined, [{
+			id: '1', type: SessionArtifactType.PullRequest, label: '1', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', origin: { chat: turn.chat, turnId: turn.turnId },
+		}]));
+		contributions.turnEnd({ session: turn.session, channel: turn.chat, turnId: turn.turnId, reason: { kind: 'success' } });
+		assert.deepStrictEqual(autopilotCalls, []);
 	});
 });

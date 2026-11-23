@@ -59,6 +59,7 @@ import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { AgentHostPullRequestAutopilotService, IAgentHostPullRequestAutopilotService } from './agentHostPullRequestAutopilot.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -351,6 +352,7 @@ export function createAgentServiceComposition(
 			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
 		));
 		hostArtifactIntegrations.value = artifactRuntime.integrations;
+		services.set(IAgentHostPullRequestAutopilotService, new AgentHostPullRequestAutopilotService(artifactRuntime.integrations, isArtifactIntegrationsEnabled));
 		const collaborators: IAgentServiceCollaborators = {
 			artifactIntegrations: artifactRuntime.integrations,
 			artifactIntegrationClients: artifactIntegrationDirectory,
