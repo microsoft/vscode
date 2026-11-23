@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -414,6 +414,73 @@ suite('ChatAttachmentsContentPart', () => {
 		});
 		return imageHoverContents;
 	}
+
+	test('image preview uses the overlay radius without changing other hovers', async () => {
+		const fixture = dom.append(mainWindow.document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => fixture.remove()));
+		fixture.style.setProperty('--vscode-cornerRadius-large', '8px');
+		const pointerStyle = dom.append(mainWindow.document.head, dom.$('style'));
+		pointerStyle.textContent = '.monaco-hover.workbench-hover.with-pointer { border-radius: 3px; }';
+		disposables.add(toDisposable(() => pointerStyle.remove()));
+
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'workbench.hover.delay': 0 }));
+		instantiationService.stub(ILayoutService, {
+			activeContainer: fixture,
+			mainContainer: fixture,
+			getContainer: () => fixture,
+			onDidLayoutContainer: Event.None,
+		});
+		const hoverService = disposables.add(instantiationService.createInstance(HoverService));
+		disposables.add(toDisposable(() => hoverService.hideHover(true)));
+		instantiationService.stub(IHoverService, hoverService);
+
+		const imageData = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=').buffer;
+		const part = disposables.add(instantiationService.createInstance(
+			ChatAttachmentsContentPart,
+			{ variables: [createImageEntry('image.png', imageData)], sessionResource: undefined }
+		));
+		dom.append(fixture, part.domNode!);
+		const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment')!;
+		attachment.dispatchEvent(new mainWindow.MouseEvent('mouseover', { bubbles: true }));
+		await timeout(0);
+
+		const hover = fixture.querySelector<HTMLElement>('.chat-image-hover')?.closest<HTMLElement>('.monaco-hover.workbench-hover');
+		assert.ok(hover);
+		const image = hover.querySelector<HTMLImageElement>('.chat-image-hover-image');
+		assert.ok(image);
+		await retry(async () => assert.strictEqual(image.naturalWidth, 1), 10, 100);
+		const corners = () => {
+			const style = mainWindow.getComputedStyle(hover);
+			return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+		};
+		const themes = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+			fixture.className = `monaco-workbench agent-sessions-workbench ${theme}`;
+			return corners();
+		});
+		const clipsContent = mainWindow.getComputedStyle(hover).overflow === 'hidden';
+		const hasImage = image.naturalHeight === 1;
+		fixture.style.setProperty('--vscode-cornerRadius-large', '12px');
+		const updatedCorners = corners();
+
+		hoverService.hideHover(true);
+		const ordinaryHover = hoverService.showInstantHover({ target: attachment, content: 'Tooltip', appearance: { showPointer: true } });
+		assert.ok(ordinaryHover);
+		const ordinarySurface = fixture.querySelector<HTMLElement>('.monaco-hover.workbench-hover');
+		assert.ok(ordinarySurface);
+		assert.deepStrictEqual({
+			themes,
+			clipsContent,
+			hasImage,
+			updatedCorners,
+			ordinaryRadius: mainWindow.getComputedStyle(ordinarySurface).borderRadius,
+		}, {
+			themes: Array.from({ length: 4 }, () => ['8px', '8px', '8px', '8px']),
+			clipsContent: true,
+			hasImage: true,
+			updatedCorners: ['12px', '12px', '12px', '12px'],
+			ordinaryRadius: '3px',
+		});
+	});
 
 	test('should keep the image preview in thumbnail hovers by default', () => {
 		const imageHoverContents = captureImageHovers();
