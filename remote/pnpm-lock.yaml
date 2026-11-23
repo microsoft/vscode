@@ -283,8 +283,8 @@ importers:
         specifier: 3.1.4
         version: 3.1.4
       katex:
-        specifier: ^0.16.22
-        version: 0.16.47
+        specifier: ^0.18.2
+        version: 0.18.10
       kerberos:
         specifier: 2.1.1
         version: 2.1.1
@@ -382,8 +382,8 @@ importers:
         specifier: 3.1.4
         version: 3.1.4
       katex:
-        specifier: ^0.16.22
-        version: 0.16.47
+        specifier: ^0.18.2
+        version: 0.18.10
       tas-client:
         specifier: 0.4.6
         version: 0.4.6
@@ -723,9 +723,9 @@ packages:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
 
-  commander@8.3.0:
-    resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
-    engines: {node: '>= 12'}
+  commander@15.1.0:
+    resolution: {integrity: sha512-cgnQ88TRrWcC7pVq46RzJVRMktu3W2RcbnoidnfBsl1bmDCBwJS/udcIZpKoCrbAYYaCqsz1yZCVIgbIaU3ddQ==}
+    engines: {node: '>=22.12.0'}
 
   cookie@0.7.2:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
@@ -815,8 +815,8 @@ packages:
   jsonfile@6.1.0:
     resolution: {integrity: sha512-5dgndWOriYSm5cnYaJNhalLNDKOqFwyDB/rr1E9ZsGciGvKPs8R2xYGCacuf3z6K1YKDz182fd+fY3cn3pMqXQ==}
 
-  katex@0.16.47:
-    resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+  katex@0.18.10:
+    resolution: {integrity: sha512-/B6p9eY9DX7aHBfpkHdpirDTZ5QH9xTwL9y837PWuzuv41O5jFdqNQwVQEQsimY0/iVNkwBY4+4hMfhQ7d4Dbw==}
     hasBin: true
 
   kerberos@2.1.1:
@@ -1344,7 +1344,7 @@ snapshots:
 
   commander@12.1.0: {}
 
-  commander@8.3.0: {}
+  commander@15.1.0: {}
 
   cookie@0.7.2: {}
 
@@ -1422,9 +1422,9 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
-  katex@0.16.47:
+  katex@0.18.10:
     dependencies:
-      commander: 8.3.0
+      commander: 15.1.0
 
   kerberos@2.1.1:
     dependencies:
