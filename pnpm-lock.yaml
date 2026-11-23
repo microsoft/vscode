@@ -565,9 +565,6 @@ importers:
       gulp-sourcemaps:
         specifier: ^3.0.0
         version: 3.0.0
-      husky:
-        specifier: ^0.13.1
-        version: 0.13.4
       innosetup:
         specifier: ^6.4.1
         version: 6.4.1
@@ -580,6 +577,9 @@ importers:
       lazy.js:
         specifier: ^0.4.2
         version: 0.4.3
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
       mocha:
         specifier: ^10.8.2
         version: 10.8.2
@@ -6711,9 +6711,6 @@ packages:
     resolution: {integrity: sha512-zFyPtyC0SZ6Zu79b9sOYtXZcgrsXe0RpePrzRyj52hYVFG1+Rk6rBqjjOEk+GNQwc3PIX+86teQMok970pod1g==}
     engines: {node: '>=20'}
 
-  ci-info@1.6.0:
-    resolution: {integrity: sha512-vsGdkwSCDpWmP80ncATX7iea5DWQemg1UgCW5J8tqjU3lYw4FBYuj89J0CTVomA7BEfvSZd84GmHko+MxFQU2A==}
-
   cjs-module-lexer@2.2.0:
     resolution: {integrity: sha512-4bHTS2YuzUvtoLjdy+98ykbNB5jS0+07EvFNXerqZQJ89F7DI6ET7OQo/HJuW6K0aVsKA9hj9/RVb2kQVOrPDQ==}
 
@@ -7837,9 +7834,6 @@ packages:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
     engines: {node: '>= 18.0.0'}
 
-  find-parent-dir@0.3.1:
-    resolution: {integrity: sha512-o4UcykWV/XN9wm+jMEtWLPlV8RXCZnMhQI6F6OdHeSez7iiJWePw8ijOlskJZMsaQoGR/b7dH6lO02HhaTN7+A==}
-
   find-replace@5.0.2:
     resolution: {integrity: sha512-Y45BAiE3mz2QsrN2fb5QEtO4qb44NcS7en/0y9PEVsg351HsLeVclP8QPMH79Le9sH3rs5RSwJu99W0WPZO43Q==}
     engines: {node: '>=14'}
@@ -8359,9 +8353,6 @@ packages:
     resolution: {integrity: sha512-ag87y7cJJ9/3+GxFr8Oy4O5faDsGRGnBGsJj/YjOSsSx/5eadKLYTMPlzuR6obgoCDDm0abAAZitXXQkMOPSpA==}
     engines: {node: '>= 20'}
 
-  husky@0.13.4:
-    resolution: {integrity: sha512-kafsK/82ndSVKJe1IoR/z7NKkiI2LYM6H+VNI/YlKOeoOXEJTpD65TNu05Zx7pzSZzLuAdMt4fHgpUsnd6HJ7A==}
-
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
@@ -8502,10 +8493,6 @@ packages:
   is-callable@1.2.7:
     resolution: {integrity: sha512-1BC0BVFhS/p0qtw6enp8e+8OD0UrK0oFLztSjNzhcKA3WDuJxxAPXzPuPtKkjEY9UUoEWlX/8fgKeu2S8i9JTA==}
     engines: {node: '>= 0.4'}
-
-  is-ci@1.2.1:
-    resolution: {integrity: sha512-s6tfsaQaQi3JNciBH6shVqEDvhGut0SUXr31ag8Pd8BBbVVlcGfWhpPmEOoM6RJ5TFhbypvf5yyRw/VXW1IiWg==}
-    hasBin: true
 
   is-core-module@2.16.1:
     resolution: {integrity: sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==}
@@ -9765,10 +9752,6 @@ packages:
 
   normalize-package-data@2.5.0:
     resolution: {integrity: sha512-/5CMN3T0R4XTj4DcGaexo+roZSdSFW/0AOOTROrjxzCG1wrWXEsGbRKevjlIL+ZDE4sZlJr5ED4YW0yqmkK+eA==}
-
-  normalize-path@1.0.0:
-    resolution: {integrity: sha512-7WyT0w8jhpDStXRq5836AMmihQwq2nrUVQrgjvUo/p/NZf9uy/MeJ246lBJVmWuYXMlJuG9BNZHF0hWjfTbQUA==}
-    engines: {node: '>=0.10.0'}
 
   normalize-path@2.1.1:
     resolution: {integrity: sha512-3pKJwH184Xo/lnH6oyP1q2pMd7HcypqqmRs91/6/i2CGtWwIKGCkOOMTm/zXbgTEWHw1uNpNi/igc3ePOYHb6w==}
@@ -17493,8 +17476,6 @@ snapshots:
 
   chunk-data@0.1.0: {}
 
-  ci-info@1.6.0: {}
-
   cjs-module-lexer@2.2.0: {}
 
   class-utils@0.3.6:
@@ -18768,8 +18749,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  find-parent-dir@0.3.1: {}
-
   find-replace@5.0.2: {}
 
   find-up@1.1.2:
@@ -19462,13 +19441,6 @@ snapshots:
       - kerberos
       - supports-color
 
-  husky@0.13.4:
-    dependencies:
-      chalk: 1.1.3
-      find-parent-dir: 0.3.1
-      is-ci: 1.2.1
-      normalize-path: 1.0.0
-
   iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
@@ -19592,10 +19564,6 @@ snapshots:
   is-buffer@1.1.6: {}
 
   is-callable@1.2.7: {}
-
-  is-ci@1.2.1:
-    dependencies:
-      ci-info: 1.6.0
 
   is-core-module@2.16.1:
     dependencies:
@@ -21054,8 +21022,6 @@ snapshots:
       resolve: 1.22.1
       semver: 5.7.2
       validate-npm-package-license: 3.0.4
-
-  normalize-path@1.0.0: {}
 
   normalize-path@2.1.1:
     dependencies:
