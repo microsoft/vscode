@@ -9,6 +9,8 @@ import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IIncomingRequest, type IncomingRequestDisposition, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { readAgentMergeFolderState, withAgentMergeFolderState } from '../../../common/agentMerge.js';
+import { AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
+import { ArtifactToolsSettingId } from '../../../common/agentService.js';
 import { readPullRequestChatMeta, type IPullRequestAutopilotOptions } from '../../../common/meta/agentPullRequestOperationMeta.js';
 import { readSessionArtifacts, SessionArtifactType } from '../../../common/sessionArtifacts.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
@@ -74,6 +76,15 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 			return {
 				kind: 'reject',
 				error: { errorType: 'invalidParams', message: localize('agentHost.pullRequestChat.autopilotDisabled', "Autopilot is unavailable because artifact integrations are disabled in the host configuration.") },
+				stage: 'validation',
+			};
+		}
+		// Autopilot applies to the pull requests the turn records, which needs the artifact tools. Direct creation
+		// records the pull request itself, so it does not.
+		if (options?.autopilot && this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) !== true) {
+			return {
+				kind: 'reject',
+				error: { errorType: 'invalidParams', message: localize('agentHost.pullRequestChat.autopilotArtifactToolsDisabled', "Autopilot cannot apply to a pull request the agent creates because artifact tools are disabled in the host configuration. Turn on the {0} setting, or use Create PR to create the pull request directly.", ArtifactToolsSettingId) },
 				stage: 'validation',
 			};
 		}

@@ -11,7 +11,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createPullRequestChatMeta, IPullRequestAutopilotOptions, IPullRequestChatOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -181,10 +181,14 @@ suite('PullRequestChatContribution', () => {
 	const autopilot: IPullRequestAutopilotOptions = { addressReviews: true, fixCI: true, resolveConflicts: true, markReady: false, merge: 'always' };
 	const autopilotOptions: IPullRequestChatOptions = { draft: false, agentMerge: false, autopilot };
 
-	test('Autopilot is rejected at admission while artifact integrations are disabled', () => {
-		const disabled = setup(autopilotOptions);
+	test('Autopilot is rejected at admission while artifact integrations or artifact tools are disabled', () => {
+		const integrationsDisabled = setup(autopilotOptions);
+		integrationsDisabled.config.updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+		const toolsDisabled = setup(autopilotOptions, false, undefined, true);
 		const enabled = setup(autopilotOptions, false, undefined, true);
-		assert.deepStrictEqual([disabled.contributions.incomingRequest(disabled.incoming).kind, enabled.contributions.incomingRequest(enabled.incoming).kind], ['reject', 'accept']);
+		enabled.config.updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+		const agentMergeWithoutTools = setup();
+		assert.deepStrictEqual([integrationsDisabled, toolsDisabled, enabled, agentMergeWithoutTools].map(({ contributions, incoming }) => contributions.incomingRequest(incoming).kind), ['reject', 'reject', 'accept', 'accept']);
 	});
 
 	function pullRequest(id: string, chat: string, turnId: string, isArtifact = true): ISessionArtifact {
