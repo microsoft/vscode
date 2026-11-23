@@ -88,6 +88,7 @@ import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../sessionActionViewItem.js';
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -5030,6 +5031,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		this._hideSideChats = sideChatPlacementService.inSidePane;
@@ -5526,6 +5528,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
+				// Indent guides are not in Stable yet; elsewhere they follow `workbench.tree.renderIndentGuides`.
+				renderIndentGuides: productService.quality === 'stable' ? RenderIndentGuides.None : undefined,
 				twistieAdditionalCssClass: element => {
 					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0 && !this.comparisonParentSessionIds.has(element.sessionId)) {
 						return 'force-no-twistie';
