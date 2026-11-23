@@ -29,7 +29,8 @@ import type { ViewModelDecoration } from '../../../common/viewModel/viewModelDec
 import { EditorViewDecorationResolver, type IInlineTextStyle } from './editorViewDecorations.js';
 import { applyTextStyleRuns, type ITextStyleRun } from './editorViewTextStyles.js';
 import { LineDecoration, LineDecorationsNormalizer } from '../../../common/viewLayout/lineDecorations.js';
-import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import type { ViewLineData } from '../../../common/viewModel.js';
 import { EditorViewModelSync } from './editorViewModelSync.js';
 import type { IContentDecorationLineRange, IContentDecorationRangeRequest } from '../decorations/decorations.js';
 import type { IEditorViewLineWidthProvider } from '../viewLines/viewLines.js';
@@ -208,8 +209,18 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _sentTextStyle: (string | undefined)[] = [];
 	/** Text-style key of lines built by `_buildLine`, recorded when they are sent. */
 	private readonly _builtTextStyle = new WeakMap<LineInput, string>();
-	/** 1-based view lines whose inline decorations are applied (the renderer's range this frame). */
-	private _styleRange: Range | undefined;
+	/**
+	 * Inline decorations (`inlineClassName`) with paint the renderer can apply,
+	 * by 1-based view line, from the last decoration query. Lines in
+	 * {@link _inlineDecorationLines} without an entry have none.
+	 */
+	private _inlineDecorations = new Map<number, InlineDecoration[]>();
+	/** 1-based inclusive view lines the last decoration query covered. */
+	private _inlineDecorationLines = { start: 1, end: 0 };
+	/** Whether gutter labels or text styles of sent lines may have changed since they were checked. */
+	private _lineStateDirty = true;
+	/** 0-based `[start, end)` view lines checked since {@link _lineStateDirty} was last set. */
+	private _lineStateChecked = { start: 0, end: 0 };
 	/** Current selections in renderer coordinates (0-based line, 0-based UTF-16 column). */
 	private _selections: SelectionInput[] = [];
 	/** 0-based view lines carrying a cursor (deduped), on which the current-line highlight is painted. */
@@ -706,7 +717,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Build one view line's `{ text, tokens }` payload from the view model. */
 	private _buildLine(viewLineNumber: number, colorMap: number[], defaultForeground: number): LineInput {
 		const lineData = this._context.viewModel.getViewLineData(viewLineNumber);
-		const textStyle = this._lineTextStyle(viewLineNumber);
+		const textStyle = this._lineTextStyle(viewLineNumber, lineData);
 		const line: LineInput = {
 			text: lineData.content,
 			tokens: this._buildTokens(lineData.tokens, colorMap, defaultForeground, textStyle),
@@ -722,20 +733,40 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	/**
 	 * Paint that inline decorations and the high-contrast selection apply over a
-	 * 1-based view line's tokens. Only lines in the renderer's current range get
-	 * inline styles; others pick them up once they scroll in, through
-	 * {@link _syncLineDerivedState}.
+	 * 1-based view line's tokens. Its `key` changes exactly when that paint
+	 * does for unchanged line content, so lines already sent are compared
+	 * without reading them; the runs are resolved only with `lineData`, for a
+	 * line being built.
 	 */
-	private _lineTextStyle(viewLineNumber: number): ILineTextStyle {
+	private _lineTextStyle(viewLineNumber: number, lineData?: ViewLineData): ILineTextStyle {
 		const selected = this._selectedTextRanges(viewLineNumber);
-		const inline = this._inlineStyleRuns(viewLineNumber);
+		const decorationKey = this._inlineDecorationKey(viewLineNumber);
 		return {
 			selected,
-			inline,
-			key: selected.length || inline.length
-				? `${selected.join()}|${inline.map(run => `${run.start}-${run.end}-${run.style.id}`).join()}`
-				: '',
+			inline: lineData ? this._inlineStyleRuns(viewLineNumber, lineData) : [],
+			key: selected.length || decorationKey ? `${selected.join()}|${decorationKey}` : '',
 		};
+	}
+
+	/**
+	 * Identifies a view line's paintable inline decorations and where they fall
+	 * on it. With the line's content (and so its injected text) unchanged, equal
+	 * keys resolve to equal style runs.
+	 */
+	private _inlineDecorationKey(viewLineNumber: number): string {
+		const decorations = this._inlineDecorations.get(viewLineNumber);
+		if (!decorations) {
+			return '';
+		}
+		let key = '';
+		for (const decoration of decorations) {
+			const range = decoration.range;
+			// The line's own bounds stand in for its min/max column.
+			const start = range.startLineNumber === viewLineNumber ? range.startColumn : 0;
+			const end = range.endLineNumber === viewLineNumber ? range.endColumn : -1;
+			key += `${decoration.inlineClassName}:${decoration.type}:${start}-${end},`;
+		}
+		return key;
 	}
 
 	/**
@@ -745,18 +776,17 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * `LineDecorationsNormalizer`, and the browser's cascade resolves each
 	 * combination. Decorations whose CSS needs DOM rendering (boxes, text
 	 * decorations, width changes, pseudo-element content) are left out, so the
-	 * text keeps its token paint.
+	 * text keeps its token paint. Lines the last decoration query did not cover
+	 * get only their injected text's paint; they are off screen.
 	 */
-	private _inlineStyleRuns(viewLineNumber: number): IInlineStyleRun[] {
-		const range = this._styleRange;
-		if (!range || viewLineNumber < range.startLineNumber || viewLineNumber > range.endLineNumber) {
+	private _inlineStyleRuns(viewLineNumber: number, lineData: ViewLineData): IInlineStyleRun[] {
+		const regular = this._inlineDecorations.get(viewLineNumber);
+		const injected = lineData.inlineDecorations;
+		if (!regular && !injected?.length) {
 			return [];
 		}
-		const data = this._context.viewModel.getViewportViewLineRenderingData(range, viewLineNumber);
-		if (data.inlineDecorations.length === 0) {
-			return [];
-		}
-		const decorations = LineDecoration.filter(data.inlineDecorations, viewLineNumber, data.minColumn, data.maxColumn)
+		const inlineDecorations = injected?.length ? [...regular ?? [], ...injected] : regular!;
+		const decorations = LineDecoration.filter(inlineDecorations, viewLineNumber, lineData.minColumn, lineData.maxColumn)
 			.filter(decoration => (decoration.type === InlineDecorationType.Regular || decoration.type === InlineDecorationType.RegularAffectingLetterSpacing)
 				&& this._decorationResolver.resolveInlineStyle(decoration.className) !== undefined);
 		if (decorations.length === 0) {
@@ -764,7 +794,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		decorations.sort(LineDecoration.compare);
 		const runs: IInlineStyleRun[] = [];
-		for (const segment of LineDecorationsNormalizer.normalize(data.content, decorations)) {
+		for (const segment of LineDecorationsNormalizer.normalize(lineData.content, decorations)) {
 			const style = this._decorationResolver.resolveInlineStyle(segment.className);
 			if (style) {
 				runs.push({ start: segment.startOffset, end: segment.endOffset + 1, style });
@@ -1004,15 +1034,26 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/**
 	 * Gutter labels depend on other lines (inserts/deletes renumber everything
 	 * below), the primary cursor (relative/interval) and the `lineNumbers`
-	 * option, and high-contrast selected-text colors on the selections, so a
-	 * line's stored payload can go stale without its content changing. Send
+	 * option, and text styles on decorations and (high-contrast) selections, so
+	 * a line's stored payload can go stale without its content changing. Send
 	 * the renderer's lines that it does not have, or whose label or text style
-	 * differs.
+	 * differs. Lines are compared again only after something they depend on
+	 * changed ({@link _lineStateDirty}), or when they newly enter the range.
+	 * Text styles are compared only on lines the last decoration query covered.
 	 */
 	private _syncLineDerivedState({ start, end }: { start: number; end: number }): void {
+		const all = this._lineStateDirty
+			// A custom label function can change without an event.
+			|| this._context.configuration.options.get(EditorOption.lineNumbers).renderType === RenderLineNumbersType.Custom;
+		const checked = this._lineStateChecked;
+		const styled = this._inlineDecorationLines;
 		this._sendLines(start, end, line => this._sentTextStyle[line] === undefined
-			|| this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]
-			|| this._lineTextStyle(line + 1).key !== this._sentTextStyle[line]);
+			|| ((all || line < checked.start || line >= checked.end)
+				&& (this._getGutterLabel(line + 1) !== this._sentGutterLabels[line]
+					|| (line + 1 >= styled.start && line + 1 <= styled.end
+						&& this._lineTextStyle(line + 1).key !== this._sentTextStyle[line]))));
+		this._lineStateDirty = false;
+		this._lineStateChecked = { start, end };
 	}
 
 	/** Send the lines in 0-based `[start, end)` the renderer does not have, before it reads them. */
@@ -1066,6 +1107,25 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	/**
+	 * The range `ViewportData.visibleRange` holds this frame: the DOM overlays
+	 * query decorations with it, and `Range.equalsRange` decides whether VS
+	 * Code's decoration cache serves another query.
+	 */
+	private _visibleRange(): Range | undefined {
+		const viewModel = this._context.viewModel;
+		if (viewModel.getLineCount() === 0) {
+			return undefined;
+		}
+		const viewport = this._context.viewLayout.getLinesViewportData();
+		return new Range(
+			viewport.startLineNumber,
+			viewModel.getLineMinColumn(viewport.startLineNumber),
+			viewport.endLineNumber,
+			viewModel.getLineMaxColumn(viewport.endLineNumber),
+		);
+	}
+
+	/**
 	 * Execute the planner's batch: keep the mirror's line count in step with the
 	 * view model and forget the content of lines that changed. Lines are read,
 	 * in the (now final) view-model state, only when the renderer needs them —
@@ -1086,8 +1146,13 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 			this._sentGutterLabels = [];
 			this._sentTextStyle = [];
+			this._lineStateDirty = true;
 			this._spliceLines(0, 0, this._context.viewModel.getLineCount());
 			return;
+		}
+		if (plan.structural.length) {
+			// Inserted and deleted lines renumber the labels below them.
+			this._lineStateDirty = true;
 		}
 		for (const splice of plan.structural) {
 			this._spliceLines(splice.start, splice.deleteCount, splice.insertCount);
@@ -1186,25 +1251,42 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/**
 	 * Send the decorations and folding controls of the lines around the
 	 * renderer's range `range`, when they changed or the range left the lines
-	 * last sent. Like the DOM editor, this queries only what can be painted,
-	 * so its cost does not grow with the document.
+	 * last sent, and keep the inline decorations that style those lines' text.
+	 * Like the DOM editor, this queries only what can be painted, so its cost
+	 * does not grow with the document.
+	 *
+	 * When decorations change where the view already is (typing, find matches,
+	 * diagnostics), it queries exactly `visible`, the range the DOM overlays
+	 * query each frame: VS Code caches one range's decorations, so a different
+	 * range would compute them again. The lines the renderer paints beyond it
+	 * are off screen; scrolling to them queries a wider range.
 	 */
-	private _syncDecorations(range: { start: number; end: number }): void {
+	private _syncDecorations(range: { start: number; end: number }, visible: Range | undefined): void {
 		const window = this._decorationWindow;
-		if (!this._decorationsDirty && window.start <= range.start && range.end <= window.end) {
+		const covered = window.start <= range.start && range.end <= window.end;
+		if (!this._decorationsDirty && covered) {
 			return;
 		}
 
 		const viewModel = this._context.viewModel;
-		const margin = range.end - range.start;
-		const start = Math.max(0, range.start - margin);
-		const end = Math.min(viewModel.getLineCount(), range.end + margin);
+		const narrow = covered && visible !== undefined;
+		let start: number;
+		let end: number;
+		if (narrow) {
+			start = visible.startLineNumber - 1;
+			end = visible.endLineNumber;
+		} else {
+			const margin = range.end - range.start;
+			start = Math.max(0, range.start - margin);
+			end = Math.min(viewModel.getLineCount(), range.end + margin);
+		}
 		const decorations: DecorationInput[] = [];
 		const controls: (FoldingControlInput | null)[] = new Array(Math.max(0, end - start)).fill(null);
 		const foldingControls = new Map<number, FoldingControlInput>();
 		const gutterLines = new Set<number>();
+		const inlineDecorations = new Map<number, InlineDecoration[]>();
 		if (start < end) {
-			const viewRange = new Range(start + 1, viewModel.getLineMinColumn(start + 1), end, viewModel.getLineMaxColumn(end));
+			const viewRange = narrow ? visible : new Range(start + 1, viewModel.getLineMinColumn(start + 1), end, viewModel.getLineMaxColumn(end));
 			for (const decoration of viewModel.getDecorationsInViewport(viewRange)) {
 				const foldingControl = this._foldingControlForDecoration(decoration);
 				const foldingLine = decoration.range.startLineNumber - 1;
@@ -1220,6 +1302,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 						gutterLines.add(line);
 					}
 				}
+				this._collectInlineDecoration(decoration, start + 1, end, inlineDecorations);
 				const resolved = this._decorationResolver.resolve(decoration, decorations.length + 1);
 				if (resolved) {
 					decorations.push(...resolved);
@@ -1228,10 +1311,39 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		this._setFoldingControls(start, controls);
 		this._applyDelta({ type: 'setDecorations', decorations });
-		this._decorationWindow = { start, end };
+		// A narrow query covers the renderer's range until it moves.
+		this._decorationWindow = narrow ? { start: range.start, end: range.end } : { start, end };
 		this._foldingControls = foldingControls;
 		this._decoratedGutterLines = gutterLines;
+		this._inlineDecorations = inlineDecorations;
+		this._inlineDecorationLines = { start: start + 1, end };
 		this._decorationsDirty = false;
+		this._lineStateDirty = true;
+	}
+
+	/**
+	 * Add `decoration`'s inline paint to the 1-based view lines `[start, end]`
+	 * it covers, as VS Code's `InlineModelDecorationsComputer` does, if the
+	 * renderer can paint its class.
+	 */
+	private _collectInlineDecoration(decoration: ViewModelDecoration, start: number, end: number, result: Map<number, InlineDecoration[]>): void {
+		const options = decoration.options;
+		const range = decoration.range;
+		if (!options.inlineClassName || range.isEmpty() || this._decorationResolver.resolveInlineStyle(options.inlineClassName) === undefined) {
+			return;
+		}
+		const inline = new InlineDecoration(range, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing
+			? InlineDecorationType.RegularAffectingLetterSpacing
+			: InlineDecorationType.Regular);
+		const last = Math.min(end, range.endLineNumber);
+		for (let line = Math.max(start, range.startLineNumber); line <= last; line++) {
+			const list = result.get(line);
+			if (list) {
+				list.push(inline);
+			} else {
+				result.set(line, [inline]);
+			}
+		}
 	}
 
 	private _setFoldingControls(start: number, controls: (FoldingControlInput | null)[]): void {
@@ -1316,12 +1428,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		this._editorView.setConfig(this._buildConfig());
 		const styleLines = this._rendererLineRange(scrollTop);
-		this._styleRange = styleLines.start < styleLines.end
-			? new Range(styleLines.start + 1, 1, styleLines.end, this._context.viewModel.getLineMaxColumn(styleLines.end))
-			: undefined;
 		this._syncModel();
 		// Before re-sending lines, which carry their folding control and label.
-		this._syncDecorations(styleLines);
+		this._syncDecorations(styleLines, this._visibleRange());
 		this._syncLineDerivedState(styleLines);
 		this._syncGuides(styleLines);
 		this._editorView.setViewport({
@@ -1427,6 +1536,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		// (Wrapping-column changes surface separately via `onLineMappingChanged`.)
 		// The caret style/blink options may have changed, so re-arm blinking.
 		this._updateBlinking();
+		// `lineNumbers` decides the gutter labels.
+		this._lineStateDirty = true;
 		return true;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
@@ -1453,6 +1564,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		// A cursor move re-shows the caret solid, then resumes blinking (so it
 		// doesn't flicker while typing) — matching `ViewCursors`.
 		this._updateBlinking();
+		// Relative and interval labels follow the primary cursor, and
+		// high-contrast themes color selected text.
+		this._lineStateDirty = true;
 		return true;
 	}
 	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -1507,6 +1621,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._decorationResolver.clear();
 		this._bracketGuideColors = undefined;
 		this._decorationsDirty = true;
+		this._lineStateDirty = true;
 		return true;
 	}
 	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
