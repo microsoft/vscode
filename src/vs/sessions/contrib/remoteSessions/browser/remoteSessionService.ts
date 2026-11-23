@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -93,16 +93,14 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const provider = options.hostId !== undefined
 			? providers.find(provider => provider.id === options.hostId)
 			: requested?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === requested.authority) : undefined;
-		let workspace: URI | undefined;
-		if (requested) {
-			// The approval names the directory that creation inspects; a wrapper's display path could name another one.
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- decodes a remote-workspace tool argument to label its directory
-			const directory = fromAgentHostUri(requested);
-			if (requested.scheme === AGENT_HOST_SCHEME) {
-				// eslint-disable-next-line local/code-agent-host-uri-mapping -- rewraps the decoded directory under the argument's own host authority
-				workspace = toAgentHostUri(directory, requested.authority);
-			} else {
-				workspace = provider ? provider.mapAgentHostResource(directory) : directory;
+		let workspace = requested;
+		if (requested && provider) {
+			if (requested.scheme !== AGENT_HOST_SCHEME) {
+				workspace = provider.mapAgentHostResource(requested);
+			} else if (requested.authority === agentHostAuthority(provider.remoteAddress)) {
+				// Mapping through the host's connection names the directory that creation inspects; a wrapper's display path could name another one.
+				const uris = this.connectionsService.getConnectionByAddress(provider.remoteAddress)?.resourceUris;
+				workspace = uris ? uris.fromAgentHost(uris.toAgentHost(requested)) : requested;
 			}
 		}
 		return { host: provider && this.getHostName(provider, providers), pinnedBy, workspace };

@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { readRemoteSessionOrigin, toRemoteSessionMessageMetadata, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -44,6 +44,9 @@ import { IRemoteSessionChatService } from '../../browser/remoteSessionChatServic
 
 class RemoteConnection extends mock<IAgentConnection>() {
 	override clientId = 'target-client';
+	constructor(override readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper) {
+		super();
+	}
 }
 
 class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
@@ -56,11 +59,12 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override sessionTypes: ISessionType[];
 	root: RootState;
 	rootAvailable = true;
-	connection = new RemoteConnection();
+	connection: RemoteConnection;
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
 		super();
 		this.remoteAddress = `ws://${name}:8080`;
+		this.connection = new RemoteConnection(createAgentHostResourceUriMapper(agentHostAuthority(this.remoteAddress)));
 		this.id = `agenthost-${agentHostAuthority(this.remoteAddress)}`;
 		this.label = name;
 		this.sessionTypes = [{
@@ -584,6 +588,7 @@ suite('RemoteSessionService', () => {
 			remoteContainerByWorkspace: describe({ workspace: { uri: containerWorkspace.toString() } }),
 			misleadingWorkspace: describe({ workspace: { uri: misleading.toString() } }).workspace,
 			fileOnPinnedHost: describe({ hostId: build.id, workspace: { uri: 'file:///home/user/project' } }).workspace,
+			otherHostsWorkspace: describe({ hostId: build.id, workspace: { uri: containerWorkspace.toString() } }).workspace,
 			automatic: describe({ workspace: { uri: 'file:///home/user/project' } }),
 			unknownId: describe({ hostId: 'agenthost-missing' }),
 			unknownAuthority: describe({ workspace: { uri: unavailableWorkspace.toString() } }),
@@ -593,6 +598,7 @@ suite('RemoteSessionService', () => {
 			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, pinnedBy: agentHostAuthority(remoteContainer.remoteAddress), workspace: containerWorkspace.toString() },
 			misleadingWorkspace: remoteContainer.mapAgentHostResource(URI.file('/workspaces/other')).toString(),
 			fileOnPinnedHost: build.mapAgentHostResource(URI.file('/home/user/project')).toString(),
+			otherHostsWorkspace: containerWorkspace.toString(),
 			automatic: { host: undefined, pinnedBy: undefined, workspace: URI.file('/home/user/project').toString() },
 			unknownId: { host: undefined, pinnedBy: 'agenthost-missing', workspace: undefined },
 			unknownAuthority: { host: undefined, pinnedBy: 'gone-host', workspace: unavailableWorkspace.toString() },
