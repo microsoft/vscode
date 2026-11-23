@@ -92,7 +92,7 @@ suite('RemoteSessionTools', () => {
 		const service = new class extends mock<IRemoteSessionService>() {
 			override listHosts(): readonly IRemoteSessionHost[] { return []; }
 			override getRequestedDestination(options: ICreateRemoteSessionOptions) {
-				return { host: options.hostId !== undefined ? hostNames.get(options.hostId) : undefined, workspace: options.workspace?.uri };
+				return { host: options.hostId !== undefined ? hostNames.get(options.hostId) : undefined, pinnedBy: options.hostId, workspace: options.workspace?.uri };
 			}
 			override async createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken) {
 				calls.push({ options, source, requestId, token });

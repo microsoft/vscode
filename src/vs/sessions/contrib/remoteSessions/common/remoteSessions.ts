@@ -106,6 +106,8 @@ export interface IRemoteSessionHostName {
 export interface IRemoteSessionDestination {
 	/** The host that the options pin, by `hostId` or by an Agent Host workspace URI, if it is available in this window. */
 	readonly host?: IRemoteSessionHostName;
+	/** The host ID or workspace authority that pins the host, also when that host is not available; undefined when placement selects it. */
+	readonly pinnedBy?: string;
 	/**
 	 * The workspace directory that creation inspects: an Agent Host URI of its host, whose path is the decoded
 	 * directory, or a `file:` URI when no host is pinned, whose path is the only lossless label.

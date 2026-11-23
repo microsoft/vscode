@@ -571,12 +571,13 @@ suite('RemoteSessionService', () => {
 		const remoteContainer = Object.assign(new RemoteProvider('container-2'), { label: 'Dev Container 4', devContainerEnvironmentHost: build.remoteAddress });
 		const { service } = setup([build, localContainer, remoteContainer]);
 		const describe = (input: object) => {
-			const { host, workspace } = service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
-			return { host, workspace: workspace?.toString() };
+			const { host, pinnedBy, workspace } = service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
+			return { host, pinnedBy, workspace: workspace?.toString() };
 		};
 		const containerWorkspace = remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu'));
 		// A wrapper that displays one path while its metadata names another directory.
 		const misleading = toAgentHostContentUri(URI.file('/workspaces/other'), agentHostAuthority(remoteContainer.remoteAddress), URI.file('/workspaces/demo'));
+		const unavailableWorkspace = toAgentHostUri(URI.file('/repo'), 'gone-host');
 		assert.deepStrictEqual({
 			byId: describe({ hostId: build.id }),
 			localContainer: describe({ hostId: localContainer.id }),
@@ -584,15 +585,17 @@ suite('RemoteSessionService', () => {
 			misleadingWorkspace: describe({ workspace: { uri: misleading.toString() } }).workspace,
 			fileOnPinnedHost: describe({ hostId: build.id, workspace: { uri: 'file:///home/user/project' } }).workspace,
 			automatic: describe({ workspace: { uri: 'file:///home/user/project' } }),
-			unknown: describe({ hostId: 'agenthost-missing' }),
+			unknownId: describe({ hostId: 'agenthost-missing' }),
+			unknownAuthority: describe({ workspace: { uri: unavailableWorkspace.toString() } }),
 		}, {
-			byId: { host: { label: 'build' }, workspace: undefined },
-			localContainer: { host: { label: 'Dev Container 3', containerHost: 'This Computer' }, workspace: undefined },
-			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, workspace: containerWorkspace.toString() },
+			byId: { host: { label: 'build' }, pinnedBy: build.id, workspace: undefined },
+			localContainer: { host: { label: 'Dev Container 3', containerHost: 'This Computer' }, pinnedBy: localContainer.id, workspace: undefined },
+			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, pinnedBy: agentHostAuthority(remoteContainer.remoteAddress), workspace: containerWorkspace.toString() },
 			misleadingWorkspace: remoteContainer.mapAgentHostResource(URI.file('/workspaces/other')).toString(),
 			fileOnPinnedHost: build.mapAgentHostResource(URI.file('/home/user/project')).toString(),
-			automatic: { host: undefined, workspace: URI.file('/home/user/project').toString() },
-			unknown: { host: undefined, workspace: undefined },
+			automatic: { host: undefined, pinnedBy: undefined, workspace: URI.file('/home/user/project').toString() },
+			unknownId: { host: undefined, pinnedBy: 'agenthost-missing', workspace: undefined },
+			unknownAuthority: { host: undefined, pinnedBy: 'gone-host', workspace: unavailableWorkspace.toString() },
 		});
 	});
 

@@ -118,7 +118,8 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		}
 		assertRemoteSessionCaller(context.chatSessionResource);
 		const destination = this.remoteSessionsService.getRequestedDestination(options);
-		const host = destination.host ?? (options.hostId !== undefined ? { label: options.hostId } : undefined);
+		// A pinned host that is not available is named by what pins it: creation fails rather than choosing another host.
+		const host = destination.host ?? (destination.pinnedBy !== undefined ? { label: destination.pinnedBy } : undefined);
 		const message = new MarkdownString().appendText(!host
 			? localize('remoteSessions.create.confirmationAutomatic', "Start this task on a matching remote host? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.")
 			: host.containerHost !== undefined

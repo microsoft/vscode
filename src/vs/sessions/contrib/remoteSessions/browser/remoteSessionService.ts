@@ -89,6 +89,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination {
 		const providers = this.remoteProviders();
 		const requested = options.workspace?.uri;
+		const pinnedBy = options.hostId ?? (requested?.scheme === AGENT_HOST_SCHEME ? requested.authority : undefined);
 		const provider = options.hostId !== undefined
 			? providers.find(provider => provider.id === options.hostId)
 			: requested?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === requested.authority) : undefined;
@@ -104,7 +105,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				workspace = provider ? provider.mapAgentHostResource(directory) : directory;
 			}
 		}
-		return { host: provider && this.getHostName(provider, providers), workspace };
+		return { host: provider && this.getHostName(provider, providers), pinnedBy, workspace };
 	}
 
 	private getHostName(provider: RemoteSessionsProvider, providers: readonly RemoteSessionsProvider[]): IRemoteSessionHostName {
