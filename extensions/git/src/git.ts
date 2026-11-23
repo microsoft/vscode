@@ -1714,20 +1714,58 @@ export class Repository {
 	}
 
 	async getGitFilePath(ref: string, filePath: string): Promise<string> {
-		const elements: { file: string }[] = ref
-			? await this.lstree(ref, undefined, { recursive: true })
-			: await this.lsfiles(this.repositoryRoot);
+		const relativePath = this.sanitizeRelativePath(filePath);
+		const gitRelativePath = ref
+			? await this.findTreePathIgnoreCase(ref, relativePath)
+			: await this.findIndexPathIgnoreCase(relativePath);
 
-		const relativePathLowercase = this.sanitizeRelativePath(filePath).toLowerCase();
-		const element = elements.find(file => file.file.toLowerCase() === relativePathLowercase);
-
-		if (!element) {
+		if (!gitRelativePath) {
 			throw new GitError({
-				message: `Git relative path not found. Was looking for ${relativePathLowercase} among ${JSON.stringify(elements.map(({ file }) => file), null, 2)}`,
+				message: `Git relative path not found. Was looking for ${relativePath}`,
 			});
 		}
 
-		return path.join(this.repositoryRoot, element.file);
+		return path.join(this.repositoryRoot, gitRelativePath);
+	}
+
+	private async findIndexPathIgnoreCase(relativePath: string): Promise<string | undefined> {
+		const relativePathLowercase = relativePath.toLowerCase();
+		const elements = await this.lsfiles(`:(icase,literal)${relativePath}`);
+
+		return elements.find(element => element.file.toLowerCase() === relativePathLowercase)?.file;
+	}
+
+	/**
+	 * Resolves a relative path against the tree of a ref, ignoring the case of
+	 * each path segment. Lists one folder at a time so that the lookup does not
+	 * have to list the whole tree.
+	 */
+	private async findTreePathIgnoreCase(ref: string, relativePath: string): Promise<string | undefined> {
+		const findInFolder = async (folder: string, pathLowercase: string) => {
+			const elements = await this.lstree(ref, folder !== '.' ? `${folder}/` : undefined);
+			return elements.find(element => element.file.toLowerCase() === pathLowercase)?.file;
+		};
+
+		// Common case: only the case of the file name differs
+		const dirname = path.posix.dirname(relativePath);
+		const file = await findInFolder(dirname, relativePath.toLowerCase());
+		if (file || dirname === '.') {
+			return file;
+		}
+
+		// The case of a folder differs: resolve one segment at a time
+		let treePath = '.';
+		for (const segment of relativePath.split('/')) {
+			const candidate = treePath !== '.' ? `${treePath}/${segment}` : segment;
+			const resolved = await findInFolder(treePath, candidate.toLowerCase());
+			if (!resolved) {
+				return undefined;
+			}
+
+			treePath = resolved;
+		}
+
+		return treePath;
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
