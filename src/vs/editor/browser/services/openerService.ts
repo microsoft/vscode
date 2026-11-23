@@ -280,6 +280,7 @@ export class OpenerService implements IOpenerService {
 				sourceHref: target.sourceHref,
 				preferredOpenerId,
 				viewColumn: options?.openToSide ? ViewColumn.Beside : undefined,
+				sourceWindowId: options?.sourceWindowId,
 			}, CancellationToken.None);
 			if (didOpen) {
 				return true;

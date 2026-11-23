@@ -263,6 +263,18 @@ function createAriaDomNode(parent: HTMLElement | undefined) {
 }
 
 /**
+ * Markdown in the standalone editor often shows untrusted content, so remote images in it are opt-in.
+ * Applies that default, also when `markdownImages` or its `allowedOrigins` are reset to `undefined`.
+ * Updates that don't mention `markdownImages` keep the current value.
+ */
+export function applyStandaloneMarkdownImagesDefault<T extends IEditorOptions>(options: T, isUpdate = false): T {
+	if (isUpdate && !Object.prototype.hasOwnProperty.call(options, 'markdownImages')) {
+		return options;
+	}
+	return { ...options, markdownImages: { ...options.markdownImages, allowedOrigins: options.markdownImages?.allowedOrigins ?? [] } };
+}
+
+/**
  * A code editor to be used both by the standalone editor and the standalone diff editor.
  */
 export class StandaloneCodeEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
@@ -286,7 +298,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IUserInteractionService userInteractionService: IUserInteractionService,
 	) {
-		const options = { ..._options };
+		const options = applyStandaloneMarkdownImagesDefault({ ..._options });
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService, userInteractionService);
 
@@ -302,6 +314,10 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		setBaseLayerHoverDelegate(hoverService);
 
 		markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
+	}
+
+	public override updateOptions(newOptions: Readonly<IEditorOptions> | undefined): void {
+		super.updateOptions(newOptions && applyStandaloneMarkdownImagesDefault(newOptions, true));
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {

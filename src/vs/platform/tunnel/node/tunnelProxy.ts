@@ -212,7 +212,10 @@ export class TunnelProxy extends Disposable {
 			const host = options.hostname || options.host || '';
 			const port = Number(options.port) || 80;
 			this._createTunnelSocket(host, port)
-				.then(socket => oncreate?.(null, socket))
+				.then(socket => {
+					socket.once('end', () => socket.destroy());
+					oncreate?.(null, socket);
+				})
 				.catch(err => oncreate?.(err, null!));
 		};
 		return agent;
@@ -331,7 +334,7 @@ export class TunnelProxy extends Disposable {
 		// the URL's port or default 80 would produce confusing failures
 		// or wrong content).
 		if (parsed.protocol !== 'http:') {
-			this._logService.warn(`[TunnelProxy] Rejecting non-HTTP forwarded request: ${req.method} ${req.url}`);
+			this._logService.warn(`[TunnelProxy] Rejecting non-HTTP forwarded request: ${req.method}`);
 			res.writeHead(400);
 			res.end();
 			return;
@@ -347,7 +350,7 @@ export class TunnelProxy extends Disposable {
 			return;
 		}
 
-		this._logService.trace(`[TunnelProxy] ${req.method} ${host}:${port}${parsed.pathname}`);
+		this._logService.trace(`[TunnelProxy] ${req.method} ${host}:${port}`);
 
 		try {
 			const http = await import('http');

@@ -11,6 +11,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, ITextModel } from '../../../common/model.js';
@@ -33,7 +34,6 @@ import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry
 import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from './hoverOperation.js';
-import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.addSmall, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -48,6 +48,7 @@ export class MarkdownHover implements IHoverPart {
 		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number,
 		public readonly source: HoverSource | undefined = undefined,
+		public readonly copyContent?: string | null,
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -159,7 +160,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++, undefined, d.options.hoverMessageCopyContent));
 		}
 
 		return result;
@@ -208,12 +209,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return this._renderedHoverParts;
 	}
 
-	public handleScroll(e: ScrollEvent): void {
-		this._renderedHoverParts?.handleScroll(e);
-	}
-
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
+	}
+
+	public getCopyContent(hoverPart: MarkdownHover): string {
+		return this._renderedHoverParts?.getCopyContent(hoverPart) ?? '';
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
@@ -231,7 +232,6 @@ class RenderedMarkdownHoverPart implements IRenderedHoverPart<MarkdownHover> {
 		public readonly hoverPart: MarkdownHover,
 		public readonly hoverElement: HTMLElement,
 		public readonly disposables: DisposableStore,
-		public readonly actionsContainer?: HTMLElement
 	) { }
 
 	get hoverAccessibleContent(): string {
@@ -315,7 +315,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		actionsContainer.append(actionsContainerInner);
 		disposables.add(this._renderHoverExpansionAction(actionsContainerInner, HoverVerbosityAction.Increase, canIncreaseVerbosity));
 		disposables.add(this._renderHoverExpansionAction(actionsContainerInner, HoverVerbosityAction.Decrease, canDecreaseVerbosity));
-		return new RenderedMarkdownHoverPart(hoverPart, renderedMarkdownElement, disposables, actionsContainerInner);
+		return new RenderedMarkdownHoverPart(hoverPart, renderedMarkdownElement, disposables);
 	}
 
 	private _renderMarkdownHover(
@@ -347,29 +347,6 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		store.add(new ClickAction(actionElement, actionFunction));
 		store.add(new KeyDownAction(actionElement, actionFunction, [KeyCode.Enter, KeyCode.Space]));
 		return store;
-	}
-
-	public handleScroll(e: ScrollEvent): void {
-		this.renderedHoverParts.forEach(renderedHoverPart => {
-			const actionsContainerInner = renderedHoverPart.actionsContainer;
-			if (!actionsContainerInner) {
-				return;
-			}
-			const hoverElement = renderedHoverPart.hoverElement;
-			const topOfHoverScrollPosition = e.scrollTop;
-			const bottomOfHoverScrollPosition = topOfHoverScrollPosition + e.height;
-			const topOfRenderedPart = hoverElement.offsetTop;
-			const hoverElementHeight = hoverElement.clientHeight;
-			const bottomOfRenderedPart = topOfRenderedPart + hoverElementHeight;
-			const iconsHeight = 22;
-			let top: number;
-			if (bottomOfRenderedPart <= bottomOfHoverScrollPosition || topOfRenderedPart >= bottomOfHoverScrollPosition) {
-				top = hoverElementHeight - iconsHeight;
-			} else {
-				top = bottomOfHoverScrollPosition - topOfRenderedPart - iconsHeight;
-			}
-			actionsContainerInner.style.top = `${top}px`;
-		});
 	}
 
 	public async updateMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction, index: number): Promise<{ hoverPart: MarkdownHover; hoverElement: HTMLElement } | undefined> {
@@ -420,6 +397,10 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		return accessibleContent;
 	}
 
+	public getCopyContent(hoverPart: MarkdownHover): string | undefined {
+		return hoverPart.copyContent ?? this.getAccessibleContent(hoverPart);
+	}
+
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
 		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(index);
 		const hoverSource = hoverRenderedPart?.hoverPart.source;
@@ -465,7 +446,6 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 			hoverPart,
 			currentRenderedMarkdown,
 			renderedHoverPart.disposables,
-			renderedHoverPart.actionsContainer
 		);
 		currentRenderedHoverPart.dispose();
 		this.renderedHoverParts[index] = newRenderedHoverPart;
@@ -524,6 +504,7 @@ function renderMarkdown(
 
 		const renderedContents = disposables.add(markdownRendererService.render(markdownString, {
 			context: editor,
+			sanitizerConfig: getEditorMarkdownSanitizerConfig(editor),
 			asyncRenderCallback: () => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				onFinishedRendering();

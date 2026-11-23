@@ -17,8 +17,8 @@
     "terminalQuickFixProvider"
   ],
   "scripts": {
-    "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm",
+    "compile": "pnpm exec gulp compile-extension:npm",
+    "watch": "pnpm exec gulp watch-extension:npm",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
@@ -38,8 +38,12 @@
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
+    "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "@types/which": "^3.0.0"
+    "@types/sinon": "^10.0.2",
+    "@types/which": "^3.0.0",
+    "mocha": "^10.8.2",
+    "sinon": "^12.0.1"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",

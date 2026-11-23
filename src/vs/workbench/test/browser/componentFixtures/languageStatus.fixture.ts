@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedText } from '../../../../base/common/linkedText.js';
 import Severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -91,7 +92,7 @@ const typeScriptProjectError = languageStatus({
 	source: typeScriptSource,
 	severity: Severity.Error,
 	label: 'tsconfig.json',
-	detail: 'Unable to load the project configuration. [Show Log](command:fixture.showLog)',
+	detail: new LinkedText(['Unable to load the project configuration. ', { label: 'Show Log', href: 'command:fixture.showLog' }]),
 	command: command('Open Config File'),
 });
 
@@ -100,7 +101,7 @@ const jsonSchema = languageStatus({
 	name: 'JSON Schema',
 	source: 'JSON Language Features',
 	label: 'Schema validated',
-	detail: '[package.json](https://json.schemastore.org/package)',
+	detail: new LinkedText([{ label: 'package.json', href: 'https://json.schemastore.org/package' }]),
 });
 
 const eslint = languageStatus({

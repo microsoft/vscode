@@ -119,8 +119,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					historyItemRefId = `refs/heads/${this.repository.HEAD.name}`;
 					historyItemRefName = this.repository.HEAD.name;
 
-					// Remote
-					if (this.repository.HEAD.upstream) {
+					// Remote (skip the upstream if it could not be resolved, ex: `remote = .`
+					// with `merge` pointing to a ref that is not a local branch)
+					if (this.repository.HEAD.upstream?.commit) {
 						if (this.repository.HEAD.upstream.remote === '.') {
 							// Local branch
 							this._currentHistoryItemRemoteRef = {

@@ -5,19 +5,19 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ClientConnectionEvent, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AccountClient } from '../../common/account/accountClient.js';
-import { copilotConnectorsScope } from '../../common/connectors/connectors.js';
-import { ConnectorsClient } from '../../common/connectors/connectorsClient.js';
 import { ApiRequest, IApiRequestProvider } from '../../common/client/request.js';
 import { SchemaError } from '../../common/client/schema.js';
+import { copilotConnectorsScope } from '../../common/connectors/connectors.js';
+import { ConnectorsClient } from '../../common/connectors/connectorsClient.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubAuthorizationContext, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions } from '../../common/githubTypes.js';
 import { ApiRequestMessage, IGitHubCredentialBroker } from '../../common/remote/ipc.js';
@@ -25,19 +25,18 @@ import { GitHubChannelClient } from '../../common/remote/ipcClient.js';
 import { registerGitHubChannel } from '../../common/remote/ipcServer.js';
 import { parseApiResponse } from '../../common/remote/serialization.js';
 import { RequestFetch } from '../../common/types.js';
-import { TestConnection } from './testConnection.js';
 import { createConnectorPlugin } from './connectorsFixtures.js';
-
+import { TestConnection } from './testConnection.js';
 suite('Copilot Connectors request contract', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('rejects every operation when no provider is configured', async () => {
 		const client = new ConnectorsClient();
-		const signal = new AbortController().signal;
+		const cancellationToken = CancellationToken.None;
 		const expected = { kind: 'validation', message: 'No approved Copilot connectors endpoint is configured for this client' };
-		await assert.rejects(client.getCatalog(signal), expected);
-		await assert.rejects(client.connect('mail', signal), expected);
-		await assert.rejects(client.disconnect('mail', signal), expected);
+		await assert.rejects(client.getCatalog(cancellationToken), expected);
+		await assert.rejects(client.connect('mail', cancellationToken), expected);
+		await assert.rejects(client.disconnect('mail', cancellationToken), expected);
 	});
 
 	test('rejects every pre-cancelled operation without contacting the provider', async () => {
@@ -45,10 +44,10 @@ suite('Copilot Connectors request contract', () => {
 			request: async () => assert.fail('Cancelled operations must not reach the provider'),
 		};
 		const client = new ConnectorsClient(provider);
-		const signal = AbortSignal.abort(new CancellationError());
-		await assert.rejects(client.getCatalog(signal), isCancellationError);
-		await assert.rejects(client.connect('mail', signal), isCancellationError);
-		await assert.rejects(client.disconnect('mail', signal), isCancellationError);
+		const cancellationToken = CancellationToken.Cancelled;
+		await assert.rejects(client.getCatalog(cancellationToken), isCancellationError);
+		await assert.rejects(client.connect('mail', cancellationToken), isCancellationError);
+		await assert.rejects(client.disconnect('mail', cancellationToken), isCancellationError);
 	});
 
 	test('declares only the operation-specific success status and body mode', async () => {
@@ -58,10 +57,10 @@ suite('Copilot Connectors request contract', () => {
 			request: async (request: ApiRequest) => { requests.push(request); throw dispatched; },
 		};
 		const client = new ConnectorsClient(provider);
-		const signal = new AbortController().signal;
-		await assert.rejects(client.getCatalog(signal), error => error === dispatched);
-		await assert.rejects(client.connect('mail', signal), error => error === dispatched);
-		await assert.rejects(client.disconnect('mail', signal), error => error === dispatched);
+		const cancellationToken = CancellationToken.None;
+		await assert.rejects(client.getCatalog(cancellationToken), error => error === dispatched);
+		await assert.rejects(client.connect('mail', cancellationToken), error => error === dispatched);
+		await assert.rejects(client.disconnect('mail', cancellationToken), error => error === dispatched);
 		assert.deepStrictEqual(requests.map(request => ({ method: request.method, status: request.expectedStatus, mode: request.responseBody ?? 'json' })), [
 			{ method: 'GET', status: 200, mode: 'json' },
 			{ method: 'PUT', status: 200, mode: 'json' },
@@ -73,7 +72,7 @@ suite('Copilot Connectors request contract', () => {
 for (const remote of [false, true]) {
 	suite(`Copilot Connectors ${remote ? 'IPC' : 'local'} client`, () => {
 		const store = ensureNoDisposablesAreLeakedInTestSuite();
-		const signal = () => new AbortController().signal;
+		const cancellationToken = () => CancellationToken.None;
 
 		async function setup(options: { fetch?: RequestFetch; endpoint?: string; scopes?: readonly string[]; enterprise?: boolean } = {}) {
 			const authorization: GitHubAuthorizationContext = {
@@ -104,7 +103,7 @@ for (const remote of [false, true]) {
 			const requests: { url: string; method: string | undefined; body: string | undefined; authorization: string | null; etag: string | null; redirect: RequestRedirect | undefined }[] = [];
 			const serviceOptions: GitHubServiceOptions = {
 				connectorsApiBaseUri: options.endpoint ?? 'https://api.github.com/copilot-connectors/api/v1/',
-				fetch: async (input, init) => {
+				fetch: async (input, init, fetchToken, fetchLifetime) => {
 					const url = String(input);
 					if (url === `${endpoints.apiBaseUri}/user`) {
 						return Response.json({ id: 101 });
@@ -114,7 +113,7 @@ for (const remote of [false, true]) {
 						url, method: init?.method, body: typeof init?.body === 'string' ? init.body : undefined,
 						authorization: headers.get('Authorization'), etag: headers.get('If-None-Match'), redirect: init?.redirect,
 					});
-					return options.fetch ? options.fetch(input, init)
+					return options.fetch ? options.fetch(input, init, fetchToken, fetchLifetime)
 						: init?.method === 'DELETE' ? new Response(null, { status: 204 })
 							: init?.method === 'PUT' ? Response.json({ status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://consent.test/connect' })
 								: Response.json({ plugins: [createConnectorPlugin({ description: 'Mail' })] }, { headers: { etag: '"catalog"' } });
@@ -129,7 +128,7 @@ for (const remote of [false, true]) {
 				store.add(registerGitHubChannel(server, service));
 				connection = store.add(new TestConnection(connected, 'connectors-window'));
 				connection.registerCredentials(broker);
-				client = store.add(await new GitHubChannelClient(connection.channel, new NullLogService()).acquireClient(authorization, signal()));
+				client = store.add(await new GitHubChannelClient(connection.channel, new NullLogService()).acquireClient(authorization, cancellationToken()));
 			} else {
 				const scope = store.add(service.createRequestProviderScope(broker));
 				const reference = scope.acquireClient({ authorization, ...endpoints });
@@ -147,10 +146,10 @@ for (const remote of [false, true]) {
 
 		test('revalidates catalogs but never caches connection operations', async () => {
 			const fixture = await setup();
-			const catalog = await fixture.client.connectors.getCatalog(signal());
-			await fixture.client.connectors.getCatalog(signal());
-			const connected = await fixture.client.connectors.connect('mail/name #1', signal());
-			await fixture.client.connectors.disconnect('mail/name #1', signal());
+			const catalog = await fixture.client.connectors.getCatalog(cancellationToken());
+			await fixture.client.connectors.getCatalog(cancellationToken());
+			const connected = await fixture.client.connectors.connect('mail/name #1', cancellationToken());
+			await fixture.client.connectors.disconnect('mail/name #1', cancellationToken());
 			assert.deepStrictEqual({ catalog, connected, requests: fixture.requests }, {
 				catalog: { plugins: [createConnectorPlugin({ description: 'Mail' })] },
 				connected: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://consent.test/connect' },
@@ -168,44 +167,44 @@ for (const remote of [false, true]) {
 
 		test('leaves credential-class and permission authorization to the service', async () => {
 			const fixture = await setup({ scopes: [] });
-			await fixture.client.connectors.getCatalog(signal());
-			await fixture.client.connectors.connect('mail', signal());
-			await fixture.client.connectors.disconnect('mail', signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
+			await fixture.client.connectors.connect('mail', cancellationToken());
+			await fixture.client.connectors.disconnect('mail', cancellationToken());
 			assert.deepStrictEqual(fixture.requests.map(request => request.method), ['GET', 'PUT', 'DELETE']);
 		});
 
 		test('does not enable connectors for enterprise account clients', async () => {
 			const fixture = await setup({ enterprise: true });
-			await assert.rejects(fixture.client.connectors.getCatalog(signal()), { kind: 'validation' });
+			await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()), { kind: 'validation' });
 			assert.deepStrictEqual({ requests: fixture.requests, tokens: fixture.tokenLookups() }, { requests: [], tokens: 0 });
 		});
 
 		test('uses only the hosting binding endpoint', async () => {
 			const fixture = await setup({ endpoint: 'https://approved.example.test/connectors/v2/' });
-			await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual(fixture.requests.map(request => request.url), ['https://approved.example.test/connectors/v2/plugins']);
 		});
 
 		test('rejects invalid endpoints before obtaining a token', async () => {
 			for (const endpoint of ['http://api.github.test', 'not a URL', 'https://user@api.github.test', 'https://api.github.test?path=other', 'https://api.github.test#other']) {
 				const fixture = await setup({ endpoint });
-				await assert.rejects(fixture.client.connectors.getCatalog(signal()));
+				await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()));
 				assert.deepStrictEqual({ requests: fixture.requests, tokens: fixture.tokenLookups() }, { requests: [], tokens: 0 });
 			}
 		});
 
 		test('an invalid Connector endpoint does not affect credential renewal for other domains', async () => {
 			const fixture = await setup({ endpoint: 'not a URL', fetch: async () => Response.json([]) });
-			await fixture.client.users.listEmails(signal());
+			await fixture.client.users.listEmails(cancellationToken());
 			fixture.renew('renewed-token');
-			const emails = await fixture.client.users.listEmails(signal());
+			const emails = await fixture.client.users.listEmails(cancellationToken());
 			assert.deepStrictEqual({ emails, tokenLookups: fixture.tokenLookups() }, { emails: [], tokenLookups: 2 });
 		});
 
 		test('rejects invalid connector names without making requests', async () => {
 			const fixture = await setup();
 			for (const name of ['', '.', '..', 'x'.repeat(4097)]) {
-				await assert.rejects(async () => fixture.client.connectors.connect(name, signal()), { kind: 'validation' });
+				await assert.rejects(async () => fixture.client.connectors.connect(name, cancellationToken()), { kind: 'validation' });
 			}
 			assert.deepStrictEqual(fixture.requests, []);
 		});
@@ -215,7 +214,7 @@ for (const remote of [false, true]) {
 				const fixture = await setup({
 					fetch: async () => new Response('{"sensitive":"response"}', { status, headers: { Location: 'https://untrusted.test/next' } }),
 				});
-				await assert.rejects(fixture.client.connectors.getCatalog(signal()), error => {
+				await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()), error => {
 					assert.ok(error instanceof GitHubRequestError);
 					assert.ok(!error.message.includes('sensitive'));
 					return error.statusCode === status;
@@ -227,7 +226,7 @@ for (const remote of [false, true]) {
 		test('rejects malformed catalog JSON and shapes', async () => {
 			for (const body of ['{invalid', '{"plugins":null}']) {
 				const fixture = await setup({ fetch: async () => new Response(body) });
-				await assert.rejects(fixture.client.connectors.getCatalog(signal()));
+				await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()));
 			}
 		});
 
@@ -240,7 +239,7 @@ for (const remote of [false, true]) {
 				mcpServers: { mcpServers: { mail: { type: 'http', url: 'https://routing.test/opaque-path?version=2' } } },
 			});
 			const fixture = await setup({ fetch: async () => Response.json({ plugins: [plugin] }) });
-			assert.deepStrictEqual(await fixture.client.connectors.getCatalog(signal()), { plugins: [plugin] });
+			assert.deepStrictEqual(await fixture.client.connectors.getCatalog(cancellationToken()), { plugins: [plugin] });
 		});
 
 		test('requires the actual nested service schema without turning missing fields into empty values', async () => {
@@ -253,7 +252,7 @@ for (const remote of [false, true]) {
 				{ ...plugin, skills: [{ name: 'skill' }] },
 			]) {
 				const fixture = await setup({ fetch: async () => Response.json({ plugins: [malformed] }) });
-				await assert.rejects(fixture.client.connectors.getCatalog(signal()), SchemaError);
+				await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()), SchemaError);
 			}
 		});
 
@@ -268,37 +267,37 @@ for (const remote of [false, true]) {
 				},
 			]) {
 				const fixture = await setup({ fetch: async () => Response.json(result) });
-				assert.deepStrictEqual(await fixture.client.connectors.connect('mail', signal()), result);
+				assert.deepStrictEqual(await fixture.client.connectors.connect('mail', cancellationToken()), result);
 			}
 		});
 
 		test('rejects empty and malformed connection successes rather than starting polling', async () => {
 			for (const body of ['', 'null', '[]', '{}', '{"status":"Connected"}', '{"status":"Connected","provisioning_state":"Succeeded","statuses":null}']) {
 				const fixture = await setup({ fetch: async () => new Response(body, { status: 200 }) });
-				await assert.rejects(fixture.client.connectors.connect('mail', signal()));
+				await assert.rejects(fixture.client.connectors.connect('mail', cancellationToken()));
 			}
 			const fixture = await setup({ fetch: async () => new Response('', { status: 200 }) });
-			await assert.rejects(fixture.client.connectors.getCatalog(signal()), { kind: 'malformedResponse', statusCode: 200 });
+			await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()), { kind: 'malformedResponse', statusCode: 200 });
 		});
 
 		test('accepts exactly five MiB and rejects an oversized response', async () => {
 			const body = '{"plugins":[]}';
 			const limit = 5 * 1024 * 1024;
 			const fixture = await setup({ fetch: async () => new Response(' '.repeat(limit - body.length) + body) });
-			assert.deepStrictEqual(await fixture.client.connectors.getCatalog(signal()), { plugins: [] });
+			assert.deepStrictEqual(await fixture.client.connectors.getCatalog(cancellationToken()), { plugins: [] });
 			const oversized = await setup({ fetch: async () => new Response(' '.repeat(limit - body.length + 1) + body) });
-			await assert.rejects(oversized.client.connectors.getCatalog(signal()), { kind: 'responseTooLarge' });
+			await assert.rejects(oversized.client.connectors.getCatalog(cancellationToken()), { kind: 'responseTooLarge' });
 		});
 
 		test('rejects unexpected success statuses for each service operation', async () => {
 			for (const status of [201, 202, 204, 206]) {
 				const fixture = await setup({ fetch: async () => new Response(null, { status }) });
-				await assert.rejects(fixture.client.connectors.getCatalog(signal()), { kind: 'malformedResponse', statusCode: status });
-				await assert.rejects(fixture.client.connectors.connect('mail', signal()), { kind: 'malformedResponse', statusCode: status });
+				await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()), { kind: 'malformedResponse', statusCode: status });
+				await assert.rejects(fixture.client.connectors.connect('mail', cancellationToken()), { kind: 'malformedResponse', statusCode: status });
 			}
 			for (const status of [200, 202]) {
 				const fixture = await setup({ fetch: async () => new Response(null, { status }) });
-				await assert.rejects(fixture.client.connectors.disconnect('mail', signal()), { kind: 'malformedResponse', statusCode: status });
+				await assert.rejects(fixture.client.connectors.disconnect('mail', cancellationToken()), { kind: 'malformedResponse', statusCode: status });
 			}
 		});
 
@@ -309,8 +308,8 @@ for (const remote of [false, true]) {
 					? new Response(null, { status: 304, headers: { ETag: etag } })
 					: Response.json({ plugins: [] }, { headers: { ETag: etag, 'Cache-Control': 'private, no-cache' } }),
 			});
-			await fixture.client.connectors.getCatalog(signal());
-			const catalog = await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
+			const catalog = await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual({ catalog, validators: fixture.requests.map(request => request.etag) }, {
 				catalog: { plugins: [] }, validators: [null, etag],
 			});
@@ -318,30 +317,30 @@ for (const remote of [false, true]) {
 
 		test('noCache bypasses catalog revalidation without evicting another cached response', async () => {
 			const fixture = await setup();
-			await fixture.client.connectors.getCatalog(signal());
-			await fixture.client.connectors.getCatalog(signal(), { noCache: true });
-			await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
+			await fixture.client.connectors.getCatalog(cancellationToken(), { noCache: true });
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual(fixture.requests.map(request => request.etag), [null, null, '"catalog"']);
 		});
 
 		test('server no-store disables catalog retention', async () => {
 			const fixture = await setup({ fetch: async () => Response.json({ plugins: [] }, { headers: { ETag: '"private"', 'Cache-Control': 'no-store' } }) });
-			await fixture.client.connectors.getCatalog(signal());
-			await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual(fixture.requests.map(request => request.etag), [null, null]);
 		});
 
 		test('disconnect retains missing-connection and conflict failures', async () => {
 			for (const status of [404, 409]) {
 				const fixture = await setup({ fetch: async () => new Response('Connection unavailable', { status }) });
-				await assert.rejects(fixture.client.connectors.disconnect('mail', signal()), { statusCode: status });
+				await assert.rejects(fixture.client.connectors.disconnect('mail', cancellationToken()), { statusCode: status });
 				assert.strictEqual(fixture.requests.length, 1);
 			}
 		});
 
 		test('never retries an uncertain connection mutation', async () => {
 			const fixture = await setup({ fetch: async () => { throw new Error('Connection lost'); } });
-			await assert.rejects(fixture.client.connectors.connect('mail', signal()), { kind: 'network' });
+			await assert.rejects(fixture.client.connectors.connect('mail', cancellationToken()), { kind: 'network' });
 			assert.deepStrictEqual(fixture.requests.map(request => request.method), ['PUT']);
 		});
 
@@ -354,11 +353,11 @@ for (const remote of [false, true]) {
 					return new Response(new ReadableStream({ cancel: () => { cancelled = true; } }));
 				}
 			});
-			const controller = new AbortController();
-			const pending = fixture.client.connectors.getCatalog(controller.signal);
+			const controller = store.add(new CancellationTokenSource());
+			const pending = fixture.client.connectors.getCatalog(controller.token);
 			const rejected = assert.rejects(pending, isCancellationError);
 			await started.p;
-			controller.abort(new CancellationError());
+			controller.cancel();
 			await rejected;
 			await fixture.connection?.flush();
 			assert.strictEqual(cancelled, true);
@@ -371,9 +370,9 @@ for (const remote of [false, true]) {
 					? new Response('{"message":"limited"}', { status: 429, headers: { 'Retry-After': '1' } })
 					: Response.json({ plugins: [] }),
 			});
-			await assert.rejects(fixture.client.connectors.getCatalog(signal()), { kind: 'rateLimit' });
+			await assert.rejects(fixture.client.connectors.getCatalog(cancellationToken()), { kind: 'rateLimit' });
 			const start = Date.now();
-			await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual({ calls, elapsed: Date.now() - start }, { calls: 2, elapsed: 1_000 });
 		}));
 
@@ -390,12 +389,12 @@ for (const remote of [false, true]) {
 						: Response.json({ plugins: [plugin] }, { headers: { ETag: etag } });
 				},
 			});
-			const initial = await fixture.client.connectors.getCatalog(signal());
-			await fixture.client.connectors.getCatalog(signal());
+			const initial = await fixture.client.connectors.getCatalog(cancellationToken());
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			plugin = renewedPlugin;
 			fixture.renew('renewed-token');
-			const renewed = await fixture.client.connectors.getCatalog(signal());
-			const revalidated = await fixture.client.connectors.getCatalog(signal());
+			const renewed = await fixture.client.connectors.getCatalog(cancellationToken());
+			const revalidated = await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual({ initial, renewed, revalidated, validators: fixture.requests.map(request => request.etag) }, {
 				initial: { plugins: [initialPlugin] },
 				renewed: { plugins: [renewedPlugin] },
@@ -406,9 +405,9 @@ for (const remote of [false, true]) {
 
 		test('renews only the selected grant and does not retain the old catalog', async () => {
 			const fixture = await setup();
-			await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			fixture.renew('renewed-token');
-			await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(cancellationToken());
 			assert.deepStrictEqual(fixture.requests.map(request => ({ token: request.authorization, etag: request.etag })), [
 				{ token: 'Bearer selected-token', etag: null }, { token: 'Bearer renewed-token', etag: null },
 			]);

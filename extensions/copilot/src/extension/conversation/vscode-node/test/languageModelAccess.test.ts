@@ -666,8 +666,11 @@ suite('reasoning effort schema', () => {
 		);
 	});
 
-	test('Kimi K3 prefers high when available', () => {
-		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'max'], 'kimi-k3'), 'high');
+	test('Kimi K3 and newer prefer high when available', () => {
+		assert.deepStrictEqual(
+			['kimi-k2.7-code', 'kimi-k3', 'kimi-k3.5', 'kimi-k4'].map(family => pickDefaultReasoningEffort(['low', 'high', 'max'], family)),
+			['low', 'high', 'high', 'high']
+		);
 	});
 
 	test('non-claude family prefers medium when available', () => {

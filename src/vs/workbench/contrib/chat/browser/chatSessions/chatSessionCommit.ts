@@ -18,6 +18,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { IChatWidgetService, isIChatViewViewContext } from '../chat.js';
+import { IChatViewHostService } from '../chatViewHost.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
@@ -31,6 +32,7 @@ export async function commitChatSession(accessor: ServicesAccessor, chatSessionT
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatService = accessor.get(IChatService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const chatViewHostService = accessor.get(IChatViewHostService);
 	const chatTodoListService = accessor.get(IChatTodoListService);
 	const chatArtifactsService = accessor.get(IChatArtifactsService);
 	const chatDebugService = accessor.get(IChatDebugService);
@@ -108,7 +110,8 @@ export async function commitChatSession(accessor: ServicesAccessor, chatSessionT
 
 		const chatViewWidget = chatWidgetService.getWidgetBySessionResource(originalResource);
 		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
-			await chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
+			// The session its first request made: a host reports it as such, not as one the user opened
+			await chatViewHostService.openSession(modifiedResource, { preserveFocus: true, commit: true });
 		} else if (!chatViewWidget) {
 			// No widget currently shows the original session — eagerly load the
 			// session so the transferred state set above is materialized into a

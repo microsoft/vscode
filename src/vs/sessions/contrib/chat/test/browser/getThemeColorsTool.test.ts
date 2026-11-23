@@ -22,7 +22,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ILanguageModelToolsService, IToolImpl } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { GetThemeColorsTool, GetThemeColorsToolContribution, GetThemeColorsToolId } from '../../browser/getThemeColorsTool.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 interface IThemePalette {
 	readonly theme: { readonly name: string; readonly colorScheme: ColorScheme; readonly isHighContrast: boolean };

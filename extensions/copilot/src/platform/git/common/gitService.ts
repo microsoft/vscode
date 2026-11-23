@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'monaco-editor';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Event } from '../../../util/vs/base/common/event';
+import type { IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IObservable } from '../../../util/vs/base/common/observableInternal';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails, RepositoryKind, Worktree } from '../vscode/git';
 
 export interface RepoContext {
@@ -230,10 +231,6 @@ export class GithubRepoId {
 
 export function toGithubNwo(id: GithubRepoId): string {
 	return `${id.org}/${id.repo}`.toLowerCase();
-}
-
-export function toGithubWebUrl(id: GithubRepoId): string {
-	return `https://${id.host}/${id.org}/${id.repo}`;
 }
 
 /**

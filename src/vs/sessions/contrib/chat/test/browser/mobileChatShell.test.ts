@@ -8,9 +8,10 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../workbench/contrib/chat/browser/widget/input/media/chatInputStack.css';
-import '../../browser/media/chatInput.css';
-import '../../browser/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
+import '../../../../browser/parts/mobile/defaultNewSessionPresentation.css';
 
 suite('Sessions - Mobile Chat Shell', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,7 +27,7 @@ suite('Sessions - Mobile Chat Shell', () => {
 			workbench.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
 		}
 		const widget = dom.append(workbench, dom.$('.sessions-chat-widget'));
-		const container = dom.append(widget, dom.$('.new-chat-widget-container.revealed'));
+		const container = dom.append(widget, dom.$('.new-chat-widget-container.default-new-session.revealed'));
 		const content = dom.append(container, dom.$('.new-chat-widget-content.chat-input-stack'));
 		content.classList.add('experimental-new-session-composer');
 		content.classList.toggle('welcome-phrases-visible', welcomePhrases);

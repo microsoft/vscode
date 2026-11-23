@@ -67,6 +67,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async removeSessionArtifact(_session: URI, _artifactId: string): Promise<void> { return notSupported(); }
 	async stopBackgroundWork(_chat: URI, _id: string): Promise<boolean> { return notSupported(); }
+	async answerShellAuthentication(_chat: URI, _requestId: string, _answer: string | undefined): Promise<boolean> { return notSupported(); }
 	async importSession(_session: URI): Promise<void> { return notSupported(); }
 	async moveSession(_session: URI, _destination: URI, _after: URI | undefined): Promise<URI> { throw new AgentHostSessionMoveUnsupportedError(); }
 	async moveChat(_chat: URI, _destination: AgentChatMoveDestination): Promise<URI> { return notSupported(); }

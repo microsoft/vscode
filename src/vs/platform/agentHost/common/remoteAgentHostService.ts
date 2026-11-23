@@ -6,8 +6,6 @@
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
-import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -23,7 +21,9 @@ import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IDevContainerRepository } from './devContainerSamples.js';
+import type { IDevContainerVolumeFolder } from './devContainerEnvironments.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
+import type { PathStyle } from './state/protocol/common/commands.js';
 
 /**
  * Connection status for a remote agent host.
@@ -152,11 +152,25 @@ export const enum RemoteAgentHostEntryType {
 	Tunnel = 'tunnel',
 	CloudSandbox = 'cloudSandbox',
 	DevContainer = 'devContainer',
+	Extension = 'extension',
 }
 
 export interface IRemoteAgentHostWebSocketConnection {
 	readonly type: RemoteAgentHostEntryType.WebSocket;
 	readonly address: string;
+}
+
+/**
+ * A WebSocket host that a running extension registered. Not persisted: it
+ * exists while the extension keeps its registration.
+ */
+export interface IRemoteAgentHostExtensionConnection {
+	readonly type: RemoteAgentHostEntryType.Extension;
+	readonly address: string;
+	/** Identifier of the extension that registered the host. */
+	readonly extensionId: string;
+	/** Display name of the extension that registered the host. */
+	readonly extensionDisplayName: string;
 }
 
 export interface IRemoteAgentHostSSHConnection {
@@ -248,9 +262,22 @@ export type IRemoteAgentHostDevContainerConnection = {
 	readonly address: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
-} & ({ readonly hostPath: string; readonly repository?: never } | { readonly repository: IDevContainerRepository; readonly hostPath?: never });
+} & (
+		| { readonly hostPath: string; readonly repository?: never; readonly environmentId?: never }
+		| { readonly repository: IDevContainerRepository; readonly hostPath?: never; readonly environmentId?: never }
+		/** A Dev Container environment, which has no source folder or repository. */
+		| {
+			readonly environmentId: string;
+			/** The volume folder that the Dev Containers extension opens the environment's container by, once known from its workspace. */
+			readonly volume?: IDevContainerVolumeFolder;
+			/** Whether this computer's Docker engine has the volume, which Dev Containers needs for an environment on a WSL host. */
+			readonly volumeOnLocalDockerEngine?: boolean;
+			readonly hostPath?: never;
+			readonly repository?: never;
+		}
+	);
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection | IRemoteAgentHostExtensionConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -273,6 +300,8 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
+	/** Original terminal handshake error, including host-advertised protocol upgrade metadata. */
+	readonly connectionError?: ProtocolError;
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
 	readonly nextReconnectAt: number | undefined;
 	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;
@@ -655,6 +684,10 @@ const DEV_CONTAINER_RECONNECT_POLICY: IRemoteAgentHostReconnectPolicy = {
 	maxAttempts: 3,
 };
 const DEV_CONTAINER_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostDevContainerConnection>(RemoteAgentHostEntryType.DevContainer, true, connection => connection.address, DEV_CONTAINER_RECONNECT_POLICY);
+const EXTENSION_ENTRY_TYPE_CONFIG: IRemoteAgentHostEntryTypeConfig<IRemoteAgentHostExtensionConnection> = {
+	...runtimeEntryTypeConfig<IRemoteAgentHostExtensionConnection>(RemoteAgentHostEntryType.Extension, true, connection => connection.address),
+	dialedFromEntries: true,
+};
 
 const ENTRY_TYPE_CONFIGS: { readonly [K in RemoteAgentHostEntryType]: IRemoteAgentHostEntryTypeConfig<Extract<RemoteAgentHostConnection, { type: K }>> } = {
 	[RemoteAgentHostEntryType.WebSocket]: WEBSOCKET_ENTRY_TYPE_CONFIG,
@@ -663,6 +696,7 @@ const ENTRY_TYPE_CONFIGS: { readonly [K in RemoteAgentHostEntryType]: IRemoteAge
 	[RemoteAgentHostEntryType.Tunnel]: TUNNEL_ENTRY_TYPE_CONFIG,
 	[RemoteAgentHostEntryType.CloudSandbox]: CLOUD_SANDBOX_ENTRY_TYPE_CONFIG,
 	[RemoteAgentHostEntryType.DevContainer]: DEV_CONTAINER_ENTRY_TYPE_CONFIG,
+	[RemoteAgentHostEntryType.Extension]: EXTENSION_ENTRY_TYPE_CONFIG,
 };
 
 /** Gets the static persistence and connection policy for an entry type. */
@@ -701,21 +735,6 @@ export function remoteAgentHostLogOutputChannelId(address: string): string {
  * logger id registered in `agentHostMain.ts`.
  */
 export const AGENT_HOST_LOG_OUTPUT_CHANNEL_ID = 'agenthost';
-
-export const enum RemoteAgentHostInputValidationError {
-	Empty = 'empty',
-	Invalid = 'invalid',
-}
-
-export interface IParsedRemoteAgentHostInput {
-	readonly address: string;
-	readonly connectionToken?: string;
-	readonly suggestedName: string;
-}
-
-export type RemoteAgentHostInputParseResult =
-	| { readonly parsed: IParsedRemoteAgentHostInput; readonly error?: undefined }
-	| { readonly parsed?: undefined; readonly error: RemoteAgentHostInputValidationError };
 
 export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>('remoteAgentHostService');
 
@@ -829,11 +848,11 @@ export interface IRemoteAgentHostService {
 	 * Ask the remote agent host to upgrade itself via its hosting CLI.
 	 *
 	 * Sends the host-advertised JSON-RPC method (typically
-	 * `_vscodeUpgrade`) on the existing transport — even when the handshake
-	 * has not completed (e.g. the host was just rejected for protocol
-	 * incompatibility). The hosting CLI receives the signal, checks for a
-	 * newer build, and kills+respawns the server on success. The caller
-	 * SHOULD then reconnect to re-attempt the handshake.
+	 * `_vscodeUpgrade`) on the existing transport, on a connected host or
+	 * even when the handshake has not completed (e.g. the host was just
+	 * rejected for protocol incompatibility). The hosting CLI receives the
+	 * signal, checks for a newer build, and kills+respawns the server on
+	 * success. The caller SHOULD then reconnect to re-attempt the handshake.
 	 *
 	 * Resolves with the host's status payload describing what happened
 	 * (whether an upgrade was needed, whether it was started); rejects on
@@ -852,8 +871,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
 	readonly lastConnectionError?: string;
-	/** Last operating system successfully reported by this host. */
-	readonly operatingSystem?: OperatingSystem;
+	/** Last path style advertised by this host. */
+	readonly pathStyle?: PathStyle;
 }
 
 export interface IRemoteAgentHostPendingConnection {
@@ -896,77 +915,6 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	async triggerServerUpgrade(): Promise<IVscodeUpgradeResult> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
-}
-
-export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {
-	const trimmedInput = input.trim();
-	if (!trimmedInput) {
-		return { error: RemoteAgentHostInputValidationError.Empty };
-	}
-
-	const candidate = extractRemoteAgentHostCandidate(trimmedInput);
-	if (!candidate) {
-		return { error: RemoteAgentHostInputValidationError.Invalid };
-	}
-
-	const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(candidate);
-	try {
-		const url = new URL(hasExplicitScheme ? candidate : `ws://${candidate}`);
-		const normalizedProtocol = normalizeRemoteAgentHostProtocol(url.protocol);
-		if (!normalizedProtocol || !url.host) {
-			return { error: RemoteAgentHostInputValidationError.Invalid };
-		}
-
-		const connectionToken = url.searchParams.get(connectionTokenQueryName) ?? undefined;
-		url.searchParams.delete(connectionTokenQueryName);
-
-		// Only preserve wss: in the address - the transport defaults to ws:
-		const address = formatRemoteAgentHostAddress(url, normalizedProtocol === 'wss:' ? normalizedProtocol : undefined);
-		if (!address) {
-			return { error: RemoteAgentHostInputValidationError.Invalid };
-		}
-
-		return {
-			parsed: {
-				address,
-				connectionToken,
-				suggestedName: url.host,
-			},
-		};
-	} catch {
-		return { error: RemoteAgentHostInputValidationError.Invalid };
-	}
-}
-
-function extractRemoteAgentHostCandidate(input: string): string | undefined {
-	const urlMatch = input.match(/(?<url>(?:https?|wss?):\/\/\S+)/i);
-	const candidate = urlMatch?.groups?.url ?? input;
-	const trimmedCandidate = candidate.trim().replace(/[),.;\]]+$/, '');
-	return trimmedCandidate || undefined;
-}
-
-function normalizeRemoteAgentHostProtocol(protocol: string): 'ws:' | 'wss:' | undefined {
-	switch (protocol.toLowerCase()) {
-		case 'ws:':
-		case 'http:':
-			return 'ws:';
-		case 'wss:':
-		case 'https:':
-			return 'wss:';
-		default:
-			return undefined;
-	}
-}
-
-function formatRemoteAgentHostAddress(url: URL, protocol: 'ws:' | 'wss:' | undefined): string | undefined {
-	if (!url.host) {
-		return undefined;
-	}
-
-	const path = url.pathname !== '/' ? url.pathname : '';
-	const query = url.search;
-	const base = protocol ? `${protocol}//${url.host}` : url.host;
-	return `${base}${path}${query}`;
 }
 
 /**

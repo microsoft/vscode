@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { registerOnboardingTargetProvider } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 export class NewSessionOnboardingTargets extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.contrib.newSessionOnboardingTargets';

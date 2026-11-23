@@ -17,6 +17,7 @@ import { CustomEditorLabelService } from '../services/editor/common/customEditor
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
+import { NEW_TAB_BUTTON_SETTING } from './parts/editor/newTabButton.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -92,6 +93,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'wrapTabs' }, "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when {0} is not set to '{1}'.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
+			},
+			[NEW_TAB_BUTTON_SETTING]: {
+				'type': 'boolean',
+				tags: ['experimental', 'onExp'],
+				'markdownDescription': localize('newTabButton', "Controls whether the editor tab bar shows a button to open a new tab, such as a new untitled file or a chat."),
+				'default': false,
+				// The treatment keeps the name of the setting before its rename, so that existing assignments still apply
+				experiment: { mode: 'auto', name: 'config.workbench.editor.experimental.newTabButton' }
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
@@ -169,6 +178,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enum': ['text', 'hidden'],
 				'default': 'text',
 				'markdownDescription': localize("workbench.editor.empty.hint", "Controls if the empty editor text hint should be visible in the editor.")
+			},
+			'workbench.editor.experimental.emptyEditorHintActions': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
+			},
+			'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor", "Controls whether the single line empty editor hint of new untitled files also offers to open the file in the Markdown Editor. Only applies when `#workbench.editor.empty.hint#` is `text`. The list of actions of `#workbench.editor.experimental.emptyEditorHintActions#` takes precedence.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -687,7 +710,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			[LayoutSettings.ACTIVITY_BAR_AUTO_HIDE]: {
 				'type': 'boolean',
 				'default': false,
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary and Secondary Side Bars when {0} is set to {1} or {2}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary Side Bar when {0} is set to {1} or {2}, and to the Secondary Side Bar regardless of {0}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
 				agentsWindow: { default: false, readOnly: true },
 			},
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
@@ -888,6 +911,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('folderPath', "`${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
 		localize('rootName', "`${rootName}`: name of the workspace with optional remote name and workspace indicator if applicable (e.g. myFolder, myRemoteFolder [SSH] or myWorkspace (Workspace))."),
 		localize('rootNameShort', "`${rootNameShort}`: shortened name of the workspace without suffixes (e.g. myFolder, myRemoteFolder or myWorkspace)."),
+		localize('folderLocation', "`${folderLocation}`: the label of the alternate location the workspace folder is currently at (e.g. my-location). Empty while the folder is at its primary location."),
 		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		localize('profileName', "`${profileName}`: name of the profile in which the workspace is opened (e.g. Data Science (Profile)). Ignored if default profile is used."),
 		localize('appName', "`${appName}`: e.g. VS Code."),
@@ -1032,20 +1056,30 @@ if (isNative) {
 		.registerConfigurationMigrations([
 			['workbench.experimental.modernUIFrostedGlass', LayoutSettings.MODERN_UI_FROSTED_GLASS],
 			['workbench.experimental.modernUIFrostedGlassOpacity', LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY],
-		].map<ConfigurationMigration>(([key, newKey]) => ({
-			key,
-			includeApplication: true,
-			migrateFn: (value: unknown, valueAccessor) => {
-				const result: ConfigurationKeyValuePairs = [];
-				if (value !== undefined) {
-					result.push([key, { value: undefined }]);
-					if (valueAccessor(newKey) === undefined) {
-						result.push([newKey, { value }]);
-					}
+		].map(([key, newKey]) => renameSettingMigration(key, newKey)));
+}
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([renameSettingMigration('workbench.editor.experimental.newTabButton', NEW_TAB_BUTTON_SETTING)]);
+
+/**
+ * Moves the value of a renamed setting to its new key, unless the new key already has a value.
+ */
+function renameSettingMigration(key: string, newKey: string): ConfigurationMigration {
+	return {
+		key,
+		includeApplication: true,
+		migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push([key, { value: undefined }]);
+				if (valueAccessor(newKey) === undefined) {
+					result.push([newKey, { value }]);
 				}
-				return result;
 			}
-		})));
+			return result;
+		}
+	};
 }
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)

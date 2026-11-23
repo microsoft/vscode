@@ -19,7 +19,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import { AgentSignal, IAgentSessionProjectInfo, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSignal, IAgentSessionProjectInfo, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -53,7 +53,6 @@ import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/co
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
-import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostGitHubMcpServerEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
@@ -1070,14 +1069,9 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
-			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
-			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch
-			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
-			|| (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()))) {
+		const rebindReason = this._getRebindReason();
+		if (rebindReason) {
+			this._logService.info(`[Claude] session ${this.sessionId}: rebinding before turn ${turnId} for changed ${rebindReason}`);
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
@@ -1128,6 +1122,37 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	}
 
 	/**
+	 * Returns the first state that differs from what the running Claude
+	 * process was launched with, or `undefined` when the session can keep
+	 * its process for the next turn. Checks stop at the first difference.
+	 */
+	private _getRebindReason(): string | undefined {
+		if (this.toolDiff.hasDifference) {
+			return 'client tools';
+		}
+		if (this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))) {
+			return 'client customizations';
+		}
+		if (this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision) {
+			return 'MCP enablement';
+		}
+		if (this._pendingResumeSessionAt !== undefined) {
+			return 'resume point';
+		}
+		if (!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			return 'additional directories';
+		}
+		if (this._pendingTransportSwitch) {
+			return 'transport switch';
+		}
+		// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
+		if (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get())) {
+			return 'owner';
+		}
+		return undefined;
+	}
+
+	/**
 	 * Single yield-restart that covers both client-tool and
 	 * customization divergence in one trip. Drains the parked
 	 * client-tool MCP handlers (same as the original tool-only
@@ -1145,17 +1170,14 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		this._onDidCustomizationsChange.fire();
 	}
 
-	/**
-	 * Cancel the in-flight SDK turn. Mirrors the production reference;
-	 * see {@link ClaudeSdkPipeline.abort}. Also denies any parked
-	 * permission / user-input requests so the SDK's `canUseTool`
-	 * callback (and any interactive tool waiting on user input) unwinds
-	 * with a deny / cancel result instead of leaving stale UI behind.
-	 */
-	abort(): void {
-		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
-		this._requirePipeline().abort();
+	/** Cancels the SDK turn before releasing any remaining permission or input requests. */
+	async abort(): Promise<void> {
+		try {
+			await this._requirePipeline().abort();
+		} finally {
+			this._pendingPermissions.denyAll(false);
+			this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
+		}
 	}
 
 	/**
@@ -1309,24 +1331,50 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	requestPermission(args: {
 		readonly toolUseID: string;
 		readonly state: ToolCallPendingConfirmationState;
-		readonly permissionKind: ClaudePermissionKind;
+		readonly permissionKind: AgentPermissionKind;
 		readonly permissionPath?: string;
+		readonly permissionUrl?: string;
+		readonly shellLanguage?: 'bash';
+		readonly shellCommand?: string;
 		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
 		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
-		if (!this._pipeline || this._pipeline.isAborted) {
+		const pipeline = this._pipeline;
+		if (!pipeline || pipeline.isAborted) {
 			return Promise.resolve(false);
 		}
-		return this._pendingPermissions.registerAndFire(args.toolUseID, () => {
+		const fire = async () => {
+			let mcpServerName: string | undefined;
+			let mcpToolName: string | undefined;
+			if (args.permissionKind === AgentPermissionKind.Mcp) {
+				try {
+					const serverNames = await pipeline.getMcpServerNames();
+					const matches = [...new Set(serverNames)].filter(name => args.state.toolName.startsWith(`mcp__${toClaudeMcpToolServerName(name)}__`));
+					if (matches.length === 1) {
+						mcpServerName = matches[0];
+						mcpToolName = args.state.toolName.slice(`mcp__${toClaudeMcpToolServerName(mcpServerName)}__`.length);
+					}
+				} catch (error) {
+					this._logService.warn(`[Claude:${this.sessionId}] Failed to resolve MCP permission identity`, error);
+				}
+			}
+			if (!this._pendingPermissions.has(args.toolUseID)) {
+				return;
+			}
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
 				state: args.state,
 				permissionKind: args.permissionKind,
+				...(mcpServerName !== undefined ? { mcpServerName, mcpToolName } : {}),
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+				...(args.permissionUrl !== undefined ? { permissionUrl: args.permissionUrl } : {}),
+				...(args.shellLanguage !== undefined ? { shellLanguage: args.shellLanguage } : {}),
+				...(args.shellCommand !== undefined ? { shellCommand: args.shellCommand } : {}),
 				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
-		});
+		};
+		return this._pendingPermissions.registerAndFire(args.toolUseID, () => { void fire(); });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {

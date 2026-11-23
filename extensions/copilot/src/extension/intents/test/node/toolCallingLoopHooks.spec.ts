@@ -95,6 +95,22 @@ function createTestConversation(turnCount: number = 1): Conversation {
 	return new Conversation(generateUuid(), turns);
 }
 
+function createTestToolCallingLoop(
+	instantiationService: IInstantiationService,
+	disposables: DisposableStore,
+	conversation: Conversation,
+	request: ChatRequest
+): TestToolCallingLoop {
+	return disposables.add(instantiationService.createInstance(
+		TestToolCallingLoop,
+		{
+			conversation,
+			toolCallLimit: 10,
+			request,
+		}
+	));
+}
+
 describe('ToolCallingLoop SessionStart hook', () => {
 	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
@@ -129,16 +145,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 				model: { id: 'test-model-id' } as ChatRequest['model'],
 				participant: 'test-agent',
 			} as unknown as Partial<ChatRequest>);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			// Spy on the hook service
 			vi.spyOn(mockChatHookService, 'executeHook');
@@ -158,16 +165,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 		it('should NOT execute SessionStart hook on subsequent turns', async () => {
 			const conversation = createTestConversation(3); // Third turn
 			const request = createMockChatRequest();
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -181,16 +179,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 				subAgentInvocationId: 'subagent-123',
 				subAgentName: 'TestSubagent',
 			} as Partial<ChatRequest>);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -215,16 +204,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Context from hook 1' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -250,16 +230,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Context from hook 3' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -285,16 +256,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Context from hook 3' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -320,16 +282,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Context from hook 3' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			// Should NOT throw - blocking errors are silently ignored for SessionStart
 			await expect(loop.testRunStartHooks(tokenSource.token)).resolves.not.toThrow();
@@ -358,16 +311,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Context from hook 3' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			// Should NOT throw - stopReason is silently ignored for SessionStart
 			await expect(loop.testRunStartHooks(tokenSource.token)).resolves.not.toThrow();
@@ -384,16 +328,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 			const request = createMockChatRequest();
 
 			mockChatHookService.setHookError('SessionStart', new Error('Hook service error'));
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			// Should not throw
 			await expect(loop.testRunStartHooks(tokenSource.token)).resolves.not.toThrow();
@@ -408,16 +343,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 			const request = createMockChatRequest();
 
 			mockChatHookService.setHookResults('SessionStart', []);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -437,16 +363,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Custom context for prompt' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -465,16 +382,7 @@ describe('ToolCallingLoop SessionStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Context from SessionStart' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 			loop.appendAdditionalHookContext('Context from UserPromptSubmit');
@@ -518,16 +426,7 @@ describe('ToolCallingLoop SubagentStart hook', () => {
 				subAgentInvocationId: 'subagent-456',
 				subAgentName: 'PlanAgent',
 			} as Partial<ChatRequest>);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -545,16 +444,7 @@ describe('ToolCallingLoop SubagentStart hook', () => {
 				subAgentInvocationId: 'subagent-789',
 				// subAgentName not provided
 			} as Partial<ChatRequest>);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -571,16 +461,7 @@ describe('ToolCallingLoop SubagentStart hook', () => {
 				subAgentInvocationId: 'subagent-dedup',
 				subAgentName: 'DedupAgent',
 			} as Partial<ChatRequest>);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			// First call: runStartHooks should execute SubagentStart once
 			await loop.testRunStartHooks(tokenSource.token);
@@ -610,16 +491,7 @@ describe('ToolCallingLoop SubagentStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Subagent-specific context' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -644,16 +516,7 @@ describe('ToolCallingLoop SubagentStart hook', () => {
 					output: { hookSpecificOutput: { additionalContext: 'Second subagent context' } },
 				},
 			]);
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			await loop.testRunStartHooks(tokenSource.token);
 
@@ -671,16 +534,7 @@ describe('ToolCallingLoop SubagentStart hook', () => {
 			} as Partial<ChatRequest>);
 
 			mockChatHookService.setHookError('SubagentStart', new Error('Subagent hook failed'));
-
-			const loop = instantiationService.createInstance(
-				TestToolCallingLoop,
-				{
-					conversation,
-					toolCallLimit: 10,
-					request,
-				}
-			);
-			disposables.add(loop);
+			const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 			// Should not throw
 			await expect(loop.testRunStartHooks(tokenSource.token)).resolves.not.toThrow();
@@ -721,12 +575,7 @@ describe('ToolCallingLoop Stop hook', () => {
 	it('should return shouldContinue=false when no hooks are configured', async () => {
 		const conversation = createTestConversation(1);
 		const request = createMockChatRequest();
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(false);
@@ -749,12 +598,7 @@ describe('ToolCallingLoop Stop hook', () => {
 				},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(true);
@@ -776,12 +620,7 @@ describe('ToolCallingLoop Stop hook', () => {
 				},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(false);
@@ -797,12 +636,7 @@ describe('ToolCallingLoop Stop hook', () => {
 				output: {},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(false);
@@ -823,12 +657,7 @@ describe('ToolCallingLoop Stop hook', () => {
 				},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(false);
@@ -858,12 +687,7 @@ describe('ToolCallingLoop Stop hook', () => {
 				},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(true);
@@ -881,12 +705,7 @@ describe('ToolCallingLoop Stop hook', () => {
 				output: 'Hook script failed with exit code 2',
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(true);
@@ -898,12 +717,7 @@ describe('ToolCallingLoop Stop hook', () => {
 		const request = createMockChatRequest();
 
 		mockChatHookService.setHookError('Stop', new Error('Service unavailable'));
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteStopHook({ stop_hook_active: false }, 'session-1', tokenSource.token);
 		expect(result.shouldContinue).toBe(false);
@@ -952,12 +766,7 @@ describe('ToolCallingLoop SubagentStop hook', () => {
 				},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteSubagentStopHook(
 			{ agent_id: 'agent-1', agent_type: 'execution', stop_hook_active: false },
@@ -978,12 +787,7 @@ describe('ToolCallingLoop SubagentStop hook', () => {
 				output: {},
 			},
 		]);
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteSubagentStopHook(
 			{ agent_id: 'agent-1', agent_type: 'execution', stop_hook_active: false },
@@ -998,12 +802,7 @@ describe('ToolCallingLoop SubagentStop hook', () => {
 		const request = createMockChatRequest();
 
 		mockChatHookService.setHookError('SubagentStop', new Error('Service unavailable'));
-
-		const loop = instantiationService.createInstance(
-			TestToolCallingLoop,
-			{ conversation, toolCallLimit: 10, request }
-		);
-		disposables.add(loop);
+		const loop = createTestToolCallingLoop(instantiationService, disposables, conversation, request);
 
 		const result = await loop.testExecuteSubagentStopHook(
 			{ agent_id: 'agent-1', agent_type: 'execution', stop_hook_active: false },

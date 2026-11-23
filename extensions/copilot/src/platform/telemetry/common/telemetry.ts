@@ -84,8 +84,6 @@ export class TelemetryUserConfigImpl implements ITelemetryUserConfig {
 
 export type TelemetryProperties = { [key: string]: string };
 
-export type AdditionalTelemetryProperties = { [key: string]: string };
-
 /**
  * Creates a getter that returns the tracking ID from the token store.
  * The cache is:
@@ -121,6 +119,11 @@ export interface ITelemetryService extends IExperimentationTelemetry, IDisposabl
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryException(maybeError: unknown, origin: string): void;
+	/**
+	 * When defined, indicates whether any restricted telemetry sink will accept events.
+	 * Callers can skip expensive restricted payload preparation when this is `false`.
+	 */
+	readonly isRestrictedTelemetryActive?: boolean;
 	/**
 	 * Send restricted GitHub telemetry only for opted-in external users.
 	 * Microsoft and GitHub organization members are excluded.
@@ -219,7 +222,7 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // regardless of their length. These are known to frequently exceed the per-property limit, so
 // always producing the `<key>Chunk` family gives the backend a single, uniform place to read the
 // value from instead of having to branch on whether the value happened to be chunked.
-const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'messageText', 'diffsJSON', 'prompt']);
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'messageText', 'diffsJSON', 'prompt', 'request.option.tools', 'request_option_tools']);
 
 // Overrides for the base name of the compressed chunk family. By default the chunk family is named
 // `<key>Chunk`, but some backend mappings expect a different casing. For `messagesJson` the backend

@@ -12,23 +12,17 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { isCanvasIconDataUri } from '../../../../platform/agentHost/common/meta/agentCanvasIconMeta.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { canvasOwnerKey, ICanvas, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
-
-export interface ICanvas {
-	readonly resource: URI;
-	readonly instanceId: string | undefined;
-	readonly title: string;
-	readonly status?: string;
-	readonly source: URI | undefined;
-}
 
 /** Where a registered canvas definition was contributed from. */
 export type CanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
@@ -41,7 +35,14 @@ export interface ICanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as its host sends it, a PNG data URI; read it with {@link getCanvasIconUri}. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
+}
+
+/** The icon of a canvas as a URI, when `icon` is one a client can show: a bounded PNG data URI, never a host path. */
+export function getCanvasIconUri(icon: string | undefined): URI | undefined {
+	return isCanvasIconDataUri(icon) ? URI.parse(icon) : undefined;
 }
 
 /** `undefined` is unsettled; an array, including an empty one, is authoritative. */
@@ -52,17 +53,7 @@ export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
 	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
 	listCanvases(): Promise<CanvasDefinitionSnapshot>;
-	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
-}
-
-export interface ICanvasOwner {
-	readonly providerId: string;
-	readonly session: URI;
-	readonly chat: URI;
-}
-
-export interface ICanvasReference extends ICanvasOwner {
-	readonly canvas: URI;
+	openCanvas(canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 }
 
 export interface ICanvasReopenTarget {
@@ -82,15 +73,19 @@ export interface ICanvasContext {
 	 * the owner's host cannot close canvases.
 	 */
 	readonly closeCanvas?: (canvas: ICanvas) => Promise<void>;
+	/** Whether the owner's canvases open without taking focus or the active tab, as their chat is not the focused one. */
+	readonly background?: boolean;
 }
 
 export interface ICanvasOpenRequest {
 	readonly id: string;
 	readonly succeeded: boolean;
+	readonly pending?: boolean;
 }
 
 export interface ICanvasModelResolution {
 	readonly model: IBrowserViewModel;
+	/** Whether the model already presented the source, so resolving it loaded no page. */
 	readonly reused: boolean;
 }
 
@@ -135,11 +130,31 @@ export interface ICanvasContextService {
 	readonly workingSets?: ICanvasWorkingSets;
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean;
 	/**
+	 * Maps an owner that surfaces outside the chat widget, such as a session pill built from the
+	 * session model, to the canonical owner of the visible chat it belongs to. `undefined` when no visible chat matches.
+	 */
+	resolveOwner?(owner: ICanvasOwner): ICanvasOwner | undefined;
+	/**
 	 * Resolves an owner that this window can still look up, including one that is
 	 * not visible. Its canvases are `undefined` while membership is unknown;
 	 * `undefined` means the owner is outside this window's live scope.
 	 */
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined;
+	/**
+	 * Resolves one canvas that this window keeps live outside its owner's membership,
+	 * such as a canvas pinned to a sidebar. `undefined` means it is not tracked that way.
+	 */
+	getTrackedCanvas?(reference: ICanvasReference, reader?: IReader): ICanvas | undefined;
+	/**
+	 * Whether this window keeps the canvas live outside its owner's membership, such as a
+	 * pinned canvas, even while its live state is temporarily unavailable.
+	 */
+	isCanvasTracked?(reference: ICanvasReference, reader?: IReader): boolean;
+	/**
+	 * Whether a surface other than the owner's editor working set currently presents
+	 * this canvas, such as a full-page view of a pinned canvas.
+	 */
+	isPresentedElsewhere?(reference: ICanvasReference, reader?: IReader): boolean;
 	/** Resolves the frontend chat-session resource that owns this opaque Canvas context. */
 	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined;
 	/**
@@ -148,6 +163,25 @@ export interface ICanvasContextService {
 	 * reconstruct. A canvas already open in another group moves to the selected one.
 	 */
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined;
+	/**
+	 * Whether `group`, outside the main window, presents canvases of `owner`, such as a window that shows the owning
+	 * chat. Without it, only groups of the main window present canvases, beside their owning chat. With `reader`, a
+	 * change of the answer runs the reader again, so that canvases close in groups that no longer present them.
+	 */
+	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup, reader?: IReader): boolean;
+	/**
+	 * Whether canvases of `owner` show outside the per-owner editor working sets, such as in a window that shows the
+	 * owning chat, so that they show while another owner's working set applies. Presentation reads this with `reader`
+	 * for every owner outside the applied working set: implementations should read one derived owner set with an
+	 * equality check rather than every window, so that unrelated window changes do not run presentation again.
+	 */
+	presentsOutsideWorkingSets?(owner: ICanvasOwner, reader?: IReader): boolean;
+}
+
+/** Whether `group` can present canvases of `owner`: a group of the main window, or one its context service allows. */
+export function canPresentCanvasInGroup(owner: ICanvasOwner, group: IEditorGroup, editorGroupsService: IEditorGroupsService, contextService: ICanvasContextService | undefined, reader?: IReader): boolean {
+	return group.windowId === editorGroupsService.mainPart.windowId || contextService?.canPresentInGroup?.(owner, group, reader) === true;
+
 }
 
 export const ICanvasService = createDecorator<ICanvasService>('sessionCanvasService');
@@ -156,21 +190,24 @@ export interface ICanvasService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly reopenableCanvases: IObservable<readonly ICanvasReopenTarget[]>;
+	/** Whether the canvas may be revealed as an editor beside its owner, which must be visible. */
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean;
+	/**
+	 * Whether a canvas view may attach the canvas: its owner is visible, or another
+	 * surface such as a pinned canvas page presents it. Never opens an editor.
+	 */
+	isPresentable(reference: ICanvasReference, reader?: IReader): boolean;
 	revealCanvas(reference: ICanvasReference): Promise<void>;
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;
-	/** Resolves the live browser model retained for this presentation, creating it once when needed. */
-	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
-}
-
-export function canvasOwnerKey(owner: ICanvasOwner): string {
-	return `${owner.providerId}\u0000${owner.session.toString()}\u0000${owner.chat.toString()}`;
-}
-
-export function getCanvasReferenceKey(reference: ICanvasReference): string {
-	return `${canvasOwnerKey(reference)}\u0000${reference.canvas.toString()}`;
+	/**
+	 * Resolves the live browser model retained for this presentation, creating it once when needed.
+	 * A retained model keeps its last page while the provider is temporarily unavailable, then
+	 * loads the next source in place. Reloading requires a retained page and a current live source.
+	 * `onCreated` receives the new or retained model before navigation finishes, so its host can present dialogs.
+	 */
+	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean, onCreated?: (model: IBrowserViewModel) => void): Promise<ICanvasModelResolution>;
 }
 
 export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolean {
@@ -207,9 +244,13 @@ export function getCanvasInstanceLabels(canvases: readonly ICanvas[]): readonly 
 
 		const titleIndex = (titleIndexes.get(canvas.title) ?? 0) + 1;
 		titleIndexes.set(canvas.title, titleIndex);
-		const instanceLabel = canvas.instanceId && instanceIdCounts.get(canvas.instanceId) === 1
-			? canvas.instanceId
-			: String(titleIndex);
+		// Identifiers generated for a registered canvas type do not tell its instances apart for users; their numbers do.
+		const definitionIndex = getCanvasDefinitionInstanceIndex(canvas);
+		const instanceLabel = definitionIndex !== undefined
+			? String(definitionIndex)
+			: canvas.instanceId && instanceIdCounts.get(canvas.instanceId) === 1
+				? canvas.instanceId
+				: String(titleIndex);
 		let label = localize('canvas.instanceTitle', "{0} ({1})", canvas.title, instanceLabel);
 		let collisionIndex = 2;
 		while (usedLabels.has(label)) {
@@ -252,8 +293,8 @@ export function getCanvasDefinitionLabels(canvases: readonly ICanvasDefinition[]
 
 const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
 
-/** Produces the stable instance identifier used when directly opening a registered canvas type. */
-export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string {
+/** Produces the stable instance identifier of the first canvas opened directly from a registered canvas type. */
+export function getCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'extensionId' | 'canvasId'>): string {
 	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
 	const normalized = raw
 		.replace(/[^A-Za-z0-9._-]+/g, '-')
@@ -269,6 +310,83 @@ export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string
 		.replace(/[._-]+$/, '')
 		|| 'canvas';
 	return `${base}${hashSuffix}`;
+}
+
+/** The instance identifier of the `index`th canvas opened from a registered canvas type, counting from 1. */
+function getIndexedCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'extensionId' | 'canvasId'>, index: number): string {
+	const instanceId = getCanvasDefinitionInstanceId(canvas);
+	if (index <= 1) {
+		return instanceId;
+	}
+	const suffix = `-${index}`;
+	return `${instanceId.slice(0, CANVAS_INSTANCE_ID_MAX_LENGTH - suffix.length)}${suffix}`;
+}
+
+/**
+ * Produces the instance identifier of a new canvas of a registered canvas type: the type's stable instance identifier
+ * while it is not in `used`, else the first free numbered one.
+ */
+function getNewCanvasDefinitionInstanceId(canvas: ICanvasDefinition, used: ReadonlySet<string>): string {
+	for (let index = 1; ; index++) {
+		const instanceId = getIndexedCanvasDefinitionInstanceId(canvas, index);
+		if (!used.has(instanceId)) {
+			return instanceId;
+		}
+	}
+}
+
+/**
+ * Opens new canvases of registered canvas types, each with an instance identifier of its own. An identifier is reserved
+ * for its owner from the open request until the owner's canvases include it, so that opens that overlap, or that the
+ * host has yet to publish, never share one. A failed open releases its identifier.
+ */
+export class CanvasDefinitionOpener {
+
+	/** By owner, the reserved instance identifiers, and whether their open succeeded. */
+	private readonly reservations = new Map<string, Map<string, boolean>>();
+
+	/** Opens a new canvas of `canvas`'s type beside `canvases`, the owner's current canvases, through `open`. */
+	async open(owner: ICanvasOwner, canvas: ICanvasDefinition, canvases: readonly ICanvas[], open: (instanceId: string) => Promise<void>): Promise<void> {
+		const key = canvasOwnerKey(owner);
+		const reserved = this.reservations.get(key) ?? new Map<string, boolean>();
+		this.reservations.set(key, reserved);
+		const used = new Set(canvases.flatMap(candidate => candidate.instanceId ? [candidate.instanceId] : []));
+		for (const [instanceId, opened] of reserved) {
+			if (opened && used.has(instanceId)) {
+				reserved.delete(instanceId);
+			}
+			used.add(instanceId);
+		}
+		const instanceId = getNewCanvasDefinitionInstanceId(canvas, used);
+		reserved.set(instanceId, false);
+		try {
+			await open(instanceId);
+		} catch (error) {
+			reserved.delete(instanceId);
+			if (reserved.size === 0 && this.reservations.get(key) === reserved) {
+				this.reservations.delete(key);
+			}
+			throw error;
+		}
+		reserved.set(instanceId, true);
+	}
+}
+
+/**
+ * The number of `canvas` among the canvases of its registered canvas type, counting from 1, when its instance identifier
+ * is one {@link CanvasDefinitionOpener} produces.
+ */
+function getCanvasDefinitionInstanceIndex(canvas: ICanvas): number | undefined {
+	if (!canvas.instanceId || !canvas.extensionId || !canvas.canvasId) {
+		return undefined;
+	}
+	const type = { extensionId: canvas.extensionId, canvasId: canvas.canvasId };
+	if (canvas.instanceId === getCanvasDefinitionInstanceId(type)) {
+		return 1;
+	}
+	const suffix = /-(?<index>\d+)$/.exec(canvas.instanceId)?.groups?.index;
+	const index = suffix !== undefined ? Number(suffix) : undefined;
+	return index !== undefined && canvas.instanceId === getIndexedCanvasDefinitionInstanceId(type, index) ? index : undefined;
 }
 
 /** Returns whether a registered extension canvas can be opened without another input flow. */
@@ -289,9 +407,12 @@ export function compareCanvasDefinitions(first: ICanvasDefinition, second: ICanv
 		|| first.canvasId.localeCompare(second.canvasId);
 }
 
-function createInputResource(reference: ICanvasReference): URI {
+export const CANVAS_INPUT_SCHEME = 'session-canvas';
+
+/** Returns the resource of the editor input that presents `reference`. */
+export function getCanvasInputResource(reference: ICanvasReference): URI {
 	return URI.from({
-		scheme: 'session-canvas',
+		scheme: CANVAS_INPUT_SCHEME,
 		path: '/canvas',
 		query: encodeURIComponent(JSON.stringify({
 			providerId: reference.providerId,
@@ -317,9 +438,10 @@ export class CanvasInput extends EditorInput {
 		canvas: ICanvas | undefined,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICanvasContextService private readonly contextService: ICanvasContextService,
 	) {
 		super();
-		this.resource = createInputResource(reference);
+		this.resource = getCanvasInputResource(reference);
 		this.canvas.set(canvas, undefined);
 	}
 
@@ -328,7 +450,7 @@ export class CanvasInput extends EditorInput {
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
 	override getDescription(): undefined { return undefined; }
-	override getIcon(): ThemeIcon { return Codicon.preview; }
+	override getIcon(): ThemeIcon | URI { return this.canvas.get()?.icon ?? Codicon.preview; }
 	override getTitle(verbosity?: Verbosity): string {
 		const name = this.getName();
 		return verbosity === Verbosity.LONG ? `${name} - ${this.getReopenInstructions()}` : name;
@@ -343,9 +465,19 @@ export class CanvasInput extends EditorInput {
 	override canReopen(): boolean { return false; }
 
 	override canMove(_sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
-		return this.editorGroupsService.getGroup(targetGroup)?.windowId === this.editorGroupsService.mainPart.windowId
+		const group = this.editorGroupsService.getGroup(targetGroup);
+		return group && canPresentCanvasInGroup(this.reference, group, this.editorGroupsService, this.contextService)
 			? true
-			: localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
+			: this.getMoveVeto();
+	}
+
+	override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		// A new window is never the owning conversation's
+		return this.getMoveVeto();
+	}
+
+	private getMoveVeto(): string {
+		return localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
 	}
 
 	get serializationId(): string | undefined {
@@ -362,7 +494,8 @@ export class CanvasInput extends EditorInput {
 			this.canvas.set(canvas, tx);
 			this.membershipPending.set(membershipPending, tx);
 		});
-		if (previous?.title !== canvas?.title) {
+		// Icons are data URIs, whose path holds the whole image.
+		if (previous?.title !== canvas?.title || previous?.icon?.path !== canvas?.icon?.path) {
 			this._onDidChangeLabel.fire();
 		}
 	}

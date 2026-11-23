@@ -10,11 +10,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { AgentContextValuePick, ClipboardImageContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { DesktopScreenshotContextValuePick } from '../../../browser/actions/chatScreenshotContextPicker.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
@@ -22,6 +24,10 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IGitRepository, IGitService } from '../../../../git/common/gitService.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
+import { createTestScreenshotToolService } from '../../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
 	return {
@@ -103,6 +109,122 @@ function workspaceContextService(folders: readonly { readonly uri: URI; readonly
 suite('ChatContext', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Clipboard image contribution', () => {
+		const image = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+
+		function createWidget(supportsImages = true, vision = true): IChatWidget {
+			return upcastPartial<IChatWidget>({
+				attachmentCapabilities: { supportsImageAttachments: supportsImages },
+				input: upcastPartial<ChatInputPart>({
+					selectedLanguageModel: observableValue('test', upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+						metadata: upcastPartial<ILanguageModelChatMetadata>({ capabilities: { vision } }),
+					})),
+				}),
+			});
+		}
+
+		function createPick(readOnEnable: boolean, readImage: () => Promise<Uint8Array>) {
+			const warnings: string[] = [];
+			const clipboard = new class extends mock<IClipboardService>() {
+				override readImage = readImage;
+			}();
+			const notifications = new class extends mock<INotificationService>() {
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			return { pick: new ClipboardImageContextValuePick(readOnEnable, clipboard, notifications), warnings };
+		}
+
+		for (const readOnEnable of [true, false]) {
+			test(`reads only at the entry's selected time (${readOnEnable})`, async () => {
+				let reads = 0;
+				const { pick, warnings } = createPick(readOnEnable, async () => { reads++; return image; });
+				const enabled = await pick.isEnabled(createWidget());
+				const readsBeforeSelection = reads;
+				const attachment = await pick.asAttachment();
+				assert.deepStrictEqual({ enabled, readsBeforeSelection, reads, kind: attachment?.kind, value: attachment?.value, warnings }, {
+					enabled: true, readsBeforeSelection: readOnEnable ? 1 : 0, reads: readOnEnable ? 2 : 1,
+					kind: 'image', value: image, warnings: [],
+				});
+			});
+
+			test(`capability checks never request clipboard access (${readOnEnable})`, async () => {
+				const { pick } = createPick(readOnEnable, async () => assert.fail('Clipboard must not be read'));
+				assert.deepStrictEqual([
+					await pick.isEnabled(createWidget(false)),
+					await pick.isEnabled(createWidget(true, false)),
+				], [false, false]);
+			});
+
+			test(`empty clipboard is reported after selection (${readOnEnable})`, async () => {
+				const { pick, warnings } = createPick(readOnEnable, async () => new Uint8Array());
+				assert.deepStrictEqual({ attachment: await pick.asAttachment(), warnings }, {
+					attachment: undefined, warnings: ['The clipboard does not contain an image.'],
+				});
+			});
+		}
+
+		test('clipboard read errors propagate to the context picker', async () => {
+			const { pick } = createPick(false, async () => { throw new Error('Clipboard access denied'); });
+			await assert.rejects(pick.asAttachment(), /Clipboard access denied/);
+		});
+	});
+
+	suite('Screenshot', () => {
+		const windowScreenshot = VSBuffer.wrap(new Uint8Array([255, 216, 255]));
+		const capturedImage = { dataUrl: 'data:image/png;base64,iVBORw0K', width: 2, height: 1 };
+
+		function createScreenshotPick(supported = true) {
+			const { service, telemetry } = createTestScreenshotToolService(disposables, supported);
+			const host = new class extends mock<IHostService>() {
+				override async getScreenshot() { return windowScreenshot; }
+			}();
+			let focused = 0;
+			const widget = upcastPartial<IChatWidget>({ domNode: mainWindow.document.body, focusInput: () => { focused++; } });
+			return { pick: new DesktopScreenshotContextValuePick(host, service), service, telemetry, widget, focusCount: () => focused };
+		}
+
+		test('attaches what the host captures where the screenshot tool is not supported, as on the web', async () => {
+			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick(false);
+			const attachment = await pick.asAttachment(widget);
+			assert.deepStrictEqual({ attachment, tool: service.requests, focused: focusCount(), captures: telemetry.captures, editable: !!attachment && !!service.getEditableAttachment(attachment) }, {
+				attachment: { id: 'screenshot-focused-window', name: 'Screenshot', value: windowScreenshot.buffer, kind: 'image' },
+				tool: [], focused: 0,
+				captures: [],
+				editable: false,
+			});
+		});
+
+		test('attaches each capture of the screenshot tool to the chat input, where it can be edited', async () => {
+			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick();
+			service.result = { kind: 'captured', mode: 'area', image: capturedImage };
+			const attachment = await pick.asAttachment(widget);
+			const next = await pick.asAttachment(widget);
+			const capture = { entryPoint: 'chatAddContext', outcome: 'attached', mode: 'area' };
+			assert.deepStrictEqual({
+				attachment: attachment && { ...attachment, id: 'unique', value: [...attachment.value as Uint8Array] },
+				// Neither capture is dropped as a duplicate of the other, or of a screenshot from the web.
+				distinctIds: new Set([attachment?.id, next?.id, 'screenshot-focused-window']).size,
+				editable: attachment && service.getEditableAttachment(attachment),
+				tool: service.requests, focused: focusCount(), captures: telemetry.captures,
+			}, {
+				attachment: { id: 'unique', name: 'Screenshot', value: [137, 80, 78, 71, 13, 10], kind: 'image', mimeType: 'image/png' },
+				distinctIds: 3,
+				editable: { original: capturedImage, annotationState: undefined },
+				tool: ['capture', 'capture'], focused: 2,
+				captures: [capture, capture],
+			});
+		});
+
+		test('attaches nothing when the screenshot tool is cancelled', async () => {
+			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick();
+			service.result = { kind: 'cancelled', mode: 'none' };
+			assert.deepStrictEqual({ attachment: await pick.asAttachment(widget), focused: focusCount(), captures: telemetry.captures }, {
+				attachment: undefined, focused: 1,
+				captures: [{ entryPoint: 'chatAddContext', outcome: 'cancelled', mode: 'none' }],
+			});
+		});
+	});
 
 	suite('Files picker', () => {
 		const file = URI.file('/outside-workspace/notes.txt');

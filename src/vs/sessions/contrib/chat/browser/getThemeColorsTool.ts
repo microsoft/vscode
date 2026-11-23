@@ -24,8 +24,8 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { SIDE_BAR_FOREGROUND } from '../../../../workbench/common/theme.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputBorder, agentsChatInputFocusBorder, agentsChatInputForeground, agentsPanelBorder } from '../../../common/theme.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputBorder, agentsChatInputFocusBorder, agentsChatInputForeground, agentsPanelBorder } from '../../../../workbench/contrib/sessions/common/theme.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const GetThemeColorsToolId = 'vscode_getThemeColors';
 

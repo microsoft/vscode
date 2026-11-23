@@ -35,6 +35,12 @@ export function readCustomizationDiscoveryMeta(customization: { readonly _meta?:
 	};
 }
 
-export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: ICustomizationDiscoveryMeta): Record<string, unknown> {
-	return { ...meta, [key]: discovery };
+export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: ICustomizationDiscoveryMeta | undefined): Record<string, unknown> {
+	const result = { ...meta };
+	if (discovery === undefined) {
+		delete result[key];
+	} else {
+		result[key] = discovery;
+	}
+	return result;
 }

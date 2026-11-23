@@ -57,7 +57,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { RepositoryContextKeys } from './scmViewService.js';
-import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, getCountBadgeStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -70,13 +70,34 @@ import { rot } from '../../../../base/common/numbers.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { OpenScmGroupAction } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { SCMInputWidget } from './scmInput.js';
+import { SCM_STRUCTURAL_DIFF_ID_PREFIX, SCMStructuralDiffElement, SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffLabel, isSCMStructuralDiffElement } from '../common/scmStructuralDiff.js';
+import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from './scmStructuralDiffRenderer.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
+type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup> | SCMStructuralDiffElement;
+
+export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
+	return !(isSCMRepository(element) || isSCMResourceGroup(element) || isSCMResourceNode(element) || isSCMStructuralDiffElement(element));
+}
+
+/**
+ * Returns an additional class for the twistie of an element. Files and symbols open when clicked, so they expand only
+ * through their twistie, and expandable ones keep it when the file icon theme hides arrows, like file nests in the Explorer.
+ */
+export function getSCMTreeTwistieCssClass(element: unknown, dataSource: SCMTreeDataSource): string | undefined {
+	if (isSCMActionButton(element) || isSCMInput(element)) {
+		return 'force-no-twistie';
+	}
+	if ((isSCMResource(element) || isSCMStructuralDiffElement(element)) && dataSource.hasChildren(element)) {
+		return 'force-twistie';
+	}
+	return undefined;
+}
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
@@ -413,7 +434,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(element, $('.count'));
-		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
+		const count = new CountBadge(countContainer, {}, getCountBadgeStyle({ badgeBackground: undefined, badgeBorder: undefined }));
 		const disposables = combinedDisposable(actionBar, count);
 
 		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
@@ -588,7 +609,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
-			fileDecorations: { colors: false, badges: true },
+			fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true },
 			fileKind,
 			matches,
 			separator: this.labelService.getSeparator(folder.uri.scheme)
@@ -637,7 +658,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		template.fileLabel.setFile(data.uri, {
 			...data.fileLabelOptions,
-			fileDecorations: { colors: false, badges: !icon },
+			fileDecorations: { colors: false, badges: !icon, alignBadgeLastCharacter: true },
 		});
 
 		if (icon) {
@@ -692,6 +713,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return ActionButtonRenderer.TEMPLATE_ID;
 		} else if (isSCMResourceGroup(element)) {
 			return ResourceGroupRenderer.TEMPLATE_ID;
+		} else if (isSCMStructuralDiffElement(element)) {
+			return SCMStructuralDiffRenderer.TEMPLATE_ID;
 		} else if (isSCMResource(element) || isSCMResourceNode(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
 		} else {
@@ -754,6 +777,12 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return isSCMResourceGroup(other) ? 0 : -1;
 		}
 
+		if (isSCMStructuralDiffElement(one) || isSCMStructuralDiffElement(other)) {
+			return isSCMStructuralDiffElement(one) && isSCMStructuralDiffElement(other)
+				? one.order - other.order
+				: isSCMStructuralDiffElement(one) ? 1 : -1;
+		}
+
 		// Resource (List)
 		if (this.viewMode() === ViewMode.List) {
 			// FileName
@@ -804,7 +833,9 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 	) { }
 
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
-		if (ResourceTree.isResourceNode(element)) {
+		if (isSCMStructuralDiffElement(element)) {
+			return getSCMStructuralDiffLabel(element);
+		} else if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
 			return undefined;
@@ -834,7 +865,9 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 }
 
 function getSCMResourceId(element: TreeElement): string {
-	if (isSCMRepository(element)) {
+	if (isSCMStructuralDiffElement(element)) {
+		return element.id;
+	} else if (isSCMRepository(element)) {
 		const provider = element.provider;
 		return `repo:${provider.id}`;
 	} else if (isSCMInput(element)) {
@@ -879,7 +912,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 	}
 
 	getAriaLabel(element: TreeElement): string {
-		if (ResourceTree.isResourceNode(element)) {
+		if (isSCMStructuralDiffElement(element)) {
+			return getSCMStructuralDiffAriaLabel(element);
+		} else if (ResourceTree.isResourceNode(element)) {
 			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMRepository(element)) {
 			return `${element.provider.name} ${element.provider.label}`;
@@ -933,6 +968,8 @@ const Menus = {
 export const ContextKeys = {
 	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
 	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
+	SCMViewShowStructuralDiff: new RawContextKey<boolean>('scmViewShowStructuralDiff', false),
+	SCMViewHasStructuralDiffProvider: new RawContextKey<boolean>('scmViewHasStructuralDiffProvider', false),
 	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
 	SCMViewIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewIsAnyRepositoryCollapsible', false),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
@@ -946,7 +983,8 @@ export const ContextKeys = {
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
-		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
+		// Omit global metadata and let reset remove the repository-specific key.
+		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, undefined, true);
 	}
 };
 
@@ -995,6 +1033,7 @@ interface RepositoryVisibilityItem {
 class RepositoryVisibilityActionController {
 
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private readonly hiddenListeners = new DisposableMap<ISCMRepository>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
 	private readonly disposables = new DisposableStore();
@@ -1017,7 +1056,23 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		if (repository.provider.isHidden) {
+		// A provider can be hidden and shown again while it is registered
+		this.hiddenListeners.set(repository, autorun(reader => {
+			if (repository.provider.isHidden.read(reader)) {
+				this.removeItem(repository);
+			} else {
+				this.addItem(repository);
+			}
+		}));
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.hiddenListeners.deleteAndDispose(repository);
+		this.removeItem(repository);
+	}
+
+	private addItem(repository: ISCMRepository): void {
+		if (this.items.has(repository)) {
 			return;
 		}
 
@@ -1041,8 +1096,13 @@ class RepositoryVisibilityActionController {
 		this.updateRepositoryContextKeys();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.items.get(repository)?.dispose();
+	private removeItem(repository: ISCMRepository): void {
+		const item = this.items.get(repository);
+		if (!item) {
+			return;
+		}
+
+		item.dispose();
 		this.items.delete(repository);
 		this.updateRepositoryContextKeys();
 	}
@@ -1070,6 +1130,7 @@ class RepositoryVisibilityActionController {
 
 	dispose(): void {
 		this.disposables.dispose();
+		this.hiddenListeners.dispose();
 		dispose(this.items.values());
 		this.items.clear();
 	}
@@ -1285,6 +1346,41 @@ registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
 
+type StructuralDiffToggledEvent = {
+	enabled: 0 | 1;
+};
+
+type StructuralDiffToggledClassification = {
+	owner: 'dbaeumer';
+	comment: 'Reports when the user shows or hides structural diffs in the Source Control view, to understand whether they are used.';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if structural diffs are shown after the toggle, otherwise 0.' };
+};
+
+class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.toggleShowStructuralDiff',
+			title: localize('showStructuralDiff', "Show Structural Diff"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			toggled: ContextKeys.SCMViewShowStructuralDiff,
+			menu: {
+				id: Menus.ViewSort, group: '3_structuralDiff', order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('config.scm.structuralDiff.enabled', true), ContextKeys.SCMViewHasStructuralDiffProvider),
+			},
+		});
+	}
+
+	runInView(accessor: ServicesAccessor, view: SCMViewPane): void {
+		const show = !view.showStructuralDiff;
+		view.showStructuralDiff = show;
+		// Reported here rather than in the setter, which also runs when another window changes the choice.
+		accessor.get(ITelemetryService).publicLog2<StructuralDiffToggledEvent, StructuralDiffToggledClassification>('scmStructuralDiffToggled', { enabled: show ? 1 : 0 });
+	}
+}
+
+registerAction2(ToggleShowStructuralDiffAction);
+
 class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane> {
 
 	constructor() {
@@ -1415,6 +1511,31 @@ export class SCMViewPane extends ViewPane {
 	private readonly _onDidChangeViewSortKey = this._register(new Emitter<ViewSortKey>());
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
+	/** The user's choice from the View & Sort menu. Structural diffs are only shown while `scm.structuralDiff.enabled` is also set. */
+	get showStructuralDiff(): boolean { return this._showStructuralDiff; }
+	set showStructuralDiff(show: boolean) {
+		if (this._showStructuralDiff === show) {
+			return;
+		}
+		this._showStructuralDiff = show;
+		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.updateStructuralDiffEnablement();
+	}
+
+	private updateStructuralDiffEnablement(): void {
+		const enabled = this._showStructuralDiff && this.configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true;
+		if (this.structuralDiff.enabled === enabled) {
+			return;
+		}
+		if (!enabled && this.tree) {
+			const toResource = (element: TreeElement) => isSCMStructuralDiffElement(element) ? element.resource : element;
+			this.tree.setFocus([...new Set(this.tree.getFocus().map(toResource))]);
+			this.tree.setSelection([...new Set(this.tree.getSelection().map(toResource))]);
+		}
+		this.showStructuralDiffContextKey.set(enabled);
+		this.structuralDiff.setEnabled(enabled);
+	}
+
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();
 
@@ -1424,6 +1545,8 @@ export class SCMViewPane extends ViewPane {
 
 	private viewModeContextKey: IContextKey<ViewMode>;
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
+	private _showStructuralDiff: boolean;
+	private showStructuralDiffContextKey: IContextKey<boolean>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
 
@@ -1432,6 +1555,7 @@ export class SCMViewPane extends ViewPane {
 	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
 
 	private readonly disposables = new DisposableStore();
+	private readonly structuralDiff: SCMStructuralDiffModel;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1454,6 +1578,9 @@ export class SCMViewPane extends ViewPane {
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
+		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
+		this._showStructuralDiff = this.getShowStructuralDiff();
+
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
 		this._viewSortKey = this.getViewSortKey();
@@ -1463,6 +1590,10 @@ export class SCMViewPane extends ViewPane {
 		this.viewModeContextKey.set(this._viewMode);
 		this.viewSortKeyContextKey = ContextKeys.SCMViewSortKey.bindTo(contextKeyService);
 		this.viewSortKeyContextKey.set(this.viewSortKey);
+		this.showStructuralDiffContextKey = ContextKeys.SCMViewShowStructuralDiff.bindTo(contextKeyService);
+		this.updateStructuralDiffEnablement();
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.structuralDiff.enabled'), this.disposables)(() => this.updateStructuralDiffEnablement(), this, this.disposables);
+		this.disposables.add(bindContextKey(ContextKeys.SCMViewHasStructuralDiffProvider, contextKeyService, reader => this.structuralDiff.hasProvider.read(reader)));
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
@@ -1480,6 +1611,9 @@ export class SCMViewPane extends ViewPane {
 				case 'scm.viewSortKey':
 					this.viewSortKey = this.getViewSortKey();
 					break;
+				case 'scm.showStructuralDiff':
+					this.showStructuralDiff = this.getShowStructuralDiff();
+					break;
 			}
 		}, this, this.disposables);
 
@@ -1490,7 +1624,7 @@ export class SCMViewPane extends ViewPane {
 			this.storeTreeViewState();
 		}, this, this.disposables);
 
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository, this.scmViewService.onDidChangeRepositories)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 
 		this.disposables.add(this.revealResourceThrottler);
 		this.disposables.add(this.updateChildrenThrottler);
@@ -1537,6 +1671,7 @@ export class SCMViewPane extends ViewPane {
 		this.createTree(this.treeContainer, viewState);
 
 		this.onDidChangeBodyVisibility(async visible => {
+			this.structuralDiff.setVisible(visible);
 			if (visible) {
 				this.treeOperationSequencer.queue(async () => {
 					await this.tree.setInput(this.scmViewService, viewState);
@@ -1607,7 +1742,7 @@ export class SCMViewPane extends ViewPane {
 		resourceActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(resourceActionRunner);
 
-		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode);
+		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.structuralDiff);
 		this.disposables.add(treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
@@ -1623,7 +1758,8 @@ export class SCMViewPane extends ViewPane {
 				this.actionButtonRenderer,
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
-				this.disposables.add(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner))
+				this.disposables.add(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)),
+				this.instantiationService.createInstance(SCMStructuralDiffRenderer),
 			],
 			treeDataSource,
 			{
@@ -1637,23 +1773,23 @@ export class SCMViewPane extends ViewPane {
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				compressionEnabled: compressionEnabled.get(),
-				collapseByDefault: (e: unknown) => {
-					// Repository, Resource Group, Resource Folder (Tree) are not collapsed by default
-					return !(isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e));
-				},
+				collapseByDefault: isSCMTreeElementCollapsedByDefault,
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
-				twistieAdditionalCssClass: (e: unknown) => {
-					if (isSCMActionButton(e) || isSCMInput(e)) {
-						return 'force-no-twistie';
-					}
-
-					return undefined;
-				},
+				expandOnlyOnTwistieClick: element => isSCMResource(element) || isSCMStructuralDiffElement(element)
+					|| this.configurationService.getValue<string>('workbench.tree.expandMode') === 'doubleClick',
+				twistieAdditionalCssClass: (element: unknown) => getSCMTreeTwistieCssClass(element, treeDataSource),
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);
 
 		this.tree.onDidOpen(this.open, this, this.disposables);
+		this.structuralDiff.onDidChange(resource => this.updateStructuralChildren(resource), this, this.disposables);
+		this.tree.onDidChangeCollapseState(e => {
+			const element = e.node.element?.element;
+			if (e.node.collapsed && isSCMResource(element)) {
+				this.structuralDiff.release(element);
+			}
+		}, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
@@ -1701,6 +1837,18 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMResourceGroup(e.element)) {
 			const provider = e.element.provider;
 			const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
+			if (repository) {
+				this.scmViewService.focus(repository);
+			}
+			return;
+		} else if (isSCMStructuralDiffElement(e.element)) {
+			const element = e.element;
+			if (element.type === 'structuralDiffStatus' || !this.structuralDiff.isCurrent(element)) {
+				return;
+			}
+			const resource = element.resource;
+			await openSCMStructuralDiff(element, e.editorOptions, this.editorService, () => this.structuralDiff.isCurrent(element), e.sideBySide);
+			const repository = Iterable.find(this.scmService.repositories, repository => repository.provider === resource.resourceGroup.provider);
 			if (repository) {
 				this.scmViewService.focus(repository);
 			}
@@ -1762,9 +1910,17 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		// The active editor can show the resource itself or, as for staged changes,
+		// the modified side of its diff, which may not be the source file
+		const matchesUri = (resource: ISCMResource) => this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri)
+			|| this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorModifiedUri, uri);
+
 		// Do not set focus/selection when the resource is already focused and selected
-		if (this.tree.getFocus().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri)) &&
-			this.tree.getSelection().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri))) {
+		const representsResource = (element: TreeElement) => {
+			const resource = isSCMResource(element) ? element : isSCMStructuralDiffElement(element) ? element.resource : undefined;
+			return resource !== undefined && matchesUri(resource);
+		};
+		if (this.tree.getFocus().some(representsResource) && this.tree.getSelection().some(representsResource)) {
 			return;
 		}
 
@@ -1781,9 +1937,8 @@ export class SCMViewPane extends ViewPane {
 						// go backwards from last group
 						for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
 							const groupItem = repository.provider.groups[j];
-							const resource = this.viewMode === ViewMode.Tree
-								? groupItem.resourceTree.getNode(uri)?.element
-								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+							const resource = (this.viewMode === ViewMode.Tree ? groupItem.resourceTree.getNode(uri)?.element : undefined)
+								?? groupItem.resources.find(matchesUri);
 
 							if (resource) {
 								await this.tree.expandTo(resource);
@@ -1817,6 +1972,7 @@ export class SCMViewPane extends ViewPane {
 			const onDidChangeResourceGroups = () => {
 				for (const [resourceGroup] of resourceGroupDisposables) {
 					if (!repository.provider.groups.includes(resourceGroup)) {
+						this.structuralDiff.invalidateGroup(resourceGroup);
 						resourceGroupDisposables.deleteAndDispose(resourceGroup);
 					}
 				}
@@ -1826,7 +1982,10 @@ export class SCMViewPane extends ViewPane {
 						const disposableStore = new DisposableStore();
 
 						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren(repository)));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => this.updateChildren(repository)));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => {
+							this.structuralDiff.releaseRemovedResources(resourceGroup);
+							this.updateChildren(repository);
+						}));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
 					}
 				}
@@ -1840,6 +1999,7 @@ export class SCMViewPane extends ViewPane {
 
 		// Removed repositories
 		for (const repository of removed) {
+			this.structuralDiff.invalidateProvider(repository.provider);
 			this.items.deleteAndDispose(repository);
 		}
 
@@ -1860,6 +2020,9 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const element = e.element;
+		if (isSCMStructuralDiffElement(element)) {
+			return;
+		}
 		let context: unknown = element;
 		let actions: IAction[] = [];
 
@@ -1957,6 +2120,11 @@ export class SCMViewPane extends ViewPane {
 		return viewSortKey;
 	}
 
+	/** Structural diffs are shown by default once `scm.structuralDiff.enabled` is set, unless the user hid them in this workspace. */
+	private getShowStructuralDiff(): boolean {
+		return this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, true);
+	}
+
 	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
 		const storageViewState = this.storageService.get('scm.viewState2', StorageScope.WORKSPACE);
 		if (!storageViewState) {
@@ -1973,8 +2141,30 @@ export class SCMViewPane extends ViewPane {
 
 	private storeTreeViewState() {
 		if (this.tree) {
-			this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			const state = this.tree.getViewState();
+			const isPersistent = (id: string) => !id.startsWith(SCM_STRUCTURAL_DIFF_ID_PREFIX);
+			this.storageService.store('scm.viewState2', JSON.stringify({
+				...state,
+				focus: state.focus?.filter(isPersistent),
+				selection: state.selection?.filter(isPersistent),
+				expanded: state.expanded?.filter(isPersistent),
+			}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+	}
+
+	private updateStructuralChildren(resource: ISCMResource | undefined): void {
+		if (!this.isBodyVisible()) {
+			return;
+		}
+		if (!resource) {
+			this.updateChildren();
+			return;
+		}
+		this.treeOperationSequencer.queue(async () => {
+			if (this.tree.hasNode(resource)) {
+				await this.tree.updateChildren(resource, true, true);
+			}
+		}).catch(onUnexpectedError);
 	}
 
 	private updateChildren(element?: ISCMRepository) {
@@ -2144,7 +2334,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.scmService.repositoryCount === 0;
+		// Hidden repositories are not shown, for example while a provider swaps the repository of a workspace folder
+		return this.scmViewService.repositories.length === 0;
 	}
 
 	override getActionsContext(): unknown {
@@ -2186,9 +2377,10 @@ export class SCMViewPane extends ViewPane {
 	}
 }
 
-class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
+export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
 	constructor(
 		private readonly viewMode: () => ViewMode,
+		private readonly structuralDiff: SCMStructuralDiffModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
@@ -2252,13 +2444,19 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			}
 
 			return children;
+		} else if (isSCMResource(inputOrElement)) {
+			return this.structuralDiff.getChildren(inputOrElement);
+		} else if (isSCMStructuralDiffElement(inputOrElement)) {
+			return this.structuralDiff.enabled && inputOrElement.type === 'structuralDiff' ? inputOrElement.children : [];
 		}
 
 		return [];
 	}
 
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
-		if (isSCMResourceNode(element)) {
+		if (isSCMStructuralDiffElement(element)) {
+			return element.parent;
+		} else if (isSCMResourceNode(element)) {
 			if (element.parent === element.context.resourceTree.root) {
 				return element.context;
 			} else if (element.parent) {
@@ -2313,7 +2511,9 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 		} else if (isSCMResourceGroup(inputOrElement)) {
 			return true;
 		} else if (isSCMResource(inputOrElement)) {
-			return false;
+			return this.structuralDiff.hasChildren(inputOrElement);
+		} else if (isSCMStructuralDiffElement(inputOrElement)) {
+			return this.structuralDiff.enabled && inputOrElement.type === 'structuralDiff' && inputOrElement.children.length > 0;
 		} else if (ResourceTree.isResourceNode(inputOrElement)) {
 			return inputOrElement.childrenCount > 0;
 		} else {

@@ -15,11 +15,14 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import type { IImageCarouselMarkUp } from '../../imageCarousel/browser/imageCarouselTypes.js';
 import type { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, getChatImageResourceComparisonKey, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
+import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
+import { IChatAttachmentWidgetRegistry, IChatImageAttachmentEditor } from './attachments/chatAttachmentWidgetRegistry.js';
 
 export const IChatImageCarouselService = createDecorator<IChatImageCarouselService>('chatImageCarouselService');
 
@@ -57,6 +60,8 @@ export interface ICarouselImage {
 	readonly data?: Uint8Array;
 	readonly uri?: URI;
 	readonly caption?: string;
+	/** Shows a markup of the image, see the Images Preview's `ICarouselImage.markUp`. */
+	readonly markUp?: (container: HTMLElement) => IImageCarouselMarkUp;
 }
 
 export interface ICarouselSection {
@@ -318,6 +323,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatAttachmentWidgetRegistry private readonly attachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: IChatImageCarouselOptions): Promise<void> {
@@ -331,7 +337,13 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			text: widget.getInput(),
 			attachments: widget.attachmentModel.attachments,
 		} : undefined);
-		const currentInputSections = await collectCarouselSections([], readFile, currentInput);
+		let currentInputSections = await collectCarouselSections([], readFile, currentInput);
+		// The images of the widget's own input can be marked up, which keeps them attached with their changes.
+		const attachmentModel = currentInput && !options?.currentInput ? widget?.attachmentModel : undefined;
+		const imageEditor = this.attachmentWidgetRegistry.imageEditor;
+		if (attachmentModel && currentInputSections.length > 0 && imageEditor) {
+			currentInputSections = this.withMarkUp(currentInputSections, attachmentModel, imageEditor);
+		}
 		const preferredSectionIndex = options?.preferCurrentInput && currentInputSections.length > 0 ? sections.length : undefined;
 		sections.push(...currentInputSections);
 		const additionalImages = options?.additionalImages?.filter(image => findClickedImageIndex(sections, image.uri) < 0) ?? [];
@@ -362,4 +374,23 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		const args = buildSingleImageArgs(resource, data);
 		await this.commandService.executeCommand(CAROUSEL_COMMAND, args);
 	}
+
+	/** Lets the user mark up the images of the input, which belong to the given attachments. */
+	private withMarkUp(sections: readonly ICarouselSection[], attachmentModel: ChatAttachmentModel, imageEditor: IChatImageAttachmentEditor): ICarouselSection[] {
+		const attachmentIds = new Map<string, string>();
+		for (const attachment of attachmentModel.attachments) {
+			const [image] = extractImagesFromChatVariables([attachment]);
+			if (image && !attachmentIds.has(image.id)) {
+				attachmentIds.set(image.id, attachment.id);
+			}
+		}
+		return sections.map(section => ({
+			...section,
+			images: section.images.map(image => {
+				const attachmentId = attachmentIds.get(image.id);
+				return attachmentId === undefined ? image : { ...image, markUp: (container: HTMLElement) => imageEditor.createMarkUp(container, attachmentModel, attachmentId) };
+			}),
+		}));
+	}
+
 }

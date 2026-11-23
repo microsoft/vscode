@@ -16,7 +16,8 @@ import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withSessionExternal } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, withSessionExternal } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
@@ -156,10 +157,7 @@ suite('MissionControlSdkEventSource', () => {
 	test('reconciles history and synchronizes the title when the first message makes a draft eligible', async () => {
 		const f = fixture([event('persisted-start', 'session.start', { sessionId: 'native' })], { provisional: true });
 		f.emitter.fire(event('ignored'));
-		f.state.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: at,
-			message: { text: 'First user message', origin: { kind: MessageKind.User } },
-		});
+		f.state.dispatchServerAction(chat.toString(), chatTurnStarted('first-turn', 'First user message', at));
 		f.source.observeSession(session);
 		f.emitter.fire(event('first-turn', 'assistant.turn_start', { turnId: 'first-turn' }));
 		await f.source.whenIdle();

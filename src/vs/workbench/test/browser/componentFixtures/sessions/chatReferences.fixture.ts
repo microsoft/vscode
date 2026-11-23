@@ -21,18 +21,14 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionArtifact, SessionArtifactKind } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../contrib/sessions/common/github/types.js';
+import { ISessionArtifact, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
-import { SessionCustomizationKind } from '../../../../contrib/chat/common/sessionChatCustomizations.js';
+import { SessionCustomizationKind } from '../../../../common/sessionChatCustomizations.js';
 
 const pullRequests: readonly IGitHubPullRequest[] = [{
 	number: 335583,
@@ -208,9 +204,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			},
 			additionalServices: reg => {
 				reg.define(IContextMenuService, ContextMenuService);
-				reg.define(ISessionsService, class extends mock<ISessionsService>() {
-					override setActive(): void { }
-				});
+				reg.define(ISessionsService, class extends mock<ISessionsService>() { });
 				const gitHubService = createFixtureGitHubService(
 					pullRequests.map(pullRequest => ({ owner: 'microsoft', repo: 'vscode', pullRequest })),
 					issues.map(issue => ({ owner: 'microsoft', repo: 'vscode', issue })),

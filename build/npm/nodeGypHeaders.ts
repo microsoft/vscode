@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as child_process from 'child_process';
+import * as os from 'os';
+import * as path from 'path';
 import { setTimeout as delay } from 'timers/promises';
 
 export interface InstallNodeGypHeadersOptions {
@@ -43,8 +45,9 @@ function runNodeGyp(nodeGypScript: string, args: readonly string[], timeoutMs: n
 }
 
 /**
- * Runs `node-gyp install --dist-url <distUrl> <target>`, which downloads and unpacks the
- * headers into node-gyp's cache. The headers come from nodejs.org or electronjs.org, and a
+ * Runs `node-gyp install --ensure --dist-url <distUrl> <target>`, which downloads and unpacks
+ * the headers into node-gyp's cache unless that version's headers are already there. The
+ * preinstall runs this on every install. The headers come from nodejs.org or electronjs.org, and a
  * single failed or stalled download used to fail the whole dependency install. node-gyp is
  * run through the current Node.js directly, so the deadline kills node-gyp itself.
  */
@@ -55,7 +58,7 @@ export async function installNodeGypHeaders(nodeGypScript: string, distUrl: stri
 	const attempts = retryDelaysMs.length + 1;
 
 	for (let attempt = 1; ; attempt++) {
-		const failure = await runNodeGyp(nodeGypScript, ['install', '--dist-url', distUrl, target], timeoutMs);
+		const failure = await runNodeGyp(nodeGypScript, ['install', '--ensure', '--dist-url', distUrl, target], timeoutMs);
 		if (failure === undefined) {
 			return;
 		}
@@ -67,4 +70,23 @@ export async function installNodeGypHeaders(nodeGypScript: string, distUrl: stri
 		log(`${message}. Retrying in ${delayMs / 1000} s.`);
 		await delay(delayMs);
 	}
+}
+
+/**
+ * Returns the folder in node-gyp's cache with the C/C++ headers of runtime version `target`
+ * (`include/node`), or `undefined` on Windows without `LOCALAPPDATA`.
+ */
+export function getNodeGypHeadersDirectory(target: string): string | undefined {
+	if (process.platform === 'win32') {
+		const localAppData = process.env.LOCALAPPDATA;
+		if (!localAppData) {
+			return undefined;
+		}
+		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
+	}
+	if (process.platform === 'darwin') {
+		return path.join(os.homedir(), 'Library', 'Caches', 'node-gyp', target, 'include', 'node');
+	}
+	const cachePath = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
 }

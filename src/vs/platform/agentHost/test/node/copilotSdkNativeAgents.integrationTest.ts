@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient, type CopilotSession, type ResumeSessionConfig, type SessionConfig } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient, type CopilotSession, type ResumeSessionOptions, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { restore, stub } from 'sinon';
@@ -47,7 +47,7 @@ suite('Copilot SDK - native agent launch', function () {
 		}
 	});
 
-	for (const mode of ['copilot-cli', 'empty'] as const) {
+	for (const mode of ['coding-agent', 'empty'] as const) {
 		test(`${mode} resume: preserves a saved flat-layout selection registered with an authored SDK name`, async () => {
 			const root = URI.file(join(home, 'cache', 'legacy-bundle', 'current'));
 			const uri = URI.joinPath(root, 'agents', 'reviewer.agent.md');
@@ -56,29 +56,46 @@ suite('Copilot SDK - native agent launch', function () {
 			await writeFile(uri.fsPath, '---\nname: Reviewer\n---\nLegacy prompt.');
 			const opens: string[] = [];
 			client = new class extends CopilotClient {
-				override async createSession(config: SessionConfig): Promise<CopilotSession> {
+				override async createSession(config: CreateSessionOptions): Promise<CopilotSession> {
 					opens.push('create');
 					return super.createSession(config);
 				}
-				override async resumeSession(id: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+				override async resumeSession(id: string, config: ResumeSessionOptions): Promise<CopilotSession> {
 					opens.push('resume');
 					return super.resumeSession(id, config);
 				}
 			}({
-				mode, baseDirectory: home, useLoggedInUser: false,
-				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-					COPILOT_TELEMETRY_ENABLED: 'false',
-				})),
+				mode,
+				runtime: RuntimeConnection.forSpawnedStdio({
+					baseDirectory: home,
+					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+						PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+						COPILOT_TELEMETRY_ENABLED: 'false',
+					})),
+				}),
+				github: {
+					useLoggedInUser: false,
+				},
 			});
 			await client.start();
 			const providers = [{ name: 'local', type: 'openai' as const, wireApi: 'completions' as const, baseUrl: 'http://127.0.0.1:1/v1' }];
 			const models = [{ id: 'legacy-test-model', provider: 'local' }];
 			const sessionId = generateUuid();
 			const original = await client.createSession({
-				sessionId, workingDirectory: home, model: 'legacy-test-model', providers, models,
-				availableTools: [],
-				customAgents: [{ name: 'Reviewer', displayName: 'Reviewer', prompt: 'Legacy prompt.' }], agent: 'Reviewer',
+				sessionId,
+				workingDirectory: home,
+				model: 'legacy-test-model',
+				inference: {
+					providers: providers,
+					models: models,
+				},
+				tools: {
+					availableTools: [],
+				},
+				agents: {
+					definitions: [{ name: 'Reviewer', displayName: 'Reviewer', prompt: 'Legacy prompt.' }],
+					selected: 'Reviewer',
+				},
 			});
 			const before = (await original.rpc.agent.getCurrent()).agent?.id;
 			await original.disconnect();
@@ -123,7 +140,7 @@ suite('Copilot SDK - native agent launch', function () {
 		});
 	}
 
-	for (const mode of ['copilot-cli', 'empty'] as const) {
+	for (const mode of ['coding-agent', 'empty'] as const) {
 		for (const { kind, sharedBundle } of (['create', 'resume', 'recover'] as const).flatMap(kind => [false, true].map(sharedBundle => ({ kind, sharedBundle })))) {
 			test(`${mode} ${kind}: distinguishes and switches forwarded agents with identical display names from ${sharedBundle ? 'one bundle' : 'different plugins'}`, async () => {
 				const uris = [0, 1].map(index => URI.file(join(home, `source-${index}`, 'shared.agent.md')));
@@ -133,20 +150,26 @@ suite('Copilot SDK - native agent launch', function () {
 				}
 				const opens: { kind: string; agent: string | undefined }[] = [];
 				client = new class extends CopilotClient {
-					override async createSession(config: SessionConfig): Promise<CopilotSession> {
-						opens.push({ kind: 'create', agent: config.agent });
+					override async createSession(config: CreateSessionOptions): Promise<CopilotSession> {
+						opens.push({ kind: 'create', agent: config.agents?.selected });
 						return super.createSession(config);
 					}
-					override async resumeSession(id: string, config: ResumeSessionConfig): Promise<CopilotSession> {
-						opens.push({ kind: 'resume', agent: config.agent });
+					override async resumeSession(id: string, config: ResumeSessionOptions): Promise<CopilotSession> {
+						opens.push({ kind: 'resume', agent: config.agents?.selected });
 						return super.resumeSession(id, config);
 					}
 				}({
-					mode, baseDirectory: home, useLoggedInUser: false,
-					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-						PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-						COPILOT_TELEMETRY_ENABLED: 'false',
-					})),
+					mode,
+					runtime: RuntimeConnection.forSpawnedStdio({
+						baseDirectory: home,
+						env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+							PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+							COPILOT_TELEMETRY_ENABLED: 'false',
+						})),
+					}),
+					github: {
+						useLoggedInUser: false,
+					},
 				});
 				await client.start();
 				const sessionId = generateUuid();
@@ -213,7 +236,7 @@ suite('Copilot SDK - native agent launch', function () {
 		}
 	}
 
-	for (const mode of ['copilot-cli', 'empty'] as const) {
+	for (const mode of ['coding-agent', 'empty'] as const) {
 		for (const kind of ['create', 'resume', 'recover'] as const) {
 			test(`${mode} ${kind}: ${mode === 'empty' ? 'surfaces missing native catalog support' : 'selects a native-only agent after construction'}`, async () => {
 				const pluginDir = join(home, 'plugin');
@@ -228,27 +251,33 @@ suite('Copilot SDK - native agent launch', function () {
 					type: CustomizationType.Agent, id: 'review-native:reviewer',
 					uri: URI.file(agentPath).toString(), name: 'Reviewer',
 				} as const;
-				const capture = (kind: string, config: ResumeSessionConfig | undefined) => {
+				const capture = (kind: string, config: ResumeSessionOptions | undefined) => {
 					opens.push({
-						kind, agent: config?.agent,
-						nativeDefinition: config?.customAgents?.some(agent => agent.name === nativeAgent.id || agent.name === nativeAgent.name) ?? false,
+						kind, agent: config?.agents?.selected,
+						nativeDefinition: config?.agents?.definitions?.some(agent => agent.name === nativeAgent.id || agent.name === nativeAgent.name) ?? false,
 					});
 				};
 				client = new class extends CopilotClient {
-					override async createSession(config: SessionConfig): Promise<CopilotSession> {
+					override async createSession(config: CreateSessionOptions): Promise<CopilotSession> {
 						capture('create', config);
 						return super.createSession(config);
 					}
-					override async resumeSession(id: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+					override async resumeSession(id: string, config: ResumeSessionOptions): Promise<CopilotSession> {
 						capture('resume', config);
 						return super.resumeSession(id, config);
 					}
 				}({
-					mode, baseDirectory: home, useLoggedInUser: false,
-					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-						PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-						COPILOT_TELEMETRY_ENABLED: 'false',
-					})),
+					mode,
+					runtime: RuntimeConnection.forSpawnedStdio({
+						baseDirectory: home,
+						env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+							PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+							COPILOT_TELEMETRY_ENABLED: 'false',
+						})),
+					}),
+					github: {
+						useLoggedInUser: false,
+					},
 				});
 				await client.start();
 

@@ -20,7 +20,8 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService as CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { Memento } from '../../../../common/memento.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -44,18 +45,6 @@ function completedResult(outcome: OnboardingOutcome = OnboardingOutcome.Complete
 /** A result for a degenerate run that rendered nothing (no steps / all steps skipped). */
 function notShownResult(): IOnboardingRunResult {
 	return { outcome: OnboardingOutcome.Completed, shown: false, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 0 };
-}
-
-/** Captures the names of `publicLog2` telemetry events. */
-class CapturingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: string[] = [];
-	readonly eventData: { readonly name: string; readonly data: unknown }[] = [];
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push(eventName);
-			this.eventData.push({ name: eventName, data });
-		}
-	}
 }
 
 /** A presentation that resolves with a fixed run result. */
@@ -720,7 +709,7 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 
 		// One event for the shown tour; none for the degenerate run that rendered nothing.
-		assert.deepStrictEqual(telemetry.events, ['onboarding.scenarioOutcome']);
+		assert.deepStrictEqual(telemetry.events.map(event => event.name), ['onboarding.scenarioOutcome']);
 	});
 
 	test('emits one shown event only after a presentation renders with its experiment assignment', async () => {
@@ -747,7 +736,7 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 		await timeout(0);
 
-		assert.deepStrictEqual(telemetry.eventData.filter(event => event.name === 'onboarding.scenarioShown'), [
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'onboarding.scenarioShown'), [
 			{
 				name: 'onboarding.scenarioShown',
 				data: {
@@ -757,7 +746,7 @@ suite('OnboardingScenarioService', () => {
 				},
 			},
 		]);
-		assert.deepStrictEqual(telemetry.events, ['onboarding.scenarioShown', 'onboarding.scenarioOutcome']);
+		assert.deepStrictEqual(telemetry.events.map(event => event.name), ['onboarding.scenarioShown', 'onboarding.scenarioOutcome']);
 	});
 
 	test('experiment-driven scenario does not run unless both treatment flags are set', async () => {
@@ -1033,14 +1022,18 @@ suite('OnboardingScenarioService', () => {
 		});
 
 		const { service } = createService({}, assignment);
+		const reached: { scenarioId: string; excluded: boolean }[] = [];
+		const listener = service.onDidReachWouldShow(scenarioId => reached.push({ scenarioId, excluded: assignment.isExcluded('onb-tour-q3:12345') }));
 		service.start();
 		await timeout(0);
 		await timeout(0);
+		listener.dispose();
 
-		// No tour shown, not marked shown (re-eligible later), but the id now flows.
+		// No tour shown, not marked shown (re-eligible later), but the id now flows, also
+		// for events logged when the would-show moment is announced.
 		assert.deepStrictEqual(
-			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3:12345') },
-			{ runs: [], shown: false, excluded: false }
+			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3:12345'), reached: reached[0] },
+			{ runs: [], shown: false, excluded: false, reached: { scenarioId: 'exp-control', excluded: false } }
 		);
 	});
 

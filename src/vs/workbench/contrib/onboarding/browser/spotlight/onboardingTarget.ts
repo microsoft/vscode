@@ -162,7 +162,7 @@ export function pulseOnboardingTarget(element: HTMLElement): IDisposable {
  */
 export function findOnboardingTarget(targetWindow: Window, id: string, scope?: string): HTMLElement | undefined {
 	const selector = `[${ONBOARDING_TARGET_ATTR}="${CSS.escape(id)}"]`;
-	// eslint-disable-next-line no-restricted-syntax -- matching only our own onboarding attribute (never foreign classes/structure) is the whole point of this helper
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- matching only our own onboarding attribute (never foreign classes/structure) is the whole point of this helper
 	const targets = Array.from(targetWindow.document.querySelectorAll<HTMLElement>(selector));
 	return targets.find(target => isVisibleOnboardingTarget(targetWindow, target) && matchesScope(target, scope));
 }
@@ -172,7 +172,8 @@ function matchesScope(target: HTMLElement, scope: string | undefined): boolean {
 	return (typeof registeredScope === 'function' ? registeredScope() : registeredScope) === scope;
 }
 
-function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
+/** Whether a target can be presented in the given window. */
+export function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
 	if (!target.isConnected || target.ownerDocument !== targetWindow.document) {
 		return false;
 	}

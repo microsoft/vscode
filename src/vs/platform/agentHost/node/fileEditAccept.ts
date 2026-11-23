@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import type { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { FileEditKind } from '../common/state/sessionState.js';
+import { isFileEditPath } from './fileEditPath.js';
 
 /**
  * Prefix of the tool call ID of an edit row that records the user accepting a
@@ -34,14 +36,15 @@ export function getWorkingSetFileEditRecords(records: readonly IFileEditRecord[]
  * records it accepted. An accept row that accepted only some changes is the
  * first unaccepted record, as it changes the file from the accepted content
  * to the content the file had then. Without an accept row, every record is
- * unaccepted.
+ * unaccepted. `workingSetRecords` are the last of `records` that the file's
+ * Working Set compares, when another database's accept row covers more.
  */
-export async function getUnacceptedFileEditRecords(db: Pick<ISessionDatabase, 'readFileEditContent'>, records: readonly IFileEditRecord[]): Promise<{ readonly records: IFileEditRecord[]; readonly acceptedTurns: ReadonlySet<string> }> {
-	const latestAccept = records.findLastIndex(isFileEditAcceptRecord);
-	const start = latestAccept >= 0 && await isPartialFileEditAcceptRecord(db, records[latestAccept]) ? latestAccept : latestAccept + 1;
+export async function getUnacceptedFileEditRecords(db: Pick<ISessionDatabase, 'readFileEditContent'>, records: readonly IFileEditRecord[], workingSetRecords = getWorkingSetFileEditRecords(records)): Promise<{ readonly records: IFileEditRecord[]; readonly acceptedTurns: ReadonlySet<string> }> {
+	const [baseline] = workingSetRecords;
+	const isAccepted = baseline !== undefined && isFileEditAcceptRecord(baseline) && !await isPartialFileEditAcceptRecord(db, baseline);
 	return {
-		records: records.slice(start),
-		acceptedTurns: new Set(records.slice(0, Math.max(latestAccept, 0)).filter(record => !isFileEditAcceptRecord(record)).map(record => record.turnId)),
+		records: workingSetRecords.slice(isAccepted ? 1 : 0),
+		acceptedTurns: new Set(records.slice(0, records.length - workingSetRecords.length).filter(record => !isFileEditAcceptRecord(record)).map(record => record.turnId)),
 	};
 }
 
@@ -133,4 +136,19 @@ function createAcceptRow(turnId: string, filePath: string, kind: FileEditKind, a
 /** Builds the edit row that accepts the content that `row`, a row being recorded with its content, leaves the file with. */
 export function createFileEditAcceptRecordAfter(row: IFileEditRecord & IFileEditContent): IFileEditRecord & IFileEditContent {
 	return createFileEditAcceptRecord(row.turnId, row.filePath, row.kind === FileEditKind.Delete ? undefined : row.afterContent ?? new Uint8Array());
+}
+
+/**
+ * Stores `row`, which accepts changes to the file at `resource` whose last record, `last`, leaves it with
+ * `current` content. Accepting must not cover an edit recorded since those were read, as one of a turn that
+ * runs: then nothing is stored and the error of `createChangedError` is thrown, given whether a record was added.
+ */
+export async function storeFileEditAcceptRecord(db: ISessionDatabase, row: IFileEditRecord & IFileEditContent, resource: URI, last: IFileEditRecord, current: Uint8Array | undefined, createChangedError: (recordAdded: boolean) => Error): Promise<void> {
+	await db.storeFileEdits([row], async readContent => {
+		const previous = (await db.getAllFileEdits()).filter(record => isFileEditPath(record.filePath, resource)).at(-2);
+		const content = previous && await readFileEditEndContent({ readFileEditContent: readContent }, previous);
+		if (previous?.toolCallId !== last.toolCallId || !fileEditContentEquals(content, current)) {
+			throw createChangedError(previous !== undefined && previous.toolCallId !== last.toolCallId);
+		}
+	});
 }

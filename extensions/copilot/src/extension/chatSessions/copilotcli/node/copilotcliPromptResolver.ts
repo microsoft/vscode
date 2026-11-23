@@ -11,10 +11,9 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { isLocation, toLocation } from '../../../../util/common/types';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
-import { ResourceMap } from '../../../../util/vs/base/common/map';
 import { Schemas } from '../../../../util/vs/base/common/network';
 import * as path from '../../../../util/vs/base/common/path';
-import { extUriBiasedIgnorePathCase, relativePath } from '../../../../util/vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatReferenceBinaryData, ChatReferenceDiagnostic, FileType, Location } from '../../../../vscodeTypes';
@@ -42,10 +41,10 @@ export class CopilotCLIPromptResolver {
 	 * Generates the final prompt for the Copilot CLI agent, resolving variables and preparing attachments.
 	 * @param prompt Provide a prompt to override the request prompt
 	 */
-	public async resolvePrompt(request: vscode.ChatRequest, prompt: string | undefined, additionalReferences: vscode.ChatPromptReference[], workspaceInfo: IWorkspaceInfo, additionalWorkspaces: IWorkspaceInfo[], token: vscode.CancellationToken): Promise<{ prompt: string; attachments: Attachment[]; references: vscode.ChatPromptReference[] }> {
+	public async resolvePrompt(request: vscode.ChatRequest, prompt: string | undefined, additionalReferences: vscode.ChatPromptReference[], workspaceInfo: IWorkspaceInfo, token: vscode.CancellationToken): Promise<{ prompt: string; attachments: Attachment[]; references: vscode.ChatPromptReference[] }> {
 		const allReferences = new ChatVariablesCollection(request.references.concat(additionalReferences.filter(ref => !request.references.includes(ref))));
 		prompt = prompt ?? request.prompt;
-		const [variables, attachments] = await this.constructChatVariablesAndAttachments(allReferences, workspaceInfo, additionalWorkspaces, token);
+		const [variables, attachments] = await this.constructChatVariablesAndAttachments(allReferences, workspaceInfo, token);
 		if (token.isCancellationRequested) {
 			return { prompt, attachments: [], references: [] };
 		}
@@ -54,30 +53,12 @@ export class CopilotCLIPromptResolver {
 		return { prompt: prompt ?? '', attachments, references };
 	}
 
-	/**
-	 * Builds a map from workspace folder URIs to their corresponding worktree URIs.
-	 * Used for multi-folder path translation when isolation is enabled.
-	 */
-	private buildFolderToWorktreeMap(primaryWorkspaceInfo: IWorkspaceInfo, additionalWorkspaces: IWorkspaceInfo[]): ResourceMap<vscode.Uri> {
-		const map = new ResourceMap<vscode.Uri>();
-		if (primaryWorkspaceInfo.worktree && primaryWorkspaceInfo.repository) {
-			map.set(primaryWorkspaceInfo.repository, primaryWorkspaceInfo.worktree);
-		}
-		for (const ws of additionalWorkspaces) {
-			if (ws.worktree && ws.repository) {
-				map.set(ws.repository, ws.worktree);
-			}
-		}
-		return map;
-	}
-
-	private async constructChatVariablesAndAttachments(variables: ChatVariablesCollection, workspaceInfo: IWorkspaceInfo, additionalWorkspaces: IWorkspaceInfo[], token: vscode.CancellationToken): Promise<[variables: ChatVariablesCollection, Attachment[]]> {
+	private async constructChatVariablesAndAttachments(variables: ChatVariablesCollection, workspaceInfo: IWorkspaceInfo, token: vscode.CancellationToken): Promise<[variables: ChatVariablesCollection, Attachment[]]> {
 		const validReferences: vscode.ChatPromptReference[] = [];
 		const fileFolderReferences: vscode.ChatPromptReference[] = [];
 		const builtinSlashCommandReferences: vscode.ChatPromptReference[] = [];
-		const isolationEnabled = isIsolationEnabled(workspaceInfo) || additionalWorkspaces.some(ws => isIsolationEnabled(ws));
-		const folderToWorktreeMap = this.buildFolderToWorktreeMap(workspaceInfo, additionalWorkspaces);
-		const hasAnyWorkingDirectory = getWorkingDirectory(workspaceInfo) || additionalWorkspaces.some(ws => getWorkingDirectory(ws));
+		const isolationEnabled = isIsolationEnabled(workspaceInfo);
+		const hasWorkingDirectory = Boolean(getWorkingDirectory(workspaceInfo));
 		const knownSkillLocations = await this.skillsService.getSkillsLocations(CancellationToken.None);
 		await Promise.all(Array.from(variables).map(async variable => {
 			const reference = variable.reference;
@@ -111,7 +92,7 @@ export class CopilotCLIPromptResolver {
 			if (isolationEnabled && isWorkspaceRepoInformationItem(reference)) {
 				return;
 			}
-			const variableRef = (!isolationEnabled || !hasAnyWorkingDirectory) ? reference : await this.translateWorkspaceRefToWorkingDirectoryRef(reference, workspaceInfo, additionalWorkspaces, folderToWorktreeMap, token);
+			const variableRef = (!isolationEnabled || !hasWorkingDirectory) ? reference : await this.translateWorkspaceRefToWorkingDirectoryRef(reference, workspaceInfo, token);
 			// Images will be attached using regular attachments via Copilot CLI SDK.
 			if (variableRef.value instanceof ChatReferenceBinaryData) {
 				if (!isImageMimeType(variableRef.value.mimeType)) {
@@ -276,28 +257,28 @@ export class CopilotCLIPromptResolver {
 		return [attachments, images];
 	}
 
-	private async translateWorkspaceRefToWorkingDirectoryRef(ref: vscode.ChatPromptReference, workspaceInfo: IWorkspaceInfo, additionalWorkspaces: IWorkspaceInfo[], folderToWorktreeMap: ResourceMap<vscode.Uri>, token: vscode.CancellationToken): Promise<vscode.ChatPromptReference> {
+	private async translateWorkspaceRefToWorkingDirectoryRef(ref: vscode.ChatPromptReference, workspaceInfo: IWorkspaceInfo, token: vscode.CancellationToken): Promise<vscode.ChatPromptReference> {
 		try {
 			if (ref.value instanceof ChatReferenceBinaryData) {
 				return ref;
 			}
 
 			if (isLocation(ref.value)) {
-				const uri = await this.translateWorkspaceUriToWorkingDirectoryUri(ref.value.uri, workspaceInfo, additionalWorkspaces, folderToWorktreeMap, token);
+				const uri = await this.translateWorkspaceUriToWorkingDirectoryUri(ref.value.uri, workspaceInfo, token);
 				const loc = new Location(uri, toLocation(ref.value)!.range);
 				return {
 					...ref,
 					value: loc
 				};
 			} else if (URI.isUri(ref.value)) {
-				const uri = await this.translateWorkspaceUriToWorkingDirectoryUri(ref.value, workspaceInfo, additionalWorkspaces, folderToWorktreeMap, token);
+				const uri = await this.translateWorkspaceUriToWorkingDirectoryUri(ref.value, workspaceInfo, token);
 				return {
 					...ref,
 					value: uri
 				};
 			} else if (ref.value instanceof ChatReferenceDiagnostic) {
 				const diagnostics = await Promise.all(ref.value.diagnostics.map(async ([uri, diags]) => {
-					const translatedUri = await this.translateWorkspaceUriToWorkingDirectoryUri(uri, workspaceInfo, additionalWorkspaces, folderToWorktreeMap, token);
+					const translatedUri = await this.translateWorkspaceUriToWorkingDirectoryUri(uri, workspaceInfo, token);
 					return [translatedUri, diags] as [vscode.Uri, vscode.Diagnostic[]];
 				}));
 				return {
@@ -312,36 +293,29 @@ export class CopilotCLIPromptResolver {
 		}
 	}
 
-	private async translateWorkspaceUriToWorkingDirectoryUri(uri: vscode.Uri, workspaceInfo: IWorkspaceInfo, additionalWorkspaces: IWorkspaceInfo[], folderToWorktreeMap: ResourceMap<vscode.Uri>, token: vscode.CancellationToken): Promise<vscode.Uri> {
+	private async translateWorkspaceUriToWorkingDirectoryUri(uri: vscode.Uri, workspaceInfo: IWorkspaceInfo, token: vscode.CancellationToken): Promise<vscode.Uri> {
 		const workspaceFolder = this.workspaceService.getWorkspaceFolder(uri);
-		const matchingWorktree = workspaceFolder ? folderToWorktreeMap.get(workspaceFolder) : undefined;
+		const matchingWorktree = (workspaceFolder && workspaceInfo.repository && workspaceInfo.worktree && isEqual(workspaceFolder, workspaceInfo.repository)) ? workspaceInfo.worktree : undefined;
 		if (!workspaceFolder || !matchingWorktree) {
-			return (await this.findMatchingWorktree(uri, workspaceInfo, additionalWorkspaces, token)) ?? uri;
+			return (await this.findMatchingWorktree(uri, workspaceInfo, token)) ?? uri;
 		}
-		// Use the folder-specific worktree from the map when available; otherwise, fall back to a best-effort worktree match (or the original URI)
-		const targetDir = matchingWorktree;
 		const rel = relativePath(workspaceFolder, uri);
 		if (!rel) {
 			return uri;
 		}
 		const segments = rel.split('/');
-		const candidate = URI.joinPath(targetDir, ...segments);
+		const candidate = URI.joinPath(matchingWorktree, ...segments);
 		const candidateStat = await raceCancellation(this.fileSystemService.stat(candidate), token).catch(() => undefined);
 		return candidateStat ? candidate : uri;
 	}
 
-	private async findMatchingWorktree(uri: vscode.Uri, workspaceInfo: IWorkspaceInfo, additionalWorkspaces: IWorkspaceInfo[], token: vscode.CancellationToken): Promise<vscode.Uri | undefined> {
-		// Assume the uri is `/user/abc/projects/project_abc/file.ts` and one of the items in workspaceInfo or additionalWorkspaces has a folder/repositoryUri that is /user/abc/projects/project_abc and that has a worktree at `/user/abc/projects/project_abc-worktree`, we want to translate the file uri to `/user/abc/projects/project_abc-worktree/file.ts`.
-		for (const ws of [workspaceInfo, ...additionalWorkspaces]) {
-			if (ws.repository && ws.worktree) {
-				if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, ws.repository)) {
-					const rel = relativePath(ws.repository, uri);
-					if (rel) {
-						const candidate = URI.joinPath(ws.worktree, rel);
-						const candidateStat = await raceCancellation(this.fileSystemService.stat(candidate), token).catch(() => undefined);
-						return candidateStat ? candidate : uri;
-					}
-				}
+	private async findMatchingWorktree(uri: vscode.Uri, workspaceInfo: IWorkspaceInfo, token: vscode.CancellationToken): Promise<vscode.Uri | undefined> {
+		if (workspaceInfo.repository && workspaceInfo.worktree && extUriBiasedIgnorePathCase.isEqualOrParent(uri, workspaceInfo.repository)) {
+			const rel = relativePath(workspaceInfo.repository, uri);
+			if (rel) {
+				const candidate = URI.joinPath(workspaceInfo.worktree, rel);
+				const candidateStat = await raceCancellation(this.fileSystemService.stat(candidate), token).catch(() => undefined);
+				return candidateStat ? candidate : uri;
 			}
 		}
 	}

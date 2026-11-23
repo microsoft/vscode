@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITunnelApplicationConfig } from '../../../../../base/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentHostRemoteConnectionsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -18,8 +22,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLoggerService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -28,6 +31,9 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
+import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { executeToggleRemoteConnections } from '../../../../contrib/chat/electron-browser/tunnelHost.contribution.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -85,6 +91,21 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	}
 }
 
+/** Dismisses every quick pick as soon as it is shown. */
+class DismissingQuickInputService extends mock<IQuickInputService>() {
+	override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	override createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+	override createQuickPick<T extends IQuickPickItem>(): IQuickPick<T, { useSeparators: true }> | IQuickPick<T, { useSeparators: false }> {
+		const onDidHide = new Emitter<IQuickInputHideEvent>();
+		return upcastPartial<IQuickPick<T, { useSeparators: true }>>({
+			onDidHide: onDidHide.event,
+			onDidAccept: Event.None,
+			show: () => onDidHide.fire({ reason: QuickInputHideReason.Gesture }),
+			dispose: () => onDidHide.dispose(),
+		});
+	}
+}
+
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	override readonly onDidChangeTunnelStatus = Event.None;
 	override readonly onDidChangeMode = Event.None;
@@ -132,22 +153,16 @@ class TestExtensionService extends mock<IExtensionService>() {
 	}
 }
 
-class TestProgressService extends mock<IProgressService>() {
-	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
-		return task({ report() { } });
-	}
-}
-
 class TestDialogService extends mock<IDialogService>() {
 	override async confirm() { return { confirmed: true }; }
 }
 class TestCommandService extends mock<ICommandService>() { }
 class TestWorkspaceContextService extends mock<IWorkspaceContextService>() {
-	override getWorkspace() { return { id: 'test', folders: [] }; }
+	override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 }
 class TestNotificationService extends mock<INotificationService>() { }
 
-function createContribution(store: Pick<DisposableStore, 'add'>, authenticationService: TestAuthenticationService, quickInputService: TestQuickInputService, remoteTunnelService: TestRemoteTunnelService): RemoteTunnelWorkbenchContribution {
+function createContribution(store: Pick<DisposableStore, 'add'>, authenticationService: TestAuthenticationService, quickInputService: IQuickInputService, remoteTunnelService: TestRemoteTunnelService): RemoteTunnelWorkbenchContribution {
 	return store.add(new RemoteTunnelWorkbenchContribution(
 		authenticationService,
 		new TestDialogService(),
@@ -171,6 +186,54 @@ function createContribution(store: Pick<DisposableStore, 'add'>, authenticationS
 
 suite('RemoteTunnelWorkbenchContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('declining preview propagates cancellation through the sharing toggle without starting a tunnel', async () => {
+		const authenticationService = new TestAuthenticationService([githubSession]);
+		const quickInputService = new TestQuickInputService();
+		const remoteTunnelService = new TestRemoteTunnelService();
+		createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+		const instantiation = store.add(new TestInstantiationService());
+		const storageService = store.add(new InMemoryStorageService());
+		instantiation.set(IStorageService, storageService);
+		instantiation.set(IRemoteTunnelService, remoteTunnelService);
+		instantiation.set(IConfigurationService, new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: 'devTunnel' }));
+		instantiation.set(INotificationService, new TestNotificationService());
+		instantiation.set(IClipboardService, new class extends mock<IClipboardService>() { }());
+		instantiation.set(IProductService, new class extends mock<IProductService>() { }());
+		instantiation.set(IQuickInputService, quickInputService);
+		let confirmations = 0;
+		instantiation.set(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { confirmations++; return { confirmed: false }; }
+		}());
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {}, 'executeCommand', async (id: string) => {
+			commands.push(id);
+			assert.strictEqual(id, RemoteTunnelCommandIds.turnOn);
+			return instantiation.invokeFunction(CommandsRegistry.getCommand(id)!.handler);
+		});
+		const result = await instantiation.invokeFunction(executeToggleRemoteConnections);
+		assert.deepStrictEqual({
+			result, confirmations, commands, startedModes: remoteTunnelService.startedModes,
+			quickPicks: quickInputService.createQuickPickCalls, authentication: authenticationService.requestedSessions,
+		}, { result: 'canceled', confirmations: 1, commands: [RemoteTunnelCommandIds.turnOn], startedModes: [], quickPicks: 0, authentication: [] });
+	});
+
+	test('dismissing the account picker cancels without starting a tunnel or reporting a failure', async () => {
+		const remoteTunnelService = new TestRemoteTunnelService();
+		const quickInputService = new DismissingQuickInputService();
+		createContribution(store, new TestAuthenticationService([githubSession]), quickInputService, remoteTunnelService);
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.set(IStorageService, store.add(new InMemoryStorageService()));
+		// Reporting a failure would call these services' missing notify and executeCommand methods and throw.
+		instantiation.set(INotificationService, new TestNotificationService());
+		instantiation.set(ICommandService, new TestCommandService());
+		instantiation.set(IClipboardService, new class extends mock<IClipboardService>() { }());
+		instantiation.set(IDialogService, new TestDialogService());
+		instantiation.set(IQuickInputService, quickInputService);
+		instantiation.set(IProductService, new class extends mock<IProductService>() { }());
+		const result = await instantiation.invokeFunction(CommandsRegistry.getCommand(RemoteTunnelCommandIds.turnOn)!.handler, { showServiceOption: false });
+		assert.deepStrictEqual({ result, startedModes: remoteTunnelService.startedModes }, { result: 'canceled', startedModes: [] });
+	});
 
 	for (const hasLink of [false, true]) {
 		test(`preserves success notification links without interpreting tunnel names (web link: ${hasLink})`, async () => {
@@ -234,6 +297,26 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 			});
 		});
 	}
+
+	test('turn off waits for the tunnel to stop', async () => {
+		const stopped = new DeferredPromise<void>();
+		const remoteTunnelService = new class extends TestRemoteTunnelService {
+			override stopTunnel(): Promise<void> {
+				return stopped.p;
+			}
+		};
+		createContribution(store, new TestAuthenticationService([githubSession]), new TestQuickInputService(), remoteTunnelService);
+		const instantiation = store.add(new TestInstantiationService());
+		let resolved = false;
+		const turnOff = Promise.resolve(instantiation.invokeFunction(CommandsRegistry.getCommand(RemoteTunnelCommandIds.turnOff)!.handler)).then(() => { resolved = true; });
+
+		await timeout(0);
+		const beforeStop = resolved;
+		stopped.complete();
+		await turnOff;
+
+		assert.deepStrictEqual({ beforeStop, afterStop: resolved }, { beforeStop: false, afterStop: true });
+	});
 
 	test('starts Agents remote access with an existing GitHub session without an authentication quick pick', async () => {
 		const authenticationService = new TestAuthenticationService([githubSession]);

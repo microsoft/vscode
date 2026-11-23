@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../base/browser/dom.js';
-import { Sequencer } from '../../../../base/common/async.js';
+import { Sequencer, timeout } from '../../../../base/common/async.js';
 import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, posix, win32 } from '../../../../base/common/path.js';
-import { basename, extname, isEqual, isEqualOrParent, joinPath, normalizePath } from '../../../../base/common/resources.js';
+import { basename, dirname, extname, isEqual, isEqualOrParent, joinPath, normalizePath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, IFileStatWithPartialMetadata, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, chatBackgroundImageExtensions, ChatBackgroundImageLayout, chatBackgroundImageLayoutValues, ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { chatBackgroundImageExtensions, ChatBackgroundImageLayout, chatBackgroundImageLayoutValues, chatBackgroundPresets as sessionsChatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const SetChatBackgroundToolId = 'vscode_setChatBackground';
 export const SetChatBackgroundToolReferenceName = 'setChatBackground';
@@ -38,11 +38,15 @@ const MAX_IMAGE_SIZE = 25 * 1024 * 1024;
 /** Recently imported images are never pruned, so an import in another window is not deleted before that window applies it. */
 const PRUNE_GRACE_PERIOD = 60 * 1000;
 
-const chatBackgroundPresets = ['codicons', 'none'] as const;
+/** How long to wait for an image that another tool may still be writing. Invocations are serialized, so the wait also delays queued calls. */
+const IMAGE_WRITE_TIMEOUT = 10 * 1000;
+const IMAGE_WRITE_POLL_INTERVAL = 250;
+
+const chatBackgroundPresets = [...sessionsChatBackgroundPresets, 'none'] as const;
 type ChatBackgroundPreset = typeof chatBackgroundPresets[number];
 
 type SetChatBackgroundInput =
-	| { readonly kind: 'preset'; readonly preset: ChatBackgroundPreset }
+	| { readonly kind: 'preset'; readonly preset: ChatBackgroundPreset; readonly layout?: ChatBackgroundImageLayout }
 	| { readonly kind: 'image'; readonly image: string; readonly layout?: ChatBackgroundImageLayout }
 	| { readonly kind: 'layout'; readonly layout: ChatBackgroundImageLayout };
 
@@ -53,7 +57,7 @@ interface IImageSize {
 
 /** A chat background as reported to the model. */
 type ChatBackgroundOutput =
-	| { readonly kind: 'none' | 'codicons' }
+	| { readonly kind: 'none' | SessionsChatBackgroundPreset; readonly layout?: ChatBackgroundImageLayout }
 	| { readonly kind: 'image'; readonly image: string; readonly layout: ChatBackgroundImageLayout; readonly width?: number; readonly height?: number };
 
 /** An error the model can act on. Its message is returned to the model as is. */
@@ -86,9 +90,9 @@ export class SetChatBackgroundTool implements IToolImpl {
 			icon: Codicon.paintcan,
 			displayName: localize('setChatBackground.displayName', "Set Chat Background"),
 			userDescription: localize('setChatBackground.userDescription', "Set the chat background of the Agents window to an image or a pattern"),
-			modelDescription: `Set or remove the chat background in the Agents window, or change its image layout. Applies an existing image file or the Codicons preset; does not generate images.
+			modelDescription: `Set or remove the chat background in the Agents window, or change its image layout. Applies an existing image file or a built-in background (Codicons, Koi Light, or Koi Dark); does not generate images.
 
-Use an absolute image path or one relative to the invoking chat's working directory. Supports ${chatBackgroundImageExtensions.join(', ')} up to ${MAX_IMAGE_SIZE / (1024 * 1024)} MB. Images are copied into VS Code storage.
+Use an absolute image path or one relative to the invoking chat's working directory. Call this tool only after the tool that writes or converts the image has finished, never in the same parallel batch. Supports ${chatBackgroundImageExtensions.join(', ')} up to ${MAX_IMAGE_SIZE / (1024 * 1024)} MB. Images are copied into VS Code storage.
 
 Changes persist across chats for the active color scheme, leaving the other scheme unchanged. High contrast themes hide backgrounds. Omitting layout keeps the current layout. The result includes image dimensions and the previous background for undo.`,
 			source: ToolDataSource.Internal,
@@ -106,12 +110,12 @@ Changes persist across chats for the active color scheme, leaving the other sche
 					preset: {
 						type: 'string',
 						enum: [...chatBackgroundPresets],
-						description: '"codicons" for a theme-aware pattern of VS Code icons, "none" to remove the background. Not combined with image or layout.',
+						description: '"codicons" for a theme-aware pattern of VS Code icons, "koi-light" or "koi-dark" for an animated ASCII koi pond, "none" to remove the background. Not combined with image. Only the Koi presets use layout.',
 					},
 					layout: {
 						type: 'string',
 						enum: [...chatBackgroundImageLayoutValues],
-						description: 'How the image is laid out: repeat tiles it, stretch fills the chat, and the others place it once at its original size. Pass it alone to change the layout of the current image.',
+						description: 'How the image or Koi preset is laid out: repeat tiles it, stretch fills the chat, and the others place it once at its original size. Pass it alone to change the layout of the current one.',
 					},
 				},
 			},
@@ -131,8 +135,8 @@ Changes persist across chats for the active color scheme, leaving the other sche
 					invocationMessage: localize('setChatBackground.invocation.none', "Removing the chat background"),
 					pastTenseMessage: localize('setChatBackground.past.none', "Removed the chat background"),
 				} : {
-					invocationMessage: localize('setChatBackground.invocation.codicons', "Setting the chat background to Codicons"),
-					pastTenseMessage: localize('setChatBackground.past.codicons', "Set the chat background to Codicons"),
+					invocationMessage: localize('setChatBackground.invocation.preset', "Setting the chat background to {0}", getChatBackgroundPresetLabel(input.preset)),
+					pastTenseMessage: localize('setChatBackground.past.preset', "Set the chat background to {0}", getChatBackgroundPresetLabel(input.preset)),
 				};
 			case 'image': {
 				const name = getFileName(input.image);
@@ -161,7 +165,8 @@ Changes persist across chats for the active color scheme, leaving the other sche
 			}
 			try {
 				this.ensureEnabled();
-				return await this.apply(parseInput(invocation.parameters), invocation.context?.sessionResource, token);
+				// Agent hosts omit the chat context when no chat view renders the call, but always pass the originating chat.
+				return await this.apply(parseInput(invocation.parameters), invocation.originatingChatResource ?? invocation.context?.sessionResource, token);
 			} catch (error) {
 				if (isCancellationError(error) || token.isCancellationRequested) {
 					throw new CancellationError();
@@ -188,6 +193,7 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		const theme = this.themeService.getColorTheme().type;
 		const replaced = this.backgroundService.getConfiguredBackground(theme);
 		const previous = this.describeBackground(theme);
+		const notes: string[] = [];
 		let message: string;
 		let imageSize: IImageSize | undefined;
 		let image: URI | undefined;
@@ -197,8 +203,15 @@ Changes persist across chats for the active color scheme, leaving the other sche
 					await this.backgroundService.clearBackground('agent', theme);
 					message = localize('setChatBackground.result.none', "Removed the chat background");
 				} else {
-					await this.backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', theme);
-					message = localize('setChatBackground.result.codicons', "Set the chat background to Codicons");
+					await this.backgroundService.setBackground(preparedInput.preset, 'agent', theme);
+					message = localize('setChatBackground.result.preset', "Set the chat background to {0}", getChatBackgroundPresetLabel(preparedInput.preset));
+				}
+				if (preparedInput.layout) {
+					if (preparedInput.preset === 'none' || preparedInput.preset === 'codicons') {
+						notes.push('"layout" was ignored because only images and the Koi presets have a layout.');
+					} else {
+						await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
+					}
 				}
 				break;
 			case 'image': {
@@ -226,11 +239,14 @@ Changes persist across chats for the active color scheme, leaving the other sche
 
 		const background = this.describeBackground(theme, imageSize);
 		const colorScheme = isDark(theme) ? 'dark' : 'light';
+		if (background.kind !== 'none' && isHighContrast(theme)) {
+			notes.push(`The active high contrast theme hides chat backgrounds. This background shows when the user uses a ${colorScheme} theme.`);
+		}
 		const output = {
 			colorScheme,
 			background,
 			previous,
-			...(background.kind !== 'none' && isHighContrast(theme) ? { note: `The active high contrast theme hides chat backgrounds. This background shows when the user uses a ${colorScheme} theme.` } : {}),
+			...(notes.length ? { note: notes.join(' ') } : {}),
 		};
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(output) }],
@@ -252,8 +268,8 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		if (!chatBackgroundImageExtensions.includes(extension.slice(1))) {
 			throw new SetChatBackgroundError(`${extension ? `"${extension}" images are` : 'Files without an extension are'} not supported. Use one of: ${chatBackgroundImageExtensions.join(', ')}.`);
 		}
-		// Agent hosts run client tools without the calling chat when no chat view renders the call.
-		await this.validateFile(source, known || workingDirectory ? '' : ' No working directory is known for this call, so the path was resolved on the machine running VS Code.');
+		// Without a working directory, the path resolves on this machine, which may not be the one the agent runs on.
+		await this.validateFile(source, known || workingDirectory ? '' : ' No working directory is known for this call, so the path was resolved on the machine running VS Code.', token);
 		const imported = known ? undefined : await this.importImage(source, folder, token);
 		const image = imported?.image ?? source;
 		if (token.isCancellationRequested) {
@@ -306,14 +322,18 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		return workspace?.folders[0]?.workingDirectory;
 	}
 
-	private async validateFile(source: URI, notFoundHint: string): Promise<void> {
-		let stat;
+	private async validateFile(source: URI, notFoundHint: string, token: CancellationToken): Promise<void> {
+		let stat: IFileStatWithPartialMetadata | undefined;
 		try {
 			stat = await this.fileService.stat(source);
 		} catch (error) {
-			throw new SetChatBackgroundError(error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND
-				? `${toDisplayPath(source)} does not exist.${notFoundHint}`
-				: `Could not read ${toDisplayPath(source)}: ${error instanceof Error ? error.message : String(error)}`);
+			const notFound = error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND;
+			stat = notFound ? await this.waitForImage(source, token) : undefined;
+			if (!stat) {
+				throw new SetChatBackgroundError(notFound
+					? `${toDisplayPath(source)} does not exist.${notFoundHint}`
+					: `Could not read ${toDisplayPath(source)}: ${error instanceof Error ? error.message : String(error)}`);
+			}
 		}
 		if (stat.isDirectory) {
 			throw new SetChatBackgroundError(`${toDisplayPath(source)} is a folder, not an image file.`);
@@ -321,6 +341,29 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		if (stat.size > MAX_IMAGE_SIZE) {
 			throw new SetChatBackgroundError(`${toDisplayPath(source)} is ${Math.ceil(stat.size / (1024 * 1024))} MB; images can be at most ${MAX_IMAGE_SIZE / (1024 * 1024)} MB. Use a smaller or compressed image.`);
 		}
+	}
+
+	/**
+	 * Waits for an image that another tool may still be writing, as agents sometimes write an image and apply it in the
+	 * same batch of parallel tool calls. Returns the image once it exists and its size stopped changing, or its last state
+	 * when the time is up. Returns `undefined` right away when its folder does not exist.
+	 */
+	private async waitForImage(source: URI, token: CancellationToken): Promise<IFileStatWithPartialMetadata | undefined> {
+		const folder = await this.fileService.stat(dirname(source)).catch(() => undefined);
+		if (!folder?.isDirectory) {
+			return undefined;
+		}
+		const deadline = Date.now() + IMAGE_WRITE_TIMEOUT;
+		let stat: IFileStatWithPartialMetadata | undefined;
+		while (Date.now() < deadline) {
+			await timeout(IMAGE_WRITE_POLL_INTERVAL, token);
+			const previousSize = stat?.size;
+			stat = await this.fileService.stat(source).catch(() => undefined);
+			if (stat && stat.size > 0 && stat.size === previousSize) {
+				return stat;
+			}
+		}
+		return stat;
 	}
 
 	/**
@@ -381,6 +424,9 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		if (background.kind === 'codicons') {
 			return { kind: 'codicons' };
 		}
+		if (background.preset) {
+			return { kind: background.preset, layout: this.backgroundService.getBackgroundImageLayout(colorScheme) };
+		}
 		return {
 			kind: 'image',
 			image: background.image.fsPath,
@@ -409,10 +455,7 @@ function parseInput(parameters: unknown): SetChatBackgroundInput {
 		throw new SetChatBackgroundError('Pass either "image" or "preset", not both.');
 	}
 	if (preset !== undefined) {
-		if (layout !== undefined) {
-			throw new SetChatBackgroundError('"layout" applies only to images; omit it when passing "preset".');
-		}
-		return { kind: 'preset', preset };
+		return { kind: 'preset', preset, ...(layout !== undefined ? { layout } : {}) };
 	}
 	if (typeof image === 'string') {
 		return { kind: 'image', image: image.trim(), ...(layout !== undefined ? { layout } : {}) };
@@ -448,6 +491,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 	const remote = workingDirectory?.scheme !== Schemas.file ? workingDirectory : undefined;
 	if (isFileUri) {
 		const uri = URI.parse(value);
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps an absolute background-image filesystem URI using the working directory's host authority
 		return remote?.scheme === AGENT_HOST_SCHEME ? toAgentHostUri(uri, remote.authority)
 			: remote ? remote.with({ path: uri.path, fragment: '' }) : uri;
 	}
@@ -458,6 +502,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 		// The agent host may run on another OS than this window, so convert Windows paths explicitly.
 		const path = /^[a-z]:[\\/]/i.test(value) ? `/${value.replace(/\\/g, '/')}` : value;
 		if (/^(\\\\|\/\/)/.test(value) && remote.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- preserves a UNC image path's filesystem authority inside the working directory's host wrapper
 			return toAgentHostUri(URI.file(value.replace(/\\/g, '/')), remote.authority);
 		}
 		return remote.with({ path, fragment: '' });

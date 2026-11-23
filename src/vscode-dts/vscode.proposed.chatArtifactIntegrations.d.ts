@@ -19,6 +19,16 @@ declare module 'vscode' {
 		readonly detailsId: string;
 	}
 
+	/** The presentation of the artifact as a whole. */
+	export interface ChatArtifactMainPresentation extends ChatArtifactPresentation {
+		/**
+		 * Labels the artifact where it shows as a pill of its own, rather than as a row of a pill's dropdown, which shows
+		 * {@link ChatArtifactPresentation.label label}. Keep it short, such as its kind and number: `Papercut #7`.
+		 * One line of plain text. Defaults to the label.
+		 */
+		readonly pillLabel?: string;
+	}
+
 	export interface ChatArtifactSection extends ChatArtifactPresentation {
 		readonly id: string;
 	}
@@ -94,11 +104,18 @@ declare module 'vscode' {
 	/** A complete presentation snapshot; replacing it and firing onDidChange updates every observing surface. */
 	export interface ChatArtifactIntegrationState {
 		readonly availability?: ChatArtifactAvailability;
-		readonly main?: ChatArtifactPresentation;
+		readonly main?: ChatArtifactMainPresentation;
 		/**
-		 * How this artifact contributes to a group of several artifacts of this provider, which shows the icon
+		 * Gives this artifact a pill of its own, shared with every other artifact assigned the same ID, including those of
+		 * other providers, and named by {@link ChatArtifactIntegrationProvider.groupLabel}. Without one, the artifact is listed
+		 * in the pill for its kind, such as Artifacts, with the other artifacts. References are always listed in the
+		 * References pill with the other references. Only consulted when this provider presents the artifact's main part.
+		 */
+		readonly groupId?: string;
+		/**
+		 * How this artifact contributes to a group of several artifacts sharing its {@link groupId}, which shows the icon
 		 * with the highest priority among them, for example a failing pull request's icon over an open one's.
-		 * Priorities are only compared among this provider's artifacts, and only when this provider presents
+		 * Priorities are only compared among the group's artifacts, and only when this provider presents
 		 * the artifact's main part.
 		 */
 		readonly group?: { readonly icon: ThemeIcon; readonly priority: number };
@@ -264,7 +281,7 @@ declare module 'vscode' {
 	export type ChatArtifactMatchResult = ChatArtifactResourceMatch | {
 		readonly kind: 'authenticationRequired';
 		readonly reason: string;
-		readonly main: ChatArtifactPresentation;
+		readonly main: ChatArtifactMainPresentation;
 	};
 
 	export interface ChatArtifactIntegrationProvider {
@@ -272,7 +289,7 @@ declare module 'vscode' {
 		readonly label: string;
 		/** Names the recorded resources this provider supports, such as "Experiment links on example.com", so agents know when to use it. One line of plain text, at most 300 characters. */
 		readonly description?: string;
-		/** Names several of this provider's artifacts when they are grouped, such as "Experiments". One line of plain text, at most 100 characters. */
+		/** Names several of this provider's artifacts when they share a group ID, such as "Experiments". One line of plain text, at most 100 characters. */
 		readonly groupLabel?: string;
 		/** Stable for this registration's lifetime. Every referenced action must exist on each observation. Option and choice labels are one line of plain text, at most 100 characters. */
 		readonly automationOptions?: readonly ChatArtifactAutomationOption[];

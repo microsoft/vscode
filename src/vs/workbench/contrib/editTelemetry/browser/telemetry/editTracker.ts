@@ -70,8 +70,12 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 							const key = `${EXTERNAL_OBSERVATION_KEY_PREFIX}${observationId}`;
 							eComposed = eComposed.mapData(replacement => new EditKeySourceData(key, replacement.data.source, replacement.data.representative));
 						}
-						// queue pending external edits
-						this._pendingExternalEdits = this._pendingExternalEdits.compose(eComposed);
+						if (this._externalEditCorrelationPolicy === 'reattribute') {
+							// Count each observed revision before a later reload can overwrite its inserted text.
+							this._applyEdit(eComposed);
+						} else {
+							this._pendingExternalEdits = this._pendingExternalEdits.compose(eComposed);
+						}
 					}
 				} else {
 					if (!this._pendingExternalEdits.isEmpty()) {

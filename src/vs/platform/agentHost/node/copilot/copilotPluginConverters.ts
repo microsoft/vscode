@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@microsoft/copilot-sdk';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
@@ -29,6 +29,7 @@ type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
 type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
 type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
+type UserPromptTransformedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptTransformed']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
@@ -185,6 +186,12 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
 }
 
+/** Whether a custom agent file declares hooks in its frontmatter. */
+export function customAgentFileDeclaresHooks(content: string): boolean {
+	const md = parseFrontMatter(content);
+	return !!md && getCustomAgentHooks(md) !== undefined;
+}
+
 function customAgentDescription(name: string, description?: string): string {
 	return (description ? `${name}: ${description}` : name).replace(/\s+/g, ' ').trim();
 }
@@ -206,6 +213,7 @@ export async function toSdkCustomAgents(
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
 	clientToolNames?: ReadonlyMap<string, string>,
+	includeHooks = true,
 ): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
@@ -225,7 +233,7 @@ export async function toSdkCustomAgents(
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
-				const hooks = getCustomAgentHooks(md);
+				const hooks = includeHooks ? getCustomAgentHooks(md) : undefined;
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
@@ -453,6 +461,7 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 	'PreToolUse': 'onPreToolUse',
 	'PostToolUse': 'onPostToolUse',
 	'UserPromptSubmit': 'onUserPromptSubmitted',
+	'UserPromptTransformed': 'onUserPromptTransformed',
 	'SessionStart': 'onSessionStart',
 	'SessionEnd': 'onSessionEnd',
 	'ErrorOccurred': 'onErrorOccurred',
@@ -552,6 +561,28 @@ export function toSdkHooks(
 				}
 			}
 			return editTrackingHooks?.onUserPromptSubmitted?.();
+		};
+	}
+
+	// Each hook sees the preceding hook's transformed prompt, while the
+	// original user prompt remains unchanged.
+	const transformedPromptCommands = commandsByKey.get('onUserPromptTransformed');
+	if (transformedPromptCommands?.length) {
+		hooks.onUserPromptTransformed = async (input: UserPromptTransformedHookInput) => {
+			let modifiedTransformedPrompt: string | undefined;
+
+			for (const command of transformedPromptCommands) {
+				const output: { modifiedTransformedPrompt?: unknown } | undefined = await runHookCommands([command], {
+					...input,
+					transformedPrompt: modifiedTransformedPrompt ?? input.transformedPrompt,
+				});
+
+				if (typeof output?.modifiedTransformedPrompt === 'string') {
+					modifiedTransformedPrompt = output.modifiedTransformedPrompt;
+				}
+			}
+
+			return modifiedTransformedPrompt === undefined ? undefined : { modifiedTransformedPrompt };
 		};
 	}
 

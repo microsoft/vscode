@@ -21,6 +21,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { readCloudSandboxCloneResult, readCloudSandboxProjects } from '../../common/meta/cloudSandboxProjectMeta.js';
@@ -55,7 +56,7 @@ suite('Mission Control projects', () => {
 		}();
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
-		const git = new AgentHostGitService(new class extends mock<IFileService>() { }(), environment, log);
+		const git = store.add(new AgentHostGitService(...gitServiceArguments(store, new class extends mock<IFileService>() { }(), environment, log)));
 		const options = { getRoots: () => separateProjectRoots ? [home, workspace] : [workspace], getProjectRoots: separateProjectRoots ? () => [workspace] : undefined, getCloneRoot: (): string | undefined => undefined, runGit, processEnvironment };
 		const projects = store.add(new MissionControlProjects(options, environment, git,
 			new class extends mock<IAgentHostAuthenticationService>() {

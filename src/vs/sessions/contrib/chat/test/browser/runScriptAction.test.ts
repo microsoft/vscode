@@ -26,9 +26,10 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService, ISessionTaskWithTarget } from '../../browser/sessionsTasksService.js';
 
 const titleBarCenterRightMenu = MenuId.for('SessionsTitleBarCenterRight');
@@ -48,14 +49,14 @@ suite('RunScriptContribution', () => {
 
 	test('the dropdown\'s configure actions are registered once, statically: switching between sessions with different tasks leaves every menu alone', async () => {
 		const store = new DisposableStore();
-		const makeSession = (workingDirectory: URI | undefined) => ({ activeChat: constObservable({ workspace: constObservable({ folders: [{ root: URI.file('/r'), workingDirectory }] }) }) }) as unknown as IActiveSession;
+		const makeSession = (workingDirectory: URI | undefined) => ({ activeChat: constObservable({ workspace: constObservable({ folders: [{ root: URI.file('/r'), workingDirectory }] }) }) }) as unknown as ITestSessionWithChat;
 		const withTasks = makeSession(URI.file('/r'));
 		const withoutTasks = makeSession(undefined);
-		const active = observableValue<IActiveSession | undefined>('active', withTasks);
-		const tasksOf = (session: IActiveSession) => session === withTasks ? [{ task: { label: 'build', type: 'shell' }, target: 'workspace' }] as unknown as readonly ISessionTaskWithTarget[] : [];
+		const active = observableValue<ITestSessionWithChat | undefined>('active', withTasks);
+		const tasksOf = (session: ITestSessionWithChat) => session === withTasks ? [{ task: { label: 'build', type: 'shell' }, target: 'workspace' }] as unknown as readonly ISessionTaskWithTarget[] : [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override activeSession = active; });
+		instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(active));
 		instantiationService.stub(ISessionsTasksService, new class extends mock<ISessionsTasksService>() {
 			override getSessionTasks(chat: ISession | IChat) { return constObservable(tasksOf(chat === withTasks.activeChat.get() ? withTasks : withoutTasks)); }
 			override getPinnedTaskLabel() { return constObservable(undefined); }

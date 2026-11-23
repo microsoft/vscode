@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
+export const AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING = 'chat.agentsWindowTitleBarIcons.enabled';
+
+/**
+ * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
+ * The mirrored host value is requested configuration; AgentConfigurationService captures its effective value at host construction.
+ */
+export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
 
 /**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
@@ -58,7 +65,7 @@ function isEnabledChatCustomizationLocation(value: unknown): boolean {
 	return value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true');
 }
 
-function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLocation>, configuredLocations: unknown, forceDirectory: boolean): void {
+function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLocation>, configuredLocations: unknown): void {
 	if (typeof configuredLocations !== 'object' || configuredLocations === null || Array.isArray(configuredLocations)) {
 		return;
 	}
@@ -71,19 +78,18 @@ function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLoca
 
 		const withoutCurrentDirectory = trimmedPath.replace(/^(?:\.\/)+/, '');
 		const normalizedPath = withoutCurrentDirectory.replace(/\/+$/, '') || '.';
-		const isDirectory = forceDirectory || !normalizedPath.toLowerCase().endsWith('.json');
-		const existing = locations.get(normalizedPath);
 		locations.set(normalizedPath, {
 			path: normalizedPath,
-			isDirectory: isDirectory || existing?.isDirectory === true,
+			isDirectory: true,
 		});
 	}
 }
 
+/** Protects configured locations and descendants without inferring filesystem types from names. */
 export function getChatSensitiveEditLocations(hookLocations: unknown, agentLocations: unknown): readonly IChatSensitiveEditLocation[] {
 	const locations = new Map<string, IChatSensitiveEditLocation>();
-	addSensitiveEditLocations(locations, hookLocations, false);
-	addSensitiveEditLocations(locations, agentLocations, true);
+	addSensitiveEditLocations(locations, hookLocations);
+	addSensitiveEditLocations(locations, agentLocations);
 	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
 }
 
@@ -101,6 +107,13 @@ export function mergeChatSensitiveEditLocations(...locationSets: readonly (reado
 	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
 }
 
+/** Reads the sensitive-edit locations of a session config value, skipping malformed entries. */
+export function readChatSensitiveEditLocations(value: unknown): readonly IChatSensitiveEditLocation[] {
+	return Array.isArray(value)
+		? value.filter((location): location is IChatSensitiveEditLocation => typeof location?.path === 'string' && typeof location.isDirectory === 'boolean')
+		: [];
+}
+
 export const enum ChatExternalSessionsMode {
 	Recent = 'recent',
 	None = 'none',
@@ -114,8 +127,14 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.mcp.json': false,
 	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	// Dev Container configurations can run commands on the host whenever the container starts.
+	'**/.devcontainer.json': false,
+	'**/.devcontainer/devcontainer.json': false,
+	'**/.devcontainer/*/devcontainer.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,
+	'**/.github/copilot/settings.json': false,
+	'**/.github/copilot/settings.local.json': false,
 	'**/.claude/agents/**': false,
 	'**/.claude/settings.json': false,
 	'**/.claude/settings.local.json': false,

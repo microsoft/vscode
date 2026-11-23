@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import cp from 'child_process';
 import fs from 'fs';
 import path from 'path';
-
-const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
+import { getServerNodePath, getServerNodeVersion } from '../../lib/node.ts';
 
 export type UseRunnerNodeForServerResult = 'present' | 'versionMismatch' | 'copied';
 
@@ -16,8 +14,8 @@ export type UseRunnerNodeForServerResult = 'present' | 'versionMismatch' | 'copi
  * from nodejs.org unless it is already in `.build/node`. When the runner's Node.js is the version that the server
  * needs, copies it there instead, so that the tests do not depend on nodejs.org.
  *
- * @param serverNodePath where the server's Node.js goes, as printed by `build/lib/node.ts`
- * @param serverNodeVersion the version that `remote/.npmrc` pins, without the `v` prefix
+ * @param serverNodePath where the server's Node.js goes, see `getServerNodePath` in `build/lib/node.ts`
+ * @param serverNodeVersion the version that `remote/package.json` pins, without the `v` prefix
  */
 export function useRunnerNodeForServer(serverNodePath: string, serverNodeVersion: string, runnerNodePath = process.execPath, runnerNodeVersion = process.version): UseRunnerNodeForServerResult {
 	if (fs.existsSync(serverNodePath)) {
@@ -41,12 +39,8 @@ export function useRunnerNodeForServer(serverNodePath: string, serverNodeVersion
 }
 
 function main(): void {
-	const serverNodePath = cp.execFileSync(process.execPath, [path.join(root, 'build', 'lib', 'node.ts')], { encoding: 'utf8' }).trim();
-	const npmrc = fs.readFileSync(path.join(root, 'remote', '.npmrc'), 'utf8');
-	const serverNodeVersion = /^target="(.*)"$/m.exec(npmrc)?.[1];
-	if (!serverNodeVersion) {
-		throw new Error('Cannot find the Node.js version of the server in remote/.npmrc.');
-	}
+	const serverNodePath = getServerNodePath();
+	const serverNodeVersion = getServerNodeVersion().nodeVersion;
 
 	switch (useRunnerNodeForServer(serverNodePath, serverNodeVersion)) {
 		case 'present':

@@ -124,6 +124,33 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('NPM Package Tests', () => {
+		test('required and secret environment variables without descriptions remain inputs', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: '@example/server',
+					transport: { type: TransportType.STDIO },
+					environmentVariables: [
+						{ name: 'REQUIRED', isRequired: true },
+						{ name: 'SECRET', isSecret: true },
+					],
+				}],
+			};
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			assert.deepStrictEqual(result.mcpServerConfiguration, {
+				config: {
+					type: McpServerType.LOCAL,
+					command: 'npx',
+					args: ['@example/server'],
+					env: { REQUIRED: '${input:REQUIRED}', SECRET: '${input:SECRET}' },
+				},
+				inputs: [
+					{ id: 'REQUIRED', type: McpServerVariableType.PROMPT, description: '', password: false, default: undefined, options: undefined },
+					{ id: 'SECRET', type: McpServerVariableType.PROMPT, description: '', password: true, default: undefined, options: undefined },
+				],
+			});
+		});
+
 		test('basic NPM package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{

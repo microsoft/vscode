@@ -7,13 +7,13 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession } from '../../common/agent.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
-import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
+import { Customization, CustomizationType, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
 import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
-import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
-import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
+import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
 
@@ -39,6 +39,8 @@ export interface ICopilotSlashCommandSessionInfo {
 	isLocalIndexEnabled?(): boolean;
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
+	/** Internal MCP skill commands, never offered as user-facing completions. */
+	getMcpSkillCommandNames?(sessionId: string): ReadonlySet<string>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
 	getPluginMarketplaces?(sessionId: string): Promise<readonly { readonly name: string; readonly isDefault?: boolean; readonly managed?: boolean }[]>;
 	getPluginMarketplacePlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]>;
@@ -82,13 +84,15 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			return [];
 		}
 		const sessionId = AgentSession.id(params.channel);
-		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId);
+		// Submitting on accept would also send the draft text after the cursor.
+		const canSubmitOnAccept = !/\S/.test(params.text.slice(params.offset));
+		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId, context, canSubmitOnAccept);
 		if (customizationCompletions) {
 			return customizationCompletions;
 		}
 		const commandArgument = extractSlashCommandArgument(params.text, params.offset);
 		if (commandArgument) {
-			return this._getRuntimeSlashCommandCompletionInfo(sessionId, context.chat, commandArgument.command, commandArgument, false, commandArgument.typed);
+			return this._getRuntimeSlashCommandCompletionInfo(sessionId, context, commandArgument.command, commandArgument, false, canSubmitOnAccept, commandArgument.typed);
 		}
 		const leadingTokenForSkills = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		const leadingTokenForCommands = extractLeadingSlashToken(params.text, params.offset);
@@ -101,10 +105,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// Raw session id is the URI path without the leading slash.
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, context.chat, typed, leading, returnJustSkills);
+		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, context, typed, leading, returnJustSkills, canSubmitOnAccept);
 	}
 
-	private async _getCustomizationCompletions(text: string, offset: number, sessionId: string): Promise<CompletionItem[] | undefined> {
+	private async _getCustomizationCompletions(text: string, offset: number, sessionId: string, context: IAgentHostCompletionContext, canSubmitOnAccept: boolean): Promise<CompletionItem[] | undefined> {
 		const range = getWordRangeAtOffset(text, offset);
 		if (!range) {
 			return undefined;
@@ -124,7 +128,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 							command: 'plugin',
 							description: choice.description,
 							...(choice.name !== 'list' ? { retriggerSuggestions: true } : {}),
-							...(choice.name === 'list' ? { submitOnAccept: true } : {}),
+							...(choice.name === 'list' && canSubmitOnAccept ? { submitOnAccept: true } : {}),
 						}),
 					},
 				}))
@@ -184,7 +188,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		if (commandName.toLowerCase() === 'plugin') {
 			const plugins = await this._sessionInfo.getInstalledPlugins?.(sessionId) ?? [];
-			const syncedPluginNames = new Set((await this._sessionInfo.getSessionCustomizations(sessionId))
+			const syncedPluginNames = new Set((await this._getSessionCustomizations(sessionId, context))
 				.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin && isSyncedCustomization(customization))
 				.map(customization => customization.name));
 			const directPluginNameCounts = new Map<string, number>();
@@ -216,13 +220,16 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					return false;
 				})
 				.flatMap(plugin => {
+					if (plugin.marketplace) {
+						return [`${plugin.name}@${plugin.marketplace}`];
+					}
 					if (subcommand.toLowerCase() !== 'enable' && subcommand.toLowerCase() !== 'disable') {
-						return [plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name];
+						return [plugin.name];
 					}
 					if ((togglePluginNameCounts.get(plugin.name) ?? 0) <= 1) {
 						return [plugin.name];
 					}
-					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : plugin.directSourceId ? [plugin.directSourceId] : [];
+					return plugin.directSourceId ? [plugin.directSourceId] : [];
 				});
 			return Array.from(new Set(candidates))
 				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
@@ -238,7 +245,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				.sort((a, b) => a.insertText.localeCompare(b.insertText));
 		}
 
-		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
+		const customizations = await this._getSessionCustomizations(sessionId, context);
 		const candidates = new Set<string>();
 		for (const customization of customizations) {
 			if (commandName.toLowerCase() === 'mcp' && customization.type === CustomizationType.McpServer) {
@@ -286,24 +293,34 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		}
 	}
 
-	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
+	/** The customizations the host published for the session, resolved again only when it has published none. */
+	private _getSessionCustomizations(sessionId: string, context: IAgentHostCompletionContext): Promise<readonly Customization[]> {
+		return context.customizations ? Promise.resolve(context.customizations) : this._sessionInfo.getSessionCustomizations(sessionId);
+	}
+
+	private async _getKnownSkills(sessionId: string, context: IAgentHostCompletionContext): Promise<{ readonly known: ReadonlySet<string>; readonly ineligible: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
 		const known = new Set<string>();
+		const ineligible = new Set<string>();
 		const syncedContainerNames = new Set<string>();
-		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
+		const customizations = await this._getSessionCustomizations(sessionId, context);
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
-				continue;
-			}
-			if (c.type === CustomizationType.Plugin && isSyncedCustomization(c)) {
+			if (c.type === CustomizationType.Plugin && isCustomizationEnabled(c) && isSyncedCustomization(c)) {
 				syncedContainerNames.add(c.name.toLowerCase());
 			}
-			for (const child of c.children) {
-				if (child.type === CustomizationType.Skill && isSkillEligibleForUserInvocation(child)) {
-					known.add(this._toSlashCommandCandidate(c, child).toLowerCase());
+		}
+		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			const name = this._toSlashCommandCandidate(container, skill).toLowerCase();
+			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
+				known.add(name);
+			} else {
+				ineligible.add(name);
+				if (container.type === CustomizationType.Plugin) {
+					// The runtime may qualify synced skills or disambiguated plugin-root skills.
+					ineligible.add(`${container.name}:${skill.name}`.toLowerCase());
 				}
 			}
 		}
-		return { known, syncedContainerNames };
+		return { known, ineligible, syncedContainerNames };
 	}
 
 	/**
@@ -341,7 +358,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			&& (command.name?.toLowerCase() === name || !!command.aliases?.some(alias => alias.toLowerCase() === name)));
 	}
 
-	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): string {
+	private _toSlashCommandCandidate(container: Customization, skill: SkillCustomization): string {
 		// see getCanonicalPluginCommandId
 		let slashCommandName = skill.name;
 		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
@@ -350,11 +367,12 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return slashCommandName;
 	}
 
-	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, chat: string | undefined, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
-		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
+	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, context: IAgentHostCompletionContext, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, canSubmitOnAccept: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
+		const [runtimeCommands, { known: knownSkills, ineligible: ineligibleSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
-			this._getKnownSkills(sessionId)
+			this._getKnownSkills(sessionId, context)
 		]);
+		const mcpSkillCommandNames = new Set(Array.from(this._sessionInfo.getMcpSkillCommandNames?.(sessionId) ?? [], name => name.toLowerCase()));
 		const typedLower = typed.toLowerCase();
 		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? true;
 		const localIndexEnabled = this._sessionInfo.isLocalIndexEnabled?.() ?? true;
@@ -363,14 +381,13 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		for (const runtimeCommand of runtimeCommands) {
 			const command = runtimeCommand.name === 'sandbox' && runtimeCommand.kind === 'builtin' ? copilotSandboxPolicyCommand : runtimeCommand;
-			if (!command.name) {
+			if (!command.name || mcpSkillCommandNames.has(command.name.toLowerCase()) || command.aliases?.some(alias => mcpSkillCommandNames.has(alias.toLowerCase()))) {
 				continue;
 			}
 			if (returnJustSkills && command.kind !== 'skill') {
 				continue;
 			}
-			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
-				// Already surfaced by the generic skill-completion provider.
+			if (command.kind === 'skill' && (ineligibleSkills.has(command.name.toLowerCase()) || this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands))) {
 				continue;
 			}
 			if (command !== copilotSandboxPolicyCommand && (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias)))) {
@@ -412,7 +429,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 			// Generate completion items for each alias and option combination.
 			// If there are no options, generate a single completion item for the alias.
-			aliases
+			(argumentTyped === undefined ? aliases : [typed])
 				.filter(alias => !addedAliases.has(alias))
 				.forEach(alias => {
 					options
@@ -421,9 +438,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 						.forEach(option => {
 							// Add a trailing space after the command (and sub command/option if present).
 							// This is so user can continue to type additional arguments after the command and option.
-							const insertText = argumentTyped === undefined
-								? `/${alias}${option.name ? ' ' + option.name : ''} `
-								: `${option.name} `;
+							const insertText = `/${alias}${option.name ? ' ' + option.name : ''} `;
 							const description = option.description ?? command.description;
 							const argumentHint = option.argumentHint;
 							const retriggerSuggestions = !option.name
@@ -433,7 +448,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 									: command.name === 'skills'
 										? option.name === 'info'
 										: command.name === 'plugin' && ['marketplace', 'install', 'enable', 'disable', 'uninstall', 'remove', 'update'].includes(option.name);
-							const submitOnAccept = ['mcp', 'plugin', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
+							const submitOnAccept = canSubmitOnAccept && ['mcp', 'plugin', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
 							addedAliases.add(alias);
 
 							completionItems.push({
@@ -442,9 +457,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 								rangeEnd: rangeEnd,
 								attachment: {
 									type: MessageAttachmentKind.Simple,
-									label: argumentTyped === undefined
-										? `${alias}${option.name ? ' ' + option.name : ''}`
-										: option.name,
+									label: `${alias}${option.name ? ' ' + option.name : ''}`,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
 										...(command.kind === 'skill' ? { isSkill: true } : {}),
@@ -465,7 +478,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// offered for leading `/command` tokens (not the whitespace-delimited
 		// skill form).
 		if (!returnJustSkills && argumentTyped === undefined) {
-			const configState = this._sessionInfo.getSessionConfigState?.(sessionId, chat);
+			const configState = this._sessionInfo.getSessionConfigState?.(sessionId, context.chat);
 			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({
 					insertText: item.insertText,
@@ -556,7 +569,7 @@ function extractSlashCommandArgument(text: string, offset: number): { command: s
 	return {
 		command: match.groups.command,
 		typed: text.slice(range.start, offset),
-		rangeStart: range.start,
+		rangeStart: 0,
 		rangeEnd: range.end,
 	};
 }

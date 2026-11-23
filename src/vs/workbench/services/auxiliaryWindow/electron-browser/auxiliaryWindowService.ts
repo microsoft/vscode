@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
-import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
+import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
 import { ISandboxGlobals } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -156,6 +156,13 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService, contextMenuService);
+	}
+
+	override async open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow> {
+		return super.open({
+			...options,
+			alwaysOnTop: options?.alwaysOnTop ?? await this.nativeHostService.isWindowAlwaysOnTop()
+		});
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {

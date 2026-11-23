@@ -17,7 +17,6 @@ import { getHoverAccessibleViewHint, HoverWidget } from '../../../../base/browse
 import { PositionAffinity } from '../../../common/model.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
-import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 const HORIZONTAL_SCROLLING_BY = 30;
 
@@ -37,9 +36,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private readonly _onDidResize = this._register(new Emitter<void>());
 	public readonly onDidResize = this._onDidResize.event;
-
-	private readonly _onDidScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onDidScroll = this._onDidScroll.event;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
 	public readonly onContentsChanged = this._onContentsChanged.event;
@@ -68,6 +64,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
 		super(editor, minimumSize);
 
+		// Overflow widgets can be hosted outside the editor's DOM context.
+		this._register(contextKeyService.createScoped(this._resizableNode.domNode));
 		this._minimumSize = minimumSize;
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
@@ -92,9 +90,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}));
 		this._register(focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
-		}));
-		this._register(this._hover.scrollbar.onScroll((e) => {
-			this._onDidScroll.fire(e);
 		}));
 		this._setRenderedHover(undefined);
 		this._editor.addContentWidget(this);
@@ -287,7 +282,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}

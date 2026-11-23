@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
@@ -15,12 +15,13 @@ import { ActionType } from '../../../../platform/agentHost/common/state/protocol
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
 import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta, type IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
+import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 // --- Backend interface --------------------------------------------------------
 
@@ -176,6 +177,7 @@ interface IFeedbackMetaView {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePRReviewCommentAuthor?: string;
 	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly pendingAgentReveal?: boolean;
 }
@@ -222,6 +224,7 @@ function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined
 		codeSelection: base.codeSelection,
 		diffHunks: base.diffHunks,
 		sourcePRReviewCommentId: base.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: base.sourcePRReviewCommentAuthor,
 		sourcePullRequest: base.sourcePullRequest,
 		pendingAgentReveal: base.pendingAgentReveal,
 	};
@@ -268,6 +271,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: feedback.sourcePRReviewCommentAuthor,
 		sourcePullRequest: feedback.sourcePullRequest,
 		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
@@ -307,6 +311,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 		diffHunks: meta?.diffHunks,
 		kind: meta?.kind ?? AgentFeedbackKind.UserReview,
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
+		sourcePRReviewCommentAuthor: meta?.sourcePRReviewCommentAuthor,
 		sourcePullRequest: meta?.sourcePullRequest,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
@@ -324,7 +329,7 @@ interface ITrackedChannel {
 
 /**
  * Feedback store backed by the agent host's annotations channel. Feedback
- * items round-trip as {@link Annotation}s on `<session>/annotations`, mutated
+ * items round-trip as {@link Annotation}s on the advertised annotations channel, mutated
  * via the `annotations/set` upsert (and `annotations/removed`) actions, with
  * feedback semantics carried in {@link Annotation._meta}.
  *
@@ -370,12 +375,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
 		// Release a deleted session's subscription and its cached feedback.
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._releaseChannel(session.resource)));
-		// Rebind held subscriptions to the provider's current connection, and
+		// Rebind held subscriptions to the provider's current connection and resource, and
 		// resume those of visible sessions whose channel became available again.
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
 			for (const [key, resource] of this._sessionResourceByKey) {
@@ -389,11 +395,12 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		// in the window.
 		this._register(autorun(reader => {
 			const visible = new Set<string>();
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (activeSession) {
 				visible.add(activeSession.resource.toString());
 			}
-			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of this._sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (session) {
 					visible.add(session.resource.toString());
 				}
@@ -497,7 +504,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return value !== undefined && !(value instanceof Error);
 	}
 
-	private _decode(channel: ITrackedChannel, sessionResource: URI): IAgentFeedback[] {
+	private _decode(channel: Pick<ITrackedChannel, 'connection' | 'subscription'>, sessionResource: URI): IAgentFeedback[] {
 		const value = channel.subscription.value;
 		if (!value || value instanceof Error) {
 			return [];
@@ -571,6 +578,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 				item.diffHunks ?? null,
 				item.kind,
 				item.sourcePRReviewCommentId ?? null,
+				item.sourcePRReviewCommentAuthor ?? null,
 				item.sourcePullRequest ?? null,
 				item.replies ?? null,
 				item.state,
@@ -659,10 +667,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (existing) {
 			// A remote host can reconnect as a new client, leaving the old connection dead.
 			const current = existing.provider.getFeedbackAnnotationsChannel(existing.sessionId);
-			if (current?.connection === existing.connection) {
+			if (current?.connection === existing.connection && isEqual(current.annotationsUri, existing.annotationsUri)) {
 				return existing;
 			}
 			this._suspendChannel(sessionResource);
+			if (current && !isEqual(current.annotationsUri, existing.annotationsUri)) {
+				this._cacheBySession.delete(key);
+				this._signatureBySession.delete(key);
+			}
 			if (!current) {
 				return undefined;
 			}
@@ -672,7 +684,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!session || !isAgentHostProviderId(session.providerId)) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		if (!provider?.getFeedbackAnnotationsChannel) {
 			return undefined;
 		}

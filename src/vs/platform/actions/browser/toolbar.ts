@@ -126,6 +126,9 @@ export class WorkbenchToolBar extends ToolBar {
 	}
 
 	private _isAlwaysShown(action: IAction): boolean {
+		if (action instanceof SubmenuItemAction && action.item.isAlwaysShown) {
+			return true;
+		}
 		const id = action instanceof SubmenuItemAction ? action.item.submenu.id : action.id;
 		return !!this._options?.alwaysShownItems?.includes(id);
 	}

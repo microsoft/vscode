@@ -22,6 +22,10 @@ export interface PackageJSONShape {
 				[key: string]: {
 					default?: any;
 					tags?: string[];
+					agentsWindow?: {
+						default?: any;
+						readOnly?: boolean;
+					};
 				};
 			};
 		}[];
@@ -46,4 +50,3 @@ declare const require: any; // TODO@bpasero we need package.json support in web 
 export const packageJson: PackageJSONShape = require('../../../../package.json');
 export const isProduction = (packageJson.buildType !== 'dev');
 export const isPreRelease = (packageJson.isPreRelease || !isProduction);
-export const vscodeEngineVersion = packageJson.engines.vscode;

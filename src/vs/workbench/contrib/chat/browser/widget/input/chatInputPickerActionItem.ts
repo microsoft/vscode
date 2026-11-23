@@ -6,6 +6,8 @@
 import './media/chatInputPicker.css';
 import { $, addDisposableListener, EventType, getActiveWindow, getWindow, reset } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
@@ -42,6 +44,13 @@ export function withChatInputPickerMotion(listOptions: IActionListOptions | unde
 		...withActionWidgetDropdownMotion(listOptions),
 		anchorPosition: AnchorPosition.ABOVE,
 	};
+}
+
+export function renderModelChipChevron(): HTMLElement {
+	const chevron = renderIcon(Codicon.chevronDown);
+	chevron.classList.add('chat-phone-input-chip-chevron');
+	chevron.ariaHidden = 'true';
+	return chevron;
 }
 
 export function renderChatInputPickerSplit(container: HTMLElement, primaryButton = $('a'), secondaryButton = $('a')): { primaryButton: HTMLElement; secondaryButton: HTMLElement } {

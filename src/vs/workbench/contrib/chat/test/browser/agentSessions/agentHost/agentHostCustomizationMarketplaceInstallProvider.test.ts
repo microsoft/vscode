@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { disposableTimeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -12,19 +12,78 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest, IAgentPluginInstallation, IAgentPluginInstallRequest } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentPluginInstallation, IAgentPluginInstallRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IGalleryMcpServer, IMcpGalleryService, McpGalleryResolveStatus } from '../../../../../../../platform/mcp/common/mcpManagement.js';
 import { type IMcpServerConfiguration, McpServerType } from '../../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ICustomizationInstallationConfigurationService } from '../../../../browser/agentSessions/agentHost/customizationInstallationConfigurationService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, EnablementModel } from '../../../../common/enablement.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+
+interface ITestProviderOptions {
+	/** Answers a configuration request the way the Customizations editor's install form would. */
+	readonly configure?: ICustomizationInstallationConfigurationService['collect'];
+	readonly trusted?: boolean;
+	readonly requestTrust?: () => Promise<boolean | undefined>;
+	/** Answers MCP registry lookups; by default the registry cannot be reached. */
+	readonly resolveRegistryServers?: IMcpGalleryService['resolveMcpServersFromGallery'];
+	/** Fires when the MCP registry is replaced by another. */
+	readonly onDidChangeRegistry?: Event<IMcpGalleryManifest | null>;
+}
+
+/** Creates a provider with optional configuration and workspace trust fakes. */
+function createTestProvider(
+	providerId: string,
+	resolveAuthentication: () => Promise<boolean>,
+	agentHostService: IAgentHostService,
+	connections: IAgentHostConnectionsService,
+	customizations: IAgentHostCustomizationService,
+	dialogs: IDialogService,
+	logService: ILogService,
+	plugins: IAgentPluginService,
+	options: ITestProviderOptions = {},
+): AgentHostCustomizationMarketplaceInstallProvider {
+	return new AgentHostCustomizationMarketplaceInstallProvider(
+		providerId,
+		resolveAuthentication,
+		agentHostService,
+		connections,
+		customizations,
+		dialogs,
+		logService,
+		plugins,
+		new class extends mock<ICustomizationInstallationConfigurationService>() {
+			override async collect(request: IAgentCustomizationInstallationConfigurationRequest, token: CancellationToken) { return options.configure?.(request, token); }
+		}(),
+		new class extends mock<IWorkspaceTrustManagementService>() {
+			override isWorkspaceTrusted() { return options.trusted ?? true; }
+		}(),
+		new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestWorkspaceTrust() { return options.requestTrust ? options.requestTrust() : true; }
+		}(),
+		new class extends mock<IMcpGalleryService>() {
+			override async resolveMcpServersFromGallery(infos: { name: string; id?: string }[]) { return options.resolveRegistryServers?.(infos) ?? new Map(); }
+		}(),
+		new class extends mock<IMcpGalleryManifestService>() {
+			override readonly onDidChangeMcpGalleryManifest = options.onDidChangeRegistry ?? Event.None;
+		}(),
+	);
+}
+
+/** Wraps a review in the owned shape the host returns. */
+function ownedReview<T>(review: T) {
+	return { kind: 'review' as const, review, hostGeneration: 'generation', ownershipToken: 'token' };
+}
 
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,7 +105,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const backendChat = URI.parse('vendor-chat://host/opaque-chat');
 		const calls: { provider: string; request: IAgentPluginInstallRequest; session: URI | undefined; chat: URI | undefined }[] = [];
 		let connectionAuthority = AMBIENT_AGENT_HOST_AUTHORITY;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -90,9 +149,48 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('session-free marketplace additions notify source consumers without resolving a session or chat', async () => {
+		const calls: unknown[] = [];
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async addPluginMarketplace(provider: string, session: URI | undefined, source: string, chat?: URI) {
+					calls.push([provider, session, source, chat]);
+					if (source === 'invalid') {
+						throw new Error('SDK rejected source');
+					}
+					return { name: 'catalog', source, isDefault: false, managed: false, available: true };
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+		));
+		const changes: string[] = [];
+		store.add(provider.onDidChangeMarketplaces(() => changes.push('marketplaces')));
+		store.add(provider.onDidChange(() => changes.push('customizations')));
+
+		await provider.add(undefined, 'owner/repo#feature/beta');
+		await assert.rejects(provider.add(undefined, 'invalid'), /SDK rejected source/);
+		assert.deepStrictEqual({ calls, changes }, {
+			calls: [
+				['copilotcli', undefined, 'owner/repo#feature/beta', undefined],
+				['copilotcli', undefined, 'invalid', undefined],
+			],
+			changes: ['marketplaces', 'customizations'],
+		});
+	});
+
 	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
 		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -152,7 +250,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
 		const backendChat = URI.parse('vendor-chat://opaque-host/peer-chat');
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -313,7 +411,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('vendor-session://opaque-host/backend-session?version=2');
 		const calls: { provider: string; session: string }[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -383,11 +481,55 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('matches marketplace plugin separators consistently', async () => {
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
+		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async browsePluginMarketplace() {
+					return [
+						{ name: 'handy-commands', description: 'Useful commands' },
+						{ name: 'other-plugin', description: 'Something else' },
+					];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+		));
+		const marketplace = {
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: false,
+			available: true,
+		};
+		const queries = ['handy-commands', 'handy commands', 'handy_commands', 'handy.commands', 'handy/commands'];
+		const results = await Promise.all(queries.map(async query => {
+			const page = await provider.queryMarketplace(frontendSession, marketplace, { query }, CancellationToken.None);
+			return page.items.map(item => item.displayName);
+		}));
+
+		assert.deepStrictEqual(results, queries.map(() => ['handy-commands']));
+	});
+
 	test('projects SDK catalog searches and featured plugin browse results', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('ahp-session:/backend-session');
 		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -528,7 +670,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('offers explicit sign-in before retrying SDK catalog search', async () => {
 		let authenticationRequests = 0;
 		let searchRequests = 0;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => {
 				authenticationRequests++;
@@ -595,7 +737,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	});
 
 	test('surfaces an unavailable SDK catalog as a source error', async () => {
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => { throw new Error('Unexpected authentication'); },
 			new class extends mock<IAgentHostService>() {
@@ -633,7 +775,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const applied: string[] = [];
 		let authenticationRequests = 0;
 		let installed = false;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => {
 				authenticationRequests++;
@@ -659,7 +801,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
 					requests.push(request);
-					return {
+					return ownedReview({
 						operationId: 'operation',
 						action: 'install' as const,
 						kind: 'skill' as const,
@@ -668,9 +810,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						target: 'skills/demo',
 						fileCount: 1,
 						totalBytes: 10,
-					};
+					});
 				}
-				override async applyCustomizationInstallation(_provider: string, operationId: string) {
+				override async applyCustomizationInstallation(_provider: string, { operationId }: { readonly operationId: string }) {
 					applied.push(operationId);
 					installed = true;
 					return { kind: 'receipt' as const, installationId: 'installation' };
@@ -742,18 +884,18 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const applied: string[] = [];
 		const confirmations: { message: string; detail?: string; primaryButton?: string }[] = [];
 		const activations: boolean[] = [];
+		const directSourceId = '5d5cce3c6590ade92bceb09d245a45035e2141d4c2e0882eac887c596b35fb5f';
 		const installedPlugin = new class extends mock<IAgentPlugin>() {
 			override readonly uri = URI.file('/plugins/demo');
 			override readonly label = 'demo-plugin';
 			override readonly copilotCliInstallation = {
-				name: 'demo-plugin', marketplace: '', directSourceId: 'demo-plugin-source',
-				source: { kind: 'github' as const, repository: 'github/demo-plugin', sha: '0123456789abcdef', path: 'plugins/demo' },
+				name: 'demo-plugin', marketplace: '', directSourceId,
 			};
 			override async setEnabled(enabled: boolean) { activations.push(enabled); }
 		}();
 		pluginService.enablementModel.setEnabled(installedPlugin.uri.toString(), ContributionEnablementState.DisabledProfile);
 		let plugins: readonly IAgentPluginInstallation[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -761,7 +903,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onAgentHostExit = Event.None;
 				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
 					requests.push(request);
-					return {
+					return ownedReview({
 						operationId: 'plugin-operation',
 						action: 'install' as const,
 						kind: 'plugin' as const,
@@ -774,9 +916,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						totalBytes: 256,
 						installsDisabled: true,
 						mcpServerCount: 1,
-					};
+					});
 				}
-				override async applyCustomizationInstallation(_provider: string, operationId: string) {
+				override async applyCustomizationInstallation(_provider: string, { operationId }: { readonly operationId: string }) {
 					applied.push(operationId);
 					discoveredPlugins.set([installedPlugin], undefined);
 					return {
@@ -829,7 +971,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		}, {
 			name: 'demo-plugin',
 			marketplace: '',
-			directSourceId: 'demo-plugin-source',
+			directSourceId,
 			verifiedSource: { repository: 'github/demo-plugin', revision: '0123456789abcdef' },
 		}];
 		const uniquePlugins = plugins;
@@ -865,7 +1007,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}],
 			applied: ['plugin-operation'],
 			activations: [true],
-			enablement: ContributionEnablementState.EnabledProfile,
+			enablement: ContributionEnablementState.DisabledProfile,
 			confirmations: [{
 				message: 'Install and enable \'Demo Plugin\'?',
 				primaryButton: 'Install and Enable',
@@ -877,7 +1019,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				installation: undefined,
 				target: { kind: 'plugin', name: 'unrelated-plugin' },
 			}, {
-				installationId: '["plugin","direct","demo-plugin-source"]',
+				installationId: JSON.stringify(['plugin', 'direct', directSourceId]),
 				identifier: 'demo-plugin',
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
 				target: { kind: 'plugin', name: 'demo-plugin', uri: installedPlugin.uri },
@@ -919,16 +1061,16 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				},
 			};
 			pluginService.enablementModel.setEnabled(uri.toString(), ContributionEnablementState.DisabledProfile);
-			const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			const provider = store.add(createTestProvider(
 				'copilotcli', async () => true,
 				new class extends mock<IAgentHostService>() {
 					override readonly onAgentHostStart = Event.None;
 					override readonly onAgentHostExit = Event.None;
 					override async prepareCustomizationInstallation() {
-						return {
+						return ownedReview({
 							operationId: 'operation', action: 'install' as const, kind: 'plugin' as const, displayName: 'canvas',
 							source: 'owner/repo@revision', target: 'target', fileCount: 1, totalBytes: 1, installsDisabled: true, mcpServerCount: 0,
-						};
+						});
 					}
 					override async applyCustomizationInstallation() {
 						calls.push('install');
@@ -983,8 +1125,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				state: pluginService.enablementModel.readEnabled(uri.toString()),
 			}, {
 				calls: scenario === 'cancelled' ? [] : succeeds || scenario === 'reload failed' ? ['install', 'enable:true', 'reload'] : scenario === 'enable refused' ? ['install', 'enable:true'] : ['install'],
-				changes: applied ? 2 : 0,
-				state: succeeds ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
+				changes: applied ? 2 : scenario === 'install refused' ? 1 : 0,
+				state: ContributionEnablementState.DisabledProfile,
 			});
 		}));
 	}
@@ -993,7 +1135,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: string[] = [];
 		const requests: unknown[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const reviewed: IAgentCustomizationInstallationConfigurationRequest[] = [];
+		const applied: unknown[] = [];
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => {
 				calls.push('authenticate');
@@ -1005,18 +1149,22 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
 					calls.push('prepare');
 					requests.push(request);
-					return {
+					return ownedReview({
 						operationId: 'operation',
 						action: 'install' as const,
 						kind: 'mcp' as const,
 						displayName: 'Demo MCP',
 						serverName: 'owner/demo',
 						target: 'owner/demo',
+						command: 'uvx',
+						args: ['markitdown-mcp', '--label', 'safe --allow-write'],
+						env: { MODE: 'stdio' },
 						configurationFields: [],
-					};
+					});
 				}
-				override async applyCustomizationInstallation() {
+				override async applyCustomizationInstallation(_provider: string, request: unknown) {
 					calls.push('apply');
+					applied.push(request);
 					return { kind: 'receipt' as const, installationId: 'installation' };
 				}
 			}(),
@@ -1028,11 +1176,17 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
-			new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
-			}(),
+			// No dialog: the installation is reviewed in the install form.
+			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
 			pluginService,
+			{
+				configure: async request => {
+					calls.push('review');
+					reviewed.push(request);
+					return { choiceId: request.choices[0].choiceId, inputs: [], secrets: [] };
+				},
+			},
 		));
 
 		await provider.install(session, {
@@ -1054,8 +1208,16 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 		}, CancellationToken.None);
 
-		assert.deepStrictEqual({ calls, requests }, {
-			calls: ['authenticate', 'prepare', 'apply'],
+		assert.deepStrictEqual({ calls, requests, reviewed: reviewed.map(request => ({ ...request, choices: request.choices.map(({ command, env, values, secrets }) => ({ command, env, values, secrets })) })), applied }, {
+			calls: ['authenticate', 'prepare', 'review', 'apply'],
+			reviewed: [{
+				kind: 'configuration', operationId: 'operation', hostGeneration: 'generation', ownershipToken: 'token',
+				displayName: 'Demo MCP', serverName: 'owner/demo', target: 'owner/demo',
+				// An argument with a space is quoted, so it cannot be read as two.
+				choices: [{ command: 'uvx markitdown-mcp --label "safe --allow-write"', env: { MODE: 'stdio' }, values: [], secrets: [] }],
+			}],
+			// A review is applied without answers.
+			applied: [{ hostGeneration: 'generation', ownershipToken: 'token', operationId: 'operation' }],
 			requests: [{
 				mediaType: 'application/mcp-server+json',
 				identifier: 'default:io.example/demo',
@@ -1077,7 +1239,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('uses the durable MCP server identity when a receipt has no catalogue metadata', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1120,10 +1282,128 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		}]);
 	});
 
+	test('names configured MCP servers after their MCP registry entries', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const configured = (serverName: string): IAgentCustomizationInstallation => ({ installationId: `mcp-config:${serverName}`, kind: 'mcp', mediaType: 'application/mcp-server+json', serverName, state: 'installed' });
+		const lookups: string[][] = [];
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listCustomizationInstallations(): Promise<readonly IAgentCustomizationInstallation[]> {
+					return [
+						configured('io.example/demo'),
+						configured('io.example/unlisted'),
+						configured('io.example/unreachable'),
+						// Not shaped like a registry server name, so never sent to the registry.
+						configured('my-server'),
+						{ ...configured('io.example/receipt'), catalogue: { displayName: 'Receipt MCP', source: 'agentfinder.github.com' } },
+					];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/backend-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+			{
+				resolveRegistryServers: async infos => {
+					lookups.push(infos.map(info => info.name));
+					return new Map([
+						['io.example/demo', { status: McpGalleryResolveStatus.Found, server: new class extends mock<IGalleryMcpServer>() { override readonly displayName = 'Demo MCP'; }() }],
+						['io.example/unlisted', { status: McpGalleryResolveStatus.NotFound }],
+						['io.example/unreachable', { status: McpGalleryResolveStatus.Failed }],
+					]);
+				},
+			},
+		));
+		const names = async () => (await provider.getInstallations(session, CancellationToken.None)).map(installation => installation.resource.displayName);
+
+		const named = Event.toPromise(provider.onDidChange);
+		const beforeLookup = await names();
+		await named;
+
+		assert.deepStrictEqual({ beforeLookup, afterLookup: await names(), lookups }, {
+			beforeLookup: ['io.example/demo', 'io.example/unlisted', 'io.example/unreachable', 'my-server', 'Receipt MCP'],
+			afterLookup: ['Demo MCP', 'io.example/unlisted', 'io.example/unreachable', 'my-server', 'Receipt MCP'],
+			lookups: [['io.example/demo', 'io.example/unlisted', 'io.example/unreachable']],
+		});
+	});
+
+	test('looks MCP server names up again when the MCP registry changes and ignores answers from the previous one', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const registryChanged = store.add(new Emitter<IMcpGalleryManifest | null>());
+		const lookups: DeferredPromise<string>[] = [];
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listCustomizationInstallations(): Promise<readonly IAgentCustomizationInstallation[]> {
+					return [{ installationId: 'mcp-config:io.example/demo', kind: 'mcp', mediaType: 'application/mcp-server+json', serverName: 'io.example/demo', state: 'installed' }];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/backend-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+			{
+				onDidChangeRegistry: registryChanged.event,
+				resolveRegistryServers: async () => {
+					const lookup = new DeferredPromise<string>();
+					lookups.push(lookup);
+					const displayName = await lookup.p;
+					return new Map([['io.example/demo', { status: McpGalleryResolveStatus.Found, server: new class extends mock<IGalleryMcpServer>() { override readonly displayName = displayName; }() }]]);
+				},
+			},
+		));
+		const names = async () => (await provider.getInstallations(session, CancellationToken.None)).map(installation => installation.resource.displayName);
+		let refreshes = 0;
+		store.add(provider.onDidChange(() => refreshes++));
+
+		// The first lookup is still unanswered when the registry is replaced.
+		await names();
+		registryChanged.fire(null);
+		const afterChange = await names();
+		await lookups[0].complete('Previous Registry MCP');
+		await timeout(0);
+		const afterPreviousAnswer = await names();
+		const named = Event.toPromise(provider.onDidChange);
+		await lookups[1].complete('Demo MCP');
+		await named;
+
+		assert.deepStrictEqual({ afterChange, afterPreviousAnswer, afterCurrentAnswer: await names(), lookups: lookups.length, refreshes }, {
+			afterChange: ['io.example/demo'],
+			afterPreviousAnswer: ['io.example/demo'],
+			afterCurrentAnswer: ['Demo MCP'],
+			lookups: 2,
+			// Once for the new registry and once for its answer.
+			refreshes: 2,
+		});
+	});
+
 	test('installs a featured SDK marketplace plugin without local marketplace identity', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: unknown[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1172,7 +1452,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('completes plugin mutations through SDK records without waiting for client discovery', async () => {
 		let plugins: readonly IAgentPluginInstallation[] = [];
 		const calls: unknown[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1222,7 +1502,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('preserves SDK plugin inventory when session-bound receipt inventory is unavailable', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1267,7 +1547,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		let failInventory = false;
 		const calls: unknown[] = [];
 		let changes = 0;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1348,7 +1628,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			override readonly onAgentHostExit = Event.None;
 			override async listPluginInstallations() { return inventory; }
 		}();
-		const createProvider = () => store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const createProvider = () => store.add(createTestProvider(
 			'copilotcli', async () => true, hostService,
 			new class extends mock<IAgentHostConnectionsService>() {
 				override resolveSessionResourceIdentity() { return undefined; }
@@ -1412,7 +1692,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			undefined,
 		];
 		const warnings: string[] = [];
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1446,7 +1726,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('does not read local SDK inventory for a remote host session', async () => {
 		let localReads = 0;
-		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+		const provider = store.add(createTestProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
@@ -1471,5 +1751,101 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		));
 		await assert.rejects(provider.getInstallations(URI.parse('vendor-session://remote/frontend'), CancellationToken.None), /selected local Agent Host session is unavailable/);
 		assert.strictEqual(localReads, 0);
+	});
+	suite('configured MCP installation', () => {
+		const sentinels = { region: 'SENTINEL-REGION-a1', tenant: 'SENTINEL-TENANT-b2', secret: 'SENTINEL-SECRET-c3' };
+		const backendSession = URI.parse('copilotcli:/backend-session');
+		const configuration: IAgentCustomizationInstallationConfigurationRequest = {
+			kind: 'configuration', operationId: 'preparation', hostGeneration: 'generation', ownershipToken: 'token', displayName: 'Configured MCP', serverName: 'owner/configured',
+			target: 'owner/configured', recommendedChoiceId: 'remote:1',
+			choices: [
+				{ choiceId: 'remote:0', transport: 'sse', endpointSummary: 'https://example.test/sse', configurationFields: ['url'], values: [], secrets: [] },
+				{
+					choiceId: 'remote:1', transport: 'streamable-http', endpointSummary: 'https://example.test/eu/mcp', configurationFields: ['headers', 'url'],
+					values: [
+						{ key: 'X-Region', category: 'header', valueType: 'enum', required: true, isRepeated: false, enumValues: ['eu', sentinels.region] },
+						{ key: 'TENANT', category: 'url-variable', valueType: 'string', required: false, isRepeated: false, defaultValue: 'common' },
+						{ key: 'LIMIT', category: 'url-variable', valueType: 'number', required: false, isRepeated: false, defaultValue: '10' },
+					],
+					secrets: [{ key: 'API_KEY', placeholder: '${secret:a}', title: 'API key' }],
+				},
+			],
+		};
+		const resource = {
+			sourceId: 'agentFinder', identifier: 'selection', displayName: 'Configured MCP', description: '', mediaType: 'application/mcp-server+json',
+			tags: [], capabilities: [], representativeQueries: [],
+			installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection' },
+		} as const;
+
+		const answers: IAgentCustomizationInstallationAnswers = {
+			choiceId: 'remote:1',
+			inputs: [{ key: 'X-Region', category: 'header', value: sentinels.region }, { key: 'TENANT', category: 'url-variable', value: sentinels.tenant }],
+			secrets: [{ placeholder: '${secret:a}', value: sentinels.secret }],
+		};
+
+		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly answers?: IAgentCustomizationInstallationAnswers } = {}) {
+			const calls: unknown[] = [];
+			const host = new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async prepareCustomizationInstallation(_provider: string, session: URI) {
+					calls.push(['prepare', session.toString()]);
+					return configuration;
+				}
+				override async applyCustomizationInstallation(_provider: string, request: IAgentCustomizationInstallationApplyRequest) {
+					calls.push(['apply', request]);
+					return { kind: 'receipt' as const, installationId: 'installation' };
+				}
+			}();
+			const provider = store.add(createTestProvider(
+				'copilotcli', async () => true,
+				host,
+				new class extends mock<IAgentHostConnectionsService>() {
+					override resolveSessionResourceIdentity() { return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession }; }
+				}(),
+				new class extends mock<IAgentHostCustomizationService>() {
+					override readonly onDidChangeCustomizations = Event.None;
+				}(),
+				new class extends mock<IDialogService>() {
+					override readonly confirm: IDialogService['confirm'] = async () => {
+						calls.push('confirm');
+						return { confirmed: true };
+					};
+				}(),
+				new NullLogService(),
+				pluginService,
+				{
+					trusted: options.trusted,
+					requestTrust: async () => { calls.push('requestTrust'); return options.grantTrust; },
+					configure: async request => {
+						calls.push(['configure', request === configuration]);
+						return options.answers;
+					},
+				},
+			));
+			return { provider, calls };
+		}
+
+		test('installs once with the answers of the configuration form, without a separate confirmation', async () => {
+			const { provider, calls } = createFlow({ answers });
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual(calls, [
+				['prepare', backendSession.toString()],
+				['configure', true],
+				['apply', { hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation', answers }],
+			]);
+		});
+
+		test('declining workspace trust stops before any connection call', async () => {
+			const { provider, calls } = createFlow({ trusted: false, grantTrust: false, answers });
+			await assert.rejects(provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None), /Canceled/);
+			assert.deepStrictEqual(calls, ['requestTrust']);
+		});
+
+		test('sends nothing when the configuration form is cancelled', async () => {
+			const { provider, calls } = createFlow();
+			await assert.rejects(provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None), /Canceled/);
+			assert.deepStrictEqual(calls, [['prepare', backendSession.toString()], ['configure', true]]);
+		});
 	});
 });

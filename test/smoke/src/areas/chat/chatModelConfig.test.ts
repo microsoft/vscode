@@ -226,8 +226,9 @@ export function setup(logger: Logger) {
 				// override is applied on the agent request path). Select the local
 				// harness explicitly since the panel default is Agent Host Copilot
 				// when the agent host is enabled.
+				const previousSessionResource = await chat.getChatViewSessionResource();
 				await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-				await chat.waitForChatView();
+				await chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
 
 				// Retry the warm-up send until the model actually replies, which
 				// confirms copilot-chat is active and the panel is usable.

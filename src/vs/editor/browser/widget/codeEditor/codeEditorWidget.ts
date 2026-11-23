@@ -16,7 +16,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import './editor.css';
 import { applyFontInfo } from '../../config/domFontInfo.js';
 import { EditorConfiguration, IEditorConstructionOptions } from '../../config/editorConfiguration.js';
-import { TabFocus } from '../../config/tabFocus.js';
 import * as editorBrowser from '../../editorBrowser.js';
 import { IClipboardCopyEvent, IClipboardPasteEvent } from '../../controller/editContext/clipboardUtils.js';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../editorExtensions.js';
@@ -2251,7 +2250,6 @@ class EditorContextKeysManager extends Disposable {
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
-		this._register(TabFocus.onDidChangeTabFocus((tabFocusMode: boolean) => this._tabMovesFocus.set(tabFocusMode)));
 
 		this._updateFromConfig();
 		this._updateFromSelection();
@@ -2264,7 +2262,7 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		const options = this._editor.getOptions();
 
-		this._tabMovesFocus.set(options.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode());
+		this._tabMovesFocus.set(options.get(EditorOption.tabFocusMode));
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));

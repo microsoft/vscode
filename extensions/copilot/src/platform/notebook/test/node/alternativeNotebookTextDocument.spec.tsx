@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
-import type { NotebookDocument, NotebookDocumentContentChange, TextDocumentChangeEvent } from 'vscode';
+import type { NotebookDocument, NotebookDocumentContentChange, TextDocumentChangeEvent, TextDocumentContentChangeEvent } from 'vscode';
 import { ExtHostNotebookDocumentData } from '../../../../util/common/test/shims/notebookDocument';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { NotebookCellData, NotebookCellKind, NotebookData, NotebookRange, Range } from '../../../../vscodeTypes';
-import { createAlternativeNotebookDocument, createAlternativeNotebookDocumentSnapshot, IAlternativeNotebookDocument, IAlternativeNotebookDocumentSnapshot, toAltNotebookCellChangeEdit, toAltNotebookChangeEdit } from '../../common/alternativeNotebookTextDocument';
+import { createAlternativeNotebookDocument, IAlternativeNotebookDocument, toAltNotebookCellChangeEdit, toAltNotebookChangeEdit } from '../../common/alternativeNotebookTextDocument';
 
 describe('Alternative Notebook (text) Content', () => {
 	const disposables = new DisposableStore();
@@ -21,43 +21,34 @@ describe('Alternative Notebook (text) Content', () => {
 
 	function createNotebook(cells: NotebookCellData[], withMarkdownCells: boolean = false) {
 		const notebook = ExtHostNotebookDocumentData.fromNotebookData(URI.file('notebook.ipynb'), new NotebookData(cells), 'jupyter-notebook');
-		const altDocSnapshot = createAlternativeNotebookDocumentSnapshot(notebook.document, !withMarkdownCells);
 		const altDoc = createAlternativeNotebookDocument(notebook.document, !withMarkdownCells);
 
-		expect(altDocSnapshot.getText()).toBe(altDoc.getText());
-		return { notebookData: notebook, notebook: notebook.document, altDocSnapshot, altDoc };
+		return { notebookData: notebook, notebook: notebook.document, altDoc };
 	}
 	[true, false].forEach(withMarkdownCells => {
 		describe(`Alt Content ${withMarkdownCells ? 'with' : 'without'} Markdown Cells`, () => {
-			test(`Generate Alt Content`, async () => {
-				const cells = [
+			const cases: [name: string, cells: NotebookCellData[]][] = [
+				['Generate Alt Content', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
-				];
-				const { altDocSnapshot } = createNotebook(cells, withMarkdownCells);
-				expect(altDocSnapshot.getText()).toMatchSnapshot();
-			});
-			test(`No Content`, async () => {
-				const { altDocSnapshot } = createNotebook([], withMarkdownCells);
-				expect(altDocSnapshot.getText()).toMatchSnapshot();
-			});
-			test(`No Content without code cells`, async () => {
-				const cells = [
+				]],
+				['No Content', []],
+				['No Content without code cells', [
 					new NotebookCellData(NotebookCellKind.Markup, '# This is a sample notebook', 'markdown'),
-				];
-				const { altDocSnapshot } = createNotebook(cells, withMarkdownCells);
-				expect(altDocSnapshot.getText()).toMatchSnapshot();
-			});
-			test(`With Markdown Cells`, async () => {
-				const cells = [
+				]],
+				['With Markdown Cells', [
 					new NotebookCellData(NotebookCellKind.Markup, '# This is a sample notebook', 'markdown'),
 					new NotebookCellData(NotebookCellKind.Markup, '## Header', 'markdown'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 					new NotebookCellData(NotebookCellKind.Markup, 'Comments', 'markdown'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				];
-				const { altDocSnapshot } = createNotebook(cells, withMarkdownCells);
-				expect(altDocSnapshot.getText()).toMatchSnapshot();
-			});
+				]],
+			];
+			for (const [name, cells] of cases) {
+				test(name, async () => {
+					const { altDoc: altDocSnapshot } = createNotebook(cells, withMarkdownCells);
+					expect(altDocSnapshot.getText()).toMatchSnapshot();
+				});
+			}
 			test(`EOLs`, async () => {
 				const cells = [
 					new NotebookCellData(NotebookCellKind.Code, 'import sys\nimport os', 'python'),
@@ -65,7 +56,7 @@ describe('Alternative Notebook (text) Content', () => {
 					new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 				];
-				const { altDocSnapshot } = createNotebook(cells, withMarkdownCells);
+				const { altDoc: altDocSnapshot } = createNotebook(cells, withMarkdownCells);
 
 				expect(altDocSnapshot.getText()).toMatchSnapshot();
 
@@ -82,7 +73,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells);
 
 			expect(altDocSnapshot.getText(new OffsetRange(53, 53))).toBe('');
 			expect(altDocSnapshot.fromAltOffsetRange(new OffsetRange(53, 53))).toEqual([[notebook.cellAt(0), new Range(0, 0, 0, 0)]]);
@@ -180,7 +171,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells);
 
 			expect(altDocSnapshot.getText(new OffsetRange(53, 53))).toBe('');
 			expect(altDocSnapshot.fromAltOffsetRange(new OffsetRange(53, 53))).toEqual([[notebook.cellAt(2), new Range(0, 0, 0, 0)]]);
@@ -278,7 +269,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells, true);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells, true);
 
 			expect(altDocSnapshot.getText(new OffsetRange(59, 59))).toBe('');
 			expect(altDocSnapshot.fromAltOffsetRange(new OffsetRange(59, 59))).toEqual([[notebook.cellAt(0), new Range(0, 0, 0, 0)]]);
@@ -388,7 +379,7 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print(sys.executable)\nprint(sys.version)', 'python'),
 			];
-			const { notebook, altDocSnapshot } = createNotebook(cells);
+			const { notebook, altDoc: altDocSnapshot } = createNotebook(cells);
 
 
 			expect(altDocSnapshot.getText(new OffsetRange(53, 59))).toBe('import');
@@ -464,447 +455,138 @@ describe('Alternative Notebook (text) Content', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
-				expect(updatedAltText).toBe(altDoc.getText());
+				expect(updatedAltText).toBe(edit.apply(originalText));
 
 				return updatedAltText;
 			}
-			test(`replace line`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 0, 0, 20),
-						rangeOffset: 0,
-						rangeLength: 20,
-						text: '# Top level imports',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace text with smaller text`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 18),
-						rangeOffset: 7,
-						rangeLength: 11,
-						text: 'Foo Bar',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace text with larger text`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 18),
-						rangeOffset: 7,
-						rangeLength: 11,
-						text: 'This is a longer piece of text',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace while inserting a few lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 20),
-						rangeOffset: 7,
-						rangeLength: 13,
-						text: 'Foo Bar")\nprint("Another line")\nprint("Yet another line")',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`insert a few lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 0, 20),
-						rangeOffset: 20,
-						rangeLength: 0,
-						text: '\nprint("Another line")\nprint("Yet another line")',
-					}]
-				})).toMatchSnapshot();
-			});
+			const cases: [name: string, contentChanges: TextDocumentContentChangeEvent[]][] = [
+				['replace line', [{ range: new Range(0, 0, 0, 20), rangeOffset: 0, rangeLength: 20, text: '# Top level imports' }]],
+				['replace text with smaller text', [{ range: new Range(0, 7, 0, 18), rangeOffset: 7, rangeLength: 11, text: 'Foo Bar' }]],
+				['replace text with larger text', [{ range: new Range(0, 7, 0, 18), rangeOffset: 7, rangeLength: 11, text: 'This is a longer piece of text' }]],
+				['replace while inserting a few lines', [{ range: new Range(0, 7, 0, 20), rangeOffset: 7, rangeLength: 13, text: 'Foo Bar")\nprint("Another line")\nprint("Yet another line")' }]],
+				['insert a few lines', [{ range: new Range(0, 20, 0, 20), rangeOffset: 20, rangeLength: 0, text: '\nprint("Another line")\nprint("Yet another line")' }]],
+			];
+			for (const [name, contentChanges] of cases) {
+				test(name, async () => {
+					expect(getUpdatedAltText({
+						document: notebook.cellAt(0).document,
+						reason: undefined,
+						detailedReason: {
+							source: 'cursor',
+							metadata: {}
+						},
+						contentChanges
+					})).toMatchSnapshot();
+				});
+			}
 		});
 		describe('Cell with multiple line (crlf)', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")\r\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
-				expect(updatedAltText).toBe(altDoc.getText());
+				expect(updatedAltText).toBe(edit.apply(originalText));
 				return updatedAltText;
 			}
-			test(`replace line`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 0, 0, 20),
-						rangeOffset: 0,
-						rangeLength: 20,
-						text: '# Top level imports',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace multiple lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(1, 7, 1, 14),
-						rangeOffset: 29,
-						rangeLength: 7,
-						text: 'Say Something',
-					}, {
-						range: new Range(0, 0, 0, 20),
-						rangeOffset: 0,
-						rangeLength: 20,
-						text: '# Top level print statements',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace text with smaller text`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 18),
-						rangeOffset: 7,
-						rangeLength: 11,
-						text: 'Foo Bar',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace text with larger text`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 18),
-						rangeOffset: 7,
-						rangeLength: 11,
-						text: 'This is a longer piece of text',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace while inserting a few lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 20),
-						rangeOffset: 7,
-						rangeLength: 13,
-						text: 'Foo Bar")\r\nprint("Another line")\r\nprint("Yet another line")',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`insert a few lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 0, 20),
-						rangeOffset: 20,
-						rangeLength: 0,
-						text: '\nprint("Another line")\nprint("Yet another line")',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`remove a line`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 1, 16),
-						rangeOffset: 20,
-						rangeLength: 18,
-						text: '',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`remove two lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 2, 16),
-						rangeOffset: 20,
-						rangeLength: 36,
-						text: '',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`merge two lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 1, 0),
-						rangeOffset: 20,
-						rangeLength: 2,
-						text: '',
-					}]
-				})).toMatchSnapshot();
-			});
+			const cases: [name: string, contentChanges: TextDocumentContentChangeEvent[]][] = [
+				['replace line', [{ range: new Range(0, 0, 0, 20), rangeOffset: 0, rangeLength: 20, text: '# Top level imports' }]],
+				['replace multiple lines', [
+					{ range: new Range(1, 7, 1, 14), rangeOffset: 29, rangeLength: 7, text: 'Say Something' },
+					{ range: new Range(0, 0, 0, 20), rangeOffset: 0, rangeLength: 20, text: '# Top level print statements' },
+				]],
+				['replace text with smaller text', [{ range: new Range(0, 7, 0, 18), rangeOffset: 7, rangeLength: 11, text: 'Foo Bar' }]],
+				['replace text with larger text', [{ range: new Range(0, 7, 0, 18), rangeOffset: 7, rangeLength: 11, text: 'This is a longer piece of text' }]],
+				['replace while inserting a few lines', [{ range: new Range(0, 7, 0, 20), rangeOffset: 7, rangeLength: 13, text: 'Foo Bar")\r\nprint("Another line")\r\nprint("Yet another line")' }]],
+				['insert a few lines', [{ range: new Range(0, 20, 0, 20), rangeOffset: 20, rangeLength: 0, text: '\nprint("Another line")\nprint("Yet another line")' }]],
+				['remove a line', [{ range: new Range(0, 20, 1, 16), rangeOffset: 20, rangeLength: 18, text: '' }]],
+				['remove two lines', [{ range: new Range(0, 20, 2, 16), rangeOffset: 20, rangeLength: 36, text: '' }]],
+				['merge two lines', [{ range: new Range(0, 20, 1, 0), rangeOffset: 20, rangeLength: 2, text: '' }]],
+			];
+			for (const [name, contentChanges] of cases) {
+				test(name, async () => {
+					expect(getUpdatedAltText({
+						document: notebook.cellAt(0).document,
+						reason: undefined,
+						detailedReason: {
+							source: 'cursor',
+							metadata: {}
+						},
+						contentChanges
+					})).toMatchSnapshot();
+				});
+			}
 		});
 		describe('Cell with multiple line (lf)', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar")\nprint("Bar Baz")\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
 
-				const updatedAltText = newDoc.getText();
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
+				expect(updatedAltText).toBe(edit.apply(originalText));
 
 				return updatedAltText;
 			}
-			test(`replace line`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 0, 0, 20),
-						rangeOffset: 0,
-						rangeLength: 20,
-						text: '# Top level imports',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace multiple lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(1, 7, 1, 14),
-						rangeOffset: 28,
-						rangeLength: 7,
-						text: 'Say Something',
-					}, {
-						range: new Range(0, 0, 0, 20),
-						rangeOffset: 0,
-						rangeLength: 20,
-						text: '# Top level print statements',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace text with smaller text`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 18),
-						rangeOffset: 7,
-						rangeLength: 11,
-						text: 'Foo Bar',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace text with larger text`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 18),
-						rangeOffset: 7,
-						rangeLength: 11,
-						text: 'This is a longer piece of text',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`replace while inserting a few lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 7, 0, 20),
-						rangeOffset: 7,
-						rangeLength: 13,
-						text: 'Foo Bar")\nprint("Another line")\nprint("Yet another line")',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`insert a few lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 0, 20),
-						rangeOffset: 20,
-						rangeLength: 0,
-						text: '\nprint("Another line")\nprint("Yet another line")',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`remove a line`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 1, 16),
-						rangeOffset: 20,
-						rangeLength: 17,
-						text: '',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`remove two lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 2, 16),
-						rangeOffset: 20,
-						rangeLength: 34,
-						text: '',
-					}]
-				})).toMatchSnapshot();
-			});
-			test(`merge two lines`, async () => {
-				expect(getUpdatedAltText({
-					document: notebook.cellAt(0).document,
-					reason: undefined,
-					detailedReason: {
-						source: 'cursor',
-						metadata: {}
-					},
-					contentChanges: [{
-						range: new Range(0, 20, 1, 0),
-						rangeOffset: 20,
-						rangeLength: 1,
-						text: '',
-					}]
-				})).toMatchSnapshot();
-			});
+			const cases: [name: string, contentChanges: TextDocumentContentChangeEvent[]][] = [
+				['replace line', [{ range: new Range(0, 0, 0, 20), rangeOffset: 0, rangeLength: 20, text: '# Top level imports' }]],
+				['replace multiple lines', [
+					{ range: new Range(1, 7, 1, 14), rangeOffset: 28, rangeLength: 7, text: 'Say Something' },
+					{ range: new Range(0, 0, 0, 20), rangeOffset: 0, rangeLength: 20, text: '# Top level print statements' },
+				]],
+				['replace text with smaller text', [{ range: new Range(0, 7, 0, 18), rangeOffset: 7, rangeLength: 11, text: 'Foo Bar' }]],
+				['replace text with larger text', [{ range: new Range(0, 7, 0, 18), rangeOffset: 7, rangeLength: 11, text: 'This is a longer piece of text' }]],
+				['replace while inserting a few lines', [{ range: new Range(0, 7, 0, 20), rangeOffset: 7, rangeLength: 13, text: 'Foo Bar")\nprint("Another line")\nprint("Yet another line")' }]],
+				['insert a few lines', [{ range: new Range(0, 20, 0, 20), rangeOffset: 20, rangeLength: 0, text: '\nprint("Another line")\nprint("Yet another line")' }]],
+				['remove a line', [{ range: new Range(0, 20, 1, 16), rangeOffset: 20, rangeLength: 17, text: '' }]],
+				['remove two lines', [{ range: new Range(0, 20, 2, 16), rangeOffset: 20, rangeLength: 34, text: '' }]],
+				['merge two lines', [{ range: new Range(0, 20, 1, 0), rangeOffset: 20, rangeLength: 1, text: '' }]],
+			];
+			for (const [name, contentChanges] of cases) {
+				test(name, async () => {
+					expect(getUpdatedAltText({
+						document: notebook.cellAt(0).document,
+						reason: undefined,
+						detailedReason: {
+							source: 'cursor',
+							metadata: {}
+						},
+						contentChanges
+					})).toMatchSnapshot();
+				});
+			}
 		});
 		describe('Cells with multiple line (lf)', () => {
 			const cells = [
@@ -912,21 +594,19 @@ describe('Alternative Notebook (text) Content', () => {
 				new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\nprint("Foo Bar2")\nprint("Bar Baz2")\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: TextDocumentChangeEvent): string {
-				const newDoc = altDocSnapshot.withCellChanges(e.document, e.contentChanges);
-				const edit = toAltNotebookCellChangeEdit(altDocSnapshot, e.document, e.contentChanges);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookCellChangeEdit(altDoc, e.document, e.contentChanges);
 				altDoc.applyCellChanges(e.document, e.contentChanges);
+				const updatedAltText = altDoc.getText();
 
 				// Verify the alt text is updated correctly
-				expect(updatedAltText).toBe(edit!.apply(altDocSnapshot.getText()));
-				expect(updatedAltText).toBe(altDoc.getText());
+				expect(updatedAltText).toBe(edit.apply(originalText));
 
 				return updatedAltText;
 			}
@@ -1086,23 +766,20 @@ describe('Alternative Notebook (text) Content', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: NotebookDocumentContentChange[]): string {
-				const originalText = altDocSnapshot.getText();
-				const newDoc = altDocSnapshot.withNotebookChanges(e);
-				const edit = toAltNotebookChangeEdit(altDocSnapshot, e);
-				const updatedAltText = newDoc.getText();
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookChangeEdit(altDoc, e);
 				altDoc.applyNotebookChanges(e);
+				const updatedAltText = altDoc.getText();
 				if (edit) {
 					// Verify the edit is generated correctly
 					expect(edit.apply(originalText)).toBe(updatedAltText);
 				}
-				expect(altDoc.getText()).toBe(updatedAltText);
 				return updatedAltText;
 			}
 			test(`remove cell`, async () => {
@@ -1112,113 +789,66 @@ describe('Alternative Notebook (text) Content', () => {
 					removedCells: [notebook.cellAt(0)],
 				}])).toMatchSnapshot();
 			});
-			test(`insert cell below`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+			const cases: [name: string, newCells: NotebookCellData[], addedIndexes: number[], range: NotebookRange, removedIndexes: number[]][] = [
+				['insert cell below', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert a code cell and markdown cell`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(1, 1), []],
+				['insert a code cell and markdown cell', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Markup, '# Foo Bar', 'markdown'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert a markdown cell`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(1, 1), []],
+				['insert a markdown cell', [
 					new NotebookCellData(NotebookCellKind.Markup, '# Foo Bar', 'markdown'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cell above`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(1, 1), []],
+				['insert cell above', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(0, 0),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cells above`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(0, 0), []],
+				['insert cells above', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1), notebook.cellAt(2)],
-					range: new NotebookRange(0, 0),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cells`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1, 2], new NotebookRange(0, 0), []],
+				['insert cells', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1), notebook.cellAt(2)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`remove and insert cell`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1, 2], new NotebookRange(1, 1), []],
+				['remove and insert cell', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(0, 1),
-					removedCells: [notebook.cellAt(0)],
-				}])).toMatchSnapshot();
-			});
-			test(`remove and insert cells`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(0, 1), [0]],
+				['remove and insert cells', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1), notebook.cellAt(2)],
-					range: new NotebookRange(0, 1),
-					removedCells: [notebook.cellAt(0)],
-				}])).toMatchSnapshot();
-			});
+				], [1, 2], new NotebookRange(0, 1), [0]],
+			];
+			for (const [name, newCells, addedIndexes, range, removedIndexes] of cases) {
+				test(name, async () => {
+					const { notebook } = createNotebook(cells.concat(newCells));
+					expect(getUpdatedAltText([{
+						addedCells: addedIndexes.map(i => notebook.cellAt(i)),
+						range,
+						removedCells: removedIndexes.map(i => notebook.cellAt(i)),
+					}])).toMatchSnapshot();
+				});
+			}
 		});
 		describe('Cell with multiple line (crlf)', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")\r\nprint("Foo Bar")\r\nprint("Bar Baz")\r\nprint("Something Else")', 'python'),
 			];
-			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
 			let altDoc: IAlternativeNotebookDocument;
 			let notebook: NotebookDocument;
 			beforeEach(() => {
-				({ altDocSnapshot, altDoc, notebook } = createNotebook(cells));
+				({ altDoc, notebook } = createNotebook(cells));
 			});
 			function getUpdatedAltText(e: NotebookDocumentContentChange[]): string {
-				const originalText = altDocSnapshot.getText();
-				const newDoc = altDocSnapshot.withNotebookChanges(e);
-				const edit = toAltNotebookChangeEdit(altDocSnapshot, e);
+				const originalText = altDoc.getText();
+				const edit = toAltNotebookChangeEdit(altDoc, e);
 				altDoc.applyNotebookChanges(e);
-				const updatedAltText = newDoc.getText();
+				const updatedAltText = altDoc.getText();
 				if (edit) {
 					// Verify the edit is generated correctly
 					expect(edit.apply(originalText)).toBe(updatedAltText);
 				}
-				expect(altDoc.getText()).toBe(updatedAltText);
 				return updatedAltText;
 			}
 			test(`remove first cell`, async () => {
@@ -1228,90 +858,46 @@ describe('Alternative Notebook (text) Content', () => {
 					removedCells: [notebook.cellAt(0)],
 				}])).toMatchSnapshot();
 			});
-			test(`insert cell below`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+			const cases: [name: string, newCells: NotebookCellData[], addedIndexes: number[], range: NotebookRange, removedIndexes: number[]][] = [
+				['insert cell below', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(2)],
-					range: new NotebookRange(2, 2),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cell middle`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [2], new NotebookRange(2, 2), []],
+				['insert cell middle', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(2)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cells middle`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [2], new NotebookRange(1, 1), []],
+				['insert cells middle', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, '# Another Cell', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(2), notebook.cellAt(3)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cell above`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [2, 3], new NotebookRange(1, 1), []],
+				['insert cell above', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(0, 0),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cells above`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(0, 0), []],
+				['insert cells above', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1), notebook.cellAt(2)],
-					range: new NotebookRange(0, 0),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`insert cells`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1, 2], new NotebookRange(0, 0), []],
+				['insert cells', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1), notebook.cellAt(2)],
-					range: new NotebookRange(1, 1),
-					removedCells: [],
-				}])).toMatchSnapshot();
-			});
-			test(`remove and insert cell`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1, 2], new NotebookRange(1, 1), []],
+				['remove and insert cell', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1)],
-					range: new NotebookRange(0, 1),
-					removedCells: [notebook.cellAt(0)],
-				}])).toMatchSnapshot();
-			});
-			test(`remove and insert cells`, async () => {
-				const { notebook } = createNotebook(cells.concat([
+				], [1], new NotebookRange(0, 1), [0]],
+				['remove and insert cells', [
 					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
 					new NotebookCellData(NotebookCellKind.Code, 'print("Bar Baz")', 'python'),
-				]));
-				expect(getUpdatedAltText([{
-					addedCells: [notebook.cellAt(1), notebook.cellAt(2)],
-					range: new NotebookRange(0, 1),
-					removedCells: [notebook.cellAt(0)],
-				}])).toMatchSnapshot();
-			});
+				], [1, 2], new NotebookRange(0, 1), [0]],
+			];
+			for (const [name, newCells, addedIndexes, range, removedIndexes] of cases) {
+				test(name, async () => {
+					const { notebook } = createNotebook(cells.concat(newCells));
+					expect(getUpdatedAltText([{
+						addedCells: addedIndexes.map(i => notebook.cellAt(i)),
+						range,
+						removedCells: removedIndexes.map(i => notebook.cellAt(i)),
+					}])).toMatchSnapshot();
+				});
+			}
 		});
 	});
 });

@@ -6,22 +6,24 @@
 import { $ } from '../../../../../base/browser/dom.js';
 import { Toggle } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
-import { constObservable, waitForState } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { createAgentsBanner } from '../../../../contrib/chat/browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../../contrib/chat/browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, WelcomePageCardSurface } from '../../../../contrib/chat/common/constants.js';
 import '../../../../contrib/welcomeGettingStarted/browser/media/gettingStarted.css';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
-import { IOpenedMainWindow } from '../../../../../platform/window/common/window.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 // The Agents window button only shows when its command is registered.
@@ -34,97 +36,101 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
 	None: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: themes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.None, 800),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.None, 800),
 	}),
 	WindowComparison: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: themes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 800),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800),
 	}),
 	WindowComparisonNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 420),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 420),
 	}),
-	ManyWindowsToOne: defineComponentFixture({
+	Banner: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: themes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.ManyWindowsToOne, 800),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 1000),
 	}),
-	ManyWindowsToOneNarrow: defineComponentFixture({
+	BannerTint: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.ManyWindowsToOne, 420),
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 1000, { cardSurface: WelcomePageCardSurface.Tint }),
 	}),
-	AutoOneEditorWindow: defineComponentFixture({
+	BannerCompact: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.Auto, 800, 1),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 800, { layout: 'compact' }),
 	}),
-	AutoMultipleEditorWindows: defineComponentFixture({
+	BannerNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.Auto, 800, 2),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.Banner, 420),
 	}),
 	SectionCard: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: highContrastThemes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 800, 1, AgentsWindowSectionStyle.Card),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { sectionStyle: AgentsWindowSectionStyle.Card }),
 	}),
 	SectionNone: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: highContrastThemes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 800, 1, AgentsWindowSectionStyle.None),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { sectionStyle: AgentsWindowSectionStyle.None }),
 	}),
 	SectionTint: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: highContrastThemes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 800, 1, AgentsWindowSectionStyle.Tint),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { sectionStyle: AgentsWindowSectionStyle.Tint }),
 	}),
 	SectionBand: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: highContrastThemes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 800, 1, AgentsWindowSectionStyle.Band),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { sectionStyle: AgentsWindowSectionStyle.Band }),
 	}),
 	SectionSeparator: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: highContrastThemes,
-		render: context => renderWelcomePageFooter(context, AgentsWindowGraphicVariant.WindowComparison, 800, 1, AgentsWindowSectionStyle.Separator),
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { sectionStyle: AgentsWindowSectionStyle.Separator }),
 	}),
 });
 
 /**
- * Renders the Welcome page footer (graphic, Agents window button and startup checkbox) within the Welcome page's DOM structure.
- * Without a section style, the section is styled like the setting's default.
+ * Renders the Welcome page's Agents window section within the Welcome page's DOM structure: the banner below the page's
+ * title, or the footer with the graphic, Agents window button and startup checkbox. Without a section style, the
+ * window comparison is styled like the setting's default. Without a layout, the graphic fits with room to spare.
+ * Without a card surface, the banner has the setting's default surface.
  */
-async function renderWelcomePageFooter({ container, disposableStore, theme }: ComponentFixtureContext, variant: AgentsWindowGraphicVariant, width: number, editorWindowCount = 1, sectionStyle?: AgentsWindowSectionStyle): Promise<void> {
+function renderWelcomePageAgentsSection({ container, disposableStore, theme }: ComponentFixtureContext, variant: AgentsWindowGraphicVariant, width: number, options: { sectionStyle?: AgentsWindowSectionStyle; layout?: 'spacious' | 'compact'; cardSurface?: WelcomePageCardSurface } = {}): void {
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const configurationService = new TestConfigurationService({
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
-		...(sectionStyle ? { [ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: sectionStyle } : {}),
+		...(options.sectionStyle ? { [ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: options.sectionStyle } : {}),
 	});
+	// Graphics are only shown to signed-in users.
 	const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
 		override sentiment = {};
 		override onDidChangeSentiment = Event.None;
+		override entitlementObs = constObservable(ChatEntitlement.Pro);
 	}();
-	const editorWindows: IOpenedMainWindow[] = Array.from({ length: editorWindowCount }, (_, index) => ({ id: index + 1, title: '', dirty: false }));
-	const hostService = new class extends mock<IHostService>() {
-		override async getWindows() { return editorWindows; }
-	}();
-	const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
-		override agentSessionsWorkspace = URI.file('/agent-sessions.code-workspace');
+	const account = new class extends mock<IDefaultAccount>() { }();
+	const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+		override currentDefaultAccount = account;
+		override onDidChangeDefaultAccount = Event.None;
+		override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+			return account;
+		}
 	}();
 
-	const graphic = disposableStore.add(new AgentsWindowGraphic(configurationService, hostService, environmentService));
-	if (variant !== AgentsWindowGraphicVariant.None) {
-		await waitForState(graphic.shownDesign);
-	}
+	const graphic = disposableStore.add(new AgentsWindowGraphic(configurationService, instantiationService.get(IStorageService), new NullWorkbenchAssignmentService(), instantiationService.get(ILogService), chatEntitlementService, defaultAccountService));
 	const banner = createAgentsBanner(
 		{
 			cssClass: 'getting-started-category.agents-banner',
-			source: 'welcomePage',
-			graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: constObservable(true) },
+			graphic: { element: graphic.element, design: graphic.design, shownDesign: graphic.shownDesign, signedIn: graphic.signedIn, isExposed: constObservable(true), bannerCopyResolved: graphic.bannerCopyResolved, hide: () => graphic.hide() },
 		},
 		instantiationService.get(ICommandService),
 		NullTelemetryService,
 		configurationService,
 		chatEntitlementService,
+		defaultAccountService,
+		instantiationService.get(IContextMenuService),
 	);
 	disposableStore.add(banner.disposables);
 
@@ -137,14 +143,19 @@ async function renderWelcomePageFooter({ container, disposableStore, theme }: Co
 	}));
 	showOnStartup.domNode.id = 'showOnStartup';
 
+	// The banner leads the page below its title, while the other graphic sits above the button in the footer.
+	const isBanner = variant === AgentsWindowGraphicVariant.Banner;
 	const footer = $('.footer', {},
-		banner.element,
+		...(isBanner ? [] : [banner.element]),
 		$('p.showOnStartup', {}, showOnStartup.domNode, $('label.caption', { for: 'showOnStartup' }, 'Show welcome page on startup')),
 	);
-	const categoriesContainer = $('.gettingStartedCategoriesContainer', { 'data-agents-window-section-style': graphic.sectionStyle.get() }, footer);
+	const categoriesContainer = $('.gettingStartedCategoriesContainer', {
+		'data-agents-window-graphic': variant,
+		'data-agents-window-section-style': graphic.sectionStyle.get(),
+		'data-welcome-card-surface': options.cardSurface ?? WelcomePageCardSurface.Neutral,
+	}, ...(isBanner ? [banner.element] : []), footer);
 	if (graphic.shownDesign.get()) {
-		// The Welcome page's layout when the graphic fits with room to spare
-		categoriesContainer.classList.add('agents-window-graphic-shown', 'agents-window-graphic-spacious');
+		categoriesContainer.classList.add('agents-window-graphic-shown', ...(options.layout === 'compact' ? [] : ['agents-window-graphic-spacious']));
 	}
 	const content = $('.content', {},
 		$('.gettingStartedContainer.height-constrained', {},
@@ -157,6 +168,6 @@ async function renderWelcomePageFooter({ container, disposableStore, theme }: Co
 	container.style.width = `${width}px`;
 	container.appendChild($('.part.editor', {}, content));
 
-	// The Welcome page slides are absolutely positioned, so size the page to the footer.
-	content.style.height = `${footer.offsetHeight + 24}px`;
+	// The Welcome page slides are absolutely positioned, so size the page to its content, which ends with the footer and the slide's padding.
+	content.style.height = `${footer.offsetTop + footer.offsetHeight + 12}px`;
 }
