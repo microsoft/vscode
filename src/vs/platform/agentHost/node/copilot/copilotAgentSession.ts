@@ -5447,7 +5447,7 @@ export class CopilotAgentSession extends Disposable {
 	async listSettledCanvases(timeoutMs: number): Promise<AgentCanvasDefinitionSnapshot> {
 		const deadline = Date.now() + timeoutMs;
 		while (true) {
-			const changed = Event.toPromise(Event.any(Event.signal(this._wrapper.onExtensionsLoaded), Event.signal(this._wrapper.onCanvasRegistryChanged)));
+			const changed = Event.toPromise(Event.any(Event.signal(this._wrapper.onExtensionsLoaded), Event.signal(this._wrapper.onCanvasRegistryChanged), this._onDidAddExtensionConsentGate.event));
 			try {
 				const remaining = deadline - Date.now();
 				const snapshot = await this.listCanvases({ includeStarting: remaining <= 0 });
@@ -5462,8 +5462,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Lists the canvases the runtime registered. While an extension is starting the snapshot is unsettled, `undefined`,
-	 * unless `includeStarting` asks for the canvases registered so far.
+	 * Lists the canvases the runtime registered. While an extension is starting, other than one waiting for consent, the
+	 * snapshot is unsettled, `undefined`, unless `includeStarting` asks for the canvases registered so far.
 	 */
 	async listCanvases(options?: { readonly includeStarting?: boolean }): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
@@ -5478,7 +5478,8 @@ export class CopilotAgentSession extends Disposable {
 			this.publishCanvases();
 			return undefined;
 		}
-		const starting = extensions.extensions.some(extension => extension.status === 'starting');
+		// An extension waiting for the user's consent stays starting until a turn or a canvas open shows the request, so it does not hold the listing.
+		const starting = extensions.extensions.some(extension => extension.status === 'starting' && !this.hasPendingExtensionConsent(extension.id));
 		if (starting && !options?.includeStarting) {
 			this._markCanvasRegistryUnsettled();
 			return undefined;
