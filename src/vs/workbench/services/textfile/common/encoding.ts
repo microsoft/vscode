@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream, listenStream } from '../../../../base/common/stream.js';
+import { Readable, ReadableStream, newWriteableStream, listenStream, toReadable } from '../../../../base/common/stream.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -261,6 +261,42 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 			return VSBuffer.wrap(encoder.write(chunk));
 		}
 	};
+}
+
+/**
+ * Returns `true` if encoding `text` with `encoding` and decoding the result again
+ * does not produce `text`, for example because some characters cannot be represented
+ * in the encoding and would be replaced (typically with `?`) when written.
+ */
+export async function isLossyEncoding(value: string | Readable<string>, encoding: string): Promise<boolean> {
+	if (isUTFEncoding(encoding)) {
+		return false; // UTF encodings can represent every character
+	}
+
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+	const nodeEncoding = toNodeEncoding(encoding);
+	const encoder = iconv.getEncoder(nodeEncoding);
+	const decoder = iconv.getDecoder(nodeEncoding, { stripBOM: false });
+
+	// Round trip the text chunk by chunk and compare the result with the
+	// text that has not been matched yet, since encoder and decoder may
+	// hold back characters until they see the next chunk.
+	const readable = typeof value === 'string' ? toReadable(value) : value;
+	let pending = '';
+	for (let chunk = readable.read(); chunk !== null; chunk = readable.read()) {
+		pending += chunk;
+		const decoded = decoder.write(encoder.write(chunk));
+		if (!pending.startsWith(decoded)) {
+			return true;
+		}
+
+		pending = pending.substring(decoded.length);
+	}
+
+	const leftovers = encoder.end();
+	const decoded = (leftovers ? decoder.write(leftovers) : '') + (decoder.end() ?? '');
+
+	return decoded !== pending;
 }
 
 export async function encodingExists(encoding: string): Promise<boolean> {

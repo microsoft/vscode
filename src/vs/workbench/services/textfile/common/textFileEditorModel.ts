@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mark } from '../../../../base/common/performance.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
-import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, TextFileResolveReason, ITextFileEditorModelSaveEvent, ITextFileSaveAsOptions, TextFileReconcileResult } from './textfiles.js';
+import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, TextFileResolveReason, ITextFileEditorModelSaveEvent, ITextFileSaveAsOptions, TextFileReconcileResult, TextFileOperationError, TextFileOperationResult } from './textfiles.js';
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from '../../../common/editor.js';
 import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from '../../workingCopy/common/workingCopyBackup.js';
@@ -24,7 +24,7 @@ import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBa
 import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { UTF16be, UTF16le, UTF8, UTF8_with_bom } from './encoding.js';
+import { isLossyEncoding, SUPPORTED_ENCODINGS, UTF16be, UTF16le, UTF8, UTF8_with_bom } from './encoding.js';
 import { createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel.js';
 import { ILanguageDetectionService } from '../../languageDetection/common/languageDetectionWorkerService.js';
 import { IPathService } from '../../path/common/pathService.js';
@@ -1030,6 +1030,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			const savedContent = this.resolvedContentRetainers > 0 && !this.textEditorModel.isTooLargeForSyncing() ? this.textEditorModel.getValue() : undefined;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
+
+					// Refuse to write when characters would be replaced because
+					// the encoding cannot represent them, unless asked to
+					if (!options.ignoreEncodingLoss) {
+						const { encoding } = await this.textFileService.resolveEncoding(lastResolvedFileStat.resource, { encoding: this.getEncoding() });
+						if (await isLossyEncoding(resolvedTextFileEditorModel.createSnapshot(), encoding)) {
+							throw new TextFileOperationError(localize('lossyEncoding', "Some characters cannot be represented in the encoding '{0}'.", SUPPORTED_ENCODINGS[encoding]?.labelShort ?? encoding), TextFileOperationResult.FILE_ENCODING_LOSSY, { encoding });
+						}
+					}
+
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),

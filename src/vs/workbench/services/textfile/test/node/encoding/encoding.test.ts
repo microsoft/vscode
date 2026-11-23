@@ -535,6 +535,43 @@ suite('Encoding', () => {
 		}
 	});
 
+	test('isLossyEncoding', async function () {
+		const results: Record<string, boolean> = {};
+		for (const [text, enc] of [
+			['Ω ö', 'windows1252'],
+			['ö é', 'windows1252'],
+			['🙂', 'windows1252'],
+			['🙂', 'utf8'],
+			['🙂', 'utf16le'],
+			['Ω', 'windows1253'],
+			['日本語', 'shiftjis'],
+			['日本語 Ω', 'iso88591'],
+			['', 'windows1252']
+		]) {
+			results[`${text}|${enc}`] = await encoding.isLossyEncoding(text, enc);
+		}
+
+		assert.deepStrictEqual(results, {
+			'Ω ö|windows1252': true,
+			'ö é|windows1252': false,
+			'🙂|windows1252': true,
+			'🙂|utf8': false,
+			'🙂|utf16le': false,
+			'Ω|windows1253': false,
+			'日本語|shiftjis': false,
+			'日本語 Ω|iso88591': true,
+			'|windows1252': false
+		});
+	});
+
+	test('isLossyEncoding - readable with several chunks', async function () {
+		const fromChunks = (chunks: string[]): streams.Readable<string> => ({ read: () => chunks.shift() ?? null });
+		const lossless = await encoding.isLossyEncoding(fromChunks(['日本', '語\n', 'abc']), 'shiftjis');
+		const lossy = await encoding.isLossyEncoding(fromChunks(['abc\n', 'déf', 'Ω']), 'windows1252');
+
+		assert.deepStrictEqual({ lossless, lossy }, { lossless: false, lossy: true });
+	});
+
 	// Renderers keep a global AMD `define` because they load scripts asynchronously, node.js does not need it
 	if (typeof document === 'undefined') {
 		test('loading the encoding libraries leaves no global AMD define behind in node.js', async function () {

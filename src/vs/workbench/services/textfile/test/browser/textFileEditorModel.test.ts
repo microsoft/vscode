@@ -298,6 +298,36 @@ suite('Files - TextFileEditorModel', () => {
 		}
 	});
 
+	test('save error (encoding cannot represent all characters)', async function () {
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
+
+		await model.resolve();
+
+		model.updateTextEditorModel(createTextBufferFactory('Ω ö'));
+
+		let saveErrorEvent = false;
+		disposables.add(model.onDidSaveError(() => saveErrorEvent = true));
+
+		accessor.fileService.writeOperations.length = 0;
+		await model.setEncoding('windows1252', EncodingMode.Encode);
+		assert.deepStrictEqual({ encoding: model.getEncoding(), error: model.hasState(TextFileEditorModelState.ERROR), dirty: model.isDirty(), saveErrorEvent, writes: accessor.fileService.writeOperations.length }, { encoding: 'windows1252', error: true, dirty: true, saveErrorEvent: true, writes: 0 });
+
+		assert.strictEqual(await model.save({ ignoreEncodingLoss: true }), true);
+		assert.deepStrictEqual({ error: model.hasState(TextFileEditorModelState.ERROR), dirty: model.isDirty(), writes: accessor.fileService.writeOperations.length }, { error: false, dirty: false, writes: 1 });
+	});
+
+	test('save (encoding represents all characters)', async function () {
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
+
+		await model.resolve();
+
+		model.updateTextEditorModel(createTextBufferFactory('ö é'));
+
+		accessor.fileService.writeOperations.length = 0;
+		await model.setEncoding('windows1252', EncodingMode.Encode);
+		assert.deepStrictEqual({ encoding: model.getEncoding(), error: model.hasState(TextFileEditorModelState.ERROR), dirty: model.isDirty(), writes: accessor.fileService.writeOperations.length }, { encoding: 'windows1252', error: false, dirty: false, writes: 1 });
+	});
+
 	test('setEncoding - encode', async function () {
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
 

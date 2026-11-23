@@ -181,7 +181,8 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 }
 
 export const enum TextFileOperationResult {
-	FILE_IS_BINARY
+	FILE_IS_BINARY,
+	FILE_ENCODING_LOSSY
 }
 
 export class TextFileOperationError extends FileOperationError {
@@ -448,6 +449,12 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	 * Allows to write to a file even if it has been modified on disk.
 	 */
 	readonly ignoreModifiedSince?: boolean;
+
+	/**
+	 * Allows to write to a file even if some of its characters cannot be
+	 * represented in the file's encoding and would be replaced.
+	 */
+	readonly ignoreEncodingLoss?: boolean;
 
 	/**
 	 * If set, will bubble up the error to the caller instead of handling it.

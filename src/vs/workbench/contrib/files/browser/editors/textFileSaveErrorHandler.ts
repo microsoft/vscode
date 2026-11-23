@@ -9,7 +9,8 @@ import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IWriteFileOptions } from '../../../../../platform/files/common/files.js';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions, ITextFileSaveOptions } from '../../../../services/textfile/common/textfiles.js';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions, ITextFileSaveOptions, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
+import { SUPPORTED_ENCODINGS } from '../../../../services/textfile/common/encoding.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IDisposable, dispose, Disposable } from '../../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -133,6 +134,16 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 				secondaryActions.push(this.instantiationService.createInstance(ConfigureSaveConflictAction));
 			}
+		}
+
+		// Characters that the encoding cannot represent
+		else if (TextFileOperationError.isTextFileOperationError(error) && error.textFileOperationResult === TextFileOperationResult.FILE_ENCODING_LOSSY) {
+			const encoding = error.options?.encoding ?? model.getEncoding() ?? '';
+			message = localize({ key: 'lossyEncodingSaveError', comment: ['{0} is the resource that failed to save and {1} the name of an encoding'] }, "Failed to save '{0}': Some characters cannot be represented in the encoding '{1}' and would be replaced. Select 'Save Anyway' to replace them, or save with a different encoding.", basename(resource), SUPPORTED_ENCODINGS[encoding]?.labelShort ?? encoding);
+
+			primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreEncodingLossAction, model, options));
+			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model));
+			primaryActions.push(this.instantiationService.createInstance(RevertModelAction, model));
 		}
 
 		// Any other save error
@@ -390,6 +401,22 @@ class SaveModelIgnoreModifiedSinceAction extends Action {
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ ...this.options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+		}
+	}
+}
+
+class SaveModelIgnoreEncodingLossAction extends Action {
+
+	constructor(
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
+	) {
+		super('workbench.files.action.saveIgnoreEncodingLoss', localize('saveAnyway', "Save Anyway"));
+	}
+
+	override async run(): Promise<void> {
+		if (!this.model.isDisposed()) {
+			await this.model.save({ ...this.options, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }
