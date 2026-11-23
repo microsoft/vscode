@@ -198,6 +198,8 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			// A chat opened where the folder stays, such as by a link in the window, is never followed, nor the last chat of where
 			// the folder is
 			this._shown = shown && shown.reason !== 'keepFolder' && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows, sessionStateKnown: false } : undefined;
+			// A follow that waited for a location of the chat shown before does not apply to this one
+			this._followWhenLocated = undefined;
 			if (!shown || shown.reason === 'open' || shown.reason === 'keepFolder') {
 				// The user's latest choice: no switch asked for before applies, also where this chat moves nothing
 				this._request++;

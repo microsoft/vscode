@@ -54,8 +54,11 @@ export function getAgentHostSessionWorktrees(sessions: readonly SessionSummary[]
 			continue;
 		}
 		// Its first folder, and the worktrees the host created for single chats of it that it isolated, which only it tells
-		const isolated = readSessionIsolatedChatWorktrees(session._meta);
-		const directories = (session.workingDirectories ?? []).filter((directory, index) => index === 0 || isolated.includes(directory.toString()));
+		const isolated = readSessionIsolatedChatWorktrees(session._meta).map(toFolder);
+		const directories = (session.workingDirectories ?? []).filter((directory, index) => {
+			const folder = index === 0 ? undefined : toFolder(directory);
+			return index === 0 || (!!folder && isolated.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, folder)));
+		});
 		for (const [index, directory] of directories.entries()) {
 			const workingDirectory = toFolder(directory);
 			if (!workingDirectory

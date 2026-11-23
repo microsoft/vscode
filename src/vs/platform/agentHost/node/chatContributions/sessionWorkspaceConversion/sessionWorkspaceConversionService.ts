@@ -272,9 +272,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			return;
 		}
 		const sessionDirectories = this._stateManager.getSessionSummary(session)?.workingDirectories ?? [];
-		const worktrees = [...this._isolationDirectories]
-			.filter(([chat, entry]) => this._isolationOwner(chat, entry.session) === session && entry.directory !== sessionDirectories[0] && sessionDirectories.includes(entry.directory))
-			.map(([, entry]) => entry.directory);
+		const isolated = [...this._isolationDirectories]
+			.filter(([chat, entry]) => this._isolationOwner(chat, entry.session) === session)
+			.map(([, entry]) => URI.parse(entry.directory));
+		// As the session names them, so that the summary lists each in the form its folders have
+		const worktrees = sessionDirectories.slice(1).filter(directory => isolated.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, URI.parse(directory))));
 		const meta = withSessionIsolatedChatWorktrees(state._meta, [...new Set(worktrees)]);
 		if (!equals(meta, state._meta)) {
 			this._stateManager.setSessionMeta(session, meta);

@@ -665,8 +665,8 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	}
 
-	test('lists a restored isolated chat\'s worktree in its session\'s summary once the session works in it again, not before', async () => {
-		const worktree = URI.file('/workspace/project.worktrees/chat');
+	test('lists a restored isolated chat\'s worktree in its session\'s summary once the session works in it again, not before, as the session names it', async () => {
+		const worktree = URI.file('/workspace/project.worktrees/my chat');
 		const host: IChatIsolationHost = {
 			runWithChatCatalogLock: (_session, operation) => operation(),
 			prepareChatWorkingDirectory: async () => { throw new Error('No worktree should be prepared'); },
@@ -676,7 +676,8 @@ suite('SessionWorkspaceConversionService', () => {
 		makeFolderSession(harness);
 		const peer = URI.parse(buildChatUri(harness.session, 'peer'));
 		harness.stateManager.addChat(harness.session.toString(), peer.toString(), creationTimeChatStorageResource(harness.session.toString(), peer.toString(), buildDefaultChatUri(harness.session.toString())), { workingDirectories: [worktree.toString()] });
-		await harness.database.setMetadata('agentHost.chatIsolationDirectory', worktree.toString());
+		// Recorded in another form of the folder than the one the session works in
+		await harness.database.setMetadata('agentHost.chatIsolationDirectory', worktree.toString(true));
 		await harness.service.restoreChatIsolation(harness.session.toString(), peer.toString(), creationTimeChatStorageResource(harness.session.toString(), peer.toString(), buildDefaultChatUri(harness.session.toString())));
 		const isolatedWorktrees = () => readSessionIsolatedChatWorktrees(harness.stateManager.getSessionSummary(harness.session.toString())?._meta);
 		const beforeKnown = isolatedWorktrees();

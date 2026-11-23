@@ -306,10 +306,17 @@ suite('AgentHostWorktreeLocations', () => {
 
 		assert.deepStrictEqual({
 			marked: describe([multiChat(marked)]),
+			// The same folder in another form, such as without its escapes
+			otherForm: describe([upcastPartial<SessionSummary>({
+				...session('/work/vscode', '/work/vscode'),
+				workingDirectories: [primary.toString(), URI.file('/work/vscode.worktrees/my wt').toString()],
+				_meta: withSessionIsolatedChatWorktrees(undefined, [URI.file('/work/vscode.worktrees/my wt').toString(true)]),
+			})]),
 			olderHost: describe([multiChat(undefined)]),
 			malformed: describe([multiChat({ [SESSION_META_ISOLATED_CHAT_WORKTREES_KEY]: isolated })]),
 		}, {
 			marked: [{ path: '/work/vscode.worktrees/isolated', description: 'agents/isolated' }],
+			otherForm: [{ path: '/work/vscode.worktrees/my wt', description: undefined }],
 			olderHost: [],
 			malformed: [],
 		});
