@@ -590,7 +590,11 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 									: localize('remotes.sandboxProfileUnavailable', "Sandbox profile for {0}. Connect to {0} to see or choose one.", name));
 					};
 					watchSandboxProfiles(this.storage, template.elementDisposables, refresh);
-					watchSandboxProfileAssignments(this.storage, template.elementDisposables, refresh);
+					watchSandboxProfileAssignments(this.storage, template.elementDisposables, () => {
+						if (!this.connections.getConnectionByAddress(id)) {
+							refresh();
+						}
+					});
 					template.elementDisposables.add(this.connections.onDidChangeConnections(refresh));
 					refresh();
 				}
