@@ -26,10 +26,11 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 import { getAgentChangesSummary } from '../agentSessionsModel.js';
-import { opensSessionsInEditors, shouldRevealSessionEditor } from '../agentSessionsOpener.js';
+import { shouldRevealSessionEditor } from '../agentSessionsOpener.js';
 import { ISessionSummaryHoverData } from '../sessionSummaryHover.js';
 import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 
@@ -133,7 +134,8 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		const clientResource = await this._withoutDefaultChatFragment(linkedResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
 		const openToSide = options?.openToSide === true;
-		if (!openToSide && opensSessionsInEditors(this._configurationService, this._environmentService)) {
+		// The Agents window keeps its own presentation: the setting is shared with it
+		if (!openToSide && this._configurationService.getValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn) === ChatViewSessionsOpenChatIn.EditorArea && !this._environmentService.isSessionsWindow) {
 			const widget = await this._chatWidgetService.openSession(clientResource, ACTIVE_GROUP, {
 				...options?.editorOptions,
 				revealIfOpened: shouldRevealSessionEditor(this._chatWidgetService, clientResource),
