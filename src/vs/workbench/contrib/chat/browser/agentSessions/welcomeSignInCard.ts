@@ -76,17 +76,17 @@ export function renderWelcomeSignInCardContent(style: WelcomeSignInCardStyle): H
 		? {
 			title: localize('welcomeSignIn.copilot.title', "Code faster with GitHub Copilot"),
 			benefits: [
-				[Codicon.copilot, localize('welcomeSignIn.copilot.chat', "Chat with Copilot about your code")],
-				[Codicon.sparkle, localize('welcomeSignIn.copilot.suggestions', "Get code suggestions as you type")],
-				[Codicon.agent, localize('welcomeSignIn.copilot.agents', "Let agents build features and fix bugs for you")],
+				[Codicon.copilotCompact, localize('welcomeSignIn.copilot.chat', "Chat with Copilot about your code")],
+				[Codicon.sparkleCompact, localize('welcomeSignIn.copilot.suggestions', "Get code suggestions as you type")],
+				[Codicon.agentCompact, localize('welcomeSignIn.copilot.agents', "Let agents build features and fix bugs for you")],
 			] as const,
 		}
 		: {
 			title: localize('welcomeSignIn.github.title', "Connect VS Code to GitHub"),
 			benefits: [
 				[Codicon.gitPullRequest, localize('welcomeSignIn.github.pullRequests', "Work with your pull requests and issues")],
-				[Codicon.repo, localize('welcomeSignIn.github.repositories', "Clone and publish your repositories")],
-				[Codicon.copilot, localize('welcomeSignIn.github.copilot', "Use GitHub Copilot to chat, edit and run agents")],
+				[Codicon.repoCompact, localize('welcomeSignIn.github.repositories', "Clone and publish your repositories")],
+				[Codicon.copilotCompact, localize('welcomeSignIn.github.copilot', "Use GitHub Copilot to chat, edit and run agents")],
 			] as const,
 		};
 	return [

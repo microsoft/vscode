@@ -16,7 +16,7 @@
 	width: 32px;
 	height: 32px;
 	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	color: var(--vscode-foreground);
 }
 
@@ -53,11 +53,14 @@
 	line-height: 20px;
 }
 
-.welcome-sign-in-card-benefits > li > .codicon {
+/* The icon's box is as tall as a line of text, so that the icon is centered on the line. The extra class outranks the workbench's base codicon size. */
+.welcome-sign-in-card-content .welcome-sign-in-card-benefits > li > .codicon {
+	display: flex;
 	flex-shrink: 0;
-	margin-top: var(--vscode-spacing-size20);
-	color: var(--vscode-textLink-foreground);
-	font-size: var(--vscode-codiconFontSize);
+	align-items: center;
+	height: 20px;
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .welcome-sign-in-card-summary {

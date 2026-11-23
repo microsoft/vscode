@@ -1186,7 +1186,7 @@
 	outline-offset: 2px;
 }
 
-/* A sign-in card (`chat.welcomePage.signIn.style`) replaces the sign-in button at the bottom of the page: the GitHub mark, what signing in brings, and the button on an accent-tinted surface, like the Agents window banner. */
+/* A sign-in card (`chat.welcomePage.signIn.style`) replaces the sign-in button at the bottom of the page: the GitHub mark, what signing in brings, and the button on the walkthrough tiles' surface, so that the button is its only accent. */
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer {
 	justify-self: stretch;
 }
@@ -1200,9 +1200,9 @@
 	max-width: 720px;
 	margin: var(--vscode-spacing-size80) auto var(--vscode-spacing-size160);
 	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size200);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-welcomePage-tileBackground);
 	text-align: start;
 }
 
@@ -1217,7 +1217,8 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button {
-	align-self: center;
+	align-self: end;
+	justify-self: end;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160);
 	border-radius: var(--vscode-cornerRadius-small);
 	white-space: nowrap;
@@ -1227,12 +1228,16 @@
 	outline-offset: 2px;
 }
 
-/* The page keeps its list items on one line, but the card's benefits wrap when it is narrow. */
+/* The page keeps its lists unspaced and their items on one line, but the card's benefits keep their distance to the title and wrap when the card is narrow. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner .welcome-sign-in-card-benefits {
+	margin-top: var(--vscode-spacing-size80);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner .welcome-sign-in-card-benefits > li {
 	white-space: normal;
 }
 
-/* In a narrow card, the button moves below the text. */
+/* In a narrow card, the button moves below the text, still at the card's bottom right. */
 @container (max-width: 479px) {
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner {
 		grid-template-columns: auto minmax(0, 1fr);
@@ -1240,7 +1245,6 @@
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button {
 		grid-column: 2;
-		justify-self: start;
 		margin-top: var(--vscode-spacing-size120);
 	}
 }
