@@ -2232,6 +2232,7 @@ export class AgentSideEffects extends Disposable {
 		// handed the prompt can discard the checkpoint it already started.
 		let checkpointCapture: Promise<void> | undefined;
 		let dispatchedToProvider = false;
+		let resolvedWorkingDirectories: readonly URI[] | undefined;
 		try {
 			const credentials = options.credentials ? captureCredentialSource(options.credentials, agent.getProtectedResources()) : undefined;
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
@@ -2249,7 +2250,7 @@ export class AgentSideEffects extends Disposable {
 					checkpointCapture.catch(() => { /* surfaced by the await below or by the provider */ });
 				}
 			};
-			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
+			resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
 			captureCheckpoint(resolvedWorkingDirectories);
 			const chatContext = this._chatContext(options.sessionChannel, chat);
 			const clientOperationContext = {
@@ -2342,7 +2343,6 @@ export class AgentSideEffects extends Disposable {
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
 			};
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
-				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
@@ -2359,7 +2359,6 @@ export class AgentSideEffects extends Disposable {
 				await checkpointCapture;
 			}
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
-				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
@@ -2404,6 +2403,11 @@ export class AgentSideEffects extends Disposable {
 				});
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
+		} finally {
+			// A turn can be cancelled at any stage before dispatch, and each one leaves its provisional session unannounced.
+			if (!dispatchedToProvider && this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
+			}
 		}
 	}
 
