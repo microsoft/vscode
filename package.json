@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.148.0",
+  "version": "1.149.0",
   "packageManager": "pnpm@12.16.0",
   "distro": "8d776751f96e7726cf67d97f7f00fbc95a505f57",
   "nativeBuild": {
