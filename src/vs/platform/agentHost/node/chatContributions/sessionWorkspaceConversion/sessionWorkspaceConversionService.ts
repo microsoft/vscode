@@ -48,6 +48,13 @@ export interface IChatIsolationHost {
 	runWithChatCatalogLock<T>(session: URI, operation: () => Promise<T>): Promise<T>;
 }
 
+/** Where an isolated chat works, its session, and, once resolved with git, the repository the worktree is of. */
+interface IIsolationDirectory {
+	session: string;
+	readonly directory: string;
+	repository: URI | undefined;
+}
+
 interface IPendingSessionWorkspaceConversion {
 	readonly credentials?: IAgentHostCredentialSource;
 	readonly chat: URI;
@@ -133,8 +140,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	private readonly _quarantinedChats = new Set<string>();
 	private readonly _restoringChats = new Map<string, symbol>();
 	private readonly _isolatedChats = new Set<string>();
-	/** Where each isolated chat works, the worktree the host created for it, and its session: listed in its session's summary. */
-	private readonly _isolationDirectories = new Map<string, { readonly session: string; readonly directory: string }>();
+	/**
+	 * Where each isolated chat works, the worktree the host created for it, its session, and, once resolved with git, the
+	 * repository the worktree is of: listed in its session's summary only while that is its session's project.
+	 */
+	private readonly _isolationDirectories = new Map<string, IIsolationDirectory>();
 	/** Owning session of every chat tracked above, recorded when tracking starts. */
 	private readonly _trackedChatOwners = new Map<string, string>();
 	/** Each session's default chat, captured at registration so session removal can still clear its state. */
@@ -178,6 +188,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				this._publishIsolatedChatWorktrees(session);
 			}
 		}));
+		// Its project decides which worktrees a session lists, so they follow it as it becomes known or changes
+		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
+			if (changes.project !== undefined && this._hasIsolatedChats(session)) {
+				this._publishIsolatedChatWorktrees(session);
+			}
+		}));
 		this._register(this._chatOwnership.onDidRegisterChat(({ session, chat }) => {
 			if (this._chatOwnership.isDefaultChat(session, chat)) {
 				this._defaultChats.set(session, chat);
@@ -194,6 +210,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			}
 			if (this._trackedChatOwners.has(chat)) {
 				this._trackedChatOwners.set(chat, current);
+			}
+			// The worktree of an isolated chat moves with it: the session it left no longer lists it, the session it joined does
+			const isolation = this._isolationDirectories.get(chat);
+			if (isolation) {
+				isolation.session = current;
+				this._publishIsolatedChatWorktrees(previous);
+				this._publishIsolatedChatWorktrees(current);
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
@@ -237,19 +260,29 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	/**
 	 * Records where the isolated `chat` of `session` works, or that it is no isolated chat (`undefined`), and lists the
-	 * worktrees of its session's isolated chats in the session's summary.
+	 * worktrees of its session's isolated chats in the session's summary. The repository the worktree is of is resolved with
+	 * git: the worktree is not listed before that is known, nor where it is not the session's project.
 	 */
 	private _setIsolationDirectory(chat: ProtocolURI, isolation: { readonly session: string; readonly directory: string } | undefined): void {
 		const previous = this._isolationDirectories.get(chat);
-		if (isolation) {
-			this._isolationDirectories.set(chat, isolation);
+		const entry: IIsolationDirectory | undefined = isolation && { ...isolation, repository: undefined };
+		if (entry) {
+			this._isolationDirectories.set(chat, entry);
 		} else {
 			this._isolationDirectories.delete(chat);
 		}
-		for (const session of new Set([previous && this._isolationOwner(chat, previous.session), isolation && this._isolationOwner(chat, isolation.session)])) {
+		for (const session of new Set([previous && this._isolationOwner(chat, previous.session), entry && this._isolationOwner(chat, entry.session)])) {
 			if (session !== undefined) {
 				this._publishIsolatedChatWorktrees(session);
 			}
+		}
+		if (entry) {
+			void this._worktreeIsolation.resolveExternalWorktreeProject(URI.parse(entry.directory)).then(resolved => {
+				if (this._isolationDirectories.get(chat) === entry && resolved) {
+					entry.repository = resolved.project.uri;
+					this._publishIsolatedChatWorktrees(this._isolationOwner(chat, entry.session));
+				}
+			}, error => this._logService.warn(`[SessionWorkspaceConversionService] Could not resolve the repository of ${entry.directory}: ${toErrorMessage(error)}`));
 		}
 	}
 
@@ -272,8 +305,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			return;
 		}
 		const sessionDirectories = this._stateManager.getSessionSummary(session)?.workingDirectories ?? [];
+		const projectUri = state.project?.uri;
+		const project = projectUri !== undefined ? URI.parse(projectUri.toString()) : undefined;
+		// Only a worktree of the session's own project, such as not one that a chat of it isolated in another repository
 		const isolated = [...this._isolationDirectories]
-			.filter(([chat, entry]) => this._isolationOwner(chat, entry.session) === session)
+			.filter(([chat, entry]) => this._isolationOwner(chat, entry.session) === session
+				&& !!project && !!entry.repository && extUriBiasedIgnorePathCase.isEqual(entry.repository, project))
 			.map(([, entry]) => URI.parse(entry.directory));
 		// As the session names them, so that the summary lists each in the form its folders have
 		const worktrees = sessionDirectories.slice(1).filter(directory => isolated.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, URI.parse(directory))));
