@@ -245,6 +245,8 @@ Editor tab fill, label, and action colors have the same precedence in the `conne
 
 `statusBar.inactiveBackground` only changes the resting background in an inactive window with a workspace or folder open. Debugging and other status bar background overrides take precedence. Empty windows continue to use `statusBar.noFolderBackground`. Leaving the inactive color unset preserves the existing status bar behavior.
 
+With `window.density.layout` set to `default`, a status bar painted with the shell color merges with the gutter above it into one band, so its items are centered in that band. A status bar with its own color, for example while debugging, centers its items within its own background instead.
+
 ## Examples
 
 Use hexadecimal color values, not color ID strings. The defaults in the table describe fallback relationships, not valid JSON values.

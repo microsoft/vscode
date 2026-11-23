@@ -2301,17 +2301,18 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers status bar items within the status bar background', () => {
-		const measure = (className: string, statusbarHeight: number) => {
+	test('centers status bar items within the band that shows the status bar background', () => {
+		const measure = (className: string, statusbarHeight: number, statusbarClassName = '', gapAbove = 0) => {
 			const root = document.createElement('div');
 			root.className = className;
+			root.style.setProperty('--vscode-spacing-sizeNone', '0px');
 			root.style.setProperty('--vscode-spacing-size20', '2px');
 			root.style.setProperty('--vscode-spacing-size40', '4px');
 			root.style.setProperty('--vscode-spacing-size60', '6px');
 			document.body.appendChild(root);
 			store.add(toDisposable(() => root.remove()));
 
-			const statusbar = appendElement(root, 'part statusbar');
+			const statusbar = appendElement(root, `part statusbar ${statusbarClassName}`.trim());
 			statusbar.style.width = '240px';
 			statusbar.style.height = `${statusbarHeight}px`;
 			const items = appendElement(statusbar, 'left-items items-container');
@@ -2328,17 +2329,21 @@ suite('ModernUIContribution', () => {
 				paddingBottom: statusbarStyle.paddingBottom,
 				itemHeight: itemBounds.height,
 				labelHeight: labelBounds.height,
-				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top - gapAbove + statusbarBounds.bottom) / 2,
 			};
 		};
 
 		assert.deepStrictEqual({
 			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28),
+			defaultDensityShellColored: measure('monaco-workbench modern-ui floating-panels', 28, 'matches-shell-background', 4),
 			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26),
+			compactDensityShellColored: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 'matches-shell-background'),
 			classic: measure('monaco-workbench', 22),
 		}, {
 			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			defaultDensityShellColored: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
 			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			compactDensityShellColored: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 		});
 	});
