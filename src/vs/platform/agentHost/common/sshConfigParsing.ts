@@ -119,6 +119,8 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		: strictHostKeyCheckingValue === 'false'
 			? 'no'
 			: strictHostKeyCheckingValue;
+	const pubkeyAuthentication = map.get('pubkeyauthentication')?.toLowerCase();
+	const preferredAuthentications = map.get('preferredauthentications')?.toLowerCase().split(',').map(method => method.trim()).filter(method => !!method);
 
 	return {
 		hostname: map.get('hostname') ?? '',
@@ -134,5 +136,8 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		strictHostKeyChecking: strictHostKeyChecking && isSSHStrictHostKeyChecking(strictHostKeyChecking)
 			? strictHostKeyChecking
 			: undefined,
+		// `ssh -G` prints false on current OpenSSH and no on older versions.
+		...(pubkeyAuthentication === 'false' || pubkeyAuthentication === 'no' ? { pubkeyAuthentication: false } : {}),
+		...(preferredAuthentications?.length ? { preferredAuthentications } : {}),
 	};
 }

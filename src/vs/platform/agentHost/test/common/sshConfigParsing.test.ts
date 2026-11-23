@@ -272,6 +272,22 @@ suite('SSH Config Parsing', () => {
 			], ['"/opt/docker tools/sbx" ssh proxy %n', undefined, undefined, undefined]);
 		});
 
+		test('parses PubkeyAuthentication and PreferredAuthentications', () => {
+			const parse = (output: string) => {
+				const { pubkeyAuthentication, preferredAuthentications } = parseSSHGOutput(output);
+				return { pubkeyAuthentication, preferredAuthentications };
+			};
+			assert.deepStrictEqual([
+				parse('pubkeyauthentication false\npreferredauthentications keyboard-interactive,password'),
+				parse('pubkeyauthentication no'),
+				parse('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			], [
+				{ pubkeyAuthentication: false, preferredAuthentications: ['keyboard-interactive', 'password'] },
+				{ pubkeyAuthentication: false, preferredAuthentications: undefined },
+				{ pubkeyAuthentication: undefined, preferredAuthentications: ['gssapi-with-mic', 'hostbased', 'publickey', 'keyboard-interactive', 'password'] },
+			]);
+		});
+
 		test('does not guess boundaries of unquoted known-hosts paths containing spaces', () => {
 			assert.deepStrictEqual(parseSSHGOutput([
 				'userknownhostsfile /Users/test/Library/Application Support/Docker/known_hosts /Users/test/.ssh/known_hosts',

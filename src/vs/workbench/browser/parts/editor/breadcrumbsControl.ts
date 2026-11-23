@@ -286,6 +286,8 @@ export class BreadcrumbsControl {
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
+	private readonly _onDidOpenEditorTypePicker = this._disposables.add(new Emitter<void>());
+
 	private readonly _hoverDelegate: IHoverDelegate;
 
 	private readonly _onDidVisibilityChange = this._disposables.add(new Emitter<void>());
@@ -308,7 +310,7 @@ export class BreadcrumbsControl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IModelService private readonly _modelService: IModelService,
-		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
+		@IBreadcrumbsService private readonly _breadcrumbsService: IBreadcrumbsService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');
@@ -355,7 +357,7 @@ export class BreadcrumbsControl {
 
 		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 
-		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this._disposables.add(_breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();
 	}
 
@@ -601,6 +603,10 @@ export class BreadcrumbsControl {
 			dom.EventHelper.stop(e, true);
 			this._showEditorTypePicker();
 		}));
+		this._editorTypeDisposables.add(this._breadcrumbsService.registerEditorTypeControl(this._editorGroup.id, {
+			element: this._editorTypeNode,
+			onDidOpen: this._onDidOpenEditorTypePicker.event,
+		}));
 		return { label: this._editorTypeLabel, hover: this._editorTypeHover };
 	}
 
@@ -622,6 +628,7 @@ export class BreadcrumbsControl {
 			return;
 		}
 		const actions = createEditorTypeActions(available, this._editorGroup, this._editorResolverService, this._commandService, this._editorService);
+		this._onDidOpenEditorTypePicker.fire();
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => editorTypeNode,
 			getActions: () => actions

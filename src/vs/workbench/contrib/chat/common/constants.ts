@@ -8,8 +8,9 @@ import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, local
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { hasVirtualWorkspaceContent, isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandMetadata } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
@@ -68,6 +69,13 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+/** Where a session opens when selected in the sessions of the Chat view: {@link ChatConfiguration.ChatViewSessionsOpenChatIn}. */
+export enum ChatViewSessionsOpenChatIn {
+	ChatPanel = 'chatPanel',
+	ChatArea = 'chatArea',
+	EditorArea = 'editorArea',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -75,6 +83,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	HooksShowWarnings = 'chat.hooks.showWarnings',
 	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
@@ -134,10 +143,12 @@ export enum ChatConfiguration {
 	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
-	ChatViewSessionsOpenInChatPart = 'chat.viewSessions.openInChatPart',
+	ChatViewSessionsOpenChatIn = 'chat.viewSessions.openChatIn',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
+	ResponseStats = 'chat.responseStats',
+	ResponseStatsTokens = 'chat.responseStatsTokens',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	PersistentProgress = 'chat.persistentProgress',
 	PersistentProgressVerbosity = 'chat.persistentProgressVerbosity',
@@ -422,6 +433,24 @@ export enum ChatProgressVerbosity {
 	Conversation = 'conversation',
 }
 
+/** Whether, and where, a running response's working time and output speed show. */
+export enum ChatResponseStats {
+	Off = 'off',
+	Title = 'title',
+	/** In the working progress indicator, in place of its phrase. */
+	Progress = 'progress',
+	/** In the working progress indicator, after its phrase, which then changes periodically. */
+	ProgressWithMessage = 'progressWithMessage',
+}
+
+/** How a running response's stats report its output tokens. */
+export enum ChatResponseStatsTokens {
+	/** The output speed of the latest model call. */
+	Speed = 'speed',
+	/** The output tokens of the response so far. */
+	Count = 'count',
+}
+
 export enum CollapsedToolsDisplayMode {
 	Off = 'off',
 	WithThinking = 'withThinking',
@@ -562,7 +591,8 @@ export function isNewChatSessionTypeUsable(
 	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
-	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	if (contribution?.hideFromSessionTypePicker) {
 		return false;
 	}
 	if (sessionType === localChatSessionType) {
@@ -571,10 +601,10 @@ export function isNewChatSessionTypeUsable(
 	if (isAgentHostTarget(sessionType)) {
 		// Remote agent hosts are per-window; require that this window registered the host's contribution.
 		return agentHostEnabled
-			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
+			&& (!isRemoteAgentHostTarget(sessionType) || !!contribution)
 			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
-			// Of the local harnesses, only Copilot can work on a virtual workspace's files.
-			&& (!isVirtualWorkspace(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
+			// In workspaces with virtual folders, defer to contribution visibility for non-Copilot harnesses.
+			&& (!!contribution || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot || !hasVirtualWorkspaceContent(workspace));
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
@@ -843,6 +873,24 @@ export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.open
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 /** Shows the Agents Launcher, a small floating composer that starts agent sessions in the background. */
 export const AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.agentsLauncher';
+/** The arguments of {@link AGENTS_LAUNCHER_COMMAND_ID}, an `IAgentsLauncherOptions`, for completion in `keybindings.json`. */
+export const AGENTS_LAUNCHER_COMMAND_METADATA: ICommandMetadata = {
+	description: localize('agentsLauncher.description', "Shows or hides the Agents Launcher"),
+	args: [{
+		name: 'options',
+		isOptional: true,
+		schema: {
+			type: 'object',
+			properties: {
+				workspace: {
+					type: 'string',
+					enum: [''],
+					description: localize('agentsLauncher.workspace', "The workspace the launcher starts in. An empty string starts a chat without a workspace, as picking Chat in its workspace picker does. When omitted, the launcher keeps its workspace."),
+				},
+			},
+		},
+	}],
+};
 /** Attaches a screenshot of the window of another app to chat. Desktop only; its keybinding can be made system-wide. */
 export const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
 export { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';

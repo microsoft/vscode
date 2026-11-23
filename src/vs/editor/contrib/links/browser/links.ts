@@ -339,6 +339,7 @@ class LinkOccurrence {
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
 		const options = { ... (isActive ? decoration.active : decoration.general) };
 		options.hoverMessage = getHoverMessage(link, useMetaKey);
+		options.hoverMessageCopyContent = link.url?.toString();
 		return options;
 	}
 

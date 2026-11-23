@@ -18,7 +18,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -371,6 +371,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
+
+		this.registerSessionsListTitle();
+	}
+
+	/** The title follows the list that is or is to be provided, also while the body is not rendered, such as of a view restored collapsed. */
+	private registerSessionsListTitle(): void {
+		this._register(autorun(reader => this.setSessionsListTitleActive(!!(this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader)))));
 	}
 
 	private onDidChangeAgents(): void {
@@ -980,6 +987,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const store = new DisposableStore();
 			clearNode(sessionsControlContainer);
 			const provided = this.chatViewHostService.sessionsList.get()?.create(sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
+			// The provided list is still to register: no list shows until it does, instead of one it replaces
+			if (!provided && this.chatViewHostService.sessionsListExpected.get()) {
+				setVisibility(false, sessionsTitleContainer);
+				setVisibility(false, newSessionButtonContainer);
+				this.sessionsControl = undefined;
+				return { sessionsControl: undefined, store };
+			}
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided || !provided.hasHeader, sessionsTitleContainer);
 			setVisibility(!provided, newSessionButtonContainer);
@@ -1016,20 +1030,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
-		this._register(runOnChange(this.chatViewHostService.sessionsList, () => {
+		// What the Chat view's list follows: the provided list, or while there is none, whether one is still to register
+		const sessionsListState = derived(this, reader => this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader));
+		this._register(runOnChange(sessionsListState, () => {
 			// Focus moves to the list that replaces the one that had it, or to the chat while that list does not show; focus
 			// elsewhere, such as in the chat or an editor, stays
 			const hadFocus = isAncestorOfActiveElement(sessionsControlContainer);
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
-			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
+			sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.updateSessionsControlVisibility();
 			this.relayout();
 			// Whether the list shows once the layout settled, which can show it, such as switching to side by side
 			if (hadFocus) {
 				if (this.sessionsViewerVisible) {
-					sessionsControl.focus();
+					sessionsControl?.focus();
 				} else {
 					this.focusInput();
 				}
@@ -1297,7 +1313,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.instantiationService.createInstance(ChatCustomizationsHover), 'chatToolbar', this.customizationMigrationsAvailable, false, undefined);
 		}
-		return super.createActionViewItem(action, options);
+		return this.sessionsControl?.createActionViewItem?.(action, options) ?? super.createActionViewItem(action, options);
+	}
+
+	/** Whether the title is that of the sessions list that a provider gives or is to give, such as "Sessions", rather than the Chat view's own. */
+	private sessionsListTitleActive = false;
+	private chatTitle: string | undefined;
+
+	override get singleViewPaneContainerTitle(): string | undefined {
+		return this.sessionsListTitleActive ? this.sessionsListTitle : super.singleViewPaneContainerTitle;
+	}
+
+	private get sessionsListTitle(): string {
+		return localize('chatViewSessionsListTitle', "Sessions");
+	}
+
+	private setSessionsListTitleActive(active: boolean): void {
+		if (this.sessionsListTitleActive === active) {
+			return;
+		}
+		this.sessionsListTitleActive = active;
+		this.chatTitle ??= this.title;
+		this.updateTitle(active ? this.sessionsListTitle : this.chatTitle);
+		this.updateActions();
 	}
 
 	private createChatTitleControl(parent: HTMLElement): void {

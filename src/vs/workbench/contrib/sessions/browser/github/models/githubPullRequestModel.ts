@@ -16,6 +16,7 @@ import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequest, IGitHubPu
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { IPullRequestIconCache } from '../pullRequestIconCache.js';
+import { getStaggeredPollDelay } from './pollDelay.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -133,7 +134,7 @@ export class GitHubPullRequestModel extends Disposable {
 
 		if (this._pollingDisposables.size === 1) {
 			this._logService.trace(`${TRACE_PREFIX} [PRModel] Start polling ${this.owner}/${this.repo}#${this.prNumber} every ${intervalMs}ms`);
-			this._pollScheduler.schedule(intervalMs);
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}`, intervalMs));
 		}
 
 		return disposable;
@@ -144,7 +145,8 @@ export class GitHubPullRequestModel extends Disposable {
 		await this.refresh({ priority: 'background' });
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
-			this._pollScheduler.schedule();
+			// Keep the offset after every poll: timers that fire together (e.g. after sleep) spread out again.
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}`, DEFAULT_POLL_INTERVAL_MS));
 		}
 	}
 

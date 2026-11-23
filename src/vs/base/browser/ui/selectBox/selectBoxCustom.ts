@@ -178,6 +178,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	private setTitle(title: string): void {
+		if (this.selectBoxOptions.hideSelectedOptionHover) {
+			return;
+		}
 		if (!this._hover && title) {
 			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
 		} else if (this._hover) {

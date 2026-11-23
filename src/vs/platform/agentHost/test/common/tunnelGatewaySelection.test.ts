@@ -185,7 +185,7 @@ suite('resolveGatewaySelection', () => {
 		assert.deepStrictEqual(selection, { instanceId: 'editor-1' });
 		assert.strictEqual(promptCalls.length, 1);
 		assert.match(promptCalls[0].message, /My Tunnel/);
-		assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Agents are available only while the remote Test Product window is open.');
+		assert.deepStrictEqual((promptCalls[0] as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails[1], 'Uses an open Test Product window on the remote computer when available. Agents stop when that window closes.');
 		assert.deepStrictEqual(setCalls, [{ hostKey: 'tunnel:abc', preference: 'editor' }]);
 	});
 

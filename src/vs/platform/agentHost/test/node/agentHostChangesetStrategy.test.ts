@@ -1012,16 +1012,20 @@ suite('AgentHostChangesetStrategy', () => {
 
 	test('restore and subscription refreshes keep tracked session changes after isolation changes', async () => {
 		const fixture = createFixture();
+		const chat = buildDefaultChatUri(session);
+		const chatTurnChangeset = buildTurnChangesetUri(chat, turnId);
+		fixture.subscriptions.delete(turnChangeset);
+		fixture.subscriptions.add(chatTurnChangeset);
 		addEdit(fixture.db);
 		await refresh(fixture);
-		await fixture.service.computeTurnChangeset(session, turnId);
+		await fixture.service.computeTurnChangeset(chat, turnId);
 		setIsolation(fixture.state, 'folder');
-		const published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, turnChangeset)]);
+		const published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, chatTurnChangeset)]);
 		fixture.service.onWorkingDirectoryAvailable(session);
 		await published;
 		assert.deepStrictEqual({
 			session: snapshot(fixture.state, sessionChangeset),
-			turn: snapshot(fixture.state, turnChangeset),
+			turn: snapshot(fixture.state, chatTurnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
 		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 1, reads: [2, 1] });

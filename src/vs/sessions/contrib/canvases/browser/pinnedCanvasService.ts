@@ -694,6 +694,10 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		if (!session || !ownsSession(pin.identity, session)) {
 			return false;
 		}
+		// The main chat shares its session's archived state, which shows a pending archive the host may still reject.
+		if (session.archivePending?.read(reader)) {
+			return false;
+		}
 		if (session.isArchived.read(reader)) {
 			return true;
 		}
