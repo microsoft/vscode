@@ -99,7 +99,7 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 	match = /^ssh:\/\/(?:[^@]+@)?(\[[^\]]+\]|[^/:]+)(?::\d+)?\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
 		try {
-			return { owner: match[2], repo: match[3], baseUrl: `https://${new URL(url).hostname}` };
+			return { owner: match[2], repo: match[3], baseUrl: `https://${new URL(url).hostname.toLowerCase()}` };
 		} catch {
 			return undefined;
 		}
