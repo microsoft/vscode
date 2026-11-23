@@ -268,11 +268,6 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 }
 
 /**
- * userParam names for the new TAS assignments API (POST /api/v1/assignments) that carry
- * the GitHub account signals available in core. Hex org/business ids are not yet parsed
- * in core, so they are intentionally omitted here.
- */
-/**
  * Returns the universal key of who pays for the user's Copilot, or `undefined` unless the
  * entitlements carry both the key and the account type as non-empty strings.
  */
@@ -283,6 +278,11 @@ function parseBillableOwner(entitlements: IEntitlementsData | undefined | null):
 	return isString(universalKey) && universalKey && isString(accountType) && accountType ? universalKey : undefined;
 }
 
+/**
+ * userParam names for the new TAS assignments API (POST /api/v1/assignments) that carry
+ * the GitHub account signals available in core. Hex org/business ids are not yet parsed
+ * in core, so they are intentionally omitted here.
+ */
 export enum GitHubAssignmentsFilter {
 	CopilotTrackingId = 'copilottrackingid',
 	/** Whether the account is staff or belongs to a recognized internal organization. */
