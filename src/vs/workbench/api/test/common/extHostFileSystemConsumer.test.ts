@@ -71,7 +71,7 @@ suite('ExtHostConsumerFileSystem', () => {
 			activations.push(scheme);
 		});
 
-		const registration = fileSystem.addFileSystemProvider('test', provider);
+		const registration = store.add(fileSystem.addFileSystemProvider('test', provider));
 		await fileSystem.value.stat(uri);
 		registration.dispose();
 		store.add(fileSystem.addFileSystemProvider('test', provider));
