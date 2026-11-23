@@ -20,7 +20,6 @@
     "chai": "^4.2.0",
     "css-loader": "^6.9.1",
     "file-loader": "^6.2.0",
-    "glob": "^5.0.13",
     "playwright": "^1.61.1",
     "rollup": "^4.59.0",
     "style-loader": "^3.3.2",
