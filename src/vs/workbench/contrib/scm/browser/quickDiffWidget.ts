@@ -394,7 +394,6 @@ class QuickDiffWidget extends PeekViewWidget {
 			renderOverviewRuler: false,
 			renderSideBySide: false,
 			scrollbar: {
-				verticalScrollbarSize: 14,
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
