@@ -119,7 +119,6 @@ allowBuilds:
   fsevents@1.2.13: true
   fsevents@2.3.2: true
   fsevents@2.3.3: true
-  husky: false
   kerberos@2.1.1: true
   keytar@7.9.0: true
   koffi@3.2.1: false
