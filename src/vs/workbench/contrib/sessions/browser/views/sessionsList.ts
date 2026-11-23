@@ -5274,6 +5274,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
+			// A header of the separate navigation list, such as Canvases, is a row of that list and not of the tree.
+			const navigationIndex = this.navigationSections.indexOf(element as ISessionSection);
+			if (this.navigationList && navigationIndex >= 0) {
+				this.navigationList.setFocus([navigationIndex], event);
+				this.navigationList.setSelection([], event);
+				return;
+			}
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};

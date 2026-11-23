@@ -1701,11 +1701,14 @@ suite('Sessions - SessionsList', () => {
 			clickRow(planRow);
 			clickRow(canvasesRow);
 			await Promise.resolve();
+			// Right-clicking the header's toolbar focuses the header in the navigation list, which the tree does not contain.
+			canvasesRow.querySelector('.session-section-toolbar')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const focusedAfterToolbarContextMenu = navigationContainer.querySelector('.monaco-list-row.focused .session-section-label')?.textContent;
 			entries.set([], undefined);
 			const afterUnpin = navigationRows();
 			enabled.set(false, undefined);
 
-			assert.deepStrictEqual({ initial, tree: treeRows(), shown, opened, commands, afterUnpin, disabled: navigationRows() }, {
+			assert.deepStrictEqual({ initial, tree: treeRows(), shown, opened, commands, focusedAfterToolbarContextMenu, afterUnpin, disabled: navigationRows() }, {
 				initial: [
 					'New Session',
 					'Automations',
@@ -1718,6 +1721,7 @@ suite('Sessions - SessionsList', () => {
 				shown: [true, false],
 				opened: ['plan'],
 				commands: [NEW_CANVAS_SESSION_COMMAND_ID],
+				focusedAfterToolbarContextMenu: 'Canvases',
 				afterUnpin: ['New Session', 'Automations', 'Canvases', 'Customizations'],
 				disabled: ['New Session', 'Automations', 'Customizations'],
 			});
