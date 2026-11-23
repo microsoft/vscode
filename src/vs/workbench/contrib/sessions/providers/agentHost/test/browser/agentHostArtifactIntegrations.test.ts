@@ -517,7 +517,7 @@ suite('Agent Host artifact workspace settings', () => {
 		});
 	}
 
-	async function createWorkspaceSettingsFixture() {
+	async function createWorkspaceSettingsFixture(integrated = true) {
 		const { instantiation } = createInstantiation(store);
 		// Like the Agents window for any chat but the focused one, this window has not opened the folder, so its configuration has no folder value.
 		let inspected: IConfigurationValue<readonly string[]> = { userValue: ['Global *'], workspaceValue: ['Workspace *'] };
@@ -544,17 +544,18 @@ suite('Agent Host artifact workspace settings', () => {
 		const snapshot = constObservable<ArtifactSnapshot>({
 			authority: { id: 'host', targetHost: 'self', location: 'host' }, session: 'session',
 			artifact: { id: 'pr', label: 'PR', resource: 'https://github.com/octo/repo/pull/42' }, runs: [],
-			contributions: [{
+			contributions: integrated ? [{
 				integrationId: gitHubPullRequestArtifactIntegrationId, label: 'GitHub', actions: [], options: [],
 				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
 				view: { availability: { kind: 'available' }, sections: [], stateActions: [], generalActions: [], automationAvailability: [] },
-			}],
+			}] : [],
 		});
 		const server = store.add(new ArtifactIntegrationServer({
 			acquireArtifact: async () => new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot })),
 		}));
 		const connected = observableValue('connected', true);
-		const actions = store.add(new Emitter<ActionEnvelope>());
+		let actionSubscriptions = 0;
+		const actions = store.add(new Emitter<ActionEnvelope>({ onDidAddListener: () => actionSubscriptions++ }));
 		const patches: { channel: string; config: Record<string, unknown> }[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly onDidNotification = Event.None;
@@ -580,7 +581,8 @@ suite('Agent Host artifact workspace settings', () => {
 		integrations.setConnection(connection);
 		const key = gitHubPullRequestArtifactWorkspaceSettingsKey('pr');
 		return {
-			integrations, connected, actions, patches,
+			integrations, connection, connected, actions, patches,
+			actionSubscriptions: () => actionSubscriptions,
 			setInspected: (value: IConfigurationValue<readonly string[]>) => { inspected = value; },
 			writeFolderSettings,
 			changeSettingsFile: () => settingsFileChanges.fire(new FileChangesEvent([{ resource: settingsFile, type: FileChangeType.UPDATED }], false)),
@@ -613,6 +615,24 @@ suite('Agent Host artifact workspace settings', () => {
 		await f.settle();
 		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo'), f.patch('file:///repo'), f.patch(null)]);
 	}));
+
+	for (const integrated of [true, false]) {
+		test(`subscribes to session actions ${integrated ? 'once for a pull request artifact' : 'not at all for other artifacts'}, however often the same connection is set`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const f = await createWorkspaceSettingsFixture(integrated);
+			store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///repo')));
+			await f.settle();
+			// The sessions provider sets its connection again whenever its sessions change.
+			for (let i = 0; i < 3; i++) {
+				f.integrations.setConnection(f.connection);
+			}
+			f.replaceSessionConfig('session');
+			await f.settle();
+			assert.deepStrictEqual({ subscriptions: f.actionSubscriptions(), patches: f.patches }, {
+				subscriptions: integrated ? 1 : 0,
+				patches: integrated ? [f.patch('file:///repo'), f.patch('file:///repo')] : [],
+			});
+		}));
+	}
 
 	test('reads the working directory\'s own settings, which this window need not have open, before the workspace value', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const f = await createWorkspaceSettingsFixture();
