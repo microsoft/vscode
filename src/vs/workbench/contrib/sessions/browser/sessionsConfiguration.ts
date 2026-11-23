@@ -11,6 +11,7 @@ import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETT
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import product from '../../../../platform/product/common/product.js';
 
 /** The settings of the sessions list and of the sessions it opens. */
 export const sessionsListConfigurationProperties = {
@@ -109,7 +110,7 @@ export const sessionsListConfigurationProperties = {
 		type: 'boolean',
 		tags: ['experimental', 'advanced'],
 		description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
-		default: true,
+		default: product.quality !== 'stable',
 		experiment: { mode: 'auto' }
 	},
 	[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
