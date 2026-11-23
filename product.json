@@ -85,6 +85,22 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "nap.nap-focus",
+			"version": "0.6.4",
+			"sha256": "aa637b76fbdb6b189708d79cc30a16dec931dd6ab2cfbada8a7f1fdc46081e03",
+			"vsix": "build/builtin/nap-focus-0.6.4.vsix",
+			"metadata": {
+				"id": "de6577f2-e7d0-5a0d-a169-309bedbfc364",
+				"publisherId": {
+					"publisherId": "b64b4cb1-5c4e-5e50-9d2d-a5101e02a4e7",
+					"publisherName": "nap",
+					"displayName": "Next Action Prediction",
+					"flags": ""
+				},
+				"publisherDisplayName": "Next Action Prediction"
+			}
 		}
 	],
 	"defaultChatAgent": {
@@ -158,10 +174,12 @@
 	},
 	"trustedExtensionAuthAccess": {
 		"github": [
-			"GitHub.copilot-chat"
+			"GitHub.copilot-chat",
+			"nap.nap-focus"
 		],
 		"github-enterprise": [
-			"GitHub.copilot-chat"
+			"GitHub.copilot-chat",
+			"nap.nap-focus"
 		],
 		"microsoft": [
 			"vscode.github-authentication"
