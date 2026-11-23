@@ -5,24 +5,30 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { CoreEditingCommands } from '../../../../../../../../editor/browser/coreCommands.js';
 import { IEditorMouseEvent, MouseTargetType } from '../../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
-import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
-import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
+import { Handler, IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
+import { CompletionItemKind } from '../../../../../../../../editor/common/languages.js';
+import { ILanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeatures.js';
+import { SuggestController } from '../../../../../../../../editor/contrib/suggest/browser/suggestController.js';
+import { ISuggestMemoryService } from '../../../../../../../../editor/contrib/suggest/browser/suggestMemory.js';
+import { State as SuggestState } from '../../../../../../../../editor/contrib/suggest/browser/suggestModel.js';
+import { ITestCodeEditor, withAsyncTestCodeEditor, withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
+import { IMenu, IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
 import { agentHostConnectionKinds } from '../../../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { toAgentHostUri } from '../../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
@@ -30,7 +36,9 @@ import { TestConfigurationService } from '../../../../../../../../platform/confi
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { TestThemeService } from '../../../../../../../../platform/theme/test/common/testThemeService.js';
 import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
@@ -144,6 +152,115 @@ suite('ChatTokenDeleter', () => {
 			}
 		});
 	});
+});
+
+suite('ChatInputSuggestReopener', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface ISuggestInput {
+		readonly editor: ITestCodeEditor;
+		readonly controller: SuggestController;
+		/** The parts that the widget parses from the input. */
+		parts: IParsedChatRequestPart[];
+	}
+
+	/**
+	 * Runs the callback with an input whose suggestions come from a provider of `@`
+	 * references that, like the one of files, asks to be queried again as the user types.
+	 */
+	function withSuggestInput(callback: (input: ISuggestInput) => Promise<void>): Promise<void> {
+		const serviceCollection = new ServiceCollection(
+			[IStorageService, store.add(new InMemoryStorageService())],
+			[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
+				override memorize(): void { }
+				override select(): number { return 0; }
+			}],
+			[IMenuService, new class extends mock<IMenuService>() {
+				override createMenu() {
+					return new class extends mock<IMenu>() {
+						override onDidChange = Event.None;
+						override dispose() { }
+					};
+				}
+			}],
+		);
+		return withAsyncTestCodeEditor('', { serviceCollection, quickSuggestions: false }, async (editor, _viewModel, instantiationService) => {
+			const input: ISuggestInput = { editor, controller: editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController), parts: [] };
+			store.add(instantiationService.get(ILanguageFeaturesService).completionProvider.register('*', {
+				_debugDisplayName: 'test',
+				triggerCharacters: ['@'],
+				provideCompletionItems: (_model, position) => ({
+					incomplete: true,
+					suggestions: [{ label: 'index.ts', insertText: '@index.ts ', filterText: '@index.ts', kind: CompletionItemKind.File, range: new Range(1, 1, position.lineNumber, position.column) }],
+				}),
+			}));
+			const ctor = ChatWidget.CONTRIBS.find(contrib => contrib.name === 'ChatInputSuggestReopener');
+			assert.ok(ctor, 'ChatInputSuggestReopener should be registered as a chat widget contribution');
+			store.add(instantiationService.createInstance(ctor, upcastPartial<IChatWidget>({
+				inputEditor: editor,
+				onDidChangeActiveInputEditor: Event.None,
+				get parsedInput() { return { text: editor.getValue(), parts: input.parts }; },
+			})));
+			await callback(input);
+		});
+	}
+
+	test('reopens suggestions when deleting back into an unfinished reference', () => withSuggestInput(async ({ editor, controller }) => {
+		const transcript: string[] = [];
+		store.add(controller.model.onDidSuggest(e => transcript.push(`${editor.getValue()}: ${e.completionModel.items.map(item => item.textLabel).join(', ')}`)));
+		store.add(controller.model.onDidCancel(e => {
+			if (!e.retrigger) {
+				transcript.push(`${editor.getValue()}: closed`);
+			}
+		}));
+
+		for (const key of ['@', 'i', 'q', 'Backspace', 'Backspace']) {
+			if (key === 'Backspace') {
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			} else {
+				editor.trigger('keyboard', Handler.Type, { text: key });
+			}
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(transcript, [
+			'@: index.ts',
+			'@i: index.ts',
+			// Nothing matches the typo
+			'@iq: closed',
+			'@i: index.ts',
+			// The editor closes suggestions that it queried after the leader once the cursor moves back to it
+			'@: closed',
+			'@: index.ts',
+		]);
+	}));
+
+	test('does not reopen suggestions inside a token, without a leader, or after a finished reference', () => withSuggestInput(async input => {
+		const { editor, controller } = input;
+		const reference = new ChatRequestDynamicVariablePart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), '@index.ts', 'index.ts', undefined, URI.file('/index.ts'));
+		const results: string[] = [];
+		for (const { value, column, parts } of [
+			{ value: 'ab', column: 3, parts: [] },
+			{ value: '@abc', column: 4, parts: [] },
+			{ value: '@index.ts ', column: 11, parts: [reference] },
+			{ value: '@ab', column: 4, parts: [] },
+		]) {
+			editor.setValue(value);
+			editor.setPosition(new Position(1, column));
+			input.parts = parts;
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			results.push(`${editor.getValue()}: ${controller.model.state === SuggestState.Idle ? 'closed' : 'reopened'}`);
+			controller.model.cancel();
+		}
+
+		assert.deepStrictEqual(results, [
+			'a: closed',
+			'@ac: closed',
+			'@index.ts: closed',
+			'@a: reopened',
+		]);
+	}));
 });
 
 suite('InputEditorDecorations', () => {
