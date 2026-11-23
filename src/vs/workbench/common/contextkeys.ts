@@ -236,6 +236,8 @@ export function getEnabledViewContainerContextKey(viewContainerId: string): stri
 
 //#region < --- Resources --- >
 
+export const ResourceWebviewIdContext = new RawContextKey<string | undefined>('resourceWebviewId', undefined, { type: 'string', description: localize('resourceWebviewId', "The view type of the webview resource for the editor title context menu") });
+
 abstract class AbstractResourceContextKey {
 
 	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
