@@ -33,7 +33,7 @@ import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../..
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IUnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
 import '../../electron-browser/features/browserTabManagementFeatures.js';
@@ -242,6 +242,51 @@ suite('BrowserViewWorkbenchService', () => {
 
 		assert.deepStrictEqual({ preferred: typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, addedBeside }, { preferred: 3, addedBeside: [2] });
 	});
+
+	for (const stage of ['preferred group', 'group finder']) {
+		test(`rechecks open handlers after awaiting the ${stage}`, async () => {
+			const resolving = new DeferredPromise<void>();
+			const resume = new DeferredPromise<boolean>();
+			const group = upcastPartial<IEditorGroup>({ id: 1 });
+			const { service, events, instantiationService } = createService(undefined, upcastPartial<IEditorGroupsService>({
+				activeGroup: group,
+				activeModalEditorPart: stage === 'group finder' ? upcastPartial<IModalEditorPart>({
+					groups: [],
+					close: () => {
+						void resolving.complete();
+						return resume.p;
+					},
+				}) : undefined,
+			}));
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			service.getPreferredGroup = async () => {
+				if (stage === 'preferred group') {
+					void resolving.complete();
+					await resume.p;
+				}
+				return group;
+			};
+			let active = true;
+			const decisions: boolean[] = [];
+			store.add(service.registerOpenHandler({
+				shouldOpenEditor: () => {
+					decisions.push(active);
+					return active;
+				},
+			}));
+			let opened = false;
+			instantiationService.stub(IEditorService, 'openEditor', async () => { opened = true; return undefined; });
+			const input = store.add(await service.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } }, {}));
+			await resolving.p;
+			active = false;
+			await resume.complete(true);
+			await timeout(0);
+
+			assert.deepStrictEqual({ decisions, opened, disposed: input.isDisposed() }, {
+				decisions: [true, false], opened: false, disposed: false,
+			});
+		});
+	}
 
 	for (const { name, savedUrl, requestedUrl } of [
 		{ name: 'uses the requested URL', savedUrl: 'http://localhost:3000/previous', requestedUrl: 'http://localhost:3000/requested' },

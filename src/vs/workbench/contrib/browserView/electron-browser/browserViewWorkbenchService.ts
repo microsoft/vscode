@@ -932,6 +932,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 
+		// The active session may have changed while resolving the target group.
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, options)) {
+				return;
+			}
+		}
+
 		void this.editorService.openEditor(view, editorOptions, group);
 	}
 
