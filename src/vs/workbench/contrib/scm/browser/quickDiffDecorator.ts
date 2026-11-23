@@ -289,6 +289,11 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	private setViewState(state: QuickDiffWorkbenchControllerViewState): void {
 		this.viewState = state;
 		this.stylesheet.textContent = `
+			/* The editor sizes line decorations to the whole area left of the text: limit the hit area to the bar, so that clicks next to it place the cursor */
+			.monaco-editor .dirty-diff-glyph {
+				box-sizing: border-box;
+				width: ${state.width}px !important;
+			}
 			.monaco-editor .dirty-diff-added,
 			.monaco-editor .dirty-diff-modified {
 				border-left-width:${state.width}px;

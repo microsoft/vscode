@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.148.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "c6f1b48a8bcc09f14249469ccea38361ccb65685",
+  "distro": "8d776751f96e7726cf67d97f7f00fbc95a505f57",
   "nativeBuild": {
     "runtime": "electron",
     "target": "43.8.10",
@@ -127,7 +127,7 @@
     "@vscode/codicons": "^0.0.46-51",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
-    "@vscode/diff": "0.0.2-145",
+    "@vscode/diff": "0.0.2-154",
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",

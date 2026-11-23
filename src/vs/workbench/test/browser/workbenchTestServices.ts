@@ -402,7 +402,7 @@ export function workbenchInstantiationService(
 	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IChatThinkingTitleService, { getCachedTitle: () => undefined, generateTitle: async () => undefined });
 	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
-	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined, connections: [], onDidChangeConnections: Event.None, getConnectionByAddress: () => undefined });
 	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
@@ -944,6 +944,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	readonly isApplyingWorkingSet = false;
+	readonly onDidChangeApplyingWorkingSet = Event.None;
 	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
@@ -1762,6 +1764,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	readonly isApplyingWorkingSet = false;
+	readonly onDidChangeApplyingWorkingSet = Event.None;
 	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 

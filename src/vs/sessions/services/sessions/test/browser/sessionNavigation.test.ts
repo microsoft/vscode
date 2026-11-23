@@ -18,7 +18,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../customView/browser/customViewService.js';
-import { ICreateNewSessionOptions, INewSessionDraftSlot, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICanvasSessionDraft, ICreateNewSessionOptions, INewSessionDraftSlot, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionsNavigation } from '../../../../../workbench/contrib/sessions/browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/services/sessions/browser/sessionsRecencyHistory.js';
@@ -285,6 +285,7 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: ISession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	archiveSessions(_sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]> { throw new Error('not implemented'); }
 	prepareSessionWorktreeCleanup(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -310,6 +311,7 @@ class MockSessionStore implements ISessionsManagementService {
 	async acquireArtifactIntegration() { return undefined; }
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
+	createCanvasDraft(): ICanvasSessionDraft { throw new Error('not implemented'); }
 	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }
 	readonly onDidCloseCanvas = Event.None;
 	observeCanvas(): undefined { return undefined; }

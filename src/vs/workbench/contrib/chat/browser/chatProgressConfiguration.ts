@@ -35,7 +35,7 @@ export const chatProgressConfigurationProperties = {
 			localize('chat.progressAnimation.drawMonochrome', "Use the Draw animation with the same grayscale treatment as the VS Code icon in the Agents window. High contrast themes retain their contrast color."),
 			localize('chat.progressAnimation.drawMonochromeNoIcon', "Keep the same persistent progress text and tool rendering as Draw (Monochrome), but hide the VS Code icon."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator at the bottom until the response finishes, with a colored or monochrome Draw animation, or without an icon. The indicator reports running subagents and background commands from the current or earlier requests, even while the main response progresses. The default is Draw in all versions of VS Code. Experiments can override the default; an explicit setting takes precedence. Tool calls follow {0}. Except in Conversation mode, reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator at the bottom until the response finishes, with a colored or monochrome Draw animation, or without an icon. The indicator reports running subagents and background commands from the current or earlier requests, even while the main response progresses. The default is Draw in all versions of VS Code. Experiments can override the default; an explicit setting takes precedence. Tool calls follow {0}. Except in Conversation mode, reasoning is separated into collapsible previews that break the tool chain, and that stay expanded in Verbose mode. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto', name: `config.${legacyPersistentProgressSetting}` },
 	},
@@ -49,7 +49,7 @@ export const chatProgressConfigurationProperties = {
 			localize('chat.progressVerbosity.conversation.label', "Conversation"),
 		],
 		enumDescriptions: [
-			localize('chat.progressVerbosity.verbose', "Keep tool calls in expanded, headerless chains without an internal scrolling limit."),
+			localize('chat.progressVerbosity.verbose', "Keep reasoning expanded and tool calls in expanded, headerless chains without an internal scrolling limit."),
 			localize('chat.progressVerbosity.compact', "Preview tool calls while they run, then collapse each group to a single expandable summary row when the response moves on."),
 			localize('chat.progressVerbosity.conversation', "Collapse reasoning and tool calls together into a single section that names the current tool call or reasoning heading while it runs. Once it finishes, it shows what its tool calls did, followed by the time it took when known, or how long it thought when it has no tool calls."),
 		],

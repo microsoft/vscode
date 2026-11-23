@@ -170,6 +170,11 @@ function getNoticeAriaLabels(model: ILanguageModelChatMetadataAndIdentifier): st
 	];
 }
 
+/** What a model router warns about, such as an error in its file or a route it cannot use. */
+export function getModelRouterWarning(model: ILanguageModelChatMetadataAndIdentifier): string | undefined {
+	return model.metadata.detailsResource ? Object.values(model.metadata.warningText ?? {}).at(0) : undefined;
+}
+
 export function getUnavailableReason(
 	entry: IModelControlEntry,
 	chatEntitlementService: IChatEntitlementService,
