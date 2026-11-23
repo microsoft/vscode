@@ -1540,8 +1540,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
 		@ICopilotAccountService accountService: ICopilotAccountService,
+		@IAgentHostAuthenticationService authenticationService: IAgentHostAuthenticationService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService, accountService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService, accountService, authenticationService);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1593,8 +1594,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
 		@ICopilotAccountService accountService: ICopilotAccountService,
+		@IAgentHostAuthenticationService authenticationService: IAgentHostAuthenticationService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService, accountService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService, accountService, authenticationService);
 		this._now = now;
 	}
 
@@ -6240,26 +6242,33 @@ suite('CopilotAgent', () => {
 					dispose: () => { disposed.push(id); },
 				});
 			}
-			let duringTurn: { stops: number; disposed: string[] } | undefined;
+			let duringTurn: { stops: number; disposed: string[]; applied: string | undefined } | undefined;
+			let afterTurn: string | undefined;
 			if (withdrawal === 'signOut') {
 				await deliver();
+				await authenticationService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, token: 'kept' }, [agent]);
 				await authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, [agent]);
-				duringTurn = { stops: client.stopCallCount, disposed: [...disposed] };
+				const idle = () => (agent as unknown as { _authenticationSequencer: { queue(task: () => Promise<void>): Promise<void> } })._authenticationSequencer.queue(async () => { });
+				await idle();
+				duringTurn = { stops: client.stopCallCount, disposed: [...disposed], applied: (agent as unknown as { _githubCredentials: { token?: string } })._githubCredentials.token };
 				turns.shared = false;
 				(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
 				await client.waitForCalls(() => client.stopCallCount === 1);
+				await idle();
+				afterTurn = (agent as unknown as { _githubCredentials: { token?: string } })._githubCredentials.token;
 			} else {
 				connected = false;
 				registration.dispose();
 				await deliver();
 			}
 			assert.deepStrictEqual({
-				duringTurn, settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()], resourcesDuringAuthority,
+				duringTurn, afterTurn, settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()], resourcesDuringAuthority,
 				stops: client.stopCallCount, connected: connections.getConnectionCounts('').connectedClientCount,
 				credential: await provider(request, { isCancellationRequested: false, onCancellationRequested: Event.None }),
 				readvertised: agent.authenticationRequired.get()?.resource.resource,
 			}, {
-				duringTurn: withdrawal === 'signOut' ? { stops: 0, disposed: [] } : undefined,
+				duringTurn: withdrawal === 'signOut' ? { stops: 0, disposed: [], applied: 'kept' } : undefined,
+				afterTurn: withdrawal === 'signOut' ? 'kept' : undefined,
 				settled: [], disposed: withdrawal === 'signOut' ? ['shared'] : [],
 				remaining: withdrawal === 'signOut' ? ['scoped', 'virtual'] : ['shared', 'scoped', 'virtual'],
 				resourcesDuringAuthority: { microsoftOptional: true, github: initialResources.filter(resource => resource.resource !== copilotEntraDiscoveryResource) },
@@ -6303,6 +6312,218 @@ suite('CopilotAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'replacement-token');
 		// The Microsoft requirement is published again once the GitHub one clears.
 		assert.deepStrictEqual(published, [copilotEntraDiscoveryResource, GITHUB_COPILOT_PROTECTED_RESOURCE.resource, copilotEntraDiscoveryResource]);
+	});
+
+	async function useMicrosoftAccount(options: { githubToken?: string; microsoft?: boolean; deferMicrosoft?: boolean; failDiscovery?: boolean } = {}) {
+		const client = new TestCopilotClient([], []);
+		if (!options.failDiscovery) {
+			// The runtime's login completes with one service, so the account context reaches 'ready'.
+			const service = { kind: 'entraEmu' as const, host: 'https://github.com', login: 'emu-login', selectionId: 'opaque-emu' };
+			client.createSession = async () => upcastPartial<CopilotSession>({
+				sessionId: 'setup-session',
+				rpc: upcastPartial<CopilotSession['rpc']>({
+					accounts: {
+						login: {
+							begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
+							advance: async () => ({ kind: 'completed', result: { status: 'completed', host: service.host, login: service.login } }),
+							cancel: async () => { },
+						},
+						get: async () => ({ kind: 'activeAccount', account: { ...service, active: true, derivedFrom: 'runtime-base' } }),
+						enumerate: async () => ({ kind: 'accounts', items: [] }),
+						set: async () => { throw new Error('unexpected account switch'); },
+					},
+				}),
+				disconnect: async () => { },
+			});
+		}
+		const context = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: options.microsoft ?? true } });
+		const { agent, authenticationService } = context;
+		afterTest(() => disposeAgent(agent));
+		await agent.listChatsToMigrate();
+		const gitHub = { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported };
+		const published: string[] = [];
+		const sendGitHub = (token: string) => authenticationService.authenticate({ ...gitHub, token }, [agent]);
+		const endMicrosoft = () => authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, [agent]);
+		const applied = () => (agent as unknown as { _githubCredentials: { token: string | undefined } })._githubCredentials.token;
+		const idle = () => (agent as unknown as { _authenticationSequencer: { queue(task: () => Promise<void>): Promise<void> } })._authenticationSequencer.queue(async () => { });
+		if (options.githubToken) {
+			await sendGitHub(options.githubToken);
+		}
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement) {
+				published.push(requirement.resource.resource);
+			}
+		}));
+		const accountKind = () => (agent as unknown as { _accountService: { state: { get(): { kind: string } } } })._accountService.state.get().kind;
+		const signInMicrosoft = async () => {
+			const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
+			assert.ok(provider);
+			await provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
+			await authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity', accountId: 'selected' }, [agent]);
+			const request = {
+				kind: 'token' as const, clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' as const,
+				audience: copilotEntraEmuAudience, scopes: [`${copilotEntraEmuAudience}/.default`], skipCachedAccessToken: false,
+			};
+			await provider(request, { isCancellationRequested: false, onCancellationRequested: Event.None });
+			await authenticationService.authenticate({
+				resource: copilotEntraResources.get(copilotEntraEmuAudience)!, scopes: request.scopes, token: 'synthetic-resource', expiresIn: 3600, accountId: 'selected',
+			}, [agent]);
+			assert.strictEqual(accountKind(), options.failDiscovery ? 'error' : 'ready');
+		};
+		if ((options.microsoft ?? true) && !options.deferMicrosoft) {
+			await signInMicrosoft();
+		}
+		return { ...context, client, gitHub, published, sendGitHub, endMicrosoft, applied, idle, signInMicrosoft };
+	}
+
+	test('signing in to Microsoft over a GitHub token publishes no GitHub request for a client to answer', async () => {
+		const { agent, authenticationService, gitHub, signInMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'github', deferMicrosoft: true });
+		const requests: string[] = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement?.resource.resource === gitHub.resource) {
+				requests.push(requirement.resource.resource);
+				// A window answers a published request with the GitHub token it holds.
+				void authenticationService.authenticate({ ...gitHub, token: 'github' }, [agent]);
+			}
+		}));
+		await signInMicrosoft();
+		await idle();
+		assert.deepStrictEqual({
+			requests,
+			applied: applied(),
+			microsoft: authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+		}, { requests: [], applied: undefined, microsoft: 'selected' });
+	});
+
+	test('a GitHub token sent while a Microsoft account is in use is kept, and neither ends it nor is applied', async () => {
+		const { agent, authenticationService, client, gitHub, published, sendGitHub, applied } = await useMicrosoftAccount({ githubToken: 'first' });
+		const stops = client.stopCallCount;
+		published.length = 0;
+		const result = await sendGitHub('second');
+		assert.deepStrictEqual({
+			authenticated: result.authenticated,
+			published,
+			stopped: client.stopCallCount - stops,
+			microsoft: authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			kept: authenticationService.getAuthToken(gitHub),
+			applied: applied(),
+			advertised: agent.getProtectedResources().some(resource => resource.resource === gitHub.resource),
+		}, {
+			authenticated: true,
+			published: [],
+			stopped: 0,
+			microsoft: 'selected',
+			kept: 'second',
+			applied: undefined,
+			advertised: true,
+		});
+	});
+
+	test('an empty GitHub token sent while a Microsoft account is in use drops the kept credential and leaves the account', async () => {
+		const { agent, authenticationService, client, gitHub, published, sendGitHub, endMicrosoft, idle } = await useMicrosoftAccount({ githubToken: 'first' });
+		const stops = client.stopCallCount;
+		published.length = 0;
+		await sendGitHub('');
+		const kept = {
+			published: [...published],
+			stopped: client.stopCallCount - stops,
+			microsoft: authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			kept: authenticationService.getAuthToken(gitHub),
+		};
+		await endMicrosoft();
+		await idle();
+		assert.deepStrictEqual({ ...kept, readyAfterMicrosoftEnds: agent.isReadyForAutomation(undefined) }, { published: [], stopped: 0, microsoft: 'selected', kept: undefined, readyAfterMicrosoftEnds: false });
+	});
+
+	test('when the Microsoft account ends, the kept GitHub credential is applied and no GitHub request is published', async () => {
+		const { agent, published, endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept' });
+		published.length = 0;
+		await endMicrosoft();
+		await idle();
+		assert.deepStrictEqual({ applied: applied(), ready: agent.isReadyForAutomation(undefined), published }, {
+			applied: 'kept', ready: true, published: [copilotEntraDiscoveryResource],
+		});
+	});
+
+	test('when Microsoft service discovery failed, the empty discovery token ends it and applies the kept GitHub credential', async () => {
+		const { endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept', failDiscovery: true });
+		await endMicrosoft();
+		await idle();
+		assert.strictEqual(applied(), 'kept');
+	});
+
+	test('when the Microsoft account ends, a kept GitHub token sent without scopes is applied', async () => {
+		const { agent, authenticationService, gitHub, endMicrosoft, applied, idle } = await useMicrosoftAccount();
+		await authenticationService.authenticate({ resource: gitHub.resource, token: 'unscoped' }, [agent]);
+		await endMicrosoft();
+		await idle();
+		assert.strictEqual(applied(), 'unscoped');
+	});
+
+	test('when the Microsoft account ends, a kept GitHub credential with an expiry is applied with it', async () => {
+		const { agent, authenticationService, gitHub, endMicrosoft, idle } = await useMicrosoftAccount();
+		await authenticationService.authenticate({ ...gitHub, token: 'kept', expiresIn: 3600 }, [agent]);
+		await endMicrosoft();
+		await idle();
+		const credentials = (agent as unknown as { _githubCredentials: { token?: string; _usesTokenProvider: boolean } })._githubCredentials;
+		assert.deepStrictEqual({ token: credentials.token, refreshable: credentials._usesTokenProvider }, { token: 'kept', refreshable: true });
+	});
+
+	test('when the Microsoft account ends with no kept GitHub credential, only the Microsoft requirement is published', async () => {
+		const { published, endMicrosoft, applied, idle } = await useMicrosoftAccount();
+		published.length = 0;
+		await endMicrosoft();
+		await idle();
+		assert.deepStrictEqual({ applied: applied(), published }, { applied: undefined, published: [copilotEntraDiscoveryResource] });
+	});
+
+	test('an empty Microsoft discovery token followed by a GitHub token ends on that GitHub token', async () => {
+		const { endMicrosoft, sendGitHub, applied, idle } = await useMicrosoftAccount();
+		await endMicrosoft();
+		await idle();
+		await sendGitHub('later');
+		assert.strictEqual(applied(), 'later');
+	});
+
+	test('an empty Microsoft discovery token is ignored while no Microsoft account is in use', async () => {
+		const { endMicrosoft, applied, published, idle } = await useMicrosoftAccount({ githubToken: 'github', microsoft: false });
+		published.length = 0;
+		await endMicrosoft();
+		await idle();
+		assert.deepStrictEqual({ applied: applied(), published }, { applied: 'github', published: [] });
+	});
+
+	test('a GitHub token applied after the Microsoft account ended is what the host ends on', async () => {
+		const { authenticationService, gitHub, endMicrosoft, sendGitHub, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept' });
+		await endMicrosoft();
+		await idle();
+		await sendGitHub('later');
+		await idle();
+		assert.deepStrictEqual({ applied: applied(), store: authenticationService.getAuthToken(gitHub) }, { applied: 'later', store: 'later' });
+	});
+
+	test('a GitHub token queued when the Microsoft account ends is what the host ends on, not the kept one', async () => {
+		const { agent, gitHub, endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept' });
+		// Hold the sequencer so the GitHub token runs only after the Microsoft account has ended.
+		let release!: () => void;
+		const sequencer = (agent as unknown as { _authenticationSequencer: { queue(task: () => Promise<void>): Promise<void> } })._authenticationSequencer;
+		const held = sequencer.queue(() => new Promise<void>(resolve => release = resolve));
+		const later = agent.authenticate(gitHub.resource, 'later');
+		const ended = endMicrosoft();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		release();
+		await Promise.all([held, later, ended]);
+		await idle();
+		assert.strictEqual(applied(), 'later');
+	});
+
+	test('a GitHub token is applied directly when the Microsoft bridge is off', async () => {
+		// The account context never leaves its initial state with the bridge off, so this passes without the Microsoft rule.
+		const { sendGitHub, applied } = await useMicrosoftAccount({ githubToken: 'first', microsoft: false });
+		await sendGitHub('second');
+		assert.strictEqual(applied(), 'second');
 	});
 
 	for (const credentials of ['github', 'microsoft', 'both', 'neither'] as const) {

@@ -17,10 +17,11 @@ import { isObject } from '../../../../../../base/common/types.js';
 import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
+import { copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, type IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -388,6 +389,11 @@ export class AgentHostAuthenticationRecovery {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const commandService = accessor.get(ICommandService);
+		// Copilot's optional Microsoft requirements are answered only by a window whose account is Microsoft; other windows leave the choice to the one that is.
+		if (resource.required === false && (resource.resource === copilotEntraDiscoveryResource || isCopilotEntraServiceResource(resource))
+			&& defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
+			return;
+		}
 		if (await options.renewAuthentication?.(resource)) {
 			throwIfAuthenticationStale(options);
 			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
@@ -876,10 +882,20 @@ export async function authenticateProtectedResources(
 	const logService = accessor.get(ILogService);
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
-		for (const resource of agent.protectedResources ?? []) {
+		const resources = agent.protectedResources ?? [];
+		// With several named Microsoft service resources offered, the window cannot tell which one the user means, so it forwards none of them.
+		const choosesBetweenServices = resources.filter(r => isCopilotEntraServiceResource(r) && !!r.resource_name).length > 1;
+		for (const resource of resources) {
+			if (choosesBetweenServices && isCopilotEntraServiceResource(resource)) {
+				continue;
+			}
 			await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, resolvedOptions);
 		}
 	}
+}
+
+function isCopilotEntraServiceResource(resource: ProtectedResourceMetadata): boolean {
+	return [...copilotEntraResources.values()].includes(resource.resource);
 }
 
 export async function authenticateAgentProtectedResourcesWithToken(

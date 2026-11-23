@@ -62,6 +62,8 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
+import { getRemainingTimeInSeconds } from '../../../../base/common/date.js';
 import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { toCopilotMessageSource } from './copilotMessageSource.js';
@@ -1661,6 +1663,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
 		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
@@ -1669,6 +1672,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._register(autorun(reader => this._onDidChangeAccountContext(this._accountService.state.read(reader))));
 			this._register(this._entraAuthentication.onDidRevoke(() => {
 				void this._requestClientRestart('Microsoft authentication cleared').catch(error => this._logService.error('[Copilot] Failed to restart runtime after Microsoft authentication was cleared', error));
+				void this._authenticationSequencer.queue(() => this._applyKeptGitHubCredential())
+					.catch(error => this._logService.error('[Copilot] Failed to apply the GitHub credential kept during Microsoft authentication', error));
 			}));
 		}
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
@@ -4087,11 +4092,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
 		return this._authenticationSequencer.queue(async () => {
-			if (token && isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
-				await this._entraAuthentication!.authenticate({ resource: copilotEntraDiscoveryMetadata.resource, token: '' });
+			if (isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
+				// The shared credential store keeps (or drops, for an empty token) this credential. It is applied
+				// when the Microsoft account ends, so nothing changes for the account in use.
+				return true;
 			}
 			return this._applyGitHubAuthentication(token, expiresIn, endpointGeneration, _meta);
 		});
+	}
+
+	/** Applies the GitHub credential the shared store kept while a Microsoft account was in use, unless one was applied meanwhile. */
+	private async _applyKeptGitHubCredential(): Promise<void> {
+		if (this._githubCredentials.token || this._accountService.state.get().kind !== 'legacy') {
+			return;
+		}
+		const resource = this._gitHubEndpointService.getCopilotResource();
+		const kept = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: resource.scopes_supported })
+			?? this._authenticationService.getAuthCredential({ resource: resource.resource });
+		if (kept) {
+			await this._applyGitHubAuthentication(kept.token, getRemainingTimeInSeconds(kept.expiresAt), this._gitHubEndpointGeneration);
+		}
 	}
 
 	private async _applyGitHubAuthentication(token: string, expiresIn: number | undefined, endpointGeneration: number, _meta?: Record<string, unknown>): Promise<boolean> {
@@ -4120,7 +4140,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
-	private async _applyGitHubToken(token: string | undefined, expiresIn: number | undefined): Promise<void> {
+	private async _applyGitHubToken(token: string | undefined, expiresIn: number | undefined, publishRequest = true): Promise<void> {
 		const endpointGeneration = this._gitHubEndpointGeneration;
 		const { tokenChanged, modeChanged: tokenProviderModeChanged } = this._githubCredentials.update(token, expiresIn);
 		if (!tokenChanged && !tokenProviderModeChanged) {
@@ -4147,10 +4167,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// -- until a window reloads, because the resulting SDK failure is a
 			// local `InvalidArg` rather than a 401 and never reaches
 			// `_handleCopilotSessionAuthRequired`.
-			this._authenticationRequired.set({
-				resource: this._gitHubEndpointService.getCopilotResource(),
-				reason: AuthRequiredReason.Expired,
-			}, undefined);
+			if (publishRequest) {
+				this._authenticationRequired.set({
+					resource: this._gitHubEndpointService.getCopilotResource(),
+					reason: AuthRequiredReason.Expired,
+				}, undefined);
+			}
 			// GitHub sign-out (or an endpoint change): on-device routes from the old account are stale.
 			void this._localModelAccountSequencer.queue(async () => {
 				this._localModelAccount = undefined;
@@ -4232,7 +4254,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._authenticationSequencer.queue(async () => {
 				if (this._accountService.state.get().kind === 'legacy') {
 					this._clearLegacySessions();
-					await this._applyGitHubToken(undefined, undefined);
+					this._automationAuthenticationReady.set(false, undefined);
+					await this._applyGitHubToken(undefined, undefined, false);
 				}
 				await this._accountService.authenticate(this._ensureClient(), params);
 			});

@@ -11,6 +11,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
+import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -160,6 +162,75 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 		assert.deepStrictEqual({ microsoft, github: forwarded, interactive: f.authentication.created }, {
 			microsoft: [copilotEntraDiscoveryResource], github: [], interactive: [],
+		});
+	});
+
+	test('no service credential is forwarded only while the agent offers more than one named Microsoft service', async () => {
+		const f = fixture();
+		const services = [...copilotEntraResources].map(([audience, serviceResource]): ProtectedResourceMetadata => ({
+			resource: serviceResource,
+			resource_name: `Service ${audience}`,
+			authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${audience}/.default`], required: false,
+		}));
+		const unnamed = services.map(({ resource_name, ...service }) => service);
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		const offered: Record<string, string[]> = {};
+		const offer = async (name: string, protectedResources: ProtectedResourceMetadata[]) => {
+			forwarded.length = 0;
+			await f.instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [{ ...resource, required: false }, ...protectedResources] }], options);
+			offered[name] = [...forwarded];
+		};
+		await offer('twoNamed', services);
+		await offer('oneNamedOneUnnamed', [services[0], unnamed[1]]);
+		await offer('twoUnnamed', unnamed);
+		assert.deepStrictEqual(offered, {
+			twoNamed: [copilotEntraDiscoveryResource],
+			oneNamedOneUnnamed: [copilotEntraDiscoveryResource, services[0].resource, services[1].resource],
+			twoUnnamed: [copilotEntraDiscoveryResource, services[0].resource, services[1].resource],
+		});
+	});
+
+	test('recovery answers optional Microsoft requirements only for a window on a Microsoft account', async () => {
+		const f = fixture();
+		const serviceAudience = [...copilotEntraResources.keys()][0];
+		const service: ProtectedResourceMetadata = {
+			resource: copilotEntraResources.get(serviceAudience)!, resource_name: 'Service',
+			authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${serviceAudience}/.default`], required: false,
+		};
+		const copilot: ProtectedResourceMetadata = { ...gitHubCopilotResource(deriveGitHubEndpoints(undefined)), required: false };
+		const gitHubSession: AuthenticationSession = { id: 'github', account: { id: 'github', label: 'GitHub' }, scopes: copilot.scopes_supported!, accessToken: 'synthetic-github-token' };
+		const microsoftSession = (scopes: readonly string[]): AuthenticationSession => ({ ...selected, scopes, accessToken: `synthetic-${scopes[0]}` });
+		const accounts: Record<string, IDefaultAccount | null> = {
+			microsoft: f.defaults.currentDefaultAccount,
+			github: { authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, sessionId: gitHubSession.id, accountName: gitHubSession.account.label, enterprise: false },
+			none: null,
+		};
+		const requirements: Record<string, { requirement: ProtectedResourceMetadata; sessions: AuthenticationSession[]; provider: string }> = {
+			optionalDiscovery: { requirement: { ...resource, required: false }, sessions: [microsoftSession(resource.scopes_supported!)], provider: 'microsoft' },
+			optionalService: { requirement: service, sessions: [microsoftSession(service.scopes_supported!)], provider: 'microsoft' },
+			graphNotOptional: { requirement: resource, sessions: [microsoftSession(resource.scopes_supported!)], provider: 'microsoft' },
+			githubCopilot: { requirement: copilot, sessions: [gitHubSession], provider: 'github' },
+		};
+		const answered: Record<string, Record<string, number>> = {};
+		for (const [accountName, account] of Object.entries(accounts)) {
+			answered[accountName] = {};
+			for (const [name, { requirement, sessions, provider }] of Object.entries(requirements)) {
+				f.defaults.currentDefaultAccount = account;
+				f.authentication.sessions = sessions;
+				f.authentication.getOrActivateProviderIdForServer = async () => provider;
+				const forwarded: string[] = [];
+				const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+				await f.instantiation.invokeFunction(accessor => f.instantiation.createInstance(AgentHostAuthenticationRecovery).recover(accessor, requirement, options));
+				answered[accountName][name] = forwarded.length;
+			}
+		}
+		assert.deepStrictEqual(answered, {
+			microsoft: { optionalDiscovery: 1, optionalService: 1, graphNotOptional: 1, githubCopilot: 1 },
+			github: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+			none: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
 		});
 	});
 
