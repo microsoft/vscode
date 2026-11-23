@@ -2296,13 +2296,13 @@ importers:
         version: 3.0.3
       '@types/minimist':
         specifier: ^1.2.1
-        version: 1.2.1
+        version: 1.2.5
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
       '@types/node':
         specifier: 24.x
-        version: 24.12.4
+        version: 24.13.2
       '@vscode/v8-heap-parser':
         specifier: ^0.1.0
         version: 0.1.0
@@ -15830,7 +15830,7 @@ snapshots:
   '@types/glob@5.0.38':
     dependencies:
       '@types/minimatch': 3.0.3
-      '@types/node': 24.12.4
+      '@types/node': 24.13.2
 
   '@types/glob@7.1.1':
     dependencies:
