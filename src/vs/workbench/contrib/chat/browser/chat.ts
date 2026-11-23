@@ -569,7 +569,8 @@ export interface IChatWidget {
 	readonly supportsChangingModes: boolean;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
-	reveal(item: ChatTreeItem): void;
+	/** Scrolls `item` into view; `relativeTop` places it at that fraction of the viewport, `0` at the top. */
+	reveal(item: ChatTreeItem, relativeTop?: number): void;
 	focus(item: ChatTreeItem): void;
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined;
 	getFocus(): ChatTreeItem | undefined;

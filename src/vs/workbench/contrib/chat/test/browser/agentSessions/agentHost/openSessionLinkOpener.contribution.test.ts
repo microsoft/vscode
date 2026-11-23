@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -24,7 +25,9 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../../../services/editor/comm
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from '../../../../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { ISessionSummaryHoverService } from '../../../../browser/agentSessions/sessionSummaryHoverService.js';
-import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import type { IChatRequestViewModel, IChatViewModel } from '../../../../common/model/chatViewModel.js';
+import type { IParsedChatRequest } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestOriginKind, ChatRequestOriginService } from '../../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../common/chatSessionsService.js';
 
@@ -87,6 +90,56 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			});
 		}
 	}
+
+	test('scrolls the chat a link opens to its turn', () => runWithFakedTimers({}, async () => {
+		let opener: IOpener | undefined;
+		const calls: string[] = [];
+		const turns = ['turn-0', 'turn-1'].map(id => upcastPartial<IChatRequestViewModel>({ id, message: upcastPartial<IParsedChatRequest>({ text: id }) }));
+		let focused: ChatTreeItem | undefined;
+		let rendered = true;
+		const widget = upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<IChatViewModel>({ getItems: () => turns }),
+			focus: item => { focused = rendered ? item : undefined; },
+			getFocus: () => focused,
+			reveal: (item, relativeTop) => calls.push(`reveal:${item.id}:${relativeTop}`),
+		});
+		store.add(new AgentHostOpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() {
+				override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; }
+			}(),
+			new class extends mock<IChatWidgetService>() {
+				override readonly onDidChangeFocusedWidget = Event.None;
+				override async openSession(): Promise<IChatWidget | undefined> { return widget; }
+			}(),
+			new class extends mock<IChatSessionsService>() {
+				override async activateChatSessionItemProvider(): Promise<void> { }
+			}(),
+			store.add(new ChatRequestOriginService()),
+			new class extends mock<ILinkPresentationService>() {
+				override registerLinkPresentationProvider(): IDisposable { return Disposable.None; }
+			}(),
+			new NullLogService(),
+			new class extends mock<ISessionSummaryHoverService>() {
+				override registerProvider(): IDisposable { return Disposable.None; }
+			}(),
+			new class extends mock<IPathService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override findSessionResource(): URI | undefined { return URI.parse('agent-host-copilotcli:/session'); }
+				override resolveSessionResource() { return undefined; }
+			}(),
+			new TestConfigurationService(),
+		));
+
+		assert.ok(opener);
+		await opener.open(URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/session'), 'peer-chat', 'turn-1', 'local')));
+		// A later link without a turn stops a reveal still waiting for the transcript to render.
+		rendered = false;
+		await opener.open(URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/session'), 'peer-chat', 'turn-0', 'local')));
+		await opener.open(URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/session'), 'peer-chat', undefined, 'local')));
+		rendered = true;
+		await timeout(200);
+		assert.deepStrictEqual(calls, ['reveal:turn-1:0']);
+	}));
 
 	test('opens session links in an editor when chat.agentSessions.openInEditor is enabled, revealing an existing editor like a file', async () => {
 		const backend = URI.parse('ahp-session:/session');
