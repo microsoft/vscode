@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import type { ISandboxProfile } from '../../sandbox/common/sandboxProfiles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import type { IAgentConnection } from './agentService.js';
 import { AgentHostSandboxConfigKey, getSandboxProfileAssignment, sandboxConfigSchema, sandboxSettingIdToAgentHostKey, type ISandboxConfigValue, type ISandboxProfileAssignment } from './sandboxConfigSchema.js';
 import { ActionType } from './state/protocol/actions.js';
@@ -40,6 +42,49 @@ export function assignHostSandboxProfile(connection: IAgentConnection, profile: 
 /** Calls `onChange` whenever the host's root state, and therefore possibly its assignment, changes. */
 export function watchHostSandboxProfile(connection: IAgentConnection, store: DisposableStore, onChange: () => void): void {
 	store.add(connection.rootState.onDidChange(() => onChange()));
+}
+
+/** A host's assigned profile as this machine last saw it. */
+export interface IKnownSandboxProfileAssignment {
+	readonly address: string;
+	readonly name: string;
+	readonly profile: ISandboxProfileAssignment;
+}
+
+// Per machine and not synced, like the profile library: it records what this machine last saw on each host.
+const assignmentsKey = 'chat.sandboxProfileAssignments.v1';
+
+/** Reads the last-known assignments, which remain available while hosts are disconnected and after a restart. */
+export function readSandboxProfileAssignments(storage: IStorageService): readonly IKnownSandboxProfileAssignment[] {
+	return storage.getObject<IKnownSandboxProfileAssignment[]>(assignmentsKey, StorageScope.APPLICATION_SHARED, []);
+}
+
+/** Reads the last-known assignment of the host at `address`. */
+export function readKnownHostSandboxProfile(storage: IStorageService, address: string): ISandboxProfileAssignment | undefined {
+	return readSandboxProfileAssignments(storage).find(assignment => assignment.address === address)?.profile;
+}
+
+/**
+ * Records a host's assignment as read by {@link readHostSandboxProfile}. `null` (Default) clears it;
+ * `undefined` (state unavailable) keeps the previous value so a disconnect never forgets an assignment.
+ */
+export function rememberSandboxProfileAssignment(storage: IStorageService, address: string, name: string, profile: ISandboxProfileAssignment | null | undefined): void {
+	if (profile === undefined) {
+		return;
+	}
+	const assignments = readSandboxProfileAssignments(storage);
+	const previous = assignments.find(assignment => assignment.address === address);
+	const next = profile ? { address, name, profile } : undefined;
+	if (equals(previous, next)) {
+		return;
+	}
+	const remaining = assignments.filter(assignment => assignment.address !== address);
+	storage.store(assignmentsKey, next ? [...remaining, next] : remaining, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+}
+
+/** Calls `onChange` whenever the last-known assignments change, including from another window. */
+export function watchSandboxProfileAssignments(storage: IStorageService, store: DisposableStore, onChange: () => void): void {
+	store.add(storage.onDidChangeValue(StorageScope.APPLICATION_SHARED, assignmentsKey, store)(() => onChange()));
 }
 
 /** Converts a profile from VS Code setting IDs to the host's sandbox keys. */

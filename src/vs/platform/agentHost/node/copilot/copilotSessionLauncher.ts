@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionOptions, CreateSessionOptions, SessionEvent, SessionHooks, Tool, Verbosity } from '@microsoft/copilot-sdk';
+import { mkdir } from 'fs/promises';
 import { homedir } from 'os';
 import { getEagerMcpDiagnosticLevel } from './copilotMcpServerLogs.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -68,7 +69,7 @@ import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts
 import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
 import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
 import { appendSystemMessageContent, describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
-import type { SandboxConfig } from './sandboxConfigForSdk.js';
+import { getCopilotExtensionDataDirectory, type SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 import { isModelRouterModelId } from '../../common/modelRouter.js';
@@ -1277,7 +1278,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
-		const config: ICopilotSessionConfig = { ...built.config, permissions: { ...built.config.permissions, sandbox: runtime.getLaunchSandboxConfig(plan.kind === 'resume', built.config.extensions?.enabled) } };
+		const sandbox = runtime.getLaunchSandboxConfig(plan.kind === 'resume', built.config.extensions?.enabled);
+		const config: ICopilotSessionConfig = { ...built.config, permissions: { ...built.config.permissions, sandbox } };
+		if (config.extensions?.enabled && sandbox?.enabled) {
+			const directory = getCopilotExtensionDataDirectory(this._copilotHomeService.home).fsPath;
+			if (sandbox.userPolicy?.filesystem?.readwritePaths?.includes(directory)) {
+				// The sandbox can write inside this directory but cannot create it in the protected parent.
+				await mkdir(directory, { recursive: true, mode: 0o700 });
+			}
+		}
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {

@@ -17,10 +17,16 @@ export class CopyFeedback extends Disposable {
 	private _copied = false;
 	get copied(): boolean { return this._copied; }
 
-	private readonly reset = this._register(new RunOnceScheduler(() => {
+	private readonly reset = this._register(new RunOnceScheduler(() => this.clear(), 1200));
+
+	clear(): void {
+		this.reset.cancel();
+		if (!this._copied || this._store.isDisposed) {
+			return;
+		}
 		this._copied = false;
 		this.render(false);
-	}, 1200));
+	}
 
 	constructor(
 		private readonly render: (copied: boolean) => void,

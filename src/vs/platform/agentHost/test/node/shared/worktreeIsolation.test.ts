@@ -14,7 +14,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -94,7 +94,7 @@ suite('WorktreeIsolation', () => {
 	let addWorktreeCalls: IAddWorktreeOptions[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: { worktree: URI; force: boolean }[];
-	let commitCalls: { worktree: URI; message: string }[];
+	let commitCalls: { worktree: URI; message: string; options?: ICommitOptions }[];
 	let commitError: Error | undefined;
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string; excludedFolders: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
@@ -138,8 +138,8 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
-			commitAll: async (worktree, message) => {
-				commitCalls.push({ worktree, message });
+			commit: async (worktree, message, options) => {
+				commitCalls.push({ worktree, message, options });
 				if (commitError) {
 					throw commitError;
 				}
@@ -2594,11 +2594,11 @@ suite('WorktreeIsolation', () => {
 		await archiveThroughCleanup(isolation, 'commit');
 
 		assert.deepStrictEqual({
-			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
+			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message, options: call.options })),
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
 			stillExists: worktree ? existsSync(worktree.fsPath) : false,
 		}, {
-			commitCalls: [{ worktree: worktree!.toString(), message: 'Saving uncommitted changes before archiving session' }],
+			commitCalls: [{ worktree: worktree!.toString(), message: 'Saving uncommitted changes before archiving session', options: { all: true, noVerify: true, signCommit: false } }],
 			removeCalls: [{ worktree: worktree!.toString(), force: true }],
 			stillExists: false,
 		});

@@ -34,6 +34,7 @@ export class TestAgentHostGitService implements IAgentHostGitService {
 	hasUncommittedChanges(...args: Parameters<IAgentHostGitService['hasUncommittedChanges']>) { return defaultGitService.hasUncommittedChanges(...args); }
 	createStash(...args: Parameters<IAgentHostGitService['createStash']>) { return defaultGitService.createStash(...args); }
 	commitAll(...args: Parameters<IAgentHostGitService['commitAll']>) { return defaultGitService.commitAll(...args); }
+	commit(...args: Parameters<IAgentHostGitService['commit']>) { return defaultGitService.commit(...args); }
 	mergeBranch(...args: Parameters<IAgentHostGitService['mergeBranch']>) { return defaultGitService.mergeBranch(...args); }
 	restore(...args: Parameters<IAgentHostGitService['restore']>) { return defaultGitService.restore(...args); }
 	hasUpstream(...args: Parameters<IAgentHostGitService['hasUpstream']>) { return defaultGitService.hasUpstream(...args); }
@@ -87,6 +88,7 @@ export function createNoopGitService(): IAgentHostGitService {
 		hasUncommittedChanges: async () => false,
 		createStash: async () => { },
 		commitAll: async () => { },
+		commit: async () => { },
 		mergeBranch: async () => '',
 		restore: async () => { },
 		hasUpstream: async () => false,

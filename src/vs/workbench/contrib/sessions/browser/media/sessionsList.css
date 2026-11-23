@@ -1334,6 +1334,15 @@
 		}
 	}
 
+	/*
+	 * `::before` already draws the vertical guide past a branching chat, so the
+	 * elbow clips its own vertical stroke. Otherwise the translucent inactive
+	 * stroke is painted twice where they overlap and looks more opaque.
+	 */
+	&:not(.last-chat)::after {
+		clip-path: inset(0 0 0 var(--vscode-strokeThickness));
+	}
+
 	/* A done chat listed in the Done section on its own row: aligned with session rows, without hierarchy guides. */
 	&.standalone {
 		padding-left: var(--vscode-spacing-size120);
@@ -1779,7 +1788,7 @@
  * level is the header icon and its gap, so a subgroup's header starts where its
  * parent's label does; the group's sessions and rows line up with its header.
  */
-.sessions-list-control {
+:is(.sessions-list-control, .agent-sessions-navigation-container) {
 	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
 
 	/*
@@ -1831,7 +1840,7 @@
  * Indent guides follow `workbench.tree.renderIndentGuides`, like the Explorer's.
  * The tree draws a guide for every ancestor, one nesting step apart, from the
  * center of the top-level header icons. A row shows only the guides of the
- * levels it steps in by (see `setSessionRowIndentGuides`), so a header's guide
+ * levels it steps in by (see `SessionsListIndentGuides`), so a header's guide
  * runs beside the rows indented below it, while sessions and comparisons draw
  * their own hierarchy guides to their nested rows.
  */
@@ -1852,9 +1861,26 @@
 	width: calc(var(--session-indent-guides-indented, 0) * var(--session-group-indent, 0px));
 }
 
-/* Guides run through the gap below spaced rows, like the hierarchy guides. */
+/*
+ * Guides run through the gap below spaced rows, like the hierarchy guides, but
+ * only the guides that the next row draws too, so a group's guide ends at its
+ * last row.
+ */
 .sessions-list-control.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) > .monaco-tl-row > .monaco-tl-indent {
+	--session-indent-guides-below-width: calc(var(--session-indent-guides-below, 0) * var(--session-group-indent, 0px));
 	height: calc(100% + var(--vscode-spacing-size20));
+	clip-path: polygon(
+		0 0,
+		100% 0,
+		100% calc(100% - var(--vscode-spacing-size20)),
+		var(--session-indent-guides-below-width) calc(100% - var(--vscode-spacing-size20)),
+		var(--session-indent-guides-below-width) 100%,
+		0 100%
+	);
+}
+
+.sessions-list-control.indent-items.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) > .monaco-tl-row > .monaco-tl-indent {
+	--session-indent-guides-below-width: calc(var(--session-indent-guides-below-indented, 0) * var(--session-group-indent, 0px));
 }
 
 /* Session groups render like sections, with an inline name editor. */
