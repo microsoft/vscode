@@ -22,7 +22,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
-import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
+import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL, repeatsMessageBanner } from './modelPickerHover.js';
 import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, getRoutingModelBadge, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
@@ -368,7 +368,7 @@ export class ModelCard extends DisposableStore {
 			dom.append(this.element, dom.$('.chat-model-card-description.chat-model-card-org-default', undefined, getOrganizationDefaultDescription(this._options.organizationDefaultModel.metadata.name)));
 		}
 		const description = this._options.description ?? metadata.tooltip;
-		if (description) {
+		if (description && !repeatsMessageBanner(model, description)) {
 			this._renderDescription(description, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		}
 		// Without tiers to sit below, Auto's discount follows its description.

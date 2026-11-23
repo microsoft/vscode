@@ -1161,6 +1161,15 @@ suite('ModelCard', () => {
 		}, { description: 'A model for careful reasoning.', context: '200K', settings: 0 });
 	});
 
+	test('a warning given as the model\'s tooltip is shown once, as its banner', () => {
+		const deprecation = 'Gemini 3.8 Flash has a planned deprecation date of 2026-12-14.';
+		const result = createCard({}, { model: createModel({ configurationSchema: undefined, tooltip: deprecation, warningText: { model_pending_deprecation: deprecation } }) });
+		assert.deepStrictEqual({
+			descriptions: Array.from(result.card.element.querySelectorAll('.chat-model-card-description'), element => element.textContent?.trim()),
+			warnings: Array.from(result.card.element.querySelectorAll('.chat-model-hover-warning-text'), element => element.textContent?.trim()),
+		}, { descriptions: [], warnings: [deprecation] });
+	});
+
 	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
 		const result = createCard({}, {
 			model: createModel({
