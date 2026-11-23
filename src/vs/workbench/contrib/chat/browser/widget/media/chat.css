@@ -3902,7 +3902,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: pre;
 }
 
-/* Trailing stats follow the phrase, label or activities, after the same separator. */
+/* Trailing stats follow the phrase, label or activities, after the same separator. Those keep their width and the stats
+	take what is left of the row, so a narrow row truncates the stats instead of wrapping its label or drawing them over it. */
+.chat-working-progress > .chat-working-progress-trailing-stats {
+	flex: 1 1 0;
+	min-width: 0;
+	/* No wider than their text, so their hover does not reach into the empty rest of the row. */
+	max-width: max-content;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .chat-working-progress > .chat-working-progress-trailing-stats::before {
 	content: ' \00b7  ';
 	white-space: pre;
@@ -3960,7 +3970,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
-.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
+/* Named with both of the widget's classes to outrank the pill sizing in `chatPills.css`, which otherwise ties on
+	specificity and, loaded later, keeps a pill at its full width in a row too narrow for it. */
+.chat-pills.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
 	max-width: 100%;
 	flex-shrink: 1;
 	min-width: 0;
