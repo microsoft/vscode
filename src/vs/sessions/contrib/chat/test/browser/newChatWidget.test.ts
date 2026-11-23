@@ -1570,6 +1570,7 @@ suite('NewChatWidget', () => {
 				}
 				const follow = Reflect.get(NewChatWidget.prototype, '_followSuccessor') as (this: unknown, folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string, mapResource: (resource: URI) => URI | undefined) => Promise<void>;
 				const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: unknown, options: ISelectWorkspaceOptions) => void;
+				const getProviderEnvironment = Reflect.get(NewChatWidget.prototype, '_getProviderEnvironment') as (this: unknown, providerId: string) => ISessionCreationEnvironment | undefined;
 				const requestsDevContainer = Reflect.get(NewChatWidget.prototype, '_requestsDevContainer') as (this: unknown, folderUri: URI | undefined) => boolean;
 
 				await follow.call(Object.assign(harness, {
@@ -1578,6 +1579,7 @@ suite('NewChatWidget', () => {
 					options: {},
 					_store: { isDisposed: false },
 					_reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions) { reconcile.call(this, options); },
+					_getProviderEnvironment(providerId: string) { return getProviderEnvironment.call(this, providerId); },
 					_requestsDevContainer(folderUri: URI | undefined) { return requestsDevContainer.call(this, folderUri); },
 					_onWorkspaceSelected: async (_folderUri: URI, pick: IPreferredSessionType | undefined, background: boolean | undefined) => { created.push({ pick, background }); calls.push('createDraft'); },
 				}), folder, 'agenthost-env', directFolder, 'agenthost-wsl', resource => extUri.isEqual(resource, folder) ? directFolder : undefined);
@@ -1597,7 +1599,7 @@ suite('NewChatWidget', () => {
 					target: hosted ? { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model', ...requestedType } : { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType },
 					selections: [{ origin: WorkspaceSelectionOrigin.User, persist: !hosted }],
 					created: [{ pick: { providerId: 'agenthost-wsl', sessionTypeId: requested ?? 'copilot' }, background: true }],
-					calls: ['remapDraft:wsl', 'saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container' : 'Environment: WSL'],
+					calls: ['remapDraft:wsl', 'saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container for Folder' : 'Environment: WSL'],
 				});
 			});
 		}
