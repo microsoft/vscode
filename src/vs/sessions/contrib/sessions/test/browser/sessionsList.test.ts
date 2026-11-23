@@ -9051,6 +9051,68 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('runs indent guides through the gap below a row only as far as the next row continues them', () => {
+			const outline = (indentItems: boolean) => {
+				const { container } = render(SessionsGrouping.Workspace, new Map(), false, {
+					'workbench.tree.renderIndentGuides': 'onHover',
+					[SESSIONS_LIST_INDENT_ITEMS_SETTING]: indentItems,
+				});
+				const variant = indentItems ? '-indented' : '';
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row.session-list-inset-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => `${labelOf(row)}: ${row.style.getPropertyValue(`--session-indent-guides-below${variant}`)} of ${row.style.getPropertyValue(`--session-indent-guides${variant}`)}`);
+			};
+
+			assert.deepStrictEqual({ indentItemsOff: outline(false), indentItemsOn: outline(true) }, {
+				indentItemsOff: [
+					'Patch CVE: 1 of 2',
+					'Fix login: 1 of 1',
+					'Ship notes: 0 of 0',
+					'Flaky test: 0 of 0',
+					'Ungrouped: 0 of 0',
+				],
+				indentItemsOn: [
+					'Patch CVE: 2 of 3',
+					'Fix login: 1 of 2',
+					'Ship notes: 0 of 1',
+					'Flaky test: 0 of 1',
+					'Ungrouped: 0 of 1',
+				],
+			});
+		});
+
+		test('runs a section\'s indent guide through the gap below its last session only while another session is listed below it', () => {
+			const now = Date.now();
+			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', createdAt: new Date(now - minutesAgo * 60_000) }).session;
+			const newer = session('Newer', 1);
+			const older = session('Older', 2);
+			const harness = createListHarness(disposables, [newer]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const guidesBelow = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row.session-list-inset-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.map(row => `${labelOf(row)}: ${row.style.getPropertyValue('--session-indent-guides-below-indented')}`);
+
+			const alone = guidesBelow();
+			harness.managementService.sessions = [newer, older];
+			list.refresh();
+			const followed = guidesBelow();
+			harness.managementService.sessions = [newer];
+			list.refresh();
+			const aloneAgain = guidesBelow();
+
+			assert.deepStrictEqual({ alone, followed, aloneAgain }, {
+				alone: ['Newer: 0'],
+				followed: ['Newer: 1', 'Older: 0'],
+				aloneAgain: ['Newer: 0'],
+			});
+		});
+
 		test('draws indent guides outside Stable only', () => {
 			const renderedGuides = (quality: string | undefined) => {
 				const harness = createListHarness(disposables, [createTestSession('Session', { workspaceLabel: 'vscode' }).session], instantiationService => {
@@ -16271,6 +16333,22 @@ suite('Sessions - SessionsList', () => {
 			test('guides are hidden at rest', () => {
 				const { container } = twoSessionContainer();
 				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+			});
+
+			test('a session runs its section\'s indent guide through the gap below it only while a row of the section follows', () => {
+				const { container } = twoSessionContainer();
+				const guidesBelow = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row.session-list-inset-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => `${row.querySelector('.session-title, .session-chat-title')?.textContent}: ${row.style.getPropertyValue('--session-indent-guides-below-indented')}`);
+
+				const expanded = guidesBelow();
+				setSessionChatsExpanded(container, false, 'Other session');
+				const collapsed = guidesBelow();
+
+				assert.deepStrictEqual({ expanded, collapsed }, {
+					expanded: ['Session: 1', 'Peer chat: 1', 'Other session: 1', 'Other peer chat: 0'],
+					collapsed: ['Session: 1', 'Peer chat: 1', 'Other session: 0'],
+				});
 			});
 
 			test('hovering the pane keeps the twistie and row actions to the row under the pointer', () => {
