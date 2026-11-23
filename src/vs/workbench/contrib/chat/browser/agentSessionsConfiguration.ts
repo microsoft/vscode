@@ -168,8 +168,8 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.Co
 	migrateUserSettingsSeparately: true,
 	migrateFn: (value, accessor) => {
 		const pairs: ConfigurationKeyValuePairs = [[legacyOpenSessionsInEditorSetting, { value: undefined }]];
-		if (value === true && accessor(ChatConfiguration.ChatViewSessionsOpenChatIn) === undefined) {
-			pairs.push([ChatConfiguration.ChatViewSessionsOpenChatIn, { value: ChatViewSessionsOpenChatIn.EditorArea }]);
+		if (typeof value === 'boolean' && accessor(ChatConfiguration.ChatViewSessionsOpenChatIn) === undefined) {
+			pairs.push([ChatConfiguration.ChatViewSessionsOpenChatIn, { value: value ? ChatViewSessionsOpenChatIn.EditorArea : ChatViewSessionsOpenChatIn.ChatPanel }]);
 		}
 		return pairs;
 	},
