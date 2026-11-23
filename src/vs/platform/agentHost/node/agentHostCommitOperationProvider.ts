@@ -7,8 +7,9 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetKind } from '../common/changesetUri.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation, type ISessionGitState } from '../common/state/sessionState.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -34,12 +35,17 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ sessionKey, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+	getOperations({ sessionKey, ownerKey, changesetUri, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
 		// Commit always commits every uncommitted change in the working directory,
 		// so it is only advertised on changesets that show exactly those changes:
-		// the uncommitted changeset, and the branch changeset of a session that
-		// works directly on its base branch without outgoing commits.
-		if (changesetKind !== ChangesetKind.Uncommitted && !(changesetKind === ChangesetKind.Branch && isOnBaseBranchWithoutOutgoingCommits(gitState))) {
+		// the uncommitted changeset, and the branch changeset of a single-repository
+		// owner that works directly on its base branch without outgoing commits.
+		// A multi-repository branch changeset shows the changes of every repository,
+		// while Commit, like the git state, covers only the first one.
+		const isCommittableBranchChangeset = changesetKind === ChangesetKind.Branch
+			&& isOnBaseBranchWithoutOutgoingCommits(gitState)
+			&& resolveChangesetOwnerScope(this._stateManager, ownerKey ?? parseChangesetUri(changesetUri)?.ownerUri ?? sessionKey).workingDirectories.length === 1;
+		if (changesetKind !== ChangesetKind.Uncommitted && !isCommittableBranchChangeset) {
 			return [];
 		}
 
