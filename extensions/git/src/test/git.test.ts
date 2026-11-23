@@ -63,33 +63,34 @@ suite('git', () => {
 				await git.exec(directory, ['config', 'user.name', 'Pathspec Tester']);
 				await git.exec(directory, ['config', 'user.email', 'pathspec@example.com']);
 				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
-				await fs.promises.writeFile(path.join(directory, 'another.md'), 'one\n');
-				await fs.promises.writeFile(path.join(directory, '*.md'), 'one\n');
-				await git.exec(directory, ['add', '--', 'another.md', ':(literal)*.md']);
+				// As a glob, `[target].md` also matches `t.md`. Unlike `*`, brackets are valid in file names on Windows.
+				await fs.promises.writeFile(path.join(directory, 't.md'), 'one\n');
+				await fs.promises.writeFile(path.join(directory, '[target].md'), 'one\n');
+				await git.exec(directory, ['add', '--', 't.md', ':(literal)[target].md']);
 				await git.exec(directory, ['commit', '-m', 'initial']);
-				await fs.promises.writeFile(path.join(directory, 'another.md'), 'two\n');
-				await fs.promises.writeFile(path.join(directory, '*.md'), 'two\n');
+				await fs.promises.writeFile(path.join(directory, 't.md'), 'two\n');
+				await fs.promises.writeFile(path.join(directory, '[target].md'), 'two\n');
 
 				const dotGit = await git.getRepositoryDotGit(directory);
 				const repository = git.open(directory, undefined, dotGit, logger);
 				const getStaged = async () => (await git.exec(directory, ['diff', '--cached', '--name-only'])).stdout.trim().split('\n').filter(Boolean);
-				const starFile = path.join(directory, '*.md');
+				const globFile = path.join(directory, '[target].md');
 
-				await repository.add([starFile], { update: true });
+				await repository.add([globFile], { update: true });
 				const stagedAfterAdd = await getStaged();
 
-				await repository.add([path.join(directory, 'another.md')], { update: true });
-				await repository.revert('HEAD', [starFile]);
+				await repository.add([path.join(directory, 't.md')], { update: true });
+				await repository.revert('HEAD', [globFile]);
 				const stagedAfterRevert = await getStaged();
 
-				await repository.add([starFile], { update: true });
-				await repository.restore([starFile], { staged: true });
+				await repository.add([globFile], { update: true });
+				await repository.restore([globFile], { staged: true });
 				const stagedAfterRestore = await getStaged();
 
 				assert.deepStrictEqual({ stagedAfterAdd, stagedAfterRevert, stagedAfterRestore }, {
-					stagedAfterAdd: ['*.md'],
-					stagedAfterRevert: ['another.md'],
-					stagedAfterRestore: ['another.md']
+					stagedAfterAdd: ['[target].md'],
+					stagedAfterRevert: ['t.md'],
+					stagedAfterRestore: ['t.md']
 				});
 			} finally {
 				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
