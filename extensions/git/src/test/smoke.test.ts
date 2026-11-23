@@ -300,7 +300,7 @@ suite('git smoke test', function () {
 
 	test('a closed repository runs the operations of an extension that still holds it', async function () {
 		const model = getModel();
-		const repositoryPath = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
 		cp.execSync('git init -b main', { cwd: repositoryPath });
 		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: repositoryPath });
 
@@ -326,8 +326,9 @@ suite('git smoke test', function () {
 	test('closing a parent repository closes its worktree', async function () {
 		const model = getModel();
 
-		// Use real paths, because the worktree finds its parent by the path of the common .git folder
-		const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		// The worktree finds its parent by the path of the common .git folder, which git reports in full. Unlike
+		// fs.realpathSync, the native real path also expands Windows short names such as RUNNER~1.
+		const base = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
 		const parentPath = path.join(base, 'parent');
 		const worktreePath = path.join(base, 'worktree');
 		fs.mkdirSync(parentPath);
@@ -336,25 +337,26 @@ suite('git smoke test', function () {
 		cp.execSync(`git worktree add -b worktree "${worktreePath}"`, { cwd: parentPath });
 
 		try {
-			await git.openRepository(Uri.file(parentPath));
+			const parentRepository = (await git.openRepository(Uri.file(parentPath)))!;
 			const worktreeRepository = (await git.openRepository(Uri.file(worktreePath)))!;
-			assert.strictEqual(model.getRepository(worktreePath)!.parentRoot, parentPath);
+			const worktreeFoundParent = model.getRepository(worktreeRepository.rootUri)!.parentRoot !== undefined;
 
-			// The worktree closes while its parent is still open
+			// The worktree closes while its parent is still open. Compare URIs rather than paths, because on
+			// Windows Uri.fsPath lowercases the drive letter.
 			const parentOpenWhenWorktreeCloses: boolean[] = [];
 			const listener = git.onDidCloseRepository(r => {
-				if (r.rootUri.fsPath === worktreePath) {
-					parentOpenWhenWorktreeCloses.push(git.getRepository(Uri.file(parentPath)) !== null);
+				if (r.rootUri.toString() === worktreeRepository.rootUri.toString()) {
+					parentOpenWhenWorktreeCloses.push(git.getRepository(parentRepository.rootUri) !== null);
 				}
 			});
-			model.close(model.getRepository(parentPath)!);
+			model.close(model.getRepository(parentRepository.rootUri)!);
 			listener.dispose();
 
 			// An extension that still holds the worktree can run operations on it
 			const commit = await worktreeRepository.getCommit('HEAD');
 			assert.deepStrictEqual(
-				{ repositories: git.repositories.map(r => r.rootUri.fsPath), parentOpenWhenWorktreeCloses, message: commit.message },
-				{ repositories: [cwd], parentOpenWhenWorktreeCloses: [true], message: 'initial commit' });
+				{ worktreeFoundParent, repositories: git.repositories.map(r => r.rootUri.fsPath), parentOpenWhenWorktreeCloses, message: commit.message },
+				{ worktreeFoundParent: true, repositories: [cwd], parentOpenWhenWorktreeCloses: [true], message: 'initial commit' });
 		} finally {
 			// On Windows, the closed repositories' watchers can hold the folder for a moment
 			await fs.promises.rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
