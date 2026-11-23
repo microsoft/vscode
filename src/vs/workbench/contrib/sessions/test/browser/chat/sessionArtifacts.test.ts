@@ -10,6 +10,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { HoverAction } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -35,7 +36,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { GitHubCommit } from '../../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { NullSharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { getChatPillEntryHoverActions, type IChatPillEntry } from '../../../../../browser/chatPills.js';
+import { getChatPillEntryHoverActions, getChatPillEntryHoverOptions, type IChatPillEntry } from '../../../../../browser/chatPills.js';
 import { ChatPillHoverCache } from '../../../../../browser/chatPillHover.js';
 import { FileDownload } from '../../../../files/browser/fileImportExport.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../chat/browser/chatImageCarouselService.js';
@@ -1346,6 +1347,58 @@ suite('Session Artifacts', () => {
 				[{ copy: true, check: false, ariaLabel: 'Copy Issue Link' }, { copy: true, check: false, ariaLabel: 'Copy URI' }],
 			],
 			copied: [issue.toString(true), resource.toString(true), issue.toString(true)],
+		});
+	});
+
+	test('single reference hover footer keeps the hover open and shows copy feedback', async () => {
+		const clock = sinon.useFakeTimers();
+		const link = URI.parse('https://github.com/microsoft/vscode/issues/349857');
+		const harness = createPresentation([{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, link }]);
+		const hoverActions = getChatPillEntryHoverOptions(harness.presentation.referenceSections.get()[0].entries[0])!.actions!;
+		const container = mainWindow.document.createElement('div');
+		const rendered = hoverActions.map(action => disposables.add(HoverAction.render(container, action, null)));
+		const footer = () => rendered.map(action => ({
+			label: action.actionLabel,
+			check: !!action.actionContainer.querySelector('.codicon-check'),
+		}));
+		const states = [footer()];
+		hoverActions[0].run(container);
+		await clock.tickAsync(0);
+		states.push(footer());
+		clock.tick(1200);
+		states.push(footer());
+
+		assert.deepStrictEqual({ keepOpenOnRun: hoverActions.map(action => action.keepOpenOnRun), states, copied: harness.copied }, {
+			keepOpenOnRun: [true, undefined],
+			states: [
+				[{ label: 'Copy URL', check: false }, { label: 'Remove Reference', check: false }],
+				[{ label: 'Copied', check: true }, { label: 'Remove Reference', check: false }],
+				[{ label: 'Copy URL', check: false }, { label: 'Remove Reference', check: false }],
+			],
+			copied: [link.toString(true)],
+		});
+	});
+
+	test('generated image copy feedback survives unrelated reference changes', async () => {
+		const { presentation, chat, chatModels, artifacts } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model, invocation } = createImageModel(resource);
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'embed', value: 'AQID', mimeType: 'image/png' }] },
+		});
+		chatModels.set([model], undefined);
+		const copyAction = () => presentation.sections.get()[0].entries[0].toolbarActions!.find(action => action.id.includes('.copy'))!;
+		const action = copyAction();
+		await action.run();
+		artifacts.set([{ id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link: URI.parse('https://example.com/reference') }], undefined);
+		const afterChange = copyAction();
+
+		assert.deepStrictEqual({ sameAction: action === afterChange, label: afterChange.label, icon: afterChange.class }, {
+			sameAction: true,
+			label: 'Copied',
+			icon: 'codicon codicon-check',
 		});
 	});
 

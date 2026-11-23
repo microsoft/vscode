@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -423,6 +423,43 @@ suite('HoverService', () => {
 				scrollbarPadding: ''
 			});
 			hover.dispose();
+		});
+
+		test('keeps a hover open and re-renders an action that opts in, and closes for others', () => {
+			const onDidChange = store.add(new Emitter<void>());
+			let label = 'Copy';
+			let iconClass = 'codicon codicon-copy';
+			const hover = showHover('Footer actions', undefined, {
+				actions: [{
+					commandId: 'test.copy',
+					get label() { return label; },
+					get iconClass() { return iconClass; },
+					keepOpenOnRun: true,
+					onDidChange: onDidChange.event,
+					run: () => {
+						label = 'Copied';
+						iconClass = 'codicon codicon-check';
+						onDidChange.fire();
+					},
+				}, {
+					commandId: 'test.close',
+					label: 'Close',
+					run: () => { }
+				}]
+			});
+			const actionContainers = () => [...asHoverWidget(hover).domNode.querySelectorAll<HTMLElement>('.action-container')];
+			const state = () => ({
+				inDOM: isInDOM(hover),
+				actions: actionContainers().map(action => ({ text: action.textContent, check: !!action.querySelector('.codicon-check') })),
+			});
+			actionContainers()[0].click();
+			const afterKeptOpen = state();
+			actionContainers()[1].click();
+
+			assert.deepStrictEqual({ afterKeptOpen, afterClose: isInDOM(hover) }, {
+				afterKeptOpen: { inDOM: true, actions: [{ text: 'Copied', check: true }, { text: 'Close', check: false }] },
+				afterClose: false,
+			});
 		});
 
 		test('should call onDidShow callback when hover is shown', () => {

@@ -6,6 +6,7 @@
 import type { IHoverDelegate } from './hoverDelegate.js';
 import type { HoverPosition } from './hoverWidget.js';
 import type { CancellationToken } from '../../../common/cancellation.js';
+import type { Event } from '../../../common/event.js';
 import type { IMarkdownString } from '../../../common/htmlContent.js';
 import type { AnchorAlignment } from '../../../common/layout.js';
 import type { IDisposable } from '../../../common/lifecycle.js';
@@ -397,6 +398,18 @@ export interface IHoverAction {
 	 * An optional class of an icon that will be displayed before the label.
 	 */
 	iconClass?: string;
+
+	/**
+	 * Whether the hover stays open after the action runs, for example so the action can show
+	 * its result. Hovers close after running an action by default.
+	 */
+	keepOpenOnRun?: boolean;
+
+	/**
+	 * Fires when {@link label} or {@link iconClass} change, so the rendered action can update
+	 * in place.
+	 */
+	onDidChange?: Event<void>;
 
 	/**
 	 * The callback to run the action.

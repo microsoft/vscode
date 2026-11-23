@@ -123,6 +123,10 @@ export interface IChatPillEntry {
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;
+	/** Keeps the hover open after its footer action runs, so the action can show its result, such as a Copied confirmation. */
+	readonly keepsHoverOpenOnRun?: boolean;
+	/** Fires when the label, hover label or icon change, so a rendered hover footer action updates in place. */
+	readonly onDidChange?: Event<unknown>;
 }
 
 /** View item options of an entry's {@link IChatPillEntry.inlinePill}. */
@@ -386,8 +390,10 @@ export function getChatPillEntryHoverOptions(entry: IChatPillEntry | undefined):
 		trapFocus: true,
 		actions: actions.map(action => ({
 			commandId: action.id,
-			label: action.hoverLabel ?? action.label,
-			iconClass: action.class,
+			get label() { return action.hoverLabel ?? action.label; },
+			get iconClass() { return action.class; },
+			keepOpenOnRun: action.keepsHoverOpenOnRun,
+			onDidChange: action.onDidChange && Event.signal(action.onDidChange),
 			run: () => { void action.run(); },
 		})),
 	} : undefined;

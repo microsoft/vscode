@@ -69,12 +69,25 @@ import { activateHostPane } from '../sessionActionRunner.js';
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
 
-class CopyFeedbackAction extends Action {
+const copiedLabel = localize('sessionChatPills.copied', "Copied");
+
+class CopyFeedbackAction extends Action implements IChatPillAction {
+	readonly keepsHoverOpenOnRun = true;
 	private _copyVersion = 0;
+	private _hoverLabel: string | undefined;
 	private readonly _feedback = this._register(new CopyFeedback(copied => {
-		this.label = copied ? localize('sessionChatPills.copied', "Copied") : this._copyLabel;
+		this.label = copied ? copiedLabel : this._copyLabel;
 		this.class = ThemeIcon.asClassName(copied ? Codicon.check : Codicon.copy);
 	}));
+
+	/** The concise hover footer label, which shows the confirmation while feedback is visible. */
+	get hoverLabel(): string | undefined {
+		return this._feedback.copied ? copiedLabel : this._hoverLabel;
+	}
+
+	set hoverLabel(value: string | undefined) {
+		this._hoverLabel = value;
+	}
 
 	constructor(id: string, private _copyLabel: string, private _copy: () => Promise<void>, private _copyValue: string) {
 		super(id, _copyLabel, ThemeIcon.asClassName(Codicon.copy));
@@ -721,23 +734,9 @@ export class SessionArtifacts extends Disposable {
 		// The session publishes every chat's records; this surface shows only the focused chat's, like the GitHub pills.
 		const chatArtifacts = derived(this, reader => getChatSessionArtifacts(session.read(reader), chat.read(reader), reader));
 		this._artifactIds = derived(this, reader => new Set(chatArtifacts.read(reader).filter(artifact => artifact.isArtifact).map(artifact => artifact.id)));
-		let copyActionOwner: string | undefined;
 		this._register(autorun(reader => {
 			const current = session.read(reader);
 			const artifacts = chatArtifacts.read(reader);
-			const currentCopyActionOwner = current
-				? JSON.stringify([current.providerId, current.sessionId, (chat.read(reader)?.resource ?? current.resource).toString()])
-				: undefined;
-			if (currentCopyActionOwner !== copyActionOwner) {
-				this._copyActions.clearAndDisposeAll();
-				copyActionOwner = currentCopyActionOwner;
-			}
-			const artifactIds = new Set(artifacts.map(artifact => artifact.id));
-			for (const id of this._copyActions.keys()) {
-				if (!artifactIds.has(id)) {
-					this._copyActions.deleteAndDispose(id);
-				}
-			}
 			commitHoverCache.retain(new Set(artifacts.filter(artifact => artifact.kind === SessionArtifactKind.Commit).map(artifact => artifact.id)), current?.sessionId);
 			gitHubResolver.retain(artifacts.flatMap(artifact =>
 				!artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [{ identity: artifact, resource: artifact.link }] : []), current && !current.loading.read(reader) ? current.sessionId : undefined);
@@ -874,12 +873,16 @@ export class SessionArtifacts extends Disposable {
 			}
 			return images;
 		});
-		let copyOwner: ISession | undefined;
+		// Copy feedback belongs to the focused chat's records and generated images; a new owner starts fresh.
+		let copyActionOwner: string | undefined;
 		this._register(autorun(reader => {
 			const current = session.read(reader);
-			if (current !== copyOwner) {
+			const currentCopyActionOwner = current
+				? JSON.stringify([current.providerId, current.sessionId, (chat.read(reader)?.resource ?? current.resource).toString()])
+				: undefined;
+			if (currentCopyActionOwner !== copyActionOwner) {
 				this._copyActions.clearAndDisposeAll();
-				copyOwner = current;
+				copyActionOwner = currentCopyActionOwner;
 			}
 			const ids = new Set([...chatArtifacts.read(reader), ...generatedImages.read(reader)].map(artifact => artifact.id));
 			for (const id of this._copyActions.keys()) {
