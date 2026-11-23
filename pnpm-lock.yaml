@@ -1121,9 +1121,6 @@ importers:
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
-      monaco-editor:
-        specifier: 0.44.0
-        version: 0.44.0
       openai:
         specifier: ^6.7.0
         version: 6.7.0(ws@8.21.0)(zod@4.4.3)
