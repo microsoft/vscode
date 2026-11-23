@@ -24502,24 +24502,29 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ asked: asked.kind, afterAsk, answered }, { asked: 'consentRequired', afterAsk: 1, answered: 'opened' });
 		}).timeout(30_000);
 
-		for (const closeFirst of [false, true]) {
-			test(`a workspace-less draft whose runtime was released with a canvas open ${closeFirst ? 'closes it without starting, and does not reopen it' : 'reopens it in the runtime that starts it again'}`, async () => {
+		for (const mode of ['send', 'close', 'observe'] as const) {
+			const title = {
+				send: 'reopens it in the runtime its first send starts',
+				close: 'closes it without starting, and does not reopen it',
+				observe: 'restores it without a send for a window that observes and contributes to it',
+			}[mode];
+			test(`a workspace-less draft whose runtime was released with a canvas open ${title}`, async () => {
 				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-release-home-`));
 				const preview = { instanceId: 'preview', canvasId: 'preview', extensionId: 'user:preview', title: 'Preview', input: {}, url: 'https://example.test/preview' };
 				let launched = 0;
 				const onSdkSession = (sdkSession: MockCopilotSession) => {
 					sdkSession.canvases.push({ canvasId: 'preview', extensionId: 'user:preview', displayName: 'Preview', description: 'A preview.' });
-					// A runtime launched again lists the canvas before its extension registers it, which it then reports.
+					// A runtime launched again lists the canvas before its extension registers it. Another extension reports
+					// its registration first, and the canvas's own registration follows.
 					const open = sdkSession.rpc.canvas.open;
-					const relaunched = launched++ > 0;
-					let registered = closeFirst || !relaunched;
+					let unregisteredOpens = launched++ > 0 && mode !== 'close' ? 2 : 0;
 					sdkSession.rpc.canvas.open = async params => {
-						if (!registered) {
-							registered = true;
+						if (unregisteredOpens > 0) {
+							unregisteredOpens--;
 							void timeout(5).then(() => sdkSession.emit({ id: 'canvas-registry', timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true, type: 'session.canvas.registry_changed', data: { canvases: [] } }));
 							throw new Error('Request session.canvas.open failed with message: Canvas "user:preview/preview" is not registered.');
 						}
-						return open(params);
+						return { ...await open(params), url: preview.url };
 					};
 				};
 				const h = await createWarmableAgent('warm-workspaceless-canvas-release', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true }, onSdkSession });
@@ -24533,26 +24538,38 @@ suite('CopilotAgent', () => {
 				h.sdkSessions[0].emit({ id: 'canvas-open', timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true, type: 'session.canvas.opened', data: preview });
 				const signals: AgentSignal[] = [];
 				disposables.add(h.agent.onDidChatProgress(signal => signals.push(signal)));
+				const canvasStates = () => signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
 				const sdkSessionId = h.sdkSessionId();
 				await h.agent.chats.releaseChat(h.chat, h.context, { reason: () => 'idle', canContinue: () => true });
 				// Nothing was sent, so the runtime persisted no history and a restart restores the chat as a draft, workspace-less as the host recorded it.
 				await sessionStateStoresByAgent.get(h.agent)!.writeMetadata(session, session, { [AH_META_WORKSPACELESS_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
 				await h.agent.materializeChat(h.chat, h.context, JSON.stringify({ sdkSessionId }));
-				if (closeFirst) {
-					const resource = signals.find((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas')?.resource;
-					assert.ok(resource);
-					await h.agent.closeSessionCanvas!(session, { resource }, h.chat, h.context);
+				if (mode === 'observe') {
+					// A pin observes the chat and contributes its window, which restores the released canvases.
+					const watch = h.agent.watchChatCanvases(h.chat, { published: () => [], resolveContext: async () => h.context });
+					contributeActiveClient(h.agent, h.chat, h.context);
+					const restoration = (h.agent as unknown as { _canvasRestores: { get(chat: URI): Promise<void> | undefined } })._canvasRestores.get(h.chat);
+					assert.ok(restoration);
+					await restoration;
+					await timeout(50);
+					watch.dispose();
+				} else {
+					if (mode === 'close') {
+						const resource = canvasStates()[0]?.resource;
+						assert.ok(resource);
+						await h.agent.closeSessionCanvas!(session, { resource }, h.chat, h.context);
+					}
+					// A runtime launched early, before the released canvases are handed over, cannot take them.
+					await h.agent.chats.warmChat!(h.chat, h.context);
+					await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, 'turn-1', undefined, h.sendContext);
+					await timeout(50);
 				}
-				// A runtime launched early, before the released canvases are handed over, cannot take them.
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, 'turn-1', undefined, h.sendContext);
-				await timeout(50);
 
-				assert.deepStrictEqual({ prewarm: h.state().prewarm, opens: h.sdkSessions.map(s => s.canvasOpenCalls.map(call => call.instanceId)), sends: h.sdkSessions.map(s => s.sendCalls) }, {
-					prewarm: ['canvasContinuity'],
-					opens: [['preview'], [], closeFirst ? [] : ['preview']],
-					sends: [0, 0, 1],
-				});
+				assert.deepStrictEqual({ prewarm: h.state().prewarm, opens: h.sdkSessions.map(s => s.canvasOpenCalls.map(call => call.instanceId)), sends: h.sdkSessions.map(s => s.sendCalls), source: canvasStates().at(-1)?.state.uri }, {
+					send: { prewarm: ['canvasContinuity'], opens: [['preview'], [], ['preview']], sends: [0, 0, 1], source: preview.url },
+					close: { prewarm: ['canvasContinuity'], opens: [['preview'], [], []], sends: [0, 0, 1], source: undefined },
+					observe: { prewarm: [], opens: [['preview'], ['preview']], sends: [0, 0], source: preview.url },
+				}[mode]);
 			}).timeout(30_000);
 		}
 
