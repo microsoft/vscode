@@ -1183,6 +1183,7 @@ suite('ActivitybarPart', () => {
 			override getViewContainersByLocation(location: ViewContainerLocation) { return viewContainers.filter(viewContainer => getLocation(viewContainer) === location); }
 			override getViewContainerById(id: string) { return viewContainers.find(viewContainer => viewContainer.id === id) ?? null; }
 			override getViewContainerLocation(viewContainer: ViewContainer) { return getLocation(viewContainer); }
+			override getViewContainerBadgeEnablementState() { return true; }
 			override getViewContainerModel(viewContainer: ViewContainer) {
 				return new class extends mock<IViewContainerModel>() {
 					override readonly viewContainer = viewContainer;
@@ -1203,6 +1204,8 @@ suite('ActivitybarPart', () => {
 			storageService,
 			storePinned,
 			getStoredPinned: () => JSON.parse(storageService.get(ActivitybarPart.pinnedViewContainersKey, StorageScope.PROFILE, '[]')),
+			// What a bar knows about view containers whose extensions are not registered yet
+			storePlaceholders: (placeholders: { id: string; name: string; views: { when?: string }[] }[]) => storageService.store(ActivitybarPart.placeholderViewContainersKey, JSON.stringify(placeholders), StorageScope.PROFILE, StorageTarget.MACHINE),
 			moveViewContainer: (viewContainer: ViewContainer, to: ViewContainerLocation) => {
 				const from = getLocation(viewContainer);
 				locations.set(viewContainer.id, to);
@@ -1219,6 +1222,33 @@ suite('ActivitybarPart', () => {
 		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
 
 		assert.deepStrictEqual(bar.getPinnedPaneCompositeIds(), ['search']);
+	});
+
+	test('a bar keeps showing the view container of an extension when the pinned view containers change before extensions are registered', () => {
+		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }], [createViewContainer('explorer')]);
+		storePlaceholders([{ id: 'extension', name: 'Extension', views: [{}] }]);
+		const bar = createBar();
+
+		// Another window reorders the pinned view containers while this window starts
+		storePinned([{ id: 'extension', pinned: true, visible: true }, { id: 'explorer', pinned: true, visible: true }]);
+
+		assert.deepStrictEqual(bar.getPaneCompositeIds(), ['extension', 'explorer']);
+	});
+
+	test('a rendered bar overflows when another window adds the view container of an extension before extensions are registered', () => {
+		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
+		const bar = createBar();
+		const parent = document.createElement('div');
+		fixture.appendChild(parent);
+		bar.create(parent);
+		bar.layout(48, 100);
+
+		// Another window installs an extension with a view container. Storage applies the placeholders before it reports the pinned view containers
+		storePlaceholders([{ id: 'explorer', name: 'explorer', views: [] }, { id: 'search', name: 'search', views: [] }, { id: 'extension', name: 'Extension', views: [{}] }]);
+		storePinned([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }]);
+
+		// Three items of 48px do not fit into 100px: the first item and the overflow action are shown
+		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
 	});
 
 	test('a bar that a view container moves to keeps the pinned view containers that another window saved with the move', () => {

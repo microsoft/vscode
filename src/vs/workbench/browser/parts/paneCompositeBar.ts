@@ -647,7 +647,13 @@ export class PaneCompositeBar extends Disposable {
 					isBuiltin: !viewContainer.extensionId
 				});
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
+				// Until extensions are registered, a view container of an extension keeps what the cache knows about it.
+				// Otherwise the bar would hide it when it reads the saved state again, for example after another window
+				// changed the pinned view containers
+				const cachedViewContainer = this.hasExtensionsRegistered ? undefined : this.cachedViewContainers.find(({ id }) => id === compositeItem.id);
+				state.push(cachedViewContainer
+					? { ...cachedViewContainer, pinned: compositeItem.pinned, order: compositeItem.order }
+					: { id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
 			}
 		}
 

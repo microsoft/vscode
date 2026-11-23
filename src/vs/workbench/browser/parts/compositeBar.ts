@@ -268,6 +268,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
 		this.model.setItems(items);
+
+		// Items that were not shown before, for example the view container of an extension that another
+		// window added, need their size to compute which items overflow
+		const itemsWithoutSize = this.model.visibleItems.filter(item => !this.compositeSizeInBar.has(item.id));
+		if (itemsWithoutSize.length) {
+			this.computeSizes(itemsWithoutSize);
+		}
+
 		this.updateCompositeSwitcher(true);
 	}
 
