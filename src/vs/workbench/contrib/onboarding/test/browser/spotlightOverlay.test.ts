@@ -635,6 +635,48 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('without the backdrop leaves the rest of the window interactive', () => {
+		const container = createContainer();
+		const previous = $('input');
+		container.appendChild(previous);
+		previous.focus();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		const elsewhere = $('button.test-spotlight-elsewhere');
+		Object.assign(elsewhere.style, { position: 'fixed', left: '400px', top: '10px', width: '40px', height: '20px' });
+		container.appendChild(elsewhere);
+		const callout = container.getElementsByClassName('spotlight-callout')[0] as HTMLElement;
+		const skipReasons: OnboardingDismissReason[] = [];
+		disposables.add(overlay.onDidSkip(reason => skipReasons.push(reason)));
+		overlay.setBackdropVisible(false);
+
+		overlay.show(target, content(), { targetOverlayVisible: true });
+		const calloutRect = callout.getBoundingClientRect();
+		const calloutHit = mainWindow.document.elementFromPoint(calloutRect.left + calloutRect.width / 2, calloutRect.top + calloutRect.height / 2);
+		const elsewhereHit = mainWindow.document.elementFromPoint(420, 20);
+		elsewhere.focus();
+		elsewhere.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		overlay.show(createTarget(container, 100, 100, 80, 30), content(), { targetOverlayVisible: true, preserveFocus: true });
+		const focusedAfterReplacement = mainWindow.document.activeElement;
+		overlay.dispose();
+
+		assert.deepStrictEqual({
+			calloutHit: !!calloutHit && callout.contains(calloutHit),
+			elsewhereHit: elsewhereHit === elsewhere,
+			ariaModal: callout.getAttribute('aria-modal'),
+			skipReasons,
+			focusedAfterReplacement: focusedAfterReplacement === elsewhere,
+			focusedAfterDispose: mainWindow.document.activeElement === elsewhere,
+		}, {
+			calloutHit: true,
+			elsewhereHit: true,
+			ariaModal: 'false',
+			skipReasons: [],
+			focusedAfterReplacement: true,
+			focusedAfterDispose: true,
+		});
+	});
+
 	test('highlights additional elements together with the target and keeps focus in them when the callout is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
