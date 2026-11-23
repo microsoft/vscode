@@ -5,8 +5,10 @@
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { disposableTimeout, Limiter } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { type ISettableObservable, observableValue, waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { getAgentHostPathStyle, type IAgentHostEnvironmentConnection } from './agentHostPathStyle.js';
@@ -168,8 +170,12 @@ interface IAuthorityEntry {
 	 * Empty while the entry is inside the grace window.
 	 */
 	connections: IRemoteFilesystemConnection[];
-	activeConnectionVersion: number;
-	readonly onDidChangeActiveConnection: Emitter<void>;
+	/**
+	 * Incremented whenever the active connection changes, including when
+	 * the entry enters the grace window or is evicted. In-flight operations
+	 * wait on it, so a burst of concurrent reads adds one observer each.
+	 */
+	readonly activeConnectionVersion: ISettableObservable<number>;
 	/**
 	 * Pending eviction timer; armed while {@link connections} is empty,
 	 * cleared on re-registration or eviction.
@@ -258,8 +264,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		if (!entry) {
 			entry = {
 				connections: [connection],
-				activeConnectionVersion: 0,
-				onDidChangeActiveConnection: new Emitter<void>(),
+				activeConnectionVersion: observableValue(this, 0),
 				expiry: new MutableDisposable<IDisposable>(),
 			};
 			this._authorities.set(authority, entry);
@@ -293,8 +298,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	private _notifyActiveConnectionChanged(authority: string, entry: IAuthorityEntry): void {
-		entry.activeConnectionVersion++;
-		entry.onDidChangeActiveConnection.fire();
+		entry.activeConnectionVersion.set(entry.activeConnectionVersion.get() + 1, undefined);
 		this._onDidChangeConnection.fire(authority);
 	}
 
@@ -307,7 +311,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		this._authorities.delete(authority);
 		entry.expiry.dispose();
 		this._notifyActiveConnectionChanged(authority, entry);
-		entry.onDidChangeActiveConnection.dispose();
 	}
 
 	override dispose(): void {
@@ -317,7 +320,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			entry.expiry.dispose();
 			entry.connections.length = 0;
 			this._notifyActiveConnectionChanged(authority, entry);
-			entry.onDidChangeActiveConnection.dispose();
 		}
 		super.dispose();
 	}
@@ -641,48 +643,37 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		}
 
 		const active = entry.connections.at(-1);
+		const version = entry.activeConnectionVersion.get();
 		if (active) {
-			return { connection: active, entry, version: entry.activeConnectionVersion };
+			return { connection: active, entry, version };
 		}
-		const version = entry.activeConnectionVersion;
-		const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
-		const current = this._authorities.get(authority);
-		if (current !== entry || current.activeConnectionVersion !== version) {
-			changed.cancel();
-			return this._getConnectionState(authority);
-		}
-		try {
-			await changed;
-		} finally {
-			changed.cancel();
-		}
+		// Eviction and provider disposal also bump the version, so this settles.
+		await waitForState(entry.activeConnectionVersion, v => v !== version);
 		return this._getConnectionState(authority);
 	}
 
 	private async _readFromConnection<T>(authority: string, operation: (connection: IRemoteFilesystemConnection) => Promise<T>): Promise<T> {
 		while (true) {
 			const { connection, entry, version } = await this._getConnectionState(authority);
-			const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
-			const current = this._authorities.get(authority);
-			if (current !== entry || current.activeConnectionVersion !== version) {
-				changed.cancel();
+			if (this._authorities.get(authority) !== entry || entry.activeConnectionVersion.get() !== version) {
 				continue;
 			}
+			const stopWaiting = new CancellationTokenSource();
 			try {
 				const result = await Promise.race([
 					operation(connection).then(value => ({ kind: 'result' as const, value })),
-					changed.then(() => ({ kind: 'connectionChanged' as const })),
+					waitForState(entry.activeConnectionVersion, v => v !== version, undefined, stopWaiting.token).then(() => ({ kind: 'connectionChanged' as const })),
 				]);
 				if (result.kind === 'result') {
 					return result.value;
 				}
 			} catch (error) {
 				const latest = this._authorities.get(authority);
-				if (latest === entry && latest.activeConnectionVersion === version) {
+				if (latest === entry && latest.activeConnectionVersion.get() === version) {
 					throw error;
 				}
 			} finally {
-				changed.cancel();
+				stopWaiting.dispose(true);
 			}
 		}
 	}

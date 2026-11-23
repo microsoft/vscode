@@ -8,11 +8,14 @@ import assert from 'assert';
 import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
 import { Git, findGit } from '../git';
+import type { GitExtensionImpl } from '../api/extension';
+import type { Model } from '../model';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -36,6 +39,10 @@ suite('git smoke test', function () {
 		const end = doc.lineAt(doc.lineCount - 1).range.end;
 		edit.replace(doc.uri, new Range(end, end), text);
 		await workspace.applyEdit(edit);
+	}
+
+	function getModel(): Model {
+		return (extensions.getExtension<GitExtension>('vscode.git')!.exports as GitExtensionImpl).model!;
 	}
 
 	let git: API;
@@ -288,6 +295,71 @@ suite('git smoke test', function () {
 			// Restore the committed content so the following tests start from a clean tree
 			fs.writeFileSync(file('notebook.ipynb'), committed);
 			await repository.status();
+		}
+	});
+
+	test('a closed repository runs the operations of an extension that still holds it', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		cp.execSync('git init -b main', { cwd: repositoryPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: repositoryPath });
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			apiRepository.inputBox.value = 'draft';
+
+			const onDidCloseRepository = eventToPromise(git.onDidCloseRepository);
+			model.close(model.getRepository(repositoryPath)!);
+			const closedRepository = await onDidCloseRepository;
+
+			await apiRepository.status();
+			const commit = await apiRepository.getCommit('HEAD');
+			assert.deepStrictEqual(
+				{ repositories: git.repositories.map(r => r.rootUri.fsPath), closedInputBox: closedRepository.inputBox.value, message: commit.message },
+				{ repositories: [cwd], closedInputBox: 'draft', message: 'initial commit' });
+		} finally {
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
+	test('closing a parent repository closes its worktree', async function () {
+		const model = getModel();
+
+		// The worktree finds its parent by the path of the common .git folder, which git reports in full. Unlike
+		// fs.realpathSync, the native real path also expands Windows short names such as RUNNER~1.
+		const base = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const parentPath = path.join(base, 'parent');
+		const worktreePath = path.join(base, 'worktree');
+		fs.mkdirSync(parentPath);
+		cp.execSync('git init -b main', { cwd: parentPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: parentPath });
+		cp.execSync(`git worktree add -b worktree "${worktreePath}"`, { cwd: parentPath });
+
+		try {
+			const parentRepository = (await git.openRepository(Uri.file(parentPath)))!;
+			const worktreeRepository = (await git.openRepository(Uri.file(worktreePath)))!;
+			const worktreeFoundParent = model.getRepository(worktreeRepository.rootUri)!.parentRoot !== undefined;
+
+			// The worktree closes while its parent is still open. Compare URIs rather than paths, because on
+			// Windows Uri.fsPath lowercases the drive letter.
+			const parentOpenWhenWorktreeCloses: boolean[] = [];
+			const listener = git.onDidCloseRepository(r => {
+				if (r.rootUri.toString() === worktreeRepository.rootUri.toString()) {
+					parentOpenWhenWorktreeCloses.push(git.getRepository(parentRepository.rootUri) !== null);
+				}
+			});
+			model.close(model.getRepository(parentRepository.rootUri)!);
+			listener.dispose();
+
+			// An extension that still holds the worktree can run operations on it
+			const commit = await worktreeRepository.getCommit('HEAD');
+			assert.deepStrictEqual(
+				{ worktreeFoundParent, repositories: git.repositories.map(r => r.rootUri.fsPath), parentOpenWhenWorktreeCloses, message: commit.message },
+				{ worktreeFoundParent: true, repositories: [cwd], parentOpenWhenWorktreeCloses: [true], message: 'initial commit' });
+		} finally {
+			// On Windows, the closed repositories' watchers can hold the folder for a moment
+			await fs.promises.rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		}
 	});
 
