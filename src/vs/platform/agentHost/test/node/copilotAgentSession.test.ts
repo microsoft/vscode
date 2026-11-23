@@ -28375,7 +28375,55 @@ Use the attached image as context.
 			}]);
 		});
 
-		test('unmapped subagent error event is forwarded as non-resumable', async () => {
+		test('root quota error still ends the parent turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('root-turn');
+			mockSession.fire('session.error', {
+				errorType: 'quota', message: 'Copilot premium request allowance exhausted', statusCode: 402,
+			});
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				errors: signals.flatMap(signal => isAction(signal, ActionType.ChatError) ? [signal.parentToolCallId] : []),
+			}, { hasActiveTurn: false, errors: [undefined] });
+		});
+
+		for (const mapped of [false, true]) {
+			test(`subagent quota error preserves the running parent turn (mapped=${mapped})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('byok-parent');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+				if (mapped) {
+					mockSession.fire('subagent.started', {
+						toolCallId: 'child-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+					}, { agentId: 'child-agent' });
+				}
+				signals.length = 0;
+
+				mockSession.fire('session.error', {
+					errorType: 'quota', message: 'Copilot premium request allowance exhausted', statusCode: 402,
+				}, { agentId: 'child-agent' });
+				const activeAfterChildError = session.hasActiveTurn;
+				mockSession.fire('assistant.message_delta', { messageId: 'parent-message', deltaContent: 'Still working' });
+				mockSession.fire('session.idle', {});
+
+				assert.deepStrictEqual({
+					activeAfterChildError,
+					errors: signals.flatMap(signal => isAction(signal, ActionType.ChatError) ? [signal.parentToolCallId] : []),
+					parentOutput: getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown ? [action.part.content] : []),
+					completed: getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete ? [action.turnId] : []),
+					hasActiveTurn: session.hasActiveTurn,
+				}, {
+					activeAfterChildError: true,
+					errors: mapped ? ['child-task'] : [],
+					parentOutput: ['Still working'],
+					completed: ['byok-parent'],
+					hasActiveTurn: false,
+				});
+			});
+		}
+
+		test('unmapped subagent error is logged without failing the parent turn', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService });
 			session.resetTurnState('turn-1');
@@ -28389,36 +28437,7 @@ Use the attached image as context.
 				serviceRequestId: 'service-request-id',
 			} as SessionEventPayload<'session.error'>['data'], { id: 'session-error-event', parentId: 'previous-event', agentId: 'sdk-agent-id' });
 
-			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.ChatError));
-			if (isAction(signals[0], ActionType.ChatError)) {
-				const action = signals[0].action as ChatErrorAction;
-				assert.deepStrictEqual({
-					error: action.part.error,
-					resumable: action.part.resumable,
-				}, {
-					error: {
-						errorType: 'TestError',
-						message: 'something went wrong',
-						stack: 'Error: something went wrong',
-						_meta: {
-							chatError: {
-								fetchError: {
-									type: 'failed',
-									reason: 'something went wrong',
-									requestId: 'provider-request-id',
-									serverRequestId: 'service-request-id',
-									capiError: {
-										code: 'test-code',
-										message: 'something went wrong',
-									},
-								},
-							},
-						},
-					},
-					resumable: undefined,
-				});
-			}
+			assert.deepStrictEqual({ actions: getActions(signals), hasActiveTurn: session.hasActiveTurn }, { actions: [], hasActiveTurn: true });
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilotSdkSessionError'), [{
 				eventName: 'agentHost.copilotSdkSessionError',
 				data: {
