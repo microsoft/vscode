@@ -126,6 +126,8 @@ export interface IArtifactServerToolAccessor {
 	readonly reportAssociationError?: (error: unknown) => void;
 	/** Reports each entry an add call recorded, promoted or found already recorded, once the change is persisted. */
 	readonly reportArtifactRecorded?: (report: IAgentHostArtifactRecordedReport) => void;
+	/** Announces the entries an add call recorded, promoted or found already recorded, once the change is persisted. */
+	readonly didRecordArtifacts?: (recorded: { readonly session: string; readonly chat: string; readonly turnId: string | undefined; readonly artifactIds: readonly string[] }) => void;
 	/** Reports an entry the remove tool removed, once the change is persisted. */
 	readonly reportArtifactRemoved?: (report: IAgentHostArtifactRemovedReport) => void;
 }
@@ -268,6 +270,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 							accessor.reportArtifactRecorded({ ...shared, source: 'agentTool', kind: artifact.type, isArtifact: input.isArtifact, outcome, isGitHub: artifact.isGitHub === true, batchSize: result.recordings.length });
 						}
 					}
+					accessor.didRecordArtifacts?.({
+						session: getArtifactChangeOwner(stateManager, context.chatUri, context.sessionUri).session,
+						chat: context.chatUri,
+						turnId: context.turnId,
+						artifactIds: result.recordings.map(recording => recording.artifact.id),
+					});
 					if (accessor.associatePullRequests && result.pullRequestUrls.size) {
 						try {
 							const associated = await accessor.associatePullRequests(context.chatUri, [...result.pullRequestUrls]);
