@@ -8,7 +8,7 @@ import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { assignHostSandboxProfile, readHostSandboxProfile, readSandboxProfileAssignments, rememberSandboxProfileAssignment } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { assignHostSandboxProfile, readHostSandboxProfile } from '../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AgentNetworkDomainSettingId as Network } from '../../../../../platform/networkFilter/common/settings.js';
@@ -186,17 +186,14 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 		this.select(this.existing ? this.profiles.find(p => p.id === this.draft.id) : this.profiles[0]);
 	}
 
-	/** Names of remote environments with a live or last-known assignment to the profile. */
+	/** Names of the connected remote environments the profile is assigned to. Disconnected hosts can't be checked. */
 	hostsUsingProfile(id: string): string[] {
-		for (const { address, name, connection, isAmbient } of this._connections.connections) {
-			if (address && connection && !isAmbient) {
-				rememberSandboxProfileAssignment(this._storage, address, name, readHostSandboxProfile(connection));
-			}
-		}
-		return readSandboxProfileAssignments(this._storage).filter(assignment => assignment.profile.id === id).map(assignment => assignment.name);
+		return this._connections.connections
+			.filter(({ connection, isAmbient }) => connection && !isAmbient && readHostSandboxProfile(connection)?.id === id)
+			.map(({ name }) => name);
 	}
 
-	/** Removes an unassigned profile; offline last-known assignments also prevent deletion. */
+	/** Removes the profile from this machine unless a connected host uses it. Disconnected hosts keep their own copy. */
 	deleteProfile(id: string): boolean {
 		if (this.hostsUsingProfile(id).length) {
 			return false;

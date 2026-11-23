@@ -2077,30 +2077,25 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('retains the last-known assignment while disconnected and after recreating Remote Environments, then reconciles with the host', () => {
+	test('shows only the live assignment: a disconnected host shows nothing until it reconnects', () => {
 		const first = createWidget();
 		const host = new TestSandboxProfilesHost();
 		first.addHost('tunnel:laptop', host);
 		assignHostSandboxProfile(host, { id: 'strict', name: 'Strict', settings: {} });
-		first.disconnectHost('tunnel:laptop');
-		const reopened = createWidget(OperatingSystem.Macintosh, 'type', 900, first.storageService);
-		const state = (device: typeof first) => {
-			const picker = device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
-			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, lastKnown: picker.getAttribute('aria-label')?.includes('last known assignment') };
+		const state = () => {
+			const picker = first.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, label: picker.getAttribute('aria-label') };
 		};
-		const offline = [state(first), state(reopened)];
-		assignHostSandboxProfile(host, undefined);
-		reopened.addHost('tunnel:laptop', host);
-		assert.deepStrictEqual({ offline, reconnected: state(reopened), otherWindow: state(first) }, {
-			offline: [
-				{ disabled: true, selected: 'Strict (on host)', lastKnown: true },
-				{ disabled: true, selected: 'Strict (on host)', lastKnown: true },
-			],
-			reconnected: { disabled: false, selected: 'Default', lastKnown: false },
-			otherWindow: { disabled: true, selected: 'Default', lastKnown: false },
+		const connected = state();
+		first.disconnectHost('tunnel:laptop');
+		const disconnected = state();
+		first.addHost('tunnel:laptop', host);
+		assert.deepStrictEqual({ connected, disconnected, reconnected: state() }, {
+			connected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
+			disconnected: { disabled: true, selected: 'Default', label: 'Sandbox profile for Laptop. Connect to Laptop to see or choose one.' },
+			reconnected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
 		});
 	});
-
 	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {
 		const host = store.add(new TestSandboxProfilesHost());
 		const deviceA = createWidget();

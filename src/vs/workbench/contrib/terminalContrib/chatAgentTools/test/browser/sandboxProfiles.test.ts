@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { assignHostSandboxProfile, readHostSandboxProfile, readSandboxProfileAssignments, rememberSandboxProfileAssignment, SandboxProfileAssignmentsTracker } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { assignHostSandboxProfile, readHostSandboxProfile } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { TestSandboxProfilesHost } from '../../../../../../platform/agentHost/test/common/sandboxProfilesTestUtils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -38,41 +38,6 @@ suite('Sandbox profiles editor', () => {
 	function host() {
 		return disposables.add(new TestSandboxProfilesHost());
 	}
-
-	test('assignment tracking persists without the UI and reconciles after a client restart', () => {
-		const build = host();
-		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build };
-		const { connections, storage, fireConnectionsChanged } = setup(hosts);
-		const tracker = disposables.add(new SandboxProfileAssignmentsTracker(connections, storage));
-		assignHostSandboxProfile(build, { id: 'strict', name: 'Strict', settings: {} });
-		hosts.build = undefined;
-		fireConnectionsChanged();
-		tracker.dispose();
-		disposables.add(new SandboxProfileAssignmentsTracker(connections, storage));
-		const offline = readSandboxProfileAssignments(storage).map(assignment => [assignment.address, assignment.name, assignment.profile.id]);
-		assignHostSandboxProfile(build, { id: 'open', name: 'Open', settings: {} });
-		const stillOffline = readSandboxProfileAssignments(storage).map(assignment => assignment.profile.id);
-		hosts.build = build;
-		fireConnectionsChanged();
-		const reconnected = readSandboxProfileAssignments(storage).map(assignment => assignment.profile.id);
-		assignHostSandboxProfile(build, undefined);
-		assert.deepStrictEqual({ offline, stillOffline, reconnected, cleared: readSandboxProfileAssignments(storage) }, {
-			offline: [['build', 'build', 'strict']],
-			stillOffline: ['strict'],
-			reconnected: ['open'],
-			cleared: [],
-		});
-	});
-
-	test('unavailable host state preserves the cached assignment and only an explicit Default clears it', () => {
-		const { storage } = setup();
-		const assignment = { id: 'strict', name: 'Strict', sandbox: {} };
-		rememberSandboxProfileAssignment(storage, 'ssh:build', 'Build', assignment);
-		rememberSandboxProfileAssignment(storage, 'ssh:build', 'Build', undefined);
-		const unavailable = readSandboxProfileAssignments(storage).map(entry => entry.profile.id);
-		rememberSandboxProfileAssignment(storage, 'ssh:build', 'Build', null);
-		assert.deepStrictEqual({ unavailable, cleared: readSandboxProfileAssignments(storage) }, { unavailable: ['strict'], cleared: [] });
-	});
 
 	test('saves new profiles from current settings to this machine only, shared by every window', async () => {
 		const { storage, config, open } = setup();
@@ -168,32 +133,28 @@ suite('Sandbox profiles editor', () => {
 		});
 	});
 
-	test('last-known assignments prevent deletion after disconnecting and reopening the editor until the host is unassigned', async () => {
+	test('a profile in use by a connected remote environment cannot be deleted; disconnected hosts keep their copy', async () => {
 		const build = host();
-		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build, other: host() };
+		const offline = host();
+		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build, other: host(), offline: undefined };
 		const { storage, open } = setup(hosts);
 		const input = open();
 		input.draft.name = 'Strict';
 		await input.save();
 		const strict = input.profiles[0];
 		assignHostSandboxProfile(build, strict);
+		assignHostSandboxProfile(offline, strict);
 		const inUse = { hosts: input.hostsUsingProfile(strict.id), deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage).map(p => p.name) };
-		hosts.build = undefined;
-		input.dispose();
-		const reopened = open();
-		const offline = { hosts: reopened.hostsUsingProfile(strict.id), deleted: reopened.deleteProfile(strict.id) };
 		assignHostSandboxProfile(build, undefined);
-		const changedWhileOffline = reopened.deleteProfile(strict.id);
-		hosts.build = build;
-		const unassigned = { deleted: reopened.deleteProfile(strict.id), library: readSandboxProfiles(storage) };
-		assert.deepStrictEqual({ inUse, offline, changedWhileOffline, unassigned }, {
+		const unassigned = { deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage) };
+		hosts.offline = offline;
+		assert.deepStrictEqual({ inUse, unassigned, offlineCopy: readHostSandboxProfile(offline)?.name }, {
 			inUse: { hosts: ['build'], deleted: false, library: ['Strict'] },
-			offline: { hosts: ['build'], deleted: false },
-			changedWhileOffline: false,
 			unassigned: { deleted: true, library: [] },
+			// Only connected hosts are checked; a host that was disconnected keeps using its own copy.
+			offlineCopy: 'Strict',
 		});
 	});
-
 	test('shows library changes from another window without discarding an edit in progress', async () => {
 		const { open } = setup();
 		const input = open();
