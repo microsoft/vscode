@@ -176,10 +176,12 @@ class QuickDiffDecorator extends Disposable {
 					// Lines deleted at the beginning of the file are shown at the top of the first line
 					const isTop = startLineNumber === 0;
 					const lineNumber = isTop ? 1 : startLineNumber;
+					// The column selects the wrapped row of the line: the first one for the top marker, the last one otherwise
+					const column = isTop ? 1 : Number.MAX_VALUE;
 					decorations.push({
 						range: {
-							startLineNumber: lineNumber, startColumn: Number.MAX_VALUE,
-							endLineNumber: lineNumber, endColumn: Number.MAX_VALUE
+							startLineNumber: lineNumber, startColumn: column,
+							endLineNumber: lineNumber, endColumn: column
 						},
 						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
 							? isTop ? this.deletedTopOptions : this.deletedOptions
