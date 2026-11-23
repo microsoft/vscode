@@ -88,7 +88,6 @@ suite('SettingsEditor2', () => {
 
 			const editor = store.add(instantiationService.createInstance(class extends SettingsEditor2 {
 				override layout(): void { }
-				override isVisible(): boolean { return true; }
 			}, instantiationService.get(IEditorGroupsService).activeGroup));
 			const root = DOM.append(document.body, DOM.$('.settings-editor'));
 			store.add(toDisposable(() => root.remove()));
@@ -104,6 +103,7 @@ suite('SettingsEditor2', () => {
 			editor['clearFilterLinkContainer'] = DOM.append(root, DOM.$('div'));
 			editor['searchWidget'] = new class extends mock<SuggestEnabledInputWithHistory>() {
 				override updateAriaLabel(label: string): void { input.setAttribute('aria-label', label); }
+				override onHide(): void { }
 			}();
 			editor['bodyContainer'] = splitView;
 			editor['dimension'] = new DOM.Dimension(900, 600);
@@ -125,7 +125,8 @@ suite('SettingsEditor2', () => {
 						for (const child of children) {
 							if (child.element instanceof SettingsTreeSettingElement) {
 								const row = DOM.append(tree, DOM.$('.setting-item-contents', { 'data-key': child.element.setting.key }));
-								DOM.append(row, DOM.$('input'));
+								const control = DOM.append(row, DOM.$<HTMLInputElement>('input'));
+								control.value = String(child.element.value);
 								renderedKeys.push(child.element.setting.key);
 							} else if (child.children) {
 								render(child.children);
@@ -137,6 +138,7 @@ suite('SettingsEditor2', () => {
 				}
 			}();
 			editor['settingRenderers'] = new class extends mock<SettingTreeRenderers>() {
+				override cancelSuggesters(): void { }
 				override getSettingDOMElementForDOMElement(element: HTMLElement): HTMLElement | null {
 					return element.closest('.setting-item-contents');
 				}
@@ -182,6 +184,7 @@ suite('SettingsEditor2', () => {
 			editor['searchResultModel'] = editor['createFilterModel']();
 			const searchModel = editor['searchResultModel']!;
 			tocModel.currentSearchModel = searchModel;
+			editor.setVisible(true);
 			editor['renderResultCountMessages'](false);
 			editor['refreshTree']();
 			const rebuild = sinon.spy(searchModel, 'updateChildren');
@@ -199,7 +202,44 @@ suite('SettingsEditor2', () => {
 				override readonly source = ConfigurationTarget.USER;
 				override affectsConfiguration(section: string): boolean { return section === key; }
 			}());
-			return { editor, assignments, managedSettings, managedSettingsChanged, searchModel, settings, rebuild, read, tree, settingsModel, treeFilter: instantiationService.createInstance(SettingsTreeFilter, viewState, false), searchInput: input, viewState, changeConfiguration, onDidRender: onDidRender.event, contextViewService: instantiationService.get(IContextViewService) };
+			return { editor, configuration, assignments, managedSettings, managedSettingsChanged, searchModel, settings, rebuild, read, tree, settingsModel, treeFilter: instantiationService.createInstance(SettingsTreeFilter, viewState, false), searchInput: input, viewState, changeConfiguration, onDidRender: onDidRender.event, contextViewService: instantiationService.get(IContextViewService) };
+		}
+
+		test('configuration changes while hidden redraw settings when the editor is shown', async () => {
+			const key = 'test.assigned';
+			const { editor, configuration, changeConfiguration, tree } = createEditor('', false, [key]);
+			const redraw = sinon.spy(editor['settingsTree'], 'setChildren');
+			const tocRefresh = sinon.spy(editor['tocTree'], 'setChildren');
+			const initialValue = tree.querySelector('input')!.value;
+			editor.setVisible(false);
+			await configuration.setUserConfiguration(key, true);
+			changeConfiguration(key);
+			const hiddenValue = tree.querySelector('input')!.value;
+			editor.setVisible(true);
+			editor.setVisible(true);
+			assert.deepStrictEqual({
+				initialValue, hiddenValue, restoredValue: tree.querySelector('input')!.value,
+				redraws: redraw.callCount, tocRefreshes: tocRefresh.callCount
+			}, {
+				initialValue: 'undefined', hiddenValue: 'undefined', restoredValue: 'true',
+				redraws: 1, tocRefreshes: 1
+			});
+			await timeout(0);
+		});
+
+		for (const refresh of ['refreshTree', 'refreshTOCTree'] as const) {
+			test(`${refresh} skipped while hidden forces one redraw on show`, async () => {
+				const { editor } = createEditor('', false);
+				const redraw = sinon.spy(editor['settingsTree'], 'setChildren');
+				const tocRefresh = sinon.spy(editor['tocTree'], 'setChildren');
+				editor.setVisible(false);
+				editor[refresh]();
+				editor[refresh]();
+				editor.setVisible(true);
+				editor.setVisible(true);
+				assert.deepStrictEqual({ redraws: redraw.callCount, tocRefreshes: tocRefresh.callCount }, { redraws: 1, tocRefreshes: 1 });
+				await timeout(0);
+			});
 		}
 
 		test('resolved sandbox policies refresh policy-filtered results and removal without configuration changes', () => {

@@ -218,6 +218,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * moving focus into the results.
 	 */
 	private renderedSearchQuery: string | undefined = '';
+	private refreshPendingWhileHidden = false;
 
 	private showAiResultsAction: Action | null = null;
 
@@ -687,6 +688,10 @@ export class SettingsEditor2 extends EditorPane {
 				this.searchWidget.onHide();
 				this.settingRenderers.cancelSuggesters();
 			}, 0);
+		} else if (this.refreshPendingWhileHidden) {
+			this.refreshPendingWhileHidden = false;
+			this.refreshTOCTree();
+			this.renderTree(undefined, true);
 		}
 	}
 
@@ -1807,24 +1812,36 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
-		if (this.isVisible()
-			&& this.settingsTree.hasElement(element)
+		if (!this.isVisible()) {
+			this.refreshPendingWhileHidden = true;
+			return;
+		}
+
+		if (this.settingsTree.hasElement(element)
 			&& (!element.setting.deprecationMessage || element.setting.deprecationMessageShowInSettings || element.isConfigured)) {
 			this.settingsTree.rerender(element);
 		}
 	}
 
 	private refreshTree(): void {
-		if (this.isVisible() && this.currentSettingsModel) {
+		if (!this.isVisible()) {
+			this.refreshPendingWhileHidden = true;
+			return;
+		}
+
+		if (this.currentSettingsModel) {
 			this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
 		}
 	}
 
 	private refreshTOCTree(): void {
-		if (this.isVisible()) {
-			this.tocTreeModel.update();
-			this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
+		if (!this.isVisible()) {
+			this.refreshPendingWhileHidden = true;
+			return;
 		}
+
+		this.tocTreeModel.update();
+		this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
 	}
 
 	private updateModifiedLabelForKey(key: string): void {
