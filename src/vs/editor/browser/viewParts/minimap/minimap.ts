@@ -1423,6 +1423,8 @@ class InnerMinimap extends Disposable {
 	private _paintsWithPainter = false;
 	/** Whether the painter's picture may be stale apart from line content and decorations. */
 	private _painterInvalidated = true;
+	/** Whether decorations changed since the painter last got them. */
+	private _painterDecorationsChanged = true;
 
 	constructor(
 		theme: EditorTheme,
@@ -1739,6 +1741,7 @@ class InnerMinimap extends Disposable {
 	}
 	public onDecorationsChanged(): boolean {
 		this._renderDecorations = true;
+		this._painterDecorationsChanged = true;
 		return true;
 	}
 	public onFlushed(): boolean {
@@ -1892,7 +1895,7 @@ class InnerMinimap extends Disposable {
 			topPaddingLineCount,
 			sampling,
 			// The painter keeps the decorations of the lines it last painted.
-			decorations: this._renderDecorations || invalidated ? this._getPainterDecorations(startLineNumber, endLineNumber) : undefined,
+			decorations: this._painterDecorationsChanged || invalidated ? this._getPainterDecorations(startLineNumber, endLineNumber) : undefined,
 			invalidated,
 		});
 		if (!painted) {
@@ -1900,6 +1903,7 @@ class InnerMinimap extends Disposable {
 			return false;
 		}
 		this._painterInvalidated = false;
+		this._painterDecorationsChanged = false;
 		this.renderDecorations(layout);
 
 		let lines: MinimapLine[];
