@@ -90,7 +90,7 @@ function elideChangeNotices(text: string): string {
  * path (`/x/y`). Stops at whitespace and at the punctuation that typically
  * closes a path in prose or JSON.
  */
-const PATH_RE = /(?:\$\{(?:workdir|homedir)\}|(?<![A-Za-z])[A-Za-z]:|(?<![A-Za-z0-9])(?=[/\\]))(?:[/\\](?:\$\{[^}]+\}|[^\s"'`,;:*?<>|)$\]}/\\]+))*/g;
+const PATH_RE = /(?:[/\\]?\$\{(?:workdir|homedir)\}|(?<![A-Za-z])[A-Za-z]:|(?<![A-Za-z0-9])(?=[/\\]))(?:[/\\](?:\$\{[^}]+\}|[^\s"'`,;:*?<>|)$\]}/\\]+))*/g;
 
 /**
  * Replaces a path with a single placeholder.
@@ -182,7 +182,12 @@ function projectContent(content: unknown): unknown {
 export function projectModelRequest(request: IReadableAnthropicRequest): IProjectedModelRequest {
 	return {
 		system: request.system,
-		messages: request.messages.map(message => ({ role: message.role, content: projectContent(message.content) })),
+		messages: request.messages
+			.filter(message => !(message.role === 'user'
+				&& typeof message.content === 'string'
+				&& message.content.length > 0
+				&& elideChangeNotices(message.content) === ''))
+			.map(message => ({ role: message.role, content: projectContent(message.content) })),
 	};
 }
 

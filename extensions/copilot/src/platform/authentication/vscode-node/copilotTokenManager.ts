@@ -22,7 +22,7 @@ import { ErrorNoTelemetry } from '../../../util/vs/base/common/errors';
 import { nowSeconds } from '../common/copilotTokenManager';
 import { authProviderId } from '../common/authentication';
 import { ICopilotTokenStore } from '../common/copilotTokenStore';
-import { resolveGitHubSessionUri } from '../common/enterprise';
+import { authenticationSessionIdentityEquals, resolveGitHubSessionUri } from '../common/enterprise';
 import { BaseCopilotTokenManager } from '../node/copilotTokenManager';
 import { getAnyAuthSession } from './session';
 
@@ -124,7 +124,9 @@ export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 			}
 			const key = JSON.stringify([providerId, session?.account.id, session?.authorizationServer?.toString(), session?.accessToken]);
 			tokenResult = await this._taskSingler.getOrCreate(key, () => this._auth(session, providerId));
-			if (providerId !== authProviderId(this.configurationService) || (session && !isEqual(enterpriseUri, this._tokenStore.githubEnterpriseUri))) {
+			// A token minted for an account the user has since switched away from must not be adopted for the new one.
+			const sessionAfterFetch = await getAnyAuthSession(this.configurationService, { silent: true });
+			if (providerId !== authProviderId(this.configurationService) || (session && !isEqual(enterpriseUri, this._tokenStore.githubEnterpriseUri)) || !authenticationSessionIdentityEquals(session, sessionAfterFetch)) {
 				throw new GitHubLoginFailedError(l10n.t('The GitHub account changed while fetching a Copilot token.'));
 			}
 		}

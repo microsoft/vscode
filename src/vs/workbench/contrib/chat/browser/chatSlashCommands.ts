@@ -21,16 +21,18 @@ import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, isAgentHostTarget, SessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../common/model/chatUri.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
+import { parseForkPromptArgument } from './actions/chatForkActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { toAgentHostBackendSessionUri } from './agentSessions/agentHost/agentHostSessionUri.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
@@ -42,6 +44,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
 import { IChatPetService } from './chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID } from './chatPetColors.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
@@ -63,6 +66,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IChatPetService chatPetService: IChatPetService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -75,6 +79,18 @@ export class ChatSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			chatPetService.toggle();
+		}));
+		this._register(slashCommandService.registerSlashCommand({
+			command: 'blobby',
+			detail: nls.localize('blobby', "Show Blobby or open its color customization"),
+			sortText: 'z3_blobby',
+			executeImmediately: true,
+			executeDuringRequest: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
+		}, async () => {
+			await commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID);
 		}));
 		const clearCommandRegistration = this._register(new MutableDisposable());
 		const registerClearCommand = () => {
@@ -212,13 +228,49 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z2_fork',
 			executeImmediately: true,
 			silent: true,
+			completionVariants: [
+				{ label: '/fork', insertText: '', executeImmediately: true },
+				{ label: '/fork <title>', insertText: '/fork ', detail: nls.localize('fork.titleDetail', "Fork conversation with a custom title"), argumentHint: nls.localize('fork.titleArgumentHint', "title") },
+				{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', detail: nls.localize('fork.promptDetail', "Fork conversation and send a prompt"), argumentHint: nls.localize('fork.promptArgumentHint', "prompt") },
+			],
 			locations: [ChatAgentLocation.Chat],
 			when: ContextKeyExpr.or(
 				ChatContextKeys.lockedToCodingAgent.negate(),
 				ChatContextKeys.chatSessionSupportsFork
 			),
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+		}, async (prompt, _progress, _history, _location, sessionResource, _token, options, executionContext) => {
+			// The callback normally receives a trimmed remainder. Retain the original
+			// input for the offset used to rebase inline attachment references.
+			const input = executionContext?.input ?? `/fork${prompt ? ` ${prompt}` : ''}`;
+			const commandEnd = input.indexOf('/fork') + '/fork'.length;
+			const afterCommand = input.slice(commandEnd);
+			const isAgentHostSession = isAgentHostTarget(getChatSessionType(sessionResource));
+			const forkPrompt = isAgentHostSession ? parseForkPromptArgument(afterCommand) : undefined;
+			if (forkPrompt) {
+				if (forkPrompt.text) {
+					await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, {
+						initialMessage: {
+							text: forkPrompt.text,
+							textOffset: commandEnd + forkPrompt.offset,
+							requestOptions: options ? {
+								attachedContext: options.attachedContext,
+								resolvedVariables: options.resolvedVariables,
+							} : undefined,
+						},
+					});
+					// The submitting widget clears this draft once the fork
+					// succeeds; see `captureForkPromptSourceInput`.
+					return { followUp: [], preserveInput: true };
+				}
+				// `prompt` is reserved, but an empty prompt is intentionally the
+				// ordinary bare-fork path rather than a title named "prompt".
+				await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+				return;
+			}
+
+			const title = (isAgentHostSession ? afterCommand : prompt).trim() || undefined;
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, title ? { title } : undefined);
+			return undefined;
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',
@@ -243,7 +295,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			return state && !(state instanceof Error) ? state.config?.values : undefined;
 		};
 		const setPermissionLevelForSession = async (sessionResource: URI, level: ChatPermissionLevel) => {
-			const backendSession = toAgentHostBackendSessionUri(sessionResource);
+			const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
 			if (backendSession) {
 				const permittedLevel = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false
 					? ChatPermissionLevel.Default
@@ -251,7 +303,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				const partial = { [SessionConfigKey.AutoApprove]: permittedLevel };
 				const workingDirectory = getAgentHostWorkingDirectory(sessionResource);
 				if (isUntitledChatSession(sessionResource)) {
-					await agentHostProvisionalService.applyConfigChange(sessionResource, backendSession.scheme, workingDirectory, partial);
+					await agentHostProvisionalService.applyConfigChange(sessionResource, sessionResource.scheme.substring('agent-host-'.length), workingDirectory, partial);
 					return;
 				}
 

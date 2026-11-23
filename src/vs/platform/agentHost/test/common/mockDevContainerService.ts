@@ -5,23 +5,29 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from '../../common/devContainerAgentHost.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 	readonly relayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this.relayMessage.event;
+	readonly relayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity = this.relayActivity.event;
 	readonly relayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this.relayClose.event;
 	readonly closeConnection = this._register(new Emitter<string>());
 	readonly onDidCloseConnection = this.closeConnection.event;
 	readonly output = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this.output.event;
+	readonly sandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
+	readonly onDidChangeSandboxSupport = this.sandboxSupport.event;
+	readonly userState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
+	readonly onDidReportUserState = this.userState.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];
-	readonly removes: string[] = [];
+	readonly removes: DevContainerAgentHostSource[] = [];
 	readonly sent: IRelayMessage[] = [];
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
 
@@ -43,8 +49,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 		return true;
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<boolean> {
-		this.removes.push(workspaceFolder);
+	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {
+		this.removes.push(source);
 		return true;
 	}
 

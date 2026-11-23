@@ -5,8 +5,9 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as arrays from '../../../../../base/common/arrays.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -287,6 +288,57 @@ suite('SearchModel', () => {
 		};
 	}
 
+	test('Search Model: cleared AI folder roots are not disposed again with the model', () => {
+		const model = store.add(instantiationService.createInstance(SearchModelImpl));
+		const heading = model.searchResult.aiTextSearchResult;
+		const disposals: sinon.SinonSpy[] = [];
+
+		for (let i = 0; i < 3; i++) {
+			heading.query = { contentPattern: 'sample', type: QueryType.aiText, folderQueries };
+			const folder = heading.folderMatches()[0];
+			const dispose = sinon.spy(folder, 'dispose');
+			heading.clear(true);
+			disposals.push(dispose);
+		}
+
+		model.dispose();
+		assert.deepStrictEqual(disposals.map(dispose => dispose.callCount), [1, 1, 1]);
+	});
+
+	for (const ai of [false, true]) {
+		for (const cleanup of ['add', 'clear', 'dispose']) {
+			test(`Search Model: ${ai ? 'AI' : 'text'} query replacements retain all roots until ${cleanup}`, () => {
+				const model = store.add(instantiationService.createInstance(SearchModelImpl));
+				const heading = ai ? model.searchResult.aiTextSearchResult : model.searchResult.plainTextSearchResult;
+				const disposals: sinon.SinonSpy[] = [];
+
+				for (let i = 0; i < 3; i++) {
+					heading.query = ai
+						? { contentPattern: 'sample', type: QueryType.aiText, folderQueries }
+						: { contentPattern: { pattern: 'sample' }, type: QueryType.Text, folderQueries };
+					disposals.push(...heading.folderMatches().map(folder => sinon.spy(folder, 'dispose')));
+					if (i === 0) {
+						heading.add([aRawMatch('/sample', new TextSearchMatch('sample', lineOneRange))], 'initial', true);
+					}
+				}
+
+				const before = disposals.map(dispose => dispose.callCount);
+				if (cleanup === 'add') {
+					heading.add([], 'replacement', true);
+					heading.add([], 'replacement', true);
+				} else if (cleanup === 'clear') {
+					heading.clear(true);
+				}
+				model.dispose();
+
+				assert.deepStrictEqual({ before, after: disposals.map(dispose => dispose.callCount) }, {
+					before: disposals.map(() => 0),
+					after: disposals.map(() => 1)
+				});
+			});
+		}
+	}
+
 	test('Search Model: Search adds to results', async () => {
 		const results = [
 			aRawMatch('/1',
@@ -458,6 +510,44 @@ suite('SearchModel', () => {
 		assert.ok(target.calledWith('searchResultsFinished'));
 	});
 
+	for (const reportProgress of [false, true]) {
+		test(`Search Model: Releases the progress emitter after ${reportProgress ? 'first progress' : 'completion'}`, async () => {
+			const completion = new DeferredPromise<ISearchComplete>();
+			const firstRender = new DeferredPromise<void>();
+			instantiationService.stub(ITelemetryService, 'publicLog', (eventName: string) => {
+				if (eventName === 'searchResultsFirstRender') {
+					firstRender.complete();
+				}
+			});
+			const searchService = searchServiceWithDeferredPromise(completion.p);
+			const search = sinon.spy(searchService, 'textSearchSplitSyncAsync');
+			instantiationService.stub(ISearchService, searchService);
+			instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
+
+			const model = store.add(instantiationService.createInstance(SearchModelImpl));
+			const disposables = Reflect.get(Reflect.get(model, '_store'), '_toDispose') as ReadonlySet<unknown>;
+			const initialCount = disposables.size;
+			const result = model.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
+			assert.strictEqual(disposables.size, initialCount + 1);
+
+			if (reportProgress) {
+				search.firstCall.args[2]!({ message: 'Searching' });
+			} else {
+				completion.complete({ results: [], messages: [] });
+			}
+			await firstRender.p;
+			assert.strictEqual(disposables.size, initialCount);
+
+			if (reportProgress) {
+				assert.strictEqual(completion.isSettled, false);
+				search.firstCall.args[2]!({ message: 'Still searching' });
+				completion.complete({ results: [], messages: [] });
+			}
+			await result.asyncResults;
+			assert.strictEqual(disposables.size, initialCount);
+		});
+	}
+
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
 		const target2 = sinon.spy();
 		sinon.stub(nullEvent, 'stop').callsFake(target2);
@@ -586,6 +676,51 @@ suite('SearchModel', () => {
 
 		assert.ok(tokenSource.token.isCancellationRequested);
 	});
+
+	for (const hasSyncResults of [false, true]) {
+		test(`Search Model: a new search discards buffered results with ${hasSyncResults ? 'matching' : 'no matching'} open editors`, async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			try {
+				const previousCompletion = new DeferredPromise<ISearchComplete>();
+				const previousProgress = new DeferredPromise<void>();
+				const previousMatch = aRawMatch('/old.txt', new TextSearchMatch('old', new OneLineRange(0, 0, 3)));
+				const currentMatch = aRawMatch('/new.txt', new TextSearchMatch('new', new OneLineRange(0, 0, 3)));
+				instantiationService.stub(ISearchService, 'textSearchSplitSyncAsync', (query: ITextQuery, token: CancellationToken = CancellationToken.None, onProgress?: (result: ISearchProgressItem) => void) => {
+					if (query.contentPattern.pattern === 'old') {
+						queueMicrotask(() => {
+							onProgress?.(previousMatch);
+							previousProgress.complete();
+						});
+						return {
+							syncResults: { results: [], messages: [] },
+							asyncResults: raceCancellationError(previousCompletion.p, token)
+						};
+					}
+					return {
+						syncResults: { results: hasSyncResults ? [currentMatch] : [], messages: [] },
+						asyncResults: Promise.resolve({ results: [], messages: [] })
+					};
+				});
+				instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
+				const model = store.add(instantiationService.createInstance(SearchModelImpl));
+				const previousSearch = model.search({ contentPattern: { pattern: 'old' }, type: QueryType.Text, folderQueries });
+				await previousProgress.p;
+				const cancelled = previousSearch.asyncResults.then(() => false, isCancellationError);
+
+				await model.search({ contentPattern: { pattern: 'new' }, type: QueryType.Text, folderQueries }).asyncResults;
+				assert.ok(await cancelled, 'Expected the previous search to be cancelled');
+				previousCompletion.complete({ results: [], messages: [] });
+				await clock.runAllAsync();
+
+				assert.deepStrictEqual(
+					model.searchResult.matches().map(match => match.resource.toString()),
+					hasSyncResults ? [currentMatch.resource.toString()] : []
+				);
+			} finally {
+				clock.restore();
+			}
+		});
+	}
 
 	test('getReplaceString returns proper replace string for regExpressions', async () => {
 		const results = [

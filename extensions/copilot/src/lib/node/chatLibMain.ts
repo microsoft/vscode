@@ -50,12 +50,14 @@ import { ICompletionsPromiseQueueService, PromiseQueue } from '../../extension/c
 import { ICompletionsRuntimeModeService, RuntimeMode } from '../../extension/completions-core/vscode-node/lib/src/util/runtimeMode';
 import { setExternalTokenizerProvider, TokenizerName, type ExternalTokenizerProvider, type Tokenizer } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
 import { DocumentContext, WorkspaceFolder } from '../../extension/completions-core/vscode-node/types/src';
+import { toInlineSuggestion } from '../../extension/inlineEdits/common/inlineSuggestionEdit';
 import { DebugRecorder } from '../../extension/inlineEdits/node/debugRecorder';
 import { INextEditProvider, NESInlineCompletionContext, NextEditProvider } from '../../extension/inlineEdits/node/nextEditProvider';
 import { LlmNESTelemetryBuilder, NextEditProviderTelemetryBuilder, TelemetrySender } from '../../extension/inlineEdits/node/nextEditProviderTelemetry';
-import { INextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
+import { NextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
 import { IPowerService, NullPowerService } from '../../extension/power/common/powerService';
 import { ChatMLFetcherImpl } from '../../extension/prompt/node/chatMLFetcher';
+import { INextEditLanguageContextService, NextEditLanguageContextRequest } from '../../extension/xtab/common/nextEditLanguageContextService';
 import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
 import { XtabProvider } from '../../extension/xtab/node/xtabProvider';
 import { IAuthenticationService } from '../../platform/authentication/common/authentication';
@@ -83,8 +85,10 @@ import { IGitExtensionService } from '../../platform/git/common/gitExtensionServ
 import { NullGitExtensionService } from '../../platform/git/common/nullGitExtensionService';
 import { IIgnoreService, NullIgnoreService } from '../../platform/ignore/common/ignoreService';
 import { DocumentId } from '../../platform/inlineEdits/common/dataTypes/documentId';
+import { LanguageContextEntry, LanguageContextResponse } from '../../platform/inlineEdits/common/dataTypes/languageContext';
 import { InlineEditRequestLogContext } from '../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService, IUndesiredModelsManager, NullUndesiredModelsManager } from '../../platform/inlineEdits/common/inlineEditsModelService';
+import { observeModelConfigValue, resolveModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
 import { ObservableGit } from '../../platform/inlineEdits/common/observableGit';
 import { IObservableDocument, ObservableWorkspace } from '../../platform/inlineEdits/common/observableWorkspace';
 import { NesHistoryContextProvider } from '../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
@@ -93,6 +97,7 @@ import { InlineEditsModelService } from '../../platform/inlineEdits/node/inlineE
 import { ILanguageContextProviderService } from '../../platform/languageContextProvider/common/languageContextProviderService';
 import { NullLanguageContextProviderService } from '../../platform/languageContextProvider/common/nullLanguageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../platform/languages/common/languageDiagnosticsService';
+import { ContextKind } from '../../platform/languageServer/common/languageContextService';
 import { TestLanguageDiagnosticsService } from '../../platform/languages/common/testLanguageDiagnosticsService';
 import { ConsoleLog, ILogService, LogLevel as InternalLogLevel, LogServiceImpl } from '../../platform/log/common/logService';
 import { ICompletionsFetchService } from '../../platform/nesFetch/common/completionsFetchService';
@@ -117,12 +122,17 @@ import { ITerminalService, NullTerminalService } from '../../platform/terminal/c
 import { ITokenizerProvider, TokenizerProvider } from '../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService, NullWorkspaceService } from '../../platform/workspace/common/workspaceService';
 import { InstantiationServiceBuilder } from '../../util/common/services';
-import { CancellationToken } from '../../util/vs/base/common/cancellation';
+import { raceCancellation, raceCancellationError, raceTimeout } from '../../util/vs/base/common/async';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../util/vs/base/common/cancellation';
 import { Emitter, Event as VsEvent } from '../../util/vs/base/common/event';
+import { CancellationError } from '../../util/vs/base/common/errors';
 import { Disposable, IDisposable } from '../../util/vs/base/common/lifecycle';
+import { derivedOpts, IObservable } from '../../util/vs/base/common/observable';
 import { IObservableWithChange } from '../../util/vs/base/common/observableInternal';
 import { URI } from '../../util/vs/base/common/uri';
 import { generateUuid } from '../../util/vs/base/common/uuid';
+import { StringReplacement } from '../../util/vs/editor/common/core/edits/stringEdit';
+import { OffsetRange } from '../../util/vs/editor/common/core/ranges/offsetRange';
 import { SyncDescriptor } from '../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../util/vs/platform/instantiation/common/instantiation';
 export {
@@ -211,6 +221,12 @@ export interface INESProviderOptions {
 	 */
 	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 	/**
+	 * Supplies language context, such as declarations from the host IDE's code
+	 * model, for the NES prompt when the NES model enables language context.
+	 * When omitted, NES prompts without language context.
+	 */
+	readonly languageContext?: INESLanguageContextProvider;
+	/**
 	 * Tokenizer provider backing prompt rendering and token budgeting. When
 	 * omitted, falls back to the built-in {@link TokenizerProvider}, which
 	 * loads its own BPE dictionaries. Embedders that already have the
@@ -218,6 +234,50 @@ export interface INESProviderOptions {
 	 * loading a second copy (~100 MB per encoder).
 	 */
 	readonly tokenizerProvider?: ITokenizerProvider;
+}
+
+/**
+ * Supplies language context for NES prompts.
+ */
+export interface INESLanguageContextProvider {
+	/**
+	 * Streams code snippets that describe {@link INESLanguageContextRequest.document}.
+	 * Yield nothing when the snippets would describe different text.
+	 *
+	 * NES stops reading at {@link INESLanguageContextRequest.deadline} or when
+	 * `token` is cancelled, and drops later snippets. chat-lib does not apply
+	 * content exclusion: yield a snippet only if its source may be sent to Copilot.
+	 */
+	provideContext(request: INESLanguageContextRequest, token: CancellationToken): AsyncIterable<INESLanguageContextSnippet>;
+}
+
+export interface INESLanguageContextRequest {
+	/**
+	 * The document NES predicts edits for. `text` is the exact content NES
+	 * prompts with. It can differ from the editor's document, for example when
+	 * NES speculates that a suggested edit was accepted.
+	 */
+	readonly document: {
+		readonly uri: string;
+		readonly languageId: string;
+		readonly text: string;
+	};
+	/**
+	 * Cursor position as a UTF-16 offset into `document.text`.
+	 */
+	readonly cursorOffset: number;
+	/**
+	 * Time in milliseconds since the Unix epoch after which NES stops reading snippets.
+	 */
+	readonly deadline: number;
+}
+
+export interface INESLanguageContextSnippet {
+	/**
+	 * URI of the file the snippet comes from. The prompt labels the snippet with it.
+	 */
+	readonly uri: string;
+	readonly value: string;
 }
 
 export interface INESResult {
@@ -234,10 +294,38 @@ export interface INESResult {
 		 * {@link range} offsets are resolved against that target document.
 		 */
 		readonly targetDocumentUri?: string;
+		/**
+		 * Whether the edit can be shown as an inline completion (ghost text) at the
+		 * cursor of the document passed to {@link INESProvider.getNextEdit}. When
+		 * `true`, {@link range} and {@link newText} describe an equivalent edit on
+		 * the cursor's line, adjusted so that it can be rendered as ghost text.
+		 * When `false`, the edit should be shown as a next edit suggestion.
+		 */
+		readonly isInlineCompletion: boolean;
 	};
 }
 
+export interface INESProviderCapabilities {
+	/**
+	 * Whether the selected NES model can also serve inline completions.
+	 */
+	readonly inlineCompletions: boolean;
+}
+
+function toNESProviderCapabilities(inlineCompletions: boolean | undefined): INESProviderCapabilities {
+	return { inlineCompletions: inlineCompletions ?? false };
+}
+
 export interface INESProvider<T extends INESResult = INESResult> {
+	/**
+	 * Fires when the capabilities of the selected NES model change.
+	 */
+	readonly onDidChangeCapabilities: VsEvent<INESProviderCapabilities>;
+	/**
+	 * Resolves the capabilities of the selected NES model after settling model
+	 * selection. Rejects when required authentication or model discovery fails.
+	 */
+	getCapabilities(cancellationToken?: CancellationToken): Promise<INESProviderCapabilities>;
 	getId(): string;
 	getNextEdit(documentUri: vscode.Uri, cancellationToken: CancellationToken): Promise<T>;
 	handleShown(suggestion: T): void;
@@ -257,14 +345,17 @@ export function createNESProvider(options: INESProviderOptions): INESProvider<IN
 interface NESResult extends INESResult {
 	docId: DocumentId;
 	requestUuid: string;
-	internalResult: INextEditResult;
+	internalResult: NextEditResult;
 	telemetryBuilder: NextEditProviderTelemetryBuilder;
 }
 
 class NESProvider extends Disposable implements INESProvider<NESResult> {
-	private readonly _nextEditProvider: INextEditProvider<INextEditResult, LlmNESTelemetryBuilder>;
+	private readonly _nextEditProvider: INextEditProvider<NextEditResult, LlmNESTelemetryBuilder>;
 	private readonly _telemetrySender: TelemetrySender;
 	private readonly _debugRecorder: DebugRecorder;
+	private readonly _disposeToken = cancelOnDispose(this._store);
+	private readonly _capabilities: IObservable<INESProviderCapabilities>;
+	readonly onDidChangeCapabilities: VsEvent<INESProviderCapabilities>;
 
 	constructor(
 		private _options: INESProviderOptions,
@@ -272,8 +363,16 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
 	) {
 		super();
+		this._register(instantiationService);
+		const inlineCompletions = observeModelConfigValue(this, this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsUnification, this._modelService.supportsUnifiedCompletions);
+		this._capabilities = derivedOpts(
+			{ owner: this, equalsFn: (a, b) => a.inlineCompletions === b.inlineCompletions },
+			reader => toNESProviderCapabilities(inlineCompletions.read(reader))
+		);
+		this.onDidChangeCapabilities = VsEvent.fromObservable(this._capabilities, this._store);
 		const statelessNextEditProvider = instantiationService.createInstance(XtabProvider);
 		const git = instantiationService.createInstance(ObservableGit);
 		const historyContextProvider = new NesHistoryContextProvider(this._options.workspace, git);
@@ -285,12 +384,25 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		this._telemetrySender = this._register(instantiationService.createInstance(TelemetrySender, this._options.workspace));
 	}
 
+	async getCapabilities(cancellationToken = CancellationToken.None): Promise<INESProviderCapabilities> {
+		if (this._disposeToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await raceCancellationError(this._modelService.ensureModelSelection(cancellationToken), this._disposeToken);
+		return this._capabilities.get();
+	}
+
 	getId(): string {
 		return this._nextEditProvider.ID;
 	}
 
 	handleShown(result: NESResult): void {
 		result.telemetryBuilder.setAsShown();
+		// Lets the "mimic ghost text behavior" gate keep this suggestion from resurfacing as an inline edit.
+		const cacheEntry = result.internalResult.result?.cacheEntry;
+		if (result.result?.isInlineCompletion && cacheEntry) {
+			cacheEntry.wasRenderedAsInlineSuggestion = true;
+		}
 		this._nextEditProvider.handleShown(result.internalResult);
 	}
 
@@ -356,13 +468,29 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		);
 		telemetryBuilder.setOpportunityId(context.requestUuid);
 
+		// Read synchronously before the request so the cursor matches the document snapshot the provider reads.
+		const cursor = document.selection.get().at(0);
+
 		try {
 			const internalResult = await this._nextEditProvider.getNextEdit(docId, context, logContext, cancellationToken, telemetryBuilder.nesBuilder);
+			const edit = internalResult.result?.edit;
+			const inlineCompletion = this._toInlineCompletion(docId, cursor, internalResult);
+			if (edit && !inlineCompletion && this._wasShownAsInlineCompletion(internalResult)) {
+				telemetryBuilder.setStatus('noEdit:suppressedNonInlineReshow');
+				return {
+					result: undefined,
+					docId,
+					requestUuid: context.requestUuid,
+					internalResult: new NextEditResult(internalResult.requestId, internalResult.source, undefined),
+					telemetryBuilder,
+				};
+			}
 			const result: NESResult = {
-				result: internalResult.result?.edit ? {
-					newText: internalResult.result.edit.newText,
-					range: internalResult.result.edit.replaceRange,
-					...(internalResult.result.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
+				result: edit ? {
+					newText: inlineCompletion?.newText ?? edit.newText,
+					range: inlineCompletion?.replaceRange ?? edit.replaceRange,
+					...(internalResult.result?.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
+					isInlineCompletion: !!inlineCompletion,
 				} : undefined,
 				docId,
 				requestUuid: context.requestUuid,
@@ -378,6 +506,31 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 			}
 			throw e;
 		}
+	}
+
+	/**
+	 * Returns the edit in the form it can be rendered as ghost text at the cursor, or `undefined`
+	 * when it must be shown as an inline edit. Mirrors the VS Code inline completion provider.
+	 */
+	private _toInlineCompletion(docId: DocumentId, cursor: OffsetRange | undefined, internalResult: NextEditResult): StringReplacement | undefined {
+		const result = internalResult.result;
+		if (
+			!result?.edit
+			|| !cursor?.isEmpty
+			|| (result.targetDocumentId !== undefined && result.targetDocumentId !== docId)
+			|| !this._configurationService.getConfig(ConfigKey.TeamInternal.InlineEditsInlineCompletionsEnabled)
+		) {
+			return undefined;
+		}
+		const advanced = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsInlineCompletionsAdvanced, this._expService);
+		const transformer = result.documentBeforeEdits.getTransformer();
+		const inlineSuggestion = toInlineSuggestion(transformer.getPosition(cursor.start), result.documentBeforeEdits, transformer.getRange(result.edit.replaceRange), result.edit.newText, advanced);
+		return inlineSuggestion && new StringReplacement(transformer.getOffsetRange(inlineSuggestion.range), inlineSuggestion.text);
+	}
+
+	private _wasShownAsInlineCompletion(internalResult: NextEditResult): boolean {
+		return !!internalResult.result?.cacheEntry?.wasRenderedAsInlineSuggestion
+			&& resolveModelConfigValue(this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior);
 	}
 
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>) {
@@ -446,6 +599,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IUndesiredModelsManager, options.undesiredModelsManager || new SyncDescriptor(NullUndesiredModelsManager));
 	builder.define(ITerminalService, options.terminalService || new SyncDescriptor(NullTerminalService));
 	builder.define(ISimilarFilesContextService, new SyncDescriptor(NullSimilarFilesContextService));
+	builder.define(INextEditLanguageContextService, new EmbedderLanguageContextService(options.languageContext));
 	builder.define(IEndpointProvider, new NullEndpointProvider());
 	const configProvider = new InMemoryConfigProvider(new DefaultsOnlyConfigProvider());
 	if (options.configOverrides) {
@@ -453,6 +607,44 @@ function setupServices(options: INESProviderOptions) {
 	}
 	builder.define(ICompletionsConfigProvider, configProvider);
 	return builder.seal();
+}
+
+class EmbedderLanguageContextService implements INextEditLanguageContextService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(private readonly _provider: INESLanguageContextProvider | undefined) { }
+
+	async getLanguageContext(request: NextEditLanguageContextRequest, token: CancellationToken): Promise<LanguageContextResponse | undefined> {
+		if (!this._provider) {
+			return undefined;
+		}
+		const text = request.document.documentAfterEdits;
+		const start = Date.now();
+		const items: LanguageContextEntry[] = [];
+		const cts = new CancellationTokenSource(token);
+		const snippets = this._provider.provideContext({
+			document: { uri: request.document.id.uri, languageId: request.document.languageId, text: text.value },
+			cursorOffset: text.getTransformer().getOffset(request.cursorPosition),
+			deadline: start + request.timeBudgetMs,
+		}, cts.token);
+		const collect = async () => {
+			for await (const snippet of snippets) {
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
+				items.push({ context: { kind: ContextKind.Snippet, priority: 0, uri: URI.parse(snippet.uri), value: snippet.value }, timeStamp: Date.now(), onTimeout: false });
+			}
+		};
+		try {
+			await raceCancellation(raceTimeout(collect(), request.timeBudgetMs), token);
+		} finally {
+			cts.dispose(true);
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return { start, end: Date.now(), items };
+	}
 }
 
 class OverridableConfigurationService extends DefaultsOnlyConfigurationService {

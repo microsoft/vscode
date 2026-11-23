@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession } from '@github/copilot-sdk';
+import type { CopilotSession } from '@microsoft/copilot-sdk';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -13,10 +13,15 @@ export type CopilotSlashCommandResult = Awaited<ReturnType<CopilotSession['rpc']
 
 export type CopilotSlashCommandOutput =
 	| { readonly kind: 'text'; readonly text: string; readonly markdown?: boolean }
-	| { readonly kind: 'link'; readonly resource: URI; readonly label: string; readonly preview?: boolean };
+	| { readonly kind: 'link'; readonly resource: URI; readonly label: string; readonly preview?: boolean; readonly openInEditor?: boolean };
 
 /** Host-side behavior attached to a resolved command, separate from SDK catalog metadata. */
 export interface ICopilotSlashCommandHandler {
+	/** Returning undefined delegates invocation to the SDK runtime command. */
+	readonly invoke?: (input: string) => Promise<CopilotSlashCommandResult | undefined>;
+	/** Activity shown when invocation remains pending long enough to need progress feedback. */
+	readonly getProgressMessage?: (input: string) => string | undefined;
+	readonly showProgressImmediately?: (input: string) => boolean;
 	/** Returning undefined preserves the SDK command name and raw input. */
 	readonly getInvocation?: (input: string) => CopilotSlashCommandInvocation | undefined;
 	/** Returning undefined preserves the SDK result's existing rendering and lifecycle. */

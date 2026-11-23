@@ -36,8 +36,5 @@ steps:
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ./common/setup-node.yml@self
   - template: ./distro/download-distro.yml@self

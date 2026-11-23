@@ -7,10 +7,13 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -67,7 +70,10 @@ const agentSessionSettingsPrecondition = ContextKeyExpr.and(
  * last-focused/active session; this action is context-menu-only and always
  * requires an explicit selection.
  */
-function resolveSelectedSession(context: IAgentSession | IMarshalledAgentSessionContext | undefined): IAgentSession | undefined {
+function resolveSelectedSession(context: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[] | undefined): { readonly resource: URI } | undefined {
+	if (Array.isArray(context)) {
+		return context.length === 1 ? context[0] : undefined;
+	}
 	if (isMarshalledAgentSessionContext(context)) {
 		return context.session;
 	}
@@ -82,6 +88,8 @@ registerAction2(class OpenAgentSessionSettingsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.openAgentSessionSettings',
 			title: localize2('openAgentSessionSettings', "Open Session Settings"),
+			// The shared sessions list sets this key; the Chat view list never does.
+			precondition: ContextKeyExpr.not('sessionItem.isMultiSelection'),
 			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '3_settings',
@@ -90,16 +98,27 @@ registerAction2(class OpenAgentSessionSettingsAction extends Action2 {
 					agentSessionSettingsPrecondition,
 					ContextKeyExpr.regex(ChatContextKeys.agentSessionType.key, LOCAL_AGENT_HOST_SESSION_TYPE_RE),
 				),
+			}, {
+				// The Agents window offers this in its own settings submenu.
+				id: MenuId.SessionItemContextMenu,
+				group: '4_manage',
+				order: 2.6,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext.negate(),
+					agentSessionSettingsPrecondition,
+					// Settings commands target the local host only, not remote or container providers.
+					ContextKeyExpr.equals('sessionProviderId', 'local-agent-host'),
+				),
 			}],
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
 		const session = resolveSelectedSession(context);
 		if (!session) {
 			return;
 		}
-		const backendSession = toAgentHostBackendSessionUri(session.resource);
+		const backendSession = toAgentHostBackendSessionUri(session.resource, accessor.get(IAgentHostConnectionsService));
 		if (!backendSession) {
 			return;
 		}

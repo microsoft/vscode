@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IDebuggerContribution, IDebugSession, IConfig, IConfigPresentation, State } from './debug.js';
 import { URI as uri } from '../../../../base/common/uri.js';
@@ -442,4 +443,28 @@ export function getEffectiveConfigForPlatform(config: IConfig, os: OperatingSyst
 
 export function getEffectivePresentationForConfig(config: IConfig, os: OperatingSystem = OS): IConfigPresentation | undefined {
 	return getEffectiveConfigForPlatform(config, os).presentation;
+}
+
+/**
+ * Stops the sessions and resolves once they have all ended, including what runs when they end, such as post-debug tasks.
+ * A session that ended already, such as while the user was asked to confirm, is not waited for. Rejects when stopping one fails.
+ */
+export async function stopSessionsAndWaitForEnd(sessions: readonly IDebugSession[], stop: (session: IDebugSession) => Promise<unknown>, onDidEndSession: Event<{ readonly session: IDebugSession; readonly restart: boolean }>, hasEnded: (session: IDebugSession) => boolean): Promise<void> {
+	await Promise.all(sessions.map(async session => {
+		if (hasEnded(session)) {
+			return;
+		}
+		const ended = Event.toPromise(Event.filter(onDidEndSession, e => e.session === session && !e.restart));
+		try {
+			await stop(session);
+		} catch (error) {
+			ended.cancel();
+			throw error;
+		}
+		if (hasEnded(session)) {
+			ended.cancel();
+			return;
+		}
+		await ended;
+	}));
 }

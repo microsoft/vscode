@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestGitHubService } from './testGitHubService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,7 +15,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from '../../node/agentHostMergeOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -111,6 +112,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		modifiedAt: new Date(1).toISOString(),
 		workingDirectories: [worktreeRoot.toString()],
 		project: { uri: repositoryRoot.toString(), displayName: 'repo' },
+		defaultChat: buildDefaultChatUri(session.toString()),
 	});
 	stateManager.setSessionConfig(session.toString(), {
 		schema: { type: 'object', properties: {} },
@@ -149,6 +151,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		gitService,
 		new NullLogService(),
 		stateManager,
+		createTestGitHubService(),
 	);
 	return { gitService, handler, merged, refreshed };
 }

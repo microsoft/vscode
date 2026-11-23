@@ -24,7 +24,7 @@ import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPi
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT];
-const HYDRA_FUSION_LEARN_MORE_URL = URI.parse('https://aka.ms/hydrafusion-blog');
+export const HYDRA_FUSION_LEARN_MORE_URL = URI.parse('https://aka.ms/hydrafusion-blog');
 
 export interface IModelPickerHoverContent {
 	readonly element: HTMLElement;
@@ -148,7 +148,8 @@ export function getModelHoverContent(
 		costInfoRendered = true;
 	}
 
-	const description = descriptionOverride ?? model.metadata.tooltip;
+	const tooltip = descriptionOverride ?? model.metadata.tooltip;
+	const description = tooltip && !repeatsMessageBanner(model, tooltip) ? tooltip : undefined;
 	if (!costInfoRendered && (description || isHydraFusionModel(model))) {
 		const { element, learnMoreLink } = renderModelDescription(description ?? '', openerService, disposables, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		element.classList.add('chat-model-hover-description');
@@ -173,7 +174,7 @@ export function getModelHoverContent(
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
-				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT ? localize('models.optimizeFor', "Optimize for") : propSchema.title ?? propSchema.description;
+				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT && !model.metadata.autoModelFusion ? localize('models.optimizeFor', "Optimize for") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });
@@ -200,6 +201,18 @@ export function getModelHoverContent(
 	}
 
 	return container.children.length > 0 ? { element: container, disposable: disposables, tabbableElements } : undefined;
+}
+
+/**
+ * Whether the text repeats a warning or info banner shown for the model. Providers also
+ * give a flagged row's warning as the model's tooltip, to explain its status icon elsewhere.
+ */
+export function repeatsMessageBanner(model: ILanguageModelChatMetadataAndIdentifier, text: string): boolean {
+	if (isAutoModel(model)) {
+		return false;
+	}
+	const { warningText, infoText } = model.metadata;
+	return Object.values(warningText ?? {}).includes(text) || Object.values(infoText ?? {}).includes(text);
 }
 
 /**

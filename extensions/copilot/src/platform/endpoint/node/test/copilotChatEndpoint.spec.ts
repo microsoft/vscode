@@ -7,6 +7,7 @@ import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { IChatMLFetcher } from '../../../chat/common/chatMLFetcher';
 
 import { ConfigKey } from '../../../configuration/common/configurationService';
@@ -670,7 +671,7 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		postOptions: { temperature: 0, top_p: 1 }
 	});
 
-	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+	it.each(['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3', 'kimi-k4'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(1);
@@ -681,6 +682,7 @@ describe('ChatEndpoint - Kimi CAPI customization', () => {
 		{ family: 'kimi-k2.6', prefix: 'functions.' },
 		{ family: 'kimi-k2.7-code', prefix: 'functions.' },
 		{ family: 'kimi-k3', prefix: '' },
+		{ family: 'kimi-k4', prefix: '' },
 	])('should normalize tool call IDs for $family', ({ family, prefix }) => {
 		const history = createToolHistory();
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
@@ -850,5 +852,56 @@ describe('ChatEndpoint - model picker notices', () => {
 	it('has no notices when CAPI sends none', () => {
 		const endpoint = createEndpoint({ ...createNonAnthropicModelMetadata('gpt-4.1'), info_messages: [] });
 		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText }).toEqual({ warningText: undefined, infoText: undefined });
+	});
+});
+
+describe('CopilotChatEndpoint - supportsToolSearch auth gating', () => {
+	const createEndpoint = (sku: string | undefined, capiProxyUrl?: string, authType?: 'hmac' | 'token') => {
+		const mockServices = createMockServices();
+		if (capiProxyUrl) {
+			mockServices.configurationService.setConfig(ConfigKey.Shared.DebugOverrideCAPIUrl, capiProxyUrl);
+		}
+		if (authType) {
+			mockServices.configurationService.setConfig(ConfigKey.Shared.DebugOverrideAuthType, authType);
+		}
+		const authService = {
+			copilotToken: sku === undefined ? undefined : new CopilotToken(createTestExtendedTokenInfo({ sku })),
+		} as unknown as IAuthenticationService;
+		const metadata = createNonAnthropicModelMetadata('gpt-5.4');
+		metadata.capabilities.supports.tool_search = true;
+		return new CopilotChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+	};
+
+	it('enables tool search for signed-in users and HMAC-proxied no-auth users only', () => {
+		expect({
+			signedIn: createEndpoint('copilot_for_business_seat').supportsToolSearch,
+			noAuth: createEndpoint('no_auth_limited_copilot').supportsToolSearch,
+			noAuthThroughCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989').supportsToolSearch,
+			noAuthThroughHmacCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989', 'hmac').supportsToolSearch,
+			noAuthThroughTokenCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989', 'token').supportsToolSearch,
+			signedInThroughTokenCapiProxy: createEndpoint('copilot_for_business_seat', 'http://localhost:8989', 'token').supportsToolSearch,
+		}).toEqual({
+			signedIn: true,
+			noAuth: false,
+			noAuthThroughCapiProxy: true,
+			noAuthThroughHmacCapiProxy: true,
+			noAuthThroughTokenCapiProxy: false,
+			signedInThroughTokenCapiProxy: true,
+		});
 	});
 });

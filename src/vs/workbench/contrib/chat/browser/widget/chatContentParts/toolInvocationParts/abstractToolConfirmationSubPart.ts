@@ -20,11 +20,12 @@ import { ILanguageModelToolsService } from '../../../../common/tools/languageMod
 import { IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
-import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { focusChatInput, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IRenderFileWidgetsOptions } from '../chatInlineAnchorWidget.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { isMcpToolInvocation } from './chatToolPartUtilities.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
+import { renderToolConfirmationFeedback } from './toolConfirmationFeedback.js';
 
 /**
  * Remembers editors that the user opened by clicking a file link inside a confirmation
@@ -221,7 +222,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 					label: localize('skip', "Skip"),
 					tooltip: skipTooltip,
 					data: () => {
-						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped, source: 'user' });
 					},
 					isSecondary: true,
 				}
@@ -238,6 +239,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const riskBadge = approvalReasonBadge?.domNode ?? (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 			? this.createRiskBadgeDomNode(state.parameters)
 			: undefined);
+		const feedback = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.feedback : undefined;
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<(() => void)>,
 			this.context,
@@ -248,6 +250,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				buttons,
 				message: contentElement,
 				footerBanner: riskBadge,
+				additionalContent: feedback ? renderToolConfirmationFeedback(this._store, toolInvocation, feedback) : undefined,
 				fileWidgetOptions: this.openedEditors.fileWidgetOptions,
 				toolbarData: {
 					arg: toolInvocation,
@@ -264,7 +267,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
 			if (!isTouchClick) {
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				this.focusChatInput();
 			}
 		}));
 
@@ -298,6 +301,11 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	 */
 	protected useAllowOnceAsPrimary(): boolean {
 		return false;
+	}
+
+	/** Focuses the input of the widget that shows this chat's input requests, such as the one whose list renders this. */
+	protected focusChatInput(): void {
+		focusChatInput(this.context, this.chatWidgetService);
 	}
 
 	protected abstract createContentElement(): HTMLElement | string;

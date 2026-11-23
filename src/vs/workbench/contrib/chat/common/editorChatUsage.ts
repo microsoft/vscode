@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { parseRemoteAgentHostHarness } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostProvider, parseRemoteAgentHostHarness } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { SessionType } from './chatSessionsService.js';
+import { EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';
 
 const storagePrefix = 'chat.editorUsage.';
 const providers = ['local', 'copilotcli', 'cloud', 'copilot', 'claude', 'codex', 'codexExtension', 'growth', 'remoteCopilot', 'remoteClaude', 'remoteCodex', 'other'] as const;
@@ -29,8 +30,11 @@ function getProvider(sessionType: string): typeof providers[number] {
 		case SessionType.Codex: return 'codexExtension';
 		case SessionType.Growth: return 'growth';
 	}
-	switch (parseRemoteAgentHostHarness(sessionType)) {
-		case 'copilotcli': return 'remoteCopilot';
+	const remoteProvider = parseRemoteAgentHostHarness(sessionType);
+	if (isCopilotAgentHostProvider(remoteProvider)) {
+		return 'remoteCopilot';
+	}
+	switch (remoteProvider) {
 		case 'claude': return 'remoteClaude';
 		case 'codex': return 'remoteCodex';
 		default: return 'other';
@@ -40,6 +44,24 @@ function getProvider(sessionType: string): typeof providers[number] {
 /** Best-effort editor-only usage shared across profiles and applications; overlapping window writes can lose increments. */
 export class EditorChatUsage {
 	constructor(private readonly storageService: IStorageService) { }
+
+	get agentHostSessionCount(): number {
+		return this.storageService.getNumber(EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY, StorageScope.APPLICATION)
+			?? ['copilot', 'claude', 'codex', 'remoteCopilot', 'remoteClaude', 'remoteCodex'].reduce((total, provider) => total + this.getNumber(`sessions.${provider}`), 0);
+	}
+
+	/** When the user last sent an editor chat message, or `undefined` if no message was recorded. */
+	get lastMessageDate(): number | undefined {
+		return this.getNumber('messages') > 0 ? this.getNumber('lastMessageDate') : undefined;
+	}
+
+	get messageCount(): number {
+		return this.getNumber('messages');
+	}
+
+	get sessionCount(): number {
+		return providers.reduce((total, provider) => total + this.getNumber(`sessions.${provider}`), 0);
+	}
 
 	recordSubmission(sessionType: string, isNewSession: boolean, otherSessionInProgress: boolean, otherWindowSessionInProgress: boolean, timestamp: number): void {
 		if (isNewSession) {
@@ -72,12 +94,13 @@ export class EditorChatUsage {
 			}
 		}
 		const messages = this.getNumber('messages');
+		const lastMessageDate = this.lastMessageDate;
 		return {
 			editorSessionsByProvider: JSON.stringify(sessionsByProvider),
 			editorMessages: messages,
 			editorMessagesWithOtherSessionInProgress: this.getNumber('messagesWithOtherSessionInProgress'),
 			editorMessagesWithOtherSessionInProgressAcrossWindows: this.getNumber('messagesWithOtherSessionInProgressAcrossWindows'),
-			editorLastMessageSecondsAgo: messages > 0 ? Math.max(0, Math.floor((now - this.getNumber('lastMessageDate')) / 1000)) : undefined,
+			editorLastMessageSecondsAgo: lastMessageDate !== undefined ? Math.max(0, Math.floor((now - lastMessageDate) / 1000)) : undefined,
 		};
 	}
 }

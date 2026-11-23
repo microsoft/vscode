@@ -3,11 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 
 /** The presentation `kind` handled by the spotlight presentation. */
 export const SPOTLIGHT_PRESENTATION_KIND = 'spotlight';
+
+/** Setting that controls whether spotlights dim the window around the highlighted target. */
+export const SPOTLIGHT_BACKDROP_CONFIG = 'onboarding.spotlight.backdrop';
+
+/** Experiment-controlled setting that ends tours with a close button by the title instead of an End Tour button. */
+export const SPOTLIGHT_CLOSE_BUTTON_CONFIG = 'onboarding.spotlight.closeButton';
 
 /** Preferred placement of the callout relative to the spotlighted target. */
 export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
@@ -43,8 +50,40 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Handles links in the callout description. */
+	readonly onDidClickLink?: (link: string) => void;
+
+	/** Replaces {@link title} and {@link description} when the target already has a selected value as the step shows. */
+	readonly selectedContent?: {
+		readonly title: string;
+		readonly description: string | IMarkdownString;
+	};
+
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
+
+	/**
+	 * Localized label of the button that ends the tour, replacing End Tour. Keeps the button on the last step.
+	 * With {@link SPOTLIGHT_CLOSE_BUTTON_CONFIG}, the footer button only shows for such a label, for steps
+	 * where ending the tour is a choice such as "Continue in Folder", and those steps show no close button.
+	 */
+	readonly endTourLabel?: string;
+
+	/**
+	 * Explicit action offered instead of Next or Done. Only runs on a button
+	 * click; unless `advance` is set, advancing still requires target selection
+	 * or `advanceWhen`. The token is cancelled when the step ends or its target
+	 * is replaced.
+	 */
+	readonly primaryAction?: {
+		readonly label: string;
+		readonly run: (token: CancellationToken) => Promise<void> | void;
+		/** Advances once `run` completes, for actions that do not select the target. */
+		readonly advance?: boolean;
+	};
+
+	/** Focuses the end tour button, or the title close button when no end tour button shows, instead of the primary action when the step is shown, so Enter does not run the action. */
+	readonly focusEndTour?: boolean;
 
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
@@ -58,6 +97,9 @@ export interface ISpotlightStep {
 	/** Opens the target through its owner; `ifUnselected` only opens controls without a selected value. */
 	readonly openTarget?: boolean | 'ifUnselected';
 
+	/** Skips the step when its target already has a selected value, such as a preselected workspace. */
+	readonly skipIfSelected?: boolean;
+
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
 
@@ -67,7 +109,7 @@ export interface ISpotlightStep {
 	/** Advances when the target reports a selection, without hiding Next. */
 	readonly advanceOnTargetSelection?: boolean;
 
-	/** Overrides hiding Next when advancing on target clicks. `advanceWhen` always hides Next. */
+	/** Overrides hiding Next when advancing on target clicks. `primaryAction` always stays visible. */
 	readonly hideNext?: boolean;
 
 	/** Hides Next and advances once this context expression becomes satisfied. */
@@ -81,6 +123,9 @@ export interface ISpotlightStep {
 	 * that hosts the target. Awaited before the target is resolved.
 	 */
 	readonly onBeforeShow?: () => Promise<void> | void;
+
+	/** Called after the spotlight is visible, for presentation-only effects. */
+	readonly onDidShow?: () => void;
 }
 
 /**

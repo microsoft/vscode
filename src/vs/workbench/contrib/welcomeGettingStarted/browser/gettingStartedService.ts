@@ -38,6 +38,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { GettingStartedInput } from './gettingStartedInput.js';
+import { resetAgentsWindowGraphicHidden } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -437,8 +438,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 
 		const hadLastFoucs = await this.hostService.hadLastFocus();
-		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
-		if (hadLastFoucs && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall') && startupEditor !== 'agentSessionsWelcomePage') {
+		if (hadLastFoucs && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				owner: 'lramos15';
 				comment: 'When a walkthrough is opened upon extension installation';
@@ -747,6 +747,7 @@ registerAction2(class extends Action2 {
 			JSON.stringify([]),
 			StorageScope.PROFILE,
 			StorageTarget.USER);
+		resetAgentsWindowGraphicHidden(storageService);
 
 		storageService.store(
 			walkthroughMetadataConfigurationKey,

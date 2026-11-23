@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { IEnvService } from '../../../../../platform/env/common/envService';
-import { RequestId } from '../../../../../platform/networking/common/fetch';
+import { gitHubCopilotRequestTeProperty, RequestId } from '../../../../../platform/networking/common/fetch';
 import { createServiceIdentifier } from '../../../../../util/common/services';
 import { generateUuid } from '../../../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -170,8 +170,12 @@ export class TelemetryData {
 			headerRequestId: requestId.headerRequestId,
 			serverExperiments: requestId.serverExperiments,
 			deploymentId: requestId.deploymentId,
+			...gitHubCopilotRequestTeProperty(requestId.gitHubCopilotRequestTe),
 		};
-		this.properties = { ...this.properties, ...requestProperties };
+		// Never carry over a value from an earlier request when this one lacks the header.
+		const properties = { ...this.properties };
+		delete properties.gitHubCopilotRequestTe;
+		this.properties = { ...properties, ...requestProperties };
 	}
 
 	private static keysToRemoveFromStandardTelemetry: string[] = [
@@ -281,8 +285,6 @@ export class TelemetryData {
 	// async operations in the telemetry event.
 	async makeReadyForSending(
 		accessor: ServicesAccessor,
-		store: TelemetryStore,
-		includeExp: 'IncludeExp' | 'SkipExp',
 		now: number
 	): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
@@ -290,12 +292,8 @@ export class TelemetryData {
 		this.extendWithEditorAgnosticFields(accessor);
 		this.sanitizeKeys();
 		this.multiplexProperties();
-		// the `includeExp` parameter is so we don't get into an infinite loop sending telemetry about
-		// ExP itself.
-		if (includeExp === 'IncludeExp') {
-			// we actually want to do this step _after_ sanitizing the keys, because the keys may be unsanitary (and still required)
-			await this.extendWithExpTelemetry(accessor);
-		}
+		// we actually want to do this step _after_ sanitizing the keys, because the keys may be unsanitary (and still required)
+		await this.extendWithExpTelemetry(accessor);
 		this.updateMeasurements(now);
 		Object.assign(this.properties, instantiationService.invokeFunction(createRequiredProperties));
 	}
@@ -458,26 +456,13 @@ async function _telemetry(
 
 	// if telemetry data isn't given, make a new one to hold at least the config
 	const definedTelemetryData = telemetryData || TelemetryData.createAndMarkAsIssued({}, {});
-	await definedTelemetryData.makeReadyForSending(accessor, store ?? false, 'IncludeExp', now);
+	await definedTelemetryData.makeReadyForSending(accessor, now);
 	if (!isEnhanced(store) || instantiationService.invokeFunction(shouldSendEnhanced)) {
 		sendTelemetryEvent(completionsTelemetryService, store, name, definedTelemetryData);
 	}
 	if (isEnhanced(store) && ftTelemetryEvents.includes(name) && instantiationService.invokeFunction(shouldSendFinetuningTelemetry)) {
 		instantiationService.invokeFunction(sendFTTelemetryEvent, store, name, definedTelemetryData);
 	}
-}
-
-export function telemetryExpProblem(accessor: ServicesAccessor, telemetryProperties: { reason: string }) {
-	const promiseQueueService = accessor.get(ICompletionsPromiseQueueService);
-	return promiseQueueService.register(_telemetryExpProblem(accessor, telemetryProperties, now()));
-}
-
-async function _telemetryExpProblem(accessor: ServicesAccessor, telemetryProperties: { reason: string }, now: number) {
-	const completionsTelemetryService = accessor.get(ICompletionsTelemetryService);
-	const name = 'expProblem';
-	const definedTelemetryData = TelemetryData.createAndMarkAsIssued(telemetryProperties, {});
-	await definedTelemetryData.makeReadyForSending(accessor, TelemetryStore.Standard, 'SkipExp', now);
-	sendTelemetryEvent(completionsTelemetryService, TelemetryStore.Standard, name, definedTelemetryData);
 }
 
 /**
@@ -552,7 +537,7 @@ async function _telemetryError(
 	}
 	const instantiationService = accessor.get(IInstantiationService);
 	const definedTelemetryData = telemetryData || TelemetryData.createAndMarkAsIssued({}, {});
-	await definedTelemetryData.makeReadyForSending(accessor, store, 'IncludeExp', now);
+	await definedTelemetryData.makeReadyForSending(accessor, now);
 	instantiationService.invokeFunction(sendTelemetryErrorEvent, store, name, definedTelemetryData);
 }
 

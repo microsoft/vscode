@@ -5,14 +5,75 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml, ChatRequestHooks } from '../../../common/promptSyntax/hookSchema.js';
+import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml, ChatRequestHooks, hookFileSchema, HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
-import { HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { getLocalFormatHookEventNames, HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 
 suite('HookSchema', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Copilot CLI schema accepts command alongside bash and powershell', () => {
+		const commandSchema = hookFileSchema.then?.properties?.hooks.properties?.preToolUse.items;
+		assert.ok(commandSchema && !Array.isArray(commandSchema));
+		assert.deepStrictEqual({
+			command: commandSchema.properties?.command,
+			anyOf: commandSchema.anyOf,
+		}, {
+			command: {
+				type: 'string',
+				description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command,
+			},
+			anyOf: [
+				{ required: ['command'] },
+				{ required: ['bash'] },
+				{ required: ['powershell'] },
+			],
+		});
+	});
+
+	test('only capitalised event names are deprecated, with or without a version', () => {
+		const deprecated = (properties: Record<string, { deprecationMessage?: string }> | undefined) =>
+			Object.keys(properties ?? {}).filter(key => properties?.[key].deprecationMessage).sort();
+		const message = 'This event name uses the deprecated Local hook format, so this hook may not work in Copilot sessions. Migrate the hook file and its scripts with the agent: open Chat Customizations and select Migrations.';
+		assert.deepStrictEqual({
+			shared: hookFileSchema.properties?.hooks.deprecationMessage,
+			withVersion: deprecated(hookFileSchema.then?.properties?.hooks.properties),
+			withoutVersion: deprecated(hookFileSchema.else?.properties?.hooks.properties),
+			nativeName: hookFileSchema.then?.properties?.hooks.properties?.preToolUse.deprecationMessage,
+			message: hookFileSchema.then?.properties?.hooks.properties?.PreToolUse.deprecationMessage,
+			validatesEntries: {
+				withVersion: !!hookFileSchema.then?.properties?.hooks.properties?.PreToolUse.items,
+				withoutVersionLocalName: !!hookFileSchema.else?.properties?.hooks.properties?.PreToolUse.items,
+				withoutVersionOtherAlias: !!hookFileSchema.else?.properties?.hooks.properties?.SessionEnd.items,
+			},
+		}, {
+			shared: undefined,
+			withVersion: [...getLocalFormatHookEventNames()].sort(),
+			withoutVersion: [...getLocalFormatHookEventNames()].sort(),
+			nativeName: undefined,
+			message,
+			validatesEntries: { withVersion: false, withoutVersionLocalName: true, withoutVersionOtherAlias: false },
+		});
+	});
+
+	test('default hook snippet uses the Copilot CLI format', () => {
+		assert.deepStrictEqual(hookFileSchema.defaultSnippets?.[0].body, {
+			version: 1,
+			hooks: {
+				sessionStart: [{
+					type: 'command',
+					command: '${1:echo "Session started" >> session.log}',
+				}],
+				preToolUse: [{
+					type: 'command',
+					command: '${2:./scripts/validate.sh}',
+					timeoutSec: 15,
+				}],
+			},
+		});
+	});
 
 	suite('resolveHookCommand', () => {
 		const workspaceRoot = URI.file('/workspace');

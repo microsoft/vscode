@@ -8,6 +8,7 @@ import { InEditorZenModeContext, MenuBarVisibleContext } from '../../../common/c
 
 export const ShowCurrentReleaseNotesActionId = 'update.showCurrentReleaseNotes';
 export const ShowCurrentReleaseNotesFromCurrentFileActionId = 'developer.showCurrentFileAsReleaseNotes';
+export const PostUpdateReleaseNotesSource = Symbol('postUpdateReleaseNotes');
 
 export const UpdateTitleBarContext = new RawContextKey<boolean>('updateTitleBar', false);
 export const UpdateTitleBarChatInProgressContext = new RawContextKey<boolean>('updateTitleBarChatRequestInProgress', false);

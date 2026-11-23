@@ -8,7 +8,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SubscribeResult } from '../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { MessageKind, ROOT_STATE_URI, buildDefaultChatUri, type MessageAttachment, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, type MessageAttachment, type SessionState } from '../../common/state/sessionState.js';
+import { defaultChatChannel } from './hostDefaultChats.js';
 import type { TestProtocolClient } from './serverIntegrationTestHelpers.js';
 
 export interface IAgentHostProviderTestConfig {
@@ -28,7 +29,11 @@ export async function createProviderSession(
 	beforeAuthenticate?: () => Promise<void>,
 ): Promise<string> {
 	client.setWorkingDirectory(workingDirectory.fsPath);
-	await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+	await client.call('initialize', {
+		channel: ROOT_STATE_URI,
+		protocolVersions: [PROTOCOL_VERSION],
+		clientId,
+	}, 30_000);
 	await beforeAuthenticate?.();
 	await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
 	await beforeCreateSession?.();
@@ -44,7 +49,7 @@ export async function createProviderSession(
 
 	const subscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 	void (subscribeResult.snapshot!.state as SessionState);
-	await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 	client.clearReceived();
 
 	return sessionUri;
@@ -52,7 +57,7 @@ export async function createProviderSession(
 
 export function dispatchTurn(client: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
 	client.dispatch({
-		channel: buildDefaultChatUri(session),
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,
@@ -65,7 +70,7 @@ export function dispatchTurn(client: TestProtocolClient, session: string, turnId
 
 export function dispatchTurnWithAttachments(client: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): void {
 	client.dispatch({
-		channel: buildDefaultChatUri(session),
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,

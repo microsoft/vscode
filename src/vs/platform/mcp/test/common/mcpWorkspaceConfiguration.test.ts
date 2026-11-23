@@ -86,6 +86,32 @@ suite('McpWorkspaceConfiguration', () => {
 		]);
 	});
 
+	for (const wrapped of [true, false]) {
+		test(`reads Copilot local servers in ${wrapped ? 'wrapped' : 'flat'} configurations alongside existing servers`, () => {
+			const servers = {
+				migrated: { type: 'local', command: 'node', args: ['server.js'], env: { MODE: 'fixture' }, tools: ['*'] },
+				stdio: { type: 'stdio', command: 'node' },
+				http: { type: 'http', url: 'https://example.com/mcp' },
+				missingCommand: { type: 'local' },
+				invalidCommand: { type: 'local', command: 1 },
+				unsupported: { type: 'ws', url: 'ws://example.com' },
+				bad: null,
+				array: [],
+			};
+
+			const parsed = parseWorkspaceRootMcpConfiguration(JSON.stringify(wrapped ? { mcpServers: servers } : servers));
+
+			assert.deepStrictEqual(JSON.parse(JSON.stringify(parsed)), {
+				wrapped,
+				servers: {
+					migrated: { type: 'stdio', command: 'node', args: ['server.js'], env: { MODE: 'fixture' } },
+					stdio: { type: 'stdio', command: 'node' },
+					http: { type: 'http', url: 'https://example.com/mcp' },
+				},
+			});
+		});
+	}
+
 	for (const content of ['', 'null', '[]', '{"mcpServers":null}', '{"mcpServers":[]}', '{"mcpServers":"bad"}', '{"mcpServers":{"good":{"command":"node"}}']) {
 		test(`rejects an invalid root document: ${JSON.stringify(content)}`, () => {
 			assert.throws(() => parseWorkspaceRootMcpConfiguration(content));

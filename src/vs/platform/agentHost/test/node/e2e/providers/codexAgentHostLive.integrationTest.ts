@@ -8,17 +8,18 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, ChatInputResponseKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, type ChatInputRequest, type ChatState } from '../../../../common/state/sessionState.js';
+import { ChatInputResponseKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, type ChatInputRequest, type ChatState } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn, getAcceptedAnswers } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification, startRealServer, stopServer, TestProtocolClient, type IServerHandle } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, startRealServer, stopServer, TestProtocolClient, type IServerHandle, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG, CODEX_SDK_ROOT } from './codexTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
@@ -50,7 +51,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 	}
 
 	async function cancelActiveTurnIfNeeded(session: string): Promise<void> {
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 		const state = await chatState(chat);
 		const turnId = state.activeTurn?.id;
 		if (!turnId) {
@@ -75,7 +76,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	setup(async function () {
 		this.timeout(60_000);
-		const homeDirectory = mkdtempSync(join(tmpdir(), 'codex-live-home-'));
+		const homeDirectory = createTestDirectory(join(tmpdir(), 'codex-live-home-'));
 		tempDirs.push(homeDirectory);
 		server = await startRealServer({
 			codexSdkRoot: CODEX_CONFIG.codexSdkRoot,
@@ -132,10 +133,10 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('mid-turn steering clears pending state without getting stuck', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-steer-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-steer-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'steer-client', createdSessions, URI.file(workingDirectory));
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 
 		// A long, slow turn gives us a window to steer before it completes.
 		const turnId = generateUuid();
@@ -198,10 +199,10 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('client tool is registered and invoked end-to-end', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-tool-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client', createdSessions, URI.file(workingDirectory));
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 
 		// Register a client-provided tool BEFORE the first turn so it lands in
 		// `thread/start.dynamicTools`.
@@ -288,10 +289,10 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('client tool registered after session creation is still invoked', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool2-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-tool2-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client-2', createdSessions, URI.file(workingDirectory));
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 
 		// Register after the session exists but before the first turn. There is
 		// no public AHP signal for Codex thread-prewarm readiness.
@@ -371,10 +372,10 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('server tool (listComments) is registered and executed in-process', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-servertool-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-servertool-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'servertool-client', createdSessions, URI.file(workingDirectory));
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 
 		// No client tools are registered. The agent host's server tools
 		// (feedback "comments") are wired automatically by the server and must
@@ -442,10 +443,10 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('file-change approval is surfaced and can be approved', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-fileapprove-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-fileapprove-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'fileapprove-client', createdSessions, URI.file(workingDirectory));
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 
 		// Read-only sandbox + on-request approval forces codex to ask before
 		// applying any file edit (an `item/fileChange/requestApproval`).
@@ -527,10 +528,10 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 	test('Plan mode (Agent Mode control) makes request_user_input reachable end-to-end', async function () {
 		this.timeout(180_000);
-		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-planmode-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'codex-planmode-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, CODEX_CONFIG, 'planmode-client', createdSessions, URI.file(workingDirectory));
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 
 		// Switch the session to Plan mode via the platform-generic Agent Mode
 		// control — codex only exposes `request_user_input` in plan collaboration

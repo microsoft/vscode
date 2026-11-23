@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EncryptedThinkingDelta, ThinkingData, ThinkingDelta } from '../../thinking/common/thinking';
+import { EncryptedThinkingDelta, ThinkingDelta } from '../../thinking/common/thinking';
 import { AnthropicMessagesTool, ContextManagementResponse } from './anthropic';
-import { IHeaders } from './fetcherService';
+import { HeadersImpl, IHeaders } from './fetcherService';
 import { ChoiceLogProbs, FilterReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from './openai';
+
+type HeadersRecord = Readonly<Record<string, string | string[] | undefined>>;
 
 
 // Request helpers
@@ -23,15 +25,22 @@ export interface RequestId {
 	created: number;
 	serverExperiments: string;
 	deploymentId: string;
+	/**
+	 * Raw CAPI `X-GitHub-Copilot-Request-Te` value for this model call, exactly as received.
+	 * `undefined` when the header is absent (e.g. BYOK/non-CAPI endpoints).
+	 */
+	gitHubCopilotRequestTe?: string;
 }
 
 export const COPILOT_SERVICE_REQUEST_ID_HEADER = 'x-copilot-service-request-id';
+export const GITHUB_COPILOT_REQUEST_TE_HEADER = 'x-github-copilot-request-te';
 
 /**
  * Reads a header without relying on the casing used by the underlying fetcher.
  * `name` must be lowercase.
  */
-export function getHeaderIgnoreCase(headers: IHeaders, name: string): string | undefined {
+export function getHeaderIgnoreCase(headersOrRecord: IHeaders | HeadersRecord, name: string): string | undefined {
+	const headers = typeof headersOrRecord.get === 'function' ? headersOrRecord as IHeaders : new HeadersImpl(headersOrRecord as HeadersRecord);
 	const direct = headers.get(name);
 	if (direct) {
 		return direct;
@@ -48,6 +57,22 @@ export function getCopilotServiceRequestId(headers: IHeaders): string {
 	return getHeaderIgnoreCase(headers, COPILOT_SERVICE_REQUEST_ID_HEADER) || '';
 }
 
+/**
+ * Returns the raw `X-GitHub-Copilot-Request-Te` value, unmodified, from HTTP response headers
+ * or a plain header map (e.g. a WebSocket message envelope's `headers`).
+ * Returns `undefined` when absent.
+ */
+export function getGitHubCopilotRequestTe(headers: IHeaders | HeadersRecord | undefined): string | undefined {
+	return headers && typeof headers === 'object' ? getHeaderIgnoreCase(headers, GITHUB_COPILOT_REQUEST_TE_HEADER) : undefined;
+}
+
+/**
+ * Telemetry property bag for {@link RequestId.gitHubCopilotRequestTe}; empty when the header was absent.
+ */
+export function gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe: string | undefined): { gitHubCopilotRequestTe?: string } {
+	return gitHubCopilotRequestTe === undefined ? {} : { gitHubCopilotRequestTe };
+}
+
 export function getRequestId(headers: IHeaders, json?: any): RequestId {
 	const serverExperiments = headers.get('X-Copilot-Experiment') || '';
 	const capiExpAssignmentContext = headers.get('x-copilot-api-exp-assignment-context') || '';
@@ -61,6 +86,7 @@ export function getRequestId(headers: IHeaders, json?: any): RequestId {
 			? `${serverExperiments};${capiExpAssignmentContext}`
 			: serverExperiments || capiExpAssignmentContext,
 		deploymentId: headers.get('azureml-model-deployment') || '',
+		...gitHubCopilotRequestTeProperty(getGitHubCopilotRequestTe(headers)),
 	};
 }
 
@@ -145,16 +171,6 @@ export interface ICopilotError {
 	identifier?: string;
 }
 
-export function isCopilotWebReference(reference: unknown) {
-	return typeof reference === 'object' && !!reference && 'title' in reference && 'excerpt' in reference && 'url' in reference;
-}
-
-export interface ICopilotWebReference {
-	title: string;
-	excerpt: string;
-	url: string;
-}
-
 export interface ICopilotConfirmation {
 	title: string;
 	message: string;
@@ -185,111 +201,6 @@ export interface IResponseDelta {
 export function isOpenAIContextManagementResponse(value: ContextManagementResponse | OpenAIContextManagementResponse): value is OpenAIContextManagementResponse {
 	return 'type' in value && value.type === openAIContextManagementCompactionType;
 }
-
-export function isAnthropicContextManagementResponse(value: ContextManagementResponse | OpenAIContextManagementResponse): value is ContextManagementResponse {
-	return 'applied_edits' in value;
-}
-
-export const enum ResponsePartKind {
-	ContentDelta,
-	Content,
-	ToolCallDelta,
-	ToolCall,
-	Annotation,
-	Confirmation,
-	Error,
-	Thinking,
-	ThinkingDelta,
-}
-
-/** Part that contains incremental data added to the output */
-export interface IContentDeltaResponsePart {
-	kind: ResponsePartKind.ContentDelta;
-	/** Part ID corresponds to the later IContentResponsePart  */
-	partId: string;
-	/** Incremental content chunk */
-	delta: string;
-}
-
-/** Part that is emitted once the content is finished */
-export interface IContentResponsePart {
-	kind: ResponsePartKind.Content;
-	/** Part ID of the IContentDeltaResponsePart */
-	partId: string;
-	/** Finalized content */
-	content: string;
-	/** Log probabilities, if requested */
-	logProbs?: ChoiceLogProbs;
-}
-
-/** Part that contains incremental data for a tool call that's being generated */
-export interface IToolCallDeltaResponsePart {
-	kind: ResponsePartKind.ToolCallDelta;
-	/** Part ID corresponds to the later IToolCallResponsePart  */
-	partId: string;
-	/** Name of the function being called */
-	name: string;
-	/** Arguments delta */
-	delta: string;
-}
-
-/** Part that is emitted once a tool call is ready. */
-export interface IToolCallResponsePart extends ICopilotToolCall {
-	kind: ResponsePartKind.ToolCall;
-	/** Part ID of the IToolCallDeltaResponsePart */
-	partId: string;
-}
-
-/** Part that is emitted when the model wants to ask the user for confirmation. */
-export interface IConfirmationResponsePart extends ICopilotConfirmation {
-	kind: ResponsePartKind.Confirmation;
-}
-
-/** Part that is emitted when the model want to add annotations to a response. */
-export interface IAnnotationResponsePart {
-	kind: ResponsePartKind.Annotation;
-	codeVulnAnnotations?: ICodeVulnerabilityAnnotation[];
-	ipCitations?: IIPCodeCitation[];
-	copilotReferences?: ICopilotReference[];
-}
-
-/** Part that is emitted when the model begins thinking. */
-export interface IThinkingResponseDeltaPart {
-	kind: ResponsePartKind.ThinkingDelta;
-	/** Part ID of the IThinkingResponsePart */
-	partId: string;
-	/** Delta of the thinking process */
-	delta: ThinkingDelta;
-}
-
-/**
- * Part that is emitted when the model finishes thinking.
- * WARN: currently CAPI never signals the end of thinking.
- */
-export interface IThinkingResponsePart {
-	kind: ResponsePartKind.Thinking;
-	/** Part ID of IThinkingResponseDeltaPart */
-	partId: string;
-	/** Summary text shown to the user. */
-	data: ThinkingData;
-}
-
-/** Part that is emitted when the model encounters an error. */
-export interface IErrorResponsePart {
-	kind: ResponsePartKind.Error;
-	error: ICopilotError;
-}
-
-export type ResponsePart =
-	| IContentDeltaResponsePart
-	| IContentResponsePart
-	| IToolCallDeltaResponsePart
-	| IToolCallResponsePart
-	| IAnnotationResponsePart
-	| IThinkingResponseDeltaPart
-	| IThinkingResponsePart
-	| IConfirmationResponsePart
-	| IErrorResponsePart;
 
 
 export interface FinishedCallback {
@@ -373,6 +284,12 @@ export interface OptionalChatRequestParams {
 
 	/** The maximum number of tokens to return for a completion request */
 	max_tokens?: number;
+
+	/** The maximum completion token budget, including reasoning tokens. Replaces max_tokens. */
+	max_completion_tokens?: number;
+
+	/** Reasoning effort requested from the model. */
+	reasoning_effort?: string;
 
 	/** Likelihood of specified tokens appearing in the completion. */
 	logit_bias?: number;

@@ -315,7 +315,12 @@ export function formatValue(value: unknown, availableLen: number): string {
 			if (Array.isArray(value)) {
 				return formatArray(value, availableLen);
 			}
-			return formatObject(value, availableLen);
+			try {
+				return formatObject(value, availableLen);
+			} catch {
+				// Some objects, such as cross-origin windows, throw when inspected.
+				return '[[Inaccessible Object]]';
+			}
 		case 'symbol':
 			return value.toString();
 		case 'function':

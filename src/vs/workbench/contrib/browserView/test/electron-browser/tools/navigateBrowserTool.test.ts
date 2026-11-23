@@ -13,10 +13,12 @@ import { AgentNetworkFilterService } from '../../../../../../platform/networkFil
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { IRemoteExplorerService } from '../../../../../services/remote/common/remoteExplorerService.js';
 import { Tunnel, TunnelModel } from '../../../../../services/remote/common/tunnelModel.js';
-import { IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { NavigateBrowserTool } from '../../../electron-browser/tools/navigateBrowserTool.js';
 import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 
 function createRemoteExplorerService(localUri: string): IRemoteExplorerService {
 	return upcastPartial<IRemoteExplorerService>({
@@ -77,7 +79,7 @@ suite('NavigateBrowserTool', () => {
 		const navigationUrls: (string | undefined)[] = [];
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
 			getKnownBrowserViews: () => new Map(),
-			willUseRemoteProxy: () => true,
+			resolveNetwork: () => ({ authority: 'remote' }),
 		});
 		const tool = new NavigateBrowserTool(
 			upcastPartial<IPlaywrightService>({
@@ -137,7 +139,7 @@ suite('NavigateBrowserTool', () => {
 		let invocationCount = 0;
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
 			getKnownBrowserViews: () => new Map(),
-			willUseRemoteProxy: () => false,
+			resolveNetwork: () => undefined,
 		});
 		const tool = new NavigateBrowserTool(
 			upcastPartial<IPlaywrightService>({
@@ -173,15 +175,83 @@ suite('NavigateBrowserTool', () => {
 		});
 	});
 
+	test('maps remote resource URLs to the file URL of the page\'s network before navigating', async () => {
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(new TestConfigurationService()));
+		const navigationUrls: (string | undefined)[] = [];
+		const page = upcastPartial<BrowserEditorInput>({ model: upcastPartial<IBrowserViewModel>({ network: { authority: 'host' } }) });
+		const tool = new NavigateBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				invokeFunction: async (_sessionId, _pageId, _fnDef, args) => {
+					navigationUrls.push(typeof args?.[0] === 'string' ? args[0] : undefined);
+					return { summary: '' };
+				},
+			}),
+			networkFilterService,
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map([['page', page]]), resolveNetwork: () => undefined }),
+			upcastPartial<IRemoteExplorerService>({}),
+		);
+
+		for (const url of ['vscode-remote://host/repo/index.html?view=preview#top', 'vscode-remote://other/repo/index.html']) {
+			await tool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { pageId: 'page', type: 'url', url } }),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+		}
+
+		assert.deepStrictEqual(navigationUrls, ['file:///repo/index.html?view=preview#top', 'vscode-remote://other/repo/index.html']);
+	});
+
+	test('applies network policy to the file URL of a remote resource of the page\'s network', async () => {
+		const checked: string[] = [];
+		const networkFilterService = upcastPartial<AgentNetworkFilterService>({
+			isUriAllowed: uri => {
+				checked.push(uri.toString());
+				return uri.scheme === 'file';
+			},
+			formatError: uri => `Blocked ${uri.toString()}`,
+		});
+		const navigationUrls: (string | undefined)[] = [];
+		const tool = new NavigateBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				invokeFunction: async (_sessionId, _pageId, _fnDef, args) => {
+					navigationUrls.push(typeof args?.[0] === 'string' ? args[0] : undefined);
+					return { summary: '' };
+				},
+			}),
+			networkFilterService,
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map(), resolveNetwork: () => ({ authority: 'host-a' }) }),
+			upcastPartial<IRemoteExplorerService>({}),
+		);
+		const parameters = { pageId: 'page', type: 'url', url: toAgentHostUri(URI.file('/repo/index.html'), 'host-a').toString() };
+
+		await tool.prepareToolInvocation({ parameters, toolCallId: 'test-tool-call', chatSessionResource: undefined }, CancellationToken.None);
+		const result = await tool.invoke(
+			upcastPartial<IToolInvocation>({ parameters }),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({ checked: [...new Set(checked)], error: result.toolResultError, navigationUrls }, {
+			checked: ['file:///repo/index.html'],
+			error: undefined,
+			navigationUrls: ['file:///repo/index.html'],
+		});
+	});
+
 	test('allows a loopback forwarded destination as tunnel transport', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['localhost']);
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		const navigationUrls: (string | undefined)[] = [];
+		// A page created on a remote network keeps it, even when new pages would not use one.
+		const remotePage = upcastPartial<BrowserEditorInput>({ model: upcastPartial<IBrowserViewModel>({ network: { authority: 'remote' } }) });
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			getKnownBrowserViews: () => new Map(),
-			willUseRemoteProxy: () => false,
+			getKnownBrowserViews: () => new Map([['remote-page', remotePage]]),
+			resolveNetwork: () => undefined,
 		});
 		const tool = new NavigateBrowserTool(
 			upcastPartial<IPlaywrightService>({
@@ -194,21 +264,23 @@ suite('NavigateBrowserTool', () => {
 			browserViewService,
 			createRemoteExplorerService('http://127.0.0.1:4000'),
 		);
-		const parameters = { pageId: 'test-page', type: 'url', url: 'http://localhost:3000/private' };
 
-		await tool.prepareToolInvocation({
-			parameters,
-			toolCallId: 'test-tool-call',
-			chatSessionResource: undefined,
-		}, CancellationToken.None);
-		await tool.invoke(
-			upcastPartial<IToolInvocation>({ parameters }),
-			async () => 0,
-			upcastPartial<ToolProgress>({ report: () => { } }),
-			CancellationToken.None,
-		);
+		for (const pageId of ['test-page', 'remote-page']) {
+			const parameters = { pageId, type: 'url', url: 'http://localhost:3000/private' };
+			await tool.prepareToolInvocation({
+				parameters,
+				toolCallId: 'test-tool-call',
+				chatSessionResource: undefined,
+			}, CancellationToken.None);
+			await tool.invoke(
+				upcastPartial<IToolInvocation>({ parameters }),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+		}
 
-		assert.deepStrictEqual(navigationUrls, ['http://127.0.0.1:4000/private']);
+		assert.deepStrictEqual(navigationUrls, ['http://127.0.0.1:4000/private', 'http://localhost:3000/private']);
 	});
 
 	test('rechecks network policy immediately before navigation', async () => {
@@ -228,7 +300,7 @@ suite('NavigateBrowserTool', () => {
 			networkFilterService,
 			upcastPartial<IBrowserViewWorkbenchService>({
 				getKnownBrowserViews: () => new Map(),
-				willUseRemoteProxy: () => true,
+				resolveNetwork: () => ({ authority: 'remote' }),
 			}),
 			upcastPartial<IRemoteExplorerService>({}),
 		);

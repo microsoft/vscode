@@ -5,7 +5,7 @@
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpSandboxConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { getMcpCollectionProvenance, McpCollectionProvenance, McpResourceURI, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import * as assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
@@ -77,6 +77,12 @@ suite('MCP Types', () => {
 		test('returns false when label differs', () => {
 			const def1 = createBasicDefinition({ label: 'Server A' });
 			const def2 = createBasicDefinition({ label: 'Server B' });
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
+		test('returns false when gallery metadata differs', () => {
+			const def1 = createBasicDefinition({ gallery: true });
+			const def2 = createBasicDefinition({ gallery: undefined });
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
 
@@ -250,6 +256,34 @@ suite('MCP Types', () => {
 		});
 	});
 
+	test('McpServerDefinition preserves source metadata when serialized', () => {
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			launch: {
+				type: McpServerTransportType.Stdio,
+				command: 'server',
+				args: [],
+				env: {},
+				envFile: undefined,
+				cwd: undefined,
+				sandbox: undefined,
+			},
+			gallery: true,
+			version: '1.0.0',
+		};
+
+		const deserialized = McpServerDefinition.fromSerialized(McpServerDefinition.toSerialized(definition));
+		assert.deepStrictEqual({
+			gallery: deserialized.gallery,
+			version: deserialized.version,
+		}, {
+			gallery: true,
+			version: '1.0.0',
+		});
+	});
+
 	test('McpServerDefinition preserves SSE transport when serialized', () => {
 		const definition: McpServerDefinition = {
 			id: 'test-server',
@@ -282,7 +316,8 @@ suite('MCP Types', () => {
 				env: { TOKEN: 'value' },
 				envFile: '.env',
 				cwd: '/workspace',
-			}, { network: { allowedDomains: ['example.com'] } }),
+				sandbox: { network: { allowedDomains: ['example.com'] } },
+			}),
 			remote: McpServerLaunch.fromServerConfiguration({
 				type: McpServerType.REMOTE,
 				transport: 'sse',
@@ -308,6 +343,48 @@ suite('MCP Types', () => {
 				oauth: { clientId: 'client' },
 			},
 		});
+	});
+
+	test('McpServerLaunch ignores root grants while combining deny rules without mutating configuration', () => {
+		const root: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['root-only.test'], deniedDomains: ['blocked.test'] },
+			filesystem: { allowWrite: ['/root-only'], denyRead: ['/private'], denyWrite: ['/readonly'] },
+		};
+		const server: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['google.com'], deniedDomains: ['blocked.test', 'server-blocked.test'] },
+			filesystem: { allowWrite: ['/server'], denyRead: ['/server-private'], denyWrite: ['/server-readonly'] },
+		};
+		const originalRoot = structuredClone(root);
+		const originalServer = structuredClone(server);
+		const policies = [undefined, root].map(shared => {
+			const launch = McpServerLaunch.fromServerConfiguration({ type: McpServerType.LOCAL, command: 'node', sandbox: server }, shared);
+			assert.ok(launch?.type === McpServerTransportType.Stdio);
+			return launch.sandbox;
+		});
+		assert.deepStrictEqual({ policies, root, server }, {
+			policies: [originalServer, {
+				network: { allowedDomains: ['google.com'], deniedDomains: ['blocked.test', 'server-blocked.test'] },
+				filesystem: { allowWrite: ['/server'], denyRead: ['/private', '/server-private'], denyWrite: ['/readonly', '/server-readonly'] },
+			}],
+			root: originalRoot,
+			server: originalServer,
+		});
+	});
+
+	test('McpServerLaunch ignores legacy root grants even without server sandbox settings', () => {
+		const root: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['*'], deniedDomains: ['blocked.test'] },
+			filesystem: { allowWrite: ['/'], denyRead: ['/private'], denyWrite: ['/readonly'] },
+		};
+		const policies = [undefined, {}, { network: {} }, { filesystem: {} }].map(sandbox => {
+			const launch = McpServerLaunch.fromServerConfiguration({ type: McpServerType.LOCAL, command: 'node', sandbox }, root);
+			assert.ok(launch?.type === McpServerTransportType.Stdio);
+			return launch.sandbox;
+		});
+		assert.deepStrictEqual(policies, Array(4).fill({
+			network: { allowedDomains: [], deniedDomains: ['blocked.test'] },
+			filesystem: { allowWrite: [], denyRead: ['/private'], denyWrite: ['/readonly'] },
+		}));
 	});
 
 	test('maps configuration targets to collection provenance', () => {

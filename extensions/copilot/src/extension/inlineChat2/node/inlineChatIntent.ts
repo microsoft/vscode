@@ -32,9 +32,9 @@ import { ChatRequestEditorData, ChatResponseTextEditPart, LanguageModelTextPart,
 import { Intent } from '../../common/constants';
 import { getAgentTools } from '../../intents/node/agentIntent';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation } from '../../prompt/common/conversation';
+import { Conversation, TurnResponseGitHubCopilotRequestTe } from '../../prompt/common/conversation';
 import { IToolCall } from '../../prompt/common/intents';
-import { ToolCallRound } from '../../prompt/common/toolCallRound';
+import { setGitHubCopilotRequestTeForRound, ToolCallRound } from '../../prompt/common/toolCallRound';
 import { ChatTelemetryBuilder, InlineChatTelemetry } from '../../prompt/node/chatParticipantTelemetry';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IIntent } from '../../prompt/node/intents';
@@ -160,6 +160,7 @@ export class InlineChatIntent implements IIntent {
 			{ ...documentContext, query: request.prompt, intent: this },
 			result.telemetry.telemetryMessageId, result.telemetry, editSurvivalTracker
 		));
+		turn.setMetadata(new TurnResponseGitHubCopilotRequestTe(result.lastResponse.gitHubCopilotRequestTe));
 
 		if (result.errorMessage) {
 			return {
@@ -319,7 +320,7 @@ class InlineChatToolCalling {
 			const renderResult = await renderer.render(undefined, token, { trace: true });
 
 			const toolTokenCount = availableTools.length > 0 ? await endpoint.acquireTokenizer().countToolTokens(availableTools) : 0;
-			telemetry = chatTelemetry.makeRequest(this._intent, ChatLocation.Editor, conversation, renderResult.messages, renderResult.tokenCount, renderResult.references, endpoint, [], availableTools.length, toolTokenCount);
+			telemetry = chatTelemetry.makeRequest(this._intent, ChatLocation.Editor, conversation, renderResult.messages, renderResult.tokenCount, renderResult.references, endpoint, availableTools.length, toolTokenCount);
 
 			stream = ChatResponseStreamImpl.spy(stream, part => {
 				if (part instanceof ChatResponseTextEditPart) {
@@ -347,14 +348,15 @@ class InlineChatToolCalling {
 				telemetry.sendTelemetry(
 					lastResponse.requestId, lastResponse.type, responseText,
 					lastInteractionOutcome,
-					result.toolCalls
+					result.toolCalls,
+					lastResponse.gitHubCopilotRequestTe
 				);
 
-				toolCallRounds.push(ToolCallRound.create({
+				toolCallRounds.push(setGitHubCopilotRequestTeForRound(ToolCallRound.create({
 					response: responseText,
 					toolCalls: result.toolCalls,
 					toolInputRetry: failedEditCount
-				}));
+				}), lastResponse.gitHubCopilotRequestTe));
 			}
 
 			if (result.toolCalls.length === 0) {

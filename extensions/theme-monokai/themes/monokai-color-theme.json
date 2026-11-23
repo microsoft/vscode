@@ -31,6 +31,7 @@
 		"editorIndentGuide.background": "#464741",
 		"editorIndentGuide.activeBackground": "#767771",
 		"editorGroupHeader.tabsBackground": "#1e1f1c",
+		"editorGroupHeader.tabsBorder": "#414339",
 		"editorGroup.dropBackground": "#41433980",
 		"tab.inactiveBackground": "#34352f",
 		"tab.border": "#1e1f1c",
@@ -68,7 +69,7 @@
 		"inputOption.activeBorder": "#75715E",
 		"focusBorder": "#99947c",
 		// agent sessions
-		"agentsPanel.border": "#00000000",
+		"agentsPanel.border": "#414339",
 		"agentsChatInput.border": "#414339",
 		"agentsChatInput.focusBorder": "#99947c",
 		"agentsNewSessionButton.border": "#414339",

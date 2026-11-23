@@ -71,6 +71,21 @@ export function setup(logger: Logger): void {
 				const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
 				const count = (requestCounts.get(requestUrl.pathname) ?? 0) + 1;
 				requestCounts.set(requestUrl.pathname, count);
+				if (requestUrl.pathname === '/comment.js') {
+					response.writeHead(200, { 'Content-Type': 'text/javascript' });
+					response.end(`window.addEventListener('keydown', () => {
+						const output = document.querySelector('#comment-keydown-count');
+						output.textContent = String(Number(output.textContent) + 1);
+					});
+					document.addEventListener('securitypolicyviolation', () => {
+						const output = document.querySelector('#csp-violation-count');
+						output.textContent = String(Number(output.textContent) + 1);
+					});`);
+					return;
+				}
+				if (requestUrl.pathname === '/comment') {
+					response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self'`);
+				}
 				response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
 				response.end(pageForRoute(requestUrl.pathname, count));
 			});
@@ -189,7 +204,7 @@ export function setup(logger: Logger): void {
 			await workbenchPage.keyboard.press('Escape');
 		});
 
-		it('prompts for and remembers a camera permission decision', async function () {
+		it('remembers camera permissions and shares them with about:blank frames', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/permission`, openPages);
 			const workbenchPage = app.code.driver.currentPage;
@@ -211,18 +226,46 @@ export function setup(logger: Logger): void {
 			await browserPage.waitForFunction(previous => document.querySelector('#permission-result')?.textContent !== previous, previousPermissionResult);
 			assert.match(await browserPage.locator('#permission-result').textContent() ?? '', /^NotAllowedError:\d+$/);
 			assert.strictEqual(await workbenchPage.locator('.monaco-dialog-box:visible').count(), 0);
+
+			await runBrowserOverflowAction(browserPage, workbenchPage, 'Site Permissions');
+			const cameraRow = permissionsPicker.locator('.monaco-list-row', { hasText: 'Camera' });
+			await cameraRow.hover();
+			await cameraRow.locator('[aria-label="Allow"]').click();
+			await permissionsPicker.getByRole('button', { name: 'Save 1 Change', exact: true }).click();
+			await permissionsPicker.waitFor({ state: 'hidden' });
+			await browserPage.waitForFunction(async () => (await navigator.permissions.query({ name: 'camera' as PermissionName })).state === 'granted');
+
+			const inheritedPermission = await browserPage.evaluate(async () => {
+				const frame = document.createElement('iframe');
+				frame.src = 'about:blank';
+				const loaded = new Promise<void>(resolve => { frame.onload = () => resolve(); });
+				document.body.appendChild(frame);
+				try {
+					await loaded;
+					const child = frame.contentWindow!;
+					return {
+						url: child.location.href,
+						camera: (await child.navigator.permissions.query({ name: 'camera' as PermissionName })).state,
+					};
+				} finally {
+					frame.remove();
+				}
+			});
+			assert.deepStrictEqual(inheritedPermission, { url: 'about:blank', camera: 'granted' });
 		});
 
-		it('adds browser context to chat', async function () {
+		it('adds browser context to chat on a strict-CSP page', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/comment`, openPages);
 			const workbenchPage = app.code.driver.currentPage;
 			const target = browserPage.locator('#comment-target');
 			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+			const cspViolationCount = browserPage.locator('#csp-violation-count');
 			await target.waitFor();
 
 			await browserPage.keyboard.press(`${modifier}+Shift+c`);
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			assert.strictEqual(await cspViolationCount.textContent(), '0');
 			await target.click();
 			await app.workbench.chat.waitForChatView();
 			await workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment', { hasText: 'button#comment-target' }).waitFor();
@@ -230,22 +273,38 @@ export function setup(logger: Logger): void {
 			await target.click();
 			await browserPage.keyboard.press(`${modifier}+Alt+c`);
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			assert.strictEqual(await cspViolationCount.textContent(), '0');
 			await target.click();
 			await browserPage.waitForFunction(() => document.activeElement?.hasAttribute('data-vscode-pick-host'));
 			await browserPage.evaluate(() => document.querySelector('#comment-keydown-count')!.textContent = '0');
 			await browserPage.keyboard.type(comment);
 			await browserPage.keyboard.press('Enter');
 			assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
-			await app.workbench.chat.waitForInputText('@button#comment-target');
+			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
+			// The input mentions the element as text, or as a pill when attachments are shown inline.
+			await chatInput.filter({ hasText: 'button#comment-target' }).waitFor();
 			await app.workbench.chat.waitForInputText(comment);
 
 			await browserPage.keyboard.press('Escape');
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
-			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
-			await chatInput.click();
+			// Click past the comment at the end of the input, as a click on an inline attachment pill would open its attachment.
+			const { width, height } = (await chatInput.boundingBox())!;
+			await chatInput.click({ position: { x: width - 30, y: height - 5 } });
 			await workbenchPage.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
 			await workbenchPage.keyboard.press('Backspace');
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });
+
+			await runAddToChatMenuAction(browserPage, workbenchPage, 'Add Area Screenshot to Chat');
+			await browserPage.locator('[data-vscode-area-pick-host]').waitFor({ state: 'attached' });
+			assert.strictEqual(await cspViolationCount.textContent(), '0');
+			assert.strictEqual(await target.evaluate(element => getComputedStyle(element).cursor), 'crosshair');
+			const targetBounds = (await target.boundingBox())!;
+			await browserPage.mouse.move(targetBounds.x, targetBounds.y);
+			await browserPage.mouse.down();
+			await browserPage.mouse.move(targetBounds.x + targetBounds.width, targetBounds.y + targetBounds.height);
+			await browserPage.mouse.up();
+			await browserPage.locator('[data-vscode-area-pick-host]').waitFor({ state: 'detached' });
+			await workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment.image-attachment', { hasText: 'Browser Area Screenshot' }).waitFor();
 
 			await browserPage.goto(`${baseUrl}/screenshot`);
 			await runAddToChatMenuAction(browserPage, workbenchPage, 'Add Full Page Screenshot to Chat (Experimental)');
@@ -288,8 +347,9 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Sharing' }).click();
 			await unshareButton.waitFor();
 
+			const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
 			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-			await app.workbench.chat.waitForChatView();
+			await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
 			await app.workbench.chat.sendMessage('[scenario:browser-sharing-click-success]');
 			const successToolResult = await waitForScenarioToolResult(mockServer, 'browser-sharing-click-success');
 			assert.doesNotMatch(successToolResult, /not found/i);
@@ -320,7 +380,7 @@ export function setup(logger: Logger): void {
 		});
 
 		// Keep this last because restarting can change restored UI and extension activation state.
-		it.skip('preserves native page lifecycle across editors, popups, and restart', async function () {
+		it('preserves native page lifecycle across editors, popups, and restart', async function () {
 			const app = this.app as Application;
 			const lifecycleUrl = `${baseUrl}/lifecycle`;
 			const browserPage = await openBrowserPage(app, lifecycleUrl, openPages);
@@ -350,6 +410,22 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Popup Child' }).waitFor({ state: 'detached' });
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Lifecycle' }).click();
 			assert.strictEqual(await browserPage.locator('#state-input').inputValue(), 'Preserved state');
+
+			const writtenPage = await app.code.driver.waitForNewPage('about:blank', () => browserPage.locator('#write-popup').click());
+			openPages.add(writtenPage);
+			await writtenPage.waitForLoadState('load');
+			await writtenPage.locator('#written-content').waitFor();
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor();
+			assert.deepStrictEqual(await writtenPage.evaluate(() => ({
+				content: document.querySelector('#written-content')?.textContent,
+				openerTitle: window.opener.document.title
+			})), {
+				content: 'Written by opener',
+				openerTitle: 'Browser Smoke Lifecycle'
+			});
+			await writtenPage.close();
+			openPages.delete(writtenPage);
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor({ state: 'detached' });
 
 			await app.restart();
 			const mainLog = fs.readFileSync(path.join(app.logsPath, 'main.log'), 'utf8');
@@ -405,6 +481,8 @@ function preseedSettings(userDataDir: string | undefined, mockServerUrl: string)
 		'chat.disableAIFeatures': false,
 		'chat.tools.riskAssessment.enabled': false,
 		'github.copilot.chat.backgroundAgent.enabled': true,
+		// The extension-host Copilot CLI provider is being retired; run as after its removal.
+		'github.copilot.chat.cli.legacyProvider.enabled': false,
 		'window.menuStyle': 'custom',
 		'workbench.browser.experimentalUserTools.enabled': true,
 		'workbench.editorAssociations': {
@@ -564,12 +642,8 @@ function pageForRoute(route: string, requestCount: number): string {
 		case '/comment':
 			return html('Browser Smoke Comment', `<button id="comment-target">Comment target</button>
 				<output id="comment-keydown-count">0</output>
-				<script>
-					window.addEventListener('keydown', () => {
-						const output = document.querySelector('#comment-keydown-count');
-						output.textContent = String(Number(output.textContent) + 1);
-					});
-				</script>`);
+				<output id="csp-violation-count">0</output>
+				<script src="/comment.js"></script>`);
 		case '/screenshot':
 			return html('Browser Smoke Screenshot', '<div id="screenshot-top">Top</div><div style="height: 2400px"></div><div id="screenshot-bottom">Bottom</div>');
 		case '/sharing':
@@ -582,7 +656,16 @@ function pageForRoute(route: string, requestCount: number): string {
 					});
 				</script>`);
 		case '/lifecycle':
-			return html('Browser Smoke Lifecycle', '<div id="lifecycle-content">Lifecycle content</div><input id="state-input"><a id="open-popup" target="_blank" href="/popup-child">Open child</a><div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>');
+			return html('Browser Smoke Lifecycle', `<div id="lifecycle-content">Lifecycle content</div><input id="state-input">
+				<a id="open-popup" target="_blank" href="/popup-child">Open child</a><button id="write-popup">Write child</button>
+				<div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>
+				<script>
+					document.querySelector('#write-popup').addEventListener('click', () => {
+						const child = window.open('', '_blank', 'popup=false');
+						child.document.write('<!DOCTYPE html><title>Browser Smoke Written Popup</title><div id="written-content">Written by opener</div>');
+						child.document.close();
+					});
+				</script>`);
 		case '/popup-child':
 			return html('Browser Smoke Popup Child', '<div id="popup-child-content">Popup child</div>');
 		default:

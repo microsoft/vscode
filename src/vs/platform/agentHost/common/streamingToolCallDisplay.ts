@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import type { StringOrMarkdown } from './state/protocol/state.js';
 
-export type ToolPathResolver = (path: string) => string;
+export type ToolPathResolver = (path: string) => string | URI;
 
 const identityPathResolver: ToolPathResolver = path => path;
 
@@ -43,7 +43,8 @@ function formatPath(path: unknown, resolvePath: ToolPathResolver): string | unde
 	if (typeof path !== 'string' || !path) {
 		return undefined;
 	}
-	const uri = URI.file(resolvePath(path));
+	const resolved = resolvePath(path);
+	const uri = typeof resolved === 'string' ? URI.file(resolved) : resolved;
 	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
 }
 

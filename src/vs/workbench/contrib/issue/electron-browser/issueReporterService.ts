@@ -14,6 +14,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
@@ -57,9 +58,10 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ILogService logService: ILogService,
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
+		super(disableExtensions, data, os, product, window, false, undefined, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService, logService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -86,9 +88,9 @@ export class IssueReporter extends BaseIssueReporterService {
 		const updateState = this.updateService.state;
 		if (updateState.type === StateType.Ready || updateState.type === StateType.Downloaded) {
 			this.needsUpdate = true;
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const includeAcknowledgement = this.getElementById('version-acknowledgements');
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const updateBanner = this.getElementById('update-banner');
 			if (updateBanner && includeAcknowledgement) {
 				includeAcknowledgement.classList.remove('hidden');
@@ -111,7 +113,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			}
 
 			// Resets placeholder
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
@@ -151,28 +153,7 @@ export class IssueReporter extends BaseIssueReporterService {
 				return false;
 			}
 		}
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
-		const init = {
-			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
-				body: issueBody
-			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`
-			})
-		};
-
-		const response = await fetch(url, init);
-		if (!response.ok) {
-			console.error('Invalid GitHub URL provided.');
-			return false;
-		}
-		const result = await response.json();
-		await this.openerService.open(result.html_url, { openExternal: true });
-		this.close();
-		return true;
+		return super.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 	}
 
 	public override async createIssue(shouldCreate?: boolean, privateUri?: boolean): Promise<boolean> {
@@ -190,7 +171,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const invalidInput = this.window.document.getElementsByClassName('invalid-input');
 			if (invalidInput.length) {
 				(<HTMLInputElement>invalidInput[0]).focus();
@@ -220,7 +201,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		this.hasBeenSubmitted = true;
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
@@ -235,7 +216,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
@@ -273,7 +254,7 @@ export class IssueReporter extends BaseIssueReporterService {
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
 		if (target) {
@@ -363,7 +344,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {
 		this.issueReporterModel.update({ experimentInfo });
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-experiments .block-info');
 		if (target) {
 			target.textContent = experimentInfo ? experimentInfo : localize('noCurrentExperiments', "No current experiments.");

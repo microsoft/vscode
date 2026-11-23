@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { $ } from '../../../../../../../base/browser/dom.js';
+import { retry, timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -12,18 +14,24 @@ import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMark
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatProgressContentPart } from '../../../../browser/widget/chatContentParts/chatProgressContentPart.js';
+import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
+import { rawMarkdownToString } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
-import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
+import { ChatSessionTargetResultPillSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionTargetResultPillSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
@@ -31,12 +39,21 @@ import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentP
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
 import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatSessionTargetData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { MockChatWidgetService } from '../mockChatWidget.js';
+import '../../../../browser/widget/media/chat.css';
+
+class TestChatProgressContentPart extends ChatProgressContentPart {
+	setActive(active: boolean): void {
+		this.setShimmerActive(active);
+	}
+}
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -170,6 +187,7 @@ suite('ChatToolProgressSubPart', () => {
 		mockMarkdownRenderer = {
 			render: (markdown: IMarkdownString, _options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown => {
 				const element = outElement ?? mainWindow.document.createElement('div');
+				element.classList.add('rendered-markdown');
 				const content = typeof markdown === 'string' ? markdown : renderAsPlaintext(markdown);
 				element.textContent = content;
 				return {
@@ -351,14 +369,14 @@ suite('ChatToolProgressSubPart', () => {
 			status: { kind: 'pending', label: 'Working' },
 		}, undefined);
 		const part = disposables.add(instantiationService.createInstance(
-			ChatSessionCreatedResultSubPart,
+			ChatSessionTargetResultPillSubPart,
 			createSerializedToolInvocation({ isComplete: true }),
 			{
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://copilot/task-a',
 				label: 'Implement Task A for the current session…',
 				fullTitle: 'Implement Task A for the current session and validate all of its behavior',
-			} satisfies IChatSessionCreatedData,
+			} satisfies IChatSessionTargetData,
 			createRenderContext(),
 			mockMarkdownRenderer,
 		));
@@ -390,6 +408,43 @@ suite('ChatToolProgressSubPart', () => {
 			title: 'Finished weather session',
 			hoverTitle: 'Finished weather session',
 		});
+	});
+
+	test('owns normal and side activation for a session target result pill', () => {
+		const opened: Parameters<IOpenerService['open']>[] = [];
+		instantiationService.stub(IOpenerService, {
+			_serviceBrand: undefined,
+			open: async (...args: Parameters<IOpenerService['open']>) => {
+				opened.push(args);
+				return true;
+			},
+		});
+		const part = disposables.add(instantiationService.createInstance(
+			ChatSessionTargetResultPillSubPart,
+			createSerializedToolInvocation({ isComplete: true }),
+			{
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://copilot/task-a',
+				label: 'Implement Task A',
+			} satisfies IChatSessionTargetData,
+			createRenderContext(),
+			mockMarkdownRenderer,
+		));
+		const pill = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link')!;
+
+		pill.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual(opened.map(([resource, options]) => [resource.toString(), options]), [
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
+		]);
 	});
 
 	test('renders codicon syntax in an automation name as literal text', () => {
@@ -491,30 +546,27 @@ suite('ChatToolProgressSubPart', () => {
 			test(`failure changes only the progress icon (persistent: ${persistentProgress}, error: ${error})`, () => {
 				const context = { ...createRenderContext(true), suppressProgressShimmer: persistentProgress };
 				const hover = sinon.spy(mockHoverService, 'setupDelayedHover');
-				try {
-					const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
-					const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
-					const original = render(tool);
-					const failed = render({ ...tool, resultError: error });
-					const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
-					assert.deepStrictEqual({
-						card: failed.domNode.classList.contains('chat-notification-widget'),
-						icon: !!failed.domNode.querySelector('.codicon-error-compact'),
-						unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
-						label: label?.textContent,
-						focusable: label?.tabIndex,
-						newHover: hover.called,
-					}, {
-						card: false,
-						icon: true,
-						unchangedContent: true,
-						label: 'Navigate to the local previewBrowser',
-						focusable: -1,
-						newHover: false,
-					});
-				} finally {
-					hover.restore();
-				}
+				store.add(toDisposable(() => hover.restore()));
+				const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
+				const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
+				const original = render(tool);
+				const failed = render({ ...tool, resultError: error });
+				const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
+				assert.deepStrictEqual({
+					card: failed.domNode.classList.contains('chat-notification-widget'),
+					icon: !!failed.domNode.querySelector('.codicon-error-compact'),
+					unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
+					label: label?.textContent,
+					focusable: label?.tabIndex,
+					newHover: hover.called,
+				}, {
+					card: false,
+					icon: true,
+					unchangedContent: true,
+					label: 'Navigate to the local previewBrowser',
+					focusable: -1,
+					newHover: false,
+				});
 			});
 		}
 
@@ -564,6 +616,87 @@ suite('ChatToolProgressSubPart', () => {
 			flag: true,
 			details: true,
 			terminal: true,
+		});
+	});
+
+	function stubSubagentNavigation() {
+		const calls: { command: string; args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(command: string, ...args: unknown[]): Promise<R | undefined> {
+				calls.push({ command, args });
+				return undefined;
+			}
+		}());
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		instantiationService.stub(ILanguageModelsService, {
+			lookupLanguageModel: () => undefined,
+			getLanguageModelIds: () => [],
+			onDidChangeLanguageModels: Event.None,
+		});
+		return calls;
+	}
+
+	test('renders read and write recipients through the agent host adapter as navigable pills', async () => {
+		const calls = stubSubagentNavigation();
+		const context = createRenderContext();
+		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const chats = ['ahp-chat:/11111111-1111-5111-8111-111111111111', 'ahp-chat:/22222222-2222-5222-8222-222222222222'];
+		const part = disposables.add(instantiationService.createInstance(
+			ChatProgressContentPart,
+			{ content: rawMarkdownToString(`Write to agents [Renderer](${chats[0]}), [History](${chats[1]})`, 'local') },
+			renderer, context, false, true, undefined, undefined, false, undefined,
+		));
+		const host = mainWindow.document.body.appendChild($('.interactive-item-container'));
+		host.appendChild($('.value')).appendChild(part.domNode);
+		disposables.add(toDisposable(() => host.remove()));
+		const initialPills = part.domNode.querySelectorAll<HTMLElement>('.chat-subagent-pill-content');
+		assert.deepStrictEqual(Array.from(initialPills, pill => pill.querySelector('.chat-subagent-pill-label')?.textContent), ['Renderer', 'History']);
+		initialPills[0].click();
+		part.updateMessage(rawMarkdownToString(`Read agent [History](${chats[1]})`, 'remote-host'));
+		const updatedPills = part.domNode.querySelectorAll<HTMLElement>('.chat-subagent-pill-content');
+		assert.strictEqual(updatedPills.length, 1);
+		updatedPills[0].focus();
+		assert.strictEqual(mainWindow.document.activeElement, updatedPills[0]);
+		updatedPills[0].dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		for (const type of ['keydown', 'keyup']) {
+			updatedPills[0].dispatchEvent(new mainWindow.KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true }));
+		}
+		await timeout(0);
+		assert.deepStrictEqual(calls, ['Renderer', 'History'].map((title, index) => ({
+			command: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+			args: [{ chatResource: chats[index], parentSessionResource: context.element.sessionResource.toString(), title }],
+		})));
+	});
+
+	test('opens read and write agent links in collapsible tool titles without expanding the tool', async () => {
+		const calls = stubSubagentNavigation();
+		const chatResource = 'ahp-chat:/11111111-1111-5111-8111-111111111111';
+		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const rendered = [];
+		for (const [toolId, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
+			const part = renderToolInvocation({
+				...createSerializedToolInvocation({
+					isComplete: true,
+					toolId,
+					invocationMessage: rawMarkdownToString(`${verb} [Renderer](${chatResource})`, 'local'),
+				}),
+				resultDetails: { input: '{}', output: [] },
+			}, renderer);
+			const pill = part.domNode.querySelector<HTMLElement>('.chat-query-title-part .chat-subagent-pill-content');
+			assert.ok(pill, `${verb} must render its child-chat link as a pill`);
+			pill.click();
+			rendered.push({
+				title: pill.querySelector('.chat-subagent-pill-label')?.textContent,
+				expanded: part.domNode.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+			});
+		}
+		await timeout(0);
+		assert.deepStrictEqual({ rendered, calls }, {
+			rendered: Array(2).fill({ title: 'Renderer', expanded: 'false' }),
+			calls: Array(2).fill({
+				command: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+				args: [{ chatResource, parentSessionResource: createRenderContext().element.sessionResource.toString(), title: 'Renderer' }],
+			}),
 		});
 	});
 
@@ -621,7 +754,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
 	});
 
-	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', () => {
+	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', async () => {
 		const patchPart = disposables.add(instantiationService.createInstance(
 			ChatToolStreamingSubPart,
 			createStreamingToolInvocation('Generating patch (282 lines)'),
@@ -640,6 +773,15 @@ suite('ChatToolProgressSubPart', () => {
 			createRenderContext(false),
 			mockMarkdownRenderer
 		));
+		const host = mainWindow.document.body.appendChild($('.interactive-item-container'));
+		disposables.add(toDisposable(() => host.remove()));
+		host.append(patchPart.domNode, editPart.domNode, thinkingPart.domNode);
+		const shimmerTime = (part: ChatToolStreamingSubPart) => part.domNode.querySelector('.chat-progress-shimmer-text')?.getAnimations()[0]?.currentTime;
+		await retry(async () => {
+			const time = shimmerTime(patchPart);
+			assert.ok(typeof time === 'number' && time > 0 && time === shimmerTime(editPart));
+		}, 10, 100);
+		const sharedTime = shimmerTime(patchPart);
 
 		const inspect = (part: ChatToolStreamingSubPart) => {
 			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
@@ -647,8 +789,7 @@ suite('ChatToolProgressSubPart', () => {
 				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
 				spinner: !!part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'),
 				shimmerText: shimmerText?.textContent,
-				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
-				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
+				shimmerPhaseSynced: !!shimmerText?.getAnimations().some(animation => animation.currentTime === sharedTime),
 				text: part.domNode.textContent,
 			};
 		};
@@ -662,6 +803,92 @@ suite('ChatToolProgressSubPart', () => {
 			edit: { shimmer: true, spinner: false, shimmerText: 'Editing', shimmerPhaseSynced: true, text: 'Editing 5 lines' },
 			thinking: { shimmer: false, spinner: false, shimmerText: undefined, shimmerPhaseSynced: false, text: 'Generating patch (282 lines)' },
 		});
+	});
+
+	test('pauses clipped progress shimmer and synchronizes replaced, resumed, and remounted messages', async () => {
+		const host = mainWindow.document.body.appendChild($('.interactive-item-container'));
+		host.style.cssText = 'position: fixed; top: 0; left: 0; width: 400px; height: 100px; overflow: hidden;';
+		disposables.add(toDisposable(() => host.remove()));
+		const part = disposables.add(instantiationService.createInstance(
+			TestChatProgressContentPart,
+			{ content: new MarkdownString('Working') },
+			{
+				render: (markdown, options) => {
+					const rendered = renderMarkdown(markdown, options);
+					rendered.element.classList.add('rendered-markdown');
+					return rendered;
+				}
+			},
+			createRenderContext(false),
+			true, true, undefined, undefined, true, undefined,
+		));
+		part.domNode.style.marginTop = '200px';
+		host.appendChild(part.domNode);
+		const animationState = () => part.domNode.getAnimations({ subtree: true }).map(animation => animation.playState);
+		const waitForState = async (state: string[]) => retry(async () => assert.deepStrictEqual(animationState(), state), 10, 100);
+		const animationTime = () => part.domNode.getAnimations({ subtree: true })[0]?.currentTime;
+		const waitForMotion = async () => {
+			const before = animationTime();
+			await retry(async () => {
+				const time = animationTime();
+				assert.ok(typeof time === 'number' && time > 0 && time !== before);
+			}, 10, 100);
+			assert.deepStrictEqual(animationState(), ['paused']);
+		};
+		const states: { step: string; paused: boolean; moving?: boolean }[] = [];
+		const record = (step: string, moving?: boolean) => states.push({
+			step, paused: part.domNode.classList.contains('chat-progress-shimmer-paused'), moving,
+		});
+
+		await waitForState(['paused']);
+		assert.ok(part.domNode.getBoundingClientRect().top > host.getBoundingClientRect().bottom);
+		record('clipped');
+		part.updateMessage(new MarkdownString('Still working'));
+		await waitForState(['paused']);
+		record('replaced while clipped');
+
+		part.domNode.style.marginTop = '0';
+		await waitForMotion();
+		record('revealed', true);
+		const visibleTime = animationTime();
+		await retry(async () => {
+			const time = animationTime();
+			assert.ok(typeof visibleTime === 'number' && typeof time === 'number' && time > visibleTime + 200);
+		}, 10, 100);
+		record('continuously visible', true);
+		part.updateMessage(new MarkdownString('Working again'));
+		await waitForMotion();
+		record('replaced while visible', true);
+
+		host.remove();
+		await retry(async () => assert.ok(part.domNode.classList.contains('chat-progress-shimmer-paused')), 10, 100);
+		await waitForState([]);
+		record('detached');
+		mainWindow.document.body.appendChild(host);
+		await waitForMotion();
+		record('remounted', true);
+
+		part.setActive(false);
+		await waitForState([]);
+		record('inactive');
+		part.setActive(true);
+		await waitForMotion();
+		record('reactivated', true);
+		part.dispose();
+		record('disposed');
+
+		assert.deepStrictEqual(states, [
+			{ step: 'clipped', paused: true, moving: undefined },
+			{ step: 'replaced while clipped', paused: true, moving: undefined },
+			{ step: 'revealed', paused: false, moving: true },
+			{ step: 'continuously visible', paused: false, moving: true },
+			{ step: 'replaced while visible', paused: false, moving: true },
+			{ step: 'detached', paused: true, moving: undefined },
+			{ step: 'remounted', paused: false, moving: true },
+			{ step: 'inactive', paused: false, moving: undefined },
+			{ step: 'reactivated', paused: false, moving: true },
+			{ step: 'disposed', paused: false, moving: undefined },
+		]);
 	});
 
 	test('adds shimmer styling only for active ask questions invocation progress', () => {

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/common/config/editorConfigurationSchema.js';
@@ -12,11 +13,18 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import {
 	defaultMultiDiffEditorExperimentalVariant,
 	getWorkbenchMultiDiffEditorVariant,
 	multiDiffEditorExperimentalVariantSetting,
+	observableMultiDiffEditorFileListViewMode,
+	observableMultiDiffEditorFileListPosition,
+	observableMultiDiffEditorFileListVisible,
 	observableWorkbenchMultiDiffEditorVariant,
+	setMultiDiffEditorFileListViewMode,
+	setMultiDiffEditorFileListPosition,
+	toggleMultiDiffEditorFileList,
 } from '../../common/multiDiffEditor.js';
 
 // Capture registration before configuration-registry tests clear the shared registry.
@@ -35,6 +43,7 @@ suite('MultiDiffEditorConfiguration', () => {
 			enum: property.enum,
 			enumDescriptions: property.enumDescriptions,
 			default: property.default,
+			agentsWindowDefault: property.agentsWindow?.default,
 			scope: property.scope,
 			isExperimental: property.tags?.includes('experimental'),
 			experiment: property.experiment,
@@ -46,6 +55,7 @@ suite('MultiDiffEditorConfiguration', () => {
 				'Use the compact variant without cards.',
 			],
 			default: 'noCards',
+			agentsWindowDefault: 'cards',
 			scope: ConfigurationScope.WINDOW,
 			isExperimental: true,
 			experiment: { mode: 'auto' },
@@ -95,5 +105,69 @@ suite('MultiDiffEditorConfiguration', () => {
 		}());
 
 		assert.deepStrictEqual(values, ['cards', 'noCards']);
+	});
+
+	test('shows the file list while the editor offers it and the shared toggle has not hidden it', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new DisposableStore());
+		const available = observableValue('available', true);
+		const firstEditor = observableMultiDiffEditorFileListVisible(store, available, storageService, store);
+		const secondEditor = observableMultiDiffEditorFileListVisible(store, constObservable(true), storageService, store);
+		const values = { firstEditor: [] as boolean[], secondEditor: [] as boolean[] };
+		disposables.add(autorun(reader => values.firstEditor.push(firstEditor.read(reader))));
+		disposables.add(autorun(reader => values.secondEditor.push(secondEditor.read(reader))));
+
+		toggleMultiDiffEditorFileList(storageService);
+		toggleMultiDiffEditorFileList(storageService);
+		available.set(false, undefined);
+		toggleMultiDiffEditorFileList(storageService);
+		toggleMultiDiffEditorFileList(storageService);
+
+		assert.deepStrictEqual(values, {
+			firstEditor: [true, false, true, false],
+			secondEditor: [true, false, true, false, true],
+		});
+	});
+
+	test('shares the file list view mode between editors and defaults to a list', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new DisposableStore());
+		const firstEditor = observableMultiDiffEditorFileListViewMode(store, storageService, store);
+		const secondEditor = observableMultiDiffEditorFileListViewMode(store, storageService, store);
+		const values = { firstEditor: [] as string[], secondEditor: [] as string[] };
+		disposables.add(autorun(reader => values.firstEditor.push(firstEditor.read(reader))));
+		disposables.add(autorun(reader => values.secondEditor.push(secondEditor.read(reader))));
+
+		setMultiDiffEditorFileListViewMode(storageService, 'tree');
+		setMultiDiffEditorFileListViewMode(storageService, 'tree');
+		setMultiDiffEditorFileListViewMode(storageService, 'list');
+
+		assert.deepStrictEqual(values, {
+			firstEditor: ['list', 'tree', 'list'],
+			secondEditor: ['list', 'tree', 'list'],
+		});
+	});
+
+	test('shares and remembers the file list position, defaulting to the right', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new DisposableStore());
+		const firstEditor = observableMultiDiffEditorFileListPosition(store, storageService, store);
+		const secondEditor = observableMultiDiffEditorFileListPosition(store, storageService, store);
+		const values = { firstEditor: [] as string[], secondEditor: [] as string[] };
+		disposables.add(autorun(reader => values.firstEditor.push(firstEditor.read(reader))));
+		disposables.add(autorun(reader => values.secondEditor.push(secondEditor.read(reader))));
+
+		setMultiDiffEditorFileListPosition(storageService, 'left');
+		setMultiDiffEditorFileListPosition(storageService, 'left');
+		const restored = observableMultiDiffEditorFileListPosition(store, storageService, store).get();
+		setMultiDiffEditorFileListPosition(storageService, 'right');
+
+		assert.deepStrictEqual({ values, restored }, {
+			values: {
+				firstEditor: ['right', 'left', 'right'],
+				secondEditor: ['right', 'left', 'right'],
+			},
+			restored: 'left',
+		});
 	});
 });

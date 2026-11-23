@@ -8,7 +8,6 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { LintOptions, LintOptionShowCode, LintOptionWarning } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
-import { BugIndicatingError } from '../../../util/vs/base/common/errors';
 import { isEqual } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Position } from '../../../util/vs/editor/common/core/position';
@@ -18,14 +17,7 @@ import { Diagnostic, DiagnosticSeverity } from '../../../vscodeTypes';
 import { PromptTags } from './tags';
 import { CurrentDocument } from './xtabCurrentDocument';
 
-export interface LintDiagnosticsContext {
-	readonly diagnostics: readonly Diagnostic[];
-	readonly cursorLineNumber: number;
-}
-
 export class LintErrors {
-
-	private _previousFormttedDiagnostics: readonly DiagnosticDataWithDistance[] | undefined;
 
 	constructor(
 		private readonly _documentId: DocumentId,
@@ -79,8 +71,6 @@ export class LintErrors {
 		} else {
 			allDiagnostics = currentFileDiagnostics;
 		}
-
-		this._previousFormttedDiagnostics = allDiagnostics;
 
 		const activeDocUri = this._documentId.toUri();
 		const formattedDiagnostics = allDiagnostics.map(d => {
@@ -143,37 +133,6 @@ export class LintErrors {
 		}
 
 		return result;
-	}
-
-	public lineNumberInPreviousFormattedPrompt(options: LintOptions, lineNumber: number): boolean {
-		if (!this._previousFormttedDiagnostics) {
-			throw new BugIndicatingError('No previous formatted diagnostics available to check line number against.');
-		}
-
-		const activeDocUri = this._documentId.toUri();
-
-		for (const diagnostic of this._previousFormttedDiagnostics) {
-			// Only consider diagnostics from the current file
-			if (!isEqual(diagnostic.documentUri, activeDocUri)) {
-				continue;
-			}
-
-			// Convert diagnostic position (1-based) to 0-based for comparison with formatted output
-			if (diagnostic.documentRange.getStartPosition().lineNumber - 1 === lineNumber) {
-				return true;
-			}
-
-			if (options.showCode === LintOptionShowCode.NO) {
-				continue;
-			}
-
-			const lineRange = diagnosticsToCodeLineRange(diagnostic.documentRange, options);
-			if (lineRange.contains(lineNumber)) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	public getData(): string {

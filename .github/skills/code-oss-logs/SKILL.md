@@ -9,10 +9,10 @@ Find and display logs from the most recent Code OSS or Agents app dev run.
 
 ## Log Root Directories
 
-| App | Default User Data Dir | Logs Path |
+| Launch | Default User Data Dir | Logs Path |
 |-----|-----------------------|-----------|
-| Code OSS | `$HOME/.vscode-oss-dev` | `$HOME/.vscode-oss-dev/logs/` |
-| Agents app | `$HOME/.vscode-oss-dev` | `$HOME/.vscode-oss-dev/logs/` |
+| `scripts/code.sh` | `code-oss-dev` in the platform app-data dir (`~/Library/Application Support` on macOS, `~/.config` on Linux, `%APPDATA%` on Windows) | `<dir>/logs/` |
+| `.vscode/launch.json` | `$HOME/.vscode-oss-dev` | `$HOME/.vscode-oss-dev/logs/` |
 
 If Code OSS was launched with `--user-data-dir=<dir>`, use `<dir>/logs/` instead of the defaults above. Launch and debugging helpers often create temporary user data dirs under `.build/`; always prefer the exact user data dir from the launch command when it is known.
 
@@ -23,8 +23,6 @@ Each run creates a timestamped folder like `20260330T163430`. The most recent fo
 1. **Identify which app** the user is asking about: Code OSS or Agents app. If unclear, check both.
 2. **Find the most recent log folder**:
     ```bash
-    ls -lt "$HOME/.vscode-oss-dev/logs" | head -5
-    # or for a custom user data dir:
     ls -lt "<user-data-dir>/logs" | head -5
     ```
 3. **Navigate into the most recent folder** and list contents.
@@ -72,6 +70,12 @@ Each timestamped log folder has this structure:
 ### Multiple `output_` Folders
 
 A new `output_<timestamp>/` folder and a corresponding `output_logging_<timestamp>/` inside `exthost/` is created each time the window reloads within the same session. The session-level timestamped folder, such as `20260330T163430/`, stays the same, but each reload gets fresh output channel directories. The most recent `output_*` folder by timestamp has the logs for the current or latest reload. Earlier folders contain logs from prior reloads in that session.
+
+### Cloud Sandbox Startup Failures
+
+Start with `renderer.log`. `[CloudSandboxApi]` connect/reconnect HTTP failures record status, elapsed time, environment/session/client IDs when available, and a validated `requestId` from `X-GitHub-Request-Id`. Use that request ID to correlate the exact upstream HTTP request; environment/session IDs also span retries and asynchronous work. A missing request ID may reflect an absent or browser-inaccessible response header.
+
+Follow the returned `clientId` through `[WebPubSubRelayTransport]` and `[RemoteAgentHostProtocol]`. Relay readiness, the first publish acknowledgment, the first host frame, and the AHP initialize request/completion distinguish relay setup from host responsiveness. A relay publish acknowledgment does not prove host execution. The relay closing summary includes outstanding acknowledgments, host-frame/message counts, host silence, and protocol/reassembly error counts without logging credentials or payloads. These records are ordinary log-service output and do not require AHP payload logging.
 
 ## Key Files by Use Case
 

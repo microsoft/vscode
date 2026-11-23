@@ -123,4 +123,46 @@ suite('customizationCreatorService', () => {
 		const result = await picker.resolveTargetDirectoryWithPicker(URI.parse('test-harness:///session'), PromptsType.skill);
 		assert.deepStrictEqual({ result: result?.path, labels }, { result: user.path, labels: ['Workspace', 'User'] });
 	});
+
+	test('workspace-scoped creation only offers folders from the selected workspace', async () => {
+		const firstRoot = URI.file('/workspace/first');
+		const secondRoot = URI.file('/workspace/second');
+		const secondGitHub = URI.joinPath(secondRoot, '.github/skills');
+		const secondAgents = URI.joinPath(secondRoot, '.agents/skills');
+		let labels: string[] = [];
+		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override findHarnessById(id: string): IHarnessDescriptor {
+				return {
+					id, label: 'Test', icon: Codicon.copilot,
+					itemProvider: {
+						onDidChange: Event.None,
+						provideChatSessionCustomizations: async () => [],
+						provideSourceFolders: async () => [
+							{ uri: URI.joinPath(firstRoot, '.github/skills'), label: 'First GitHub', source: PromptsStorage.local, workspaceGroupId: firstRoot.toString() },
+							{ uri: secondGitHub, label: 'Second GitHub', source: PromptsStorage.local, workspaceGroupId: secondRoot.toString() },
+							{ uri: secondAgents, label: 'Second Agents', source: PromptsStorage.local, workspaceGroupId: secondRoot.toString() },
+						],
+					},
+				};
+			}
+		}();
+		const quickInputService = new class extends mock<IQuickInputService>() {
+			override async pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>): Promise<T | undefined> {
+				const choices = await items;
+				labels = choices.filter(item => item.type !== 'separator').map(item => item.label);
+				return choices.find((item): item is T => item.type !== 'separator' && item.label === 'Second Agents');
+			}
+		}();
+		const picker = new CustomizationLocationPicker(
+			quickInputService, harnessService, new class extends mock<IInstantiationService>() { }(),
+			new class extends mock<ILabelService>() { override getUriLabel(uri: URI): string { return uri.path; } }(),
+		);
+
+		const result = await picker.resolveTargetDirectoryWithPicker(URI.parse('test-harness:///session'), PromptsType.skill, 'local', secondRoot);
+
+		assert.deepStrictEqual({ result: result?.path, labels }, {
+			result: secondAgents.path,
+			labels: ['Second GitHub', 'Second Agents'],
+		});
+	});
 });

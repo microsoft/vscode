@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from '../../../.
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { IObservable, ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -44,7 +44,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
 		}
 		const multiDiffSource = input.multiDiffSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
-		return instantiationService.createInstance(
+		const editorInput = instantiationService.createInstance(
 			MultiDiffEditorInput,
 			multiDiffSource,
 			input.label,
@@ -57,10 +57,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}),
 			input.isTransient ?? false
 		);
+		editorInput._showFileList = input.showFileList ?? true;
+		return editorInput;
 	}
 
 	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
-		return instantiationService.createInstance(
+		const editorInput = instantiationService.createInstance(
 			MultiDiffEditorInput,
 			URI.parse(data.multiDiffSourceUri),
 			data.label,
@@ -71,6 +73,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			)),
 			false
 		);
+		editorInput._showFileList = data.showFileList ?? true;
+		return editorInput;
 	}
 
 	static readonly ID: string = 'workbench.input.multiDiffEditor';
@@ -85,6 +89,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override get editorId(): string { return DEFAULT_EDITOR_ASSOCIATION.id; }
 	override getIcon(): ThemeIcon { return MultiDiffEditorIcon; }
+
+	private _showFileList = true;
+	/** Whether the editor offers a list of the changed files alongside the diffs, see {@link IResourceMultiDiffEditorInput.showFileList}. */
+	get showFileList(): boolean { return this._showFileList; }
 
 	constructor(
 		public readonly multiDiffSource: URI,
@@ -183,6 +191,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				modifiedUri: resource.modifiedUri?.toString(),
 				goToFileUri: resource.goToFileUri?.toString(),
 			})),
+			showFileList: this.showFileList,
 		};
 	}
 
@@ -196,10 +205,29 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	public async getViewModel(): Promise<MultiDiffEditorViewModel> {
+		const viewModel = this._viewModel.currentValue;
+		if (viewModel && this._resourceOrder.get()) {
+			await raceTimeout(viewModel.waitForDiffOr1s(), 1000);
+		}
 		return this._viewModel.getPromise();
 	}
 
 	private readonly _viewModel;
+
+	private readonly _resourceOrder = observableValue<((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined>(this, undefined);
+
+	/** Orders resolved resources before their diffs are created, and reorders them when the order changes. */
+	public setResourceOrder(order: ((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined): void {
+		this._resourceOrder.set(order, undefined);
+	}
+
+	private readonly _resolvingDocuments = observableValue<IObservable<boolean> | undefined>(this, undefined);
+
+	/**
+	 * Whether the documents of the resources are resolving: from a change of the resources until the documents of all of
+	 * them resolved or failed to, during which the view model keeps the documents of before.
+	 */
+	public readonly isResolvingDocuments: IObservable<boolean> = derived(this, reader => this._resolvingDocuments.read(reader)?.read(reader) ?? false);
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
@@ -236,7 +264,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			const errorResult = errorResults.find(result => !isBinaryTextFileOperationError(result.reason));
 			if (errorResult) {
 				multiDiffItemStore.dispose();
-				console.error(errorResult.reason);
 				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
@@ -269,8 +296,20 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
 
-		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>('documents', 'loading');
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItemWithMultiDiffEditorItem>[] | 'loading'>('documents', 'loading');
+		const orderedDocuments = derived(this, reader => {
+			const resolvedDocuments = documents.read(reader);
+			const order = this._resourceOrder.read(reader);
+			if (resolvedDocuments === 'loading' || !order) {
+				return resolvedDocuments;
+			}
+			const documentsByResource = new Map(resolvedDocuments.map(document => [document.object.multiDiffEditorItem, document]));
+			return order(resolvedDocuments.map(document => document.object.multiDiffEditorItem))
+				.map(resource => documentsByResource.get(resource)!);
+		});
 
+		// The resolution of the documents of these resources settled, whether they resolved or failed to.
+		const settledDocumentsPromises = observableValue<readonly Promise<RefCounted<IDocumentDiffItemWithMultiDiffEditorItem> | undefined>[] | undefined>('settledDocumentsPromises', undefined);
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
 			const cancellationToken = cancelOnDispose(reader.store);
@@ -280,15 +319,22 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				return;
 			}
 			const newDocuments = docs.filter(isDefined);
-			documents.set(newDocuments, undefined);
+			transaction(tx => {
+				documents.set(newDocuments, tx);
+				settledDocumentsPromises.set(docsPromises, tx);
+			});
 		});
 
 		const a = recomputeInitiallyAndOnChange(updateDocuments);
+		this._resolvingDocuments.set(derived(reader => documentsWithPromises.read(reader) !== settledDocumentsPromises.read(reader)), undefined);
 		await updateDocuments.get();
 
 		const result: IMultiDiffEditorModel & IDisposable = {
-			dispose: () => a.dispose(),
-			documents: new ValueWithChangeEventFromObservable(documents),
+			dispose: () => {
+				a.dispose();
+				this._resolvingDocuments.set(undefined, undefined);
+			},
+			documents: new ValueWithChangeEventFromObservable(orderedDocuments),
 			contextKeys: source.source?.contextKeys,
 		};
 		return result;
@@ -487,6 +533,8 @@ interface ISerializedMultiDiffEditorInput {
 		modifiedUri: string | undefined;
 		goToFileUri: string | undefined;
 	}[] | undefined;
+	/** Missing in editors serialized before the option existed. */
+	showFileList?: boolean;
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {

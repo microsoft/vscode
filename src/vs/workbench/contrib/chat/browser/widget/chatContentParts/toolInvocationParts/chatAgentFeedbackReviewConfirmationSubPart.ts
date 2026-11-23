@@ -97,7 +97,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			{
 				label: localize('agentFeedback.cancel', "Cancel"),
 				isSecondary: true,
-				data: () => this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.Skipped }),
+				data: () => this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.Skipped, source: 'user' }),
 			},
 		];
 
@@ -119,7 +119,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
 			if (!isTouchClick) {
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				this.focusChatInput();
 			}
 		}));
 

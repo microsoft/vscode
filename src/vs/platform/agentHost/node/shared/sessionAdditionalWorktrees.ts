@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { type IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 
 export const ADDITIONAL_WORKTREES_METADATA_KEY = 'agentHost.additionalWorktrees';
 
@@ -16,47 +16,43 @@ export interface ISessionAdditionalWorktree {
 	readonly chat?: string;
 }
 
-/** Reads the additional repository worktrees owned by a multi-folder session. */
-export async function readSessionAdditionalWorktrees(sessionDataService: ISessionDataService, session: URI): Promise<readonly ISessionAdditionalWorktree[]> {
-	const ref = await sessionDataService.tryOpenDatabase(session);
-	if (!ref) {
+/** Reads the additional repository worktrees owned by a multi-folder session, from its session state without importing it. */
+export async function readSessionAdditionalWorktrees(stateStore: IAgentHostSessionStateStore, session: URI): Promise<readonly ISessionAdditionalWorktree[]> {
+	const raw = (await stateStore.readWithoutImport(session, [ADDITIONAL_WORKTREES_METADATA_KEY])).get(ADDITIONAL_WORKTREES_METADATA_KEY);
+	if (raw === undefined) {
+		return [];
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch (error) {
+		throw new Error(`Invalid additional worktree metadata for ${session.toString()}`, { cause: error });
+	}
+	if (!isSessionAdditionalWorktrees(parsed)) {
+		throw new Error(`Invalid additional worktree metadata for ${session.toString()}`);
+	}
+	return parsed;
+}
+
+/** Parses a stored additional-worktree record; a missing or invalid record yields none. */
+export function parseSessionAdditionalWorktrees(raw: string | undefined): readonly ISessionAdditionalWorktree[] {
+	if (raw === undefined) {
 		return [];
 	}
 	try {
-		const raw = await ref.object.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY);
-		if (raw === undefined) {
-			return [];
-		}
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(raw);
-		} catch (error) {
-			throw new Error(`Invalid additional worktree metadata for ${session.toString()}`, { cause: error });
-		}
-		if (!isSessionAdditionalWorktrees(parsed)) {
-			throw new Error(`Invalid additional worktree metadata for ${session.toString()}`);
-		}
-		return parsed;
-	} finally {
-		ref.dispose();
+		const parsed: unknown = JSON.parse(raw);
+		return isSessionAdditionalWorktrees(parsed) ? parsed : [];
+	} catch {
+		return [];
 	}
 }
 
 /** Replaces the additional repository worktrees owned by a multi-folder session. */
-export async function writeSessionAdditionalWorktrees(sessionDataService: ISessionDataService, session: URI, worktrees: readonly ISessionAdditionalWorktree[]): Promise<void> {
+export async function writeSessionAdditionalWorktrees(stateStore: IAgentHostSessionStateStore, session: URI, worktrees: readonly ISessionAdditionalWorktree[]): Promise<void> {
 	if (!isSessionAdditionalWorktrees(worktrees)) {
 		throw new Error(`Invalid additional worktree metadata for ${session.toString()}`);
 	}
-	const ref = sessionDataService.openDatabase(session);
-	try {
-		if (worktrees.length === 0) {
-			await ref.object.deleteMetadata([ADDITIONAL_WORKTREES_METADATA_KEY]);
-		} else {
-			await ref.object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify(worktrees));
-		}
-	} finally {
-		ref.dispose();
-	}
+	await stateStore.writeMetadata(session, session, { [ADDITIONAL_WORKTREES_METADATA_KEY]: worktrees.length === 0 ? null : JSON.stringify(worktrees) }, SessionStateMirrorFlush.Immediate);
 }
 
 function isSessionAdditionalWorktrees(value: unknown): value is readonly ISessionAdditionalWorktree[] {

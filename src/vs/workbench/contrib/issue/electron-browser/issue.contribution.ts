@@ -9,7 +9,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
@@ -25,22 +25,20 @@ import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
 import './issueReporterKeybindings.js';
 import { BaseIssueContribution } from '../common/issue.contribution.js';
-import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
+import { IIssueFormService, IWorkbenchIssueService, issueReporterLayoutSettingId, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
-import { IScreenshotService } from '../browser/screenshotService.js';
-import { NativeScreenshotService } from './nativeScreenshotService.js';
 import { IRecordingService } from '../browser/recordingService.js';
 import { NativeRecordingService } from './nativeRecordingService.js';
 import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { NativeGitHubUploadService } from './nativeGitHubUploadService.js';
 import { IssueReporterEditorPane } from './issueReporterEditorPane.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
+import { issueReporterAdditionalRepositoriesSettingId, issueReporterRepositoryPattern } from '../common/issueReporterTarget.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
-registerSingleton(IScreenshotService, NativeScreenshotService, InstantiationType.Delayed);
 registerSingleton(IRecordingService, NativeRecordingService, InstantiationType.Delayed);
 registerSingleton(IGitHubUploadService, NativeGitHubUploadService, InstantiationType.Delayed);
 
@@ -50,16 +48,52 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	title: localize('issueReporterConfigurationTitle', "Issue Reporter"),
 	type: 'object',
 	properties: {
+		[issueReporterAdditionalRepositoriesSettingId]: {
+			type: 'array',
+			items: {
+				type: 'string',
+				pattern: issueReporterRepositoryPattern,
+				patternErrorMessage: localize('issueReporter.repositoryFormat', "Use a GitHub repository in owner/repo format, not a URL."),
+			},
+			default: [],
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('issueReporter.additionalRepositories', "Additional GitHub repositories offered in the issue reporter for VS Code and Agents Window reports, in owner/repo format. The default repository remains selected initially. GitHub manages repository access."),
+			experiment: { mode: 'auto' }
+		},
 		'issueReporter.wizard.enabled': {
 			type: 'boolean',
-			default: false,
-			description: localize('issueReporter.wizard.enabled', "Enable the new issue reporter wizard instead of the classic issue reporter."),
+			default: true,
+			description: localize('issueReporter.wizard.enabled', "Enable the new single-page issue reporter instead of the classic issue reporter."),
 			experiment: { mode: 'auto' }
+		},
+		'issueReporter.wizard.openLocation': {
+			type: 'string',
+			enum: ['editor', 'window'],
+			enumDescriptions: [
+				localize('issueReporter.wizard.openLocation.editor', "Open new issue reports in an editor tab."),
+				localize('issueReporter.wizard.openLocation.window', "Open new issue reports in a separate window attached to the current workbench."),
+			],
+			default: 'window',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('issueReporter.wizard.openLocation', "Where to open fresh reports when the new issue reporter is enabled. Existing reports keep their current location."),
+		},
+		[issueReporterLayoutSettingId]: {
+			type: 'string',
+			enum: ['simple', 'detailed'],
+			enumDescriptions: [
+				localize('issueReporter.wizard.layout.simple', "Ask for screenshots and a description, and attach a screenshot of the current window when a report opens. The target and category keep their defaults, the title is generated from the description when it is left empty, and diagnostics are one choice."),
+				localize('issueReporter.wizard.layout.detailed', "Ask for screenshots and a description first, then for the target, category, title, and each kind of diagnostics, with guidance along the way."),
+			],
+			default: 'detailed',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('issueReporter.wizard.layout', "Controls how the new issue reporter asks for a report. Existing reports keep their layout."),
+			experiment: { mode: 'auto' },
 		},
 		'issueReporter.wizard.fullWorkspaceScan': {
 			type: 'boolean',
 			default: true,
-			description: localize('issueReporter.wizard.fullWorkspaceScan', "When auto-collecting performance diagnostics for the issue reporter wizard, walk the full workspace instead of stopping at the default 20,000-file cap. Set to false on very large workspaces if the scan slows the initial wizard render."),
+			description: localize('issueReporter.wizard.fullWorkspaceScan', "When auto-collecting performance diagnostics for the issue reporter, walk the full workspace instead of stopping at the default 20,000-file cap. Set to false on very large workspaces if the scan slows the initial report render."),
 			experiment: { mode: 'auto' }
 		},
 	}

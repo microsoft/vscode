@@ -6,19 +6,32 @@
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRelayChannel } from './relayTransport.js';
+import { IDevContainerRepository, IDevContainerSampleSource } from './devContainerSamples.js';
+import { IDevContainerEnvironmentReference, IDevContainerEnvironmentSource } from './devContainerEnvironments.js';
 
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
 export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
 
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
-export interface IDevContainerAgentHostConfig {
+export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly connectionId: string;
 	/** Native workspace path; the remote protocol facade also accepts a host URI's path. */
 	readonly workspaceFolder: string;
 	readonly name: string;
 	/** Whether this explicit connection may restart a container stopped after its sessions became idle. */
 	readonly resume?: boolean;
+	/** Configure the container to permit nested terminal sandboxing. */
+	readonly sandboxEnabled?: boolean;
+	/** Mount a per-container volume that keeps user and agent state across rebuilds. */
+	readonly persistUserState?: boolean;
 }
+
+export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig
+	| (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource)
+	| (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerEnvironmentSource);
+
+/** Identifies the container of a native workspace folder, a sample, or an environment. */
+export type DevContainerAgentHostSource = string | IDevContainerSampleSource | IDevContainerEnvironmentReference;
 
 /** Serializable connection metadata returned to the renderer. */
 export interface IDevContainerAgentHostConnectResult {
@@ -28,12 +41,46 @@ export interface IDevContainerAgentHostConnectResult {
 	readonly remoteWorkspaceFolder: string;
 	/** Native source workspace path on the parent host, when reported by the launcher. */
 	readonly hostWorkspaceFolder?: string;
+	readonly repository?: IDevContainerRepository;
+	/** Whether the actual container has the Docker options needed for nested sandboxing. */
+	readonly sandboxSupported?: boolean;
+	/** Only desktop-local containers share the connecting client's network and may use its trust roots, proxy configuration, and Kerberos tickets. */
+	readonly sharesClientNetwork?: boolean;
 }
 
 /** One chunk of output from a Dev Container CLI process. */
 export interface IDevContainerAgentHostOutput {
 	readonly connectionId: string;
 	readonly data: string;
+}
+
+/** Docker sandbox prerequisites observed during an attempted connection, including failed startup. */
+export interface IDevContainerAgentHostSandboxSupport {
+	readonly connectionId: string;
+	readonly supported: boolean;
+}
+
+/** Outcome of one stage of keeping user state on a volume, reported for telemetry. */
+export interface IDevContainerAgentHostUserStateReport {
+	readonly connectionId: string;
+	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
+	/** `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, failed. `up`, `userCommands`: succeeded, failed. */
+	readonly outcome: string;
+	/** Fixed identifier of what failed. */
+	readonly reason?: string;
+	/** The link command's failed step. */
+	readonly step?: string;
+	readonly exitCode?: number;
+	/** Where the state volume is mounted: `workspaces` or `volume`. */
+	readonly target?: string;
+	readonly restoredFolders?: number;
+	readonly movedFolders?: number;
+	readonly createdFolders?: number;
+	readonly existingFolders?: number;
+	readonly skippedFolders?: number;
+	readonly skipReasons?: string;
+	/** Sanitized error message of a failed stage, see `sanitizeDevContainerStateErrorMessage`. */
+	readonly errorMessage?: string;
 }
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
@@ -45,11 +92,23 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidCloseConnection: Event<string>;
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
+	readonly onDidChangeSandboxSupport?: Event<IDevContainerAgentHostSandboxSupport>;
+	/** Reports how keeping user state on a volume went, including for failed startup. */
+	readonly onDidReportUserState?: Event<IDevContainerAgentHostUserStateReport>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
-	stopContainer(workspaceFolder: string): Promise<boolean>;
-	removeContainer(workspaceFolder: string): Promise<boolean>;
+	stopContainer(source: DevContainerAgentHostSource): Promise<boolean>;
+	/** Removes the container; an environment's Docker volume is removed with it. */
+	removeContainer(source: DevContainerAgentHostSource): Promise<boolean>;
+	/**
+	 * Whether this service's Docker engine has a volume of the Dev Container environment, false without Docker. Clients ask
+	 * the service on their own computer, so it is optional for the services of remote hosts.
+	 */
+	hasEnvironmentVolume?(environmentId: string): Promise<boolean>;
 }
+
+/** How long {@link IDevContainerAgentHostMainService.hasEnvironmentVolume} may take before a stalled Docker engine counts as not having the volume. */
+export const DevContainerEnvironmentVolumeLookupTimeoutMs = 10_000;

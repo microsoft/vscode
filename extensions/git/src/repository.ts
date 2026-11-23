@@ -32,6 +32,7 @@ import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
+import { getSafeNotificationMessage } from './notification';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 import { resolveWorktreeIncludePaths, sanitizeWorktreeIncludePatterns } from './worktreeInclude';
 import { createWorktreeSymlink, filterWorktreeSymlinkFolders, getWorktreeSymlinkFolderCandidates, type WorktreeSymlinkStatus } from './worktreeSymlink';
@@ -476,7 +477,14 @@ class DotGitWatcher implements IFileWatcher {
 		// Ignore changes to the "index.lock" file (including worktree index.lock files), and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
 		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock|\/worktrees\/[^/]+\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
-		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
+
+		// Watch the "worktrees" folder so that worktrees that are added or removed outside
+		// of this repository (ex: another window, the command line) trigger a `git status`
+		const worktreesWatcher = watch(path.join(repository.dotGit.commonPath ?? repository.dotGit.path, 'worktrees'));
+		this.disposables.push(worktreesWatcher);
+
+		const filteredWorktreesWatcher = filterEvent(worktreesWatcher.event, uri => uri.scheme === 'file');
+		this.event = anyEvent(filteredRootWatcher, filteredWorktreesWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
 		this.updateTransientWatchers();
@@ -570,6 +578,7 @@ class ResourceCommandResolver {
 		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
 		const candidateFsPath = path.join(parentRepoRoot, relPath);
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: make compareWithWorkspace await this probe before constructing the diff command; otherwise a missing worktree path produces the wrong left-hand resource.
 		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
 
 		return this.resolveChangeCommand(resource, true, leftUri);
@@ -898,7 +907,33 @@ export class Repository implements Disposable {
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
 	private _isHidden: boolean;
-	get isHidden(): boolean { return this._isHidden; }
+	get isHidden(): boolean { return this._isHidden || this._isWarm; }
+
+	/**
+	 * Whether the repository is kept open, hidden, at a known location of a workspace folder other
+	 * than its current one, so that switching to that location is instant. A warm repository does
+	 * not run git status, autofetch or refresh while it is warm: the changes it sees are applied
+	 * once it is shown.
+	 */
+	private _isWarm: boolean;
+	get isWarm(): boolean { return this._isWarm; }
+
+	private _parentRoot: string | undefined;
+
+	/**
+	 * The root of the repository that this repository is shown under, if any. Closing that one closes this one too.
+	 */
+	get parentRoot(): string | undefined { return this._parentRoot; }
+
+	private _onDidChangeWarm = new EventEmitter<boolean>();
+	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
+
+	private didRunFirstStatus!: () => void;
+
+	/**
+	 * Resolves once git status ran for the first time.
+	 */
+	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
@@ -921,8 +956,11 @@ export class Repository implements Disposable {
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter,
-		private readonly repositoryCache: RepositoryCache
+		private readonly repositoryCache: RepositoryCache,
+		isWarm = false
 	) {
+		this._isWarm = isWarm;
+		this.disposables.push(this._onDidChangeWarm);
 		this._operations = new OperationManager(this.logger);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
@@ -968,6 +1006,7 @@ export class Repository implements Disposable {
 		const parent = parentRoot
 			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
 			: undefined;
+		this._parentRoot = parent ? parentRoot : undefined;
 
 		// Icon
 		const icon = repository.kind === 'submodule'
@@ -989,7 +1028,7 @@ export class Repository implements Disposable {
 				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this.isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
@@ -1928,15 +1967,19 @@ export class Repository implements Disposable {
 	}
 
 	async merge(ref: string): Promise<void> {
-		await this.run(Operation.Merge, () => this.repository.merge(ref));
+		// Only pass `-S` when the setting is enabled so that git's own config applies otherwise
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const signCommit = config.get<boolean>('enableCommitSigning') === true;
+
+		await this.run(Operation.Merge, () => this.repository.merge(ref, { signCommit }));
 	}
 
 	async mergeAbort(): Promise<void> {
 		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
-	async rebase(branch: string): Promise<void> {
-		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
+	async rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch, options));
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
@@ -1979,12 +2022,6 @@ export class Repository implements Disposable {
 
 			// Create the worktree
 			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
-
-			// Update worktree root in global state
-			const newWorktreeRoot = path.dirname(worktreePath!);
-			if (defaultWorktreeRoot && !pathEquals(newWorktreeRoot, defaultWorktreeRoot)) {
-				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
-			}
 
 			// Worktree setup is best effort and must not delay or fail creation.
 			this._setupWorktree(worktreePath!).then(undefined, err => {
@@ -2269,7 +2306,11 @@ export class Repository implements Disposable {
 
 			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
 				await this.repository.deleteWorktree(path, options);
-				worktree?.dispose();
+				if (worktree) {
+					// Only a disposed state makes the model close a repository, which also disposes it.
+					// Without it, the deleted worktree stays open until one of its git commands fails.
+					worktree.state = RepositoryState.Disposed;
+				}
 			};
 
 			try {
@@ -2361,6 +2402,14 @@ export class Repository implements Disposable {
 				commands.executeCommand('_aiEdits.clearAllAiContributions');
 			}
 		});
+	}
+
+	async resetKeep(ref: string): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.resetKeep(ref));
+	}
+
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		await this.run(Operation.Branch, () => this.repository.updateRef(ref, newSha, oldSha));
 	}
 
 	async deleteRef(ref: string): Promise<void> {
@@ -2505,6 +2554,10 @@ export class Repository implements Disposable {
 
 	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
+	}
+
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.pushRefWithLease(remote, branch, newSha, expectedSha));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
@@ -2737,6 +2790,10 @@ export class Repository implements Disposable {
 
 	async rebaseAbort(): Promise<void> {
 		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
+	}
+
+	async rebaseContinue(): Promise<void> {
+		await this.run(Operation.RebaseContinue, () => this.repository.rebaseContinue());
 	}
 
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {
@@ -3064,6 +3121,7 @@ export class Repository implements Disposable {
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
+			this.didRunFirstStatus();
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -3146,14 +3204,20 @@ export class Repository implements Disposable {
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
-			const gitWarn = l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root);
+			const gitWarn = getSafeNotificationMessage(
+				l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root),
+				l10n.t('The git repository has too many active changes, only a subset of Git features will be enabled.'),
+			);
 			const neverAgain = { title: l10n.t('Don\'t Show Again') };
 
 			if (knownHugeFolderPaths.length > 0) {
 				const folderPath = knownHugeFolderPaths[0];
 				const folderName = path.basename(folderPath);
 
-				const addKnown = l10n.t('Would you like to add "{0}" to .gitignore?', folderName);
+				const addKnown = getSafeNotificationMessage(
+					l10n.t('Would you like to add "{0}" to .gitignore?', folderName),
+					l10n.t('Would you like to add the large folder to .gitignore?'),
+				);
 				const yes = { title: l10n.t('Yes') };
 				const no = { title: l10n.t('No') };
 
@@ -3261,9 +3325,10 @@ export class Repository implements Disposable {
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {
-		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
-		const rebaseApplyPath = path.join(this.repository.root, '.git', 'rebase-apply');
-		const rebaseMergePath = path.join(this.repository.root, '.git', 'rebase-merge');
+		// Linked worktrees and submodules keep their rebase state in their own git directory, not in <root>/.git.
+		const rebaseHeadPath = path.join(this.repository.dotGit.path, 'REBASE_HEAD');
+		const rebaseApplyPath = path.join(this.repository.dotGit.path, 'rebase-apply');
+		const rebaseMergePath = path.join(this.repository.dotGit.path, 'rebase-merge');
 
 		try {
 			const [rebaseApplyExists, rebaseMergePathExists, rebaseHead] = await Promise.all([
@@ -3281,12 +3346,12 @@ export class Repository implements Disposable {
 	}
 
 	private isMergeInProgress(): Promise<boolean> {
-		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
+		const mergeHeadPath = path.join(this.repository.dotGit.path, 'MERGE_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
 	}
 
 	private isCherryPickInProgress(): Promise<boolean> {
-		const cherryPickHeadPath = path.join(this.repository.root, '.git', 'CHERRY_PICK_HEAD');
+		const cherryPickHeadPath = path.join(this.repository.dotGit.path, 'CHERRY_PICK_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(cherryPickHeadPath, resolve));
 	}
 
@@ -3311,7 +3376,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private onFileChange(_uri: Uri): void {
+	private onFileChange(uri: Uri): void {
 		const config = workspace.getConfiguration('git');
 		const autorefresh = config.get<boolean>('autorefresh');
 
@@ -3320,7 +3385,9 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		if (this.isRepositoryHuge) {
+		// A change to the repository root or to its git folder (e.g. the worktree being
+		// removed) must still run git status, so that a deleted repository gets disposed
+		if (this.isRepositoryHuge && !pathEquals(uri.fsPath, this.root) && !pathEquals(uri.fsPath, this.dotGit.path)) {
 			this.logger.trace('[Repository][onFileChange] Skip running git status because repository is huge.');
 			return;
 		}
@@ -3345,8 +3412,32 @@ export class Repository implements Disposable {
 		await timeout(5000);
 	}
 
+	/**
+	 * Hides or shows the repository as a warm repository, see {@link isWarm}.
+	 */
+	setWarm(isWarm: boolean): void {
+		if (this._isWarm === isWarm) {
+			return;
+		}
+
+		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
+		this._isWarm = isWarm;
+		if (!isWarm) {
+			// A repository is shown as the one of a workspace folder's current location, so even a worktree that is
+			// hidden when its main repository is open (see the constructor) is shown
+			this._isHidden = false;
+		}
+		this._sourceControl.isHidden = this.isHidden;
+		this._onDidChangeWarm.fire(isWarm);
+	}
+
 	async whenIdleAndFocused(): Promise<void> {
 		while (true) {
+			if (this._isWarm) {
+				await eventToPromise(filterEvent(this.onDidChangeWarm, isWarm => !isWarm));
+				continue;
+			}
+
 			if (!this.operations.isIdle()) {
 				await eventToPromise(this.onDidRunOperation);
 				continue;
@@ -3485,7 +3576,10 @@ export class Repository implements Disposable {
 			// Notification
 			const replaceLocalTags = l10n.t('Replace Local Tag(s)');
 			const replaceLocalTagsAlways = l10n.t('Always Replace Local Tag(s)');
-			const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
+			const maxTags = 5;
+			const message = tags.length <= maxTags
+				? l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '))
+				: l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0} and {1} more. Would you like to resolve the conflict by replacing the local tag(s)?', tags.slice(0, maxTags).join(', '), tags.length - maxTags);
 			const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags, replaceLocalTagsAlways);
 
 			if (choice !== replaceLocalTags && choice !== replaceLocalTagsAlways) {

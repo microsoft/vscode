@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -11,11 +13,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import { buildChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -30,6 +32,9 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -37,6 +42,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState = Event.None;
 	async refreshSessionGitState(): Promise<void> { }
 	getMaterializedWorktreeMeta(): undefined { return undefined; }
+	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
@@ -94,6 +100,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		if (isolation || sessionAgentMergeEnabled) {
 			const session = {
 				resource: 'agent:/session',
+				defaultChat: buildDefaultChatUri('agent:/session'),
 				provider: 'copilot',
 				title: 'Session',
 				status: SessionStatus.Idle,
@@ -101,11 +108,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				modifiedAt: new Date(1).toISOString(),
 				workingDirectories: ['file:///repo'],
 			};
-			if (sessionAgentMergeEnabled) {
-				stateManager.restoreSession(session, []);
-			} else {
-				stateManager.createSession(session);
-			}
+			stateManager.restoreSession(session, [], creationTimeChatStorageResource);
 			stateManager.setSessionConfig('agent:/session', {
 				schema: { type: 'object', properties: {} },
 				values: {
@@ -126,8 +129,9 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(status, onDidChangePullRequestStatus),
 			configurationService,
-			createNullSessionDataService(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createNullSessionDataService()),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(NullTelemetryService),
 		));
 	}
 
@@ -141,6 +145,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri('agent:/session'),
 		});
 		const database = new TestSessionDatabase();
 		const reference: ISessionArtifact = {
@@ -153,14 +158,16 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		};
 		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, [reference]));
 		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts([reference]));
+		const telemetry = new CapturingTelemetryService();
 		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,
 			disposables.add(new InstantiationService()),
 			nullGitStateService,
 			createStatusService(),
 			new class extends mock<IAgentConfigurationService>() { }(),
-			createSessionDataService(database),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(database)),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(telemetry),
 		));
 
 		await contribution.recordCreatedPullRequest({
@@ -189,17 +196,21 @@ suite('AgentHostPullRequestOperationContribution', () => {
 
 		const liveArtifacts = readSessionArtifacts(stateManager.getSessionState('agent:/session')?._meta);
 		const persistedArtifacts = parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts;
+		const recorded = { provider: 'copilot', agentSessionId: 'session', turnId: undefined, toolCallId: undefined, source: 'createPullRequestAction', kind: SessionArtifactType.PullRequest, category: 'artifact', isGitHub: true, batchSize: 1 };
 		assert.deepStrictEqual({
 			live: liveArtifacts.map(({ id: _id, ...artifact }) => artifact),
 			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
+			recorded: telemetry.events.filter(event => event.eventName === 'agentHost.artifactRecorded').map(event => event.data),
 		}, {
 			live: [{
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: '',
 				isArtifact: true,
@@ -207,18 +218,25 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isGitHub: true,
 			}],
 			persisted: [{
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: '',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/124',
 				isGitHub: true,
 			}],
+			recorded: [
+				{ ...recorded, outcome: 'promoted' },
+				{ ...recorded, outcome: 'added' },
+				{ ...recorded, outcome: 'alreadyRecorded' },
+			],
 		});
 	});
 
@@ -227,15 +245,16 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.restoreSession({
 			resource: sessionKey,
+			defaultChat: buildDefaultChatUri(sessionKey),
 			provider: 'copilot',
 			title: 'Session',
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: ['file:///repo'],
-		}, []);
+		}, [], creationTimeChatStorageResource);
 		const peerChat = buildChatUri(sessionKey, 'peer');
-		stateManager.addChat(sessionKey, peerChat, { workingDirectories: ['file:///other'] });
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat, buildDefaultChatUri(sessionKey)), { workingDirectories: ['file:///other'] });
 		const peerScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///other']));
 		const defaultScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
 		const recordedGitHubStates: [string, ISessionGitHubState][] = [];
@@ -245,6 +264,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			onDidChangeSessionGitHubState: Event.None,
 			refreshSessionGitState: async () => { },
 			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
 			resolveSessionBaseBranchName: async () => undefined,
 			setSessionGitHubState: async (key, state) => { recordedGitHubStates.push([key, state]); },
 			recordSessionMerge: async () => { },
@@ -260,8 +280,9 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				override readonly onDidRootConfigChange = Event.None;
 				override getRootValue() { return undefined as never; }
 			}(),
-			createSessionDataService(new TestSessionDatabase()),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(NullTelemetryService),
 		));
 
 		await contribution.recordCreatedPullRequest({
@@ -280,11 +301,63 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			defaultScopeOperations: operationsFor(defaultScopeOwner),
 			peerScopeOperations: operationsFor(peerScopeOwner),
 		}, {
-			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
+			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
 			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
 			defaultScopeOperations: ['pr-mark-ready'],
 			peerScopeOperations: ['pr-merge'],
 		});
+	});
+
+	test('records a created PR under the initiating chat when chats share a folder', async () => {
+		const sessionKey = 'agent:/session';
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.restoreSession({
+			resource: sessionKey,
+			defaultChat: buildDefaultChatUri(sessionKey),
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		}, [], creationTimeChatStorageResource);
+		const peerChat = buildChatUri(sessionKey, 'peer');
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat, buildDefaultChatUri(sessionKey)), { workingDirectories: ['file:///repo'] });
+		const sharedFolderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			nullGitStateService,
+			createStatusService(),
+			new class extends mock<IAgentConfigurationService>() {
+				override readonly onDidRootConfigChange = Event.None;
+				override getRootValue() { return undefined as never; }
+			}(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
+			new NullLogService(),
+			new AgentHostTelemetryReporter(NullTelemetryService),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey,
+			ownerUri: sharedFolderOwner,
+			conversationChat: peerChat,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/8',
+			pullRequestNumber: 8,
+			pullRequestTitle: 'Peer chat PR',
+			branchName: 'feature/peer',
+		});
+
+		assert.deepStrictEqual(readSessionArtifacts(stateManager.getSessionState(sessionKey)?._meta).map(({ id: _id, ...artifact }) => artifact), [
+			{
+				chat: peerChat,
+				type: SessionArtifactType.PullRequest,
+				label: 'Peer chat PR',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/8',
+				isGitHub: true,
+			},
+		]);
 	});
 
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {
@@ -350,17 +423,22 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		});
 	});
 
-	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
+	test('advertises PR operations for folder sessions only while outgoing changes cannot be synced', () => {
 		const provider = createContribution(undefined, 'folder');
-
-		const operations = provider.getOperations({
+		const operationIdsFor = (upstreamBranchName: string | undefined) => provider.getOperations({
 			sessionKey: 'agent:/session',
-			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2 },
+			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2, upstreamBranchName },
 			changesetKind: ChangesetKind.Branch,
 			changesetUri: '',
-		});
+		})?.map(op => op.id);
 
-		assert.deepStrictEqual(operations, undefined);
+		assert.deepStrictEqual({
+			withUpstream: operationIdsFor('origin/feature/test'),
+			withoutUpstream: operationIdsFor(undefined),
+		}, {
+			withUpstream: undefined,
+			withoutUpstream: ['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID],
+		});
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {

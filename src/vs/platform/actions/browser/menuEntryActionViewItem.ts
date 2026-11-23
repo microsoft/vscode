@@ -7,6 +7,7 @@ import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { $, addDisposableListener, append, EventType, ModifierKeyEmitter, prepend } from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionProvider } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { SeparatorSelectOption } from '../../../base/browser/ui/selectBox/selectBox.js';
@@ -16,7 +17,7 @@ import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { isLinux, isWindows, OS } from '../../../base/common/platform.js';
+import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { assertType } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
@@ -67,9 +68,7 @@ function getContextMenuActionsImpl(
 	target: IAction[] | PrimaryAndSecondaryActions,
 	primaryGroup?: string
 ) {
-	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
-	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
+	fillInActions(groups, target, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 }
 
 
@@ -104,14 +103,12 @@ export function fillInActionBarActions(
 ): void {
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
-	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryAction, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
+	fillInActions(groups, target, isPrimaryAction, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
 }
 
 function fillInActions(
 	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>,
 	target: IAction[] | PrimaryAndSecondaryActions,
-	useAlternativeActions: boolean,
 	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,
 	useSeparatorsInPrimaryActions: boolean = false
@@ -144,10 +141,7 @@ function fillInActions(
 			}
 		}
 
-		for (let action of actions) {
-			if (useAlternativeActions) {
-				action = action instanceof MenuItemAction && action.alt ? action.alt : action;
-			}
+		for (const action of actions) {
 			const newLen = target.push(action);
 			// keep submenu info for later inlining
 			if (action instanceof SubmenuAction) {
@@ -176,6 +170,8 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
 	readonly onClickAnimation?: ClickAnimation;
+	/** Checks whether the completed action changed state, for example after a confirmation dialog. */
+	readonly shouldTriggerClickAnimation?: (context: unknown) => boolean;
 	readonly onDidTriggerClickAnimation?: () => void;
 }
 
@@ -207,6 +203,10 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
 	}
 
+	protected get onClickAnimation(): ClickAnimation | undefined {
+		return this._options?.onClickAnimation;
+	}
+
 	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
@@ -219,12 +219,13 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 			}
 		});
 		try {
-			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
-			await this.actionRunner.run(commandAction, this._context);
-			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced()) {
+			const animationTarget = this.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
+			const context = this._context;
+			await this.actionRunner.run(commandAction, context);
+			if (!actionError && this.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced() && (this._options?.shouldTriggerClickAnimation?.(context) ?? true)) {
 				const icon = this._menuItemAction.item.icon;
-				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
-				this._options.onDidTriggerClickAnimation?.();
+				triggerClickAnimation(animationTarget, this.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+				this._options?.onDidTriggerClickAnimation?.();
 			}
 		} catch (err) {
 			this._notificationService.error(err);
@@ -438,6 +439,7 @@ export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenu
 	renderKeybindingWithDefaultActionLabel?: boolean;
 	togglePrimaryAction?: boolean;
 	primaryActionIds?: readonly string[];
+	excludePrimaryActionFromDropdown?: boolean;
 }
 
 export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
@@ -488,7 +490,11 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			actionRunner: options?.actionRunner ?? this._register(new ActionRunner()),
 		};
 
-		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
+		// Resolved when the dropdown opens, so that it omits the current primary action.
+		const dropdownActions: readonly IAction[] | IActionProvider = options?.excludePrimaryActionFromDropdown
+			? { getActions: () => Separator.clean(submenuAction.actions.filter(action => action.id !== this._defaultAction.action.id)) }
+			: submenuAction.actions;
+		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, dropdownActions, this._contextMenuService, dropdownOptions));
 		if (options?.togglePrimaryAction) {
 			this.registerTogglePrimaryActionListener();
 		}
@@ -502,7 +508,9 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 					this.update(action);
 				}
 			})
-			: this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			// Update before the action is awaited: long-running actions can change context and
+			// make toolbars dispose this item before `onDidRun` fires, losing the selection.
+			: this._dropdown.actionRunner.onWillRun((e: IRunEvent) => {
 				if (e.action instanceof MenuItemAction) {
 					this.update(e.action);
 				}
@@ -532,7 +540,13 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		if (this._container) {
 			this._defaultAction.render(prepend(this._container, $('.action-container')));
+			this._updatePrimaryChecked();
 		}
+	}
+
+	/** Shows the toggled state of the primary action across the whole split button. */
+	private _updatePrimaryChecked(): void {
+		this._container?.classList.toggle('primary-checked', !!this._defaultAction.action.checked);
 	}
 
 	private _canBePrimaryAction(action: IAction): boolean {
@@ -578,6 +592,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		const primaryContainer = $('.action-container');
 		this._defaultAction.render(append(this._container, primaryContainer));
+		this._updatePrimaryChecked();
 		this._register(addDisposableListener(primaryContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
@@ -660,10 +675,12 @@ export function createActionViewItem(instaService: IInstantiationService, action
 		if (action.item.isSelection) {
 			return instaService.createInstance(SubmenuEntrySelectActionViewItem, action);
 		} else if (action.item.isSplitButton) {
+			const splitButton = typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton : undefined;
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action, {
 				...options,
-				togglePrimaryAction: typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton.togglePrimaryAction : false,
-				primaryActionIds: typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton.primaryActionIds : undefined,
+				togglePrimaryAction: splitButton?.togglePrimaryAction ?? false,
+				primaryActionIds: splitButton?.primaryActionIds,
+				excludePrimaryActionFromDropdown: splitButton?.excludePrimaryActionFromDropdown ?? false,
 			});
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action, options);

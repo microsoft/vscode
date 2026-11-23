@@ -27,7 +27,7 @@ import { CommentCommandId } from '../common/commentCommandIds.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
+import { CommentWidgetFocus } from './commentThreadEditorWidget.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../editor/common/languages.js';
 
@@ -467,7 +467,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.Hide,
+	id: CommentCommandId.CollapseVisible,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Escape,
 	win: { primary: KeyMod.Alt | KeyCode.Backspace },
@@ -477,7 +477,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const keybindingService = accessor.get(IKeybindingService);
 		// Unfortunate, but collapsing the comment thread might cause a dialog to show
 		// If we don't wait for the key up here, then the dialog will consume it and immediately close
-		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.CollapseVisible);
 		if (activeCodeEditor) {
 			const controller = CommentController.get(activeCodeEditor);
 			if (controller) {

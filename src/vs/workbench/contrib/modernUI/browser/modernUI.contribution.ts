@@ -5,18 +5,19 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getWindow } from '../../../../base/browser/dom.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
 import { CONNECTED_EDITOR_TABS_CLASS } from '../../../browser/parts/editor/editor.js';
+import { LayoutDensityMenu } from '../../../browser/actions/layoutDensityActions.js';
 
 /** Reduced scrollbar size (px) applied when Modern UI is on. */
 const MODERN_UI_SCROLLBAR_SIZE = 8;
@@ -38,8 +39,10 @@ import './media/roundedCorners.css';
 import './media/sashHandles.css';
 import './media/shadows.css';
 import './media/statusBar.css';
+import './media/suggestWidget.css';
 import './media/tabs.css';
 import './connectedEditorTabs.js';
+import './media/connectedPaneTabs.css';
 import './media/titlebar.css';
 import '../../../services/themes/browser/modernTabColorCustomizations.js';
 
@@ -62,12 +65,6 @@ const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 const MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS = 'modern-ui-notifications-dialogs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
 
-const LayoutDensityMenu = new MenuId('LayoutDensityMenu');
-const layoutDensityOptions = [
-	{ density: ModernUIDensity.Default, title: localize2('layoutDensityDefault', "Default") },
-	{ density: ModernUIDensity.Compact, title: localize2('layoutDensityCompact', "Compact") },
-] as const;
-
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	title: localize('layoutDensity', "Layout Density"),
 	submenu: LayoutDensityMenu,
@@ -75,27 +72,6 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	order: 8,
 	when: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true),
 });
-
-for (let index = 0; index < layoutDensityOptions.length; index++) {
-	const option = layoutDensityOptions[index];
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.setLayoutDensity.${option.density}`,
-				title: option.title,
-				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, option.density),
-				menu: {
-					id: LayoutDensityMenu,
-					order: index + 1,
-				},
-			});
-		}
-
-		override run(accessor: ServicesAccessor): Promise<void> {
-			return accessor.get(IConfigurationService).updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density);
-		}
-	});
-}
 
 /**
  * The fixed catalog of built-in Modern UI modules. The CSS for each module
@@ -139,6 +115,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -240,18 +217,21 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	}
 
 	override dispose(): void {
-		// Remove the class this contribution added so it leaves no DOM state behind.
-		for (const container of this.layoutService.containers) {
-			container.classList.remove(MODERN_UI_CLASS);
-			container.classList.remove(MODERN_UI_COMPACT_CLASS);
-			container.classList.remove(MODERN_UI_TABS_CLASS);
-			container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
-			container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
-			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
+		// Remove the class this contribution added so it leaves no DOM state behind, but not as the window closes: restyling
+		// the workbench and laying out its notifications again would only delay closing it.
+		if (!this.lifecycleService.willShutdown) {
+			for (const container of this.layoutService.containers) {
+				container.classList.remove(MODERN_UI_CLASS);
+				container.classList.remove(MODERN_UI_COMPACT_CLASS);
+				container.classList.remove(MODERN_UI_TABS_CLASS);
+				container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
+				container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
+				container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
+			}
+			setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+			setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
 		}
-		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
-		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
-		setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
 		super.dispose();
 	}
 }

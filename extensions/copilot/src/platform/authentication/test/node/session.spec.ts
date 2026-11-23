@@ -24,8 +24,11 @@ import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL }
 import { CopilotToken, createTestExtendedTokenInfo } from '../../common/copilotToken';
 import { ICopilotTokenManager } from '../../common/copilotTokenManager';
 import { CopilotTokenStore } from '../../common/copilotTokenStore';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { AuthenticationService } from '../../vscode-node/authenticationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { VSCodeCopilotTokenManager } from '../../vscode-node/copilotTokenManager';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getAlignedSession, getAnyAuthSession } from '../../vscode-node/session';
 
 const vscodeAuthentication = vi.hoisted(() => ({
@@ -143,6 +146,25 @@ describe('Copilot session provenance', () => {
 		const domains = disposables.add(new DomainService(configuration, tokenStore, capi));
 		return disposables.add(new VSCodeCopilotTokenManager(log, new NullTelemetryService(), domains, capi, fetcher, new NullEnvService(), configuration, tokenStore));
 	}
+
+	test('keeps auth unresolved until session discovery completes and publishes confirmed sign-out', async () => {
+		const discovered = new DeferredPromise<void>();
+		vscodeAuthentication.getAccounts.mockImplementation(async () => {
+			await discovered.p;
+			return api.sessions.map(session => session.account);
+		});
+		const states: typeof tokenStore.authenticationState[] = [tokenStore.authenticationState];
+		disposables.add(tokenStore.onDidChangeAuthenticationState(() => states.push(tokenStore.authenticationState)));
+		const service = createService();
+		const ready = service.refreshAuthentication();
+		expect(tokenStore.authenticationState).toBe('unknown');
+		await discovered.complete();
+		await ready;
+		api.selected = undefined;
+		api.sessions.length = 0;
+		await service.refreshAuthentication();
+		expect(states).toEqual(['unknown', 'signedIn', 'unknown', 'signedOut']);
+	});
 
 	test('ordinary sign-in carries the returned issuer without guessing a host', async () => {
 		api.selected = undefined;
@@ -409,6 +431,19 @@ describe('Copilot session provenance', () => {
 		expect([current.token, api.selected?.authorizationServer?.toString()]).toEqual([
 			'copilot-api.first.ghe.com', next.authorizationServer.toString(),
 		]);
+	});
+
+	test('a token minted for an account the user switched away from on the same issuer is not published', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.pendingToken = new DeferredPromise<Response>();
+		tokenStore.githubEnterpriseUri = URI.parse('https://second.ghe.com');
+		const rejected = expect(createTokenManager(fetcher).getCopilotToken()).rejects.toThrow('account changed');
+		await vi.waitFor(() => expect(fetcher.requests).toHaveLength(2));
+		const next = { ...api.selected!, account: { id: 'account-other', label: 'other-login' }, accessToken: 'github-other' };
+		api.sessions.splice(0, api.sessions.length, next);
+		api.selected = next;
+		await fetcher.pendingToken.complete(createFakeResponse(200, createTestExtendedTokenInfo({ token: 'stale-second' })));
+		await rejected;
 	});
 
 	test.each([undefined, 'https://first.ghe.com'])('does not send credentials before authentication publishes the matching URI (%s)', async storedUri => {

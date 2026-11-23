@@ -19,51 +19,61 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService, IPromptChoice, IPromptChoiceWithMenu, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const folderUri = URI.file('/private/from-editor');
 
-	function createHarness() {
+	function createHarness(whenStartupProvidersRegistered: Promise<unknown> = Promise.resolve()) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const initialRestoreComplete = observableValue('restored', true);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onWillSend = disposables.add(new Emitter<ISession>());
 		const inputChanged = disposables.add(new Emitter<void>());
+		const composerSessionResource = observableValue<URI | undefined>('composerSessionResource', undefined);
 		const storage = disposables.add(new InMemoryStorageService());
 		const drafts: IChatDraft[] = [];
+		const draftOptions: ISelectWorkspaceOptions[] = [];
+		const noWorkspaceSelections: ISelectNoWorkspaceOptions[] = [];
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		const notifications: (IPromptChoice | IPromptChoiceWithMenu)[][] = [];
+		const notificationMessages: string[] = [];
+		const remoteRequests: IRemoteWorkspaceFolder[] = [];
 		const states: WorkspaceHandoffState[] = [];
 		const openingOptions: boolean[] = [];
 		let providerReady = true;
+		let providerId = 'local';
 		let acceptsWorkspace = (_folder: URI) => true;
 		let viewReady = true;
 		let applies = true;
 		let defaultAllowed = true;
+		let noWorkspaceResult: WorkspaceSelectionResult = 'applied';
+		let remoteResolution: RemoteWorkspaceHandoffResult = { unavailableReason: 'Unavailable.' };
 		let welcome = Promise.resolve();
 		let resolutionError: Error | undefined;
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		let inputReady = true;
 		let draftReady = Promise.resolve();
-		const sessionsService = upcastPartial<ISessionsService>({
+		const sessionsService = upcastPartial<ITestSessionsService>({
 			activeSession,
 			initialRestoreComplete,
 			navigationRequest,
@@ -73,17 +83,19 @@ suite('Agents Window workspace handoff', () => {
 				}
 				openingOptions.push(!!options?.cancelRestore);
 				activeSession.set(undefined, undefined);
+				composerSessionResource.set(URI.parse('test:/new-draft'), undefined);
 				return { session: undefined, trustDeclined: false };
 			},
 		});
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onWillSendRequest: onWillSend.event,
 			resolveWorkspace: folder => {
 				if (resolutionError) {
 					throw resolutionError;
 				}
-				return providerReady && acceptsWorkspace(folder) ? { providerId: 'local', workspace: upcastPartial({}) } : undefined;
+				return providerReady && acceptsWorkspace(folder) ? { providerId, workspace: upcastPartial({}) } : undefined;
 			},
 		}));
 		const sessionsPartService = upcastPartial<ISessionsPartService>({
@@ -96,6 +108,7 @@ suite('Agents Window workspace handoff', () => {
 					return applies ? 'applied' : 'notReady';
 				},
 				applyDraft: async (draft, folder, options, token) => {
+					draftOptions.push(options);
 					await draftReady;
 					if (token.isCancellationRequested || input.inputText || input.attachments.length) {
 						return 'preserved';
@@ -110,6 +123,10 @@ suite('Agents Window workspace handoff', () => {
 					drafts.push(input);
 					return 'applied';
 				},
+				selectNoWorkspace: options => {
+					noWorkspaceSelections.push(options ?? {});
+					return noWorkspaceResult;
+				},
 			}) : undefined,
 		});
 		instantiationService.stub(ISessionsPartService, sessionsPartService);
@@ -117,6 +134,7 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(INewSessionComposerService, composerService);
 		instantiationService.stub(IStorageService, storage);
 		disposables.add(composerService.registerComposer({
+			sessionResource: composerSessionResource,
 			get canApplyWorkspaceDefault() { return defaultAllowed; },
 			get isInputReady() { return inputReady; },
 			get hasInput() { return !!input.inputText || input.attachments.length > 0; },
@@ -127,27 +145,39 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: async () => { }, phase: LifecyclePhase.Eventually, onWillShutdown: Event.None }));
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
-			prompt: (_severity, _message, choices) => {
+			prompt: (_severity, message, choices) => {
 				notifications.push(choices);
+				notificationMessages.push(String(message));
 				return new NoOpNotification();
+			},
+		}));
+		instantiationService.stub(IRemoteWorkspaceHandoffService, upcastPartial<IRemoteWorkspaceHandoffService>({
+			resolveFolder: async folder => {
+				remoteRequests.push(folder);
+				return remoteResolution;
 			},
 		}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => undefined }));
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { }, error: () => { } }));
-		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
+		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff, whenStartupProvidersRegistered));
 		return {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
+			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests,
 			set providerReady(value: boolean) { providerReady = value; },
+			set providerId(value: string) { providerId = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
 			set viewReady(value: boolean) { viewReady = value; },
 			set applies(value: boolean) { applies = value; },
 			set defaultAllowed(value: boolean) { defaultAllowed = value; },
+			set noWorkspaceResult(value: WorkspaceSelectionResult) { noWorkspaceResult = value; },
+			set remoteResolution(value: RemoteWorkspaceHandoffResult) { remoteResolution = value; },
 			set welcome(value: Promise<void>) { welcome = value; },
 			set resolutionError(value: Error) { resolutionError = value; },
 			set inputReady(value: boolean) { inputReady = value; },
 			set draftReady(value: Promise<void>) { draftReady = value; },
 			get input() { return input; },
 			edit: (value: IChatDraft) => { input = value; inputChanged.fire(); },
+			notifyInputChanged: () => inputChanged.fire(),
 			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
 			open: (isDefault = false, folder = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault }, state => states.push(state)),
 		};
@@ -183,6 +213,30 @@ suite('Agents Window workspace handoff', () => {
 
 	});
 
+	test('resolves the folder only after startup providers register, so an earlier provider is not pinned', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const startupProviders = new DeferredPromise<void>();
+			const harness = createHarness(startupProviders.p);
+			// Cloud registers first and accepts local folders; the preferred local provider registers later.
+			harness.providerId = 'cloud';
+			const opening = harness.open(true);
+			await timeout(500);
+			const selectionsBeforeRegistration = harness.selections.length;
+			harness.providerId = 'local';
+			await startupProviders.complete();
+			await opening;
+			assert.deepStrictEqual({
+				selectionsBeforeRegistration,
+				stages: [...new Set(harness.states)],
+				providers: harness.selections.map(entry => entry.options?.providerId),
+			}, {
+				selectionsBeforeRegistration: 0,
+				stages: ['waitingForSetup', 'waitingForSessionView', 'waitingForProvider', 'applied'],
+				providers: ['local'],
+			});
+		});
+	});
+
 	for (const content of [
 		{ inputText: 'Keep this draft', attachments: [] },
 		{ inputText: '', attachments: [toFileVariableEntry(URI.file('/already-attached'))] },
@@ -201,8 +255,41 @@ suite('Agents Window workspace handoff', () => {
 					state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections, drafts: harness.drafts,
 				}, { state: 'preservedSession', openings: [], selections: [], drafts: [] });
 			});
+
+			for (const transferDraft of [false, true]) {
+				test(`explicitly reveals the ${restored ? 'hidden restored' : 'mounted'} composer without replacing its ${content.inputText ? 'text' : 'attachments'} (incoming draft: ${transferDraft})`, async () => {
+					const harness = createHarness();
+					if (restored) {
+						harness.inputReady = false;
+						writeNewChatDraftState(harness.storage, content);
+					} else {
+						harness.edit(content);
+					}
+					await harness.handoff.selectWorkspace({
+						folderUri, preferDevContainer: false, isDefault: false, revealNewSession: true,
+						draft: transferDraft ? serializeChatDraft({ inputText: 'Incoming', attachments: [] }) : undefined,
+					}, state => harness.states.push(state));
+					assert.deepStrictEqual({
+						state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections, drafts: harness.drafts,
+					}, { state: 'preservedSession', openings: [true], selections: [], drafts: [] });
+				});
+			}
 		}
 	}
+
+	test('explicit new-session reveal opens a composer even with an inferred workspace default', async () => {
+		const harness = createHarness();
+		harness.initialRestoreComplete.set(false, undefined);
+		await harness.handoff.selectWorkspace({
+			folderUri, preferDevContainer: false, isDefault: true, revealNewSession: true,
+		}, state => harness.states.push(state));
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections,
+		}, {
+			state: 'applied', openings: [true],
+			selections: [{ folder: folderUri, options: { providerId: 'local', preferDevContainer: false, selectionOrigin: WorkspaceSelectionOrigin.WindowContext, isDefault: true } }],
+		});
+	});
 
 	test('applies a draft after setup, provider and view readiness without sending', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -228,6 +315,30 @@ suite('Agents Window workspace handoff', () => {
 		});
 	});
 
+	test('ignores draft input from the previously active created session', async () => {
+		const harness = createHarness();
+		const previousSession = upcastPartial<ITestSessionWithChat>({
+			resource: URI.parse('test:/previous'),
+			...withCreatedStatus(observableValue('created', true)),
+		});
+		harness.activeSession.set(previousSession, undefined);
+		disposables.add(harness.composerService.registerComposer({
+			sessionResource: observableValue('sessionResource', previousSession.resource),
+			isInputReady: true,
+			hasInput: true,
+			animatePrompt: async () => false,
+			showPromptOptions: () => false,
+		}));
+
+		await harness.openDraft({ inputText: 'Incoming', attachments: [] });
+
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), openings: harness.openingOptions, drafts: harness.drafts,
+		}, {
+			state: 'applied', openings: [true], drafts: [{ inputText: 'Incoming', attachments: [] }],
+		});
+	});
+
 	test('an empty composer accepts the source workspace even when defaults are not allowed', async () => {
 		const harness = createHarness();
 		harness.defaultAllowed = false;
@@ -243,18 +354,81 @@ suite('Agents Window workspace handoff', () => {
 	test('copies a workspace-less draft into the new-session composer', async () => {
 		const harness = createHarness();
 		await harness.handoff.selectWorkspace({
-			preferDevContainer: false, isDefault: false, draft: serializeChatDraft({ inputText: 'No workspace yet', attachments: [] }),
+			preferDevContainer: false, isDefault: false, draft: serializeChatDraft({ inputText: 'No workspace yet', attachments: [] }), noWorkspace: true,
 		}, state => harness.states.push(state));
-		assert.deepStrictEqual({ state: harness.states.at(-1), input: harness.input.inputText, selections: harness.selections }, {
+		assert.deepStrictEqual({ state: harness.states.at(-1), input: harness.input.inputText, selections: harness.selections, noWorkspaceSelections: harness.noWorkspaceSelections }, {
 			state: 'applied', input: 'No workspace yet', selections: [],
+			noWorkspaceSelections: [{ userSelection: false, preserveNavigation: true, isDefault: false }],
 		});
+	});
+
+	const remoteFolder: IRemoteWorkspaceFolder = { remoteAuthority: 'ssh-remote+host', path: '/home/me/project' };
+	const agentHostFolder = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'ssh__host', path: '/home/me/project' });
+
+	for (const draft of [false, true]) {
+		test(`selects the remote agent host folder of a remote editor window (draft: ${draft})`, async () => {
+			const harness = createHarness();
+			harness.remoteResolution = { folderUri: agentHostFolder };
+			await harness.handoff.selectWorkspace({
+				remote: { kind: 'ssh', folder: remoteFolder }, preferDevContainer: false, isDefault: false,
+				draft: draft ? serializeChatDraft({ inputText: 'Remote task', attachments: [] }) : undefined,
+			}, state => harness.states.push(state));
+			assert.deepStrictEqual({
+				state: harness.states.at(-1), remoteRequests: harness.remoteRequests, folders: harness.selections.map(selection => selection.folder.toString()),
+				input: harness.input.inputText, noWorkspaceSelections: harness.noWorkspaceSelections, notifications: harness.notificationMessages,
+			}, {
+				state: 'applied', remoteRequests: [remoteFolder], folders: [agentHostFolder.toString()],
+				input: draft ? 'Remote task' : '', noWorkspaceSelections: [], notifications: [],
+			});
+		});
+	}
+
+	for (const { name, remote, resolution, state, message } of [
+		{ name: 'an unsupported remote', remote: { kind: 'codespaces' as const, folder: undefined }, resolution: undefined, state: 'unsupportedWorkspace', message: 'The Agents Window cannot open folders from GitHub Codespaces yet. Choose a workspace to continue.' },
+		{ name: 'an unavailable remote agent host', remote: { kind: 'ssh' as const, folder: remoteFolder }, resolution: { unavailableReason: 'Remote agent hosts are disabled.' }, state: 'providerUnavailable', message: 'The folder of your remote window could not be opened in the Agents Window. Remote agent hosts are disabled.' },
+	]) {
+		test(`starts without a workspace and explains why for ${name}`, async () => {
+			const harness = createHarness();
+			if (resolution) {
+				harness.remoteResolution = resolution;
+			}
+			await harness.handoff.selectWorkspace({ remote, preferDevContainer: false, isDefault: false }, state => harness.states.push(state));
+			assert.deepStrictEqual({
+				state: harness.states.at(-1), selections: harness.selections, noWorkspaceSelections: harness.noWorkspaceSelections,
+				notifications: harness.notificationMessages, choices: harness.notifications.map(choices => choices.map(choice => choice.label)),
+			}, {
+				state, selections: [], noWorkspaceSelections: [{ userSelection: false, preserveNavigation: true, isDefault: false }],
+				notifications: [message], choices: [['Choose Workspace']],
+			});
+		});
+	}
+
+	test('an inferred remote default preserves an existing workspace choice quietly', async () => {
+		const harness = createHarness();
+		harness.noWorkspaceResult = 'preserved';
+		await harness.handoff.selectWorkspace({ remote: { kind: 'codespaces', folder: undefined }, preferDevContainer: false, isDefault: true }, state => harness.states.push(state));
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), noWorkspaceSelections: harness.noWorkspaceSelections, notifications: harness.notificationMessages,
+		}, {
+			state: 'preservedSession', noWorkspaceSelections: [{ userSelection: false, preserveNavigation: true, isDefault: true }], notifications: [],
+		});
+	});
+
+	test('an inferred remote default does not add a host while a created session stays visible', async () => {
+		const harness = createHarness();
+		harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'created', ...withCreatedStatus(observableValue('created', true)) }), undefined);
+		harness.remoteResolution = { folderUri: agentHostFolder };
+		await harness.handoff.selectWorkspace({ remote: { kind: 'ssh', folder: remoteFolder }, preferDevContainer: false, isDefault: true }, state => harness.states.push(state));
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), remoteRequests: harness.remoteRequests, selections: harness.selections, noWorkspaceSelections: harness.noWorkspaceSelections,
+		}, { state: 'preservedSession', remoteRequests: [], selections: [], noWorkspaceSelections: [] });
 	});
 
 	for (const authority of ['ssh-remote+host', 'tunnel+host']) {
 		test(`unresolvable ${authority} draft does not change the current session, workspace or input`, async () => {
 			await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
 				const harness = createHarness();
-				const destinationSession = upcastPartial<IActiveSession>({ sessionId: 'destination', isCreated: observableValue('created', true) });
+				const destinationSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'destination', ...withCreatedStatus(observableValue('created', true)) });
 				harness.activeSession.set(destinationSession, undefined);
 				harness.acceptsWorkspace = folder => folder.scheme === Schemas.file;
 				await harness.openDraft({ inputText: 'Source project task', attachments: [] }, URI.from({ scheme: Schemas.vscodeRemote, authority, path: '/source' }));
@@ -285,7 +459,7 @@ suite('Agents Window workspace handoff', () => {
 	test('waits for the requested workspace provider before navigating or applying a draft', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = createHarness();
-			const current = upcastPartial<IActiveSession>({ sessionId: 'current', isCreated: observableValue('created', true) });
+			const current = upcastPartial<ITestSessionWithChat>({ sessionId: 'current', ...withCreatedStatus(observableValue('created', true)) });
 			harness.activeSession.set(current, undefined);
 			harness.providerReady = false;
 			const requested = URI.from({ scheme: 'provider-workspace', path: '/source' });
@@ -301,6 +475,27 @@ suite('Agents Window workspace handoff', () => {
 			}, {
 				beforeReady: { openings: [], active: current, drafts: [] },
 				state: 'applied', openings: [true], folder: requested, drafts: [input],
+			});
+		});
+	});
+
+	test('ignores blank input notifications while waiting for the workspace provider', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness();
+			harness.providerReady = false;
+			const input = { inputText: 'Source task', attachments: [] };
+			const opening = harness.openDraft(input);
+			await timeout(100);
+			const versionBefore = harness.composerService.draftInputVersion.get();
+			harness.notifyInputChanged();
+			const versionAfter = harness.composerService.draftInputVersion.get();
+			harness.providerReady = true;
+			await opening;
+
+			assert.deepStrictEqual({
+				versionBefore, versionAfter, state: harness.states.at(-1), drafts: harness.drafts,
+			}, {
+				versionBefore: 0, versionAfter: 0, state: 'applied', drafts: [input],
 			});
 		});
 	});
@@ -361,7 +556,7 @@ suite('Agents Window workspace handoff', () => {
 			} else if (action === 'send') {
 				harness.composerService.notifyWillSendRequest({ query: 'test' }, undefined);
 			} else if (action === 'createdSession') {
-				harness.activeSession.set(upcastPartial<IActiveSession>({ isCreated: observableValue('created', true) }), undefined);
+				harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
 			} else if (action === 'supersede') {
 				harness.handoff.cancel();
 			} else {
@@ -516,7 +711,7 @@ suite('Agents Window workspace handoff', () => {
 			harness.providerReady = false;
 			const opening = harness.open();
 			await timeout(100);
-			harness.activeSession.set(upcastPartial<IActiveSession>({ isCreated: observableValue('created', true) }), undefined);
+			harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
 			harness.providerReady = true;
 			await opening;
 			assert.deepStrictEqual({ state: harness.states.at(-1), selections: harness.selections }, { state: 'sessionAlreadyCreated', selections: [] });
@@ -536,8 +731,8 @@ suite('Agents Window workspace handoff', () => {
 
 	test('an inferred workspace replaces an automatic Chat fallback through the target view', async () => {
 		const harness = createHarness();
-		harness.activeSession.set(upcastPartial<IActiveSession>({
-			isCreated: observableValue('created', false), isQuickChat: observableValue('quickChat', true),
+		harness.activeSession.set(upcastPartial<ITestSessionWithChat>({
+			...withCreatedStatus(observableValue('created', false)), isQuickChat: observableValue('quickChat', true),
 		}), undefined);
 		disposables.add(harness.composerService.registerComposer({
 			canApplyWorkspaceDefault: false,
@@ -554,10 +749,10 @@ suite('Agents Window workspace handoff', () => {
 		test(`an inferred default preserves ${protectedState}`, async () => {
 			const harness = createHarness();
 			if (protectedState === 'restoredSession') {
-				harness.activeSession.set(upcastPartial<IActiveSession>({ isCreated: observableValue('created', true) }), undefined);
+				harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
 			} else if (protectedState === 'quickChat') {
-				harness.activeSession.set(upcastPartial<IActiveSession>({
-					isCreated: observableValue('created', false), isQuickChat: observableValue('quickChat', true),
+				harness.activeSession.set(upcastPartial<ITestSessionWithChat>({
+					...withCreatedStatus(observableValue('created', false)), isQuickChat: observableValue('quickChat', true),
 				}), undefined);
 				harness.defaultAllowed = false;
 			} else {

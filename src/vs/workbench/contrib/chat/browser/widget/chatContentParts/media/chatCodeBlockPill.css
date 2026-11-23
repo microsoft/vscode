@@ -17,20 +17,23 @@
 }
 
 .chat-codeblock-pill-container {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	font-size: var(--vscode-chat-font-size-body-s);
+	display: block;
+	line-height: 1.5em;
 	color: var(--vscode-descriptionForeground);
 
+	.chat-codeblock-pill-row {
+		display: block;
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+
 	.status-indicator-container {
-		display: flex;
-		align-items: center;
+		display: inline-flex;
+		align-items: baseline;
 		gap: 7px;
-		flex-shrink: 0;
 
 		.status-icon {
 			display: inline-flex;
+			align-self: center;
 			align-items: center;
 			line-height: 1em;
 			top: 1px;
@@ -58,19 +61,9 @@
 	}
 
 	.chat-codeblock-pill-widget {
-		display: inline-flex;
-		align-items: center;
-		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		border-radius: 4px;
-		text-wrap: nowrap;
-		width: fit-content;
-		font-weight: normal;
-		text-decoration: none;
-		padding: 1px 3px;
 		cursor: pointer;
 		position: relative;
 		overflow: hidden;
-		line-height: 1em;
 
 		.progress-fill {
 			display: none;
@@ -94,39 +87,9 @@
 			z-index: 1;
 		}
 
-		.icon {
-			display: inline-flex;
-			align-items: center;
-			vertical-align: middle;
-			line-height: 1em;
-			overflow: hidden;
-			font-size: 90%;
-		}
-
-		.icon-label {
-			padding: 0px 3px;
-			text-wrap: wrap;
-			vertical-align: middle;
-			line-height: 1em;
-		}
-
-		.icon::before {
-			--file-icon-mask-position: center;
-			--file-icon-mask-size: contain;
-
-			display: inline-block;
-			line-height: 100%;
-			overflow: hidden;
-			background-size: contain;
-			background-position: center;
-			background-repeat: no-repeat;
-			font-size: 100% !important;
-		}
-
 		span.label-detail {
-			padding-left: 4px;
+			padding-left: var(--vscode-spacing-size40);
 			font-style: italic;
-			font-size: var(--vscode-chat-font-size-body-s);
 			color: var(--vscode-descriptionForeground);
 
 			&:empty {
@@ -135,18 +98,14 @@
 		}
 
 		span.label-added, span.label-removed {
-			padding-left: 4px;
-			font-size: var(--vscode-chat-font-size-body-s);
-			vertical-align: middle;
-			line-height: 1em;
-
+			padding-left: var(--vscode-spacing-size40);
 			&:empty {
-				padding: 0;
+				display: none;
 			}
 		}
 
 		span.label-removed {
-			padding-right: 2px;
+			padding-right: var(--vscode-spacing-size20);
 			color: var(--vscode-chat-linesRemovedForeground);
 		}
 
@@ -155,8 +114,12 @@
 		}
 
 		&:hover {
-			background-color: var(--vscode-list-hoverBackground);
 			color: var(--vscode-textLink-foreground);
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
 		}
 	}
 }

@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, type ICachedTunnel, type ITunnelDiscoveryOptions, type ITunnelInfo, type ITunnelVisibility, type TunnelAutoConnectMode } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostService, type ICachedTunnel, type ITunnelDiscoveryOptions, type ITunnelInfo, type ITunnelVisibility, type TunnelAutoConnectMode, type TunnelGatewayServerType } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -15,10 +15,11 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
-import { BrowserTunnelAgentHostService } from './browserTunnelAgentHostService.js';
-import { WebTunnelAgentHostService } from './webTunnelAgentHostService.js';
+import { BrowserTunnelAgentHostService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/browserTunnelAgentHostService.js';
+import { WebTunnelAgentHostService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/webTunnelAgentHostService.js';
 
 /**
  * Selects the embedder proxy when provided and otherwise connects directly from the browser.
@@ -40,6 +41,7 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		@IStorageService storageService: IStorageService,
 		@IRemoteAgentHostLocationPreferenceService locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 		@IDialogService dialogService: IDialogService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._delegate = this._register(environmentService.options?.tunnelDiscoveryProvider
@@ -62,6 +64,7 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 				storageService,
 				locationPreferenceService,
 				dialogService,
+				telemetryService,
 			));
 		this.onDidChangeTunnels = this._delegate.onDidChangeTunnels;
 	}
@@ -132,6 +135,10 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> {
 		return this._delegate.getAuthProvider(options);
+	}
+
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined {
+		return this._delegate.getSelectedServerType(address);
 	}
 }
 

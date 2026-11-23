@@ -17,8 +17,6 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatMicrosoftAuthenticationEnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,13 +31,17 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatSetupController } from './chatSetupController.js';
+import { ChatSetupController, IChatSetupControllerOptions } from './chatSetupController.js';
 import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupSource, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
+import { IChatMicrosoftSignInProbeService } from './chatSetupMicrosoftProbe.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 
 type ChatSetupDialogShownEvent = {
 	source: ChatSetupSource;
@@ -250,20 +252,15 @@ export async function showChatSetupDialogWithCancellation(
 	}
 }
 
-/**
- * Whether the sign-in dialog should offer "Continue with Microsoft". The dialog treats it as one
- * more provider button, exactly like Google and Apple: it goes to whichever host the default
- * account provider points at, and a host that cannot broker a Microsoft identity refuses it in the
- * authentication extension rather than here.
- */
-export function shouldShowMicrosoftProvider(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(ChatMicrosoftAuthenticationEnabledSettingId) === true;
+/** Whether the setup dialog offers the provider sign-in buttons rather than only setup. */
+function offersProviderSignIn(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined): boolean {
+	return !options?.forceAnonymous && (entitlement === ChatEntitlement.Unknown || !!options?.forceSignInDialog);
 }
 
 export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined, enterpriseAuthentication: boolean, showMicrosoftProvider: boolean, providers: IChatSetupDialogProviders = defaultChat.provider): IChatSetupDialogButton[] {
 	const button = (label: string, strategy: ChatSetupStrategy, ...classes: string[]): IChatSetupDialogButton => ({ label, strategy, classes });
 
-	if (!options?.forceAnonymous && (entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog)) {
+	if (offersProviderSignIn(entitlement, options)) {
 		const defaultProviderButton = button(localize('continueWith', "Continue with {0}", providers.default.name), ChatSetupStrategy.SetupWithoutEnterpriseProvider, 'continue-button', 'default');
 		const defaultProviderLink = button(defaultProviderButton.label, defaultProviderButton.strategy, 'link-button');
 		const enterpriseProviderButton = button(localize('continueWith', "Continue with {0}", providers.enterprise.name), ChatSetupStrategy.SetupWithEnterpriseProvider, 'continue-button', 'default');
@@ -335,6 +332,7 @@ export class ChatSetup {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
@@ -343,14 +341,21 @@ export class ChatSetup {
 	}
 
 	async run(options?: IChatSetupRunOptions): Promise<IChatSetupResult> {
-		if (this.pendingRun) {
-			return this.pendingRun;
+		if (!this.pendingRun) {
+			this.pendingRun = this.runWithErrorHandling(options);
 		}
+		return this.pendingRun;
+	}
 
-		this.pendingRun = this.doRun(options);
-
+	private async runWithErrorHandling(options?: IChatSetupRunOptions): Promise<IChatSetupResult> {
 		try {
-			return await this.pendingRun;
+			return await this.doRun(options);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return { success: undefined, dialogSkipped: false };
+			}
+			this.logService.error('[chat setup] Could not resolve setup requirements', error);
+			return { success: false, dialogSkipped: false, error: error instanceof Error ? error : new Error(toErrorMessage(error)) };
 		} finally {
 			this.pendingRun = undefined;
 		}
@@ -388,17 +393,7 @@ export class ChatSetup {
 			await this.whenChatExtensionActivated();
 		}
 
-		let setupStrategy: ChatSetupStrategy;
-		if (options?.setupStrategy !== undefined) {
-			setupStrategy = options.setupStrategy; // caller provided a specific strategy, skip dialog
-		} else if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
-			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
-		} else if (options?.forceAnonymous === ChatSetupAnonymous.EnabledWithoutDialog) {
-			setupStrategy = ChatSetupStrategy.DefaultSetup; // anonymous setup without a dialog
-		} else {
-			setupStrategy = await this.showDialog(options);
-		}
-
+		let setupStrategy = await this.getSetupStrategy(options, dialogSkipped);
 		const signedInAccount = options?.autoDismissOnSignIn ? this.defaultAccountService.currentDefaultAccount : undefined;
 		if (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
@@ -407,9 +402,10 @@ export class ChatSetup {
 		let success: ChatSetupResultValue = undefined;
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
+		const microsoftSetup = setupStrategy === ChatSetupStrategy.SetupWithMicrosoftProvider && this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true;
 		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
-			if (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount)) {
+			if (!microsoftSetup && (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount))) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
 			}
 
@@ -419,30 +415,11 @@ export class ChatSetup {
 				this.widgetService.revealWidget();
 			}
 
-			switch (setupStrategy) {
-				case ChatSetupStrategy.SetupWithEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: true, useSocialProvider: undefined, additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
-					break;
-				case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: undefined, additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
-					break;
-				case ChatSetupStrategy.SetupWithAppleProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'apple', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
-					break;
-				case ChatSetupStrategy.SetupWithGoogleProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'google', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
-					break;
-				case ChatSetupStrategy.SetupWithMicrosoftProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'microsoft', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
-					break;
-				case ChatSetupStrategy.DefaultSetup:
-					success = await this.controller.value.setup({ ...options, useEnterpriseProvider: signedInAccount?.authenticationProvider.enterprise, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
-					break;
-				case ChatSetupStrategy.Canceled:
-					this.context.update({ later: true });
-					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedMaybeLater', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
-					break;
-			}
+			success = await this.runSetupStrategy(setupStrategy, {
+				...options,
+				useEnterpriseProvider: signedInAccount?.authenticationProvider.enterprise,
+				cancellationToken: setupCancellation.token,
+			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 			success = false;
@@ -465,6 +442,40 @@ export class ChatSetup {
 		}
 
 		return { success, dialogSkipped, error: setupError, errorAlreadyHandled };
+	}
+
+	private async getSetupStrategy(options: IChatSetupRunOptions | undefined, dialogSkipped: boolean): Promise<ChatSetupStrategy> {
+		if (options?.setupStrategy !== undefined) {
+			return options.setupStrategy;
+		}
+		if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
+			return ChatSetupStrategy.DefaultSetup;
+		}
+		if (options?.forceAnonymous === ChatSetupAnonymous.EnabledWithoutDialog) {
+			return ChatSetupStrategy.DefaultSetup;
+		}
+		return this.showDialog(options);
+	}
+
+	private async runSetupStrategy(strategy: ChatSetupStrategy, options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
+		switch (strategy) {
+			case ChatSetupStrategy.SetupWithEnterpriseProvider:
+				return this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: true, useSocialProvider: undefined });
+			case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
+				return this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: false, useSocialProvider: undefined });
+			case ChatSetupStrategy.SetupWithAppleProvider:
+				return this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: false, useSocialProvider: 'apple' });
+			case ChatSetupStrategy.SetupWithGoogleProvider:
+				return this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: false, useSocialProvider: 'google' });
+			case ChatSetupStrategy.SetupWithMicrosoftProvider:
+				return this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: false, useSocialProvider: 'microsoft' });
+			case ChatSetupStrategy.DefaultSetup:
+				return this.controller.value.setup(options);
+			case ChatSetupStrategy.Canceled:
+				this.context.update({ later: true });
+				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedMaybeLater', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
+				return undefined;
+		}
 	}
 
 	/**
@@ -507,33 +518,42 @@ export class ChatSetup {
 		}
 	}
 
-	private async showDialog(options?: IChatSetupRunOptions): Promise<ChatSetupStrategy> {
-		if (options?.cancellationToken?.isCancellationRequested) {
+	private async showDialog(options: IChatSetupRunOptions = {}): Promise<ChatSetupStrategy> {
+		if (options.cancellationToken?.isCancellationRequested) {
 			return ChatSetupStrategy.Canceled;
 		}
-		const enterpriseAuthentication = this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise;
-		const showMicrosoftProvider = shouldShowMicrosoftProvider(this.configurationService);
 		const entitlement = this.context.state.entitlement;
-		const buttons = getChatSetupDialogButtons(entitlement, options, enterpriseAuthentication, showMicrosoftProvider);
+		const content = this.getDialogContent(options);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
-			title: this.getDialogTitle(options),
-			buttons,
-			icon: options?.dialogIcon ?? Codicon.copilotLarge,
-			disableCloseButton: options?.disableCloseButton ?? false,
-			footer: getChatSetupDialogFooter(options?.forceAnonymous, this.telemetryService.telemetryLevel, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)),
-			extraClasses: options?.dialogExtraClasses,
-			renderFooter: options?.renderDialogFooter,
+			...content,
+			icon: options.dialogIcon ?? Codicon.copilotLarge,
+			disableCloseButton: options.disableCloseButton ?? false,
+			extraClasses: options.dialogExtraClasses,
+			renderFooter: options.renderDialogFooter,
 		});
-		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog, () => {
-			const source = options?.telemetrySource;
+		return showChatSetupDialogWithCancellation(dialog, options.cancellationToken, options.onDidDismissDialog, () => {
+			const source = options.telemetrySource;
 			this.telemetryService.publicLog2<ChatSetupDialogShownEvent, ChatSetupDialogShownClassification>('chatSetup.dialogShown', {
 				source: source !== undefined && Object.values(ChatSetupSource).includes(source) ? source : ChatSetupSource.Unknown,
-				kind: buttons.some(button => entersProviderAuthentication(button.strategy)) ? 'signIn' : 'setup',
+				kind: content.buttons.some(button => entersProviderAuthentication(button.strategy)) ? 'signIn' : 'setup',
 				accountAvailable: this.defaultAccountService.currentDefaultAccount !== null,
 				entitlement: ChatEntitlement[entitlement],
-				forceSignInDialog: options?.forceSignInDialog === true,
+				forceSignInDialog: options.forceSignInDialog === true,
 			});
-		}, options?.autoDismissOnSignIn ? this.defaultAccountService : undefined);
+		}, options.autoDismissOnSignIn ? this.defaultAccountService : undefined);
+	}
+
+	private getDialogContent(options?: IChatSetupRunOptions): Pick<IChatSetupDialogOptions, 'title' | 'buttons' | 'footer'> {
+		let showMicrosoftProvider = false;
+		if (offersProviderSignIn(this.context.state.entitlement, options)) {
+			this.microsoftSignInProbeService.notifySignInShown();
+			showMicrosoftProvider = this.microsoftSignInProbeService.offerMicrosoftSignIn.get();
+		}
+		return {
+			title: this.getDialogTitle(options),
+			buttons: getChatSetupDialogButtons(this.context.state.entitlement, options, this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise, showMicrosoftProvider),
+			footer: getChatSetupDialogFooter(options?.forceAnonymous, this.telemetryService.telemetryLevel, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)),
+		};
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {

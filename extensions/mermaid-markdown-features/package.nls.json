@@ -24,5 +24,5 @@
 	"config.markdown-mermaid.controls.show.onHoverOrFocus": "Show zoom controls when hovering over or focusing a diagram.",
 	"config.markdown-mermaid.controls.show.always": "Always show zoom controls.",
 	"config.markdown-mermaid.resizable.description": "Allow diagrams to be resized vertically by dragging the bottom edge.",
-	"config.markdown-mermaid.maxHeight.markdownDescription": "Maximum height for diagrams. Must be a CSS value with units such as `80vh` or `400px`. Leave empty to try to automatically size diagrams based on their content."
+	"config.markdown-mermaid.maxHeight.markdownDescription": "Maximum height for diagrams. Must be a CSS value with units such as `80vh` or `400px`. Leave empty to try to automatically size diagrams based on their content. In the Markdown editor, a pixel value only limits the initial height of a diagram: it can still be resized beyond it."
 }

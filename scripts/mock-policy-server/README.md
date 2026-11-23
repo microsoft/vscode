@@ -7,7 +7,7 @@ the real API. It has no runtime dependencies and is not shipped with VS Code.
 ## Start
 
 ```sh
-npm run mock-policy-server
+pnpm run mock-policy-server
 ```
 
 Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
@@ -99,7 +99,7 @@ Other Copilot clients share that cache. For an isolated run, start both the
 server and Code OSS with the same temporary cache home:
 
 ```sh
-COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" npm run mock-policy-server
+COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" pnpm run mock-policy-server
 COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" ./scripts/code.sh
 ```
 
@@ -157,6 +157,8 @@ in the same update. Explicit `status`, `body`, or `active` values override the
 preset. Invalid requests are rejected before any endpoint changes. Supported
 response modes are `json`, `malformed-json`, `disconnect`, and `timeout`.
 
+`delayMs` (default `0`) holds a mocked response for that many milliseconds before it is delivered with the configured `mode`. Presets do not change it, it persists with the rest of the endpoint state, and the GUI exposes it as **Response delay (ms)**. Delayed requests appear in **Live Requests** when they are delivered, marked with the delay.
+
 Generate file-based Managed Settings commands from the current
 `managedSettings` response:
 
@@ -209,6 +211,19 @@ These configurations exercise HTTP error, malformed response, immediate network
 failure, and client-timeout paths respectively. Clear the policy cache if the
 request does not appear in **Live Requests**.
 
+### Test slow managed-settings delivery
+
+Delay the managed-settings response to exercise the client's loading treatment. The agent host reports a wait longer than 3.5 seconds as the waiting chat's activity, in the same progress row as "Working…", and fails the request after 30 seconds. Clear the policy cache first so the client actually requests the policy.
+
+```sh
+curl -X DELETE "$BASE/api/cache"
+curl -X POST "$BASE/api/state" -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","delayMs":8000}'
+# Send a message in a new chat, then restore immediate delivery:
+curl -X POST "$BASE/api/state" -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","delayMs":0}'
+```
+
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api` | Discover request shapes and routes |
@@ -233,11 +248,11 @@ is restricted to requests made through a loopback URL because the source can be
 a local file path or remote URL.
 
 ```sh
-npm run mock-policy-server -- --upstream https://api.ghe.example.com
-npm run mock-policy-server -- --schema /path/to/managed-settings-schema.json
-npm run mock-policy-server -- --port 3001
-npm run mock-policy-server -- --state-file /path/to/mock-policy-state.json
-npm run mock-policy-server -- --help
+pnpm run mock-policy-server --upstream https://api.ghe.example.com
+pnpm run mock-policy-server --schema /path/to/managed-settings-schema.json
+pnpm run mock-policy-server --port 3001
+pnpm run mock-policy-server --state-file /path/to/mock-policy-state.json
+pnpm run mock-policy-server --help
 ```
 
 | Flag | Environment variable | Default |

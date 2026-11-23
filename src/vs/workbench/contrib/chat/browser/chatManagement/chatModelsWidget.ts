@@ -11,14 +11,15 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ILanguageModelsService, ILanguageModelProviderDescriptor, resolveProviderDeprecationLink } from '../../../chat/common/languageModels.js';
+import { getModelContextWindowTotal, ILanguageModelsService, ILanguageModelProviderDescriptor, resolveProviderDeprecationLink } from '../../../chat/common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { ITableVirtualDelegate, ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeIcons } from '../../../../../base/common/iconLabels.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
@@ -51,6 +52,7 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { getAddModelsUnavailableReason } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -59,27 +61,50 @@ const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
 const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 
-export function getModelHoverContent(model: ILanguageModel): MarkdownString {
-	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-	markdown.appendMarkdown(`**${model.metadata.name}**`);
+/**
+ * Escapes text that a model provider controls so that it renders literally: no links
+ * (including `<command:...>` autolinks, bare URLs and email addresses), no theme icons
+ * and no block structure.
+ */
+function escapeModelText(text: string): string {
+	return escapeMarkdownLinkText(escapeIcons(text));
+}
+
+/**
+ * The hover shows model metadata only and has no command links. The empty allow list keeps
+ * the Markdown trusted, which the id badge needs for its styling, without enabling commands.
+ */
+function createModelHoverMarkdown(): MarkdownString {
+	return new MarkdownString('', { isTrusted: { enabledCommands: [] }, supportThemeIcons: true });
+}
+
+/**
+ * Builds the name, id and status summary shown at the top of a model hover.
+ */
+export function getModelNameHoverContent(model: ILanguageModel): MarkdownString {
+	const markdown = createModelHoverMarkdown();
+	markdown.appendMarkdown(`**${escapeModelText(model.metadata.name)}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(model.metadata.id)}&#64;${escapeModelText(model.metadata.version)}_&nbsp;</span>`);
 	} else {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(model.metadata.id)}_&nbsp;</span>`);
 	}
 	markdown.appendText(`\n`);
 
 	if (model.metadata.statusIcon && model.metadata.tooltip) {
-		if (model.metadata.statusIcon) {
-			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
-		}
-		markdown.appendMarkdown(`${model.metadata.tooltip}`);
+		markdown.appendMarkdown(`$(${escapeMarkdownLinkText(model.metadata.statusIcon.id)})&nbsp;`);
+		markdown.appendMarkdown(escapeModelText(model.metadata.tooltip));
 		markdown.appendText(`\n`);
 	}
+	return markdown;
+}
+
+export function getModelHoverContent(model: ILanguageModel): MarkdownString {
+	const markdown = getModelNameHoverContent(model);
 
 	if (model.metadata.pricing) {
 		markdown.appendMarkdown(`${localize('models.pricing', 'Pricing')}: `);
-		markdown.appendMarkdown(model.metadata.pricing);
+		markdown.appendMarkdown(escapeModelText(model.metadata.pricing));
 		markdown.appendText(`\n`);
 	}
 
@@ -140,10 +165,10 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		}
 	}
 
-	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
-		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
+	const totalTokens = getModelContextWindowTotal(model.metadata);
+	if (totalTokens) {
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
+		markdown.appendText(formatTokenCount(totalTokens));
 		markdown.appendText(`\n`);
 	}
 
@@ -159,12 +184,54 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.agentMode', 'Agent Mode')}_&nbsp;</span>`);
 		}
 		for (const editTool of model.metadata.capabilities.editTools ?? []) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${editTool}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(editTool)}_&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 	}
 
 	return markdown;
+}
+
+/**
+ * Builds the screen reader label for a model row in the Language Models editor.
+ */
+export function getModelAriaLabel(model: ILanguageModel): string {
+	const ariaLabels = [];
+	ariaLabels.push(model.hidden
+		? localize('model.name.hidden', '{0} from {1} (hidden)', model.metadata.name, getManageModelsProviderLabel(model))
+		: localize('model.name', '{0} from {1}', model.metadata.name, getManageModelsProviderLabel(model)));
+	const totalTokens = getModelContextWindowTotal(model.metadata);
+	if (totalTokens) {
+		ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
+	}
+	if (model.metadata.capabilities) {
+		ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(model.metadata.capabilities).join(', ')));
+	}
+	const pricingText = model.metadata.pricing ?? '-';
+	if (pricingText !== '-') {
+		ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
+	}
+	if (model.metadata.inputCost !== undefined) {
+		ariaLabels.push(model.metadata.inputCost === 1
+			? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", model.metadata.inputCost)
+			: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", model.metadata.inputCost));
+	}
+	if (model.metadata.cacheCost !== undefined) {
+		ariaLabels.push(model.metadata.cacheCost === 1
+			? localize('cacheCost.ariaLabel.singular', "Cache read cost: {0} credit per 1M tokens", model.metadata.cacheCost)
+			: localize('cacheCost.ariaLabel.plural', "Cache read cost: {0} credits per 1M tokens", model.metadata.cacheCost));
+	}
+	if (model.metadata.cacheWriteCost !== undefined) {
+		ariaLabels.push(model.metadata.cacheWriteCost === 1
+			? localize('cacheWriteCost.ariaLabel.singular', "Cache write cost: {0} credit per 1M tokens", model.metadata.cacheWriteCost)
+			: localize('cacheWriteCost.ariaLabel.plural', "Cache write cost: {0} credits per 1M tokens", model.metadata.cacheWriteCost));
+	}
+	if (model.metadata.outputCost !== undefined) {
+		ariaLabels.push(model.metadata.outputCost === 1
+			? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", model.metadata.outputCost)
+			: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", model.metadata.outputCost));
+	}
+	return ariaLabels.join('. ');
 }
 
 /**
@@ -623,22 +690,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 		templateData.nameLabel.set(modelEntry.metadata.name, modelNameMatches);
 
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
-		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
-		} else {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
-		}
-		markdown.appendText(`\n`);
-
-		if (entry.model.metadata.statusIcon && entry.model.metadata.tooltip) {
-			if (entry.model.metadata.statusIcon) {
-				markdown.appendMarkdown(`$(${entry.model.metadata.statusIcon.id})&nbsp;`);
-			}
-			markdown.appendMarkdown(`${entry.model.metadata.tooltip}`);
-			markdown.appendText(`\n`);
-		}
+		const markdown = getModelNameHoverContent(entry.model);
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
 			content: markdown,
@@ -780,7 +832,7 @@ interface ITokenLimitsColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly tokenLimitsElement: HTMLElement;
 }
 
-class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsColumnTemplateData> {
+export class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'tokenLimits';
 
 	readonly templateId: string = TokenLimitsColumnRenderer.TEMPLATE_ID;
@@ -817,14 +869,14 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
 		const { model: modelEntry } = entry;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
-			const totalTokens = (modelEntry.metadata.maxInputTokens ?? 0) + (modelEntry.metadata.maxOutputTokens ?? 0);
+		const totalTokens = getModelContextWindowTotal(modelEntry.metadata);
+		if (totalTokens) {
 			const tokenDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
 			const tokenText = DOM.append(tokenDiv, $('span'));
 			tokenText.textContent = formatTokenCount(totalTokens);
 
 			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-			markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
+			markdown.appendText(formatTokenCount(totalTokens));
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
@@ -1147,6 +1199,7 @@ export class ChatModelsWidget extends Disposable {
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private defaultAccountResolved = false;
+	private sessionType: string | undefined;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1447,42 +1500,7 @@ export class ChatModelsWidget extends Disposable {
 						} else if (isStatusEntry(e)) {
 							return localize('status.ariaLabel', 'Status: {0}', e.message);
 						}
-						const ariaLabels = [];
-						ariaLabels.push(e.model.hidden
-							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, getManageModelsProviderLabel(e.model))
-							: localize('model.name', '{0} from {1}', e.model.metadata.name, getManageModelsProviderLabel(e.model)));
-						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
-							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
-							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
-						}
-						if (e.model.metadata.capabilities) {
-							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
-						}
-						const pricingText = e.model.metadata.pricing ?? '-';
-						if (pricingText !== '-') {
-							ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
-						}
-						if (e.model.metadata.inputCost !== undefined) {
-							ariaLabels.push(e.model.metadata.inputCost === 1
-								? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", e.model.metadata.inputCost)
-								: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", e.model.metadata.inputCost));
-						}
-						if (e.model.metadata.cacheCost !== undefined) {
-							ariaLabels.push(e.model.metadata.cacheCost === 1
-								? localize('cacheCost.ariaLabel.singular', "Cache read cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
-								: localize('cacheCost.ariaLabel.plural', "Cache read cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
-						}
-						if (e.model.metadata.cacheWriteCost !== undefined) {
-							ariaLabels.push(e.model.metadata.cacheWriteCost === 1
-								? localize('cacheWriteCost.ariaLabel.singular', "Cache write cost: {0} credit per 1M tokens", e.model.metadata.cacheWriteCost)
-								: localize('cacheWriteCost.ariaLabel.plural', "Cache write cost: {0} credits per 1M tokens", e.model.metadata.cacheWriteCost));
-						}
-						if (e.model.metadata.outputCost !== undefined) {
-							ariaLabels.push(e.model.metadata.outputCost === 1
-								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
-								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
-						}
-						return ariaLabels.join('. ');
+						return getModelAriaLabel(e.model);
 					},
 					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', 'Language Models')
 				},
@@ -1644,6 +1662,14 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private updateAddModelsButton(): void {
+		const unavailableReason = getAddModelsUnavailableReason(this.sessionType, this.environmentService.remoteAuthority);
+		if (unavailableReason) {
+			this.dropdownActions = [];
+			this.addButton.enabled = false;
+			this.addButton.setTitle(unavailableReason);
+			return;
+		}
+
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -1711,6 +1737,16 @@ export class ChatModelsWidget extends Disposable {
 	public clearSearch(): void {
 		this.focusSearch();
 		this.searchWidget.setValue('');
+	}
+
+	/**
+	 * Lists only the Copilot models of the given session type (harness).
+	 * Pass `undefined` to list every model.
+	 */
+	public setSessionType(sessionType: string | undefined): void {
+		this.sessionType = sessionType;
+		this.viewModel.setSessionType(sessionType);
+		this.updateAddModelsButton();
 	}
 
 	public render(): void {

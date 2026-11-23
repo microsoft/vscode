@@ -44,16 +44,6 @@ export class OffsetLineColumnConverter {
 		return new Position(lineNumber, column + 1);
 	}
 
-	public startOffsetOfLineContaining(offset: number): number {
-		let lineNumber = 1;
-		for (; lineNumber < this._lineStartOffsets.length; lineNumber++) {
-			if (this._lineStartOffsets[lineNumber] > offset) {
-				break;
-			}
-		}
-		return this._lineStartOffsets[lineNumber - 1];
-	}
-
 	public positionToOffset(position: Position): number {
 		if (position.lineNumber >= this._lineStartOffsets.length) {
 			return this._lineStartOffsets[this._lineStartOffsets.length - 1] + position.column - 1;

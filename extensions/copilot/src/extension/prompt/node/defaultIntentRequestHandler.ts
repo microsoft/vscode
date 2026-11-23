@@ -15,7 +15,6 @@ import { ISessionTranscriptService } from '../../../platform/chat/common/session
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession, NullEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignoreService';
@@ -51,13 +50,13 @@ import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ToolCallCancelledError } from '../../tools/common/toolsService';
 import { IToolGrouping, IToolGroupingService } from '../../tools/common/virtualTools/virtualToolTypes';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
-import { Conversation, getUniqueReferences, GlobalContextMessageMetadata, IResultMetadata, RenderedUserMessageMetadata, RequestDebugInformation, ResponseStreamParticipant, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
+import { Conversation, getUniqueReferences, GlobalContextMessageMetadata, IResultMetadata, RenderedUserMessageMetadata, RequestDebugInformation, ResponseStreamParticipant, Turn, TurnResponseGitHubCopilotRequestTe, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
 import { IBuildPromptContext, IToolCallRound } from '../common/intents';
 import { isToolCallLimitCancellation, ISwitchToAutoOnRateLimitConfirmation } from '../common/specialRequestTypes';
 import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry';
 import { IntentInvocationMetadata } from './conversation';
 import { IDocumentContext } from './documentContext';
-import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor, TelemetryData } from './intents';
+import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor } from './intents';
 import { ConversationalBaseTelemetryData, createTelemetryWithId, getModeNameForTelemetry, sendModelMessageTelemetry } from './telemetry';
 
 export interface IDefaultIntentRequestHandlerOptions {
@@ -298,7 +297,8 @@ export class DefaultIntentRequestHandler {
 
 	private async _onDidReceiveResponse({ response, toolCalls, interactionOutcome }: IToolCallingResponseEvent) {
 		const responseMessage = (response.type === ChatFetchResponseType.Success ? response.value : '');
-		await this._loop.telemetry.sendTelemetry(response.requestId, response.type, responseMessage, interactionOutcome.interactionOutcome, toolCalls);
+		this.turn.setMetadata(new TurnResponseGitHubCopilotRequestTe(response.gitHubCopilotRequestTe));
+		await this._loop.telemetry.sendTelemetry(response.requestId, response.type, responseMessage, interactionOutcome.interactionOutcome, toolCalls, response.gitHubCopilotRequestTe);
 
 		if (this.documentContext) {
 			this.turn.setMetadata(new CopilotInteractiveEditorResponse(
@@ -629,12 +629,11 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		@IToolGroupingService private readonly toolGroupingService: IToolGroupingService,
 		@IChatHookService chatHookService: IChatHookService,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
-		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
-		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService, authenticationService);
+		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, otelService, gitService, authenticationService);
 
 		this._register(this.onDidBuildPrompt(({ result, tools, promptTokenLength, toolTokenCount }) => {
 			if (result.metadata.get(SummarizedConversationHistoryMetadata)) {
@@ -649,7 +648,6 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				promptTokenLength,
 				result.references,
 				options.invocation.endpoint,
-				result.metadata.getAll(TelemetryData) ?? [],
 				tools.length,
 				toolTokenCount
 			);

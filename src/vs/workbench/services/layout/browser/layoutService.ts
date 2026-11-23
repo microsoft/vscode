@@ -27,6 +27,7 @@ export const enum Parts {
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
 	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
+	CHAT_PART = 'workbench.parts.chat',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -53,8 +54,16 @@ export const enum LayoutSettings {
 	SHADOWS = 'workbench.shadows',
 	MODERN_UI = 'workbench.experimental.modernUI',
 	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
+	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
 	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
 	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
+}
+
+export const enum ModernUIFrostedGlassOpacity {
+	Minimum = 50,
+	Maximum = 100,
+	Default = 80
 }
 
 export const enum ModernUIEditorTabStyle {
@@ -67,13 +76,7 @@ export const enum ModernUIDensity {
 	Compact = 'compact'
 }
 
-/**
- * The margin (in pixels) reserved on each side of a part when the Modern UI Update
- * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
- * content by this amount to leave room for the margin/border applied in CSS
- * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
- * Keep in sync with the `--vscode-spacing-size40` (4px) token used there.
- */
+/** Default panel gutter, retained at exterior edges. Inter-panel spacing is resolved separately. */
 export const FLOATING_PANEL_MARGIN = 4;
 
 /**
@@ -85,16 +88,11 @@ export const COMPACT_FLOATING_PANEL_MARGIN = 0;
  * Compact Modern UI density connects the card cluster directly to the window chrome.
  */
 export const COMPACT_FLOATING_PANEL_OUTER_MARGIN = 0;
-/**
- * The trailing card margin (in pixels) when the Modern UI Update experiment is
- * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 4px inter-card gap. Keep in sync with the
- * `--vscode-spacing-sizeNone` (0px) token used in `floatingPanels.css`.
- */
+/** The trailing card margin; the following card supplies the resolved inter-panel gap. */
 export const FLOATING_PANEL_INNER_MARGIN = 0;
 
 export function getFloatingPanelMargin(layoutService: IWorkbenchLayoutService): number {
-	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN;
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : layoutService.getPanelSpacing();
 }
 
 /**
@@ -110,6 +108,20 @@ export const enum ActivityBarPosition {
 	TOP = 'top',
 	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'
+}
+
+/**
+ * Whether the compact menu is owned by the title bar rather than the activity bar.
+ * This is the case when the activity bar is at the top or bottom, because the activity
+ * bar then lives in the side bar and disappears with the side bar, and when the activity
+ * bar is hidden. The title bar only owns the menu while the custom title bar is shown in
+ * the main window; otherwise the activity bar keeps it so that the menu remains reachable.
+ */
+export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
+	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	return getMenuBarVisibility(configurationService) === 'compact'
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM || activityBarLocation === ActivityBarPosition.HIDDEN)
+		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
 export const enum EditorTabsMode {
@@ -199,23 +211,20 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
+	// A chat part, where a window has one, sits immediately beside the editor on `getChatPartPosition()`, inside a
+	// vertical panel on that side.
+	const chatPartLeft = layoutService.getChatPartPosition() === Position.LEFT;
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
-	const fullOrder: Parts[] = sideBarLeft
-		? [
-			...sideBarGroup,
-			...(panelInLeftSequence ? panelGroup : []),
-			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelGroup : []),
-			Parts.AUXILIARYBAR_PART
-		]
-		: [
-			Parts.AUXILIARYBAR_PART,
-			...(panelInLeftSequence ? panelGroup : []),
-			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelGroup : []),
-			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
-		];
+	const fullOrder: Parts[] = [
+		...(sideBarLeft ? sideBarGroup : [Parts.AUXILIARYBAR_PART]),
+		...(panelInLeftSequence ? panelGroup : []),
+		...(chatPartLeft ? [Parts.CHAT_PART] : []),
+		Parts.EDITOR_PART,
+		...(chatPartLeft ? [] : [Parts.CHAT_PART]),
+		...(panelInRightSequence ? panelGroup : []),
+		...(sideBarLeft ? [Parts.AUXILIARYBAR_PART] : [...sideBarGroup].reverse()) // activity bar is outermost on the right edge
+	];
 
 	return {
 		left: resolveFloatingOuterOwner(layoutService, fullOrder),
@@ -334,7 +343,6 @@ export function getFloatingPaneCompositeVerticalMargins(
 	}
 
 	const outerEdges = getFloatingPaneCompositeVerticalOuterEdges(layoutService, partId, targetWindow);
-	const statusBarVisible = layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow);
 	const margin = getFloatingPanelMargin(layoutService);
 	const outerMargin = getFloatingPanelOuterMargin(layoutService);
 
@@ -343,7 +351,7 @@ export function getFloatingPaneCompositeVerticalMargins(
 			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
 			: margin,
 		bottom: outerEdges.bottom
-			? statusBarVisible ? margin : outerMargin
+			? outerMargin
 			: FLOATING_PANEL_INNER_MARGIN
 	};
 }
@@ -394,7 +402,7 @@ export function getFloatingEditorVerticalMargins(
 			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
 			: margin,
 		bottom: outerEdges.bottom
-			? layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? margin : outerMargin
+			? outerMargin
 			: FLOATING_PANEL_INNER_MARGIN
 	};
 }
@@ -526,6 +534,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
 
 	/**
+	 * Emits when the auxiliary bar starts or stops hiding its Maximize action, as claimed by
+	 * {@link hideAuxiliaryBarMaximize}.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximizeHidden: Event<boolean>;
+
+	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
 	readonly openedDefaultEditors: boolean;
@@ -564,6 +578,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns whether Modern UI uses its compact density.
 	 */
 	isModernUICompact(): boolean;
+
+	/** Effective gap between panel areas, in pixels. Compact and phone layouts return zero. */
+	getPanelSpacing(): number;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.
@@ -612,6 +629,29 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isPanelMaximized(): boolean;
 
 	/**
+	 * Emitted with whether the chat part is visible, when that changes. Hiding it with the editor area for a
+	 * maximized panel counts, and nothing is emitted while it stays as it is.
+	 */
+	readonly onDidChangeChatPartVisibility: Event<boolean>;
+
+	/**
+	 * Whether the window has a chat part, shown or not.
+	 */
+	hasChatPart(): boolean;
+
+	/**
+	 * Whether the editor area is hidden so that the chat part takes its space.
+	 */
+	isEditorHiddenByChat(): boolean;
+
+	/**
+	 * Hides the editor area so that the chat part takes its space, or shows it again.
+	 * Hiding requires a visible chat part. Opening an editor, hiding the chat part and
+	 * maximizing the panel show the editor area again.
+	 */
+	setEditorHiddenByChat(hidden: boolean): void;
+
+	/**
 	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
 	 * Restores the previous layout if the auxiliary sidebar is already maximized.
 	 */
@@ -630,6 +670,17 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isAuxiliaryBarMaximized(): boolean;
 
 	/**
+	 * Claims that the auxiliary bar does not offer to maximize, for as long as the returned claim is not disposed.
+	 * Claims stack: the action stays hidden while any claim is held.
+	 */
+	hideAuxiliaryBarMaximize(): IDisposable;
+
+	/**
+	 * Returns true while any claim made with {@link hideAuxiliaryBarMaximize} is held.
+	 */
+	isAuxiliaryBarMaximizeHidden(): boolean;
+
+	/**
 	 * Returns true if the main window has a border.
 	 */
 	hasMainWindowBorder(): boolean;
@@ -643,6 +694,19 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Docks the chat part beside the view with the given id: it sits immediately beside the editor, on the side of the
+	 * editor where that view's container is, and follows as the view or its container moves or the side bar or panel
+	 * position changes. A view in a panel at the top or bottom, an unknown view, or no anchor keep the chat part on the
+	 * primary side bar's side.
+	 */
+	setChatPartAnchor(anchor: { readonly viewId: string } | undefined): void;
+
+	/**
+	 * Gets the side of the editor the chat part is on, whether the window has a chat part or not.
+	 */
+	getChatPartPosition(): Position.LEFT | Position.RIGHT;
 
 	/**
 	 * Toggles the menu bar visibility.
@@ -740,7 +804,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		}
 	}
 
-	if (!isTitleBarEmpty(configurationService)) {
+	if (!isTitleBarEmpty(configurationService, window)) {
 		return true;
 	}
 
@@ -781,7 +845,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 }
 
-function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+function isTitleBarEmpty(configurationService: IConfigurationService, window: Window): boolean {
 
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
@@ -791,6 +855,11 @@ function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
 	// with the activity bar on top, we should always show
 	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
+		return false;
+	}
+
+	// with the activity bar hidden, the main window title bar hosts the compact menu, so we should always show
+	if (activityBarPosition === ActivityBarPosition.HIDDEN && !isAuxiliaryWindow(window) && getMenuBarVisibility(configurationService) === 'compact') {
 		return false;
 	}
 

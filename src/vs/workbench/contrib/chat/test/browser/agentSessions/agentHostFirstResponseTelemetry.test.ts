@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
 
 suite('AgentHostFirstResponseTiming', () => {
@@ -19,10 +20,36 @@ suite('AgentHostFirstResponseTiming', () => {
 		timing.observeText('answer');
 		elapsed = 900;
 		timing.observeText('duplicate');
-		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }), {
-			schemaVersion: 1, requestId: 'turn', provider: 'copilot', agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false,
-			firstResponseTextMs: 250, rootToolCallsBeforeFirstText: 0, totalElapsedMs: 900, hasResponseText: true,
+		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.WebPubSub, agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }), {
+			schemaVersion: 1, requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.WebPubSub, agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false,
+			firstResponseTextMs: 250, firstResponseOrReasoningMs: 250, rootToolCallsBeforeFirstText: 0, totalElapsedMs: 900, hasResponseText: true,
 		});
+	});
+
+	test('times the first nonwhitespace reasoning or text without moving the text timing', () => {
+		const time = (outputs: readonly (readonly ['text' | 'reasoning', string])[]) => {
+			let elapsed = 0;
+			const timing = new AgentHostFirstResponseTiming({ elapsed: () => elapsed });
+			for (const [kind, text] of outputs) {
+				elapsed += 100;
+				if (kind === 'text') {
+					timing.observeText(text);
+				} else {
+					timing.observeReasoning(text);
+				}
+			}
+			const { firstResponseTextMs, firstResponseOrReasoningMs, hasResponseText } = timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Local, outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false });
+			return { firstResponseTextMs, firstResponseOrReasoningMs, hasResponseText };
+		};
+		assert.deepStrictEqual([
+			time([['reasoning', ' \n'], ['reasoning', 'thinking'], ['reasoning', 'more'], ['text', 'answer']]),
+			time([['text', 'answer'], ['reasoning', 'thinking']]),
+			time([['reasoning', 'thinking']]),
+		], [
+			{ firstResponseTextMs: 400, firstResponseOrReasoningMs: 200, hasResponseText: true },
+			{ firstResponseTextMs: 100, firstResponseOrReasoningMs: 100, hasResponseText: true },
+			{ firstResponseTextMs: undefined, firstResponseOrReasoningMs: 100, hasResponseText: false },
+		]);
 	});
 
 	test('counts distinct root tools only until first nonwhitespace text', () => {
@@ -33,7 +60,7 @@ suite('AgentHostFirstResponseTiming', () => {
 		timing.observeToolCall('second');
 		timing.observeText('answer');
 		timing.observeToolCall('after-text');
-		assert.strictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }).rootToolCallsBeforeFirstText, 2);
+		assert.strictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Local, outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }).rootToolCallsBeforeFirstText, 2);
 	});
 
 	test('shares the ordinal across timing instances without waiting for completion', () => {
@@ -41,7 +68,7 @@ suite('AgentHostFirstResponseTiming', () => {
 		const firstTiming = new AgentHostFirstResponseTiming();
 		const second = nextRendererRootInvocationOrdinal();
 		const secondTiming = new AgentHostFirstResponseTiming();
-		const context = { requestId: 'turn', provider: 'copilot', outcome: 'notDispatched', sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false } as const;
+		const context = { requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Local, outcome: 'notDispatched', sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false } as const;
 		const secondResult = secondTiming.finish({ ...context, rendererRootInvocationOrdinal: second });
 		const firstResult = firstTiming.finish({ ...context, rendererRootInvocationOrdinal: first });
 		assert.deepStrictEqual([firstResult.rendererRootInvocationOrdinal, secondResult.rendererRootInvocationOrdinal], [first, first + 1]);
@@ -51,9 +78,9 @@ suite('AgentHostFirstResponseTiming', () => {
 		test(`preserves absence of text for ${outcome}`, () => {
 			const timing = new AgentHostFirstResponseTiming({ elapsed: () => 42 });
 			timing.observeToolCall('no-answer');
-			assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false }), {
-				schemaVersion: 1, requestId: 'turn', provider: 'copilot', outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false,
-				firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, totalElapsedMs: 42, hasResponseText: false,
+			assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Unknown, outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false }), {
+				schemaVersion: 1, requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Unknown, outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false,
+				firstResponseTextMs: undefined, firstResponseOrReasoningMs: undefined, rootToolCallsBeforeFirstText: undefined, totalElapsedMs: 42, hasResponseText: false,
 			});
 		});
 	}

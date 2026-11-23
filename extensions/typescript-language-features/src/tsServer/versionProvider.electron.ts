@@ -161,6 +161,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 	}
 
 	private static getTypeScriptVersion(serverPath: string): API | undefined {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: preload server validity for synchronous version getters; returning an unresolved result could select an invalid TypeScript installation.
 		if (!fs.existsSync(serverPath)) {
 			return undefined;
 		}
@@ -172,16 +173,19 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		const p2 = p.slice(0, -2);
 		const modulePath = p2.join(path.sep);
 		let fileName = path.join(modulePath, 'package.json');
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: preload package metadata for synchronous version getters; this probe chooses the installed versus development package location.
 		if (!fs.existsSync(fileName)) {
 			// Special case for ts dev versions
 			if (path.basename(modulePath) === 'built') {
 				fileName = path.join(modulePath, '..', 'package.json');
 			}
 		}
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: preload package availability before exposing a TypeScript version; callers immediately use the returned version to select a server.
 		if (!fs.existsSync(fileName)) {
 			return undefined;
 		}
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: preload the API version before exposing synchronous version getters; server launch options depend on the parsed package version.
 		const contents = fs.readFileSync(fileName).toString();
 		let desc: any;
 		try {

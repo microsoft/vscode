@@ -7,18 +7,21 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import type { CopilotSlashCommandInvocation, CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
+import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 export const copilotSandboxPolicyCommand: RuntimeSlashCommandInfo = {
-	name: 'sandbox-policy',
-	description: localize('copilotSlashCommand.sandboxPolicy', "Show the effective sandbox policy for this session"),
+	name: 'sandbox',
+	description: localize('copilotSlashCommand.sandboxPolicy', "Open the latest effective sandbox policy for this session in the editor"),
 	kind: 'builtin',
 	allowDuringAgentExecution: true,
+	input: {
+		hint: '',
+		choices: [{ name: 'policy', description: localize('copilotSlashCommand.sandboxPolicy', "Open the latest effective sandbox policy for this session in the editor") }],
+	},
 };
 
 export class CopilotSandboxPolicyDisplay {
@@ -31,20 +34,12 @@ export class CopilotSandboxPolicyDisplay {
 	) { }
 
 	getHandler(command: RuntimeSlashCommandInfo): ICopilotSlashCommandHandler | undefined {
-		if (command.kind !== 'builtin' || (command.name !== copilotSandboxPolicyCommand.name && command.name !== 'sandbox')) {
+		if (command.kind !== 'builtin' || command.name !== copilotSandboxPolicyCommand.name) {
 			return undefined;
 		}
 		return {
-			getInvocation: command.name === copilotSandboxPolicyCommand.name ? input => this.getInvocation(input) : undefined,
-			getOutput: (input, result) => command.name === copilotSandboxPolicyCommand.name || input === 'policy' ? this.getOutput(result) : undefined,
+			getOutput: (input, result) => input === 'policy' ? this.getOutput(result) : undefined,
 		};
-	}
-
-	private getInvocation(input: string): CopilotSlashCommandInvocation {
-		if (input.trim().length > 0) {
-			throw new Error(localize('copilotSlashCommand.sandboxPolicyNoArguments', "The /sandbox-policy command does not accept arguments."));
-		}
-		return { name: 'sandbox', input: 'policy' };
 	}
 
 	private async getOutput(result: CopilotSlashCommandResult): Promise<CopilotSlashCommandOutput> {
@@ -53,7 +48,7 @@ export class CopilotSandboxPolicyDisplay {
 			throw new Error(localize('copilotSlashCommand.sandboxPolicyUnavailable', "The SDK did not return a sandbox policy."));
 		}
 		const markdown = formatSandboxPolicyMarkdown(text, result.kind !== 'text' || result.markdown === true);
-		const resource = URI.joinPath(this._sessionDataService.getSessionDataDir(this._storageUri), 'diagnostics', generateUuid(), 'sandbox-policy.md');
+		const resource = URI.joinPath(this._sessionDataService.getSessionDataDir(this._storageUri), 'diagnostics', 'sandbox-policy.md');
 		try {
 			await this._fileService.writeFile(resource, VSBuffer.fromString(markdown));
 		} catch (err) {
@@ -65,6 +60,7 @@ export class CopilotSandboxPolicyDisplay {
 			resource,
 			label: localize('copilotSlashCommand.openSandboxPolicy', "Open Sandbox Policy"),
 			preview: true,
+			openInEditor: true,
 		};
 	}
 }

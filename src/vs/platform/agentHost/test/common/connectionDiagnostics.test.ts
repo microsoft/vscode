@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, formatConnectionDiagnosticError, getConnectionDiagnosticError, IConnectionDiagnosticEvent, sanitizeConnectionDiagnosticText, traceConnectionOperation } from '../../common/connectionDiagnostics.js';
+import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, formatConnectionDiagnosticError, getConnectionDiagnosticError, getGitHubRequestId, IConnectionDiagnosticEvent, sanitizeConnectionDiagnosticText, traceConnectionOperation } from '../../common/connectionDiagnostics.js';
 
 suite('Connection diagnostic evidence', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,6 +29,17 @@ suite('Connection diagnostic evidence', () => {
 		}, {
 			name: 'Error', code: 'ECONNRESET', status: 502, requestId: 'request-123', cause: 'certificate expired', secrets: false, bounded: 1024,
 		});
+	});
+
+	test('accepts only bounded GitHub request IDs, excluding missing, injected, secret and duplicate headers', () => {
+		const requestId = 'ABCD:1234:5678:90AB:CDEF';
+		assert.deepStrictEqual([
+			requestId, requestId.toLowerCase(), undefined, null, '', 'ABCD:1234:5678', `${requestId}\ninjected`,
+			'ghp_secret', `${'A'.repeat(17)}:1234:5678:90AB:CDEF`, 'A'.repeat(129), `${requestId}, ${requestId}`, [requestId, requestId],
+		].map(getGitHubRequestId), [
+			requestId, requestId.toLowerCase(), undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('preserves useful nested failure metadata without serializing response bodies', () => {
@@ -126,6 +137,18 @@ suite('Connection diagnostic evidence', () => {
 			sameOperation: events[0].operationId === events[1].operationId,
 			error: events[1].error?.message,
 		}, { outcomes: ['started', 'failed'], sameOperation: true, error: 'Failed with token=[redacted]' });
+	});
+
+	test('high-volume lifecycle observations do not evict connection evidence', () => {
+		const buffer = new ConnectionDiagnosticBuffer();
+		buffer.record('connection', { operationId: 'connect', timestamp: 0, phase: 'transport.connect', outcome: 'succeeded' });
+		for (let i = 0; i < 300; i++) {
+			for (const phase of ['session.snapshot', 'chat.binding', 'turn.submit']) {
+				buffer.record('connection', { operationId: String(i), timestamp: i, phase, outcome: 'info' });
+			}
+		}
+		buffer.record('connection', { operationId: 'failure', timestamp: 301, phase: 'session.snapshot', outcome: 'failed' });
+		assert.deepStrictEqual(buffer.getEvents().map(event => event.operationId), ['connect', 'failure']);
 	});
 
 	test('bounds event retention without changing chronological order', () => {

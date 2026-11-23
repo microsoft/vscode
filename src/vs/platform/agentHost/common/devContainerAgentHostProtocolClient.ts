@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from '../../../base/common/errors.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from './devContainerAgentHost.js';
+import { hasKey } from '../../../base/common/types.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, devContainerSandboxSupportValidator, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerUserStateValidator, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
 
 /** Adapts the VS Code extension RPCs to the shared-process Dev Container service contract. */
@@ -16,12 +17,18 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
+	/** Messages arrive whole inside parent notifications, so partial progress can't be attributed to a container. */
+	readonly onDidRelayActivity: Event<string> = Event.None;
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 	private readonly _onDidCloseConnection = this._register(new Emitter<string>());
 	readonly onDidCloseConnection = this._onDidCloseConnection.event;
 	private readonly _onDidOutput = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this._onDidOutput.event;
+	private readonly _onDidChangeSandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
+	readonly onDidChangeSandboxSupport = this._onDidChangeSandboxSupport.event;
+	private readonly _onDidReportUserState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
+	readonly onDidReportUserState = this._onDidReportUserState.event;
 	private readonly _connections = new Map<string, object>();
 
 	constructor(
@@ -39,13 +46,19 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+		if (hasKey(config, { sampleId: true })) {
+			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
 		if (this._connections.has(config.connectionId)) {
 			throw new Error('Dev Container connectionId is already in use');
 		}
 		const generation = {};
 		this._connections.set(config.connectionId, generation);
 		try {
-			const result = devContainerConnectResultValidator.validate(await this._request(DevContainerConnectExtensionMethod, config));
+			const response = hasKey(config, { environmentId: true })
+				? await this._request(DevContainerConnectEnvironmentExtensionMethod, config)
+				: await this._request(DevContainerConnectExtensionMethod, config);
+			const result = devContainerConnectResultValidator.validate(response);
 			if (result.error || result.content.connectionId !== config.connectionId || !result.content.address || !result.content.remoteWorkspaceFolder || result.content.hostWorkspaceFolder === '') {
 				throw new Error('Invalid Dev Container connection response');
 			}
@@ -67,7 +80,10 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 		}
 	}
 
-	async stopContainer(workspaceFolder: string): Promise<boolean> {
+	async stopContainer(workspaceFolder: DevContainerAgentHostSource): Promise<boolean> {
+		if (typeof workspaceFolder !== 'string') {
+			throw new Error('Only workspace Dev Containers can be stopped on remote hosts.');
+		}
 		const result = await this._request(DevContainerStopExtensionMethod, { workspaceFolder });
 		if (typeof result !== 'boolean') {
 			throw new Error('Invalid Dev Container stop response');
@@ -75,8 +91,13 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 		return result;
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<boolean> {
-		const result = await this._request(DevContainerRemoveExtensionMethod, { workspaceFolder });
+	async removeContainer(workspaceFolder: DevContainerAgentHostSource): Promise<boolean> {
+		if (typeof workspaceFolder !== 'string' && !hasKey(workspaceFolder, { environmentId: true })) {
+			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
+		const result = typeof workspaceFolder === 'string'
+			? await this._request(DevContainerRemoveExtensionMethod, { workspaceFolder })
+			: await this._request(DevContainerRemoveEnvironmentExtensionMethod, { environmentId: workspaceFolder.environmentId });
 		if (typeof result !== 'boolean') {
 			throw new Error('Invalid Dev Container remove response');
 		}
@@ -92,6 +113,20 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 
 	handleNotification(method: string, params: unknown): boolean {
 		switch (method) {
+			case DevContainerSandboxSupportNotification: {
+				const result = devContainerSandboxSupportValidator.validate(params);
+				if (!result.error && this._connections.has(result.content.connectionId)) {
+					this._onDidChangeSandboxSupport.fire(result.content);
+				}
+				return true;
+			}
+			case DevContainerUserStateNotification: {
+				const result = devContainerUserStateValidator.validate(params);
+				if (!result.error && this._connections.has(result.content.connectionId)) {
+					this._onDidReportUserState.fire(result.content);
+				}
+				return true;
+			}
 			case DevContainerRelayMessageNotification:
 			case DevContainerOutputNotification: {
 				const result = devContainerRelayMessageValidator.validate(params);

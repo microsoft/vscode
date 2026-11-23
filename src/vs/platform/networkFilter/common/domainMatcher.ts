@@ -254,7 +254,7 @@ export function extractDomainFromUri(uri: URI): string | undefined {
  * @param deniedPatterns Array of denied domain patterns.
  * @returns `true` if the domain is allowed, `false` if it is blocked.
  */
-export function isDomainAllowed(domain: string, allowedPatterns: string[], deniedPatterns: string[]): boolean {
+export function isDomainAllowed(domain: string, allowedPatterns: readonly string[], deniedPatterns: readonly string[]): boolean {
 	// Restrictive default: deny all when both lists are empty.
 	if (allowedPatterns.length === 0 && deniedPatterns.length === 0) {
 		return false;

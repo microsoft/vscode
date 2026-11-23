@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { localize } from '../../../../../nls.js';
 import { PromptTimelineCard } from './promptTimelineCard.js';
 import { MIN_HOST_WIDTH, spaceMarkCenters } from './promptTimelineLayout.js';
-import { IPromptScrollLayout, PromptFileDiff, PromptTick } from './promptTimelineModel.js';
+import { IPromptScrollLayout, PromptFileDiff, PromptTick, promptTickEquals } from './promptTimelineModel.js';
 import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
 
@@ -175,7 +175,9 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 			&& ticks.every((t, i) => this._marks[i]?.tick.requestId === t.requestId);
 		if (sameStructure) {
 			for (let i = 0; i < ticks.length; i++) {
-				this._renderMark(this._marks[i], ticks[i]);
+				if (!promptTickEquals(this._marks[i].tick, ticks[i])) {
+					this._renderMark(this._marks[i], ticks[i]);
+				}
 			}
 			this._updateActiveClasses();
 			this._relayout();

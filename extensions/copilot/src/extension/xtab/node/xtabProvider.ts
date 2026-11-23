@@ -10,12 +10,10 @@ import { ConfigKey, IConfigurationService, XTabProviderId } from '../../../platf
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { createProxyXtabEndpoint } from '../../../platform/endpoint/node/proxyXtabEndpoint';
-import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
-import { Copilot } from '../../../platform/inlineCompletions/common/api';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
-import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
@@ -24,11 +22,10 @@ import { AggressivenessSetting, EarlyDivergenceCancellationMode, isEagernessProm
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
+import { withoutOtherSensitiveFiles } from '../../../platform/inlineEdits/common/sensitiveFiles';
 import { EditStreaming, EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { editWouldDeleteWhatWasJustInserted, editWouldDeleteWhatWasJustInserted2, IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges, IgnoreWhitespaceOnlyChanges } from '../../../platform/inlineEdits/common/statelessNextEditProviders';
-import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
-import { ContextKind, SnippetContext } from '../../../platform/languageServer/common/languageContextService';
 import { ILogger } from '../../../platform/log/common/logService';
 import { OptionalChatRequestParams, Prediction } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
@@ -36,7 +33,6 @@ import { ISimulationTestContext } from '../../../platform/simulationTestContext/
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
-import { raceFilter } from '../../../util/common/async';
 import { AsyncIterUtils, AsyncIterUtilsExt } from '../../../util/common/asyncIterableUtils';
 import { backwardCompatSetting } from '../../../util/common/backwardCompatSetting';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -56,14 +52,15 @@ import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRa
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { PositionOffsetTransformer } from '../../../util/vs/editor/common/core/text/positionToOffset';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { Position as VscodePosition } from '../../../vscodeTypes';
 import { DelaySession } from '../../inlineEdits/common/delay';
 import { getOrDeduceSelectionFromLastEdit } from '../../inlineEdits/common/nearbyCursorInlineEditProvider';
 import { UserInteractionMonitor } from '../../inlineEdits/common/userInteractionMonitor';
 import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFiltering';
+import { selectRejectedEditsForPrompt } from '../common/diffHistoryForPrompt';
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
+import { INextEditLanguageContextService } from '../common/nextEditLanguageContextService';
 import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces, runGlobalBudgetCascade, CascadeResult } from '../common/promptCrafting';
 import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils';
 import { INeighborFileSnippet, ISimilarFilesContextService } from '../common/similarFilesContextService';
@@ -175,9 +172,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		@IDiffService private readonly diffService: IDiffService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IExperimentationService private readonly expService: IExperimentationService,
-		@ILanguageContextProviderService private readonly langCtxService: ILanguageContextProviderService,
+		@INextEditLanguageContextService private readonly languageContextService: INextEditLanguageContextService,
 		@ILanguageDiagnosticsService private readonly langDiagService: ILanguageDiagnosticsService,
-		@IIgnoreService private readonly ignoreService: IIgnoreService,
 		@ISimilarFilesContextService private readonly similarFilesContextService: ISimilarFilesContextService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
@@ -297,9 +293,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
-				? request.xtabRejectedEditHistory
-				: [];
+			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, request.xtabEditHistory, activeDocument);
 			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
@@ -371,7 +365,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const currentDocument = new CurrentDocument(activeDocument.documentAfterEdits, cursorPosition);
 
-		this._configureDebounceTimings(request, currentDocument, promptOptions, modelServiceConfig, telemetry, delaySession, tracer);
+		const { aggressivenessLevel, userHappinessScore } = this.userInteractionMonitor.getAggressivenessLevel();
+
+		this._configureDebounceTimings(request, currentDocument, promptOptions, modelServiceConfig, aggressivenessLevel, telemetry, delaySession, tracer);
 
 		const areaAroundEditWindowLinesRange = computeAreaAroundEditWindowLinesRange(currentDocument);
 
@@ -428,8 +424,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				}
 			);
 		};
-
-		const { aggressivenessLevel, userHappinessScore } = this.userInteractionMonitor.getAggressivenessLevel();
 
 		// Log user's raw aggressiveness setting when explicitly changed from default
 		const userAggressivenessSetting = this.configService.getExperimentBasedConfig(ConfigKey.Advanced.InlineEditsAggressiveness, this.expService);
@@ -591,6 +585,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		currentDocument: CurrentDocument,
 		promptOptions: ModelConfig,
 		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
+		aggressivenessLevel: xtabPromptOptions.AggressivenessLevel,
 		telemetry: StatelessNextEditTelemetryBuilder,
 		delaySession: DelaySession,
 		tracer: ILogger,
@@ -618,8 +613,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			}
 		}
 
-		// Adjust debounce based on user aggressiveness setting for non-aggressiveness models
-		if (!isEagernessPrompt(promptOptions)) {
+		// Use timing-based eagerness when the prompt does not handle this level.
+		if (!isEagernessPrompt(promptOptions, aggressivenessLevel)) {
 			this._applyAggressivenessSettings(delaySession, tracer);
 		}
 	}
@@ -701,72 +696,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		cancellationToken: CancellationToken,
 	): Promise<LanguageContextResponse | undefined> {
 		try {
-			const textDoc = this.workspaceService.textDocuments.find(doc => doc.uri.toString() === activeDocument.id.uri);
-			if (textDoc === undefined) {
-				return undefined;
-			}
-
-			const providers = this.langCtxService.getContextProviders(textDoc, ProviderTarget.NES);
-			if (providers.length < 1) {
-				return undefined;
-			}
-
-			const debounceTime = delaySession.getDebounceTime();
-
-			const cursorPositionVscode = new VscodePosition(cursorPosition.lineNumber - 1, cursorPosition.column - 1);
-
-			const ctxRequest: Copilot.ResolveRequest = {
+			return await this.languageContextService.getLanguageContext({
 				opportunityId: request.opportunityId,
 				completionId: request.headerRequestId,
-				documentContext: {
-					uri: textDoc.uri.toString(),
-					languageId: textDoc.languageId,
-					version: textDoc.version,
-					offset: textDoc.offsetAt(cursorPositionVscode),
-					position: cursorPositionVscode
-				},
-				activeExperiments: new Map(),
-				timeBudget: debounceTime,
-				timeoutEnd: Date.now() + debounceTime,
-				source: 'nes',
-			};
-
-			const isSnippetIgnored = async (item: SnippetContext): Promise<boolean> => {
-				const uris = [item.uri, ...(item.additionalUris ?? [])];
-				const isIgnored = await raceFilter(uris.map(uri => this.ignoreService.isCopilotIgnored(uri)), r => r);
-				return !!isIgnored;
-			};
-
-			const langCtxItems: LanguageContextEntry[] = [];
-			const getContextPromise = async () => {
-				const ctxIter = this.langCtxService.getContextItems(textDoc, ctxRequest, cancellationToken);
-				for await (const item of ctxIter) {
-					if (item.kind === ContextKind.Snippet && await isSnippetIgnored(item)) {
-						// If the snippet is ignored, we don't want to include it in the context
-						continue;
-					}
-					langCtxItems.push({ context: item, timeStamp: Date.now(), onTimeout: false });
-				}
-			};
-
-			const start = Date.now();
-			await raceCancellation(raceTimeout(getContextPromise(), debounceTime), cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
-				return undefined;
-			}
-			const end = Date.now();
-
-			const langCtxOnTimeout = this.langCtxService.getContextItemsOnTimeout(textDoc, ctxRequest);
-			for (const item of langCtxOnTimeout) {
-				if (item.kind === ContextKind.Snippet && await isSnippetIgnored(item)) {
-					// If the snippet is ignored, we don't want to include it in the context
-					continue;
-				}
-				langCtxItems.push({ context: item, timeStamp: end, onTimeout: true });
-			}
-
-			return { start, end, items: langCtxItems };
-
+				document: activeDocument,
+				cursorPosition,
+				timeBudgetMs: delaySession.getDebounceTime(),
+			}, cancellationToken);
 		} catch (error: unknown) {
 			tracing.logContext.setError(ErrorUtils.fromUnknown(error));
 			tracing.tracer.trace(`Failed to fetch language context: ${error}`);
@@ -867,6 +803,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		endpoint: IChatEndpoint,
 		messages: Raw.ChatMessage[],
 		prediction: Prediction | undefined,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
 		requestId: string,
 		fetchMetadata: FetchMetadata,
 		shouldRemoveCursorTagFromResponse: boolean,
@@ -894,6 +831,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
 
+		const requestOptions = this.prepareRequestOptions(prediction, modelServiceConfig);
+
 		// we must not await this promise because we want to stream edits as they come in
 		const fetchResultPromise = endpoint.makeChatRequest2(
 			{
@@ -915,11 +854,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				},
 				location: ChatLocation.Other,
 				source: undefined,
-				requestOptions: {
-					temperature: 0,
-					stream: true,
-					prediction,
-				} satisfies OptionalChatRequestParams,
+				requestOptions,
 				userInitiatedRequest: undefined,
 				telemetryProperties: {
 					requestId,
@@ -993,6 +928,31 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return new FetchResult.Lines(linesStream, () => responseSoFar, fetchRequestStopWatch);
 	}
 
+	private prepareRequestOptions(
+		prediction: Prediction | undefined,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
+	): OptionalChatRequestParams {
+		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
+		if (modelServiceConfig.reasoningEffort !== undefined) {
+			requestOptions.reasoning_effort = modelServiceConfig.reasoningEffort;
+		}
+
+		// Prediction requests do not support token limits.
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)) {
+			const useMaxTokens = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService);
+			if (!useMaxTokens) {
+				// Explicit undefined suppresses the fetcher's default max_tokens limit.
+				requestOptions.max_tokens = undefined;
+			} else if (modelServiceConfig.maxCompletionTokens !== undefined) {
+				// Replace the fetcher's default max_tokens limit for reasoning models.
+				requestOptions.max_tokens = undefined;
+				requestOptions.max_completion_tokens = modelServiceConfig.maxCompletionTokens;
+			}
+		}
+
+		return requestOptions;
+	}
+
 	private async *_streamEditsImpl(
 		request: StatelessNextEditRequest,
 		editStreamCtx: EditStreamContext,
@@ -1013,7 +973,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Phase 1: Fetch lifecycle — initiate HTTP request and produce a clean line stream
 		const fetchResult = await this._performFetch(
-			endpoint, messages, prediction, request.headerRequestId,
+			endpoint, messages, prediction, editStreamCtx.modelServiceConfig, request.headerRequestId,
 			fetchMetadata, responseOpts.shouldRemoveCursorTagFromResponse,
 			editWindow, request.documentBeforeEdits,
 			fetchCancellationToken, tracing,
@@ -1420,13 +1380,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					new Edits(StringEdit, []),
 				);
 
+				// The follow-up request is for a different document, so filter the history for it again.
 				const syntheticRequest = new StatelessNextEditRequest(
 					request.headerRequestId,
 					request.opportunityId,
 					targetContent,
 					[syntheticDoc],
 					0,
-					request.xtabEditHistory,
+					withoutOtherSensitiveFiles(request.xtabEditHistory, targetDocumentId),
 					new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 					request.expandedEditWindowNLines,
 					request.isSpeculative,
@@ -1434,7 +1395,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
-					request.xtabRejectedEditHistory,
+					withoutOtherSensitiveFiles(request.xtabRejectedEditHistory, targetDocumentId),
 				);
 
 				return yield* this.doGetNextEditWithSelection(
@@ -1823,6 +1784,7 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02Unified:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagerness:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagernessLowMedium:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:

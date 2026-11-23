@@ -25,7 +25,6 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
-import { resolveAppModulePathSync } from './appNodeModules';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../../conversation/common/languageModelAccess';
 
@@ -303,7 +302,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): { configurati
 			: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
 		properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
 			type: 'string',
-			title: l10n.t('Thinking Effort'),
+			title: l10n.t('Effort Level'),
 			enum: effortLevels,
 			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
 			enumDescriptions: effortLevels.map(getReasoningEffortDescription),
@@ -362,7 +361,6 @@ export const ICopilotCLIAgents = createServiceIdentifier<ICopilotCLIAgents>('ICo
 
 export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	declare _serviceBrand: undefined;
-	private sessionAgents: Record<string, { agentId?: string; createdDateTime: number }> = {};
 	private _agentsPromise?: Promise<readonly CLIAgentInfo[]>;
 	private readonly _onDidChangeAgents = this._register(new Emitter<void>());
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
@@ -390,28 +388,9 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		this._onDidChangeAgents.fire();
 	}
 
-	async trackSessionAgent(sessionId: string, agent: string | undefined): Promise<void> {
-		const details = Object.keys(this.sessionAgents).length ? this.sessionAgents : this.extensionContext.workspaceState.get<Record<string, { agentId?: string; createdDateTime: number }>>(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, this.sessionAgents);
-
-		details[sessionId] = { agentId: agent, createdDateTime: Date.now() };
-		this.sessionAgents = details;
-
-		// Prune entries older than 7 days.
-		const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-		for (const [key, value] of Object.entries(details)) {
-			if (value.createdDateTime < sevenDaysAgo) {
-				delete details[key];
-			}
-		}
-
-		await this.extensionContext.workspaceState.update(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, details);
-	}
-
 	async getSessionAgent(sessionId: string): Promise<string | undefined> {
-		const details = this.extensionContext.workspaceState.get<Record<string, { agentId?: string; createdDateTime: number }>>(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, this.sessionAgents);
-		// Check in-memory cache first before reading from memento.
-		// Possibly the session agent was just set and not yet persisted.
-		const agentId = this.sessionAgents[sessionId]?.agentId ?? details[sessionId]?.agentId;
+		const details = this.extensionContext.workspaceState.get<Record<string, { agentId?: string; createdDateTime: number }>>(COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY, {});
+		const agentId = details[sessionId]?.agentId;
 		if (agentId === COPILOT_CLI_DEFAULT_AGENT_ID) {
 			return '';
 		}
@@ -576,14 +555,6 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
-			// The SDK's sandbox auto-detection looks for `mxc-bin/<arch>/wxc-exec.exe` (and the
-			// Linux/macOS equivalents) under `MXC_BIN_DIR`. VS Code core ships the MXC
-			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`
-			// (or `node_modules.asar.unpacked/...` in a packaged build), so point
-			// `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
-			// from the product build (see build/.moduleignore).
-			process.env['MXC_BIN_DIR'] = resolveAppModulePathSync(this.envService.appRoot, '@microsoft', 'mxc-sdk', 'bin');
-
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
 			// never start bash under the sandbox: the inner shell sees a non-tty

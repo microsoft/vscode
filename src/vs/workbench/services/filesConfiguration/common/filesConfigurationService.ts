@@ -20,7 +20,7 @@ import { GlobalIdleValue } from '../../../../base/common/async.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, markdownStringEqual } from '../../../../base/common/htmlContent.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../../common/editor.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
@@ -248,10 +248,11 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	async updateReadonly(resource: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
 		if (Array.isArray(resource)) {
+			let changed = false;
 			for (const r of resource) {
-				this.applyReadonly(r, readonly as true | IMarkdownString | false | 'reset');
+				changed = this.applyReadonly(r, readonly as true | IMarkdownString | false | 'reset') || changed;
 			}
-			if (resource.length > 0) {
+			if (changed) {
 				this._onDidChangeReadonly.fire();
 			}
 			return;
@@ -268,16 +269,23 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
-		this.applyReadonly(resource, readonly);
-		this._onDidChangeReadonly.fire();
+		if (this.applyReadonly(resource, readonly)) {
+			this._onDidChangeReadonly.fire();
+		}
 	}
 
-	private applyReadonly(resource: URI, readonly: true | IMarkdownString | false | 'reset'): void {
+	private applyReadonly(resource: URI, readonly: true | IMarkdownString | false | 'reset'): boolean {
 		if (readonly === 'reset') {
-			this.sessionReadonlyOverrides.delete(resource);
-		} else {
-			this.sessionReadonlyOverrides.set(resource, readonly);
+			return this.sessionReadonlyOverrides.delete(resource);
 		}
+
+		const current = this.sessionReadonlyOverrides.get(resource);
+		if (current === readonly || typeof current === 'object' && typeof readonly === 'object' && markdownStringEqual(current, readonly)) {
+			return false;
+		}
+
+		this.sessionReadonlyOverrides.set(resource, readonly);
+		return true;
 	}
 
 	private registerListeners(): void {
