@@ -13,7 +13,7 @@ export const javascriptIndentationRules = {
 
 export const rubyIndentationRules = {
 	decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b|(in|when)\s)/,
-	increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
+	increaseIndentPattern: /^\s*((begin|class|(?:(public|private|protected)\s+|private_class_method\s+)?def(?!(?:[^#;"'\/]|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\/(?:\\.|[^\/\\])*\/|;(?!\s*end\b))*;\s*end\b)(?!\s+(?:(?:self|[A-Z]\w*)\.)?[a-zA-Z_]\w*[!?=]?(?:\s*\([^)]*\))?\s+=[^=~>])|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
 };
 
 export const phpIndentationRules = {
