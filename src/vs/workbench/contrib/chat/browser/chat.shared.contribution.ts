@@ -2507,7 +2507,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.welcomePage.cardSurface.neutral', "Show the cards on a neutral surface, like the walkthrough tiles."),
 				nls.localize('chat.welcomePage.cardSurface.tint', "Show the cards on a surface tinted with the accent color."),
 			],
-			markdownDescription: nls.localize('chat.welcomePage.cardSurface', "Controls the surface of the Welcome page's cards that promote a feature, such as the Agents window banner, which is shown while {0} is `banner`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
+			markdownDescription: nls.localize('chat.welcomePage.cardSurface', "Controls the surface of the Welcome page's cards that promote a feature: the Agents window banner, shown while {0} is `banner`, and the sign-in cards, shown while {1} is a card.", '`#chat.welcomePage.agentsWindowGraphic#`', '`#chat.welcomePage.signIn.style#`'),
 			default: WelcomePageCardSurface.Neutral,
 			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },

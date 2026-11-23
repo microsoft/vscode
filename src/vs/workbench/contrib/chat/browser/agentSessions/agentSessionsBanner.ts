@@ -103,7 +103,9 @@ export interface IAgentsBannerOptions {
 	 * and the banner's context menu offers to hide the card with `hide`.
 	 *
 	 * The setting's experiment trigger is logged in every experiment arm once the banner is visible and offers sign-in while
-	 * `isExposed` is true, that is, when the user could see the card. It doesn't depend on whether the user hid the card.
+	 * `isExposed` is true, that is, when the user could see the card. The trigger of {@link ChatConfiguration.WelcomePageCardSurface}
+	 * is logged in the same moment once `style` shows a card, since the surface applies to the card. Neither depends on whether
+	 * the user hid the card.
 	 */
 	readonly signInCard?: {
 		readonly element: HTMLElement;
@@ -196,13 +198,16 @@ export function createAgentsBanner(
 		}));
 	}
 	if (options.signInCard) {
-		const { element: cardElement, isExposed } = options.signInCard;
+		const { element: cardElement, style, isExposed } = options.signInCard;
 		disposables.add(autorun(reader => {
 			setVisibility(shownSignInCard.read(reader) !== undefined, cardElement);
 		}));
 		disposables.add(autorun(reader => {
 			if (visible.read(reader) && offerSignIn.read(reader) && isExposed.read(reader)) {
 				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageSignInStyle);
+				if (style.read(reader) !== WelcomeSignInStyle.Button) {
+					logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageCardSurface);
+				}
 			}
 		}));
 	}

@@ -694,6 +694,7 @@ suite('AgentsBanner graphic', () => {
 suite('AgentsBanner sign-in card', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const styleTreatment = `config.${ChatConfiguration.WelcomePageSignInStyle}`;
+	const signInCardSurfaceTreatment = `config.${ChatConfiguration.WelcomePageCardSurface}`;
 	const account = new class extends mock<IDefaultAccount>() { }();
 
 	/** Records the events other than experiment triggers. */
@@ -774,7 +775,7 @@ suite('AgentsBanner sign-in card', () => {
 		};
 	}
 
-	test('shows signed-out users the card of the selected style, and logs the trigger in every arm once the page is shown', async () => {
+	test('shows signed-out users the card of the selected style, and logs the triggers in every arm once the page is shown', async () => {
 		const states = [];
 		for (const style of [WelcomeSignInStyle.Button, WelcomeSignInStyle.CopilotCard, WelcomeSignInStyle.GitHubCard, WelcomeSignInStyle.CompactCard, 'unknown']) {
 			const banner = createBannerWithSignInCard(style, { exposed: false });
@@ -783,12 +784,14 @@ suite('AgentsBanner sign-in card', () => {
 			states.push({ style, beforeExposure, ...await banner.state() });
 		}
 
+		// The card surface only applies to cards, so its trigger waits for one.
 		const button = { button: 'Sign in to GitHub', primary: false, text: '', card: undefined, beforeExposure: [], triggers: [styleTreatment] };
+		const cardTriggers = [styleTreatment, signInCardSurfaceTreatment];
 		assert.deepStrictEqual(states, [
 			{ style: 'button', ...button },
-			{ style: 'copilotCard', card: 'copilotCard', text: 'Code faster with GitHub CopilotChat with Copilot about your codeGet code suggestions as you typeLet agents build features and fix bugs for you', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: [styleTreatment] },
-			{ style: 'githubCard', card: 'githubCard', text: 'Connect VS Code to GitHubWork with your pull requests and issuesClone and publish your repositoriesUse GitHub Copilot to chat, edit and run agents', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: [styleTreatment] },
-			{ style: 'compactCard', card: 'compactCard', text: 'Sign in with GitHub to use GitHub Copilot and work with your pull requests, issues and repositories.', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: [styleTreatment] },
+			{ style: 'copilotCard', card: 'copilotCard', text: 'Code faster with GitHub CopilotChat with Copilot about your codeGet code suggestions as you typeLet agents build features and fix bugs for you', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
+			{ style: 'githubCard', card: 'githubCard', text: 'Connect VS Code to GitHubWork with your pull requests and issuesClone and publish your repositoriesUse GitHub Copilot to chat, edit and run agents', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
+			{ style: 'compactCard', card: 'compactCard', text: 'Sign in with GitHub to use GitHub Copilot and work with your pull requests, issues and repositories.', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
 			// Values that are no longer supported show the button.
 			{ style: 'unknown', ...button },
 		]);
@@ -809,7 +812,7 @@ suite('AgentsBanner sign-in card', () => {
 			signInDisabled: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [] },
 			beforeSignIn: { card: 'githubCard', button: 'Sign in to GitHub' },
 			// The user was offered sign-in, so the trigger stays logged.
-			afterSignIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [styleTreatment] },
+			afterSignIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [styleTreatment, signInCardSurfaceTreatment] },
 		});
 	});
 
@@ -831,12 +834,12 @@ suite('AgentsBanner sign-in card', () => {
 		}, {
 			menu: ['Hide'],
 			afterHide: {
-				card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment],
+				card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment, signInCardSurfaceTreatment],
 				menu: undefined,
 				events: [{ name: 'agentsBanner.clicked', data: { source: 'welcomePage', action: 'hideSignInCard' } }],
 			},
 			// Hiding the card applies to every style, but doesn't change who counts in the experiment.
-			otherPage: { card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment] },
+			otherPage: { card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment, signInCardSurfaceTreatment] },
 			afterReset: 'copilotCard',
 		});
 	});

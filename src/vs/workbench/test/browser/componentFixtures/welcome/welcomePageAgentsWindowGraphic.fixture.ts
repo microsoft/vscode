@@ -85,6 +85,11 @@ export default defineThemedFixtureGroup({ path: 'welcome/' }, {
 		additionalThemes: themes,
 		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.CompactCard }),
 	}),
+	SignInGitHubCardTint: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: themes,
+		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 800, { signInStyle: WelcomeSignInStyle.GitHubCard, cardSurface: WelcomePageCardSurface.Tint }),
+	}),
 	SignInCardNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWelcomePageAgentsSection(context, AgentsWindowGraphicVariant.WindowComparison, 420, { signInStyle: WelcomeSignInStyle.GitHubCard }),
