@@ -38,9 +38,10 @@ type StepEnd =
 	| { readonly action: 'abort' };
 
 /**
- * Renders {@link ISpotlightPayload} scenarios: it dims the window (including the
- * native window controls) unless {@link SPOTLIGHT_BACKDROP_CONFIG} is disabled,
- * walks the steps, and shows an anchored callout for each. Implements the
+ * Renders {@link ISpotlightPayload} scenarios: it dims and blocks the window
+ * (including the native window controls) unless {@link SPOTLIGHT_BACKDROP_CONFIG}
+ * is disabled, which leaves the rest of the window interactive. It walks the
+ * steps and shows an anchored callout for each. Implements the
  * engine's {@link IOnboardingPresentation} contract so the scenario engine can
  * drive it without knowing anything about spotlights.
  */
@@ -335,9 +336,10 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		store.add(toDisposable(() => cancellation.dispose(true)));
 		store.add(context.onAbort(() => cancellation.cancel()));
 		let stepContext = context;
+		let preserveFocus = false;
 		try {
 			while (!cancellation.token.isCancellationRequested) {
-				const end = await this._showStep(overlay, stepContext, step, target, index, stepCount, canGoBack, isLastStep);
+				const end = await this._showStep(overlay, stepContext, step, target, index, stepCount, canGoBack, isLastStep, preserveFocus);
 				if (end.action !== 'missingTarget') {
 					return end;
 				}
@@ -350,6 +352,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 						: { action: 'missingTarget' };
 				}
 				target = replacement;
+				preserveFocus = true;
 			}
 			return { action: 'abort' };
 		} finally {
@@ -357,7 +360,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		}
 	}
 
-	private async _showStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: IOnboardingTarget, index: number, stepCount: number, canGoBack: boolean, isLastStep: boolean): Promise<StepEnd> {
+	private async _showStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: IOnboardingTarget, index: number, stepCount: number, canGoBack: boolean, isLastStep: boolean, preserveFocus: boolean): Promise<StepEnd> {
 		const stepStore = new DisposableStore();
 		const cancellation = new CancellationTokenSource();
 		stepStore.add(toDisposable(() => cancellation.dispose(true)));
@@ -406,6 +409,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		const content: ISpotlightContent = {
 			title: selectedContent?.title ?? step.title,
 			description: selectedContent?.description ?? step.description,
+			onDidClickLink: step.onDidClickLink,
 			nextButtonLabel: step.primaryAction?.label ?? step.nextButtonLabel,
 			endTourLabel: step.endTourLabel,
 			stepIndex: index,
@@ -446,6 +450,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			targetOverlayVisible: openTarget,
 			additionalElements: target.additionalElements,
 			padding: step.padding,
+			preserveFocus,
 		});
 		context.onDidShow?.();
 		step.onDidShow?.();

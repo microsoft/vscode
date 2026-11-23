@@ -809,3 +809,18 @@
 	border: 0;
 	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 }
+
+.session-header-bar .chat-composite-bar-working-progress {
+	display: flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.chat-editor-content.title-progress .chat-working-progress > .chat-progress-icon,
+.chat-editor-content.title-progress .chat-working-progress.chat-working-progress-generic-label > .progress-step {
+	display: none;
+}
+
+.monaco-reduce-motion .session-header-bar .chat-composite-bar-working-progress {
+	animation: none;
+}

@@ -2030,7 +2030,7 @@ export class Repository {
 
 		if (paths && paths.length) {
 			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-				await this.exec([...args, '--', ...chunk]);
+				await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 			}
 		} else {
 			await this.exec([...args, '--', '.']);
@@ -2038,7 +2038,7 @@ export class Repository {
 	}
 
 	async rm(paths: string[]): Promise<void> {
-		const args = ['rm', '--'];
+		const args = ['--literal-pathspecs', 'rm', '--'];
 
 		if (!paths || !paths.length) {
 			return;
@@ -2421,7 +2421,7 @@ export class Repository {
 		try {
 			if (paths && paths.length > 0) {
 				for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-					await this.exec([...args, '--', ...chunk]);
+					await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 				}
 			} else {
 				await this.exec([...args, '--', '.']);
@@ -2450,7 +2450,7 @@ export class Repository {
 
 		if (paths.length > 0) {
 			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-				await this.exec([...args, '--', ...chunk]);
+				await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 			}
 		} else {
 			await this.exec([...args, '--', '.']);
@@ -3123,7 +3123,7 @@ export class Repository {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
+		const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
 	}
 
@@ -3248,7 +3248,8 @@ export class Repository {
 			if (/fetch/i.test(type)) {
 				remote.fetchUrl = url;
 			} else if (/push/i.test(type)) {
-				remote.pushUrl = url;
+				// A remote can have multiple push urls; keep the first one, which is the primary one
+				remote.pushUrl ??= url;
 			} else {
 				remote.fetchUrl = url;
 				remote.pushUrl = url;

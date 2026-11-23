@@ -24,46 +24,7 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../.
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { TestLayoutService, workbenchInstantiationService } from './workbenchTestServices.js';
 
-suite('Workbench Context Keys - Virtual Workspace', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('distinguishes mixed workspaces from fully virtual workspaces as folders change', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
-		const localFolder = toWorkspaceFolder(URI.file('/local'));
-		const virtualFolder = toWorkspaceFolder(URI.parse('test-vfs://provider/virtual'));
-		let folders = [localFolder, virtualFolder];
-		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(IWorkspaceContextService, {
-			getWorkspace: () => testIWorkspace({ id: 'test', folders }),
-			getWorkbenchState: () => WorkbenchState.WORKSPACE,
-			onDidChangeWorkbenchState: Event.None,
-			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
-		});
-		instantiationService.stub(IEditorGroupsService, 'partOptions', { ...DEFAULT_EDITOR_PART_OPTIONS });
-		disposables.add(instantiationService.createInstance(WorkbenchContextKeysHandler));
-
-		const snapshot = () => ({
-			scheme: VirtualWorkspaceContext.getValue(contextKeyService),
-			hasVirtualContent: WorkspaceHasVirtualContentContext.getValue(contextKeyService),
-		});
-		const mixed = snapshot();
-		folders = [localFolder];
-		onDidChangeWorkspaceFolders.fire({ added: [], removed: [virtualFolder], changed: [] });
-		const local = snapshot();
-		folders = [virtualFolder];
-		onDidChangeWorkspaceFolders.fire({ added: [virtualFolder], removed: [localFolder], changed: [] });
-
-		assert.deepStrictEqual({ mixed, local, virtual: snapshot() }, {
-			mixed: { scheme: '', hasVirtualContent: true },
-			local: { scheme: '', hasVirtualContent: false },
-			virtual: { scheme: 'test-vfs', hasVirtualContent: true },
-		});
-	});
-});
-
-suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
+suite('Workbench Context Keys', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -86,14 +47,30 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		}
 	}
 
+	const localFolder = toWorkspaceFolder(URI.file('/local'));
+	const virtualFolder = toWorkspaceFolder(URI.parse('test-vfs://provider/virtual'));
+
+	// The handler sets a global context key constant, so a window can construct it only once: a single test covers it.
 	function create(layoutService: ChatLayoutService) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const workspace = { folders: [localFolder, virtualFolder] };
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IWorkspaceContextService, {
+			getWorkspace: () => testIWorkspace({ id: 'test', folders: workspace.folders }),
+			getWorkbenchState: () => WorkbenchState.WORKSPACE,
+			onDidChangeWorkbenchState: Event.None,
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+		});
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IEditorGroupsService, 'partOptions', { ...DEFAULT_EDITOR_PART_OPTIONS });
 		disposables.add(instantiationService.createInstance(WorkbenchContextKeysHandler));
-		return contextKeyService;
+		const setFolders = (folders: typeof workspace.folders, event: IWorkspaceFoldersChangeEvent) => {
+			workspace.folders = folders;
+			onDidChangeWorkspaceFolders.fire(event);
+		};
+		return { contextKeyService, setFolders };
 	}
 
 	const maximizeActionShown = (contextKeyService: ContextKeyService) => MenuRegistry.getMenuItems(MenuId.AuxiliaryBarTitle)
@@ -106,13 +83,18 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		mainEditorAreaVisible: contextKeyService.getContextKeyValue('mainEditorAreaVisible'),
 	});
 
-	test('the keys follow a chat part that the layout creates visible, without an event, once the window restored, and then follow it', async () => {
+	test('the keys follow a chat part that the layout creates visible, without an event, once the window restored, and then follow it, and the virtual workspace keys follow folder changes', async () => {
 		const layoutService = new ChatLayoutService();
 		let restored!: () => void;
 		layoutService.whenRestored = new Promise<void>(resolve => restored = resolve);
 		layoutService.chatVisible = false;
 		layoutService.editorHidden = true;
-		const contextKeyService = create(layoutService);
+		const { contextKeyService, setFolders } = create(layoutService);
+		const workspaceKeys = () => ({
+			scheme: VirtualWorkspaceContext.getValue(contextKeyService),
+			hasVirtualContent: WorkspaceHasVirtualContentContext.getValue(contextKeyService),
+		});
+		const mixed = workspaceKeys();
 		const atConstruction = { ...snapshot(contextKeyService), maximizeActionShown: maximizeActionShown(contextKeyService) };
 
 		// The layout creates the chat part from its stored state, visible, and fires no visibility event
@@ -135,6 +117,15 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		layoutService.chatEmitter.fire(true);
 		layoutService.emitter.fire({ partId: Parts.EDITOR_PART, visible: false });
 
+		setFolders([localFolder], { added: [], removed: [virtualFolder], changed: [] });
+		const local = workspaceKeys();
+		setFolders([virtualFolder], { added: [virtualFolder], removed: [localFolder], changed: [] });
+
+		assert.deepStrictEqual({ mixed, local, virtual: workspaceKeys() }, {
+			mixed: { scheme: '', hasVirtualContent: true },
+			local: { scheme: '', hasVirtualContent: false },
+			virtual: { scheme: 'test-vfs', hasVirtualContent: true },
+		});
 		assert.deepStrictEqual({ atConstruction, restoredKeys, paletteEnabled, hiddenChat, editorHidden: snapshot(contextKeyService) }, {
 			atConstruction: { chatPartEnabled: false, chatPartVisible: false, editorAreaHiddenByChat: true, mainEditorAreaVisible: false, maximizeActionShown: true },
 			restoredKeys: { chatPartEnabled: true, chatPartVisible: true, editorAreaHiddenByChat: false, mainEditorAreaVisible: true, maximizeActionShown: false },

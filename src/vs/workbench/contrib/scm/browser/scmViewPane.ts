@@ -1033,6 +1033,7 @@ interface RepositoryVisibilityItem {
 class RepositoryVisibilityActionController {
 
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private readonly hiddenListeners = new DisposableMap<ISCMRepository>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
 	private readonly disposables = new DisposableStore();
@@ -1055,7 +1056,23 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		if (repository.provider.isHidden) {
+		// A provider can be hidden and shown again while it is registered
+		this.hiddenListeners.set(repository, autorun(reader => {
+			if (repository.provider.isHidden.read(reader)) {
+				this.removeItem(repository);
+			} else {
+				this.addItem(repository);
+			}
+		}));
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.hiddenListeners.deleteAndDispose(repository);
+		this.removeItem(repository);
+	}
+
+	private addItem(repository: ISCMRepository): void {
+		if (this.items.has(repository)) {
 			return;
 		}
 
@@ -1079,8 +1096,13 @@ class RepositoryVisibilityActionController {
 		this.updateRepositoryContextKeys();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.items.get(repository)?.dispose();
+	private removeItem(repository: ISCMRepository): void {
+		const item = this.items.get(repository);
+		if (!item) {
+			return;
+		}
+
+		item.dispose();
 		this.items.delete(repository);
 		this.updateRepositoryContextKeys();
 	}
@@ -1108,6 +1130,7 @@ class RepositoryVisibilityActionController {
 
 	dispose(): void {
 		this.disposables.dispose();
+		this.hiddenListeners.dispose();
 		dispose(this.items.values());
 		this.items.clear();
 	}
@@ -1601,7 +1624,7 @@ export class SCMViewPane extends ViewPane {
 			this.storeTreeViewState();
 		}, this, this.disposables);
 
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository, this.scmViewService.onDidChangeRepositories)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 
 		this.disposables.add(this.revealResourceThrottler);
 		this.disposables.add(this.updateChildrenThrottler);
@@ -1887,10 +1910,15 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		// The active editor can show the resource itself or, as for staged changes,
+		// the modified side of its diff, which may not be the source file
+		const matchesUri = (resource: ISCMResource) => this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri)
+			|| this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorModifiedUri, uri);
+
 		// Do not set focus/selection when the resource is already focused and selected
 		const representsResource = (element: TreeElement) => {
 			const resource = isSCMResource(element) ? element : isSCMStructuralDiffElement(element) ? element.resource : undefined;
-			return resource !== undefined && this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri);
+			return resource !== undefined && matchesUri(resource);
 		};
 		if (this.tree.getFocus().some(representsResource) && this.tree.getSelection().some(representsResource)) {
 			return;
@@ -1909,9 +1937,8 @@ export class SCMViewPane extends ViewPane {
 						// go backwards from last group
 						for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
 							const groupItem = repository.provider.groups[j];
-							const resource = this.viewMode === ViewMode.Tree
-								? groupItem.resourceTree.getNode(uri)?.element
-								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+							const resource = (this.viewMode === ViewMode.Tree ? groupItem.resourceTree.getNode(uri)?.element : undefined)
+								?? groupItem.resources.find(matchesUri);
 
 							if (resource) {
 								await this.tree.expandTo(resource);
@@ -2307,7 +2334,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.scmService.repositoryCount === 0;
+		// Hidden repositories are not shown, for example while a provider swaps the repository of a workspace folder
+		return this.scmViewService.repositories.length === 0;
 	}
 
 	override getActionsContext(): unknown {

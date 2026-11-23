@@ -37,6 +37,11 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+/* Share the snapped card stroke so the content curve stays concentric at fractional zoom. */
+.monaco-workbench.modern-ui.floating-panels > .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-width: var(--modern-ui-floating-card-stroke-width);
+}
+
 .monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part),
 .monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebookOverlay:not(.notebook-overlay-modal) {
 	border-radius: 0;

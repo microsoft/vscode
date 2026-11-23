@@ -74,6 +74,7 @@ import {
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import { CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX } from './aiCustomizationItemSource.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
 import './chatCustomizations.contribution.js';
@@ -380,6 +381,13 @@ registerAction2(class extends Action2 {
 		}
 
 		// Confirm deletion
+		if (isHook && itemId?.startsWith(CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX)) {
+			await dialogService.info(
+				localize('cannotDeleteCustomAgentHook', "Cannot Delete Custom Agent Hook"),
+				localize('cannotDeleteCustomAgentHookDetail', "This hook is declared in the custom agent file '{0}'. Open the file and remove it from the 'hooks' header.", fileName)
+			);
+			return;
+		}
 		const hookInfo = isHook && itemId ? parseHookItemId(itemId) : undefined;
 		const hookName = typeof context !== 'string' && !URI.isUri(context) ? context.name : undefined;
 		const message = isSkill
@@ -807,7 +815,7 @@ registerAction2(class extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const harnessService = accessor.get(ICustomizationHarnessService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		const { section, revealUri, sessionResource, hasExplicitSessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+		const { section, revealUri, sessionResource, hasExplicitSessionResource, showDiscover, showPluginMarketplaces, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
 			target,
 			widget?.input.pendingDelegationTarget,
 			widget?.viewModel?.sessionResource,
@@ -834,6 +842,8 @@ registerAction2(class extends Action2 {
 			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
 			pane.showDiscover(searchQuery);
+		} else if (showPluginMarketplaces && pane instanceof AICustomizationManagementEditor) {
+			pane.showPluginMarketplaces();
 		} else if (section && pane instanceof AICustomizationManagementEditor) {
 			if (pane.selectSectionById(section)) {
 				if (searchQuery !== undefined) {

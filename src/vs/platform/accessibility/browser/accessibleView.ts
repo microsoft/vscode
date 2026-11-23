@@ -34,6 +34,7 @@ export const enum AccessibleViewProviderId {
 	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
+	SandboxProfiles = 'sandboxProfiles',
 	Notebook = 'notebook',
 	ReplEditor = 'replEditor',
 	Editor = 'editor',

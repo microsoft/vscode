@@ -82,7 +82,11 @@ export interface ISCMProvider extends IDisposable {
 
 	readonly rootUri?: URI;
 	readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
-	readonly isHidden?: boolean;
+	/**
+	 * Whether the provider is hidden from the Source Control views and does not own the
+	 * resources under its root. It can change while the provider is registered.
+	 */
+	readonly isHidden: IObservable<boolean>;
 	readonly inputBoxTextModel: ITextModel;
 	readonly activeRepositoryName: IObservable<string | undefined>;
 	readonly contextValue: IObservable<string | undefined>;

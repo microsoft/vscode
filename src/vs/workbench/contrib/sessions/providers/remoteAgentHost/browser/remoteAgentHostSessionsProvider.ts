@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Limiter, raceTimeout, RunOnceScheduler, SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -241,6 +241,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
+	/** Keeps an overlapping archive and unarchive of a session in order, since both await Dev Container work. */
+	private readonly _sessionArchiveSequencer = new SequencerByKey<string>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -300,6 +302,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private _devContainerIdleSince: number | undefined;
 	private _devContainerIdleCheckRunning = false;
 	private _devContainerArchiveOperations = 0;
+	private readonly _devContainerArchiveLimiter = this._register(new Limiter<void>(1));
 	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
 		void this._stopDevContainerIfIdle().catch(error =>
 			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
@@ -500,25 +503,40 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, true)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._archiveSession(sessionId));
+		}
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, false)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._unarchiveSession(sessionId));
+		}
+	}
+
+	private async _archiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
-		if (this._devContainerLifecycle) {
-			await this._ensureDevContainerConnection();
-			await this._setDevContainerSessionArchived(sessionId, true);
-			if (this._hasUnarchivedDevContainerSession(sessionId)) {
-				this._scheduleDevContainerStopIfIdle();
-				return;
-			}
-			this._devContainerIdleScheduler.cancel();
-			// Stop rather than remove: the container holds the archived session's Agent Host state.
-			if (await this._devContainerLifecycle.stop()) {
-				await this._setDetachedWorktreeArchived(sessionId, true);
-			} else {
-				this._devContainerIdleSince = undefined;
-				this._scheduleDevContainerStopIfIdle();
-			}
-			return;
+		const devContainerLifecycle = this._devContainerLifecycle;
+		if (devContainerLifecycle) {
+			// Serialize through teardown so optimistic sibling flags cannot stop a host awaiting confirmation.
+			return this._devContainerArchiveLimiter.queue(async () => {
+				await this._ensureDevContainerConnection();
+				await this._setDevContainerSessionArchived(sessionId, true);
+				if (this._hasUnarchivedDevContainerSession(sessionId)) {
+					this._scheduleDevContainerStopIfIdle();
+					return;
+				}
+				this._devContainerIdleScheduler.cancel();
+				// Stop rather than remove: the container holds the archived session's Agent Host state.
+				if (await devContainerLifecycle.stop()) {
+					await this._setDetachedWorktreeArchived(sessionId, true);
+				} else {
+					this._devContainerIdleSince = undefined;
+					this._scheduleDevContainerStopIfIdle();
+				}
+			});
 		}
 		if (!this.connection) {
 			return;
@@ -529,7 +547,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	override async unarchiveSession(sessionId: string): Promise<void> {
+	private async _unarchiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
@@ -996,6 +1014,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
+		await this._remoteAgentHostService.waitForConnection(this.remoteAddress);
 	}
 
 	reconnectNow(): void {
@@ -1184,6 +1203,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 
+		this._sessionListVersion.set(0, undefined);
 		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
@@ -1225,6 +1245,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
+		this._sessionListVersion.set(0, undefined);
 		this._devContainerIdleScheduler.cancel();
 		this._devContainerIdleSince = undefined;
 		this._connectionListeners.clear();
@@ -1292,6 +1313,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * entries.
 	 */
 	unpublishCachedSessions(): void {
+		// Abandon a listing in flight, so it can't mark the hidden list ready, then invalidate readiness
+		// before observers can sample the hidden list as an authoritative empty result.
+		this._cancelSessionRefreshRetry();
+		this._sessionListVersion.set(0, undefined);
 		if (this._unpublished) {
 			return;
 		}

@@ -178,6 +178,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.sendGHTelemetryEventForContext(context, eventName, properties, measurements);
 	}
 
+	get isRestrictedTelemetryActive(): boolean {
+		return this.telemetryLevel >= TelemetryLevel.USAGE && (this._restrictedTelemetryEnabled || this._internalTelemetryEnabled);
+	}
+
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._restrictedTelemetryEnabled) {
 			return;

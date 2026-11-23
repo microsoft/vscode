@@ -1533,7 +1533,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		const activityLabelSelector = '.chat-tool-chain:not(.chat-used-context-collapsed) .progress-container p, .chat-tool-chain.chat-used-context-collapsed > .chat-used-context-label .monaco-button-mdlabel, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p';
 		if (options.activityRowSpacing) {
 			const labels = [...value.querySelectorAll<HTMLElement>(`${activityLabelSelector}, :scope > .chat-markdown-part > p`)];
-			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index], label));
+			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index].closest('.chat-persistent-reasoning') ?? labels[index], label));
 			if (labelGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
 				throw new Error(`Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap; measured ${labelGaps.join(', ')}`);
 			}

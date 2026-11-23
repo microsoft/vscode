@@ -201,6 +201,7 @@ export function createAgentServiceComposition(
 				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
+				announceUnsentProvisionalSession: params => callbackAdapter.value.announceUnsentProvisionalSession(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
@@ -303,7 +304,7 @@ export function createAgentServiceComposition(
 		}));
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
-			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
+			prepareChatWorkingDirectory: (session, directory, options) => agentService!.prepareChatWorkingDirectory(session, directory, options),
 			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);

@@ -8,7 +8,7 @@ import { spec, junit } from 'node:test/reporters';
 import path from 'node:path';
 import fs from 'node:fs';
 import { PassThrough } from 'node:stream';
-import glob from 'glob';
+import * as glob from 'glob';
 
 const testRoot = import.meta.dirname;
 const files = glob.sync(path.posix.join(testRoot, '../out/test/**/*.test.js'));

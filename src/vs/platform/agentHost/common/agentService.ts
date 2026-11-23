@@ -200,6 +200,9 @@ export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
 
+/** Configuration key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsSettingId = 'chat.agentHost.git.coalesceReads';
+
 /** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
 export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
 
@@ -1415,6 +1418,8 @@ export interface IAgentConnection {
 	 */
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+	/** Loads the preceding page into the subscribed chat using its host-issued cursor. */
+	fetchTurns?(chat: URI, cursor: string): Promise<void>;
 
 	/**
 	 * Returns the in-flight `createSession` Promise for `resource`, or `undefined` if no create is pending. Callers

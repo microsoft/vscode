@@ -16,13 +16,20 @@ import { killTree } from '../../../base/node/processes.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, timeout } from '../../../base/common/async.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
 import { createWorktreeSymlink } from './worktreeSymlink.js';
+import { AgentHostGitCoalesceReadsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostGitCoalesceReadsSettingId } from '../common/agentService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostSettingExperimentTrigger } from './agentHostSettingExperimentTrigger.js';
+import { AgentHostGitReadTelemetry, type GitReadArm } from './agentHostGitReadTelemetry.js';
 
 /**
  * `git worktree remove`/`prune` can transiently fail — or, worse, exit 0 while
@@ -47,10 +54,19 @@ const GET_REFS_TIMEOUT_MS = 30_000;
 /** Budget for a git command that doesn't set its own, so that an unresponsive remote can't hang a caller. */
 const GIT_COMMAND_TIMEOUT_MS = 30_000;
 
+/** How many read-only git commands the host runs at once. Slow reads that pile up make each other slower, so the rest wait for a free slot. */
+const MAX_CONCURRENT_GIT_READS = 8;
+
+/** How long the same read-only command fails fast after it timed out, instead of waiting out the timeout again. */
+const GIT_READ_TIMEOUT_COOLDOWN_MS = 10_000;
+
+/** Git subcommands that only read, so identical concurrent calls can share one process. */
+const READ_ONLY_GIT_SUBCOMMANDS = new Set(['status', 'rev-parse', 'show-ref', 'for-each-ref', 'merge-base', 'rev-list', 'ls-files', 'diff', 'show', 'cat-file', 'ls-tree', 'log']);
+
 /** Beyond this many changed paths, stat-ing them costs about as much as the diff the fingerprint would save. */
 const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
 
-export class AgentHostGitService implements IAgentHostGitService {
+export class AgentHostGitService extends Disposable implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	/** The timeout of the git commands that don't set their own; tests shorten it to observe it quickly. */
@@ -63,12 +79,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 	private readonly _pendingRepositoryRoots = new Map<string, Promise<URI | undefined>>();
 	private readonly _indexPaths = new LRUCache<string, string>(100);
 	private readonly _pendingBranches = new Map<string, Promise<Branch | undefined>>();
+	private readonly _gitReadLimiter = this._register(new Limiter<string | undefined>(MAX_CONCURRENT_GIT_READS));
+	private readonly _pendingGitReads = new Map<string, Map<string, Promise<string | undefined>>>();
+	private readonly _timedOutGitReads = new Map<string, number>();
+	private readonly _coalesceReadsTrigger: AgentHostSettingExperimentTrigger;
+	private readonly _readTelemetry: AgentHostGitReadTelemetry;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super();
+		this._coalesceReadsTrigger = this._register(new AgentHostSettingExperimentTrigger(AgentHostGitCoalesceReadsSettingId, _configurationService, telemetryService));
+		this._readTelemetry = this._register(new AgentHostGitReadTelemetry(telemetryService));
+	}
 
 	async getCurrentBranch(workingDirectory: URI): Promise<string | undefined> {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim()
@@ -234,6 +261,29 @@ export class AgentHostGitService implements IAgentHostGitService {
 		roots.set(key, root);
 		if (root) {
 			roots.set(extUriBiasedIgnorePathCase.getComparisonKey(root), root);
+		}
+		this._repositoryRoots.set(roots, undefined);
+	}
+
+	/**
+	 * Forgets the cached repository roots of a removed worktree, so lookups stop resolving to a checkout that is gone.
+	 * Entries cached under the worktree's canonical path, which git reports as the root, are forgotten too.
+	 */
+	private async _forgetRepositoryRoots(worktree: URI): Promise<void> {
+		const removedRoots = [worktree, await this._canonicalizeWorktreePath(worktree)];
+		const roots = this._repositoryRoots.get();
+		const cachedRoot = roots.peek(extUriBiasedIgnorePathCase.getComparisonKey(worktree));
+		if (cachedRoot) {
+			removedRoots.push(cachedRoot);
+		}
+		const isRemoved = (resource: URI) => removedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+		// Collect the keys first: the cache throws when it is modified during iteration.
+		const keys = [...roots].filter(([key, root]) => isRemoved(URI.parse(key)) || (root !== undefined && isRemoved(root))).map(([key]) => key);
+		if (keys.length === 0) {
+			return;
+		}
+		for (const key of keys) {
+			roots.delete(key);
 		}
 		this._repositoryRoots.set(roots, undefined);
 	}
@@ -467,7 +517,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			if (tree !== await this.revParse(worktree, 'HEAD^{tree}')) {
 				const parent = await this.revParse(worktree, 'HEAD');
-				const commit = await this.commitTree(worktree, tree, parent, `Preserving worktree before removal: ${worktree.fsPath}`);
+				const message = `Preserving worktree before removal: ${worktree.fsPath}`;
+				let commit: string | undefined;
+				try {
+					commit = await this.commitTree(worktree, tree, parent, message);
+				} catch (error) {
+					// For example, the repository has no user identity configured.
+					this._logService.info(`[agentHostGitService] Retrying preservation commit for '${worktree.fsPath}' with the internal identity: ${error instanceof Error ? error.message : String(error)}`);
+					commit = await this.commitTree(worktree, tree, parent, message, { useInternalIdentity: true });
+				}
 				if (!commit) {
 					throw new Error(`Cannot create preservation commit for '${worktree.fsPath}'`);
 				}
@@ -501,6 +559,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				if (!isRetryableWorktreeRemovalError(error)) {
 					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+						await this._forgetRepositoryRoots(worktree);
 						return;
 					}
 					throw error;
@@ -509,6 +568,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
 			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+				await this._forgetRepositoryRoots(worktree);
 				return;
 			}
 			if (gitCommandSucceeded) {
@@ -639,7 +699,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
-		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
+		const output = await this._runGitStatus(workingDirectory, ['--porcelain'], false);
 		return !!output && output.trim().length > 0;
 	}
 
@@ -664,6 +724,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async commit(workingDirectory: URI, message: string, options?: ICommitOptions): Promise<void> {
+		if (options?.all) {
+			await this._runGit(workingDirectory, ['add', options.all === 'tracked' ? '-u' : '-A', '--', ':/'], { throwOnError: true });
+		}
+
+		const args = ['commit'];
+
+		if (options?.noVerify) {
+			args.push('--no-verify');
+		}
+
+		if (options?.signCommit !== undefined) {
+			args.push(options.signCommit ? '-S' : '--no-gpg-sign');
+		}
+
+		args.push('-m', message);
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async mergeBranch(workingDirectory: URI, branchName: string): Promise<string> {
@@ -746,10 +825,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		// A ref can only be passed alongside a
-		// remote; default to `origin` when a ref
-		// is given without one.
+		// remote; resolve the branch's default
+		// push remote when a ref is given without one.
 		if (options?.remote || options?.ref) {
-			args.push(options.remote ?? 'origin');
+			args.push(options.remote ?? await this._resolveDefaultPushRemote(workingDirectory, options.ref) ?? 'origin');
 
 			if (options.ref) {
 				args.push(options.ref);
@@ -757,6 +836,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		await this._runGit(workingDirectory, args, { timeout: 180_000, throwOnError: true });
+	}
+
+	private async _resolveDefaultPushRemote(workingDirectory: URI, ref: string | undefined): Promise<string | undefined> {
+		const branchName = ref?.split(':')[0];
+		const [configuredPushRemote, remotesOutput] = await Promise.all([
+			branchName ? this._getPushRemote(workingDirectory, branchName) : undefined,
+			this._runGit(workingDirectory, ['remote', '-v']),
+		]);
+		return selectDefaultPushRemote(remotesOutput, configuredPushRemote);
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -1222,6 +1310,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(repositoryRoot, ['update-ref', ref, newOid], { throwOnError: true });
 	}
 
+	flushTelemetry(): void {
+		this._readTelemetry.flush();
+	}
+
 	async deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void> {
 		if (refs.length === 0) {
 			return;
@@ -1230,13 +1322,21 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// invocation. Each command is `delete SP <ref> NUL [<expected_oid>] NUL`;
 		// we omit the expected oid so already-missing refs don't fail the batch.
 		const stdin = refs.map(ref => `delete ${ref}\x00\x00`).join('');
-		await new Promise<void>((resolve) => {
-			const proc = cp.execFile('git', ['update-ref', '--stdin', '-z'], { cwd: repositoryRoot.fsPath, timeout: 10_000 }, () => {
-				// Tolerate non-zero exits — missing refs are not fatal for cleanup.
-				resolve();
+		this._invalidatePendingReads();
+		try {
+			await new Promise<void>((resolve) => {
+				const proc = cp.execFile('git', ['update-ref', '--stdin', '-z'], { cwd: repositoryRoot.fsPath, timeout: 10_000 }, () => {
+					// Tolerate non-zero exits — missing refs are not fatal for cleanup.
+					resolve();
+				});
+				// git can exit before it reads stdin (e.g. not a repository); without a
+				// handler the resulting EPIPE is an uncaught error.
+				proc.stdin?.on('error', () => { });
+				proc.stdin?.end(stdin);
 			});
-			proc.stdin?.end(stdin);
-		});
+		} finally {
+			this._invalidatePendingReads();
+		}
 	}
 
 	async revParse(repositoryRoot: URI, expression: string): Promise<string | undefined> {
@@ -1497,12 +1597,106 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return Number.isFinite(count) ? { hasChanges: count > 0, count } : undefined;
 	}
 
-	private _runGitStatus(workingDirectory: URI, args: readonly string[]): Promise<string | undefined> {
+	private _runGitStatus(workingDirectory: URI, args: readonly string[], failFastAfterTimeout = true): Promise<string | undefined> {
 		// Background status probes must not contend with mutating git commands for index.lock.
-		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' } });
+		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' }, failFastAfterTimeout });
 	}
 
-	protected _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
+	protected _runGit(workingDirectory: URI, args: readonly string[], options?: IRunGitOptions): Promise<string | undefined> {
+		if (!isShareableGitRead(args, options)) {
+			return this._runGitMutation(workingDirectory, args, options);
+		}
+
+		// Reported before the arms diverge, so that control and treatment reach it alike.
+		this._coalesceReadsTrigger.report();
+		if (!this._configurationService.getRootValue(platformRootSchema, AgentHostGitCoalesceReadsConfigKey)) {
+			return this._runMeasuredGitRead('passthrough', () => this._spawnGit(workingDirectory, args, options));
+		}
+
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
+		const readKey = JSON.stringify([args, options?.env, options?.timeout, options?.throwOnError, options?.maxBuffer]);
+		let pendingReads = this._pendingGitReads.get(directoryKey);
+		const pending = pendingReads?.get(readKey);
+		if (pending) {
+			return this._runMeasuredGitRead('coalesced', () => {
+				this._readTelemetry.readShared();
+				return pending;
+			});
+		}
+
+		const timedOutAt = this._timedOutGitReads.get(`${directoryKey}\0${readKey}`);
+		if (timedOutAt !== undefined && options?.failFastAfterTimeout && !options.throwOnError) {
+			if (Date.now() - timedOutAt < GIT_READ_TIMEOUT_COOLDOWN_MS) {
+				this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} skipped: it timed out moments ago`);
+				this._readTelemetry.readRequested('coalesced');
+				this._readTelemetry.readSkipped();
+				return Promise.resolve(undefined);
+			}
+			this._timedOutGitReads.delete(`${directoryKey}\0${readKey}`);
+		}
+
+		if (!pendingReads) {
+			pendingReads = new Map();
+			this._pendingGitReads.set(directoryKey, pendingReads);
+		}
+		const reads = pendingReads;
+		const queuedAt = Date.now();
+		const read = this._runMeasuredGitRead('coalesced', () => this._gitReadLimiter.queue(() => {
+			const waitMs = Date.now() - queuedAt;
+			if (waitMs > 0) {
+				this._readTelemetry.readQueued(waitMs);
+			}
+			return this._spawnGit(workingDirectory, args, options, () => {
+				this._timedOutGitReads.set(`${directoryKey}\0${readKey}`, Date.now());
+				if (this._timedOutGitReads.size > 100) {
+					this._timedOutGitReads.delete(this._timedOutGitReads.keys().next().value!);
+				}
+			});
+		}));
+		reads.set(readKey, read);
+		const forget = () => {
+			if (reads.get(readKey) === read) {
+				reads.delete(readKey);
+			}
+			if (reads.size === 0 && this._pendingGitReads.get(directoryKey) === reads) {
+				this._pendingGitReads.delete(directoryKey);
+			}
+		};
+		read.then(forget, forget);
+		return read;
+	}
+
+	private async _runMeasuredGitRead(arm: GitReadArm, run: () => Promise<string | undefined>): Promise<string | undefined> {
+		this._readTelemetry.readRequested(arm);
+		const startedAt = Date.now();
+		try {
+			return await run();
+		} finally {
+			this._readTelemetry.readCompleted(Date.now() - startedAt);
+		}
+	}
+
+	/** Runs a git command that may change what a read sees; reads that began before it must not be shared with reads after it. */
+	private async _runGitMutation(workingDirectory: URI, args: readonly string[], options?: IRunGitOptions): Promise<string | undefined> {
+		const invalidates = !isGitObjectOnlyWrite(args, options);
+		if (invalidates) {
+			this._invalidatePendingReads();
+		}
+		try {
+			return await this._spawnGit(workingDirectory, args, options);
+		} finally {
+			if (invalidates) {
+				this._invalidatePendingReads();
+			}
+		}
+	}
+
+	/** Linked worktrees share refs, so a command in one directory can change what a read in another sees: no pending read of any directory may be joined afterwards. */
+	private _invalidatePendingReads(): void {
+		this._pendingGitReads.clear();
+	}
+
+	protected _spawnGit(workingDirectory: URI, args: readonly string[], options?: IRunGitOptions, onTimedOut?: () => void): Promise<string | undefined> {
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
 		return new Promise((resolve, reject) => {
@@ -1516,7 +1710,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// Default maxBuffer is 32MB — Node's default is ~1MB, which is
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
+			// Counted as ended exactly once, however the process or its failure to start is reported.
+			let didEnd = false;
+			const markEnded = () => {
+				if (!didEnd) {
+					didEnd = true;
+					this._readTelemetry.spawnEnded();
+				}
+			};
 			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+				clearTimeout(timer);
+				markEnded();
 				if (error) {
 					// stderr is summarized in the thrown error message to keep
 					// it readable; log the full unmodified output here so the
@@ -1543,6 +1747,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			// Counted once `execFile` returned, since it throws synchronously for invalid arguments, and its callback only runs later.
+			this._readTelemetry.spawnStarted();
 			// `execFile` keeps its own listener for the buffered result; an
 			// extra one just tees the same chunks for live progress.
 			const onStderr = options?.onStderr;
@@ -1554,6 +1760,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			const timer = setTimeout(() => {
 				didTimeOut = true;
+				this._readTelemetry.spawnTimedOut();
+				onTimedOut?.();
 				if (child.pid === undefined) {
 					child.kill();
 					return;
@@ -1563,6 +1771,27 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+/** Whether a git command only reads and has no per-call side channels, so concurrent identical calls can share one process. */
+function isShareableGitRead(args: readonly string[], options?: IRunGitOptions): boolean {
+	return READ_ONLY_GIT_SUBCOMMANDS.has(args[0]) && options?.input === undefined && !options?.onStderr;
+}
+
+/** Whether a git command writes only objects or a throwaway index, which no read of the checkout or its refs observes. */
+function isGitObjectOnlyWrite(args: readonly string[], options?: IRunGitOptions): boolean {
+	return options?.env?.GIT_INDEX_FILE !== undefined || args[0] === 'commit-tree' || args[0] === 'write-tree' || args[0] === 'hash-object' || args[0] === 'mktree';
+}
+
+interface IRunGitOptions {
+	readonly timeout?: number;
+	readonly throwOnError?: boolean;
+	readonly env?: Record<string, string>;
+	readonly maxBuffer?: number;
+	readonly onStderr?: (chunk: string) => void;
+	readonly input?: string;
+	/** Skip the command for a short while after the same command timed out, for callers that treat a missing result as unknown. */
+	readonly failFastAfterTimeout?: boolean;
 }
 
 class GitCommandError extends Error {
@@ -2282,6 +2511,27 @@ export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, rem
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Selects the remote to push a branch to when the caller does not name one:
+ * the branch's configured push remote (`branch.<name>.pushRemote`,
+ * `remote.pushDefault` or `branch.<name>.remote`), else the remote the GitHub
+ * repository is resolved from (preferring `origin`), else `origin`, else the
+ * only remote.
+ *
+ * Exported for tests.
+ */
+export function selectDefaultPushRemote(remotesOutput: string | undefined, configuredPushRemote: string | undefined): string | undefined {
+	if (configuredPushRemote) {
+		return configuredPushRemote;
+	}
+	const remotes = parseFetchRemotes(remotesOutput) ?? [];
+	const origin = remotes.find(remote => remote.name === 'origin');
+	const ordered = origin ? [origin, ...remotes.filter(remote => remote !== origin)] : remotes;
+	return ordered.find(remote => parseGitHubOwnerRepoFromUrl(remote.url))?.name
+		?? origin?.name
+		?? (remotes.length === 1 ? remotes[0].name : undefined);
 }
 
 function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefined, remoteSelection: string | undefined): { owner: string; repo: string } | undefined {

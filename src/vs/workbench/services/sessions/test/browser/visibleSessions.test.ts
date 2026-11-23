@@ -2015,6 +2015,35 @@ suite('VisibleSessions - active chat removal fallback', () => {
 			back: ['main', 'second'],
 		});
 	});
+
+	test('an active chat that another surface takes from the grid falls back to the last tab, or to the nearest chat it came from when asked', () => {
+		const main = makeChat('main');
+		const source = makeChat('source');
+		const last = makeChat('last');
+		const side: IChat = { ...makeChat('side'), origin: { kind: ChatOriginKind.SideChat, parentChat: source.resource } };
+		const nested: IChat = { ...makeChat('nested'), origin: { kind: ChatOriginKind.SideChat, parentChat: side.resource } };
+		const { session } = createSession([main, source, side, nested, last]);
+		const model = createModel();
+		model.setActive(session);
+		const visible = model.activePane.get()!;
+		const fallbackWhenHidden = (chat: IChat, options?: { readonly showAncestorInstead?: boolean }) => {
+			model.setActiveChat(session, chat);
+			const hold = model.hideChatFromGrid(session.sessionId, chat.resource, options);
+			const fallback = visible.chat.get()?.title.get();
+			hold.dispose();
+			return fallback;
+		};
+
+		const fallbacks = {
+			byDefault: fallbackWhenHidden(side),
+			ancestor: fallbackWhenHidden(side, { showAncestorInstead: true }),
+		};
+		const sideHold = model.hideChatFromGrid(session.sessionId, side.resource, { showAncestorInstead: true });
+		const nestedFallback = fallbackWhenHidden(nested, { showAncestorInstead: true });
+		sideHold.dispose();
+
+		assert.deepStrictEqual({ ...fallbacks, nested: nestedFallback }, { byDefault: 'last', ancestor: 'source', nested: 'source' });
+	});
 });
 
 suite('VisibleSessions - slot per-chat model/mode', () => {
