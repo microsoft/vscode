@@ -711,6 +711,9 @@ export function isStyleAttribute(currentNode: FlatNode | undefined, offset: numb
 		return false;
 	}
 	const styleAttribute = currentHtmlNode.attributes[index];
+	if (!styleAttribute.value) {
+		return false;
+	}
 	return offset >= styleAttribute.value.start && offset <= styleAttribute.value.end;
 }
 
