@@ -34,6 +34,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
 import type { IAgentHostChatContributionContext, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
@@ -59,7 +60,7 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>, logService:
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new ctor(fileService, env as INativeEnvironmentService, logService);
+	return disposables.add(new ctor(...gitServiceArguments(disposables, fileService, env as INativeEnvironmentService, logService)));
 }
 
 /** Times git commands out after 300ms by default, so that tests can observe the default timeout quickly. */
