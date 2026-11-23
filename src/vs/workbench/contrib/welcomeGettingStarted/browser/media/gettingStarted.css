@@ -1186,17 +1186,18 @@
 	outline-offset: 2px;
 }
 
-/* A sign-in card (`chat.welcomePage.signIn.style`) replaces the sign-in button at the bottom of the page: the GitHub mark, what signing in brings, and the button on the walkthrough tiles' surface, so that the button is its only accent. */
+/* A sign-in card (`chat.welcomePage.signIn.style`) replaces the sign-in button at the bottom of the page: the GitHub mark, what signing in brings, and the button on the walkthrough tiles' surface, so that the button is its only accent. The card is as wide as its content, up to 720px, so the button stays next to the text. A size container can't take its content's width, so the footer, which spans the page, is the container that decides when the card stacks. */
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer {
+	container: welcome-sign-in-card / inline-size;
 	justify-self: stretch;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner {
-	container-type: inline-size;
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: start;
 	column-gap: var(--vscode-spacing-size160);
+	width: fit-content;
 	max-width: 720px;
 	margin: var(--vscode-spacing-size80) auto var(--vscode-spacing-size160);
 	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size200);
@@ -1234,6 +1235,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button {
 	align-self: end;
 	justify-self: end;
+	margin-inline-start: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160);
 	border-radius: var(--vscode-cornerRadius-small);
 	white-space: nowrap;
@@ -1252,8 +1254,8 @@
 	white-space: normal;
 }
 
-/* In a narrow card, the button moves below the text, still at the card's bottom right. */
-@container (max-width: 479px) {
+/* When the footer can't fit a card with 480px of content plus its padding and border, the button moves below the text, still at the card's bottom right. */
+@container welcome-sign-in-card (max-width: 521px) {
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner {
 		grid-template-columns: auto minmax(0, 1fr);
 	}
@@ -1261,6 +1263,7 @@
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button {
 		grid-column: 2;
 		margin-top: var(--vscode-spacing-size120);
+		margin-inline-start: 0;
 	}
 }
 
