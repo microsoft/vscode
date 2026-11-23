@@ -4681,12 +4681,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * The host's published models for routing. Before the first refresh lands the list is empty, and
-	 * during an invalidating one it belongs to a superseded credential, so wait for it as
-	 * `_validateModelSelection` does; otherwise a router finds none of its models and keeps the chat's.
+	 * during an invalidating one it belongs to a superseded credential, so wait for it; otherwise a
+	 * router finds none of its models and keeps the chat's. A refresh superseded while it runs
+	 * settles without publishing, so wait again for the one that replaced it.
 	 */
 	private async _getHostTurnModels(token: CancellationToken): Promise<readonly IAgentModelInfo[]> {
-		const refresh = this._invalidatingModelRefresh ?? (this._capiModels.length ? undefined : this._modelRefreshInFlight);
-		if (refresh) {
+		let refresh: Promise<void> | undefined;
+		while (!token.isCancellationRequested && (refresh = this._invalidatingModelRefresh ?? (this._capiModels.length ? undefined : this._modelRefreshInFlight))) {
 			await raceCancellation(refresh, token);
 		}
 		return this._models.get();

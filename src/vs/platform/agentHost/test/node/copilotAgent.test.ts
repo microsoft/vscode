@@ -23962,6 +23962,22 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ model: resolution.selection?.id, route: resolution.routed?.routeName, notices: resolution.notices }, { model: 'claude-sonnet', route: 'feature', notices: [] });
 			});
 
+			test('routing waits for a model refresh that replaces the one it was waiting for', async () => {
+				const firstListed = new DeferredPromise<void>();
+				const h = await createRoutedAgent('router-refresh-replaced', firstListed.p);
+				await h.client.waitForCalls(() => h.client.modelListRequests.length > 0);
+				const resolving = h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
+				// A new token while the first listing runs: that listing settles without publishing.
+				const secondListed = new DeferredPromise<void>();
+				h.client.modelListGate = secondListed.p;
+				await h.agent.authenticate('https://api.github.com', 'token-2');
+				firstListed.complete();
+				await timeout(0);
+				secondListed.complete();
+				const resolution = await resolving;
+				assert.deepStrictEqual({ model: resolution.selection?.id, route: resolution.routed?.routeName, notices: resolution.notices, lists: h.client.modelListRequests.length }, { model: 'claude-sonnet', route: 'feature', notices: [], lists: 2 });
+			});
+
 			test('a chat that is routed to a route with other guidance is relaunched with it', async () => {
 				const h = await createRoutedAgent('router-moved');
 				await h.agent.chats.warmChat!(h.chat, h.context);
