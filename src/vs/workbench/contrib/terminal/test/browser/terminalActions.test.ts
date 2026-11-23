@@ -5,9 +5,17 @@
 
 import { deepStrictEqual } from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from '../../browser/terminalActions.js';
+import { NEW_TAB_BUTTON_SETTING } from '../../../../browser/parts/editor/newTabButton.js';
+import { IEditorCommandsContext } from '../../../../common/editor.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ICreateTerminalOptions, ITerminalInstance, ITerminalService } from '../../browser/terminal.js';
+import { CreateTerminalEditorFromNewTabButtonAction, WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from '../../browser/terminalActions.js';
+import { TerminalContextKeys } from '../../common/terminalContextKey.js';
 
 function makeFakeFolder(name: string, uri: URI): IWorkspaceFolder {
 	return {
@@ -28,7 +36,7 @@ function makePair(folder: IWorkspaceFolder, cwd?: URI | IWorkspaceFolder, isAbso
 }
 
 suite('terminalActions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const root: URI = URI.file('/some-root');
 	const a = makeFakeFolder('a', URI.joinPath(root, 'a'));
@@ -81,6 +89,42 @@ suite('terminalActions', () => {
 				const pairC = makePair(c);
 				deepStrictEqual(shrinkWorkspaceFolderCwdPairs([pairA, pairB, pairC, pairD]), [pairA, pairC]);
 			});
+		});
+	});
+
+	suite('CreateTerminalEditorFromNewTabButtonAction', () => {
+		test('is shown while the new tab button is on and terminal processes are supported', () => {
+			const when = (new CreateTerminalEditorFromNewTabButtonAction().desc.menu as { readonly when?: ContextKeyExpression }).when;
+			const shown = (newTabButton: boolean, processSupported: boolean) => {
+				const values: Record<string, ContextKeyValue> = { [`config.${NEW_TAB_BUTTON_SETTING}`]: newTabButton, [TerminalContextKeys.processSupported.key]: processSupported };
+				return !!when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
+			};
+
+			deepStrictEqual({ off: shown(false, true), noProcessSupport: shown(true, false), on: shown(true, true) }, { off: false, noProcessSupport: false, on: true });
+		});
+
+		test('opens a focused terminal editor after the last tab of the group of the button', async () => {
+			const groups = [upcastPartial<IEditorGroup>({ id: 1, count: 1 }), upcastPartial<IEditorGroup>({ id: 2, count: 3 })];
+			let activeGroup = groups[0];
+			const calls: unknown[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
+				getGroup: id => groups.find(group => group.id === id),
+				getGroups: () => groups,
+				get activeGroup() { return activeGroup; },
+				activateGroup: group => activeGroup = group as IEditorGroup,
+			}));
+			instantiationService.stub(ITerminalService, upcastPartial<ITerminalService>({
+				createTerminal: async (options?: ICreateTerminalOptions) => {
+					calls.push({ createTerminal: options, activeGroup: activeGroup.id });
+					return upcastPartial<ITerminalInstance>({ focusWhenReady: async () => { calls.push('focusWhenReady'); } });
+				}
+			}));
+
+			// The button of the second, inactive group passes its group
+			await instantiationService.invokeFunction(accessor => new CreateTerminalEditorFromNewTabButtonAction().run(accessor, { groupId: 2 } satisfies IEditorCommandsContext));
+
+			deepStrictEqual(calls, [{ createTerminal: { location: { viewColumn: 1, index: 3 } }, activeGroup: 2 }, 'focusWhenReady']);
 		});
 	});
 });

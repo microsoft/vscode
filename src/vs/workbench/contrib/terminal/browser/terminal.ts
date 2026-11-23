@@ -775,6 +775,7 @@ export interface TerminalEditorLocation {
 	viewColumn: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 	preserveFocus?: boolean;
 	auxiliary?: IEditorOptions['auxiliary'];
+	index?: IEditorOptions['index'];
 }
 
 /**

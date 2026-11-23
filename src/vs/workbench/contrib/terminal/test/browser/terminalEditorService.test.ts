@@ -15,9 +15,10 @@ import { EditorCloseContext, IEditorCloseEvent } from '../../../../common/editor
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { createEditorPart, registerTestEditor, TestEditorPart, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
+import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from '../../browser/terminal.js';
 import { TerminalEditorInput } from '../../browser/terminalEditorInput.js';
 import { TerminalEditorService } from '../../browser/terminalEditorService.js';
 
@@ -102,6 +103,7 @@ suite('Workbench - TerminalEditorService - editor groups', () => {
 	const TEST_EDITOR_ID = 'terminalEditorServiceTestEditor';
 
 	let terminalEditorService: TerminalEditorService;
+	let editorResolverService: IEditorResolverService;
 	let part: TestEditorPart;
 
 	setup(async () => {
@@ -114,6 +116,7 @@ suite('Workbench - TerminalEditorService - editor groups', () => {
 		instantiationService.stub(ITerminalInstanceService, {});
 
 		terminalEditorService = store.add(instantiationService.createInstance(TerminalEditorService));
+		editorResolverService = instantiationService.get(IEditorResolverService);
 	});
 
 	function createTerminalInstance(instanceId: number): ITerminalInstance {
@@ -192,5 +195,23 @@ suite('Workbench - TerminalEditorService - editor groups', () => {
 		await group.closeEditor(input);
 
 		deepStrictEqual(terminalEditorService.instances, []);
+	});
+
+	test('opens a terminal editor at the given index rather than next to the active editor', async () => {
+		const group = part.activeGroup;
+		const first = store.add(new TestFileEditorInput(URI.file('/first'), TEST_EDITOR_ID));
+		await group.openEditor(first, { pinned: true });
+		await group.openEditor(store.add(new TestFileEditorInput(URI.file('/last'), TEST_EDITOR_ID)), { pinned: true });
+		await group.openEditor(first);
+		// Resolves terminal resources to their inputs, as the terminal contribution does
+		store.add(editorResolverService.registerEditor(`${Schemas.vscodeTerminal}:/**`, { id: terminalEditorId, label: 'Terminal', priority: RegisteredEditorPriority.exclusive }, {}, {
+			createEditorInput: ({ resource, options }) => ({ editor: terminalEditorService.getInputFromResource(resource), options })
+		}));
+		const instance = createTerminalInstance(1);
+
+		await terminalEditorService.openEditor(instance, { viewColumn: group.id, index: group.count });
+		store.add(terminalEditorService.getInputFromResource(instance.resource));
+
+		deepStrictEqual(group.editors.map(editor => editor.resource?.path), ['/first', '/last', '/1']);
 	});
 });
