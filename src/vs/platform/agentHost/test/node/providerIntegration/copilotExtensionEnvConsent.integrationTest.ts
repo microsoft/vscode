@@ -12,7 +12,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentExtensionConsentOption, AgentSession, fixedChatOwnerRef, type AgentCanvasOpenAnswer, type IAgentChatContext } from '../../../common/agent.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
@@ -103,14 +103,14 @@ suite('Agent Host Provider Integration — Copilot extension environment consent
 			canvases: [{ id: name, displayName: name, description: 'Reads a sensitive environment variable.' }],
 		}), 'utf8');
 		await writeFile(join(extensionDirectory, 'extension.mjs'), `
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 await joinSession({
 	requestedEnvironmentVariables: [${JSON.stringify(variable)}],
-	canvases: declaration.canvases.map(canvas => createCanvas({
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
 		...canvas,
 		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}?env=\${process.env[${JSON.stringify(variable)}] === ${JSON.stringify(extensionEnvironmentSentinels[variable])} ? 'visible' : 'hidden'}\` }),
-	})),
+	})) },
 });
 `, 'utf8');
 	}
@@ -121,7 +121,10 @@ await joinSession({
 			const workspace = join(directory, 'workspace');
 			await writeExtension(workspace, 'allowed-canvas');
 			await writeExtension(workspace, 'declined-canvas');
-			const copilot = createLocalEndpointCopilotAgent(store, directory, `http://127.0.0.1:${(server.address() as { port: number }).port}`, { [AgentHostCanvasesEnabledConfigKey]: true });
+			const copilot = createLocalEndpointCopilotAgent(store, directory, `http://127.0.0.1:${(server.address() as { port: number }).port}`, {
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+			});
 			agent = copilot;
 			const canvases: CanvasState[] = [];
 			store.add(copilot.onDidChatProgress(signal => {

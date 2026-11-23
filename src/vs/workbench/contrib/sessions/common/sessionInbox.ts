@@ -47,7 +47,11 @@ export function isSessionInboxStateCurrent(state: SessionInboxState, session: IS
 	if (!session || session.loading.read(reader)) {
 		return true;
 	}
-	if (state.activity !== getSessionInboxActivity(session, reader)) {
+	const [previousStatus, previousUpdatedAt, previousLastTurnEnd] = state.activity.split(':');
+	const [status, updatedAt, lastTurnEnd] = getSessionInboxActivity(session, reader).split(':');
+	// Loading last-turn timing does not add activity newer than the catalog's modified time.
+	if (previousStatus !== status || previousUpdatedAt !== updatedAt
+		|| Math.max(Number(previousUpdatedAt), Number(previousLastTurnEnd)) !== Math.max(Number(updatedAt), Number(lastTurnEnd))) {
 		return false;
 	}
 	const acknowledged = state.notificationIds;

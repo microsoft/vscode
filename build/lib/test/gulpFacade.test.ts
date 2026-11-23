@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import es from 'event-stream';
+import { Readable } from 'stream';
 import path from 'path';
 import VinylFile from 'vinyl';
 import { suite, test } from 'node:test';
@@ -14,7 +14,7 @@ function filterPaths(paths: readonly string[], pattern: string[], options?: { do
 	const cwd = process.cwd();
 	return new Promise((resolve, reject) => {
 		const matched: string[] = [];
-		es.readArray(paths.map(p => new VinylFile({ cwd, base: cwd, path: path.join(cwd, p) })))
+		Readable.from(paths.map(p => new VinylFile({ cwd, base: cwd, path: path.join(cwd, p) })))
 			.pipe(filter(pattern, options))
 			.on('data', (file: VinylFile) => matched.push(file.relative.replace(/\\/g, '/')))
 			.on('end', () => resolve(matched))

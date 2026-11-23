@@ -1722,7 +1722,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('model');
 			return;
 		}
 		this.modelWidget?.show();
@@ -1756,7 +1756,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModePicker(anchor?: HTMLElement): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('mode');
 			return;
 		}
 		if (this.modeWidget?.isConnected) {
@@ -1777,11 +1777,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private _showCombinedPhonePickerSheet(): void {
+	private _showCombinedPhonePickerSheet(initialSection: 'mode' | 'model'): void {
 		const target = this.inputActionsToolbar.getElement();
 		this.chatPhoneInputPresenter
 			.showCombinedModeAndModelSheet(target, {
 				kind: 'delegates',
+				initialSection,
 				modeDelegate: this._createModePickerDelegate(),
 				modelDelegate: this._createModelPickerDelegate(),
 			})
@@ -1816,6 +1817,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			getSessionType: () => this.modelTargetSessionType,
+			startPromptWith: text => this.startPromptWith(text),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			// Inline chat, editor or terminal, offers no Copilot Fusion effort level: the host runs Fusion at its fast tier there.
@@ -2244,13 +2246,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync current input state to the input model
 	 */
-	private _syncInputStateToModel(): void {
+	private _syncInputStateToModel(storeMode = false): void {
 		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
 		this._isSyncingToOrFromInputModel = true;
 		const state = this.getCurrentInputState();
+		const savedMode = this._getSavedAgentHostMode();
+		if (!storeMode && savedMode) {
+			state.mode = savedMode;
+		}
 		if (this._chatSessionIsEmpty) {
 			this._emptyInputState.set(state, undefined);
 		}
@@ -2362,7 +2368,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Log first so the upcoming _syncInputStateToModel write can be attributed
 			// to a mode change.
 			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, isUserInitiated=${isUserInitiated}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
-			this._syncInputStateToModel();
+			this._syncInputStateToModel(true);
 		}
 	}
 
@@ -2741,16 +2747,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			&& gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh;
 	}
 
+	/**
+	 * The same custom agent can change its ID, e.g. from a synced copy to its source file while an agent host session starts.
+	 * Agent names are not unique, so only a single custom agent with the removed agent's name counts as its replacement.
+	 */
+	private findReplacementCustomAgent(removed: IChatMode, modes: IChatModes): IChatMode | undefined {
+		if (removed.isBuiltin) {
+			return undefined;
+		}
+		const sameName = modes.custom.filter(mode => mode.name.get() === removed.name.get());
+		return sameName.length === 1 ? sameName[0] : undefined;
+	}
+
 	private validateCurrentChatMode() {
 		// The refresh gate blocks AI use; it must not replace the user's persisted agent selection.
 		if (this.isManagedSettingsRefreshBlocked) {
 			return;
 		}
 		const currentMode = this._currentModeObservable.get();
-		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
+		const modes = this._currentChatModesObservable.get();
+		const validMode = modes.findModeById(currentMode.id) ?? this.findReplacementCustomAgent(currentMode, modes);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
+		const storeFallback = !this._getSavedAgentHostMode();
 		if (!validMode) {
-			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
+			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask, storeFallback);
+			return;
+		}
+		if (validMode.id !== currentMode.id) {
+			// Store the new ID, so that syncing from the input model does not bring back the old one.
+			this.setChatMode(validMode.id);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {
@@ -2758,15 +2783,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			this.setChatMode(ChatModeKind.Ask);
+			this.setChatMode(ChatModeKind.Ask, storeFallback);
 			return;
 		}
 		if (currentMode.id === ChatMode.Ask.id) {
 			const askMode = this._currentChatModesObservable.get().custom.find(mode => mode.kind === ChatModeKind.Ask);
 			if (askMode) {
-				this.setChatMode(askMode.id);
+				this.setChatMode(askMode.id, storeFallback);
 			}
 		}
+	}
+
+	/** The saved agent can outlive its entry in the composer catalog. */
+	private _getSavedAgentHostMode(): IChatModelInputState['mode'] | undefined {
+		const resource = this._inputModelSessionResource;
+		if (!resource || !isAgentHostTarget(resource.scheme) || isUntitledChatSession(resource)
+			|| !(this.environmentService.isSessionsWindow || this.options.isSessionsWindow)) {
+			return undefined;
+		}
+		const mode = this._inputModel?.state.get()?.mode;
+		return mode && ![ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(mode.id) ? mode : undefined;
 	}
 
 	/**
@@ -2927,6 +2963,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (model) {
 			this.inputEditor.setPosition(getLastPosition(model));
 		}
+	}
+
+	/** Starts the prompt with the given text, such as a slash command, keeping what is already written after it, and moves focus to it. */
+	startPromptWith(text: string): void {
+		const model = this._inputEditor.getModel();
+		const written = model?.getValue() ?? '';
+		// Already there only as a whole word: `/model-router-review` does not start with `/model-router`.
+		if (model && !(written.startsWith(text) && /^(\s|$)/.test(written.slice(text.length)))) {
+			// An edit, not a new value: the references and attachments of what is already written stay attached, and it can be undone.
+			this._inputEditor.pushUndoStop();
+			this._inputEditor.executeEdits('chat.startPromptWith', [{ range: new Range(1, 1, 1, 1), text: `${text} `, forceMoveMarkers: true }]);
+			this._inputEditor.pushUndoStop();
+			this._inputEditor.setPosition(getLastPosition(model));
+			this._widget?.refreshParsedInput();
+		}
+		this.focus();
 	}
 
 	focus() {
@@ -4038,7 +4090,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
-		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
+		const options: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(this.configurationService),
+			// Monaco measures the font during construction, before the live font-size binding runs.
+			...getChatInputEditorMetrics(this.options.inputEditorOptions, this.chatLayoutService.fontSize.get()),
+		};
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
@@ -4076,7 +4132,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		this._register(this.bindInputEditorFontSize());
 		this._register(bindChatInputInlineSuggestions(this._inputEditor, this.configurationService));
-		this._register(bindSandboxPlaceholder(this._inputEditor, () => (!this.inline && this.options.inputPlaceholder) || widget.viewModel?.inputPlaceholder, this.sandboxToggleChecked));
+		// Same precedence as the widget's placeholder: the host's, then the selected agent's hint, then the session's.
+		this._register(bindSandboxPlaceholder(this._inputEditor, () => (!this.inline && this.options.inputPlaceholder) || this.currentModeObs.get().argumentHint?.get() || widget.viewModel?.inputPlaceholder, this.sandboxToggleChecked));
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 

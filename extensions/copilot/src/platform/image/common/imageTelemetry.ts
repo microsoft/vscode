@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getImageDimensions, getImageDimensionsFromBytes as readImageDimensionsFromBytes } from '../../../util/common/imageUtils';
+import { getImageDimensions } from '../../../util/common/imageUtils';
 
 type ImageTelemetrySource = 'clipboard' | 'screenshot' | 'file' | 'url' | 'unknown';
 
@@ -42,13 +42,6 @@ interface ImageTelemetryDimensions {
 interface MessageWithContent {
 	content?: unknown;
 }
-
-interface ReferenceWithValue {
-	id?: unknown;
-	value?: unknown;
-}
-
-const screenshotVariableId = 'screenshot-focused-window';
 
 function createEmptyImageTelemetryMeasurements(): ImageTelemetryMeasurements {
 	return {
@@ -96,32 +89,6 @@ export function getImageTelemetryMeasurementsFromMessages(messages: readonly Mes
 				addImageTelemetryInput(measurements, input);
 			}
 		}
-	}
-
-	return measurements;
-}
-
-export function getImageTelemetryMeasurementsFromReferences(references: readonly ReferenceWithValue[] | undefined): ImageTelemetryMeasurements {
-	const measurements = createEmptyImageTelemetryMeasurements();
-
-	for (const reference of references ?? []) {
-		const value = asRecord(reference.value);
-		if (!value) {
-			continue;
-		}
-
-		const mimeType = getStringProperty(value, 'mimeType');
-		if (!mimeType?.toLowerCase().startsWith('image/')) {
-			continue;
-		}
-
-		const data = getByteData(value.data) ?? getByteData(value.value);
-		addImageTelemetryInput(measurements, {
-			mimeType,
-			byteLength: data?.byteLength ?? getByteLength(value.data) ?? getByteLength(value.value),
-			dimensions: getImageDimensionsFromBytes(data, mimeType),
-			source: getImageSourceFromReference(reference, value),
-		});
 	}
 
 	return measurements;
@@ -216,19 +183,6 @@ function getImageDimensionsFromDataUrl(url: string): ImageTelemetryDimensions | 
 	}
 }
 
-function getImageDimensionsFromBytes(data: Uint8Array | undefined, mimeType: string | undefined): ImageTelemetryDimensions | undefined {
-	const normalizedMimeType = mimeType?.toLowerCase().split(';')[0].trim();
-	if (!data || normalizeMimeType(normalizedMimeType) === 'unknown') {
-		return undefined;
-	}
-
-	try {
-		return readImageDimensionsFromBytes(data, normalizedMimeType);
-	} catch {
-		return undefined;
-	}
-}
-
 function normalizeMimeType(mimeType: string | undefined): 'png' | 'jpeg' | 'gif' | 'webp' | 'unknown' {
 	const normalized = mimeType?.toLowerCase().split(';')[0].trim();
 	switch (normalized) {
@@ -246,22 +200,6 @@ function normalizeMimeType(mimeType: string | undefined): 'png' | 'jpeg' | 'gif'
 	}
 }
 
-function getImageSourceFromReference(reference: ReferenceWithValue, value: Record<string, unknown>): ImageTelemetrySource {
-	if (value.isPasted === true) {
-		return 'clipboard';
-	}
-	if (value.isURL === true) {
-		return 'url';
-	}
-	if (reference.id === screenshotVariableId || value.id === screenshotVariableId) {
-		return 'screenshot';
-	}
-	if (value.isURL === false) {
-		return 'file';
-	}
-	return 'unknown';
-}
-
 function getBase64ByteLength(base64Data: string): number {
 	const trimmed = base64Data.trim();
 	let padding = 0;
@@ -271,55 +209,6 @@ function getBase64ByteLength(base64Data: string): number {
 		padding = 1;
 	}
 	return Math.max(0, Math.floor(trimmed.length * 3 / 4) - padding);
-}
-
-function getByteData(value: unknown): Uint8Array | undefined {
-	if (value instanceof ArrayBuffer) {
-		return new Uint8Array(value);
-	}
-	if (ArrayBuffer.isView(value)) {
-		return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-	}
-
-	const objectValue = asRecord(value);
-	if (!objectValue) {
-		return undefined;
-	}
-
-	const keys = Object.keys(objectValue);
-	if (!keys.length || !keys.every(isArrayIndexKey)) {
-		return undefined;
-	}
-
-	const sortedKeys = [...keys];
-	sortedKeys.sort((left, right) => Number(left) - Number(right));
-	const byteValues = sortedKeys.map(key => objectValue[key]);
-	if (!byteValues.every(isByteValue)) {
-		return undefined;
-	}
-	return new Uint8Array(byteValues);
-}
-
-function isArrayIndexKey(key: string): boolean {
-	const parsed = Number(key);
-	return Number.isInteger(parsed) && parsed >= 0 && String(parsed) === key;
-}
-
-function isByteValue(value: unknown): value is number {
-	return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255;
-}
-
-function getByteLength(value: unknown): number | undefined {
-	if (value instanceof ArrayBuffer) {
-		return value.byteLength;
-	}
-	if (ArrayBuffer.isView(value)) {
-		return value.byteLength;
-	}
-
-	const objectValue = asRecord(value);
-	const byteLength = objectValue?.byteLength;
-	return typeof byteLength === 'number' && Number.isFinite(byteLength) && byteLength >= 0 ? byteLength : undefined;
 }
 
 function getObjectProperty(value: unknown, property: string): Record<string, unknown> | undefined {

@@ -301,6 +301,28 @@ suite('ChatInputPart mode validation', () => {
 		});
 	});
 
+	test('reselects a custom agent whose ID changes, unless its name is ambiguous or gone', () => {
+		const agent = (id: string, name: string) => upcastPartial<IChatMode>({ id, kind: ChatModeKind.Agent, isBuiltin: false, name: observableValue(`${id}.name`, name) });
+		const synced = agent('synced-reviewer', 'Reviewer');
+		const run = (replacements: IChatMode[]) => {
+			const harness = createInput();
+			harness.setAvailableModes([ChatMode.Agent, synced]);
+			harness.input.setChatMode(synced.id);
+			harness.setAvailableModes([ChatMode.Agent, ...replacements]);
+			return { ...harness.snapshot(), sameInstance: harness.input.currentModeObs.get() === replacements[0] };
+		};
+
+		assert.deepStrictEqual({
+			renamedFile: run([agent('source-reviewer', 'Reviewer')]),
+			ambiguous: run([agent('source-reviewer', 'Reviewer'), agent('other-reviewer', 'Reviewer')]),
+			removed: run([agent('writer', 'Writer')]),
+		}, {
+			renamedFile: { currentMode: 'source-reviewer', persistedMode: 'source-reviewer', agentEnabled: true, sameInstance: true },
+			ambiguous: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: true, sameInstance: false },
+			removed: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: true, sameInstance: false },
+		});
+	});
+
 	test('continues to validate other account restrictions', async () => {
 		const harness = createInput();
 		harness.setGate({ state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved });

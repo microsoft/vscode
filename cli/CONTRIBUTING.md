@@ -4,6 +4,17 @@
 1. Get the extensions: [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) and [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 2. Ensure your workspace is set to the `launcher` folder being the root.
 
+## Rust toolchain
+
+Production CLI builds use the MSFT Rust toolchain `ms-prod-1.97`. Linux CLI checks and local OSS builds use upstream Rust `1.97.0`. To install the corresponding upstream toolchain locally without changing your default, select it explicitly when running Cargo from this directory:
+
+```shell
+rustup toolchain install 1.97.0 --profile minimal
+cargo +1.97.0 build --release --locked
+```
+
+On Windows, follow the native dependency setup below before building. Keep the MSFT `channel` and upstream `rustupChannel` parameters in the POSIX and Windows Rust installer templates under `build/azure-pipelines` aligned with each other, and keep `rustupChannel` in sync with the Linux Rust test input in `.github/workflows/pr.yml`.
+
 ## Building the CLI on Windows
 
 For the moment, we require OpenSSL on Windows, where it is not usually installed by default. To install it:

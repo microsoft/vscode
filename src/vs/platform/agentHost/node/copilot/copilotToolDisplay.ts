@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@microsoft/copilot-sdk';
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,11 +13,12 @@ import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { AgentPermissionKind } from '../../common/agent.js';
+import { TOOL_NOT_FOUND_ERROR_CODE } from '../../common/agentHostTelemetry.js';
 import { copilotCliToolInputContract, type ToolKind, type ViewedResourceType } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
-import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResult } from '../../common/state/protocol/state.js';
 import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import type { ISessionPathDisplay } from '../../common/sessionPathDisplay.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -29,7 +30,7 @@ import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivatio
 // =============================================================================
 // Copilot CLI built-in tool interfaces
 //
-// The Copilot CLI (via @github/copilot-sdk) exposes these built-in tools. Tool names
+// The Copilot CLI (via @microsoft/copilot-sdk) exposes these built-in tools. Tool names
 // and parameter shapes are not typed in the SDK -- they come from the CLI server
 // as plain strings. These interfaces are derived from observing the CLI's actual
 // tool events and the Copilot Chat extension's CLI display table.
@@ -141,6 +142,21 @@ export function getViewedResourceType(toolName: string, toolTelemetry: unknown):
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * The error of a failed tool call. The runtime reports a call naming a tool the
+ * session does not offer with the generic `failure` code and marks it only in
+ * its tool telemetry, so this gives that call its own code.
+ */
+export function getSdkToolCallError(data: Pick<SessionEventPayload<'tool.execution_complete'>['data'], 'success' | 'error' | 'toolTelemetry'>): ToolCallResult['error'] {
+	if (data.success || !data.error) {
+		return data.error;
+	}
+	const properties = isObject(data.toolTelemetry) ? (data.toolTelemetry as Record<string, unknown>).properties : undefined;
+	return isObject(properties) && (properties as Record<string, unknown>).failure_reason === 'not_found'
+		? { ...data.error, code: TOOL_NOT_FOUND_ERROR_CODE }
+		: data.error;
 }
 
 /**

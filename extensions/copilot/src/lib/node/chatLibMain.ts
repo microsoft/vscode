@@ -57,6 +57,7 @@ import { LlmNESTelemetryBuilder, NextEditProviderTelemetryBuilder, TelemetrySend
 import { NextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
 import { IPowerService, NullPowerService } from '../../extension/power/common/powerService';
 import { ChatMLFetcherImpl } from '../../extension/prompt/node/chatMLFetcher';
+import { INextEditLanguageContextService, NextEditLanguageContextRequest } from '../../extension/xtab/common/nextEditLanguageContextService';
 import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
 import { XtabProvider } from '../../extension/xtab/node/xtabProvider';
 import { IAuthenticationService } from '../../platform/authentication/common/authentication';
@@ -84,6 +85,7 @@ import { IGitExtensionService } from '../../platform/git/common/gitExtensionServ
 import { NullGitExtensionService } from '../../platform/git/common/nullGitExtensionService';
 import { IIgnoreService, NullIgnoreService } from '../../platform/ignore/common/ignoreService';
 import { DocumentId } from '../../platform/inlineEdits/common/dataTypes/documentId';
+import { LanguageContextEntry, LanguageContextResponse } from '../../platform/inlineEdits/common/dataTypes/languageContext';
 import { InlineEditRequestLogContext } from '../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService, IUndesiredModelsManager, NullUndesiredModelsManager } from '../../platform/inlineEdits/common/inlineEditsModelService';
 import { observeModelConfigValue, resolveModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
@@ -95,6 +97,7 @@ import { InlineEditsModelService } from '../../platform/inlineEdits/node/inlineE
 import { ILanguageContextProviderService } from '../../platform/languageContextProvider/common/languageContextProviderService';
 import { NullLanguageContextProviderService } from '../../platform/languageContextProvider/common/nullLanguageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../platform/languages/common/languageDiagnosticsService';
+import { ContextKind } from '../../platform/languageServer/common/languageContextService';
 import { TestLanguageDiagnosticsService } from '../../platform/languages/common/testLanguageDiagnosticsService';
 import { ConsoleLog, ILogService, LogLevel as InternalLogLevel, LogServiceImpl } from '../../platform/log/common/logService';
 import { ICompletionsFetchService } from '../../platform/nesFetch/common/completionsFetchService';
@@ -119,8 +122,8 @@ import { ITerminalService, NullTerminalService } from '../../platform/terminal/c
 import { ITokenizerProvider, TokenizerProvider } from '../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService, NullWorkspaceService } from '../../platform/workspace/common/workspaceService';
 import { InstantiationServiceBuilder } from '../../util/common/services';
-import { raceCancellationError } from '../../util/vs/base/common/async';
-import { cancelOnDispose, CancellationToken } from '../../util/vs/base/common/cancellation';
+import { raceCancellation, raceCancellationError, raceTimeout } from '../../util/vs/base/common/async';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../util/vs/base/common/cancellation';
 import { Emitter, Event as VsEvent } from '../../util/vs/base/common/event';
 import { CancellationError } from '../../util/vs/base/common/errors';
 import { Disposable, IDisposable } from '../../util/vs/base/common/lifecycle';
@@ -218,6 +221,12 @@ export interface INESProviderOptions {
 	 */
 	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 	/**
+	 * Supplies language context, such as declarations from the host IDE's code
+	 * model, for the NES prompt when the NES model enables language context.
+	 * When omitted, NES prompts without language context.
+	 */
+	readonly languageContext?: INESLanguageContextProvider;
+	/**
 	 * Tokenizer provider backing prompt rendering and token budgeting. When
 	 * omitted, falls back to the built-in {@link TokenizerProvider}, which
 	 * loads its own BPE dictionaries. Embedders that already have the
@@ -225,6 +234,50 @@ export interface INESProviderOptions {
 	 * loading a second copy (~100 MB per encoder).
 	 */
 	readonly tokenizerProvider?: ITokenizerProvider;
+}
+
+/**
+ * Supplies language context for NES prompts.
+ */
+export interface INESLanguageContextProvider {
+	/**
+	 * Streams code snippets that describe {@link INESLanguageContextRequest.document}.
+	 * Yield nothing when the snippets would describe different text.
+	 *
+	 * NES stops reading at {@link INESLanguageContextRequest.deadline} or when
+	 * `token` is cancelled, and drops later snippets. chat-lib does not apply
+	 * content exclusion: yield a snippet only if its source may be sent to Copilot.
+	 */
+	provideContext(request: INESLanguageContextRequest, token: CancellationToken): AsyncIterable<INESLanguageContextSnippet>;
+}
+
+export interface INESLanguageContextRequest {
+	/**
+	 * The document NES predicts edits for. `text` is the exact content NES
+	 * prompts with. It can differ from the editor's document, for example when
+	 * NES speculates that a suggested edit was accepted.
+	 */
+	readonly document: {
+		readonly uri: string;
+		readonly languageId: string;
+		readonly text: string;
+	};
+	/**
+	 * Cursor position as a UTF-16 offset into `document.text`.
+	 */
+	readonly cursorOffset: number;
+	/**
+	 * Time in milliseconds since the Unix epoch after which NES stops reading snippets.
+	 */
+	readonly deadline: number;
+}
+
+export interface INESLanguageContextSnippet {
+	/**
+	 * URI of the file the snippet comes from. The prompt labels the snippet with it.
+	 */
+	readonly uri: string;
+	readonly value: string;
 }
 
 export interface INESResult {
@@ -546,6 +599,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IUndesiredModelsManager, options.undesiredModelsManager || new SyncDescriptor(NullUndesiredModelsManager));
 	builder.define(ITerminalService, options.terminalService || new SyncDescriptor(NullTerminalService));
 	builder.define(ISimilarFilesContextService, new SyncDescriptor(NullSimilarFilesContextService));
+	builder.define(INextEditLanguageContextService, new EmbedderLanguageContextService(options.languageContext));
 	builder.define(IEndpointProvider, new NullEndpointProvider());
 	const configProvider = new InMemoryConfigProvider(new DefaultsOnlyConfigProvider());
 	if (options.configOverrides) {
@@ -553,6 +607,44 @@ function setupServices(options: INESProviderOptions) {
 	}
 	builder.define(ICompletionsConfigProvider, configProvider);
 	return builder.seal();
+}
+
+class EmbedderLanguageContextService implements INextEditLanguageContextService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(private readonly _provider: INESLanguageContextProvider | undefined) { }
+
+	async getLanguageContext(request: NextEditLanguageContextRequest, token: CancellationToken): Promise<LanguageContextResponse | undefined> {
+		if (!this._provider) {
+			return undefined;
+		}
+		const text = request.document.documentAfterEdits;
+		const start = Date.now();
+		const items: LanguageContextEntry[] = [];
+		const cts = new CancellationTokenSource(token);
+		const snippets = this._provider.provideContext({
+			document: { uri: request.document.id.uri, languageId: request.document.languageId, text: text.value },
+			cursorOffset: text.getTransformer().getOffset(request.cursorPosition),
+			deadline: start + request.timeBudgetMs,
+		}, cts.token);
+		const collect = async () => {
+			for await (const snippet of snippets) {
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
+				items.push({ context: { kind: ContextKind.Snippet, priority: 0, uri: URI.parse(snippet.uri), value: snippet.value }, timeStamp: Date.now(), onTimeout: false });
+			}
+		};
+		try {
+			await raceCancellation(raceTimeout(collect(), request.timeBudgetMs), token);
+		} finally {
+			cts.dispose(true);
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return { start, end: Date.now(), items };
+	}
 }
 
 class OverridableConfigurationService extends DefaultsOnlyConfigurationService {

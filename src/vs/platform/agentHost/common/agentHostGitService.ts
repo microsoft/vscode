@@ -88,7 +88,11 @@ export interface IDiffPatchResult {
 export interface IPushOptions {
 	/** The branch or refspec to push. Defaults to the current branch. */
 	readonly ref?: string;
-	/** The remote to push to. Defaults to `origin`. */
+	/**
+	 * The remote to push to. Defaults to the branch's configured push remote,
+	 * else the GitHub remote (preferring `origin`), else `origin`, else the
+	 * only remote.
+	 */
 	readonly remote?: string;
 	/**
 	 * When true, the push uses `-u` so the pushed branch tracks the remote
@@ -243,8 +247,8 @@ export interface IAgentHostGitWorktree {
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	/** Returns an existing branch or detached commit; undefined for an unborn HEAD. */
-	getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined>;
+	/** Returns an existing branch or detached commit; name-only reads omit upstream metadata and also accept unborn branches. */
+	getHEAD(workingDirectory: URI, options?: { readonly nameOnly?: boolean }): Promise<IBranch | IDetachedHead | undefined>;
 	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
@@ -254,7 +258,7 @@ export interface IAgentHostGitService {
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
 	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
-	/** Caches roots and confirmed non-repositories; refreshIfNone retries only cached non-repositories. */
+	/** Caches roots and confirmed non-repositories; refreshIfNone retries cached non-repositories, sharing any in-flight probe. */
 	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
@@ -357,8 +361,8 @@ export interface IAgentHostGitService {
 	pull(workingDirectory: URI, options?: IPullOptions): Promise<void>;
 
 	/**
-	 * Pushes the current branch (or {@link IPushOptions.ref}) to the remote
-	 * (`origin` unless {@link IPushOptions.remote} overrides it). When
+	 * Pushes the current branch (or {@link IPushOptions.ref}) to
+	 * {@link IPushOptions.remote}, or to the branch's default push remote. When
 	 * {@link IPushOptions.setUpstream} is true, the push uses `-u` so
 	 * subsequent fetch/push commands track the remote branch.
 	 */

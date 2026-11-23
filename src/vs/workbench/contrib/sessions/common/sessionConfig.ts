@@ -15,10 +15,10 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
 export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floatingDetails';
 
-export type DetailsPosition = 'right' | 'left' | 'top' | 'bottom';
+/** Whether side chats (`/btw`) show as tabs of the desktop Agents window's side pane instead of as chat tabs and sessions list rows. */
+export const SESSIONS_SIDE_CHATS_IN_SIDE_PANE_SETTING = 'sessions.experimental.sideChatsInSidePane';
 
-/** Whether the desktop editor header of the Changes tab spans the Details docked beside the editor content. Read once at startup. */
-export const SESSIONS_EDITOR_HEADER_LAYOUT_SETTING = 'sessions.experimental.editorHeaderLayout';
+export type DetailsPosition = 'right' | 'left' | 'top' | 'bottom';
 
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
 export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
@@ -43,8 +43,6 @@ export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAuto
 
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
-
-export const SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING = 'sessions.automations.showSharedByOthers';
 
 export const enum AutomationSessionsListMode {
 	/** Every automation session is listed. */

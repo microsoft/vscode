@@ -298,7 +298,8 @@ export class Radio extends Widget {
 		this.domNode.classList.add('selection-indicator-ready');
 		indicator.style.width = `${bounds.width}px`;
 		indicator.style.height = `${bounds.height}px`;
-		indicator.style.transform = `translate(${bounds.left}px, ${bounds.top}px)`;
+		// The `translate` property, unlike a `transform`, is applied outside `scale`, so the press feedback shrinks the indicator in place.
+		indicator.style.translate = `${bounds.left}px ${bounds.top}px`;
 		this.selectionIndicatorBounds = bounds;
 	}
 

@@ -562,6 +562,11 @@
 	text-overflow: ellipsis;
 }
 
+/* The model details give way first, so the working time is never cut off mid-number. */
+.interactive-item-container .chat-response-working-time {
+	flex-shrink: 0;
+}
+
 .interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
 	display: none;
 }
@@ -1252,13 +1257,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
 	display: flex;
 	align-items: center;
-	text-align: center;
+}
+
+.chat-dnd-overlay .attach-context-overlay-text .overlay-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
@@ -2444,8 +2450,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.auto-image-warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -2673,6 +2678,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-decoration: inherit;
+}
+
+/*
+ * The pills of the issues and pull requests of a repository differ only by their number. A pill that is
+ * shortened to fit shortens the repository and keeps the number, which is the suffix of its label.
+ */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-name-container {
+	min-width: 0;
+}
+
+/* The number is not clipped at its box either, which would dim the edge of its first character. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-suffix-container {
+	flex-shrink: 0;
+	overflow: visible;
+}
+
+/* The number reads as part of the name rather than as a description of it. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .label-suffix {
+	color: inherit;
+}
+
+/* A block shows an ellipsis for the part of the repository that is cut off, which a flex container does not. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label {
+	display: block;
+}
+
+/* The icon of the label takes the height of its line, which centers it as the flex container did. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label .codicon {
+	line-height: inherit;
+	vertical-align: top;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close-compact,
@@ -3852,6 +3887,70 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.chat-working-progress > .chat-live-response-stats {
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Leading stats take the place of a generic working phrase, and lead a label or activities that name a state. */
+.chat-working-progress-generic-label > .chat-working-progress-leading-stats:not([hidden]) ~ .rendered-markdown.progress-step {
+	display: none;
+}
+
+.chat-working-progress:not(.chat-working-progress-generic-label) > .chat-working-progress-leading-stats::after {
+	/* The separator between the stats themselves. */
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* Trailing stats follow the phrase, label or activities, after the same separator. */
+.chat-working-progress > .chat-working-progress-trailing-stats::before {
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* After activities, the separator rests in the slot of their chevron instead, so that slot leaves no gap. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
+	content: none;
+}
+
+/* The same space follows the slot as leads it, so what the slot shows sits midway between the label and the stats. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats {
+	margin-inline-start: var(--vscode-spacing-size20);
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button {
+	position: relative;
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	content: '\00b7';
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	transition: opacity 100ms ease-in-out;
+}
+
+/* The chevron takes the separator's place in the states that show it, so nothing moves. */
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button:is(:hover, .hovered, :focus-visible, [aria-expanded="true"])::after {
+	opacity: 0;
+}
+
+.monaco-reduce-motion .chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+		transition: none;
+	}
+}
+
 .chat-working-activities {
 	--chat-pill-background: transparent;
 	display: flex;
@@ -3978,6 +4077,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	padding: 8px 12px;
 	gap: 6px;
+}
+
+/* The mute button uses the chat input notice action's styles; it sits on the right. */
+.chat-notification-widget .chat-notification-widget-action {
+	margin-left: auto;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
@@ -4636,8 +4740,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.auto-image-warning {
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning {
 		border-color: var(--vscode-notificationsWarningIcon-foreground);
 	}
 

@@ -21,8 +21,8 @@ export interface IResolvedResponseSelectionFocus {
 	readonly focusEdge: 'left' | 'right';
 }
 
-/** Ancestor of a valid selection endpoint: rendered assistant markdown. */
-const markdownScopeSelector = '.chat-markdown-part';
+/** Ancestors of a valid selection endpoint: rendered assistant markdown, and the reasoning text of a thinking section. */
+const markdownScopeSelector = '.chat-markdown-part, .chat-thinking-item.markdown-content';
 /** Ancestors that exclude an endpoint even inside markdown (embedded code editors, tool UI). */
 const excludedAncestorSelectors = ['.monaco-editor', '.chat-tool-invocation-part'];
 
@@ -192,10 +192,10 @@ export function resolveResponseSelectionFocus(range: Range, direction: IResolved
 
 /**
  * Resolves the widget's current native DOM selection to the single assistant
- * response it lies entirely within, scoped to rendered markdown only (embedded
- * code editors and tool-invocation UI are excluded). Returns `undefined` for an
- * empty/collapsed selection, a selection spanning more than one response, or
- * one that touches non-markdown content.
+ * response it lies entirely within, scoped to rendered markdown and reasoning
+ * text only (embedded code editors and tool-invocation UI are excluded).
+ * Returns `undefined` for an empty/collapsed selection, a selection spanning
+ * more than one response, or one that touches other content.
  */
 export function resolveResponseSelection(widget: Pick<IChatWidget, 'domNode' | 'getElementFromNode'>): IResolvedResponseSelection | undefined {
 	const nativeSelection = dom.getWindow(widget.domNode).getSelection();

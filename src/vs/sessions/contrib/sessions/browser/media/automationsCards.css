@@ -69,8 +69,8 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
-.automations-history-state,
-.automations-history {
+.automations-cards-widget .automations-history-state,
+.automations-cards-widget .automations-history {
 	width: 100%;
 	max-width: 900px;
 }
@@ -474,7 +474,7 @@
 .monaco-workbench .custom-view-header-actions .action-label.automations-more-actions {
 	box-sizing: border-box;
 	width: auto;
-	height: auto;
+	height: 26px;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
@@ -759,11 +759,11 @@
 }
 
 /* Run History */
-.automations-history {
+.automations-cards-widget .automations-history {
 	margin-top: 32px;
 }
 
-.automations-history-header {
+.automations-cards-widget .automations-history-header {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
@@ -773,7 +773,7 @@
 	justify-content: space-between;
 }
 
-.automations-mark-all-read {
+.automations-cards-widget .automations-mark-all-read {
 	font-size: 12px;
 	padding: 2px 8px;
 	width: auto;
@@ -782,80 +782,85 @@
 	max-width: fit-content;
 }
 
-.automations-history-group {
+.automations-cards-widget .automations-history-group {
 	margin-bottom: 16px;
 }
 
-.automations-history-group-header {
+.automations-cards-widget .automations-history-show-more {
+	width: fit-content;
+	margin: 0 auto;
+}
+
+.automations-cards-widget .automations-history-group-header {
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 8px;
 }
 
-.automations-history-group-runs {
+.automations-cards-widget .automations-history-group-runs {
 	margin: 0 var(--vscode-spacing-size100);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 }
 
-.automations-history-group-runs .automations-run-session-list .monaco-list-row.session-list-inset-row {
+.automations-cards-widget .automations-history-group-runs .automations-run-session-list .monaco-list-row.session-list-inset-row {
 	margin: 0;
 	width: 100%;
 	border-radius: 0;
 }
 
-.automations-history-group-runs .automations-run-session-list .sessions-list-control .monaco-list-row:is(:hover, .hovered, .focused, :focus-within) .session-external-application-badge-title.visible {
+.automations-cards-widget .automations-history-group-runs .automations-run-session-list .sessions-list-control .monaco-list-row:is(:hover, .hovered, .focused, :focus-within) .session-external-application-badge-title.visible {
 	display: flex;
 }
 
-.automations-history-group-runs > :not(:first-child),
-.automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child) {
+.automations-cards-widget .automations-history-group-runs > :not(:first-child),
+.automations-cards-widget .automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child) {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 }
 
-.automations-temporary-run {
+.automations-cards-widget .automations-temporary-run {
 	height: 54px;
 	width: 100%;
 }
 
-.automations-temporary-run.can-open {
+.automations-cards-widget .automations-temporary-run.can-open {
 	cursor: pointer;
 }
 
-.automations-temporary-run.can-open:is(:hover, .hovered) {
+.automations-cards-widget .automations-temporary-run.can-open:is(:hover, .hovered) {
 	background-color: var(--vscode-list-hoverBackground);
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 	outline-offset: -1px;
 }
 
-.automations-temporary-run.can-open:focus-within {
+.automations-cards-widget .automations-temporary-run.can-open:focus-within {
 	background-color: var(--vscode-list-focusBackground);
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.automations-temporary-run.can-open .session-main:focus {
+.automations-cards-widget .automations-temporary-run.can-open .session-main:focus {
 	outline: none;
 }
 
-.automations-history-state {
+.automations-cards-widget .automations-history-state {
 	margin-top: var(--vscode-spacing-size160);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.automations-temporary-run .automations-run-actions {
+.automations-cards-widget .automations-temporary-run .automations-run-actions {
 	flex-shrink: 0;
 	margin-left: var(--vscode-spacing-size80);
 	opacity: 0;
 	pointer-events: none;
 }
 
-.automations-temporary-run:hover .automations-run-actions,
-.automations-temporary-run:focus-within .automations-run-actions,
-.agent-sessions-workbench.phone-layout .automations-temporary-run .automations-run-actions {
+.automations-cards-widget .automations-temporary-run:hover .automations-run-actions,
+.automations-cards-widget .automations-temporary-run:focus-within .automations-run-actions,
+.agent-sessions-workbench.phone-layout .automations-cards-widget .automations-temporary-run .automations-run-actions {
 	opacity: 1;
 	pointer-events: auto;
 }

@@ -12,7 +12,7 @@ import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHos
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
@@ -25,7 +25,7 @@ import { ChatPetJumpGameAccessibleView } from './accessibility/chatPetJumpGameAc
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -714,7 +714,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.InlineAttachmentsEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.inlineAttachments.enabled', "Controls whether context attached to the chat input, such as files, folders, images, symbols, tools, and pull requests, is shown as pills inline with the prompt text at the position where it was added, instead of above the input. Each inline attachment behaves like a single character: move the cursor across it, select it, or delete it like text. Sent requests show the same pills inline, and still show attached images as thumbnails above their text. The prompt sent to the model mentions each pill by its attachment's name and location, and attaches each attachment once, however often it is mentioned."),
-			default: product.quality === 'insider',
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditorAssociations]: {
@@ -1088,7 +1088,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.BtwTipEnabled]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: nls.localize('chat.btwTip.enabled', "Controls whether the Agents Window shows a tip about using `/btw` to ask side questions."),
@@ -1759,6 +1759,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['preview'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostCopilotProgressUpdatesPromptSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilot.progressUpdatesPrompt.enabled', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send a brief user-visible update before their first tool call and while they work. Applies to new and resumed sessions."),
@@ -1996,12 +2003,12 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.HtmlPreviewEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.htmlPreview.enabled.description', "Render explicit html-preview code blocks as inline HTML previews in the Agents window. When disabled, these blocks are shown as source code."),
-			default: false,
+			default: true,
 		},
 		[ChatConfiguration.NativeComponentsEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.nativeComponents.enabled.description', "Render explicit vscode-ui code blocks as native visuals, such as metrics, tables, and bar charts, in Agents window responses. When disabled, these blocks are shown as source code."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
@@ -2328,11 +2335,12 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useHooks.title', "Use Chat Hooks",),
-			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",),
+			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['preview', 'prompts', 'hooks', 'agent'],
+			agentHost: { key: AgentHostHooksEnabledConfigKey },
 			policy: {
 				name: 'ChatHooks',
 				category: PolicyCategory.InteractiveSession,
@@ -2341,10 +2349,17 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.useHooks.description',
-						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",)
+						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. The Local agent harness loads hooks from the files configured in `#chat.hookFilesLocations#`. In Copilot sessions, turning this off stops repository hooks and hooks in custom agents from the next message, while hooks in `~/.copilot` and in plugins still run. Copilot sessions use this setting from user settings or policy, not from workspace settings.",)
 					}
 				},
 			}
+		},
+		[ChatConfiguration.HooksShowWarnings]: {
+			type: 'boolean',
+			title: nls.localize('chat.hooks.showWarnings.title', "Show Hook Warnings",),
+			markdownDescription: nls.localize('chat.hooks.showWarnings.description', "Controls whether the chat shows a warning when a hook fails to start, exits with an error, or reports a warning. This setting is only used by the Copilot harness.",),
+			default: product.quality !== 'stable',
+			tags: ['preview', 'hooks', 'agent'],
 		},
 		[PromptsConfig.USE_CLAUDE_HOOKS]: {
 			type: 'boolean',
@@ -3050,7 +3065,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.registerMaxRequestsSetting();
 		this.registerNewChatButtonIcon();
 		this.registerDefaultModeSetting();
-		this.registerSecurityReviewSecretDetectionSetting();
 	}
 
 
@@ -3080,42 +3094,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
-	}
-
-	/**
-	 * Registered only for internal accounts. The agent host also checks the session's account at launch.
-	 * Configurable only through settings.json until its runtime dependencies land.
-	 */
-	private registerSecurityReviewSecretDetectionSetting(): void {
-		const node: IConfigurationNode = {
-			id: 'chatSidebar',
-			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
-			type: 'object',
-			properties: {
-				[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
-					type: 'boolean',
-					markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Available to GitHub and Microsoft staff only, and requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
-					default: false,
-					tags: ['preview'],
-					scope: ConfigurationScope.APPLICATION,
-					included: false,
-				},
-			}
-		};
-		let registered = false;
-		const update = () => {
-			const internal = this.entitlementService.isInternal;
-			if (internal !== registered) {
-				configurationRegistry.updateConfigurations(internal ? { add: [node], remove: [] } : { add: [], remove: [node] });
-				registered = internal;
-			}
-		};
-		this._register(Event.runAndSubscribe(this.entitlementService.onDidChangeEntitlement, update));
-		this._register(toDisposable(() => {
-			if (registered) {
-				configurationRegistry.deregisterConfigurations([node]);
-			}
-		}));
 	}
 
 	private registerNewChatButtonIcon(): void {

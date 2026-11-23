@@ -183,6 +183,11 @@ export interface IModelDecorationOptions {
 	 */
 	hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 	/**
+	 * Plain text to copy from the decoration hover instead of its rendered message.
+	 * @internal
+	 */
+	hoverMessageCopyContent?: string | null;
+	/**
 	 * Array of MarkdownString to render as the line number message.
 	 */
 	lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;

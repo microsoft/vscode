@@ -8,8 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
-import { withAgentModelExperimentalMeta } from '../../common/meta/agentModelMeta.js';
-import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
+import { readAgentModelRouterRoutesMeta, withAgentModelExperimentalMeta, withAgentModelRouterRoutesMeta } from '../../common/meta/agentModelMeta.js';
+import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter, summarizeModelRouterRoutes } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 
@@ -114,7 +114,10 @@ suite('modelRouter', () => {
 			const guided = 'routes:\n  - model: a\n    when: A.\n    guidance: Plan first.';
 			assert.deepStrictEqual({
 				oneGuidedRoute: check(guided),
+				// Nothing is decided for a router's only route, so it needs no `when`.
+				oneGuidedRouteWithoutWhen: check('routes:\n  - model: a\n    guidance: Plan first.'),
 				oneRoute: check('routes:\n  - model: a\n    when: A.'),
+				oneRouteWithoutWhen: check('routes:\n  - model: a'),
 				sameName: check('routes:\n  - name: one\n    model: a\n    when: A.\n  - name: one\n    model: b\n    when: B.'),
 				sameModel: check('routes:\n  - model: a\n    when: A.\n  - model: a\n    when: B.\n    effort: low'),
 				badName: check('routes:\n  - name: Bug_Fix\n    model: a\n    when: A.\n  - model: b\n    when: B.'),
@@ -126,7 +129,9 @@ suite('modelRouter', () => {
 				roles: check(`roles:\n  reviewer:\n    description: Reviews.\n${guided}`),
 			}, {
 				oneGuidedRoute: [],
+				oneGuidedRouteWithoutWhen: [],
 				oneRoute: ['A router has 2 to 10 routes; this one has 1.'],
+				oneRouteWithoutWhen: ['A router has 2 to 10 routes; this one has 1.'],
 				sameName: ['The name `one` is already route 1\'s; each name belongs to one route.'],
 				sameModel: ['`a` is already in route 1; each model belongs to one route, unless the routes have a `name`.'],
 				badName: ['Route 1\'s `name` is lowercase letters, digits and single hyphens, like `bug-fix`.'],
@@ -310,7 +315,7 @@ suite('modelRouter', () => {
 				unknown: undefined,
 			});
 			const result = resolveModelRouter(router([{ models: ['opus'], when: 'A.', examples: [] }, { models: ['claude', 'lab', 'max', 'pro'], when: 'B.', examples: [] }]), models);
-			assert.deepStrictEqual({ routes: result.routes.map(r => [r.model.id, r.reference]), diagnostics: messages(result.diagnostics) }, {
+			assert.deepStrictEqual({ routes: result.routes.map(r => [r.model.id, r.reference]), diagnostics: messages(result.diagnostics), skipped: result.skipped }, {
 				routes: [['claude-opus-5.5', 'opus'], ['acme-pro-2', 'pro']],
 				diagnostics: [
 					'Route 2: `claude` matches more than one model family; use one of `claude-opus`, `claude-sonnet`.',
@@ -318,6 +323,8 @@ suite('modelRouter', () => {
 					'Route 2: acme-max-1 is disabled by policy.',
 					'Route 2 uses `pro` because `claude` is not available.',
 				],
+				// The route found a model it can use, so its row has nothing to say about the others.
+				skipped: [],
 			});
 		});
 
@@ -328,6 +335,10 @@ suite('modelRouter', () => {
 			const result = resolveModelRouter(router([{ models: ['anthropic/claude-haiku-4-5'], when: 'A.', examples: [] }, { models: ['b'], when: 'B.', examples: [] }]), models);
 			assert.deepStrictEqual(result.routes.map(r => r.model.id), ['b']);
 			assert.ok(result.diagnostics[0].message.includes('`anthropic/Work/claude-haiku-4-5`, `anthropic/Home/claude-haiku-4-5`'));
+			// The route is left out, with the ids that tell the two models apart.
+			assert.deepStrictEqual(result.skipped.map(skip => [skip.index, skip.reason === 'unavailable' ? skip.unusable : skip.key]), [
+				[0, [{ kind: 'ambiguousModel', reference: 'anthropic/claude-haiku-4-5', candidates: ['anthropic/Work/claude-haiku-4-5', 'anthropic/Home/claude-haiku-4-5'] }]],
+			]);
 		});
 
 		test('uses fallbacks, skips policy-disabled and missing models, and never picks routing models', () => {
@@ -361,6 +372,37 @@ suite('modelRouter', () => {
 			]);
 		});
 
+		test('a router\'s picker row lists its routes that have a model, with what the router sets each to', () => {
+			const contextSizes = { type: 'number' as const, title: 'Context', enum: [200_000, 1_000_000] };
+			const models = [model('a', { efforts: ['low', 'medium', 'high'] }), model('b', { efforts: ['low'] }), { ...model('c'), configSchema: { type: 'object' as const, properties: { [ContextSizeConfigKey]: contextSizes } } }];
+			const routes: IModelRouter['routes'] = [
+				{ models: ['a'], when: 'A.', examples: [], name: 'build', effort: 'high' },
+				{ models: ['b'], when: 'B.', examples: [] },
+				{ models: ['c'], when: 'C.', examples: [], contextSize: 'long' },
+				{ models: ['gone'], when: 'D.', examples: [] },
+			];
+			const summarize = (candidate: IModelRouter) => summarizeModelRouterRoutes(candidate, resolveModelRouter(candidate, models).routes);
+			// The routes are added to the router's row beside what it already carries.
+			const row = { ...model('row'), _meta: withAgentModelRouterRoutesMeta({ other: 1 }, summarize(router(routes))) };
+			assert.deepStrictEqual({
+				chosen: readAgentModelRouterRoutesMeta(row),
+				kept: row._meta?.other,
+				effortOff: summarize(router(routes, 'off')),
+				// Effort is chosen with the route, so it is not chosen when one route is left.
+				oneRoute: summarize(router(routes.slice(1, 2))),
+				// A row from another host lists only what reads as a route.
+				malformed: readAgentModelRouterRoutesMeta({ ...model('row'), _meta: { 'vscode.chat.modelRouterRoutes': [{ model: 'A', effort: 3, contextTokens: -1 }, { name: 'x' }, 'y'] } }),
+				otherModel: readAgentModelRouterRoutesMeta(model('row')),
+			}, {
+				chosen: [{ name: 'build', model: 'a', effort: 'high' }, { model: 'b', effort: 'auto' }, { model: 'c', contextTokens: 1_000_000 }],
+				kept: 1,
+				effortOff: [{ name: 'build', model: 'a' }, { model: 'b' }, { model: 'c', contextTokens: 1_000_000 }],
+				oneRoute: [{ model: 'b' }],
+				malformed: [{ model: 'A' }],
+				otherModel: [],
+			});
+		});
+
 		test('warns about retiring models and when too few routes are left', () => {
 			const result = resolveModelRouter(router([{ models: ['a'], when: 'A.', examples: [] }, { models: ['gone'], when: 'B.', examples: [] }]), [model('a', { retiring: 'Retires on Dec 1.' })]);
 			assert.deepStrictEqual(result.routes[0].retiring, 'Retires on Dec 1.');
@@ -381,13 +423,15 @@ suite('modelRouter', () => {
 				{ models: ['b'], when: 'E.', examples: [], name: 'a' },
 			]);
 			const result = resolveModelRouter(named, [model('a'), model('b')]);
-			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics) }, {
+			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics), skipped: result.skipped.map(skip => [skip.route.name, skip.reason]) }, {
 				routes: [['feature', 'a'], ['bug-fix', 'a'], [undefined, 'a']],
 				diagnostics: [
 					'Route `bug-fix` uses `a` because `gone` is not available.',
 					'Route `quick` (gone) is skipped: none of its models are available on this account.',
 					'Route `a` is skipped: `a` is the name of one route and the model of another.',
 				],
+				// A route that falls back to a later model is still used, so only the other two are left out.
+				skipped: [['quick', 'unavailable'], ['a', 'sharedKey']],
 			});
 		});
 

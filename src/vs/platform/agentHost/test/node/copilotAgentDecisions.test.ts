@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { readAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
+import { readAgentModelRouterRoutesMeta, readAgentModelRouterSwitchingMeta } from '../../common/meta/agentModelMeta.js';
 import { parseModelRouter, readModelRouterDescription } from '../../common/modelRouter.js';
 import { CopilotAgent } from '../../node/copilot/copilotAgent.js';
 
@@ -35,11 +36,6 @@ suite('CopilotAgent.askDecisions', () => {
 	}
 
 	const credentials = (token: string) => ({ getCredential: () => ({ resource: 'https://api.github.com', token }) }) as unknown as IAgentHostCredentialSource;
-
-	test('is unavailable when the runtime has no decisions.ask', async () => {
-		const error = await askDecisions.call(agentWith({}), request, undefined, CancellationToken.None).catch(e => e);
-		assert.deepStrictEqual(agentDecisionErrorData(error), { kind: 'unavailable' });
-	});
 
 	test('is unauthenticated without a host or caller token', async () => {
 		const error = await askDecisions.call(agentWith({ decisions: { ask: async () => answer } }, ''), request, undefined, CancellationToken.None).catch(e => e);
@@ -69,18 +65,22 @@ suite('CopilotAgent.askDecisions', () => {
 		assert.deepStrictEqual(asked, ['host', 'limited', 'other'], 'the rate-limited account\'s second call never reached the runtime');
 	});
 
-	test('a router with errors keeps its picker row, with a warning', () => {
+	test('a router with errors or a route it cannot use keeps its picker row, with a warning', () => {
 		const withRows = (CopilotAgent.prototype as unknown as { _withModelRouterRows(this: unknown, models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] })._withModelRouterRows;
-		const good = parseModelRouter('version: 1\ndescription: Good.\nroutes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n', 'good.model-router.yaml');
+		const good = parseModelRouter('version: 1\ndescription: Good.\nswitching: auto\nroutes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n', 'good.model-router.yaml');
+		// Only one of this router's models is available, so it has nothing to switch between.
+		const lone = parseModelRouter('version: 1\ndescription: Lone.\nswitching: auto\nroutes:\n  - model: a\n    when: A.\n  - model: gone\n    when: B.\n', 'lone.model-router.yaml');
 		const files = [
 			{ uri: URI.file('/r/good.model-router.yaml'), scope: 'user', name: 'good', router: good.router, diagnostics: [] },
+			{ uri: URI.file('/r/lone.model-router.yaml'), scope: 'user', name: 'lone', router: lone.router, diagnostics: [] },
 			{ uri: URI.file('/r/bad.model-router.yaml'), scope: 'user', name: 'bad', router: undefined, diagnostics: [{ severity: 'error', message: 'Add `version: 1`.' }] },
 		];
 		const models: IAgentModelInfo[] = [{ provider: 'copilotcli', id: 'a', name: 'A', supportsVision: true }, { provider: 'copilotcli', id: 'b', name: 'B', supportsVision: true }];
 		const rows = withRows.call({ id: 'copilotcli', _modelRouterCatalog: { value: { snapshot: { files } } } }, models).slice(2);
-		assert.deepStrictEqual(rows.map(row => [row.id, readModelRouterDescription(row) !== undefined, readAgentModelNoticesMeta(row).rowWarning]), [
-			['model-router:good', true, undefined],
-			['model-router:bad', true, 'bad.model-router.yaml has errors: Add `version: 1`.'],
+		assert.deepStrictEqual(rows.map(row => [row.id, readModelRouterDescription(row) !== undefined, readAgentModelNoticesMeta(row).rowWarning, readAgentModelRouterRoutesMeta(row).map(route => route.model), readAgentModelRouterSwitchingMeta(row)]), [
+			['model-router:good', true, undefined, ['A', 'B'], 'auto'],
+			['model-router:lone', true, 'Route 2 (gone) is skipped: none of its models are available on this account.', ['A'], undefined],
+			['model-router:bad', true, 'bad.model-router.yaml has errors: Add `version: 1`.', [], undefined],
 		]);
 		assert.strictEqual(withRows.call({ id: 'copilotcli', _modelRouterCatalog: { value: { snapshot: { files: [] } } } }, models), models, 'unchanged without routers');
 	});

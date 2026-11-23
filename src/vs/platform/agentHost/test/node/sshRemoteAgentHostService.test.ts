@@ -16,6 +16,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -204,6 +205,8 @@ class MockSSHClient {
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
 	connectError: Error | undefined;
+	/** Like ssh2, report a lost connection as soon as the proxy closes its output, before the proxy exits. */
+	loseConnectionWhenProxyCloses = false;
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
@@ -228,6 +231,11 @@ class KeyboardInteractiveMockSSHClient {
 		this.connectConfig = config;
 		if (this.connectError) {
 			this.fireError(this.connectError);
+			return;
+		}
+		if (this.loseConnectionWhenProxyCloses && config.sock) {
+			config.sock.on('end', () => this.fireError(new Error('Connection lost before handshake')));
+			config.sock.resume();
 			return;
 		}
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
@@ -1433,6 +1441,22 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	});
 
+	(isWindows ? test.skip : test)('reports why a ProxyCommand dropped the connection when the SSH client notices first', async () => {
+		const proxyService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		proxyService.proxyCommand = 'printf "proxy failed" >&2; exec >&-; sleep 0.1; exit 42';
+		proxyService.client.loseConnectionWhenProxyCloses = true;
+		const error = await proxyService.connectSSHForTest(makeConfig({ host: 'sandbox.sbx' })).then(() => undefined, (error: Error) => error);
+		assert.deepStrictEqual({
+			message: error?.message,
+			ended: proxyService.client.ended,
+			proxyCount: proxyService.proxyCount,
+		}, {
+			message: 'Connection lost before handshake (SSH ProxyCommand exited (42): proxy failed)',
+			ended: false,
+			proxyCount: 0,
+		});
+	});
+
 	test('manual hosts connect with their own settings when SSH configuration cannot be resolved', async () => {
 		const unresolvedService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
 		unresolvedService.proxyCommand = 'exit 42';
@@ -1929,8 +1953,8 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 	agentSock: string | undefined = undefined;
 	keyFiles: Map<string, Buffer> = new Map();
 
-	async testBuildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
-		return this._buildAuthAttempts(config);
+	async testBuildAuthAttempts(config: ISSHAgentHostConfig, resolved?: ISSHResolvedConfig): Promise<SSHAuthAttempt[]> {
+		return this._buildAuthAttempts(config, resolved);
 	}
 
 	protected override _isAgentAvailable(): string | undefined {
@@ -2284,6 +2308,33 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
+	});
+
+	test('Agent skips the agent and keys when SSH config disables public key authentication', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		const encrypted = openSSHPrivateKeyWithCipher('aes256-ctr');
+		service.keyFiles.set('~/.ssh/id_ed25519', encrypted);
+		const build = (sshGOutput: string) => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }), parseSSHGOutput(sshGOutput));
+		const interactiveOnly = [{ type: 'keyboard-interactive', username: 'testuser' }];
+		const all = [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		];
+
+		assert.deepStrictEqual({
+			pubkeyDisabled: await build('pubkeyauthentication false\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			publickeyNotPreferred: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
+			passwordPreferred: await build('pubkeyauthentication true\npreferredauthentications password'),
+			publickeyPreferredLast: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
+			defaults: await build('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+		}, {
+			pubkeyDisabled: interactiveOnly,
+			publickeyNotPreferred: interactiveOnly,
+			passwordPreferred: interactiveOnly,
+			publickeyPreferredLast: all,
+			defaults: all,
+		});
 	});
 
 	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {

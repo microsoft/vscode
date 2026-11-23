@@ -43,8 +43,7 @@ import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder 
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
-import { SessionIsCreatedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { DesktopEditorHeaderLayoutContext } from '../../../common/agentsWindowContextKeys.js';
+import { DesktopLayoutContext, SessionIsCreatedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -420,11 +419,11 @@ const CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sess
 const CHANGES_HEADER_COMMIT_ACTION_ID = `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`;
 
 /**
- * Whether the main window shows the Commit of a new session's uncommitted changes in the header row of its Changes
- * editor, beside the changeset picker, instead of in its tab row. With the editor header layout, that row stays visible
- * above the docked Details, also while the editor content is hidden.
+ * Whether the desktop main window shows the Commit of a new session's uncommitted changes in the header row of its
+ * Changes editor, beside the changeset picker, instead of in its tab row. That row stays visible above the docked
+ * Details, also while the editor content is hidden.
  */
-const commitInEditorHeader = ContextKeyExpr.and(DesktopEditorHeaderLayoutContext, IsAuxiliaryWindowContext.toNegated(), SessionIsCreatedContext.negate())!;
+const commitInEditorHeader = ContextKeyExpr.and(DesktopLayoutContext, IsAuxiliaryWindowContext.toNegated(), SessionIsCreatedContext.negate())!;
 
 function registerChangesetOperationAction({ key, kind, operation, order }: IChangesetOperationEntry): IDisposable {
 	const shown = listHas(SessionChangesetOperationsContext, key);
@@ -574,7 +573,7 @@ class CommitActionViewItem extends MenuEntryActionViewItem {
 
 /**
  * Renders the Commit operation with its label in the title of the Changes editor, in every window, and in the header
- * row of the main window's Changes editor that shows it on the new session page with the editor header layout.
+ * row of the desktop main window's Changes editor that shows it on the new session page.
  */
 export class ChangesHeaderChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sessions.changesHeaderChangesetOperationsAction';

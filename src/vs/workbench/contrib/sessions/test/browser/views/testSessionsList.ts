@@ -39,7 +39,7 @@ export class TestSessionsList extends SessionsList {
 	/** Moves the tree focus to the referenced row, revealing it. Returns `false` when the row is not in the list. */
 	setFocusedItem(item: SessionsListItemReference | undefined): boolean {
 		if (!item) {
-			this.getFocusedTree().setFocus([]);
+			this.tree.setFocus([]);
 			return true;
 		}
 		const element = this.findItem(item);
@@ -47,7 +47,7 @@ export class TestSessionsList extends SessionsList {
 			return false;
 		}
 		this.revealElement(element);
-		this.getTree(element).setFocus([element]);
+		this.tree.setFocus([element]);
 		return true;
 	}
 
@@ -61,29 +61,24 @@ export class TestSessionsList extends SessionsList {
 			return false;
 		}
 		for (const element of elements) {
-			this.getTree(element).expandTo(element);
+			this.tree.expandTo(element);
 		}
-		for (const tree of this.trees) {
-			tree.setSelection([]);
-		}
-		for (const tree of this.trees) {
-			tree.setSelection(elements.filter(element => this.getTree(element) === tree), new MouseEvent('click', { ctrlKey: true }));
-		}
+		this.tree.setSelection([]);
+		this.tree.setSelection(elements, new MouseEvent('click', { ctrlKey: true }));
 		return true;
 	}
 
 	/** Collapses or expands the referenced row. Returns `false` when the row is missing or not collapsible. */
 	setItemCollapsed(item: SessionsListItemReference, collapsed: boolean): boolean {
 		const element = this.findItem(item);
-		if (!element || !this.getTree(element).isCollapsible(element)) {
+		if (!element || !this.tree.isCollapsible(element)) {
 			return false;
 		}
-		const tree = this.getTree(element);
-		tree.expandTo(element);
+		this.tree.expandTo(element);
 		if (collapsed) {
-			tree.collapse(element);
+			this.tree.collapse(element);
 		} else {
-			tree.expand(element);
+			this.tree.expand(element);
 		}
 		return true;
 	}
@@ -104,20 +99,18 @@ export class TestSessionsList extends SessionsList {
 		if (!element) {
 			return undefined;
 		}
-		const tree = this.getTree(element);
-		const navigator = tree.navigate();
+		const navigator = this.tree.navigate();
 		for (let current = navigator.first(), index = 0; current; current = navigator.next(), index++) {
 			if (current === element) {
-				return tree.getHTMLElement().querySelector<HTMLElement>(`.monaco-list-rows > .monaco-list-row[data-index="${index}"]`) ?? undefined;
+				return this.tree.getHTMLElement().querySelector<HTMLElement>(`.monaco-list-rows > .monaco-list-row[data-index="${index}"]`) ?? undefined;
 			}
 		}
 		return undefined;
 	}
 
 	private revealElement(element: SessionListItem): void {
-		const tree = this.getTree(element);
-		if (tree.getRelativeTop(element) === null) {
-			tree.reveal(element, 0.5);
+		if (this.tree.getRelativeTop(element) === null) {
+			this.tree.reveal(element, 0.5);
 		}
 	}
 }

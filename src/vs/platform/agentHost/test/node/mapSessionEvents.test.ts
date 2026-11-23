@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -102,6 +102,18 @@ suite('mapSessionEvents — history replay', () => {
 			[undefined, undefined, undefined, undefined],
 			['file', 'directory', undefined, undefined],
 		]);
+	});
+
+	test('replays a call to a tool the session does not offer with its own error code', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'invented', toolName: 'view_range', arguments: {} } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'invented', success: false, error: { message: 'Tool \'view_range\' does not exist.', code: 'failure' }, toolTelemetry: { properties: { failure_reason: 'not_found' } } } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'failed', toolName: 'view', arguments: { path: '/workspace/missing' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'failed', success: false, error: { message: 'Path does not exist', code: 'failure' } } },
+		]));
+		assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [part.toolCall.error?.code] : [])), ['toolNotFound', 'failure']);
 	});
 
 	test('replays available MCP links through the recorded server channel', async () => {
