@@ -169,8 +169,6 @@ export enum ChatConfiguration {
 	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
-	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
-	TitleBarOpenInAgentsWindowRichHoverOnClick = 'chat.titleBar.openInAgentsWindow.richHoverOnClick',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -243,23 +241,20 @@ export const enum ChatClosedPromoNotification {
 	CopilotIconPopup = 'copilotIconPopup',
 }
 
-/** The graphic that explains the Agents window above the Agents window button on the Welcome page. */
+/** The graphic that explains the Agents window on the Welcome page. */
 export const enum AgentsWindowGraphicVariant {
 	None = 'none',
-	/** The editor window and the Agents window side by side. */
+	/** The editor window and the Agents window side by side, above the Agents window button. */
 	WindowComparison = 'windowComparison',
-	/** Editor windows for several projects become one Agents window. */
-	ManyWindowsToOne = 'manyWindowsToOne',
-	/** {@link ManyWindowsToOne} when more than one editor window is open, and {@link WindowComparison} otherwise. */
-	Auto = 'auto',
+	/** A banner at the top of the page that describes the Agents window next to a drawing of it, with a button that opens it. */
+	Banner = 'banner',
 }
 
 export function getAgentsWindowGraphicVariant(configurationService: IConfigurationService): AgentsWindowGraphicVariant {
 	const variant = configurationService.getValue<AgentsWindowGraphicVariant>(ChatConfiguration.WelcomePageAgentsWindowGraphic);
 	switch (variant) {
 		case AgentsWindowGraphicVariant.WindowComparison:
-		case AgentsWindowGraphicVariant.ManyWindowsToOne:
-		case AgentsWindowGraphicVariant.Auto:
+		case AgentsWindowGraphicVariant.Banner:
 			return variant;
 		default:
 			return AgentsWindowGraphicVariant.None;
@@ -267,34 +262,9 @@ export function getAgentsWindowGraphicVariant(configurationService: IConfigurati
 }
 
 /**
- * What hovering or focusing the title bar's Agents window button shows to users who are new to the Agents window.
- * Each hover card is named after the graphic it shows, like the values of {@link AgentsWindowGraphicVariant}.
+ * How the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, its captions and the Agents window button are set apart
+ * from the rest of the Welcome page. The {@link AgentsWindowGraphicVariant.Banner} sets itself apart.
  */
-export const enum OpenInAgentsTitleBarHoverVariant {
-	/** A simple tooltip, and the button grows to show its label. */
-	None = 'none',
-	/** A hover card with the {@link AgentsWindowGraphicVariant.ManyWindowsToOne} graphic, and the button stays an icon. */
-	ManyWindowsToOne = 'manyWindowsToOne',
-	/** A hover card with the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, and the button stays an icon. */
-	WindowComparison = 'windowComparison',
-}
-
-/**
- * Reads the graphic of the hover card that the title bar's Agents window button shows to users who are new to the Agents window,
- * or `undefined` for a simple tooltip, the setting's default {@link OpenInAgentsTitleBarHoverVariant.None}.
- */
-export function getOpenInAgentsTitleBarHoverCardDesign(configurationService: IConfigurationService): AgentsWindowGraphicVariant.ManyWindowsToOne | AgentsWindowGraphicVariant.WindowComparison | undefined {
-	switch (configurationService.getValue<OpenInAgentsTitleBarHoverVariant>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
-		case OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne:
-			return AgentsWindowGraphicVariant.ManyWindowsToOne;
-		case OpenInAgentsTitleBarHoverVariant.WindowComparison:
-			return AgentsWindowGraphicVariant.WindowComparison;
-		default:
-			return undefined;
-	}
-}
-
-/** How the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. */
 export const enum AgentsWindowSectionStyle {
 	None = 'none',
 	/** A subtle surface around the section, like the walkthrough tiles. */
