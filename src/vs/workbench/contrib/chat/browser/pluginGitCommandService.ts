@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
@@ -57,10 +57,10 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
 		const repo = this._parseOrThrow(cloneUrl);
 		const cancel = token ?? CancellationToken.None;
-		const clone = async (content: IContentClient, signal: AbortSignal): Promise<void> => {
-			const sha = await content.resolveRef(repo.owner, repo.name, ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
-			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, sha, targetDir, signal);
-			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.name, ref, sha, fetchedAt: Date.now() });
+		const clone = async (content: IContentClient, cancellationToken: CancellationToken): Promise<void> => {
+			const sha = await content.resolveRef(repo, ref || 'HEAD', cancellationToken, { caller: 'pluginGit.resolveSha' });
+			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, sha, targetDir, cancellationToken);
+			this._setCacheEntry(targetDir, { ...repo, ref, sha, fetchedAt: Date.now() });
 		};
 
 		const initialSession = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
@@ -89,7 +89,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		throw new Error(localize(
 			'pluginsBrowserGitHubAccessRequired',
 			"GitHub authentication is required to install '{0}'. Sign in with an account that has access to this repository, then try again.",
-			`${repo.owner}/${repo.name}`,
+			`${repo.owner}/${repo.repo}`,
 		));
 	}
 
@@ -100,13 +100,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		}
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
-		return this._withContentClient(repo, session, cancel, async (content, signal) => {
-			const newSha = await content.resolveRef(repo.owner, repo.name, entry.ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
+		return this._withContentClient(entry, session, cancel, async (content, cancellationToken) => {
+			const newSha = await content.resolveRef(entry, entry.ref || 'HEAD', cancellationToken, { caller: 'pluginGit.resolveSha' });
 			if (newSha === entry.sha) {
 				return false;
 			}
-			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, newSha, repoDir, signal);
+			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, newSha, repoDir, cancellationToken);
 			this._setCacheEntry(repoDir, { ...entry, sha: newSha, fetchedAt: Date.now() });
 			return true;
 		});
@@ -120,7 +119,6 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
 		const requestedRef = treeish.trim();
 
 		// 40-hex SHA refs skip the resolveSha round-trip (clone pins to the SHA already).
@@ -128,11 +126,11 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		if (isFullSha && requestedRef.toLowerCase() === entry.sha.toLowerCase()) {
 			return;
 		}
-		await this._withContentClient(repo, session, cancel, async (content, signal) => {
+		await this._withContentClient(entry, session, cancel, async (content, cancellationToken) => {
 			const requestedSha = isFullSha
 				? requestedRef.toLowerCase()
-				: await content.resolveRef(repo.owner, repo.name, requestedRef || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
-			await this._materializeCommit(content, repoDir, entry, requestedSha, isFullSha ? entry.ref : requestedRef, signal);
+				: await content.resolveRef(entry, requestedRef || 'HEAD', cancellationToken, { caller: 'pluginGit.resolveSha' });
+			await this._materializeCommit(content, repoDir, entry, requestedSha, isFullSha ? entry.ref : requestedRef, cancellationToken);
 		});
 	}
 
@@ -152,13 +150,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
-		await this._withContentClient(repo, session, cancel, async (content, signal) => {
-			const resolvedCommit = (await content.resolveRef(repo.owner, repo.name, expectedCommit, signal, { caller: 'pluginGit.resolveSha' })).toLowerCase();
+		await this._withContentClient(entry, session, cancel, async (content, cancellationToken) => {
+			const resolvedCommit = (await content.resolveRef(entry, expectedCommit, cancellationToken, { caller: 'pluginGit.resolveSha' })).toLowerCase();
 			if (resolvedCommit !== expectedCommit) {
 				throw new Error(localize('pluginsPinnedCommitResolutionMismatch', "Pinned plugin commit '{0}' resolved to a different commit '{1}'.", commit, resolvedCommit));
 			}
-			await this._materializeCommit(content, repoDir, entry, resolvedCommit, entry.ref, signal);
+			await this._materializeCommit(content, repoDir, entry, resolvedCommit, entry.ref, cancellationToken);
 		});
 		const checkedOutCommit = (await this.revParse(repoDir, 'HEAD')).toLowerCase();
 		if (checkedOutCommit !== expectedCommit) {
@@ -196,36 +193,32 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 	// -- helpers --------------------------------------------------------------
 
-	private async _materializeCommit(content: IContentClient, repoDir: URI, entry: IBrowserPluginCacheEntry, commit: string, ref: string | undefined, signal: AbortSignal): Promise<void> {
+	private async _materializeCommit(content: IContentClient, repoDir: URI, entry: IBrowserPluginCacheEntry, commit: string, ref: string | undefined, cancellationToken: CancellationToken): Promise<void> {
 		if (commit === entry.sha.toLowerCase()) {
 			return;
 		}
 
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
-		await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, commit, repoDir, signal);
+		await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, commit, repoDir, cancellationToken);
 		this._setCacheEntry(repoDir, { ...entry, ref, sha: commit, fetchedAt: Date.now() });
 	}
 
-	private async _withContentClient<T>(repo: RepositoryRef, session: AuthenticationSession | undefined, token: CancellationToken, operation: (content: IContentClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+	private async _withContentClient<T>(repo: RepositoryRef, session: AuthenticationSession | undefined, token: CancellationToken, operation: (content: IContentClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
 		const lifetime = new DisposableStore();
-		const controller = new AbortController();
-		const signal = AbortSignal.any([CancellationToken.toAbortSignal(token, lifetime), controller.signal]);
+		const controller = lifetime.add(new CancellationTokenSource());
+		const cancellationToken = CancellationToken.any([token, controller.token], lifetime);
 		try {
 			let content: IContentClient;
 			if (session) {
-				const client = lifetime.add(await this._gitHubService.acquireAccountApiClient({
-					providerId: 'github', sessionId: session.id, accountId: session.account.id, scopes: session.scopes,
-					...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
-				}, signal));
-				lifetime.add(client.onDidInvalidate(() => controller.abort(new CancellationError())));
+				const client = lifetime.add(await this._gitHubService.acquireAccountApiClient('github', session, cancellationToken));
+				lifetime.add(client.onDidInvalidate(() => controller.cancel()));
 				content = client.content;
 			} else {
-				content = lifetime.add(await this._gitHubService.acquireAnonymousApiClient(signal)).content;
+				content = lifetime.add(await this._gitHubService.acquireAnonymousApiClient(cancellationToken)).content;
 			}
-			signal.throwIfAborted();
-			return await operation(content, signal);
+			CancellationToken.throwIfCanceled(cancellationToken);
+			return await operation(content, cancellationToken);
 		} catch (error) {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			this._maybeLogTransientError(error, repo);
 			throw error;
 		} finally {
@@ -250,14 +243,14 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			return;
 		}
 		if (isGitHubAuthenticationError(err)) {
-			this._logService.warn(`[BrowserPluginGitCommandService] GitHub auth required for ${repo.owner}/${repo.name}: ${err.message}`);
+			this._logService.warn(`[BrowserPluginGitCommandService] GitHub auth required for ${repo.owner}/${repo.repo}: ${err.message}`);
 		} else if (err instanceof GitHubRequestError && err.kind === 'rateLimit') {
-			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.name}: ${err.message}`);
+			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.repo}: ${err.message}`);
 		} else if (err instanceof Error) {
 			// Surface the URL + cause so opaque `TypeError: Failed to fetch` errors
 			// (CORS, DNS, offline) don't reach the user without context.
 			const cause = err.cause instanceof Error ? ` (cause: ${err.cause.name}: ${err.cause.message})` : '';
-			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.name}: ${err.message}${cause}`);
+			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.repo}: ${err.message}${cause}`);
 		}
 	}
 
@@ -269,7 +262,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			throw new Error(localize(
 				'pluginsBrowserGitHubSignInRequired',
 				"Sign in to GitHub with an account that has access to '{0}' to install this plugin.",
-				`${repo.owner}/${repo.name}`,
+				`${repo.owner}/${repo.repo}`,
 			));
 		}
 	}

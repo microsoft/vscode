@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -18,17 +18,19 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { MessageKind, PendingMessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentSessionResidency', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 	let stateManager: AgentHostStateManager;
 	let releaseHold: Emitter<string>;
+	let onDidEvict: Emitter<void>;
 	let released: string[];
 	let evicted: string[];
 	let residency: AgentSessionResidency;
@@ -38,6 +40,7 @@ suite('AgentSessionResidency', () => {
 	setup(() => {
 		stateManager = disposables.add(new AgentHostStateManager(logService));
 		releaseHold = disposables.add(new Emitter<string>());
+		onDidEvict = disposables.add(new Emitter<void>());
 		released = [];
 		evicted = [];
 		subscriptions = disposables.add(new AgentHostSubscriptionService(createTestChatOwnershipService(stateManager)));
@@ -52,15 +55,15 @@ suite('AgentSessionResidency', () => {
 			evictSessionState: session => {
 				evicted.push(session.toString());
 				stateManager.removeSession(session.toString());
+				onDidEvict.fire();
 			},
+			isHeldInUse: () => false,
 		};
 		residency = createResidency(10);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createResidency(limit: number, releaseRetryMs = 30_000): AgentSessionResidency {
+	function createResidency(limit: number, releaseRetryMs = 30_000, idleReleaseMs = 10_000): AgentSessionResidency {
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostSubscriptionService, subscriptions],
@@ -72,6 +75,7 @@ suite('AgentSessionResidency', () => {
 			{
 				limit,
 				releaseRetryMs,
+				idleReleaseMs,
 				holdsSession: () => false,
 				onDidReleaseHold: releaseHold.event,
 			},
@@ -91,22 +95,20 @@ suite('AgentSessionResidency', () => {
 		};
 		stateManager.createSession(summary);
 		const chat = buildDefaultChatUri(session);
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${id}`, startedAt: '2025-01-01T00:00:00.000Z', message: { text: id, origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(chat, chatTurnStarted(`turn-${id}`, id, '2025-01-01T00:00:00.000Z'));
 		if (complete) {
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: `turn-${id}`, duration: 1 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete(`turn-${id}`, 1));
 		}
 		residency.touch(session);
 		return session;
 	}
 
-	async function waitFor(predicate: () => boolean, message: string): Promise<void> {
-		for (let attempt = 0; attempt < 100; attempt++) {
-			if (predicate()) {
-				return;
-			}
-			await timeout(0);
+	/** Resolves once the residency has evicted `session`'s state through the delegate. */
+	async function waitForEviction(session: URI): Promise<void> {
+		const isEvicted = () => stateManager.getSessionState(session.toString()) === undefined;
+		if (!isEvicted()) {
+			await Event.toPromise(Event.filter(onDidEvict.event, isEvicted));
 		}
-		assert.fail(message);
 	}
 
 	test('keeps the most-recently-used sessions within the soft limit', async () => {
@@ -184,8 +186,8 @@ suite('AgentSessionResidency', () => {
 
 		await residency.reconcile();
 		const residentWhileRunning = [first, second, third].map(session => stateManager.getSessionState(session.toString()) !== undefined);
-		stateManager.dispatchServerAction(buildDefaultChatUri(first), { type: ActionType.ChatTurnComplete, turnId: 'turn-first', duration: 1 });
-		await waitFor(() => stateManager.getSessionState(first.toString()) === undefined, 'completed excess session was not released');
+		stateManager.dispatchServerAction(buildDefaultChatUri(first), chatTurnComplete('turn-first', 1));
+		await waitForEviction(first);
 
 		assert.deepStrictEqual({
 			residentWhileRunning,
@@ -261,6 +263,143 @@ suite('AgentSessionResidency', () => {
 		});
 	}
 
+	test('releases a session held in use soon after no client observes it, and keeps one that is not', async () => {
+		residency.dispose();
+		const held = new Set<string>();
+		delegate.isHeldInUse = session => held.has(session.toString());
+		residency = createResidency(10, 30_000, 0);
+		const heldSession = createUsedSession('held');
+		const freeSession = createUsedSession('free');
+		held.add(heldSession.toString());
+		const chat = URI.parse(buildDefaultChatUri(heldSession));
+		subscriptions.addSubscriber(chat, 'client');
+		subscriptions.setSubscriptionOwner(chat, heldSession.toString());
+		await residency.reconcile();
+		const residentWhileObserved = stateManager.getSessionState(heldSession.toString()) !== undefined;
+
+		subscriptions.removeSubscriber(chat, 'client');
+		await residency.reconcile();
+		await waitForEviction(heldSession);
+
+		assert.deepStrictEqual({
+			residentWhileObserved,
+			released,
+			freeResident: stateManager.getSessionState(freeSession.toString()) !== undefined,
+		}, {
+			residentWhileObserved: true,
+			released: [heldSession.toString()],
+			freeResident: true,
+		});
+	});
+
+	test('keeps a session held in use that a client observes again within the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		residency.dispose();
+		delegate.isHeldInUse = () => true;
+		residency = createResidency(10, 30_000, 10_000);
+		const session = createUsedSession('reopened');
+		await residency.reconcile();
+		await timeout(5_000);
+		const chat = URI.parse(buildDefaultChatUri(session));
+		subscriptions.addSubscriber(chat, 'client');
+		subscriptions.setSubscriptionOwner(chat, session.toString());
+		residency.touch(session);
+		await residency.reconcile();
+		await timeout(20_000);
+		await residency.reconcile();
+
+		assert.deepStrictEqual({
+			resident: stateManager.getSessionState(session.toString()) !== undefined,
+			released,
+		}, {
+			resident: true,
+			released: [],
+		});
+	}));
+
+	for (const limit of [0, 10]) {
+		for (const target of ['default', 'peer', 'steering'] as const) {
+			test(`retains disconnected ${target} pending work across ${limit === 0 ? 'residency pressure' : 'idle release'} until it is removed`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				residency.dispose();
+				delegate.isHeldInUse = () => true;
+				residency = createResidency(limit);
+				const session = createUsedSession('waiting-for-sponsor', false);
+				const chat = target === 'peer' ? buildChatUri(session, 'peer') : buildDefaultChatUri(session);
+				if (target === 'peer') {
+					stateManager.addChat(session.toString(), chat, chat);
+				}
+				const kind = target === 'steering' ? PendingMessageKind.Steering : PendingMessageKind.Queued;
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatPendingMessageSet, id: 'pending', kind,
+					message: { text: 'unsent work', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('turn-waiting-for-sponsor', 1));
+				await residency.reconcile();
+				await timeout(60_000);
+				await residency.reconcile();
+				const waiting = {
+					resident: !!stateManager.getSessionState(session.toString()),
+					pending: stateManager.getChatState(chat)?.queuedMessages?.map(message => message.id),
+					released: [...released],
+				};
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatPendingMessageRemoved, id: 'pending', kind });
+				await timeout(10_001);
+				await residency.reconcile();
+				assert.deepStrictEqual({ waiting, evicted }, {
+					waiting: { resident: true, pending: ['pending'], released: [] },
+					evicted: [session.toString()],
+				});
+			}));
+		}
+	}
+
+	test('rechecks pending messages after an asynchronous release preflight', async () => {
+		residency.dispose();
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		delegate.createRelease = session => ({
+			canRelease: async () => { entered.complete(); await resume.p; return true; },
+			release: async () => { released.push(session.toString()); },
+		});
+		residency = createResidency(0);
+		const session = createUsedSession('pending-during-release');
+		await entered.p;
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatPendingMessageSet, id: 'pending', kind: PendingMessageKind.Queued,
+			message: { text: 'unsent work', origin: { kind: MessageKind.User } },
+		});
+		resume.complete();
+		await residency.reconcile();
+		assert.deepStrictEqual({ resident: !!stateManager.getSessionState(session.toString()), released, evicted }, {
+			resident: true, released: [], evicted: [],
+		});
+	});
+
+	test('retries a due release that failed after its provider let go of the session', async () => {
+		residency.dispose();
+		const held = new Set<string>();
+		delegate.isHeldInUse = session => held.has(session.toString());
+		let attempts = 0;
+		delegate.createRelease = session => ({
+			canRelease: async () => true,
+			release: async () => {
+				attempts++;
+				held.delete(session.toString());
+				if (attempts === 1) {
+					throw new Error('transient');
+				}
+				released.push(session.toString());
+			},
+		});
+		residency = createResidency(10, 10, 0);
+		const session = createUsedSession('let-go');
+		held.add(session.toString());
+
+		await residency.reconcile();
+		await waitForEviction(session);
+
+		assert.deepStrictEqual({ attempts, released }, { attempts: 2, released: [session.toString()] });
+	});
+
 	test('keeps state after a failed release and retries', async () => {
 		residency.dispose();
 		let attempts = 0;
@@ -280,8 +419,7 @@ suite('AgentSessionResidency', () => {
 
 		await residency.reconcile();
 		const residentAfterFailure = stateManager.getSessionState(session.toString()) !== undefined;
-		await timeout(15);
-		await waitFor(() => stateManager.getSessionState(session.toString()) === undefined, 'release retry did not complete');
+		await waitForEviction(session);
 
 		assert.deepStrictEqual({
 			attempts,
@@ -301,7 +439,7 @@ suite('AgentSessionResidency', () => {
 			() => residency.runDisposal(session, async () => { throw new Error('transient disposal failure'); }),
 			/transient disposal failure/,
 		);
-		await waitFor(() => stateManager.getSessionState(session.toString()) === undefined, 'failed disposal did not restore residency tracking');
+		await waitForEviction(session);
 
 		assert.deepStrictEqual(released, [session.toString()]);
 	});
@@ -372,6 +510,39 @@ suite('AgentSessionResidency', () => {
 		});
 	});
 
+	test('latches a release veto even when eligibility returns before the provider finishes', async () => {
+		residency.dispose();
+		const checks: boolean[] = [];
+		delegate.createRelease = session => ({
+			canRelease: async () => true,
+			release: async (_chats, canContinue) => {
+				assert.ok(canContinue);
+				checks.push(canContinue());
+				subscriptions.addSubscriber(session, 'observer');
+				checks.push(canContinue());
+				subscriptions.removeSubscriber(session, 'observer');
+				checks.push(canContinue());
+			},
+		});
+		residency = createResidency(0);
+		const session = createUsedSession('vetoed');
+
+		await residency.reconcile();
+
+		const attempts = Array.from({ length: checks.length / 3 }, (_, index) => checks.slice(index * 3, index * 3 + 3));
+		assert.deepStrictEqual({
+			attempted: attempts.length > 0,
+			patterns: [...new Set(attempts.map(attempt => JSON.stringify(attempt)))],
+			released,
+			resident: stateManager.getSessionState(session.toString()) !== undefined,
+		}, {
+			attempted: true,
+			patterns: ['[true,false,false]'],
+			released: [],
+			resident: true,
+		});
+	});
+
 	test('does not continue release after disposal', async () => {
 		residency.dispose();
 		const canRelease = new DeferredPromise<void>();
@@ -399,5 +570,52 @@ suite('AgentSessionResidency', () => {
 			released: [],
 			resident: true,
 		});
+	});
+
+	test('a session a move holds (C15) loads once, never counts towards the limit, and is dropped when the last move ends, whatever its subscribers', async () => {
+		residency.dispose();
+		residency = createResidency(1);
+		const resident = createUsedSession('resident');
+		const moved = AgentSession.uri('copilot', 'moved');
+		let loads = 0;
+		const load = async () => {
+			loads++;
+			stateManager.restoreSessionData({
+				resource: moved.toString(),
+				provider: 'copilot',
+				title: 'moved',
+				status: SessionStatus.Idle,
+				createdAt: '2025-01-01T00:00:00.000Z',
+				modifiedAt: '2025-01-01T00:00:00.000Z',
+				defaultChat: buildDefaultChatUri(moved.toString()),
+			}, (_session, chat) => chat, { title: undefined, modifiedAt: '2025-01-01T00:00:00.000Z', workingDirectories: undefined, isRead: undefined, draft: undefined, config: undefined, providerData: undefined, resolver: async () => ({ turns: [] }) });
+		};
+		const first = residency.holdForMove(moved, load)!;
+		const second = residency.holdForMove(moved, load)!;
+		await Promise.all([first.loaded, second.loaded]);
+		subscriptions.addSubscriber(moved, 'client');
+		residency.touch(moved);
+		await residency.reconcile();
+		const whileHeld = { resident: stateManager.getSessionState(resident.toString()) !== undefined, moved: stateManager.getSessionState(moved.toString()) !== undefined, held: residency.isHeldForMove(moved) };
+
+		let waited = false;
+		const wait = residency.waitForRelease(moved).then(() => { waited = true; });
+		first.dispose();
+		await timeout(0);
+		const afterFirst = { moved: stateManager.getSessionState(moved.toString()) !== undefined, waited };
+		second.dispose();
+		const holdWhileDropping = residency.holdForMove(moved, load);
+		await wait;
+
+		assert.deepStrictEqual({ loads, whileHeld, afterFirst, holdWhileDropping, afterLast: { moved: stateManager.getSessionState(moved.toString()) !== undefined, held: residency.isHeldForMove(moved) }, released, evicted }, {
+			loads: 1,
+			whileHeld: { resident: true, moved: true, held: true },
+			afterFirst: { moved: true, waited: false },
+			holdWhileDropping: undefined,
+			afterLast: { moved: false, held: false },
+			released: [moved.toString()],
+			evicted: [moved.toString()],
+		});
+		subscriptions.removeSubscriber(moved, 'client');
 	});
 });

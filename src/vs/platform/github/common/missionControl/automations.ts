@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiQueryOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
 import type { PaginatedResponse, User } from './missionControl.js';
@@ -310,6 +311,18 @@ export type GetAutomationOptions = ApiQueryOptions<{
 	readonly include_tags?: boolean;
 }>;
 
+/** Server-resolved automation enablement, caller permissions, and repository policy constraints. */
+export interface AutomationRepositoryConfiguration {
+	/** Whether rollout, visibility, and effective policies permit automations, independently of the caller's write permission. */
+	readonly automations_enabled: boolean;
+	/** Whether automations are enabled and the caller's token can manage them; mutations still revalidate authorization. */
+	readonly can_manage_automations: boolean;
+	/** Whether policy permits triggers from read-access actors; individual automations may still require write access. */
+	readonly allow_read_access_triggers: boolean;
+	/** Whether effective policy and its enforcement rollout require writes to stay within the triggering resource. */
+	readonly require_trigger_scoped_writes: boolean;
+}
+
 /** A page of repository automation summaries with the complete filtered result count. */
 export interface ListRepoAutomationsResponse {
 	/** Summaries on this page, including readable repository-owned automations. */
@@ -346,29 +359,32 @@ export interface CreateAutomationTaskResponse {
 export interface IAutomationsClient {
 
 	/** GET /agents/repos/{owner}/{repo}/automations/v2: list one page of readable automation summaries. */
-	list(repository: RepositoryRef, signal: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>>;
+	list(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>>;
 
 	/** GET /agents/repos/{owner}/{repo}/automations/{automation_id}: get a user- or repository-owned automation. */
-	get(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: GetAutomationOptions): Promise<AutomationDetail>;
+	get(repository: RepositoryRef, automationId: string, cancellationToken: CancellationToken, options?: GetAutomationOptions): Promise<AutomationDetail>;
+
+	/** GET /agents/repos/{owner}/{repo}/automations/configuration: read caller-specific configuration, including when automations are disabled. */
+	getConfiguration(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration>;
 
 	/** POST /agents/repos/{owner}/{repo}/automations: create an automation. */
-	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail>;
+	create(repository: RepositoryRef, request: CreateAutomationRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationDetail>;
 
 	/** PATCH /agents/repos/{owner}/{repo}/automations/{automation_id}: update only the supplied fields. */
-	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail>;
+	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationDetail>;
 
 	/** DELETE /agents/repos/{owner}/{repo}/automations/{automation_id}: delete an automation. */
-	delete(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	delete(repository: RepositoryRef, automationId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/repos/{owner}/{repo}/automations/{automation_id}/tasks: request a run and return its HTTP 202 acknowledgement. */
-	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<CreateAutomationTaskResponse>;
+	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<CreateAutomationTaskResponse>;
 
 	/** GET /agents/automations/{automation_id}/tasks: list one page of tasks triggered by an automation. */
-	listRuns(automationId: string, signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>>;
+	listRuns(automationId: string, cancellationToken: CancellationToken, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>>;
 
 	/** GET /agents/automations/tools: list the authenticated caller's tool groups without pagination. */
-	listTools(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationToolGroup[]>;
+	listTools(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly AutomationToolGroup[]>;
 
 	/** GET /agents/automations/triggers: list the authenticated caller's trigger definitions without pagination. */
-	listTriggers(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationTriggerDefinition[]>;
+	listTriggers(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly AutomationTriggerDefinition[]>;
 }

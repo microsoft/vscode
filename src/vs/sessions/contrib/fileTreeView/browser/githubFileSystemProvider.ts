@@ -4,21 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ByteSize, createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat } from '../../../../platform/files/common/files.js';
+import { ByteSize, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat, createFileSystemProviderError } from '../../../../platform/files/common/files.js';
+import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
 import { GitTree, IContentClient } from '../../../../platform/github/common/content/content.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { GitHubApiClient } from '../../github/browser/githubApiClient.js';
+import { GitHubApiClient } from '../../../../workbench/services/github/browser/githubApiClient.js';
 
 interface ITreeCacheEntry {
 	/** Map from path → entry metadata */
 	readonly entries: Map<string, { type: FileType; size: number; sha: string }>;
+	/** Map from directory path → its direct children, in tree order */
+	readonly children: Map<string, [string, FileType][]>;
 	readonly fetchedAt: number;
 }
 
@@ -96,13 +100,13 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 
 	// --- GitHub API
 
-	private async withContentClient<T>(task: (client: IContentClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+	private async withContentClient<T>(task: (client: IContentClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
 		try {
-			return await this.client.withClient((client, signal) => {
+			return await this.client.withClient((client, cancellationToken) => {
 				if (client.authorization.providerId !== 'github') {
 					throw createFileSystemProviderError(localize('githubFileSystem.accountRequired', "Select a GitHub.com account to read this repository."), FileSystemProviderErrorCode.NoPermissions);
 				}
-				return task(client.content, signal);
+				return task(client.content, cancellationToken);
 			});
 		} catch (error) {
 			if (isCancellationError(error) || error instanceof FileSystemProviderError) {
@@ -122,7 +126,8 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 		}
 	}
 
-	private fetchTree(client: IContentClient, owner: string, repo: string, ref: string, signal: AbortSignal): Promise<ITreeCacheEntry> {
+	private fetchTree(client: IContentClient, repository: RepositoryRef, ref: string, cancellationToken: CancellationToken): Promise<ITreeCacheEntry> {
+		const { owner, repo } = repository;
 		const cacheKey = `${owner}/${repo}/${ref}`;
 
 		// Check positive cache
@@ -143,7 +148,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			return pending;
 		}
 
-		const promise = this.doFetchTree(client, owner, repo, ref, cacheKey, signal).finally(() => {
+		const promise = this.doFetchTree(client, repository, ref, cacheKey, cancellationToken).finally(() => {
 			if (this.pendingFetches.get(cacheKey) === promise) {
 				this.pendingFetches.delete(cacheKey);
 			}
@@ -152,22 +157,23 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 		return promise;
 	}
 
-	private async doFetchTree(client: IContentClient, owner: string, repo: string, ref: string, cacheKey: string, signal: AbortSignal): Promise<ITreeCacheEntry> {
+	private async doFetchTree(client: IContentClient, repository: RepositoryRef, ref: string, cacheKey: string, cancellationToken: CancellationToken): Promise<ITreeCacheEntry> {
+		const { owner, repo } = repository;
 		this.logService.info(`[SessionRepoFS] Fetching tree for ${owner}/${repo}@${ref}`);
 		let data: GitTree;
 		try {
-			data = await client.getTree(owner, repo, ref, signal, {
+			data = await client.getTree(repository, ref, cancellationToken, {
 				query: { recursive: true },
 				caller: 'githubFileSystemProvider.fetchTree',
 			});
 		} catch (error) {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (error instanceof GitHubRequestError && error.kind === 'notFound') {
 				this.notFoundCache.set(cacheKey, Date.now());
 			}
 			throw error;
 		}
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (data.truncated) {
 			throw createFileSystemProviderError(localize('githubFileSystem.truncatedTree', "The repository tree for {0}/{1}@{2} is incomplete and cannot be displayed.", owner, repo, ref), FileSystemProviderErrorCode.Unavailable);
 		}
@@ -191,7 +197,22 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			}
 		}
 
-		const cacheEntry: ITreeCacheEntry = { entries, fetchedAt: Date.now() };
+		const children = new Map<string, [string, FileType][]>();
+		for (const [entryPath, entry] of entries) {
+			if (!entryPath) {
+				continue;
+			}
+			const separator = entryPath.lastIndexOf('/');
+			const parentPath = separator === -1 ? '' : entryPath.slice(0, separator);
+			let siblings = children.get(parentPath);
+			if (!siblings) {
+				siblings = [];
+				children.set(parentPath, siblings);
+			}
+			siblings.push([entryPath.slice(separator + 1), entry.type]);
+		}
+
+		const cacheEntry: ITreeCacheEntry = { entries, children, fetchedAt: Date.now() };
 		this.treeCache.set(cacheKey, cacheEntry);
 		return cacheEntry;
 	}
@@ -199,9 +220,10 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	// --- IFileSystemProvider
 
 	async stat(resource: URI): Promise<IStat> {
-		const { owner, repo, ref, path } = this.parseUri(resource);
-		return this.withContentClient(async (client, signal) => {
-			const tree = await this.fetchTree(client, owner, repo, ref, signal);
+		const repository = this.parseUri(resource);
+		const { ref, path } = repository;
+		return this.withContentClient(async (client, cancellationToken) => {
+			const tree = await this.fetchTree(client, repository, ref, cancellationToken);
 			const entry = tree.entries.get(path);
 
 			if (!entry) {
@@ -218,33 +240,19 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
-		const { owner, repo, ref, path } = this.parseUri(resource);
-		return this.withContentClient(async (client, signal) => {
-			const tree = await this.fetchTree(client, owner, repo, ref, signal);
-
-			const prefix = path ? path + '/' : '';
-			const result: [string, FileType][] = [];
-
-			for (const [entryPath, entry] of tree.entries) {
-				if (!entryPath.startsWith(prefix)) {
-					continue;
-				}
-
-				const relativePath = entryPath.slice(prefix.length);
-				// Only include direct children (no nested paths)
-				if (relativePath && !relativePath.includes('/')) {
-					result.push([relativePath, entry.type]);
-				}
-			}
-
-			return result;
+		const repository = this.parseUri(resource);
+		const { ref, path } = repository;
+		return this.withContentClient(async (client, cancellationToken) => {
+			const tree = await this.fetchTree(client, repository, ref, cancellationToken);
+			return [...(tree.children.get(path) ?? [])];
 		});
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const { owner, repo, ref, path } = this.parseUri(resource);
-		return this.withContentClient(async (client, signal) => {
-			const tree = await this.fetchTree(client, owner, repo, ref, signal);
+		const repository = this.parseUri(resource);
+		const { ref, path } = repository;
+		return this.withContentClient(async (client, cancellationToken) => {
+			const tree = await this.fetchTree(client, repository, ref, cancellationToken);
 			const entry = tree.entries.get(path);
 
 			if (!entry || entry.type === FileType.Directory) {
@@ -252,7 +260,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			}
 
 			this.checkFileSize(entry.size);
-			const data = await client.getBlob(owner, repo, entry.sha, signal, { caller: 'githubFileSystemProvider.readFile' });
+			const data = await client.getBlob(repository, entry.sha, cancellationToken, { caller: 'githubFileSystemProvider.readFile' });
 			const bytes = decodeBase64(data.content.replace(/\s/g, '')).buffer;
 			this.checkFileSize(bytes.byteLength);
 			return bytes;

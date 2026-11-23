@@ -31,12 +31,17 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import '../browser/aiCustomization/copilotCanvases.contribution.js';
 import './codexCustomizationSettings.contribution.js';
+import './agentSessions/computerUseHelperApp.contribution.js';
+import './actions/chatAppWindowScreenshotActions.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
+import { CopilotCliSessionLinkOpener } from '../browser/copilotCliSessionLink.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
@@ -47,9 +52,9 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
-import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
+import { confirmSessionShutdown, getChatUnattendedRestartBlocker, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, CopilotHarnessIntroductionContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
+import { AgentsLauncherAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, CopilotHarnessIntroductionContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
 import { AgentsWindowInvitationContribution } from './agentSessions/agentsWindowInvitation.js';
 import { AgentHostEditorActivity, IAgentHostEditorActivityService } from './agentSessions/agentHostEditorActivity.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
@@ -66,6 +71,8 @@ class ChatCommandLineHandler extends Disposable {
 
 	static readonly ID = 'workbench.contrib.chatCommandLineHandler';
 
+	private readonly copilotCliSessionLinkOpener: CopilotCliSessionLinkOpener;
+
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -73,9 +80,12 @@ class ChatCommandLineHandler extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.copilotCliSessionLinkOpener = instantiationService.createInstance(CopilotCliSessionLinkOpener);
 
 		this.registerListeners();
 	}
@@ -100,6 +110,20 @@ class ChatCommandLineHandler extends Disposable {
 		};
 		ipcRenderer.on('vscode:openChatSession', handleOpenChatSession);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openChatSession', handleOpenChatSession) });
+
+		const handleOpenCopilotCliSession = (_: unknown, ...args: unknown[]) => {
+			const sessionId = args[0];
+			this.logService.trace('vscode:openCopilotCliSession', sessionId);
+
+			if (typeof sessionId !== 'string') {
+				return;
+			}
+
+			this.copilotCliSessionLinkOpener.open(sessionId)
+				.catch(err => this.logService.error('vscode:openCopilotCliSession failed', err));
+		};
+		ipcRenderer.on('vscode:openCopilotCliSession', handleOpenCopilotCliSession);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openCopilotCliSession', handleOpenCopilotCliSession) });
 	}
 
 	private async prompt(args: typeof this.environmentService.args.chat): Promise<void> {
@@ -165,17 +189,21 @@ class ChatLifecycleHandler extends Disposable {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IChatService private readonly chatService: IChatService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
 
 		this._register(lifecycleService.onBeforeShutdown(e => {
 			e.veto(this.shouldVetoShutdown(e.reason), 'veto.chat');
+		}));
+
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => getChatUnattendedRestartBlocker(this.chatService.requestInProgressObs.get(), this.chatService.getPendingRequestSessionTypes(), this.agentSessionsService.model.sessions)
 		}));
 
 		this._register(extensionService.onWillStop(e => {
@@ -206,10 +234,6 @@ class ChatLifecycleHandler extends Disposable {
 			return false;
 		}
 
-		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
-			return false;
-		}
-
 		this.widgetService.revealWidget();
 		return !await confirmSessionShutdown(this.dialogService, effectiveReason);
 	}
@@ -220,6 +244,7 @@ registerAction2(OpenWorkspaceInAgentsWindowChatTitleAction);
 registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
 registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
 registerAction2(OpenAgentsWindowAction);
+registerAction2(AgentsLauncherAction);
 registerAction2(OpenChatSessionInAgentsWindowAction);
 if (!product.quality) {
 	registerAction2(ResetCopilotHarnessIntroductionAction);

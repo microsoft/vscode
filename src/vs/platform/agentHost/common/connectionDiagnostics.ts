@@ -9,7 +9,29 @@ import { parseGitHubRequestId } from '../../github/common/client/headers.js';
 
 export { parseGitHubRequestId as getGitHubRequestId } from '../../github/common/client/headers.js';
 
-export interface IConnectionDiagnosticEvent {
+export const connectionCloseReasons = [
+	'unknown', 'socketClose', 'socketError', 'relayHandshakeTimeout', 'relayJoinRejected',
+	'hostHandshakeTimeout', 'publishAckTimeout', 'publishRejected', 'sendFailure', 'hostOffline',
+	'hostLaneClosed', 'generationMismatch', 'requestLimit', 'handshakeClosureLimit',
+	'watchdog', 'protocolReinitialize', 'osSuspend', 'externalClose',
+] as const;
+export type ConnectionCloseReason = typeof connectionCloseReasons[number];
+
+export const connectionHandshakeMethods = ['initialize', 'reconnect'] as const;
+export type ConnectionHandshakeMethod = typeof connectionHandshakeMethods[number];
+export const connectionHandshakeStates = ['waiting', 'chunksReceived', 'otherMessagesReceived', 'responseReceived'] as const;
+export type ConnectionHandshakeState = typeof connectionHandshakeStates[number];
+
+export interface IConnectionDiagnosticState {
+	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
+	readonly authenticationRestorePending?: boolean;
+	readonly lastSuccessfulResponseAgeMs?: number;
+	readonly reconnectAttempt?: number;
+	readonly reconnectScheduled?: boolean;
+	readonly reconnectDelayMs?: number;
+}
+
+export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly operationId: string;
 	readonly attemptId?: string;
 	readonly phase: string;
@@ -20,6 +42,14 @@ export interface IConnectionDiagnosticEvent {
 	readonly error?: IConnectionDiagnosticError;
 	readonly requestKind?: ConnectionDiagnosticRequestKind;
 	readonly connectionOperation?: 'connect' | 'recover';
+	/** Source-owned initiating close boundary, never inferred from error text. */
+	readonly closeReason?: ConnectionCloseReason;
+	readonly handshakeMethod?: ConnectionHandshakeMethod;
+	readonly handshakeState?: ConnectionHandshakeState;
+	readonly sessionResource?: string;
+	readonly chatResource?: string;
+	readonly turnId?: string;
+	readonly sessionState?: 'creating' | 'ready' | 'failed';
 }
 
 export type ConnectionDiagnosticRequestKind = 'listSessions' | 'createSession' | 'subscribeRoot' | 'subscribeSession' | 'subscribeChat' | 'subscribeOther';
@@ -51,6 +81,7 @@ export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): s
 		.replace(/((?:https?|wss?):\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
 		.replace(/((?:https?|wss?):\/\/[^\s?#]+)[?#][^\s]*/gi, '$1?[redacted]')
 		.replace(/((?:access[_-]?token|refresh[_-]?token|token|tkn|password|secret|authorization|cookie)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
+		.replace(/(--[\w-]*(?:token|secret|password)[\w-]*(?:=|\s+))(?!-)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
 		.replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g, '[redacted token]')
 		.replace(/[\r\n\t]+/g, ' ')
 		.slice(0, limit);
@@ -129,6 +160,12 @@ export function formatConnectionDiagnosticError(error: IConnectionDiagnosticErro
 	].filter(value => value !== undefined).join('; ');
 }
 
+export function reviveConnectionDiagnosticError(error: IConnectionDiagnosticError): Error {
+	return Object.assign(new Error(error.message), error, {
+		cause: error.cause ? reviveConnectionDiagnosticError(error.cause) : undefined,
+	});
+}
+
 /** Records an operation without adding an asynchronous boundary to its caller. */
 export class ConnectionDiagnosticOperation {
 	private readonly operationId = generateUuid();
@@ -181,6 +218,9 @@ export class ConnectionDiagnosticBuffer {
 	private readonly events: IRemoteConnectionDiagnosticEvent[] = [];
 
 	record(address: string, event: IConnectionDiagnosticEvent): void {
+		if (event.outcome === 'info' && (event.phase === 'session.snapshot' || event.phase === 'chat.binding' || event.phase === 'turn.submit')) {
+			return;
+		}
 		this.events.push({ ...event, address });
 		if (this.events.length > 200) {
 			this.events.shift();

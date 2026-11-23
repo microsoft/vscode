@@ -6,7 +6,7 @@
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
-import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { toDisposable, Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditTelemetryMode, EditTelemetryTrigger, sendEditSourcesDetailsTelemetry, sendEditSourcesStatsTelemetry } from '../../../../../platform/telemetry/common/editTelemetry.js';
@@ -95,7 +95,14 @@ class TrackedDocumentInfo extends Disposable {
 
 		this._repo = derived(this, reader => this._scm.getRepo(_doc.document.uri, reader));
 
-		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, this._store);
+		const annotationStore = new DisposableStore();
+		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, annotationStore);
+		this._register(toDisposable(() => {
+			void docWithJustReason.waitForQueue(() => annotationStore.dispose()).catch(error => {
+				annotationStore.dispose();
+				this._logService.error(`[EditSourceTrackingImpl] Failed to drain document annotations: ${error}`);
+			});
+		}));
 		const externalEditCorrelation = this._agentHostEditMarkerService?.createCorrelation(_doc.document.uri);
 
 		const longtermResetSignal = observableSignal('resetSignal');
@@ -110,7 +117,6 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send long term document telemetry
-				t.stopTracking();
 				this._sendTelemetryAndLog('longterm', longtermReason, t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 			}));
 			return t;
@@ -165,7 +171,6 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send windowed document telemetry
-				t.stopTracking();
 				this._sendTelemetryAndLog('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 			}));
 
@@ -193,7 +198,6 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send focus-windowed document telemetry
-				t.stopTracking();
 				this._sendTelemetryAndLog('20minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 			}));
 
@@ -203,7 +207,7 @@ class TrackedDocumentInfo extends Disposable {
 	}
 
 	private _sendTelemetryAndLog(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, tracker: DocumentEditSourceTracker, focusTime: number, actualTime: number): void {
-		void this.sendTelemetry(mode, trigger, tracker, focusTime, actualTime).catch(error => {
+		void tracker.stopTracking().then(() => this.sendTelemetry(mode, trigger, tracker, focusTime, actualTime)).catch(error => {
 			this._logService.error(`[EditSourceTrackingImpl] Failed to send ${mode} edit telemetry: ${error}`);
 		}).finally(() => {
 			tracker.releaseExternalEditCorrelations();
@@ -266,6 +270,9 @@ class TrackedDocumentInfo extends Disposable {
 			return;
 		}
 		const totalModifiedCount = data.totalModifiedCharactersInFinalState + (preparedAgentFlush?.agentModifiedCount ?? 0);
+		const coarseDiffCount = preparedAgentFlush
+			? preparedAgentFlush.coarseDiffCount === undefined ? undefined : t.coarseDiffCount + preparedAgentFlush.coarseDiffCount
+			: t.coarseDiffCount;
 
 		const telemetryKeys = new Map<string, {
 			readonly representative: TextModelEditSource;
@@ -325,6 +332,7 @@ class TrackedDocumentInfo extends Disposable {
 				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,
+				...(coarseDiffCount !== undefined ? { coarseDiffCount } : {}),
 			});
 		}
 
@@ -344,6 +352,7 @@ class TrackedDocumentInfo extends Disposable {
 			userModifiedCount: data.userModifiedCount,
 			ideModifiedCount: data.ideModifiedCount,
 			totalModifiedCharacters: totalModifiedCount,
+			...(coarseDiffCount !== undefined ? { coarseDiffCount } : {}),
 			externalModifiedCount: data.externalModifiedCount,
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 			focusTime,

@@ -11,6 +11,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import './messageController.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { IPosition } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -69,6 +70,7 @@ export class MessageController implements IEditorContribution {
 
 		if (isMarkdownString(message)) {
 			const renderedMessage = this._messageListeners.add(renderMarkdown(message, {
+				sanitizerConfig: getEditorMarkdownSanitizerConfig(this._editor),
 				actionHandler: (url, mdStr) => {
 					this.closeMessage();
 					openLinkFromMarkdown(this._openerService, url, mdStr.isTrusted);

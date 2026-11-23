@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ToolDefinition, URI } from './state/sessionState.js';
+import type { StringOrMarkdown, ToolDefinition, URI } from './state/sessionState.js';
 
 /**
  * A server tool definition plus agent-host-local metadata that is not part of
@@ -23,6 +23,12 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	 * sessions defer the tool and other providers keep their SDK defaults.
 	 */
 	readonly deferLoading?: boolean;
+	/**
+	 * The input schema to advertise instead of `inputSchema` while the tool is deferred behind tool search, for text
+	 * that only helps once the agent has loaded the tool, such as a model catalog. A provider that loads the tool on
+	 * every request uses `inputSchema`. Never published to clients.
+	 */
+	readonly deferredInputSchema?: ToolDefinition['inputSchema'];
 }
 
 /**
@@ -40,6 +46,13 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
  * Tool invocation methods take the exact Agent Host chat channel URI. The host
  * resolves its owning session for session-scoped state and tools.
  */
+/** The confirmation a server tool's call shows, built with the host's state. */
+export interface IServerToolConfirmationDisplay {
+	readonly confirmationTitle?: string;
+	readonly confirmationMessage?: StringOrMarkdown;
+	readonly hideConfirmationInput?: boolean;
+}
+
 export interface IAgentServerToolHost {
 	/** Every server tool definition across the contributed groups. */
 	readonly definitions: readonly IAgentServerToolDefinition[];
@@ -71,11 +84,18 @@ export interface IAgentServerToolHost {
 	 */
 	requiresConfirmation(chatUri: URI, toolName: string): boolean;
 	/**
+	 * The confirmation a call of {@link toolName} with {@link args} shows, built by its group with the host's state
+	 * (for example, linking only sessions the host knows). `undefined` for a tool with no confirmation display, where
+	 * providers fall back to their generic one.
+	 */
+	getConfirmationDisplay(toolName: string, args: unknown): IServerToolConfirmationDisplay | undefined;
+	/**
 	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
+	 * `toolCallId` identifies the call in the chat's state, when the provider knows it.
 	 *
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string>;
 }

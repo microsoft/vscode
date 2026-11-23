@@ -6,6 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { RequestErrorKind } from '../../github/common/types.js';
 import { ISessionGitHubState, ISessionGitState, SessionSummaryMeta } from './state/sessionState.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 
@@ -41,11 +42,22 @@ export interface IRecordedPullRequestAssociationResult {
 	readonly unmatched: readonly string[];
 }
 
+/** Options for {@link IAgentHostGitStateService.refreshSessionGitState}. */
+export interface IRefreshSessionGitStateOptions {
+	/**
+	 * Announce the refresh through {@link IAgentHostGitStateService.onDidRefreshSessionGitState} even when the
+	 * refreshed state equals the previous one. Set it when the checkout changed in ways the state does not
+	 * describe, such as edits to files that were already modified, or after a Git operation.
+	 */
+	readonly force?: boolean;
+}
+
 export interface IAgentHostGitStateService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fires when the git state for a session is refreshed.
+	 * Fires when a refresh of the git state of a session or chat observed a change, was its first, or was forced
+	 * (see {@link IRefreshSessionGitStateOptions.force}). A refresh that finds nothing new does not fire it.
 	 */
 	readonly onDidRefreshSessionGitState: Event<string>;
 
@@ -57,7 +69,7 @@ export interface IAgentHostGitStateService {
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
-	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource): Promise<void>;
+	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void>;
 
 	/** Returns the latest live or restored Git state for a session or folder-scoped chat. */
 	readonly getSessionGitState?: (sessionKey: string) => ISessionGitState | undefined;
@@ -102,6 +114,19 @@ export interface IAgentHostGitStateService {
 	 * Refresh git state, then reconcile the actionable GitHub pull request for the current branch.
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
+	 * @returns Why looking up the pull request failed, if it did.
 	 */
-	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource): Promise<void>;
+	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void>;
+}
+
+/** Why looking up the pull request of a checkout's branch on GitHub failed. */
+export interface IPullRequestLookupFailure {
+	readonly kind: RequestErrorKind;
+	readonly message: string;
+	/**
+	 * The GitHub page where the user authorizes the credential for an
+	 * organization that enforces SAML single sign-on, when it refused the
+	 * lookup for that. GitHub expires it after an hour.
+	 */
+	readonly ssoAuthorizationUrl?: string;
 }

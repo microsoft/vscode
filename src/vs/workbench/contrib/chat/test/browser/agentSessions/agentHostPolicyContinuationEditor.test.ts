@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -18,6 +19,10 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { EditorAgentHostPolicyContinuationPresenter } from '../../../browser/agentSessions/agentHost/agentHostPolicyContinuationEditor.js';
 import { ChatViewId, IChatWidget } from '../../../browser/chat.js';
+import { IChatViewHostService } from '../../../browser/chatViewHost.js';
+import { ChatViewHostService } from '../../../browser/widgetHosts/viewPane/chatViewHostService.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatEditorInput } from '../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -72,6 +77,11 @@ suite('Editor Agent Host policy continuation presenter', () => {
 		services.stub(IAgentHostImportConversationStore, new AgentHostImportConversationStore());
 		services.stub(IProgressService, {});
 		services.stub(ILogService, new NullLogService());
+		// The sidebar is the Chat view, as in the workbench
+		services.stub(IViewDescriptorService, {});
+		services.stub(IWorkbenchLayoutService, {});
+		stubChatViewHostServiceDependencies(services);
+		services.stub(IChatViewHostService, store.add(services.createInstance(ChatViewHostService)));
 		const presenter = services.createInstance(EditorAgentHostPolicyContinuationPresenter);
 		return {
 			state, navigation,

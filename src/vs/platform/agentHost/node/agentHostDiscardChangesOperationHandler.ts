@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { equals } from '../../../base/common/arrays.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { basename, extUriBiasedIgnorePathCase, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../files/common/files.js';
-import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService, type ITrackedEditSource } from '../common/agentHostChangesetService.js';
+import { IDiffComputeService } from '../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { FileEditKind, isHostNoticeTurn, lastAttributableTurnId, type ChangesetFile, type SessionState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { FileEditKind, isHostNoticeTurn, lastAttributableTurnId, type ChangesetFile, type SessionState, type TextRange, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostFileEditRevert, FileEditRevertConflictError, FileEditRevertConflictReason, type IFileEditRevert, type IFileEditRevertStep } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -25,7 +27,13 @@ import { ILogService } from '../../log/common/log.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
+import { createFileEditAcceptRecord, createFileEditAcceptRecordAfter, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent, storeFileEditAcceptRecord } from './fileEditAccept.js';
+import { isFileEditPath } from './fileEditPath.js';
+import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 import { isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { createChangedSinceShownError } from './workingSetNonce.js';
+import { computeWorkingSetRangeChanges, type IWorkingSetFileContents } from './workingSetFileContents.js';
+import { computeWorkingSetSources, getFileEditKey, getWorkingSetNonce, type IWorkingSetSource } from './workingSetSources.js';
 
 /**
  * The turn that the Last Turn Changes changeset of `owner` shows: the turn in
@@ -43,25 +51,55 @@ export function getLastTurn(stateManager: AgentHostStateManager, owner: Protocol
 	return id === undefined ? undefined : { id, inProgress: false };
 }
 
-function isFilePath(path: string | undefined, resource: URI): boolean {
-	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
+/** The one-based lines that a zero-based range covers; a range that ends at the start of a line doesn't cover it. */
+function toLineRange(range: TextRange): { readonly startLineNumber: number; readonly endLineNumberExclusive: number } {
+	const startLineNumber = range.start.line + 1;
+	const endLineNumberExclusive = range.end.character > 0 ? range.end.line + 2 : range.end.line + 1;
+	return { startLineNumber, endLineNumberExclusive: Math.max(startLineNumber, endLineNumberExclusive) };
+}
+
+/** How to record and check a discard of a file's recorded changes. */
+interface IDiscardRecording {
+	/** The database the file's edits are recorded in, where the discard is recorded. */
+	readonly db: ISessionDatabase;
+	/** Throws when a turn ran since the records were read. */
+	throwIfTurnRan(): void;
+	/**
+	 * Throws when the file's records changed since they were read, as when its
+	 * changes were accepted meanwhile, given the rows that record the discard.
+	 * Runs in the transaction that records the discard, before the file changes.
+	 */
+	throwIfRecordsChanged?(discardRows: readonly IFileEditRecord[]): Promise<void>;
+	/** Recomputes the changesets that may include rows whose recording failed. */
+	recompute(): void;
 }
 
 /** A file's recorded edits to discard, and how to record and check the discard. */
-interface IRecordedEditsDiscard {
-	/** The database the edits are recorded in, where the discard is recorded. */
-	readonly db: ISessionDatabase;
+interface IRecordedEditsDiscard extends IDiscardRecording {
 	/**
 	 * The file's edit records, in the order they were made, including rows of
-	 * earlier discards. Must not include renames.
+	 * earlier discards. Must not include renames or rows that record accepting
+	 * changes, except a first one that accepted only some of them.
 	 */
 	readonly records: readonly IFileEditRecord[];
+	/**
+	 * Turns whose records include accepted ones that {@link records} leaves
+	 * out, when only the changes since the file was last accepted are discarded.
+	 */
+	readonly acceptedTurns?: ReadonlySet<string>;
 	/** Builds the rows that record the discard, given one step per record. */
 	createRows(steps: readonly IFileEditRevertStep[]): (IFileEditRecord & IFileEditContent)[];
-	/** Throws when a turn ran since the records were read. */
-	throwIfTurnRan(): void;
-	/** Recomputes the changesets that may include rows whose recording failed. */
-	recompute(): void;
+}
+
+/** The database that a file's changes are discarded through. */
+interface IDiscardSource {
+	readonly source: ITrackedEditSource;
+	/** All of the file's rows in the database. */
+	readonly records: readonly IFileEditRecord[];
+	/** The file's unaccepted rows and the change they make, when discarding from the Working Set. */
+	readonly workingSet?: IWorkingSetSource;
+	/** Other databases' unaccepted rows of the file, which leave no change, when discarding from the Working Set. */
+	readonly unchanged?: readonly IWorkingSetSource[];
 }
 
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
@@ -77,6 +115,8 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
@@ -94,11 +134,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, _signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+		if (parsed?.kind === ChangesetKind.Turn) {
 			return this._discardTurnFile(params, parsed.ownerUri, parsed.turnId, token);
 		}
-		if (parsed?.kind === ChangesetKind.Session) {
-			return this._discardSessionFile(params, parsed.ownerUri, resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sessionUri, token);
+		if (parsed?.kind === ChangesetKind.Session || parsed?.kind === ChangesetKind.WorkingSet) {
+			return this._discardSessionFile(params, parsed.ownerUri, resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sessionUri, parsed.kind === ChangesetKind.WorkingSet, token);
 		}
 		if (!parsed || (parsed.kind !== ChangesetKind.Branch && parsed.kind !== ChangesetKind.Uncommitted)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a branch or uncommitted changeset URI: ${params.channel}`);
@@ -259,11 +299,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.ambiguousTurn', "Changes from a turn that belongs to more than one chat can't be discarded."));
 		}
 		try {
-			const records = this._getFileEditRecords(await source.db.getFileEditsByTurn(turnId), resource, source.folderScope);
+			const records = this._getFileEditRecords(await source.db.getFileEditsByTurn(turnId), resource, source.folderScope).filter(record => !isFileEditAcceptRecord(record));
 			if (records.length === 0) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.notInTurn', "'{0}' has no changes in the last turn.", basename(resource)));
 			}
-			await this._throwIfEditedByOtherChats(source.otherChatDatabases, resource);
+			await this._throwIfEditedByOtherChats(source.otherChatDatabases, resource, await source.db.getAllFileEdits());
 
 			this._logService.info(`[AgentHostDiscardChangesOperationHandler] Discarding last turn changes to '${resource.fsPath}' for ${owner} (turn ${turnId})`);
 			await this._discardRecordedEdits(resource, {
@@ -276,10 +316,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				recompute: () => this._changesets.onFileEditsDiscarded(owner, [turnId]),
 			}, token);
 		} catch (err) {
-			throw this._toDiscardError(err, resource, {
-				conflict: localize('agentHost.changeset.discardTurnChanges.conflict', "Couldn't discard the last turn's changes to '{0}' because the same lines were changed after the turn.", basename(resource)),
-				createdFile: localize('agentHost.changeset.discardTurnChanges.createdFile', "The last turn created '{0}', which can't be discarded safely. Delete the file manually if it is no longer needed.", basename(resource)),
-			});
+			throw this._toDiscardError(err, resource, localize('agentHost.changeset.discardTurnChanges.conflict', "Couldn't discard the last turn's changes to '{0}' because the same lines were changed after the turn.", basename(resource)));
 		} finally {
 			source.dispose();
 		}
@@ -297,22 +334,33 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	 * aren't reverted again, but their records still span their turn's rows.
 	 * The file only changes inside the transaction that records the discard,
 	 * after checking that no turn ran meanwhile: a turn's edits would be
-	 * recorded before the discard, and a recreated file couldn't be deleted
-	 * again. When the discard can't be recorded, the file is put back.
+	 * recorded before the discard. When the discard can't be recorded, the
+	 * file is put back.
 	 */
 	private async _discardRecordedEdits(resource: URI, discard: IRecordedEditsDiscard, token: CancellationToken): Promise<void> {
 		const steps = await readFileEditRevertSteps(discard.db, discard.records);
 		this._throwIfCancelled(token);
-		const revert = await this._fileEditRevert.prepare(resource, getUndiscardedFileEditRevertSteps(discard.records, steps), token);
+		await this._revertAndRecord(resource, discard, getUndiscardedFileEditRevertSteps(discard.records, steps, discard.acceptedTurns), discard.createRows(steps), token);
+	}
+
+	/**
+	 * Reverts `steps` of the file, keeping every other change to it, and
+	 * records `rows`. The file only changes inside the transaction that records
+	 * them, after the checks of `recording`. When the rows can't be recorded,
+	 * the file is put back.
+	 */
+	private async _revertAndRecord(resource: URI, recording: IDiscardRecording, steps: readonly IFileEditRevertStep[], rows: (IFileEditRecord & IFileEditContent)[], token: CancellationToken): Promise<void> {
+		const revert = await this._fileEditRevert.prepare(resource, steps, token);
 		try {
-			await discard.db.storeFileEdits(discard.createRows(steps), async () => {
-				discard.throwIfTurnRan();
+			await recording.db.storeFileEdits(rows, async () => {
+				recording.throwIfTurnRan();
+				await recording.throwIfRecordsChanged?.(rows);
 				await revert.apply();
 			});
 		} catch (err) {
 			await this._undoRevert(revert, resource);
 			// A changeset computed while the rows were recorded may include them.
-			discard.recompute();
+			recording.recompute();
 			throw err;
 		}
 	}
@@ -321,61 +369,146 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	 * Reverts the edits that every turn made to the target file, keeping every
 	 * other change to it, then records the discard as one synthetic edit row
 	 * per turn so the file leaves the Session Changes changeset and every
-	 * turn's changeset.
+	 * turn's changeset. A file the session created is deleted. With
+	 * `sinceAccepted`, for the Working Set, only the edits since the file's
+	 * changes were last accepted are reverted, which restores the accepted
+	 * content, or only the hunks that a range target touches (see
+	 * {@link _prepareRangeDiscard}).
 	 */
-	private async _discardSessionFile(params: InvokeChangesetOperationParams, owner: ProtocolURI, session: ProtocolURI, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	private async _discardSessionFile(params: InvokeChangesetOperationParams, owner: ProtocolURI, session: ProtocolURI, sinceAccepted: boolean, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		this._throwIfCancelled(token);
-		const resource = this._getResourceTarget(params);
+		const range = sinceAccepted && params.target?.kind === ChangesetOperationTargetKind.Range ? params.target : undefined;
+		const resource = range ? URI.parse(range.resource) : this._getResourceTarget(params);
 		if (!this._stateManager.getSessionState(owner)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${owner}`);
 		}
-		this._throwIfTurnActive(session);
+		// While a turn runs, the Working Set's changes can be discarded when the agent's edit tool calls wait for it.
+		const duringTurn = sinceAccepted && this._fileEditCoordinator.isCoordinatedProvider(this._stateManager.getSessionSummary(session)?.provider);
+		if (!duringTurn) {
+			this._throwIfTurnActive(session);
+		}
+		if (!sinceAccepted) {
+			return this._doDiscardSessionFile(owner, session, resource, undefined, false, false, undefined, token);
+		}
+		const shownNonce = params.target?.nonce;
+		try {
+			// The agent's edit tool calls on the file wait meanwhile, so each one's snapshots and the discard are recorded in order.
+			return await this._fileEditCoordinator.runExclusive(resource, () => this._doDiscardSessionFile(owner, session, resource, range, true, duringTurn, shownNonce, token));
+		} catch (err) {
+			if (err instanceof FileEditsInProgressError) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
+			}
+			throw err;
+		}
+	}
+
+	private async _doDiscardSessionFile(owner: ProtocolURI, session: ProtocolURI, resource: URI, range: { readonly side?: 'before' | 'after'; readonly range: TextRange } | undefined, sinceAccepted: boolean, duringTurn: boolean, shownNonce: string | undefined, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		const turnsBefore = this._getSessionTurnsKey(session);
+		const messages = sinceAccepted ? {
+			noChanges: localize('agentHost.changeset.discardWorkingSetChanges.noChanges', "'{0}' has no changes that have not been accepted.", basename(resource)),
+			turnRan: localize('agentHost.changeset.discardWorkingSetChanges.turnRanDuringDiscard', "A turn ran while the changes to '{0}' were being discarded. Try again.", basename(resource)),
+			conflict: localize('agentHost.changeset.discardWorkingSetChanges.conflict', "Couldn't discard the changes to '{0}' that have not been accepted because the same lines were changed outside of the session.", basename(resource)),
+			discarded: localize('agentHost.changeset.discardWorkingSetChanges.discarded', "Discarded the changes to `{0}` that have not been accepted.", basename(resource)),
+		} : {
+			noChanges: localize('agentHost.changeset.discardSessionChanges.notInSession', "'{0}' has no changes made by the session.", basename(resource)),
+			turnRan: localize('agentHost.changeset.discardSessionChanges.turnRanDuringDiscard', "A turn ran while the session's changes to '{0}' were being discarded. Try again.", basename(resource)),
+			conflict: localize('agentHost.changeset.discardSessionChanges.conflict', "Couldn't discard the session's changes to '{0}' because the same lines were changed outside of the session.", basename(resource)),
+			discarded: localize('agentHost.changeset.discardSessionChanges.discarded', "Discarded the session's changes to `{0}`.", basename(resource)),
+		};
+		let discarded = messages.discarded;
 
 		const tracked = this._changesets.openTrackedSessionDatabases(owner);
 		let discardedChat: ProtocolURI;
 		try {
-			if (isMultiRootSession(tracked.workingDirectories)) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardSessionChanges.multiRoot', "Session changes can't be discarded in a session with more than one folder."));
-			}
 			this._throwIfOutsideWorkingDirectories(resource, tracked.workingDirectories, owner);
 
-			const matches: { readonly source: ITrackedEditSource; readonly records: readonly IFileEditRecord[] }[] = [];
+			const rowsPerSource: IFileEditRecord[][] = [];
 			for (const source of tracked.sources) {
-				const records = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope);
-				if (records.length > 0) {
-					matches.push({ source, records });
-				}
+				rowsPerSource.push(this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope));
 			}
 			this._throwIfCancelled(token);
-			const [match, ...otherMatches] = matches;
+			const match = sinceAccepted
+				? await this._getWorkingSetDiscardSource(tracked.sources, rowsPerSource, resource, shownNonce)
+				: this._getSessionDiscardSource(tracked.sources, rowsPerSource, resource);
 			if (!match) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardSessionChanges.notInSession', "'{0}' has no changes made by the session.", basename(resource)));
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.noChanges);
 			}
-			await this._throwIfEditedByOtherChats([...otherMatches.map(other => other.source.db), ...tracked.otherChatDatabases], resource);
+			await this._throwIfEditedByOtherChats(tracked.otherChatDatabases, resource, rowsPerSource.flat());
 
-			const { source, records } = match;
-			this._logService.info(`[AgentHostDiscardChangesOperationHandler] Discarding session changes to '${resource.fsPath}' for ${owner} (${records.length} edits)`);
-			await this._discardRecordedEdits(resource, {
+			const { source } = match;
+			const { records, acceptedTurns } = match.workingSet
+				? await getUnacceptedFileEditRecords(source.db, match.records, match.workingSet.rows)
+				: { records: match.records.filter(record => !isFileEditAcceptRecord(record)), acceptedTurns: undefined };
+			if (records.length === 0) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.noChanges);
+			}
+			const recording: IDiscardRecording = {
 				db: source.db,
-				records,
-				createRows: steps => createSessionFileEditDiscardRecords(records, steps),
 				// A turn that ran meanwhile, in any chat, could have recorded
-				// edits that the rows would hide.
+				// edits that the rows would hide. While a turn runs, its edit tool
+				// calls on the file wait for the discard.
 				throwIfTurnRan: () => {
-					this._throwIfTurnActive(session);
+					if (!duringTurn) {
+						this._throwIfTurnActive(session);
+					}
 					if (this._getSessionTurnsKey(session) !== turnsBefore) {
-						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardSessionChanges.turnRanDuringDiscard', "A turn ran while the session's changes to '{0}' were being discarded. Try again.", basename(resource)));
+						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.turnRan);
 					}
 				},
+				// Accepting the file's changes meanwhile, as another client can, in any
+				// chat's database, would make the unaccepted records stale, and
+				// reverting them would undo the accepted changes.
+				throwIfRecordsChanged: sinceAccepted ? async discardRows => {
+					const discardRowIds = new Set(discardRows.map(row => row.toolCallId));
+					const isSameRecord = (a: IFileEditRecord, b: IFileEditRecord) => a.toolCallId === b.toolCallId;
+					for (const [index, { db }] of tracked.sources.entries()) {
+						const current = this._getFileEditRecords(await db.getAllFileEdits(), resource, tracked.folderScope)
+							.filter(record => !discardRowIds.has(record.toolCallId));
+						if (db === source.db && shownNonce !== undefined && current.length > 0 && shownNonce !== getWorkingSetNonce([{ rows: current }])) {
+							throw createChangedSinceShownError(resource);
+						}
+						if (!equals(current, rowsPerSource[index], isSameRecord)) {
+							throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, this._getChangedDuringDiscardMessage(resource));
+						}
+					}
+					await this._throwIfEditedByOtherChats(tracked.otherChatDatabases, resource, rowsPerSource.flat());
+				} : undefined,
 				recompute: () => this._onSessionFileEditsDiscarded(source.chat),
-			}, token);
+			};
+			const rangeDiscard = range && match.workingSet && await this._prepareRangeDiscard(match.records[match.records.length - 1], match.workingSet.contents, range, resource);
+			if (rangeDiscard) {
+				this._logService.info(`[AgentHostDiscardChangesOperationHandler] Discarding a range of the unaccepted changes to '${resource.fsPath}' for ${owner}`);
+				await this._revertAndRecord(resource, recording, [rangeDiscard.step], [rangeDiscard.row], token);
+				discarded = localize('agentHost.changeset.discardWorkingSetChanges.discardedRange', "Discarded the changes to `{0}` in the given range.", basename(resource));
+			} else {
+				this._logService.info(`[AgentHostDiscardChangesOperationHandler] Discarding ${sinceAccepted ? 'unaccepted' : 'session'} changes to '${resource.fsPath}' for ${owner} (${records.length} edits)`);
+				await this._discardRecordedEdits(resource, {
+					...recording,
+					records,
+					acceptedTurns,
+					createRows: steps => {
+						const rows = createSessionFileEditDiscardRecords(records, steps);
+						// The discard rows span whole turns, which can include changes made
+						// between their edits that the file kept. Recording the restored
+						// content as accepted keeps those out of the Working Set.
+						return sinceAccepted ? [...rows, createFileEditAcceptRecordAfter(rows[rows.length - 1])] : rows;
+					},
+				}, token);
+				await this._acceptUnchangedRecords(tracked.sources, match.unchanged ?? [], resource);
+			}
 			discardedChat = source.chat;
+			if (sinceAccepted) {
+				// The agent may still be working on the file, or edit it later, so it's told what changed.
+				this._fileEditCoordinator.reportDiscarded({
+					storage: source.storage,
+					resource,
+					lines: range && toLineRange(range.range),
+					// Undoing every change to a file the session created deletes it.
+					deleted: !range && records[0]?.kind === FileEditKind.Create,
+				});
+			}
 		} catch (err) {
-			throw this._toDiscardError(err, resource, {
-				conflict: localize('agentHost.changeset.discardSessionChanges.conflict', "Couldn't discard the session's changes to '{0}' because the same lines were changed outside of the session.", basename(resource)),
-				createdFile: localize('agentHost.changeset.discardSessionChanges.createdFile', "The session created '{0}', which can't be discarded safely. Delete the file manually if it is no longer needed.", basename(resource)),
-			});
+			throw this._toDiscardError(err, resource, messages.conflict);
 		} finally {
 			tracked.dispose();
 		}
@@ -383,7 +516,94 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		this._onSessionFileEditsDiscarded(discardedChat);
 		this._notifyDiscarded(owner);
 
-		return { message: { markdown: localize('agentHost.changeset.discardSessionChanges.discarded', "Discarded the session's changes to `{0}`.", basename(resource)) } };
+		return { message: { markdown: discarded } };
+	}
+
+	/**
+	 * Prepares discarding the hunks that `target` touches of a file's
+	 * unaccepted changes, `contents`: the step from the file's current content
+	 * to that content with the hunks reverted, and the row that records it. The
+	 * row belongs to the turn of the file's `last` record, which is the turn
+	 * that left the file with that current content, so every turn's changeset
+	 * still starts where its previous one ended. Returns `undefined` when the
+	 * range touches every hunk, so the whole file's changes are discarded
+	 * instead.
+	 */
+	private async _prepareRangeDiscard(last: IFileEditRecord, contents: IWorkingSetFileContents, target: { readonly side?: 'before' | 'after'; readonly range: TextRange }, resource: URI): Promise<{ readonly step: IFileEditRevertStep; readonly row: IFileEditRecord & IFileEditContent } | undefined> {
+		const changes = await computeWorkingSetRangeChanges(contents, target.side, target.range, this._diffComputeService);
+		if (!changes || !contents.current) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.wholeFileOnly', "Changes to '{0}' can only be discarded for the whole file.", basename(resource)));
+		}
+		if (changes.selected === 0) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.notInRange', "'{0}' has no changes to discard in the given range.", basename(resource)));
+		}
+		if (changes.selected === changes.total) {
+			return undefined;
+		}
+		const step = { start: changes.currentWithoutRange, end: contents.current };
+		return { step, row: createFileEditDiscardRecord(last.turnId, last.filePath, step) };
+	}
+
+	/**
+	 * Returns the database whose rows leave the Working Set changes of a file,
+	 * given its rows in each of `sources`, or `undefined` without such changes.
+	 * Rows are only ordered within a database, so changes that several
+	 * databases leave can't be reverted in the order they were made.
+	 */
+	private async _getWorkingSetDiscardSource(sources: readonly ITrackedEditSource[], rowsPerSource: readonly (readonly IFileEditRecord[])[], resource: URI, shownNonce: string | undefined): Promise<IDiscardSource | undefined> {
+		const { pending, unchanged } = await computeWorkingSetSources(sources.map(source => source.db), rowsPerSource, this._diffComputeService);
+		if (pending.length > 1) {
+			throw this._createEditedByOtherChatsError(resource);
+		}
+		if (shownNonce !== undefined && rowsPerSource.some(rows => rows.length > 0) && shownNonce !== getWorkingSetNonce(pending)) {
+			throw createChangedSinceShownError(resource);
+		}
+		if (pending.length === 0) {
+			return undefined;
+		}
+		const [workingSet] = pending;
+		return { source: sources[workingSet.sourceIdx], records: rowsPerSource[workingSet.sourceIdx], workingSet, unchanged };
+	}
+
+	/**
+	 * Accepts the rows of `unchanged`, databases whose unaccepted rows leave no change to the file. The accept row
+	 * of a discard covers their copies of the discarded rows, which would leave the rest of them counted as changes.
+	 */
+	private async _acceptUnchangedRecords(sources: readonly ITrackedEditSource[], unchanged: readonly IWorkingSetSource[], resource: URI): Promise<void> {
+		for (const { sourceIdx, rows } of unchanged) {
+			const { db, chat } = sources[sourceIdx];
+			const last = rows[rows.length - 1];
+			try {
+				const current = await readFileEditEndContent(db, last);
+				await storeFileEditAcceptRecord(db, createFileEditAcceptRecord(last.turnId, last.filePath, current), resource, last, current, () => new Error('The file\'s records changed'));
+				this._changesets.onFileEditsAccepted(chat);
+			} catch (err) {
+				this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not accept the unchanged records of '${resource.fsPath}' for ${chat}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	}
+
+	/**
+	 * Returns the database that recorded a file's edits, given its rows in each
+	 * of `sources`, or `undefined` without any. Session Changes combine every
+	 * chat's edits without ordering them by time, so a discard can't be
+	 * reconciled with edits that several databases recorded.
+	 */
+	private _getSessionDiscardSource(sources: readonly ITrackedEditSource[], rowsPerSource: readonly (readonly IFileEditRecord[])[], resource: URI): IDiscardSource | undefined {
+		const copied = new Set<string>();
+		let match: IDiscardSource | undefined;
+		for (const [index, records] of rowsPerSource.entries()) {
+			if (records.some(record => !copied.has(getFileEditKey(record)))) {
+				if (match) {
+					throw this._createEditedByOtherChatsError(resource);
+				}
+				match = { source: sources[index], records };
+			}
+			for (const record of records) {
+				copied.add(getFileEditKey(record));
+			}
+		}
+		return match;
 	}
 
 	/**
@@ -406,28 +626,36 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	}
 
 	/**
-	 * Returns the edit records of `resource` among `records`, or none when it is
-	 * outside `folderScope`. A renamed file's records span more than one path,
-	 * so a rename that touches `resource` is rejected.
+	 * Returns the edit records of `resource` among `records`, including those
+	 * that record accepting its changes, or none when it is outside
+	 * `folderScope`. A renamed file's records span more than one path, so a
+	 * rename that touches `resource` is rejected.
 	 */
 	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.renamed', "Changes to a renamed file can't be discarded."));
 		}
-		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFileEditPath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
 	}
 
 	/**
 	 * Session Changes combine every chat's edits without ordering them by time,
 	 * so a discard can't be reconciled with another chat's edits to the file.
+	 * Rows that another chat's database shares with `records`, as a forked
+	 * chat's shares its parent's, are the same edits.
 	 */
-	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI): Promise<void> {
+	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI, records: readonly IFileEditRecord[]): Promise<void> {
+		const copied = new Set(records.map(getFileEditKey));
 		for (const db of otherChatDatabases) {
-			const records = await db.getAllFileEdits();
-			if (records.some(record => isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource))) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.otherChat', "Changes to '{0}' can't be discarded because another chat in this session also changed it.", basename(resource)));
+			const others = await db.getAllFileEdits();
+			if (others.some(record => (isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource)) && !copied.has(getFileEditKey(record)))) {
+				throw this._createEditedByOtherChatsError(resource);
 			}
 		}
+	}
+
+	private _createEditedByOtherChatsError(resource: URI): ProtocolError {
+		return new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.otherChat', "Changes to '{0}' can't be discarded because another chat in this session also changed it.", basename(resource)));
 	}
 
 	private _throwIfOutsideWorkingDirectories(resource: URI, workingDirectories: readonly ProtocolURI[] | undefined, owner: ProtocolURI): void {
@@ -443,10 +671,9 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	/**
 	 * Maps a failed revert of recorded edits to the error the client shows,
-	 * using `messages` for conflicts with later changes and for a file whose
-	 * creation would have to be reverted.
+	 * using `conflictMessage` for conflicts with later changes.
 	 */
-	private _toDiscardError(err: unknown, resource: URI, messages: { readonly conflict: string; readonly createdFile: string }): ProtocolError {
+	private _toDiscardError(err: unknown, resource: URI, conflictMessage: string): ProtocolError {
 		if (err instanceof ProtocolError) {
 			return err;
 		}
@@ -454,17 +681,18 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			return this._createCancelledError();
 		}
 		if (err instanceof FileEditRevertConflictError) {
-			let message = messages.conflict;
-			if (err.reason === FileEditRevertConflictReason.ChangedDuringRevert) {
-				message = localize('agentHost.changeset.discardTurnChanges.changedDuringDiscard', "'{0}' changed while its changes were being discarded. Try again.", basename(resource));
-			} else if (err.reason === FileEditRevertConflictReason.ConditionalDeleteUnavailable) {
-				message = messages.createdFile;
-			}
+			const message = err.reason === FileEditRevertConflictReason.ChangedDuringRevert
+				? this._getChangedDuringDiscardMessage(resource)
+				: conflictMessage;
 			return new ProtocolError(JsonRpcErrorCodes.InternalError, message);
 		}
 		return new ProtocolError(
 			JsonRpcErrorCodes.InternalError,
 			`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	private _getChangedDuringDiscardMessage(resource: URI): string {
+		return localize('agentHost.changeset.discardTurnChanges.changedDuringDiscard', "'{0}' changed while its changes were being discarded. Try again.", basename(resource));
 	}
 
 	private _notifyDiscarded(owner: ProtocolURI): void {
@@ -475,13 +703,12 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	/**
 	 * Puts the file back when the discard couldn't be committed after the file
-	 * was changed, so the file and its changesets agree. A recreated file can't
-	 * be deleted again, so it stays.
+	 * was changed, so the file and its changesets agree.
 	 */
 	private async _undoRevert(revert: IFileEditRevert, resource: URI): Promise<void> {
 		try {
 			if (!await revert.undo()) {
-				this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not restore '${resource.fsPath}' after failing to record the discard because it changed in the meantime or was recreated`);
+				this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not restore '${resource.fsPath}' after failing to record the discard because it changed in the meantime`);
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not restore '${resource.fsPath}' after failing to record the discard: ${err instanceof Error ? err.message : String(err)}`);

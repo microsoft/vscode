@@ -10,8 +10,8 @@ import { URI } from '../../../base/common/uri.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getSessionWorkspaceDisplayInfo } from '../../browser/sessionWorkspace.js';
-import { IChat, ISessionWorkspace } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISessionWorkspace } from '../../../workbench/services/sessions/common/session.js';
+import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Session Workspace Display Info', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,12 +30,12 @@ suite('Session Workspace Display Info', () => {
 	test('describes the active chat\'s workspace rather than the session\'s', () => {
 		const tools = URI.file('/src/tools');
 		const worktree = URI.file('/src/tools.worktrees/task');
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			workspace: constObservable(workspace('vscode', URI.file('/src/vscode'))),
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace('tools', tools, worktree)) })),
 		});
 
-		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, reader)).get();
+		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, session.activeChat.read(reader), reader)).get();
 
 		assert.deepStrictEqual({ ...info, icon: info?.icon.id }, {
 			label: 'tools',
@@ -48,12 +48,12 @@ suite('Session Workspace Display Info', () => {
 
 	test('omits the branch for a repository folder workspace', () => {
 		const tools = URI.file('/src/tools');
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			workspace: constObservable(workspace('vscode', URI.file('/src/vscode'))),
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace('tools', tools)) })),
 		});
 
-		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, reader)).get();
+		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, session.activeChat.read(reader), reader)).get();
 
 		assert.deepStrictEqual({ ...info, icon: info?.icon.id }, {
 			label: 'tools',

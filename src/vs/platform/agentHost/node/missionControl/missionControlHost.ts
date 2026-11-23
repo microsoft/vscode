@@ -25,12 +25,15 @@ import { changesetSession, parseChangesetUri } from '../../common/changesetUri.j
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { isAhpChatChannel, readSessionExternal } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
+import { BANG_COMMAND_PREFIX } from '../agentHostBangCommand.js';
+import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { ProtocolServerHandler } from '../protocolServerHandler.js';
-import { MissionControlEnvironment } from './missionControlEnvironment.js';
-import type { MissionControlProtocolServer, MissionControlPublishDiagnostic } from './missionControlProtocolServer.js';
+import { MissionControlEnvironment, type IMissionControlRelayDiagnostic } from './missionControlEnvironment.js';
+import { toMissionControlSocket, type MissionControlProtocolServer, type MissionControlPublishDiagnostic, type MissionControlRelayCloseReason } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import { MissionControlSessionPublisher } from './missionControlSessionPublisher.js';
@@ -41,10 +44,11 @@ import { toMissionControlSessionList } from './missionControlSessionList.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostAhpJsonlLoggingEnvVar, AhpJsonlLogger, AhpJsonlLogRetention, isAhpJsonlLoggingEnabled } from '../../common/ahpJsonlLogger.js';
-import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { MISSION_CONTROL_AHP_LOG_ID, MissionControlUseLocalCredentialsConfigKey } from '../../common/missionControlEnvironment.js';
 import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostAhpJsonlLoggingEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { localProcessPathStyle } from '../../common/agentHostPathStyle.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -58,20 +62,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 type MissionControlOperationEvent = IConnectionTelemetryError & {
-	operation: 'configure' | 'checkIn' | 'register' | 'heartbeat' | 'token' | 'signingKeys' | 'relay' | 'relayDisconnected';
+	operation: 'configure' | 'checkIn' | 'register' | 'heartbeat' | 'token' | 'signingKeys' | 'relay' | 'relayDisconnected' | 'relayRecovery';
 	outcome: 'succeeded' | 'failed' | 'info';
 	durationMs: number | undefined;
 	statusCode: number | undefined;
 	hostLaunchKind: AgentHostLaunchKind;
+	closeReason?: MissionControlRelayCloseReason;
+	closeCode?: number;
+	activeClients?: number;
+	recoveryAttempts?: number;
+	interruptedClients?: number;
 };
 
 export type MissionControlOperationClassification = ConnectionTelemetryErrorClassification & {
 	owner: 'roblourens';
 	comment: 'Mission Control host registration and relay health; routine successful heartbeats are excluded.';
-	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded registration, heartbeat, token, signing key, relay establishment or unexpected relay loss operation.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation success or failure, or an unexpected relay loss (info).' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Operation milliseconds, or ready relay milliseconds before an unexpected loss.' };
+	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded registration, heartbeat, token, signing key, relay establishment, relay socket recovery or unrecovered relay loss operation.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation success or failure, or an unrecovered relay loss (info).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Operation milliseconds, ready relay milliseconds before an unrecovered loss, or milliseconds from socket loss to resumption.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
+	closeReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded trigger for a relay loss or recovery: socket close or error, liveness or acknowledgement timeout, rejected publish, send, protocol or queue failure, or a host-initiated close.' };
+	closeCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'WebSocket close code when the relay socket closed.' };
+	activeClients?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client lanes open when the relay socket was lost.' };
+	recoveryAttempts?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Connection resumption attempts made for the relay loss.' };
+	interruptedClients?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client lanes closed after a resumed relay because a chunked transfer spanned the loss.' };
 };
 
 type MissionControlPublishSummaryEvent = {
@@ -276,7 +290,7 @@ export class MissionControlHost extends Disposable {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
-		@IAgentHostGitHubEndpointService gitHubEndpoints: IAgentHostGitHubEndpointService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpoints: IAgentHostGitHubEndpointService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
@@ -284,6 +298,8 @@ export class MissionControlHost extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
+		@IAgentHostCompletions private readonly _completions: IAgentHostCompletions,
 	) {
 		super();
 		this._ahpLogDirectory = URI.joinPath(environmentService.logsHome, 'ahp');
@@ -302,12 +318,25 @@ export class MissionControlHost extends Disposable {
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
 			getProjectRoots: () => this._projectRoots(),
+			getCloneRoot: () => this.environment.cloneRoot,
 		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
+			// The relay must honor the same proxy and certificate configuration as registration requests.
+			socketFactory: (url, protocol) => toMissionControlSocket(proxyResolver.createWebSocket(url, protocol)),
 			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
+			configureExecutionAuthentication: useLocalCredentials => {
+				if (this._authenticationService.useLocalCredentials === useLocalCredentials) {
+					return false;
+				}
+				if (!configurationService.publishRootTransientValues) {
+					throw new Error('Host credential configuration is unavailable');
+				}
+				configurationService.publishRootTransientValues({ [MissionControlUseLocalCredentialsConfigKey]: useLocalCredentials });
+				return true;
+			},
 			updateProjects: () => this._projects.initialize(),
 			onError: error => {
 				this._publishTelemetry.flush();
@@ -318,13 +347,15 @@ export class MissionControlHost extends Disposable {
 				this._publishTelemetry.record(event);
 				if (event.phase === 'relayPublish' && event.outcome === 'succeeded') {
 					this._logService.trace(`[AgentHost] Mission Control publish ${event.detail}; durationMs=${event.durationMs}`);
+				} else if (event.phase === 'relayPublish' && event.outcome === 'failed' && event.failure !== 'mirrorBackpressure') {
+					this._logService.warn(`[AgentHost] Mission Control publish failed; reason=${event.failure}${event.detail ? `; ${event.detail}` : ''}`);
 				}
 			},
 			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
-			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
-			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
+			getIdentityApiBase: () => this._gitHubEndpoints.getApiBaseUri(),
+			onDidChangeIdentityAuthority: this._gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
 			createAhpLogger: (clientId, generation) => this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
@@ -338,6 +369,13 @@ export class MissionControlHost extends Disposable {
 	}
 
 	private _reportOperation(event: IConnectionDiagnosticEvent): void {
+		if (event.phase === 'heartbeat' && event.outcome === 'started') {
+			this._logService.debug('[AgentHost] Mission Control heartbeat started');
+		}
+		if (event.phase === 'heartbeatResponse') {
+			this._logService.info(`[AgentHost] Mission Control heartbeat response; ${event.detail ?? ''}`);
+			return;
+		}
 		if (event.phase === 'relayDisconnected') {
 			this._publishTelemetry.flush();
 		}
@@ -349,11 +387,13 @@ export class MissionControlHost extends Disposable {
 			case 'token':
 			case 'signingKeys':
 			case 'relay':
-			case 'relayDisconnected': {
+			case 'relayDisconnected':
+			case 'relayRecovery': {
 				if (event.outcome === 'started' || ((event.phase === 'heartbeat' || event.phase === 'checkIn') && event.outcome === 'succeeded')) {
 					return;
 				}
 				const failure = getConnectionTelemetryError(event.error);
+				const relay = (event as IMissionControlRelayDiagnostic).relay;
 				this._telemetryService.publicLog2<MissionControlOperationEvent, MissionControlOperationClassification>('agentHost.missionControlOperation', {
 					...failure,
 					operation: event.phase,
@@ -361,8 +401,16 @@ export class MissionControlHost extends Disposable {
 					durationMs: event.durationMs,
 					statusCode: failure.statusCode,
 					hostLaunchKind: this._options.hostLaunchKind,
+					...(relay ? {
+						closeReason: relay.reason,
+						closeCode: relay.closeCode,
+						activeClients: relay.activeClients,
+						recoveryAttempts: relay.attempts,
+						interruptedClients: relay.interruptedClients,
+					} : {}),
 				});
-				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}`;
+				const relayDetail = relay ? `; reason=${relay.reason}${relay.closeCode === undefined ? '' : ` code=${relay.closeCode}`} clients=${relay.activeClients} attempts=${relay.attempts}${relay.interruptedClients === undefined ? '' : ` interrupted=${relay.interruptedClients}`}` : '';
+				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}${relayDetail}`;
 				if (event.error) {
 					this._logService.warn(`${message}: ${formatConnectionDiagnosticError(event.error)}`);
 				} else if (event.phase === 'relayDisconnected') {
@@ -393,8 +441,15 @@ export class MissionControlHost extends Disposable {
 			relay,
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
-				allowExtensionMethods: false,
+				environment: { pathStyle: localProcessPathStyle },
+				allowExtensionMethods: true,
 				scopedRelayCredentials: true,
+				resolveRelayCredentials: this._authenticationService.useLocalCredentials ? (principal, resource) => {
+					const metadata = [this._gitHubEndpoints.getCopilotResource(), this._gitHubEndpoints.getRepoResource()].find(candidate => candidate.resource === resource);
+					return metadata
+						? { principal, getCredential: request => this._authenticationService.getSharedCredential(request) }
+						: undefined;
+				} : undefined,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
 				ahpLogDirectory: this._ahpLogDirectory,
@@ -405,6 +460,8 @@ export class MissionControlHost extends Disposable {
 				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
+				completionTriggerCharacters: this._completions.triggerCharacters,
+				terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			},
 			this._options.clientFileSystemProvider,
 		);
@@ -429,7 +486,7 @@ export class MissionControlHost extends Disposable {
 		const mirror = this._instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
 		const sources = new DisposableStore();
 		try {
-			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled));
+			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled, () => this.environment.isRepositoryMetadataEnabled));
 			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled, session => publisher.registerSession(session)));
 			const attachPlanHints = (provider: IAgent) => {
 				if (provider.getSessionPlan && provider.onDidChatSessionEvent) {
@@ -482,7 +539,7 @@ export class MissionControlHost extends Disposable {
 			_meta: {
 				...this._stateManager.getSessionState(summary.resource)?._meta,
 				[event.type === 'session.plan_changed' ? 'copilot.planHint' : 'copilot.todosHint']:
-					{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
+				{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
 			},
 		});
 	}

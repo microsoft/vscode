@@ -11,13 +11,13 @@ import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
-import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IAgentFeedbackContext, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { AgentFeedbackPRReviewSeederContribution } from '../../browser/agentFeedbackPRReviewSeeder.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentFeedbackPRReviewSeederContribution', () => {
 
@@ -30,7 +30,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	let loaded: boolean;
 	let onDidChangeFeedback: Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>;
 	let prReviewState: ISettableObservable<IPRReviewState>;
-	let activeSession: ISettableObservable<IActiveSession | undefined>;
+	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
 
 	function prComment(id: string, line: number, body: string): IPRReviewComment {
 		return { id, pullRequest, uri: fileA, range: new Range(line, 1, line, 1), body, author: 'reviewer' };
@@ -46,8 +46,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			.map(i => ({ sourceId: i.sourcePRReviewCommentId, prNumber: i.sourcePullRequest?.number, state: i.state, text: i.text }));
 	}
 
-	function makeActiveSession(providerId: string): IActiveSession {
-		return new class extends mock<IActiveSession>() {
+	function makeActiveSession(providerId: string): ITestSessionWithChat {
+		return new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = session;
 			override readonly providerId = providerId;
 		};
@@ -58,14 +58,14 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		loaded = true;
 		onDidChangeFeedback = store.add(new Emitter());
 		prReviewState = observableValue<IPRReviewState>('prReviewState', { kind: PRReviewStateKind.None });
-		activeSession = observableValue<IActiveSession | undefined>('activeSession', makeActiveSession(LOCAL_AGENT_HOST_PROVIDER_ID));
+		activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', makeActiveSession(LOCAL_AGENT_HOST_PROVIDER_ID));
 
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
 			override hasLoadedFeedback(_sessionResource: URI): boolean { return loaded; }
 			override getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return feedbackItems; }
-			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IAgentFeedback['sourcePullRequest']): IAgentFeedback {
-				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, sourcePullRequest, state };
+			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IAgentFeedback['sourcePullRequest'], sourcePRReviewCommentAuthor?: string): IAgentFeedback {
+				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, sourcePRReviewCommentAuthor, sourcePullRequest, state };
 				feedbackItems.push(feedback);
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 				return feedback;
@@ -84,10 +84,10 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
 				}
 			}
-			override updateFeedbackSourcePullRequest(_sessionResource: URI, feedbackId: string, sourcePullRequest: IAgentFeedback['sourcePullRequest']): void {
+			override updateFeedbackSourcePullRequest(_sessionResource: URI, feedbackId: string, sourcePullRequest: IAgentFeedback['sourcePullRequest'], sourcePRReviewCommentAuthor?: string): void {
 				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
 				if (idx >= 0) {
-					feedbackItems[idx] = { ...feedbackItems[idx], sourcePullRequest };
+					feedbackItems[idx] = { ...feedbackItems[idx], sourcePullRequest, sourcePRReviewCommentAuthor };
 					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
 				}
 			}
@@ -96,10 +96,10 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			override getPRReviewState(_sessionResource: URI) { return prReviewState; }
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override activeSession = activeSession;
+			activeSession = activeSession;
 		};
 
-		store.add(new AgentFeedbackPRReviewSeederContribution(feedbackService, codeReviewService, sessionsService));
+		store.add(new AgentFeedbackPRReviewSeederContribution(feedbackService, codeReviewService, focusedSessionHostServiceOf(sessionsService.activeSession)));
 	});
 
 	test('seeds a created PR-review mirror for each un-accepted PR comment', () => {
@@ -116,6 +116,19 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		setComments([prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this')]);
 
 		assert.deepStrictEqual(mirrors().map(m => m.sourceId), ['thread-1', 'thread-2']);
+	});
+
+	test('preserves the PR author when seeding and backfilling existing feedback', () => {
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+		const seededAuthor = feedbackItems[0].sourcePRReviewCommentAuthor;
+		feedbackItems[0] = { ...feedbackItems[0], sourcePRReviewCommentAuthor: undefined, state: AgentFeedbackState.Accepted };
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+
+		assert.deepStrictEqual({
+			seededAuthor,
+			backfilledAuthor: feedbackItems[0].sourcePRReviewCommentAuthor,
+			count: feedbackItems.length,
+		}, { seededAuthor: 'reviewer', backfilledAuthor: 'reviewer', count: 1 });
 	});
 
 	test('refreshes a created mirror when the upstream comment body changes', () => {

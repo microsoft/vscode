@@ -63,35 +63,4 @@ suite('ChatContextUsageDetails', () => {
 		observable.set(data({ percentage: 15 }), undefined);
 		assert.strictEqual(tokenText(details), '15%');
 	});
-
-	test('aggregate-only billing does not invent a context-window reading', () => {
-		const { details, observable } = createDetails(data({ hasContextUsage: false, sessionCost: 0.6, sessionCostStatus: 'partial' }));
-		assert.deepStrictEqual({
-			cost: details.domNode.querySelector('.session-cost-value')?.textContent,
-			context: details.domNode.querySelector<HTMLElement>('.quota-indicator')?.style.display,
-		}, { cost: '0.6 credits (partial)', context: 'none' });
-		observable.set(data({ sessionCost: 0.85, sessionCostStatus: 'complete' }), undefined);
-		assert.deepStrictEqual({
-			cost: details.domNode.querySelector('.session-cost-value')?.textContent,
-			context: details.domNode.querySelector<HTMLElement>('.quota-indicator')?.style.display,
-			percentage: tokenText(details),
-		}, { cost: '0.8 credits', context: '', percentage: '50%' });
-	});
-
-	test('distinguishes complete zero, partial subtotals, and unavailable session costs', () => {
-		const { details, observable } = createDetails(data({ sessionCost: 0, sessionCostStatus: 'complete' }));
-		const read = () => ({
-			text: details.domNode.querySelector('.session-cost-value')?.textContent,
-			display: details.domNode.querySelector<HTMLElement>('.session-cost-section')?.style.display,
-		});
-		const complete = read();
-		observable.set(data({ sessionCost: 0, sessionCostStatus: 'partial' }), undefined);
-		const partial = read();
-		observable.set(data({ sessionCost: 0, sessionCostStatus: 'unavailable' }), undefined);
-		assert.deepStrictEqual([complete, partial, read()], [
-			{ text: '0 credits', display: '' },
-			{ text: '0 credits (partial)', display: '' },
-			{ text: 'Unavailable', display: '' },
-		]);
-	});
 });

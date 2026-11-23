@@ -53,7 +53,7 @@ suite('SessionMcpDiscovery', () => {
 		}
 	}
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: TestFileService;
 	const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 	const additional = URI.from({ scheme: Schemas.inMemory, path: '/additional' });
@@ -62,10 +62,6 @@ suite('SessionMcpDiscovery', () => {
 		fileService = store.add(new TestFileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function write(root: URI, value: unknown): Promise<void> {
 		await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString(JSON.stringify(value)));
@@ -109,6 +105,21 @@ suite('SessionMcpDiscovery', () => {
 		assert.strictEqual(definition.configuration.type, McpServerType.LOCAL);
 		assert.strictEqual(definition.configuration.type === McpServerType.LOCAL ? definition.configuration.cwd : undefined, './custom');
 		assert.strictEqual(definition.defaultCwd, primary);
+	});
+
+	test('reads servers written with the legacy Copilot `local` type', async () => {
+		await write(primary, {
+			mcpServers: {
+				server: { type: 'local', command: 'npx', args: ['${MCP_DIR}'], tools: ['*'] },
+			}
+		});
+
+		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+		const definitions = await discovery.refresh();
+
+		assert.deepStrictEqual(definitions.map(definition => ({ name: definition.name, configuration: definition.configuration })), [
+			{ name: 'server', configuration: { type: McpServerType.LOCAL, command: 'npx', args: ['${MCP_DIR}'], env: undefined, envFile: undefined, cwd: undefined, dev: undefined } },
+		]);
 	});
 
 	test('ignores malformed files and refreshes after an exact file change', async () => {

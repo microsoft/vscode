@@ -115,6 +115,30 @@ suite('ChatSessionOperationLog', () => {
 		assert.strictEqual(restoredReview.isOutdated, true);
 	});
 
+	test('persists the latest call\'s output separately from the whole-response total', () => {
+		const store = testDisposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IChatAgentService, store.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
+
+		const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'two calls', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 100, completionTokens: 230 });
+		const writer = new ChatSessionOperationLog();
+		const initial = writer.createInitial(model);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 330, completionTokens: 20 });
+		const update = writer.write(model);
+		writer.confirmWrite();
+
+		const restored = new ChatSessionOperationLog().read(VSBuffer.concat([initial, update.data])).requests[0];
+		assert.deepStrictEqual({ lastCall: restored.lastCallCompletionTokens, total: restored.completionTokens }, { lastCall: 20, total: 250 });
+	});
+
 	suite('Transform factories', () => {
 		test('key uses strict equality by default', () => {
 			const transform = Adapt.key<string>();

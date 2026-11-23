@@ -8,7 +8,7 @@
 // These tokens back the phone-layout changes-list and diff overlay
 // (icons, A/M/D pills, +N/-N counters, edge bars on diff rows). They
 // live next to the views that consume them rather than in the global
-// `vs/sessions/common/theme.ts`, since they are mobile-specific and
+// `vs/workbench/contrib/sessions/common/theme.ts`, since they are mobile-specific and
 // have no consumers in any other layer.
 //
 // Why register them at all? `vs/workbench/contrib/scm` is not loaded in

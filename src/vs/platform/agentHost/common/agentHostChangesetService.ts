@@ -54,6 +54,8 @@ export interface ITrackedTurnDatabase extends IDisposable {
 export interface ITrackedEditSource {
 	/** Chat whose turns recorded the edits in {@link db}. */
 	readonly chat: ProtocolURI;
+	/** Storage resource of {@link db}, which the content URIs of its edits address. */
+	readonly storage: ProtocolURI;
 	readonly db: ISessionDatabase;
 }
 
@@ -78,6 +80,15 @@ export interface ITrackedSessionDatabases extends IDisposable {
 }
 
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
+
+/** Options for {@link IAgentHostChangesetService.refreshBranchChangeset}. */
+export interface IRefreshBranchChangesetOptions {
+	/**
+	 * Recompute even when the repository, base branch and working tree are as they were at the last computation. Set it
+	 * when something the Branch changeset shows changed without them, such as a file's review state.
+	 */
+	readonly force?: boolean;
+}
 
 /**
  * Owns the lifecycle of static and per-turn changesets for the agent host:
@@ -165,14 +176,23 @@ export interface IAgentHostChangesetService {
 	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
 	 * recomputes the current subscriptions after materialization or restore.
 	 * Git-only; does not accept a strategy or fall back to tracked edits.
+	 * A computation whose inputs equal those of the last one is skipped unless forced.
 	 */
-	refreshBranchChangeset(session: ProtocolURI): void;
+	refreshBranchChangeset(session: ProtocolURI, options?: IRefreshBranchChangesetOptions): void;
 
 	/**
 	 * Refreshes the session changeset once its working directory is available.
 	 * The strategy defaults to `fileEditTracker`; overrides apply only to this computation.
 	 */
 	refreshSessionChangeset(session: ProtocolURI, strategy?: ChangesetDiffStrategy): void;
+
+	/**
+	 * Recomputes the Working Set changeset of a session or chat `owner` while a
+	 * client observes it and its working directory is available. It is computed
+	 * from the tracked edits that {@link openTrackedSessionDatabases} opens,
+	 * starting each file at the content the user last accepted.
+	 */
+	refreshWorkingSetChangeset(owner: ProtocolURI): void;
 
 	/**
 	 * Recomputes every changeset currently subscribed when a session is
@@ -186,7 +206,8 @@ export interface IAgentHostChangesetService {
 	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
 	 * / turn); the individual recomputes skip when the working directory is
 	 * not yet known. Used as the session-level refresh entry point after
-	 * materialization and git-state changes.
+	 * materialization. A git-state refresh recomputes only the Branch and
+	 * Uncommitted Changes of the refreshed folder instead.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
 
@@ -277,8 +298,21 @@ export interface IAgentHostChangesetService {
 	 */
 	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void;
 
+	/**
+	 * Hook called after the changes of a file in the tracked edits of `chat`
+	 * were accepted. Recomputes the Working Set changesets of the chat and its
+	 * session; the other changesets don't show acceptance.
+	 */
+	onFileEditsAccepted(chat: ProtocolURI): void;
+
 	/** Cancels pending changeset work after a chat or folder owner is removed. */
 	onChangesetOwnerRemoved?(owner: ProtocolURI): void;
+
+	/**
+	 * Aggregates the session's Branch summary from the Branch changesets of its current summary owners.
+	 * Runs no Git: use it when the set of owners changed and the changesets of the retained ones are current.
+	 */
+	refreshBranchSummary?(session: ProtocolURI): void;
 
 	/**
 	 * Computes the chat's Session Changes aggregate when the chat has turns

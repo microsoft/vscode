@@ -11,19 +11,24 @@
 
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
+import { env } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
-import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { getSSHRemoteAuthorityConnectionKey } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { AgentHostClientProxy } from '../../../../platform/agentHost/browser/agentHostClientProxy.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -32,13 +37,17 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomat
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import type { OtlpExportLogsParams } from '../../../../platform/agentHost/common/state/protocol/channels-otlp/notifications.js';
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority, agentHostLabelFormatter, fromAgentHostUri, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, agentHostLabelFormatter, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentHostPathStyle } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
-import { EditorRemoteAgentHostTransport } from '../common/editorRemoteAgentHostTransport.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
 const LOG_PREFIX = '[AgentHost:remote]';
@@ -74,6 +83,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
 	private readonly _connectionAuthority: string | undefined;
 	get clientConnectionKind() { return this._protocolClient?.clientConnectionKind; }
+	get connectionAvailable(): IObservable<boolean> { return this._protocolClient?.connectionAvailable ?? constObservable(false); }
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
@@ -83,6 +93,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		onDidApplyAction: Event.None,
 	};
 	private _connectStarted = false;
+	private _useHostProxy = false;
+	private readonly _labelFormatter = this._register(new MutableDisposable());
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -93,6 +105,9 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IRequestService requestService: IRequestService,
+		@IRemoteAgentHostLocationPreferenceService locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 	) {
 		super();
 
@@ -109,30 +124,42 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
-		const createTransport = () => new EditorRemoteAgentHostTransport(
-			new AgentHostIpcChannelTransport(
-				connection.getChannel(AgentHostIpcChannels.RemoteProxy),
-				undefined,
-				AgentHostClientConnectionKind.RemoteExtensionHost,
-				async () => {
-					let resolverResult: ResolverResult;
-					try {
-						resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-					} catch {
-						this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
-						return undefined;
-					}
-					return {
-						env: resolverResult.options?.extensionHostEnv ?? {},
-						debugEnv: environmentService.debugExtensionHost.env,
-					};
-				},
-			),
-			connection.remoteAuthority,
+		const createTransport = () => new AgentHostIpcChannelTransport(
+			connection.getChannel(AgentHostIpcChannels.RemoteProxy),
+			undefined,
+			AgentHostClientConnectionKind.RemoteExtensionHost,
+			async () => {
+				const hostKey = getSSHRemoteAuthorityConnectionKey(connection.remoteAuthority);
+				const preferredAgentLocation = hostKey ? locationPreferenceService.getPreference(hostKey) : undefined;
+				const preference = preferredAgentLocation === undefined ? undefined : { preferredAgentLocation };
+				this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
+				let resolverResult: ResolverResult;
+				try {
+					resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
+				} catch {
+					this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
+					return preference;
+				}
+				return {
+					...preference,
+					env: resolverResult.options?.extensionHostEnv ?? {},
+					debugEnv: environmentService.debugExtensionHost.env,
+				};
+			},
 		);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
-		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, { clientInfo }));
+		// Like the remote extension host, a WSL or container remote with `useHostProxy` shares this client's network.
+		const sharesClientNetwork = () => this._useHostProxy && ['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority));
+		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, {
+			clientInfo,
+			resourceUris: createEditorRemoteAgentHostResourceUriMapper(connection.remoteAuthority, agentHostAuthority(address)),
+			clientCertificates: {
+				isEnabled: () => sharesClientNetwork() && configurationService.getValue<boolean>('http.systemCertificates') === true,
+				loadCertificates: () => requestService.loadCertificates(),
+			},
+			clientProxy: instantiationService.createInstance(AgentHostClientProxy, sharesClientNetwork, env),
+		}));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the
 		// address-derived authority, so register it for reads. The ambient `local` authority
 		// registered elsewhere covers a different URI namespace.
@@ -143,6 +170,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}));
 		this._register(this._protocolClient.onDidChangeConnectionState(state => {
 			if (state === AgentHostClientState.Connected) {
+				this._updateLabelFormatter();
 				this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient?.clientId}`);
 				this._onAgentHostStart.fire();
 			}
@@ -161,11 +189,15 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}
 		this._connectStarted = true;
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
-		const remoteEnvironment = await this._remoteAgentService.getRawEnvironment();
-		if (remoteEnvironment && this._connectionAuthority) {
-			this._register(this._labelService.registerFormatter(agentHostLabelFormatter(this._connectionAuthority, remoteEnvironment.os)));
-		}
+		await this._remoteAgentService.getRawEnvironment();
 		await this._protocolClient.connect();
+	}
+
+	private _updateLabelFormatter(): void {
+		const pathStyle = this._protocolClient ? getAgentHostPathStyle(this._protocolClient) : undefined;
+		this._labelFormatter.value = this._connectionAuthority && pathStyle
+			? this._labelService.registerFormatter(agentHostLabelFormatter(this._connectionAuthority, pathStyle))
+			: undefined;
 	}
 
 	private _requireClient(): AgentHostProtocolClient {
@@ -215,6 +247,14 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	openTcpConnection(target: { host: string; port: number }) {
+		return this._requireClient().openTcpConnection(target);
+	}
+
+	get supportsConversationImport(): boolean {
+		return this._protocolClient?.supportsConversationImport ?? false;
+	}
+
 	get sandboxCertificateInstallationSupported(): IObservable<boolean> {
 		return this._protocolClient?.sandboxCertificateInstallationSupported ?? constObservable(false);
 	}
@@ -227,6 +267,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.sandboxCertificateRemovalSupported ?? constObservable(false);
 	}
 
+	get sandboxCertificateRefreshSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRefreshSupported ?? constObservable(false);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -237,6 +281,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	get onDidAction(): Event<ActionEnvelope> {
 		return this._protocolClient?.onDidAction ?? Event.None;
+	}
+
+	get onDidReceiveOtlpLogs(): Event<OtlpExportLogsParams> {
+		return this._protocolClient?.onDidReceiveOtlpLogs ?? Event.None;
+	}
+
+	async subscribeStateless(resource: URI): Promise<void> {
+		await this._requireClient().subscribeStateless(resource);
+	}
+
+	unsubscribe(resource: URI): void {
+		this._protocolClient?.unsubscribe(resource);
 	}
 
 	get onMcpNotification(): Event<IMcpNotification> {
@@ -298,6 +354,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().removeSandboxCertificate(chat, scopeId);
 	}
 
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().refreshSandboxCertificate(chat, scopeId);
+	}
+
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._requireClient().getSessionStateFile(session, chat);
 	}
@@ -314,14 +374,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().readDebugLogsChunk(resource, position);
 	}
 
-	/** Unwraps the shared client's resource URIs to retain the translated remote workspace identities. */
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		const sessions = await this._requireClient().listSessions();
-		return sessions.map(session => ({
-			...session,
-			workingDirectory: session.workingDirectory ? fromAgentHostUri(session.workingDirectory) : undefined,
-			workingDirectories: session.workingDirectories?.map(fromAgentHostUri),
-		}));
+	listSessions(): Promise<IAgentSessionMetadata[]> {
+		return this._requireClient().listSessions();
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -330,6 +384,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		return this._requireClient().moveSession(session, destination, after);
+	}
+
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		return this._requireClient().moveChat(chat, destination);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -372,8 +430,16 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().refreshSubscription(resource);
 	}
 
+	setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		return this._requireClient().setChatWorkspace(chat, workspace);
+	}
+
 	disposeChat(chat: URI): Promise<void> {
 		return this._requireClient().disposeChat(chat);
+	}
+
+	answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		return this._requireClient().answerShellAuthentication(chat, requestId, answer);
 	}
 
 	createTerminal(params: CreateTerminalParams): Promise<void> {
@@ -394,6 +460,26 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	resourceList(uri: URI): Promise<ResourceListResult> {
 		return this._requireClient().resourceList(uri);
+	}
+
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
+	}
+
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._requireClient().prepareSessionWorktreeCleanup(session);
+	}
+
+	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry, force);
+	}
+
+	listManagedWorktrees(repositories: readonly URI[]) {
+		return this._requireClient().listManagedWorktrees(repositories);
+	}
+
+	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force?: boolean) {
+		return this._requireClient().cleanupManagedWorktree(repository, worktree, branch, force);
 	}
 
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {

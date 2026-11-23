@@ -23,7 +23,7 @@ import type { CreateTerminalParams } from '../common/state/protocol/commands.js'
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
-import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../common/terminalConstants.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH, AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../common/terminalConstants.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import { isZsh } from './agentHostShellUtils.js';
@@ -831,7 +831,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Trim content parts to stay within the rolling buffer limit. */
 	private _trimContent(managed: { content: TerminalContentPart[]; contentSize: number }): void {
 		const maxSize = AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH;
-		const targetSize = 80_000;
+		const targetSize = AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH;
 		if (managed.contentSize <= maxSize) {
 			return;
 		}

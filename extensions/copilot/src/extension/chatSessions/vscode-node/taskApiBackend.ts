@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { l10n } from 'vscode';
 import {
 	AgentTask,
@@ -40,9 +39,6 @@ import {
 } from '../vscode/cloudAgentBackend';
 import { extractTitle } from '../vscode/copilotCodingAgentUtils';
 
-const TASK_SESSION_POLL_INTERVAL_MS = 2_000;
-const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
-
 /**
  * Agent integration slugs that identify the Copilot cloud coding agent. CMC/CAPI returns
  * `copilot-developer`; the monolith uses `copilot-swe-agent` for the same agent. Tasks owned by
@@ -53,11 +49,18 @@ const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
  */
 const CLOUD_CODING_AGENT_SLUGS: ReadonlySet<string> = new Set(['copilot-developer', 'copilot-swe-agent']);
 
+interface TaskClient {
+	readonly integration_id: string;
+	readonly slug: string;
+	readonly creator: boolean;
+}
+
 /**
- * CMC task-list environment metadata, not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
+ * CMC task metadata not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
  */
 interface TaskWithEnvironment extends AgentTask {
 	readonly current_environment?: { readonly kind?: string } | null;
+	readonly clients?: readonly TaskClient[];
 }
 
 /**
@@ -161,10 +164,11 @@ function taskToDiffRefs(
 	return { owner: repo.owner, repo: repo.name, baseRef: branch.data.base_ref, headRef: branch.data.head_ref };
 }
 
-function taskToSessionData(task: AgentTask & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
+function taskToSessionData(task: TaskWithEnvironment & { readonly automation_id?: string | null }, repo: CloudSessionData['repo']): CloudSessionData {
 	return {
 		taskId: task.id,
 		eventType: 'event_type' in task && typeof task.event_type === 'string' ? task.event_type : undefined,
+		application: task.clients?.find(client => client.creator === true)?.slug,
 		...(typeof task.automation_id === 'string' && task.automation_id ? { automationId: task.automation_id } : {}),
 		title: task.name ?? '',
 		state: task.state,
@@ -373,39 +377,6 @@ export class TaskApiBackend implements CloudAgentBackend {
 		}
 	}
 
-	async waitForTaskUpdate(taskId: string, since: { turnCount: number; updatedAt?: string }, token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
-		const startTime = Date.now();
-		while (Date.now() - startTime < TASK_SESSION_POLL_TIMEOUT_MS && !(token?.isCancellationRequested)) {
-			try {
-				const task = await this._taskApiClient.getTask(taskId);
-				const turnCount = task.sessions?.length ?? 0;
-				// Fire when any observable changed: a new turn was added, the task's
-				// `updated_at` advanced (covers in-place state transitions), or the latest
-				// turn left the in-progress/queued region.
-				const updatedAtChanged = since.updatedAt && task.updated_at && task.updated_at !== since.updatedAt;
-				const latestTurnState = task.sessions?.[turnCount - 1]?.state;
-				const latestTurnSettled = latestTurnState && latestTurnState !== 'in_progress' && latestTurnState !== 'queued' && latestTurnState !== 'idle' && latestTurnState !== 'waiting_for_user';
-				if (turnCount > since.turnCount || updatedAtChanged || latestTurnSettled) {
-					// The first turn appearing marks the task as active and producing output.
-					if (since.turnCount === 0 && turnCount >= 1) {
-						const createdAtMs = task.created_at ? Date.parse(task.created_at) : NaN;
-						this._instrumentation.sessionActivated(Number.isNaN(createdAtMs) ? 0 : Math.max(0, Date.now() - createdAtMs));
-					}
-					return {
-						task,
-						turns: [],
-						pullArtifact: taskToPullArtifactRef(task),
-					};
-				}
-			} catch (e) {
-				this._logService.warn(`Failed to poll task ${taskId}: ${e}`);
-				this._instrumentation.operationFailed('pollUpdate', e);
-			}
-			await new Promise(resolve => setTimeout(resolve, TASK_SESSION_POLL_INTERVAL_MS));
-		}
-		return undefined;
-	}
-
 	async sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean> {
 		try {
 			await this._taskApiClient.steerTask(taskId, { content: prompt, type: 'user_message' });
@@ -565,25 +536,9 @@ export class TaskApiHttpClient implements ITaskApiClient {
 		}
 		return result;
 	}
-
-	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		const task = await this._request<AgentTask>('POST', 'archive', { taskId });
-		if (!task) {
-			throw new Error(l10n.t('Task API archiveTask returned an empty response.'));
-		}
-		return task;
-	}
-
-	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		const task = await this._request<AgentTask>('POST', 'unarchive', { taskId });
-		if (!task) {
-			throw new Error(l10n.t('Task API unarchiveTask returned an empty response.'));
-		}
-		return task;
-	}
 }
 
-type AgentTaskRequestAction = 'create' | 'list' | 'list-for-repo' | 'get' | 'events' | 'steer' | 'create-pr' | 'archive' | 'unarchive';
+type AgentTaskRequestAction = 'create' | 'list' | 'list-for-repo' | 'get' | 'events' | 'steer' | 'create-pr';
 
 function toSearchParams(opts: ListTasksOptions | ListTaskEventsOptions | undefined): Record<string, string | number | boolean> | undefined {
 	if (!opts) {

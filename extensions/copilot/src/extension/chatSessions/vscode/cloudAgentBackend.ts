@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
-import type { CancellationToken } from 'vscode';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 
 /**
@@ -40,6 +39,8 @@ export interface CreateCloudSessionParams {
 export interface CloudSessionData {
 	readonly taskId: string;
 	readonly eventType?: string;
+	/** The creating client's slug from task attribution, independent of the triggering event. */
+	readonly application?: string;
 	readonly automationId?: string;
 	readonly title: string;
 	readonly state: AgentTaskState;
@@ -70,12 +71,6 @@ export interface CloudAgentBackend {
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 
 	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
-
-	waitForTaskUpdate(
-		taskId: string,
-		since: { turnCount: number; updatedAt?: string },
-		token?: CancellationToken,
-	): Promise<TaskContent | undefined>;
 
 	sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean>;
 

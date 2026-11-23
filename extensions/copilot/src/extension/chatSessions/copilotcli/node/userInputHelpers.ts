@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { UserInputRequestedEvent } from '@github/copilot/sdk';
 import type { CancellationToken, ChatParticipantToolToken } from 'vscode';
 import { createServiceIdentifier } from '../../../../util/common/services';
-
-export type UserInputRequest = Omit<UserInputRequestedEvent['data'], 'requestId'>;
 
 export type UserInputResponse = { answer: string; wasFreeform: boolean };
 

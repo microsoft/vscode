@@ -351,11 +351,11 @@ pub(crate) fn run_installer<R: Runtime>(
 		tools,
 		verbose,
 		|| {
-			#[cfg(unix)]
+			#[cfg(all(unix, not(target_os = "linux")))]
 			{
 				crate::candidate::installer_path(runtime).map(Some)
 			}
-			#[cfg(not(unix))]
+			#[cfg(any(not(unix), target_os = "linux"))]
 			{
 				Ok(None)
 			}
@@ -599,6 +599,8 @@ mod tests {
 	use std::path::{Path, PathBuf};
 	use std::rc::Rc;
 
+	#[cfg(target_os = "linux")]
+	use install::run_installer;
 	use install::{
 		discover_tools, installer_plan, run_installer_with, HostTarget, InstallerPlanError,
 		InstallerResult, InstallerRoute, InstallerStage, TemporaryScript, TemporaryScriptFactory,
@@ -613,6 +615,8 @@ mod tests {
 		prompt, EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection,
 		ProcessEffects,
 	};
+	#[cfg(target_os = "linux")]
+	use runtime::{PolicyEffects, UserInteractionEffects};
 
 	fn path(name: &str) -> Option<PathBuf> {
 		Some(PathBuf::from(name))
@@ -1021,6 +1025,79 @@ mod tests {
 		}
 	}
 
+	#[cfg(target_os = "linux")]
+	struct LinuxInstallerRuntime {
+		processes: FakeProcesses,
+	}
+
+	#[cfg(target_os = "linux")]
+	impl LinuxInstallerRuntime {
+		fn new(results: impl IntoIterator<Item = FakeProcessResult>) -> Self {
+			Self {
+				processes: FakeProcesses::new(results),
+			}
+		}
+	}
+
+	#[cfg(target_os = "linux")]
+	impl EnvironmentEffects for LinuxInstallerRuntime {
+		fn path(&self) -> Option<OsString> {
+			Some(OsString::from("/unchanged/path"))
+		}
+
+		fn current_executable(&self) -> io::Result<PathBuf> {
+			panic!("Linux installer dispatch must not inspect PATH candidates")
+		}
+
+		fn current_directory(&self) -> io::Result<PathBuf> {
+			panic!("Linux installer dispatch must not inspect PATH candidates")
+		}
+	}
+
+	#[cfg(target_os = "linux")]
+	impl FileSystemEffects for LinuxInstallerRuntime {
+		fn inspect_path(&self, _path: &Path) -> io::Result<Option<PathInspection>> {
+			panic!("Linux installer dispatch must not inspect PATH candidates")
+		}
+
+		fn open_file(&self, _path: &Path) -> io::Result<Box<dyn Read>> {
+			panic!("Linux installer dispatch must not inspect PATH candidates")
+		}
+	}
+
+	#[cfg(target_os = "linux")]
+	impl UserInteractionEffects for LinuxInstallerRuntime {
+		fn clear_terminal(&self) -> io::Result<()> {
+			Ok(())
+		}
+
+		fn can_prompt(&self) -> bool {
+			false
+		}
+
+		fn prompt(&self) -> io::Result<PromptResponse> {
+			panic!("Linux installer dispatch does not prompt")
+		}
+	}
+
+	#[cfg(target_os = "linux")]
+	impl PolicyEffects for LinuxInstallerRuntime {
+		fn copilot_cli_command_disabled(&self) -> bool {
+			false
+		}
+	}
+
+	#[cfg(target_os = "linux")]
+	impl ProcessEffects for LinuxInstallerRuntime {
+		fn supervise(
+			&self,
+			command: &CommandSpec,
+			mode: SupervisionMode,
+		) -> Result<ProcessOutcome, ProcessError> {
+			self.processes.supervise(command, mode)
+		}
+	}
+
 	struct TrackedPath {
 		path: PathBuf,
 		active: bool,
@@ -1138,6 +1215,41 @@ mod tests {
 				});
 			assert!(matches!(result, InstallerResult::Succeeded { .. }));
 			assert_eq!(processes.commands.borrow()[0].0.path(), None);
+		}
+	}
+
+	#[cfg(target_os = "linux")]
+	#[test]
+	fn linux_production_installer_routes_inherit_path() {
+		for (route, downloader) in [
+			(InstallerRoute::Curl, "curl"),
+			(InstallerRoute::Wget, "wget"),
+		] {
+			let runtime = LinuxInstallerRuntime::new([
+				FakeProcessResult::Exit(0),
+				FakeProcessResult::Exit(0),
+			]);
+
+			let result = run_installer(&runtime, &[route], &all_tools(), false);
+			let commands = runtime.processes.commands.borrow();
+
+			assert!(matches!(result, InstallerResult::Succeeded { .. }));
+			assert_eq!(
+				(
+					commands
+						.iter()
+						.map(|(command, _)| command.program().to_os_string())
+						.collect::<Vec<_>>(),
+					commands
+						.iter()
+						.map(|(command, _)| command.path().map(OsString::from))
+						.collect::<Vec<_>>(),
+				),
+				(
+					vec![OsString::from(downloader), OsString::from("bash")],
+					vec![None, None],
+				)
+			);
 		}
 	}
 

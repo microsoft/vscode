@@ -13,7 +13,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -150,7 +150,8 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
-	readonly supportsKeepUndo = false;
+	readonly supportsKeepUndo = constObservable(false);
+	readonly isGlobalEditingSession: IObservable<boolean>;
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
 
@@ -205,7 +206,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	constructor(
 		readonly chatSessionResource: URI,
-		readonly isGlobalEditingSession: boolean,
+		isGlobalEditingSession: boolean,
 		private _lookupExternalEntry: (uri: URI) => AbstractChatEditingModifiedFileEntry | undefined,
 		transferFrom: IChatEditingSession | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -224,6 +225,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this.isGlobalEditingSession = constObservable(isGlobalEditingSession);
 		this._timeline = this._instantiationService.createInstance(
 			ChatEditingCheckpointTimelineImpl,
 			chatSessionResource,

@@ -68,7 +68,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 
 		await database.upsertPendingWorktreeRemoval(request({ mode: 'synced' }));
 		await read();
-		assert.strictEqual(await database.recordPendingWorktreeRemovalFailure(request({ mode: 'synced' }), 100), 1);
+		assert.strictEqual(await database.recordPendingWorktreeRemovalFailure(request({ mode: 'synced' }), 100, { state: 'skipped' }), 1);
 		await read();
 		await database.upsertPendingWorktreeRemoval(request({ mode: 'commit', requestedAt: 2 }));
 		await read();
@@ -78,7 +78,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 		await database.upsertPendingWorktreeRemoval(request({ mode: 'commit', requestedAt: 4 }));
 		await read();
 		// A failure or a drop of a request that was replaced since does nothing.
-		const staleFailure = await database.recordPendingWorktreeRemovalFailure(request({ mode: 'commit', requestedAt: 2 }), 100);
+		const staleFailure = await database.recordPendingWorktreeRemovalFailure(request({ mode: 'commit', requestedAt: 2 }), 100, { state: 'failed', message: 'stale failure' });
 		await database.deletePendingWorktreeRemoval('session', OWNER, { mode: 'commit', requestedAt: 2 });
 		await read();
 		await database.upsertPendingWorktreeRemoval(request({ mode: 'delete', ownerDeleted: true, requestedAt: 5 }));
@@ -90,6 +90,58 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			staleFailure: undefined,
 			remaining: [],
 		});
+	});
+
+	test('persists attempt outcomes with backoff and clears them only for a replacement request', async () => {
+		const path = join(tmpdir(), `agent-host-removal-status-${generateUuid()}.db`);
+		let database = disposables.add(new AgentHostDatabase(path));
+		try {
+			await database.upsertPendingWorktreeRemoval(request());
+			await database.recordPendingWorktreeRemovalFailure(request(), 100, { state: 'failed', message: 'index.lock exists' });
+			await database.close();
+			database = disposables.add(new AgentHostDatabase(path));
+			const failed = await database.readPendingWorktreeRemoval('session', OWNER);
+			await database.recordPendingWorktreeRemovalFailure(request(), 200, { state: 'skipped' });
+			const skipped = await database.readPendingWorktreeRemoval('session', OWNER);
+			await database.upsertPendingWorktreeRemoval(request({ requestedAt: 2 }));
+			await database.recordPendingWorktreeRemovalFailure(request(), 300, { state: 'failed', message: 'stale failure' });
+			const retried = await database.readPendingWorktreeRemoval('session', OWNER);
+			const status = (removal: typeof failed) => ({
+				attempts: removal?.attempts, nextAttemptAt: removal?.nextAttemptAt, lastAttempt: removal?.lastAttempt,
+			});
+			assert.deepStrictEqual({ failed: status(failed), skipped: status(skipped), retried: status(retried) }, {
+				failed: { attempts: 1, nextAttemptAt: 100, lastAttempt: { state: 'failed', message: 'index.lock exists' } },
+				skipped: { attempts: 2, nextAttemptAt: 200, lastAttempt: { state: 'skipped' } },
+				retried: { attempts: 0, nextAttemptAt: 0, lastAttempt: undefined },
+			});
+		} finally {
+			await database.close();
+			await fs.rm(path, { force: true });
+		}
+	});
+
+	test('migrates pending retries from version 21 without inventing their missing outcomes', async () => {
+		const path = join(tmpdir(), `agent-host-removal-status-migration-${generateUuid()}.db`);
+		let database = disposables.add(new AgentHostDatabase(path));
+		try {
+			await database.upsertPendingWorktreeRemoval(request());
+			await database.recordPendingWorktreeRemovalFailure(request(), 100, { state: 'failed', message: 'not persisted by older builds' });
+			await sql(database, 'ALTER TABLE pending_worktree_removals DROP COLUMN last_attempt_state');
+			await sql(database, 'ALTER TABLE pending_worktree_removals DROP COLUMN last_attempt_message');
+			await sql(database, 'PRAGMA user_version = 21');
+			await database.close();
+			database = disposables.add(new AgentHostDatabase(path));
+			assert.deepStrictEqual(await database.listPendingWorktreeRemovals(), [{
+				...request(), attempts: 1, nextAttemptAt: 100, lastAttempt: undefined,
+			}]);
+			await database.recordPendingWorktreeRemovalFailure(request(), 200, { state: 'failed', message: 'new failure' });
+			await database.close();
+			database = disposables.add(new AgentHostDatabase(path));
+			assert.deepStrictEqual((await database.readPendingWorktreeRemoval('session', OWNER))?.lastAttempt, { state: 'failed', message: 'new failure' });
+		} finally {
+			await database.close();
+			await fs.rm(path, { force: true });
+		}
 	});
 
 	test('a deleted session records its removals in the same transaction as its tombstone', async () => {
@@ -331,8 +383,8 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			}
 		}
 		assert.deepStrictEqual(outcomes, {
-			missingTable: { version: 20, removals: ['coOwned'] },
-			oldCheck: { version: 20, removals: ['coOwned'] },
+			missingTable: { version: 22, removals: ['coOwned'] },
+			oldCheck: { version: 22, removals: ['coOwned'] },
 		});
 	});
 
@@ -344,7 +396,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			await sql(database, 'DROP TABLE worktree_co_owners');
 			await sql(database, `CREATE TABLE pending_old (kind TEXT NOT NULL CHECK (kind IN ('session', 'detached')), owner TEXT NOT NULL, owner_session TEXT, worktree_path TEXT NOT NULL, repository_root TEXT NOT NULL, branch TEXT,
 					mode TEXT NOT NULL CHECK (mode IN ('commit', 'synced', 'delete')), owner_deleted INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, requested_at INTEGER NOT NULL, next_attempt_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (kind, owner)) WITHOUT ROWID`);
-			await sql(database, 'INSERT INTO pending_old SELECT * FROM pending_worktree_removals');
+			await sql(database, 'INSERT INTO pending_old SELECT kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at FROM pending_worktree_removals');
 			await sql(database, 'DROP TABLE pending_worktree_removals');
 			await sql(database, 'ALTER TABLE pending_old RENAME TO pending_worktree_removals');
 			await sql(database, 'PRAGMA user_version = 19');
@@ -357,7 +409,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 					removals: (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.owner}`),
 					coOwners: await database.readWorktreeCoOwners(WORKTREE),
 				}, {
-					version: [{ user_version: 20 }],
+					version: [{ user_version: 22 }],
 					removals: [`session:${OWNER}`, `coOwned:${OWNER}|${WORKTREE}`],
 					coOwners: [],
 				});

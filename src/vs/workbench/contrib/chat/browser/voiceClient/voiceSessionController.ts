@@ -11,20 +11,21 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { alert as ariaAlert, status as ariaStatus } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
@@ -36,11 +37,13 @@ import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js'
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../common/model/chatModel.js';
+import { isUntitledChatSession } from '../../common/model/chatUri.js';
+import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -49,6 +52,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -203,6 +207,8 @@ export interface IVoiceSessionController {
 	readonly isConnected: IObservable<boolean>;
 	readonly isConnecting: IObservable<boolean>;
 	readonly isReconnecting: IObservable<boolean>;
+	/** Whether the current connection uses OpenAI GPT Live rather than hosted voice. */
+	readonly isUsingGptLive: boolean;
 	/** Whether the user has muted the microphone while keeping the session connected. */
 	readonly isMuted: IObservable<boolean>;
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]>;
@@ -288,10 +294,8 @@ export interface IVoiceSessionController {
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
 
-	/**
-	 * Create a new chat session and set it as the target for transcription.
-	 */
-	newSessionAsTarget(): void;
+	/** Creates a voice target, showing it when a host is available. Returns whether preparation succeeded. */
+	newSessionAsTarget(): Promise<boolean>;
 
 	/**
 	 * Declares the session shown in the UI for playback deferral and buffered
@@ -327,10 +331,13 @@ export const IVoiceSessionController = createDecorator<IVoiceSessionController>(
 
 export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
 
-/** Whether a chat input owns the current Voice Mode session. */
-export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined): boolean {
+/**
+ * Whether a chat input owns the current Voice Mode session. A session that
+ * targets a draft belongs only to the input whose host owns that draft.
+ */
+export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined, ownsDraftTarget = false): boolean {
 	if (hasDraftTarget) {
-		return false;
+		return ownsDraftTarget;
 	}
 	if (targetSession) {
 		return !!sessionResource && isEqual(targetSession, sessionResource);
@@ -358,6 +365,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private readonly _isConnected = observableValue<boolean>(this, false);
 	readonly isConnected: IObservable<boolean> = this._isConnected;
+
+	get isUsingGptLive(): boolean {
+		return this._usingGptLiveByok;
+	}
 
 	private readonly _isConnecting = observableValue<boolean>(this, false);
 	readonly isConnecting: IObservable<boolean> = this._isConnecting;
@@ -456,6 +467,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * no chat pane picks the new session up.
 	 */
 	private readonly _newSessionRef = this._register(new MutableDisposable<IChatModelReference>());
+	private _newSessionTargetGeneration = 0;
+	private _pendingNewSessionTarget: { readonly resource: URI; readonly generation: number } | undefined;
 	/**
 	 * Watchdog that resets `isConnecting` (and surfaces feedback) if the connect
 	 * handshake never completes. Armed up front in {@link connect} so a step that
@@ -862,6 +875,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IAgentHostConnectionsService private readonly connectionsService: IAgentHostConnectionsService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -1838,10 +1852,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Session ready: the backend has acked start_session. This is the
 		// point at which the mic/handshake is settled and a turn will stick,
 		// so enter hands-free listening here (armed in the connect handler).
-		let didNotifyGptLiveByok = false;
 		this._voiceEventDisposables.add(this.voiceClientService.onSessionInit(() => {
-			if (hasGptLiveByok && byokModelId && !didNotifyGptLiveByok) {
-				didNotifyGptLiveByok = true;
+			if (hasGptLiveByok && byokModelId && !this.storageService.getBoolean(AgentsVoiceStorageKeys.GptLiveNoticeShown, StorageScope.PROFILE, false)) {
+				this.storageService.store(AgentsVoiceStorageKeys.GptLiveNoticeShown, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.notificationService.info(localize('voiceMode.usingOpenAIModel', "Using {0} from your OpenAI provider for Voice Mode.", byokModelId));
 			}
 			// The ack the socket-open path was waiting on: this is the first proof
@@ -3312,25 +3325,62 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	newSessionAsTarget(): void {
+	async newSessionAsTarget(): Promise<boolean> {
 		this._prepareDirectVoiceForInputChange(undefined);
-		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-		const resource = ref.object.sessionResource;
-		// Keep the only reference alive until a host adopts the session: an empty
-		// untitled local session is deleted as soon as its last reference goes
-		// away, which would strand `_targetSession` on a dead resource.
-		this._newSessionRef.value = ref;
-		this._hasDraftTarget.set(false, undefined);
-		this._setTargetSession(resource);
-		// Try to switch the view to the new session (works if chat pane is open)
-		this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).then(switched => {
-			// Only release once a host holds its own reference. On failure the
-			// reference is deliberately retained so the next utterance can still
-			// load this target.
-			if (switched === true && this._newSessionRef.value === ref) {
+		try {
+			await this._createNewSessionTarget();
+			return true;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[voice] Failed to create a chat session', error);
+				this.notificationService.error(localize('agentsVoice.newSessionFailed', "Unable to start a new voice conversation. Try again."));
+			}
+			return false;
+		}
+	}
+
+	private async _createNewSessionTarget(): Promise<URI> {
+		const generation = ++this._newSessionTargetGeneration;
+		const connectionGeneration = this._connectAttemptGeneration;
+		const initializationGeneration = this._sessionInitializationGeneration;
+		const cts = new CancellationTokenSource();
+		const request = this._voiceRequestDisposables.add(new DisposableStore());
+		request.add(toDisposable(() => cts.dispose(true)));
+		const isCurrent = () => !this._store.isDisposed && generation === this._newSessionTargetGeneration
+			&& connectionGeneration === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration;
+		try {
+			const ref = await this.voiceToolDispatchService.createChatSession(cts.token);
+			if (!isCurrent()) {
+				ref.dispose();
+				throw new CancellationError();
+			}
+			request.add(ref);
+			const resource = ref.object.sessionResource;
+			this._pendingNewSessionTarget = { resource, generation };
+			const hasHost = !!CommandsRegistry.getCommand('_chat.voice.switchToSession');
+			if (hasHost) {
+				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString());
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				if (switched !== true) {
+					throw new Error(localize('agentsVoice.switchSessionFailed', "Unable to show the new voice conversation."));
+				}
+			}
+			request.deleteAndLeak(ref);
+			this._newSessionRef.value = ref;
+			this._hasDraftTarget.set(false, undefined);
+			this._setTargetSession(resource);
+			if (hasHost) {
 				this._newSessionRef.clear();
 			}
-		}, () => { /* pane may not exist — keep holding the reference */ });
+			return resource;
+		} finally {
+			if (this._pendingNewSessionTarget?.generation === generation) {
+				this._pendingNewSessionTarget = undefined;
+			}
+			this._voiceRequestDisposables.delete(request);
+		}
 	}
 
 	/**
@@ -3354,6 +3404,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _setTargetSession(resource: URI | undefined, tx?: ITransaction): void {
+		if (!this._pendingNewSessionTarget || !isEqual(resource, this._pendingNewSessionTarget.resource)) {
+			this._newSessionTargetGeneration++;
+		}
 		this._releaseNewSessionRefUnlessTargeting(resource);
 		this._targetSession.set(resource, tx);
 	}
@@ -3615,12 +3668,64 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private async _sendVoiceRequest(sessionResource: URI, text: string): Promise<ChatSendResult | undefined> {
 		const generation = this._connectAttemptGeneration;
 		const initializationGeneration = this._sessionInitializationGeneration;
-		const result = await this.chatService.sendRequest(sessionResource, text, { isVoiceModeInput: this._isVoiceProgressEnabled() }).catch(err => {
+		const targetGeneration = this._newSessionTargetGeneration;
+		const ownedTarget = isEqual(this._targetSession.get(), sessionResource);
+		const isCurrent = () => !this._store.isDisposed && generation === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration;
+		let result = await this.chatService.sendRequest(sessionResource, text, {
+			isVoiceModeInput: this._isVoiceProgressEnabled(),
+			...(this.chatService.getSession(sessionResource)?.requestInProgress.get() ? { queue: ChatRequestQueueKind.Steering } : {}),
+		}).catch(err => {
 			this.logService.warn('[voice] Error sending transcription:', err);
 			return undefined;
 		});
-		if (!result) {
+		if (!result || !isCurrent()) {
 			return undefined;
+		}
+		if (isUntitledChatSession(sessionResource) && ChatSendResult.isQueued(result)) {
+			const cts = new CancellationTokenSource();
+			const request = this._voiceRequestDisposables.add(toDisposable(() => cts.dispose(true)));
+			try {
+				while (ChatSendResult.isQueued(result)) {
+					result = await raceCancellationError(result.deferred, cts.token);
+				}
+			} finally {
+				this._voiceRequestDisposables.delete(request);
+			}
+		}
+		if (!ChatSendResult.isQueued(result) && result.newSessionResource) {
+			const materializedResource = result.newSessionResource;
+			const canAdopt = () => isCurrent() && (targetGeneration === this._newSessionTargetGeneration || isEqual(this._targetSession.get(), materializedResource));
+			if (!canAdopt()) {
+				return undefined;
+			}
+			const shown = CommandsRegistry.getCommand('_chat.voice.getCurrentSession')
+				? await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession') : undefined;
+			if (!canAdopt()) {
+				return undefined;
+			}
+			if (shown === sessionResource.toString()) {
+				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', materializedResource.toString());
+				if (!canAdopt()) {
+					return undefined;
+				}
+				if (switched !== true) {
+					throw new Error(localize('agentsVoice.switchSessionFailed', "Unable to show the new voice conversation."));
+				}
+			} else if (ownedTarget) {
+				const cts = new CancellationTokenSource();
+				const request = this._voiceRequestDisposables.add(toDisposable(() => cts.dispose(true)));
+				const ref = await this.chatService.acquireOrLoadSession(materializedResource, ChatAgentLocation.Chat, cts.token, 'voice-materialized-session')
+					.finally(() => this._voiceRequestDisposables.delete(request));
+				if (!canAdopt()) {
+					ref?.dispose();
+					return undefined;
+				}
+				if (!ref) {
+					throw new Error(localize('agentsVoice.sessionUnavailable', "Unable to start the selected chat session."));
+				}
+				this._newSessionRef.value = ref;
+			}
+			this._rebindMaterializedSession(sessionResource, materializedResource);
 		}
 
 		const sentResult = ChatSendResult.isQueued(result) ? result.deferred : Promise.resolve(result);
@@ -3628,7 +3733,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (ChatSendResult.isSent(sent)) {
 				const response = await sent.data.responseCreatedPromise;
 				if (this._isConnected.get() && generation === this._connectAttemptGeneration && initializationGeneration === this._sessionInitializationGeneration) {
-					this._watchVoiceProgress(sessionResource, response);
+					this._watchVoiceProgress(sent.newSessionResource ?? sessionResource, response);
 				}
 			}
 		}).catch(err => this.logService.warn('[voice] Failed to watch voice response:', err));
@@ -3815,20 +3920,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					}
 					return false;
 				}
-				const result = await this._sendVoiceRequest(target, text);
+				const result = await this._sendVoiceRequest(target, text).catch(err => {
+					ref.dispose();
+					throw err;
+				});
 				const accepted = !!result && !ChatSendResult.isRejected(result);
+				const responseResource = result && !ChatSendResult.isQueued(result) ? result.newSessionResource ?? target : target;
 				if (!isCurrent()) {
 					ref.dispose();
 					return accepted;
 				}
 				if (accepted) {
 					// Surface response in floating window
-					this._watchResponseForFloatingWindow(target);
+					this._watchResponseForFloatingWindow(responseResource);
 					// Open the floating window so user can see the response
 					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
 					// Keep the session model loaded until the response completes
 					// so the autorun can observe state transitions and trigger narration.
-					const model = this.chatService.getSession(target);
+					const model = this.chatService.getSession(responseResource);
 					if (model) {
 						const lastReq = model.getRequests().at(-1);
 						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
@@ -3876,12 +3985,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						accepted = !!result && !ChatSendResult.isRejected(result);
 					}
 				} else {
-					// Truly no sessions exist — create one
-					const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-					const resource = ref.object.sessionResource;
-					ref.dispose();
-					// Switch to the new session so the user sees the response
-					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* pane may not exist */ });
+					const resource = await this._createNewSessionTarget();
+					if (!isCurrent()) {
+						return false;
+					}
 					const result = await this._sendVoiceRequest(resource, text);
 					accepted = !!result && !ChatSendResult.isRejected(result);
 				}
@@ -3924,7 +4031,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 
-		this.newSessionAsTarget();
+		if (!await this.newSessionAsTarget()) {
+			return 'failed';
+		}
 		if (text.trim()) {
 			this._setPinnedSubmitSession(this._targetSession.get());
 		}
@@ -4392,7 +4501,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			!previous
 			|| !current
 			|| previous.scheme !== current.scheme
-			|| !previous.scheme.startsWith('agent-host-')
+			|| !isAgentHostTarget(previous.scheme)
 			|| !previous.path.replace(/^\//, '').startsWith('untitled-')
 			|| current.path.replace(/^\//, '').startsWith('untitled-')
 		) {
@@ -5060,7 +5169,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		return {
 			kind: 'question',
-			text: formatQuestionPrompt(question, pending.allow_skip === true),
+			text: formatQuestionPrompt(question, pending.allow_skip === true, pending.message, pending.questions?.length),
 			pending: { pendingId: pending.pending_id },
 		};
 	}
@@ -5133,7 +5242,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._getFocusedSessionId();
 	}
 
-	private _pinActiveSessionAsTarget(): void {
+	private _pinActiveSessionAsTarget(nextResource?: URI): void {
+		if (this._pendingNewSessionTarget && isEqual(nextResource, this._pendingNewSessionTarget.resource)) {
+			return;
+		}
 		if ((this._isConnected.get() || this._isConnecting.get()) && this._activeSessionShown && !this._targetSession.get() && !this._hasDraftTarget.get()) {
 			// Changing the visible session must not move an existing voice
 			// conversation with it. Pin voice to its current session while the
@@ -5185,7 +5297,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			return;
 		}
-		this._pinActiveSessionAsTarget();
+		this._pinActiveSessionAsTarget(resource);
 		this.logService.trace(`[voice] setActiveSessionShown=${definedKey} (was ${this._activeSessionShown ?? '<none>'})`);
 		this._activeSessionShown = definedKey;
 		this._suspendPlaybackForHiddenSessions();
@@ -6661,7 +6773,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * so it stays accurate even though the backend isn't told about it.
 	 */
 	private _reportedAgentState(realState: string, isActive: boolean): { state: string; hideConfirmationDetail: boolean } {
-		if (realState === 'waiting_for_confirmation' && !isActive) {
+		if (realState === 'waiting_for_confirmation' && !isActive && !this.voiceClientService.isSessionAwarenessEnabled) {
 			return { state: 'thinking', hideConfirmationDetail: true };
 		}
 		return { state: realState, hideConfirmationDetail: false };
@@ -6822,6 +6934,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (targetSessionId && !sessionList.some(session => session.id === targetSessionId)) {
 			sessionList.push({ id: targetSessionId, is_active: true, agent_state: 'unknown' });
+		}
+		if (this.voiceClientService.isSessionAwarenessEnabled) {
+			const active = sessionList.find(session => session.is_active);
+			const model = active ? this.chatService.getSession(URI.parse(active.id)) : undefined;
+			if (active && model) {
+				active.recent_turns = getVoiceRecentTurns(model, 3, true);
+			}
 		}
 
 		// `active_session` is not sent: the per-session `is_active` flag already
@@ -7275,7 +7394,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
 		if (part.kind === 'questionCarousel') {
-			return !part.isUsed && !part.answeredExternally;
+			return !part.isUsed && !part.answeredExternally && !part.questions.some(question => question.password);
 		}
 		if (part.kind === 'elicitation2') {
 			return part.state.get() === 'pending';

@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { IPosition, Position } from '../../../../common/core/position.js';
 import { IRange, Range } from '../../../../common/core/range.js';
 import { USUAL_WORD_SEPARATORS } from '../../../../common/core/wordHelper.js';
@@ -30,6 +31,7 @@ const timeout = 30;
 interface TestEditor {
 	setPosition(pos: Position): Promise<any>;
 	setSelection(sel: IRange): Promise<any>;
+	executeEdits(edits: ISingleEditOperation[]): Promise<unknown>;
 	trigger(source: string | null | undefined, handlerId: string, payload: any): Promise<any>;
 	undo(): void;
 	redo(): void;
@@ -69,7 +71,7 @@ suite('linked editing', () => {
 	function testCase(
 		name: string,
 		initialState: { text: string | string[]; responseWordPattern?: RegExp },
-		operations: (editor: TestEditor) => Promise<void>,
+		operations: (editor: TestEditor, contribution: LinkedEditingContribution) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
@@ -103,6 +105,10 @@ suite('linked editing', () => {
 						editor.setSelection(sel);
 						return linkedEditingContribution.currentUpdateTriggerPromise;
 					},
+					executeEdits(edits: ISingleEditOperation[]) {
+						editor.executeEdits('test', edits);
+						return linkedEditingContribution.currentUpdateTriggerPromise;
+					},
 					trigger(source: string | null | undefined, handlerId: string, payload: any) {
 						if (handlerId === Handler.Type || handlerId === Handler.Paste) {
 							editor.trigger(source, handlerId, payload);
@@ -125,7 +131,7 @@ suite('linked editing', () => {
 					}
 				};
 
-				await operations(testEditor);
+				await operations(testEditor, linkedEditingContribution);
 
 				return new Promise<void>((resolve) => {
 					setTimeout(() => {
@@ -224,6 +230,24 @@ suite('linked editing', () => {
 		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
 	}, '<iiooo></iiooo>');
 
+	testCase('Quick inserts with a range update before synchronization', state, async (editor, contribution) => {
+		await editor.setPosition(new Position(1, 2));
+		const firstSync = editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		const secondSync = editor.trigger('keyboard', Handler.Type, { text: 'j' });
+		await contribution.updateRanges();
+		await Promise.all([firstSync, secondSync]);
+		await editor.trigger('keyboard', Handler.Type, { text: 'k' });
+	}, '<ijkooo></ijkooo>');
+
+	testCase('Quick inserts in closing tag with a range update before synchronization', state, async (editor, contribution) => {
+		await editor.setPosition(new Position(1, 8));
+		const firstSync = editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		const secondSync = editor.trigger('keyboard', Handler.Type, { text: 'j' });
+		await contribution.updateRanges();
+		await Promise.all([firstSync, secondSync]);
+		await editor.trigger('keyboard', Handler.Type, { text: 'k' });
+	}, '<ijkooo></ijkooo>');
+
 	testCase('Insert - move - insert', state, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
@@ -239,6 +263,12 @@ suite('linked editing', () => {
 		await editor.setPosition(new Position(1, 7));
 		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
 	}, '<iooo>i</iooo>');
+
+	testCase('Edits outside the reference range refresh linked editing', state, async (editor) => {
+		await editor.setPosition(new Position(1, 2));
+		await editor.executeEdits([{ range: new Range(1, 8, 1, 11), text: 'other' }]);
+		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+	}, '<iooo></other>');
 
 	/**
 	 * Selection insert
@@ -375,6 +405,15 @@ suite('linked editing', () => {
 		await editor.setPosition(pos);
 		await editor.trigger('keyboard', 'deleteLeft', {});
 	}, '<oo></oo>');
+
+	testCase('Quick deletes with a range update before synchronization', state, async (editor, contribution) => {
+		await editor.setPosition(new Position(1, 5));
+		const firstSync = editor.trigger('keyboard', 'deleteLeft', {});
+		const secondSync = editor.trigger('keyboard', 'deleteLeft', {});
+		await contribution.updateRanges();
+		await Promise.all([firstSync, secondSync]);
+		await editor.trigger('keyboard', 'deleteLeft', {});
+	}, '<></>');
 
 	testCase('Delete - left char then undo', state, async (editor) => {
 		const pos = new Position(1, 5);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Tool } from '@github/copilot-sdk';
+import type { Tool } from '@microsoft/copilot-sdk';
 import { URI } from '../../../../../base/common/uri.js';
 import { parse as parseYaml, type YamlMapNode, type YamlNode, type YamlParseError } from '../../../../../base/common/yaml.js';
 import type { IFileService } from '../../../../files/common/files.js';
@@ -29,6 +29,17 @@ export async function applyConfiguredPromptOverrides(
 	fileService: IFileService,
 	logService: ILogService,
 ): Promise<IPromptOverrideResult> {
+	const override = await resolveConfiguredPromptOverride(inlinePromptOverride, promptOverrideFile, fileService, logService);
+	return override ? applyPromptOverridesFromString(override.content, tools, logService, override.source) : { tools: [...tools] };
+}
+
+/** Reads the launch's override once so later tool replacements use the same configuration. */
+export async function resolveConfiguredPromptOverride(
+	inlinePromptOverride: string | undefined,
+	promptOverrideFile: string | undefined,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<{ readonly content: string; readonly source: string } | undefined> {
 	const normalizedInlinePromptOverride = inlinePromptOverride?.trim();
 	const normalizedPromptOverrideFile = promptOverrideFile?.trim();
 
@@ -36,11 +47,11 @@ export async function applyConfiguredPromptOverrides(
 		if (normalizedPromptOverrideFile) {
 			logService.trace('[PromptOverride] Both inline prompt override text and prompt override file are configured; using inline prompt override text');
 		}
-		return applyPromptOverridesFromString(normalizedInlinePromptOverride, tools, logService);
+		return { content: normalizedInlinePromptOverride, source: INLINE_PROMPT_OVERRIDE_SOURCE };
 	}
 
 	if (!normalizedPromptOverrideFile) {
-		return { tools: [...tools] };
+		return undefined;
 	}
 
 	const source = URI.file(normalizedPromptOverrideFile);
@@ -49,9 +60,9 @@ export async function applyConfiguredPromptOverrides(
 		content = (await fileService.readFile(source)).value.toString();
 	} catch (error) {
 		logPromptOverrideFailure(logService, source.toString(), `Failed to read prompt override file "${source.toString()}"`, error);
-		return { tools: [...tools] };
+		return undefined;
 	}
-	return applyPromptOverridesFromString(content, tools, logService, source.toString());
+	return { content, source: source.toString() };
 }
 
 export function applyPromptOverridesFromString(

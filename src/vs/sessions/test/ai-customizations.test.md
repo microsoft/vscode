@@ -12,10 +12,12 @@ Production behavior reads the `sessions.list.rearrage` treatment directly from t
 
 - Treatment: `"experiments.override.sessions.list.rearrage": true`
 - Control: `"experiments.override.sessions.list.rearrage": false`
+- Customizations at the bottom (with the treatment): `"experiments.override.config.sessions.sidebar.customizationsAtBottom": true`
+- All customization categories in the expandable Customizations pane (in the control, or with `customizationsAtBottom`): `"experiments.override.config.sessions.sidebar.customizationsCategories": "all"`
 
 The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
 
-In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list. The `customizationsAtBottom` variant shows the treatment's navigation rows without Customizations, and keeps the control's expandable Customizations pane. It has no effect in the control. By default, the expandable Customizations pane shows Overview, Plugins, MCP Servers, Skills, and Instructions, and a More row that counts the customizations of the other available categories. More shows them in place, followed by a Less row that hides them again. The pane remembers across restarts which of the two was used last. With all categories, the pane shows every available category without More or Less.
 
 ## SCENARIOS
 
@@ -24,8 +26,8 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.marketplace.enabled` (experimental and disabled by default) to show Discover. Existing configured MCP and Plugin marketplaces then move from their management surfaces into Discover. `chat.customizations.marketplace.sources.publicFeed.enabled` independently controls the SDK-backed GitHub Feed when the active harness provides it. Local never provides that source. Default and custom registries remain available regardless of the GitHub Feed setting.
-- Enable `chat.customizations.copilotConnectors.enabled` independently to include authenticated Copilot connectors.
+- Keep `chat.customizations.marketplace.enabled` enabled (preview and enabled by default) to show Discover. Existing configured MCP and Plugin marketplaces then move from their management surfaces into Discover. `chat.customizations.marketplace.sources.publicFeed.enabled` independently controls the SDK-backed GitHub Feed when the active harness provides it. Local never provides that source. Default and custom registries remain available regardless of the GitHub Feed setting.
+- Keep `chat.customizations.copilotConnectors.enabled` enabled (an independent preview setting, enabled by default) to include authenticated Copilot connectors. Disabling editor preview features by policy overrides both settings, including explicit opt-ins, and disables connector access in agent sessions. Removing the policy restores explicit preferences or the defaults.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
@@ -311,6 +313,7 @@ This tests the transition from the empty state to having an active workspace sel
 
 - The migration settings and candidates from Scenario 6
 - The new-chat view with an agent-host session type selected
+- At least 3 sessions started in the Agents window. Before that, no banner shows below the composer, the notice included.
 
 #### Actions and expected results
 
@@ -321,3 +324,4 @@ This tests the transition from the empty state to having an active workspace sel
 5. Complete all migrations, then return to new chat. The notice disappears. Profile-only migrations also show in a workspace without local candidates or in a workspace-less quick chat.
 6. Disable the migration settings or AI features. No notice appears and disabled migration categories are not scanned for the notice.
 7. Verify light, dark, high-contrast, and keyboard focus states. Dismissal returns focus to the input.
+8. With a getting-started tip available, only the notice shows below the composer, because the banners there show one at a time. Dismissing the notice brings the tip back. A worktree suggestion (`sessions.chat.worktreeSuggestion` set to `inlineHint`) replaces the notice while it shows.

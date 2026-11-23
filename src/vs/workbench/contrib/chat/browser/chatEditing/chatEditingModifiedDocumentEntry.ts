@@ -10,6 +10,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -166,7 +167,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._register(this._textModelChangeService.onDidUserEditModel(() => {
 			this._userEditScheduler.schedule();
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent && this._rejectsWhenResetToInitialContent()) {
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
@@ -224,6 +225,21 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async resetEditTrackerToInitialContent() {
 		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
+	}
+
+	/** Compares the document with `content` from now on, as when another component records what was kept. */
+	protected async _resetOriginalContent(content: string): Promise<void> {
+		await this._textModelChangeService.resetDocumentValues(content, undefined);
+	}
+
+	/** Until the next diff is computed, a user edit applies to the original through `edit`, which turns the original into the document. */
+	protected _mapOriginalToModified(edit: StringEdit): void {
+		this._textModelChangeService.setOriginalToModifiedEdit(edit);
+	}
+
+	/** Whether the entry is rejected once the user's edits return the document to its initial content. */
+	protected _rejectsWhenResetToInitialContent(): boolean {
+		return true;
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
@@ -309,7 +325,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
 
-		const diffInfo = this._textModelChangeService.diffInfo;
+		const diffInfo = this.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}

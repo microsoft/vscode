@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parseFrontMatter, YamlMapNode, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
+import { isAutomationDisableConditions } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind, type AutomationAfterDateCondition } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { validateAutomationCron } from '../../../../../platform/agentHost/common/automationCron.js';
 import { IAutomationDescriptor, IAutomationSchedule } from './automation.js';
 
 export const AUTOMATION_BLUEPRINT_FILE_SUFFIX = '.automation.md';
-export const AUTOMATION_BLUEPRINT_VERSION = 1;
+export const AUTOMATION_BLUEPRINT_VERSION = 2;
 
 const AUTOMATION_BLUEPRINT_ID_PATTERN = /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
-const AUTOMATION_BLUEPRINT_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule']);
+const AUTOMATION_BLUEPRINT_V1_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule']);
+const AUTOMATION_BLUEPRINT_PROPERTIES = new Set([...AUTOMATION_BLUEPRINT_V1_PROPERTIES, 'disableConditions']);
 const AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_HOURLY_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_CRON_SCHEDULE_PROPERTIES = new Set(['kind', 'expression', 'timeZone']);
@@ -36,12 +40,13 @@ export class AutomationBlueprintParseError extends Error {
 
 /** A portable Automation definition without execution authority or machine-specific target state. */
 export interface IAutomationBlueprint {
-	readonly version: typeof AUTOMATION_BLUEPRINT_VERSION;
+	readonly version: 1 | typeof AUTOMATION_BLUEPRINT_VERSION;
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly disableConditions?: readonly AutomationAfterDateCondition[];
 }
 
 export function parseAutomationBlueprint(content: string): IAutomationBlueprint {
@@ -51,11 +56,11 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 		throw new AutomationBlueprintParseError('invalidFrontmatter');
 	}
 
-	assertKnownProperties(document.header, AUTOMATION_BLUEPRINT_PROPERTIES);
 	const version = readRequiredInteger(document.header, 'version');
-	if (version !== AUTOMATION_BLUEPRINT_VERSION) {
+	if (version !== 1 && version !== AUTOMATION_BLUEPRINT_VERSION) {
 		throw new AutomationBlueprintParseError('unsupportedVersion', String(version));
 	}
+	assertKnownProperties(document.header, version === 1 ? AUTOMATION_BLUEPRINT_V1_PROPERTIES : AUTOMATION_BLUEPRINT_PROPERTIES);
 
 	const id = readRequiredString(document.header, 'id');
 	if (id.length > 64 || !AUTOMATION_BLUEPRINT_ID_PATTERN.test(id)) {
@@ -65,31 +70,44 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 	const name = readRequiredString(document.header, 'name');
 	const description = readOptionalString(document.header, 'description');
 	const schedule = readSchedule(document.header);
+	const disableConditions = readDisableConditions(document.header);
 	const prompt = document.body.trim();
 	if (!prompt) {
 		throw new AutomationBlueprintParseError('missingPrompt');
 	}
 
 	return {
-		version: AUTOMATION_BLUEPRINT_VERSION,
+		version,
 		id,
 		name,
 		...(description ? { description } : {}),
 		prompt,
 		schedule,
+		...(disableConditions !== undefined ? { disableConditions } : {}),
 	};
 }
 
 export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): string {
 	assertPortableSchedule(blueprint.schedule);
+	const disableConditions = blueprint.disableConditions;
+	if (disableConditions !== undefined && !isAutomationDisableConditions(disableConditions)) {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
 	const lines = [
 		'---',
-		`version: ${AUTOMATION_BLUEPRINT_VERSION}`,
+		`version: ${disableConditions?.length ? AUTOMATION_BLUEPRINT_VERSION : 1}`,
 		`id: ${quoteYamlString(blueprint.id)}`,
 		`name: ${quoteYamlString(blueprint.name)}`,
 	];
 	if (blueprint.description) {
 		lines.push(`description: ${quoteYamlString(blueprint.description)}`);
+	}
+	if (disableConditions?.length) {
+		lines.push('disableConditions:');
+		for (const condition of disableConditions) {
+			lines.push(`  - kind: ${condition.kind}`);
+			lines.push(`    date: ${quoteYamlString(condition.date)}`);
+		}
 	}
 	lines.push('schedule:');
 	switch (blueprint.schedule.interval) {
@@ -102,6 +120,7 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 		case 'daily':
 		case 'weekdays':
 		case 'weekly':
+		case 'cron':
 			lines.push(
 				'  kind: cron',
 				`  expression: ${quoteYamlString(toCronExpression(blueprint.schedule))}`,
@@ -114,12 +133,17 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 }
 
 export function automationToBlueprint(automation: IAutomationDescriptor): IAutomationBlueprint {
+	const disableConditions = automation.disableConditions;
+	if (disableConditions !== undefined && !isAutomationDisableConditions(disableConditions)) {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
 	return {
-		version: AUTOMATION_BLUEPRINT_VERSION,
+		version: disableConditions?.length ? AUTOMATION_BLUEPRINT_VERSION : 1,
 		id: createAutomationBlueprintId(automation.name),
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: normalizeSchedule(automation.schedule),
+		...(disableConditions?.length ? { disableConditions } : {}),
 	};
 }
 
@@ -152,15 +176,47 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 			return { interval: schedule.interval, scheduleHour: schedule.scheduleHour, scheduleMinute: schedule.scheduleMinute, scheduleDay: 0 };
 		case 'weekly':
 			return schedule;
+		case 'cron':
+			return { interval: 'cron', cronExpression: schedule.cronExpression, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		case 'once':
 		case 'custom':
-			throw new AutomationBlueprintParseError('unsupportedSchedule', 'custom');
+			throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 	}
 }
 
 function assertPortableSchedule(schedule: IAutomationSchedule): void {
-	if (schedule.interval === 'custom' || (schedule.timeZone === 'UTC' && (schedule.interval === 'daily' || schedule.interval === 'weekdays' || schedule.interval === 'weekly'))) {
+	if (schedule.interval === 'once' || schedule.interval === 'custom' || (schedule.timeZone === 'UTC' && (schedule.interval === 'daily' || schedule.interval === 'weekdays' || schedule.interval === 'weekly'))) {
 		throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 	}
+	// Blueprints can only express `timeZone: local`, so a cron schedule bound to another zone would import at the wrong time.
+	if (schedule.interval === 'cron' && schedule.cronTimeZone && schedule.cronTimeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
+		throw new AutomationBlueprintParseError('unsupportedTimeZone', schedule.cronTimeZone);
+	}
+}
+
+function readDisableConditions(root: YamlMapNode): AutomationAfterDateCondition[] | undefined {
+	const node = getProperty(root, 'disableConditions');
+	if (node === undefined) {
+		return undefined;
+	}
+	if (node.type !== 'sequence') {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
+	const conditions = node.items.map(item => {
+		if (item.type !== 'map') {
+			throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+		}
+		const kind = readRequiredString(item, 'kind');
+		if (kind === AutomationDisableConditionKind.AfterDate) {
+			assertKnownProperties(item, new Set(['kind', 'date']), 'disableConditions.');
+			return { kind, date: readRequiredString(item, 'date') };
+		}
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions.kind');
+	});
+	if (!isAutomationDisableConditions(conditions)) {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
+	return conditions;
 }
 
 function readSchedule(root: YamlMapNode): IAutomationSchedule {
@@ -168,7 +224,6 @@ function readSchedule(root: YamlMapNode): IAutomationSchedule {
 	if (!node || node.type !== 'map') {
 		throw new AutomationBlueprintParseError('invalidField', 'schedule');
 	}
-
 	const kind = readRequiredString(node, 'kind');
 	if (kind === 'manual') {
 		assertKnownProperties(node, AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES, 'schedule.');
@@ -193,8 +248,9 @@ function readSchedule(root: YamlMapNode): IAutomationSchedule {
 
 function toCronExpression(schedule: IAutomationSchedule): string {
 	switch (schedule.interval) {
+		case 'once':
 		case 'custom':
-			throw new AutomationBlueprintParseError('unsupportedSchedule', 'custom');
+			throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 		case 'manual':
 			throw new Error('Manual Automation schedules do not have cron expressions.');
 		case 'hourly':
@@ -205,21 +261,32 @@ function toCronExpression(schedule: IAutomationSchedule): string {
 			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * 1-5`;
 		case 'weekly':
 			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${schedule.scheduleDay}`;
+		case 'cron':
+			if (!schedule.cronExpression) {
+				throw new AutomationBlueprintParseError('unsupportedSchedule');
+			}
+			return schedule.cronExpression;
 	}
 }
 
 function fromCronExpression(expression: string): IAutomationSchedule {
+	try {
+		validateAutomationCron(expression, 'UTC');
+	} catch {
+		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+	}
+	const cronSchedule: IAutomationSchedule = { interval: 'cron', cronExpression: expression, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	const [minuteValue, hourValue, dayOfMonth, month, dayValue, ...remaining] = expression.trim().split(/\s+/);
 	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
-		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+		return cronSchedule;
 	}
 	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
 	if (scheduleMinute === undefined) {
-		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+		return cronSchedule;
 	}
 	const scheduleHour = parseCronValue(hourValue, 0, 23);
 	if (scheduleHour === undefined) {
-		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+		return cronSchedule;
 	}
 	if (dayValue === '*') {
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
@@ -229,7 +296,7 @@ function fromCronExpression(expression: string): IAutomationSchedule {
 	}
 	const scheduleDay = parseCronValue(dayValue, 0, 7);
 	if (scheduleDay === undefined) {
-		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+		return cronSchedule;
 	}
 	return { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDay === 7 ? 0 : scheduleDay };
 }

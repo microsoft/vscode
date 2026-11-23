@@ -3,32 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import { appendFile, mkdir } from 'fs/promises';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
-import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { detectPluginFormat, hasPluginManifest, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
-import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
-import { ChildCustomizationType } from '../../common/state/protocol/state.js';
+import { makeMcpServerCustomization, parseAgentFile, parseSkillFile, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { customAgentFileDeclaresHooks } from './copilotPluginConverters.js';
+import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, McpServerCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
+import { ChildCustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { toChildCustomizations } from './copilotPluginConverters.js';
+import { AGENT_DISCOVERY_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { withCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { withCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
+import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { AgentHostHooksEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { Promises } from '../../../../base/node/pfs.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
+type HooksDiscoveryResult = Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>;
 type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
-export type SessionDiscoveredCustomization = DirectoryCustomization | (PluginCustomization & {
+type SessionPlugin = Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins'][number];
+/** Reads the plugin inventory of the session that discovery serves, or `undefined` while that session is not ready. */
+export type SessionPluginInventory = () => Promise<readonly SessionPlugin[] | undefined>;
+export type SessionDiscoveredCustomization = DirectoryCustomization | ((PluginCustomization | McpServerCustomization) & {
 	readonly contents?: undefined;
 	readonly writable?: undefined;
+	readonly children?: ChildCustomization[];
 });
 
 /**
@@ -63,10 +79,6 @@ function compareDiscoveredDirectory(a: IDiscoveredDirectory, b: IDiscoveredDirec
 	if (byType !== 0) {
 		return byType;
 	}
-	return compareStrings(a.uri.toString(), b.uri.toString());
-}
-
-function compareDiscoveredFile(a: IDiscoveredFile, b: IDiscoveredFile): number {
 	return compareStrings(a.uri.toString(), b.uri.toString());
 }
 
@@ -116,6 +128,19 @@ const fixedDiscoveryFiles: { workspace: IFixedDiscoveryFile[]; user: IFixedDisco
 	user: [],
 };
 
+interface IDiscoveredRuntimeHooks {
+	/** The hooks the runtime loaded, or a failed discovery with no hooks. */
+	readonly discovered?: DirectoryCustomization;
+	/** Hook files the runtime reported as failing to load, or loading with warnings. */
+	readonly diagnostics?: DirectoryCustomization;
+}
+
+/** The runtime reports a user or plugin hook once per requested project path. */
+function withUniqueHookIds(discovered: HooksDiscoveryResult): HooksDiscoveryResult {
+	const seen = new Set<string>();
+	return { ...discovered, hooks: discovered.hooks.filter(hook => !seen.has(hook.id) && !!seen.add(hook.id)) };
+}
+
 function throwIfCancelled(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
@@ -161,6 +186,11 @@ function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolea
 	entry.resourcesToWatch.set(resourceToWatch, Math.max(trigger, entry.resourcesToWatch.get(resourceToWatch) ?? 0));
 }
 
+/** The runtime's opaque plugin identity, or the plugin's marketplace specifier on runtimes that do not report one. */
+function pluginIdentity(plugin: Pick<SessionPlugin, 'id' | 'name' | 'marketplace'>): string {
+	return plugin.id || `${plugin.name}@${plugin.marketplace}`;
+}
+
 function isTriggered(e: FileChangesEvent, resource: URI, trigger: WatchTrigger): boolean {
 	switch (trigger) {
 		case WatchTrigger.Existence: return e.contains(resource, FileChangeType.ADDED, FileChangeType.DELETED);
@@ -192,15 +222,31 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private readonly _watchers = new ResourceMap<IWatchSpec & { readonly disposable: IDisposable }>();
 
+	/** Working directories opened through a symbolic link, with the real path the runtime reports files under. */
+	private _linkedWorkingDirectories: readonly { readonly opened: URI; readonly real: URI }[] = [];
+	private readonly _linkedWorkingDirectoriesResolved: Promise<void>;
+
 	constructor(
 		private readonly _workingDirectories: readonly URI[],
 		private readonly _userHome: URI,
 		private readonly _pathToUri: PathToUri = URI.file,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register({ dispose: () => this._disposeAllWatchers() });
+		const hookState = () => JSON.stringify([this._workspaceTrust(), this._hooksEnabled()]);
+		let state = hookState();
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const next = hookState();
+			if (next !== state) {
+				state = next;
+				this._scheduleRefresh();
+			}
+		}));
+		// The working directories are fixed, so their links are resolved once, alongside the first discovery.
+		this._linkedWorkingDirectoriesResolved = this._resolveLinkedWorkingDirectories().then(linked => { this._linkedWorkingDirectories = linked; });
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
 				for (const [uri, trigger] of watcher.resourcesToWatch) {
@@ -218,6 +264,20 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private _scheduleRefresh(): void {
 		this._onDidChange.fire();
+	}
+
+	private _workspaceTrust() {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+	}
+
+	/** Whether VS Code's `chat.useHooks` setting allows the hooks that sessions can leave out. */
+	private _hooksEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostHooksEnabledConfigKey) !== false;
+	}
+
+	/** Whether repository hooks under `root` run: sessions enable them only for folders trusted in VS Code. */
+	private _isTrusted(root: URI): boolean {
+		return isAgentHostWorkspaceTrusted(root, this._workspaceTrust());
 	}
 
 	/**
@@ -260,22 +320,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	/**
-	 * The working-directory roots that hooks are discovered from.
-	 *
-	 * **Hooks are discovered from the PRIMARY working directory only** (index 0 of
-	 * {@link _workingDirectories}, which callers MUST order primary-first). Hooks
-	 * from non-primary roots are intentionally NOT discovered because the Copilot
-	 * agent currently applies hooks from a single primary directory only. Every
-	 * other customization types (agents, skills, and instructions) are discovered
-	 * across all roots.
-	 *
-	 * Example: for roots `[B, A, C]` (with `B` selected as primary), hooks are
-	 * discovered from `B` only; hooks under `A`/`C` are ignored.
-	 *
-	 * This may expand to all roots in the future — see `MULTI_ROOT_CHANGES.md`.
+	 * The working-directory roots that hooks are discovered from: every root, because sessions load
+	 * repository hooks from additional directories too.
 	 */
 	private get _hookWorkingDirectories(): readonly URI[] {
-		return this._workingDirectories.slice(0, 1);
+		return this._workingDirectories;
 	}
 
 	private async writeCustomizationDiscoveryDebugLog(payload: Record<string, unknown>): Promise<void> {
@@ -399,7 +448,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		for (const root of searchRoots.workspace) {
 			if (root.type === DiscoveredType.Hook) {
-				// Hooks: primary working directory only (Copilot limitation).
 				for (const workingDirectory of this._hookWorkingDirectories) {
 					add(joinPath(workingDirectory, ...root.path), root.name);
 				}
@@ -412,7 +460,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 		for (const root of fixedDiscoveryFiles.workspace) {
 			if (root.type === DiscoveredType.Hook) {
-				// Hooks: primary working directory only (Copilot limitation).
 				for (const workingDirectory of this._hookWorkingDirectories) {
 					add(joinPath(workingDirectory, ...root.path), basename(joinPath(workingDirectory, ...root.path).path));
 				}
@@ -522,7 +569,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 
-	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly SessionDiscoveredCustomization[]> {
+	public async discover(client: CopilotClient, token: CancellationToken, sessionPlugins?: SessionPluginInventory): Promise<readonly SessionDiscoveredCustomization[]> {
 		await this.writeCustomizationDiscoveryDebugLog({
 			method: 'discover',
 			workingDirectories: this._workingDirectories.map(d => d.toString()),
@@ -538,27 +585,40 @@ export class SessionCustomizationDiscovery extends Disposable {
 		const p: AgentsDiscoverRequest = { projectPaths: this._workingDirectories.map(uri => uri.fsPath) };
 
 		try {
-			const pluginFiles = new ResourceSet();
-			const [agents, rules, skills, hooks] = await Promise.all([
-				this.discoverAgents(p, client, pluginFiles, token),
-				this.discoverRules(p, client, pluginFiles, discoveredDirectories, token),
-				this.discoverSkills(p, client, pluginFiles, token),
-				this.discoverHooks(token),
+			const [agents, rules, skills, hooks, mcpDiscovery] = await Promise.all([
+				this.discoverAgents(p, client, token),
+				this.discoverRules(p, client, discoveredDirectories, token),
+				this.discoverSkills(p, client, token),
+				this.discoverHooks(client, token),
+				this.discoverMcpServers(client, token),
 				this._updateWatchers(discoveredDirectories, token)
 			]);
 			throwIfCancelled(token);
-			const pluginCustomizations = await this.toPluginCustomizations(pluginFiles, token);
-			const isPluginChild = (customization: ChildCustomization) => pluginCustomizations.some(plugin =>
-				extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(customization.uri), URI.parse(plugin.uri))
-			);
+			const mcpServers = mcpDiscovery.servers;
+			const pluginCustomizations = await this.toPluginCustomizations(client, [...agents, ...skills, ...rules, ...(hooks.discovered?.children ?? []), ...mcpServers], token, sessionPlugins);
+			const nestedMcpNames = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.name) ?? []));
+			const nestedHookIds = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.Hook).map(child => child.id) ?? []));
+			// With `chat.useHooks` off, sessions leave out repository hooks; user, plugin, and policy hooks still run.
+			const isTurnedOff = (hook: ChildCustomization) => !hooks.enabled && readCustomizationDiscoveryMeta(hook)?.source === 'repository';
+			const remainingHooks = hooks.discovered && { ...hooks.discovered, children: hooks.discovered.children?.filter(hook => !nestedHookIds.has(hook.id) && !isTurnedOff(hook)) };
+			const notRunningFiles = [...hooks.untrusted, ...await this.discoverNotRunningAgentHookFiles(agents, hooks.enabled, token)];
+			const notRunningHooks = hooks.enabled
+				? this.toUntrustedHooksDirectory(notRunningFiles)
+				: this.toTurnedOffHooksDirectory([...(hooks.discovered?.children ?? []).filter(isTurnedOff), ...notRunningFiles.map(file => this.toNotRunningHookFile(file))]);
+			const isPluginChild = (customization: ChildCustomization) => readCustomizationDiscoveryMeta(customization)?.source === 'plugin';
 			const result: DirectoryCustomization[] = [];
 			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), discoveredDirectories, result);
 			await this.toDirectoryCustomizations(CustomizationType.Rule, rules.filter(rule => !isPluginChild(rule)), discoveredDirectories, result);
 			await this.toDirectoryCustomizations(CustomizationType.Skill, skills.filter(skill => !isPluginChild(skill)), discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Hook, hooks, discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Hook, [], discoveredDirectories, result);
 			const sortedResult: SessionDiscoveredCustomization[] = [
 				...result.sort(compareDirectoryCustomization),
+				...(remainingHooks && (remainingHooks.children?.length || remainingHooks.load?.kind !== CustomizationLoadStatus.Loaded) ? [remainingHooks] : []),
+				...(hooks.diagnostics ? [hooks.diagnostics] : []),
+				...(notRunningHooks ? [notRunningHooks] : []),
+				...(mcpDiscovery.error ? [mcpDiscovery.error] : []),
 				...pluginCustomizations.sort((a, b) => compareStrings(a.uri, b.uri)),
+				...mcpServers.filter(server => !nestedMcpNames.has(server.name)),
 			];
 			await this.writeCustomizationDiscoveryDebugLog({
 				method: 'discover',
@@ -566,7 +626,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					type: customization.type,
 					contents: customization.type === CustomizationType.Directory ? customization.contents : undefined,
 					uri: customization.uri,
-					children: (customization.children ?? []).map(child => ({ type: child.type, uri: child.uri, name: child.name })),
+					children: customization.type === CustomizationType.McpServer ? undefined : (customization.children ?? []).map(child => ({ type: child.type, uri: child.uri, name: child.name })),
 				})),
 			});
 			return sortedResult;
@@ -580,27 +640,45 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async discoverAgents(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, token: CancellationToken): Promise<AgentCustomization[]> {
+	private async discoverAgents(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<AgentCustomization[]> {
 		const agents: AgentCustomization[] = [];
 
 		const agentDiscovery = await raceCancellationError(client.rpc.agents.discover(discoveryRequest), token);
 		for (const agent of agentDiscovery.agents) {
 			if (agent.path) {
 				const uri = this._pathToUri(agent.path);
-				if (agent.source === 'plugin') {
-					pluginFiles.add(uri);
-					continue;
-				}
 				if (agent.source === 'builtin') {
 					continue;
 				}
-				agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
+				// Older runtimes omit effort from discovery even though session creation reads it.
+				const parsed = await parseAgentFile(uri, this._fileService);
+				const reasoningEffort = agent.reasoningEffort ?? parsed.reasoningEffort;
+				const isPlugin = agent.source === 'plugin';
+				const model = agent.model ?? (isPlugin ? parsed.model : undefined);
+				const meta = toAgentCustomizationMeta({
+					userInvocable: agent.userInvocable,
+					'vscode.models': agent.models,
+					'vscode.reasoningEffort': reasoningEffort,
+					'vscode.modelPolicy': parsed.modelPolicy,
+					'vscode.assistedApprovalInstructions': parsed.assistedApprovalInstructions,
+					'vscode.argumentHint': parsed.argumentHint,
+					'vscode.welcomeMessage': parsed.welcomeMessage,
+				});
+				agents.push({
+					type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: isPlugin ? parsed.name : agent.name, description: agent.description,
+					...(model ? { model } : {}),
+					...(isPlugin ? {
+						...toSkillInvocationFlags(agent.userInvocable ?? parsed.userInvocable, parsed.disableModelInvocation),
+						...(parsed.tools?.length ? { tools: [...parsed.tools] } : {}),
+					} : {}),
+					_meta: isPlugin ? withCustomizationDiscoveryMeta(meta, { source: 'plugin', pluginId: agent.pluginId }) : meta,
+				});
 			}
 		}
 		return agents;
 	}
 
-	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, discoveredDirectories: readonly IDiscoveredDirectory[], token: CancellationToken): Promise<RuleCustomization[]> {
+	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, discoveredDirectories: readonly IDiscoveredDirectory[], token: CancellationToken): Promise<RuleCustomization[]> {
 		const rules: RuleCustomization[] = [];
 		const seenRuleUris = new Set<string>();
 
@@ -627,19 +705,17 @@ export class SessionCustomizationDiscovery extends Disposable {
 				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0] ?? this._userHome;
 				uri = joinPath(anchor, instruction.sourcePath);
 			}
-			if (instruction.type === 'plugin' || instruction.location === 'plugin') {
-				pluginFiles.add(uri);
-				continue;
-			}
+			const isPlugin = instruction.type === 'plugin' || instruction.location === 'plugin';
 			const uriString = uri.toString();
 			rules.push({
 				type: CustomizationType.Rule,
 				uri: uriString,
-				id: instruction.id,
+				id: isPlugin ? customizationId(uriString) : instruction.id,
 				name: instruction.label,
 				description: instruction.description,
 				globs: instruction.applyTo ? [...instruction.applyTo] : undefined,
 				alwaysApply: this._isAgentInstructionSource(instruction),
+				...(isPlugin ? { _meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', pluginId: instruction.pluginId }) } : {}),
 			});
 			seenRuleUris.add(uriString);
 		}
@@ -678,28 +754,24 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return AGENT_INSTRUCTION_FILENAMES.has(filename);
 	}
 
-	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, token: CancellationToken): Promise<SkillCustomization[]> {
+	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<SkillCustomization[]> {
 		const skillDiscovery = await raceCancellationError(client.rpc.skills.discover(discoveryRequest), token);
 		const skills = await Promise.all(skillDiscovery.skills.map(async skill => {
 			if (!skill.path) {
 				return undefined;
 			}
 			const uri = this._pathToUri(skill.path);
-			if (skill.source === 'plugin') {
-				pluginFiles.add(uri);
-				return undefined;
-			}
 			if (skill.source === 'builtin') {
 				return undefined;
 			}
 			const parsed = await parseSkillFile(uri, this._fileService);
-			const meta = withSkillArgumentHintMeta(undefined, skill.argumentHint?.trim() || parsed.argumentHint);
+			const meta = withSkillArgumentHintMeta(skill.source === 'plugin' ? withCustomizationDiscoveryMeta(undefined, { source: 'plugin', pluginId: skill.pluginId }) : undefined, skill.argumentHint?.trim() || parsed.argumentHint);
 			return {
 				type: CustomizationType.Skill,
 				uri: uri.toString(),
-				id: skill.path,
-				name: skill.name,
-				description: skill.description,
+				id: skill.source === 'plugin' ? customizationId(uri.toString()) : skill.path,
+				name: skill.source === 'plugin' ? parsed.name : skill.name,
+				description: skill.source === 'plugin' ? skill.description || parsed.description : skill.description,
 				enabled: skill.enabled,
 				...toSkillInvocationFlags(skill.userInvocable, parsed.disableModelInvocation),
 				...(meta ? { _meta: meta } : {}),
@@ -710,149 +782,410 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	/**
-	 * Projects the SDK-native plugins behind `pluginFiles` into top-level
-	 * {@link PluginCustomization} containers.
-	 *
-	 * Roots are derived from the plugin-owned files the SDK itself reported
-	 * (`source: 'plugin'`), by walking up to the nearest plugin manifest —
-	 * never from the runtime's installed-plugins cache layout, which is not
-	 * part of any SDK contract. `plugins.list()` cannot stand in for this: it
-	 * reports name/marketplace/version/enabled, but no installed root.
-	 *
-	 * Consequence: a plugin that contributes *only* hooks or MCP servers has
-	 * no SDK-reported file to anchor on and is therefore not projected here.
+	 * Joins native contributions to runtime-resolved roots using complete opaque plugin IDs.
+	 * Plugins managed by enterprise settings are published even without contributions or a
+	 * resolved root, so a required plugin that failed to install still shows its organization state.
+	 * The runtime resolves managed settings per session, so only `sessionPlugins` lists such a plugin.
 	 */
-	private async toPluginCustomizations(pluginFiles: ResourceSet, token: CancellationToken): Promise<PluginCustomization[]> {
-		const pluginRoots = new ResourceSet();
-		for (const file of pluginFiles) {
-			const root = await this.findPluginRoot(file, token);
-			if (root) {
-				pluginRoots.add(root);
-			} else {
-				this._logService.warn(`[SessionCustomizationDiscovery] Could not find a plugin manifest for '${file.toString()}'.`);
+	private async toPluginCustomizations(client: CopilotClient, children: readonly ChildCustomization[], token: CancellationToken, sessionPlugins?: SessionPluginInventory): Promise<PluginCustomization[]> {
+		const pluginIds = new Set(children.flatMap(child => {
+			const pluginId = readCustomizationDiscoveryMeta(child)?.pluginId;
+			return pluginId ? [pluginId] : [];
+		}));
+		let plugins;
+		try {
+			({ plugins } = await raceCancellationError(client.rpc.plugins.list(), token));
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
 			}
+			this._logService.error(`[SessionCustomizationDiscovery] Plugin inventory failed: ${error instanceof Error ? error.message : String(error)}`);
+			return [];
 		}
-
-		const result: PluginCustomization[] = [];
-		for (const root of pluginRoots) {
+		const result = new ResourceMap<PluginCustomization>();
+		for (const plugin of [...plugins, ...await this.managedPluginsWithoutContent(sessionPlugins, plugins, token)]) {
+			const contributes = !!plugin.id && pluginIds.has(plugin.id) && !!plugin.rootPath;
+			if (!contributes && !plugin.managed) {
+				continue;
+			}
 			throwIfCancelled(token);
+			// Plugins the host registers itself (such as Computer Use) ship with the agent rather than being installed by the user.
+			const discoveryMeta = plugin.source === 'builtin' ? withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }) : undefined;
+			if (!plugin.rootPath) {
+				// Without a root the plugin isn't usable; only a plugin the organization requires needs explaining.
+				if (plugin.managedDesiredEnabled !== false) {
+					const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: `/plugins/${encodeURIComponent(pluginIdentity(plugin))}` });
+					result.set(uri, {
+						type: CustomizationType.Plugin,
+						id: customizationId(uri.toString()),
+						uri: uri.toString(),
+						name: plugin.name,
+						version: plugin.version,
+						load: { kind: CustomizationLoadStatus.Error, message: localize('copilot.managedPluginNotInstalled', "Your organization requires this plugin, but it isn't installed.") },
+						children: [],
+						_meta: withCustomizationTeamProvided(withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }), plugin.team),
+					});
+				}
+				continue;
+			}
+			const root = this._pathToUri(plugin.rootPath);
 			const uri = root.toString();
-			try {
-				const format = await detectPluginFormat(root, this._fileService);
-				const manifest = await readPluginManifest(root, format, this._fileService);
-				const parsed = await parsePlugin(root, this._fileService, this._workingDirectories[0], this._userHome, root);
-				result.push({
-					type: CustomizationType.Plugin,
-					id: customizationId(uri),
-					uri,
-					name: typeof manifest?.name === 'string' ? manifest.name : basename(root.path),
-					version: typeof manifest?.version === 'string' ? manifest.version : undefined,
-					load: { kind: CustomizationLoadStatus.Loaded },
-					children: toChildCustomizations([parsed]),
-				});
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				this._logService.error(`[SessionCustomizationDiscovery] Error parsing plugin '${uri}': ${message}`);
-				result.push({
-					type: CustomizationType.Plugin,
-					id: customizationId(uri),
-					uri,
-					name: basename(root.path),
-					load: { kind: CustomizationLoadStatus.Error, message },
-				});
+			const pluginChildren = new Map<string, ChildCustomization>(result.get(root)?.children?.map(child => [child.id, child]));
+			for (const child of children) {
+				if (readCustomizationDiscoveryMeta(child)?.pluginId === plugin.id) {
+					let projected = child;
+					if (child.type === CustomizationType.McpServer) {
+						const { id, mcpApp } = makeMcpServerCustomization(URI.parse(child.uri), child.name);
+						projected = { ...child, id, mcpApp: child.mcpApp ?? mcpApp };
+					}
+					pluginChildren.set(projected.id, projected);
+				}
+			}
+			const meta = withCustomizationTeamProvided(plugin.managed ? withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }) : discoveryMeta, plugin.team);
+			result.set(root, {
+				type: CustomizationType.Plugin,
+				id: customizationId(uri),
+				uri,
+				name: plugin.name,
+				version: plugin.version,
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [...pluginChildren.values()],
+				...(meta ? { _meta: meta } : {}),
+			});
+		}
+		for (const id of pluginIds) {
+			if (!plugins.some(plugin => plugin.id === id && plugin.rootPath)) {
+				this._logService.warn(`[SessionCustomizationDiscovery] No resolved plugin root for '${id}'.`);
 			}
 		}
-		return result;
+		return [...result.values()];
 	}
 
-	private async findPluginRoot(file: URI, token: CancellationToken): Promise<URI | undefined> {
-		let current = uriDirname(file);
-		while (true) {
-			throwIfCancelled(token);
-			if (await hasPluginManifest(current, this._fileService)) {
-				return current;
+	/** Plugins the session reports as managed by the organization that have no content and that `plugins` does not list. */
+	private async managedPluginsWithoutContent(sessionPlugins: SessionPluginInventory | undefined, plugins: readonly Pick<SessionPlugin, 'id' | 'name' | 'marketplace'>[], token: CancellationToken): Promise<readonly SessionPlugin[]> {
+		if (!sessionPlugins) {
+			return [];
+		}
+		try {
+			const listed = new Set(plugins.map(pluginIdentity));
+			const inventory = await raceCancellationError(sessionPlugins(), token);
+			return inventory?.filter(plugin => plugin.managed && !plugin.rootPath && !listed.has(pluginIdentity(plugin))) ?? [];
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
 			}
-			const parent = uriDirname(current);
-			if (parent.toString() === current.toString()) {
+			this._logService.warn(`[SessionCustomizationDiscovery] Session plugin inventory failed: ${error instanceof Error ? error.message : String(error)}`);
+			return [];
+		}
+	}
+
+	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<IDiscoveredRuntimeHooks & { readonly untrusted: readonly URI[]; readonly enabled: boolean }> {
+		const enabled = this._hooksEnabled();
+		const untrustedRoots = this._untrustedHookWorkingDirectories();
+		const [runtimeHooks, untrusted] = await Promise.all([
+			this.discoverRuntimeHooks(client, untrustedRoots, token),
+			this.discoverUntrustedHookFiles(untrustedRoots, token),
+		]);
+		return { ...runtimeHooks, untrusted, enabled };
+	}
+
+	private _untrustedHookWorkingDirectories(): readonly URI[] {
+		return this._hookWorkingDirectories.filter(root => !this._isTrusted(root));
+	}
+
+	/**
+	 * Custom agent files that declare hooks, when sessions leave out the hooks of every custom agent: when `chat.useHooks`
+	 * is off, or when a folder of the session is untrusted, because an agent's source folder is not always known.
+	 */
+	private async discoverNotRunningAgentHookFiles(agents: readonly AgentCustomization[], hooksEnabled: boolean, token: CancellationToken): Promise<readonly URI[]> {
+		if (hooksEnabled && this._workingDirectories.every(root => this._isTrusted(root))) {
+			return [];
+		}
+		// Plugin agents are listed with their plugin, whose rows show that their hooks won't run.
+		const candidates = agents.filter(agent => readCustomizationDiscoveryMeta(agent)?.source !== 'plugin').map(agent => URI.parse(agent.uri));
+		const declaring = await Promise.all(candidates.map(async uri => {
+			try {
+				return customAgentFileDeclaresHooks((await raceCancellationError(this._fileService.readFile(uri), token)).value.toString()) ? uri : undefined;
+			} catch (error) {
+				if (error instanceof CancellationError) {
+					throw error;
+				}
 				return undefined;
 			}
-			current = parent;
-		}
+		}));
+		return declaring.filter(uri => uri !== undefined);
 	}
 
-	private async discoverHooks(token: CancellationToken): Promise<HookCustomization[]> {
-		const seen = new ResourceSet();
-		const discoveredDirectories: IDiscoveredDirectory[] = [];
-
-		const hookRootsWorkspace = searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook);
-		const hookRootsUser = searchRoots.user.filter(root => root.type === DiscoveredType.Hook);
-		const fixedHookFilesWorkspace = fixedDiscoveryFiles.workspace.filter(root => root.type === DiscoveredType.Hook);
-		const fixedHookFilesUser = fixedDiscoveryFiles.user.filter(root => root.type === DiscoveredType.Hook);
-
-		await Promise.all([
-			// Hooks: primary working directory only (Copilot limitation — see _hookWorkingDirectories).
-			...this._hookWorkingDirectories.flatMap(workingDirectory =>
-				hookRootsWorkspace.map(root => this._discoverHookRoot(workingDirectory, root, seen, discoveredDirectories, token))),
-			...hookRootsUser.map(root => this._discoverHookRoot(this._userHome, root, seen, discoveredDirectories, token)),
-			...this._hookWorkingDirectories.map(workingDirectory =>
-				this._discoverFixedHookFiles(workingDirectory, fixedHookFilesWorkspace, seen, discoveredDirectories, token)),
-			this._discoverFixedHookFiles(this._userHome, fixedHookFilesUser, seen, discoveredDirectories, token),
-		]);
-
-		const hooks: HookCustomization[] = [];
-		for (const directory of discoveredDirectories) {
-			for (const file of directory.files) {
-				const uri = file.uri.toString();
-				hooks.push({
-					type: CustomizationType.Hook,
-					id: customizationId(uri),
-					uri,
-					name: basename(file.uri.path),
-				});
-			}
-		}
-		hooks.sort((a, b) => compareStrings(a.uri, b.uri));
-		return hooks;
-	}
-
-	private async _discoverHookRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
-		const rootUri = joinPath(base, ...root.path);
-		let stat: IFileStatWithMetadata | undefined = undefined;
+	private async discoverRuntimeHooks(client: CopilotClient, untrustedRoots: readonly URI[], token: CancellationToken): Promise<IDiscoveredRuntimeHooks> {
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks' });
 		try {
-			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-		} catch {
-			// Root does not exist (or is unreadable) — still discover as an empty source folder.
+			const discovered = await raceCancellationError(client.rpc.hooks.discover({
+				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
+			}), token);
+			await this._linkedWorkingDirectoriesResolved;
+			const result = await this.discoverWorkspaceHooksFallback(client, this.withoutUntrustedRepositoryHooks(withUniqueHookIds(discovered), untrustedRoots), untrustedRoots, token);
+			for (const warning of result.warnings) {
+				this._logService.warn(`[SessionCustomizationDiscovery] Hook discovery: ${warning}`);
+			}
+			for (const error of result.errors) {
+				this._logService.error(`[SessionCustomizationDiscovery] Hook discovery: ${error}`);
+			}
+			return {
+				discovered: result.hooks.length === 0 ? undefined : {
+					type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+					name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
+					enabled: true, writable: false,
+					load: { kind: CustomizationLoadStatus.Loaded },
+					children: result.hooks.map(hook => ({
+						type: CustomizationType.Hook,
+						id: hook.id,
+						uri: hook.definitionFileUri ? this._definitionUri(hook.definitionFileUri).toString() : uri.with({ fragment: hook.id }).toString(),
+						name: hook.hookType,
+						enabled: hook.enabled,
+						_meta: withCustomizationDiscoveryMeta(undefined, { source: hook.origin, sourceLabel: hook.source, hookType: hook.hookType, pluginId: hook.pluginId }),
+					})),
+				},
+				diagnostics: this.toHookDiagnosticsDirectory(result.errors, result.warnings),
+			};
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			this._logService.error(`[SessionCustomizationDiscovery] Hook discovery failed: ${message}`);
+			return {
+				discovered: {
+					type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+					name: localize('copilot.hookDiscoveryFailed', "Couldn't load hooks"), contents: CustomizationType.Hook,
+					enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
+				},
+			};
 		}
-		await this._discoverHooksInRoot(root, rootUri, stat, seen, result, token);
 	}
 
-	private async _discoverFixedHookFiles(base: URI, roots: readonly IFixedDiscoveryFile[], seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
-		for (const root of roots) {
-			throwIfCancelled(token);
+	/**
+	 * Reports partial hook discovery diagnostics in their own empty directory, so that they describe the files that
+	 * failed rather than each hook that loaded. The runtime's messages are shown as they are, one per line.
+	 */
+	private toHookDiagnosticsDirectory(errors: readonly string[], warnings: readonly string[]): DirectoryCustomization | undefined {
+		if (errors.length === 0 && warnings.length === 0) {
+			return undefined;
+		}
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks/diagnostics' }).toString();
+		return {
+			type: CustomizationType.Directory, id: customizationId(uri), uri,
+			name: errors.length
+				? localize('copilot.hookLoadErrors', "Some hook files could not be loaded")
+				: localize('copilot.hookLoadWarnings', "Some hook files have warnings"),
+			contents: CustomizationType.Hook, enabled: true, writable: false,
+			load: { kind: CustomizationLoadStatus.Degraded, message: [...errors, ...warnings].join('\n') },
+			children: [],
+		};
+	}
 
-			const rootUri = joinPath(base, ...root.path);
-			const files: IDiscoveredFile[] = [];
-			let stat: IFileStatWithMetadata | undefined = undefined;
+	/**
+	 * Removes repository hooks of folders that are not trusted in VS Code. The runtime can still report them when its own
+	 * trusted folders cover the folder, but sessions do not enable repository hooks there. A repository hook reported
+	 * without a location cannot be attributed to a folder, so it is removed too.
+	 */
+	private withoutUntrustedRepositoryHooks(discovered: HooksDiscoveryResult, untrustedRoots: readonly URI[]): HooksDiscoveryResult {
+		if (untrustedRoots.length === 0) {
+			return discovered;
+		}
+		const isUntrusted = (hook: HooksDiscoveryResult['hooks'][number]) => {
+			const location = hook.projectPath ? this._pathToUri(hook.projectPath) : hook.definitionFileUri ? this._definitionUri(hook.definitionFileUri) : undefined;
+			return !location || untrustedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(location, root));
+		};
+		return { ...discovered, hooks: discovered.hooks.filter(hook => hook.origin !== 'repository' || !isUntrusted(hook)) };
+	}
+
+	/**
+	 * Lists the `.github/hooks` files of folders that are not trusted in VS Code. Sessions do not run them, and the
+	 * runtime does not report them, so they are shown as not running until the folder is trusted.
+	 */
+	private async discoverUntrustedHookFiles(untrustedRoots: readonly URI[], token: CancellationToken): Promise<readonly URI[]> {
+		const files: URI[] = [];
+		for (const root of untrustedRoots) {
 			try {
-				stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-			} catch {
-				// Root does not exist (or is unreadable) — still discover as an empty source folder.
+				files.push(...await listWorkspaceHookFiles(this._fileService, root, token));
+			} catch (error) {
+				if (error instanceof CancellationError) {
+					throw error;
+				}
+				this._logService.warn(`[SessionCustomizationDiscovery] Listing hooks of untrusted folder ${root.toString()} failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
+		}
+		return files;
+	}
 
-			for (const child of stat?.children ?? []) {
-				throwIfCancelled(token);
+	private toUntrustedHooksDirectory(files: readonly URI[]): DirectoryCustomization | undefined {
+		if (files.length === 0) {
+			return undefined;
+		}
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks/untrusted' });
+		return {
+			type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+			name: localize('copilot.untrustedHooks', "Hooks in untrusted folders"), contents: CustomizationType.Hook,
+			enabled: false, writable: false,
+			load: { kind: CustomizationLoadStatus.Degraded, message: localize('copilot.untrustedHooksMessage', "Won't run until you trust this folder.") },
+			children: files.map(file => this.toNotRunningHookFile(file)),
+		};
+	}
 
-				if (child.isFile && root.filenames.includes(child.name)) {
-					if (!seen.has(child.resource)) {
-						seen.add(child.resource);
-						files.push({ uri: child.resource, etag: child.etag });
+	private toNotRunningHookFile(file: URI): ChildCustomization {
+		return {
+			type: CustomizationType.Hook,
+			id: customizationId(file.toString()),
+			uri: file.toString(),
+			name: basename(file.path),
+			enabled: false,
+			// Custom agent files can come from the user's home as well as from the session's folders.
+			_meta: withCustomizationDiscoveryMeta(undefined, { source: this._containingWorkspaceRoot(file) ? 'repository' : 'user' }),
+		};
+	}
+
+	/**
+	 * The hooks that sessions leave out because `chat.useHooks` is off. Published even without hooks, because sessions
+	 * also leave out the hooks of custom agents the host doesn't list, such as agents forwarded by the client.
+	 */
+	private toTurnedOffHooksDirectory(hooks: readonly ChildCustomization[]): DirectoryCustomization {
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks/turnedOff' });
+		return {
+			type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+			name: localize('copilot.turnedOffHooks', "Hooks turned off"), contents: CustomizationType.Hook,
+			enabled: false, writable: false,
+			load: { kind: CustomizationLoadStatus.Degraded, message: localize('copilot.turnedOffHooksMessage', "Won't run because hooks are turned off in the {0} setting.", 'chat.useHooks') },
+			children: hooks.map(hook => ({ ...hook, enabled: false })),
+		};
+	}
+
+	/** TODO: Remove when https://github.com/github/copilot-agent-runtime/issues/30644 is fixed. */
+	private async discoverWorkspaceHooksFallback(client: CopilotClient, discovered: HooksDiscoveryResult, untrustedRoots: readonly URI[], token: CancellationToken): Promise<HooksDiscoveryResult> {
+		const hasRepositoryHooks = (root: URI) => discovered.hooks.some(hook => hook.origin === 'repository' && hook.projectPath !== undefined && extUriBiasedIgnorePathCase.isEqual(this._pathToUri(hook.projectPath), root));
+		// Explicit hook directories ignore whether repository hooks are enabled, so untrusted folders are left out.
+		const roots = this._hookWorkingDirectories.filter(root => !untrustedRoots.some(untrusted => extUriBiasedIgnorePathCase.isEqual(untrusted, root)) && !hasRepositoryHooks(root));
+		if (roots.length === 0) {
+			return discovered;
+		}
+		try {
+			const hookDirectories: string[] = [];
+			for (const directory of roots) {
+				for (const root of searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook)) {
+					throwIfCancelled(token);
+					const uri = joinPath(directory, ...root.path);
+					try {
+						if ((await raceCancellationError(this._fileService.resolve(uri), token)).isDirectory) {
+							hookDirectories.push(uri.fsPath);
+						}
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							throw error;
+						}
 					}
 				}
 			}
-			if (files.length > 0) {
-				result.push({ uri: rootUri, type: DiscoveredType.Hook, files: files.sort(compareDiscoveredFile), name: basename(rootUri.path), writable: true });
+			if (hookDirectories.length === 0) {
+				return discovered;
+			}
+			const fallback = await raceCancellationError(client.rpc.hooks.discover({
+				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
+				hookDirectories,
+			}), token);
+			const seen = new Set(discovered.hooks.map(hook => hook.id));
+			return {
+				hooks: [...discovered.hooks, ...fallback.hooks.filter(hook => {
+					if (hook.origin !== 'user' || seen.has(hook.id)) {
+						return false;
+					}
+					seen.add(hook.id);
+					return true;
+				}).map(hook => ({ ...hook, origin: 'repository' as const }))],
+				warnings: [...new Set([...discovered.warnings, ...fallback.warnings])],
+				errors: [...new Set([...discovered.errors, ...fallback.errors])],
+			};
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			return { ...discovered, errors: [...discovered.errors, localize('copilot.workspaceHooksFallbackFailed', "Workspace hook discovery failed: {0}", message)] };
+		}
+	}
+
+	private async discoverMcpServers(client: CopilotClient, token: CancellationToken): Promise<{ servers: McpServerCustomization[]; error?: DirectoryCustomization }> {
+		let result;
+		try {
+			result = await raceCancellationError(client.rpc.mcp.discover({
+				workingDirectory: this._workingDirectories[0]?.fsPath,
+				includeEffectiveSource: true,
+			}), token);
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			this._logService.error(`[SessionCustomizationDiscovery] MCP discovery failed: ${message}`);
+			const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/mcp' }).toString();
+			return {
+				servers: [], error: {
+					type: CustomizationType.Directory, id: customizationId(uri), uri,
+					name: localize('copilot.discoveredMcpServers', "Copilot MCP servers"), contents: CustomizationType.McpServer,
+					enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
+				}
+			};
+		}
+		await this._linkedWorkingDirectoriesResolved;
+		return {
+			servers: result.servers.map(server => {
+				const source = server.effectiveSource;
+				const id = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/mcp', fragment: server.name }).toString();
+				const file = source?.file && this._definitionUri(source.file.uri);
+				return {
+					type: CustomizationType.McpServer,
+					id,
+					uri: file?.toString() ?? id,
+					name: server.name,
+					state: { kind: McpServerStatus.Stopped },
+					_meta: withCustomizationDiscoveryMeta(
+						withMcpServerSourcePluginMeta(withMcpServerSourceMeta(undefined, server.source), source?.plugin?.name ?? server.sourcePlugin),
+						{ source: server.source, sourceId: source?.id, pluginId: source?.plugin?.id, defaultEnabled: server.enabled },
+					),
+				};
+			})
+		};
+	}
+
+	private _definitionUri(value: string): URI {
+		const parsed = URI.parse(value);
+		const uri = parsed.scheme === Schemas.file ? this._pathToUri(parsed.fsPath) : parsed;
+		for (const { opened, real } of this._linkedWorkingDirectories) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, real)) {
+				const relative = extUriBiasedIgnorePathCase.relativePath(real, uri);
+				return relative ? joinPath(opened, relative) : opened;
 			}
 		}
+		return uri;
+	}
+
+	private async _resolveLinkedWorkingDirectories(): Promise<readonly { readonly opened: URI; readonly real: URI }[]> {
+		const linked = await Promise.all(this._workingDirectories.map(async opened => {
+			// Only folders the runtime sees as local paths; virtual workspaces have no real path.
+			if (!extUriBiasedIgnorePathCase.isEqual(this._pathToUri(opened.fsPath), opened)) {
+				return undefined;
+			}
+			try {
+				const real = this._pathToUri(await this._realpath(opened.fsPath));
+				return extUriBiasedIgnorePathCase.isEqual(real, opened) ? undefined : { opened, real };
+			} catch {
+				return undefined;
+			}
+		}));
+		return linked.filter(entry => entry !== undefined);
+	}
+
+	/** Resolves symbolic links in a working-directory path. */
+	protected _realpath(path: string): Promise<string> {
+		return Promises.realpath(path, { strict: true });
 	}
 
 	private async toDirectoryCustomizations(type: ChildCustomizationType, customizations: readonly ChildCustomization[], allDiscoveredDirectories: readonly IDiscoveredDirectory[], result: DirectoryCustomization[]): Promise<void> {
@@ -889,7 +1222,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		const fixedHookDirectoryUris = type === CustomizationType.Hook
 			? new ResourceSet([
-				// Hooks: primary working directory only (Copilot limitation).
 				...this._hookWorkingDirectories.flatMap(workingDirectory => fixedDiscoveryFiles.workspace
 					.filter(root => root.type === DiscoveredType.Hook)
 					.map(root => joinPath(workingDirectory, ...root.path))),
@@ -1017,40 +1349,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._watchers.clear();
 	}
 
-	private async _discoverHooksInRoot(root: ISearchRoot, rootUri: URI, stat: IFileStatWithMetadata | undefined, seen: ResourceSet, result: IDiscoveredDirectory[], token: CancellationToken): Promise<void> {
-		const files: IDiscoveredFile[] = [];
-		// hooks are recursively discovered as `*.json` under the root.
-		const findHooks = async (directoryStat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
-			throwIfCancelled(token);
-
-			for (const child of directoryStat.children ?? []) {
-				throwIfCancelled(token);
-
-				if (child.isFile) {
-					const name = child.name.toLowerCase();
-					if (name.endsWith(HOOK_FILE_SUFFIX) && !seen.has(child.resource)) {
-						seen.add(child.resource);
-						files.push({ uri: child.resource, etag: child.etag });
-					}
-				} else if (child.isDirectory && recursionLevel < MAX_HOOKS_RECURSION_DEPTH) {
-					let childStat: IFileStatWithMetadata | undefined = undefined;
-					try {
-						childStat = await this._fileService.resolve(child.resource, { resolveMetadata: true });
-					} catch {
-						// Ignore unreadable subdirectories.
-					}
-					if (childStat) {
-						await findHooks(childStat, recursionLevel + 1);
-					}
-				}
-			}
-		};
-		if (stat) {
-			await findHooks(stat, 0);
-		}
-		result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
-
-	}
 }
 
 /**
@@ -1108,4 +1406,33 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 		throw new CancellationError();
 	}
 	return found;
+}
+
+/**
+ * Lists the hook files (`*.json`) anywhere under `<workingDirectory>/.github/hooks/`. A missing directory has none;
+ * any other IO failure is rethrown.
+ */
+export async function listWorkspaceHookFiles(fileService: IFileService, workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<URI[]> {
+	const files: URI[] = [];
+	const collect = async (directory: URI, depth: number): Promise<void> => {
+		throwIfCancelled(token);
+		let stat: IFileStat;
+		try {
+			stat = await fileService.resolve(directory, { resolveMetadata: false });
+		} catch (err) {
+			if (toFileOperationResult(err as Error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw err;
+			}
+			return;
+		}
+		const children = stat.children ?? [];
+		files.push(...children.filter(child => child.isFile && child.name.toLowerCase().endsWith(HOOK_FILE_SUFFIX)).map(child => child.resource));
+		if (depth < MAX_HOOKS_RECURSION_DEPTH) {
+			for (const child of children.filter(child => child.isDirectory)) {
+				await collect(child.resource, depth + 1);
+			}
+		}
+	};
+	await collect(joinPath(workingDirectory, '.github', 'hooks'), 0);
+	return files.sort((a, b) => compareStrings(a.toString(), b.toString()));
 }

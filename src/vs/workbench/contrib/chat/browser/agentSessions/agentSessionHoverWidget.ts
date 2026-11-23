@@ -22,7 +22,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatViewModel } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatListWidget } from '../widget/chatListWidget.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from './agentSessionsModel.js';
 import './media/agentSessionHoverWidget.css';
@@ -148,6 +148,8 @@ export class AgentSessionHoverWidget extends Disposable {
 					renderStyle: 'compact',
 					noHeader: true,
 					editable: false,
+					// A read-only preview: the widget that shows the chat docks its questions and approvals, which the preview must not take
+					renderInputRequests: false,
 				},
 				currentChatMode: () => ChatModeKind.Ask,
 			}
@@ -191,10 +193,9 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);
-		const provider = providerType ?? AgentSessionProviders.Local;
-		const providerIcon = getAgentSessionProviderIcon(provider);
+		const providerIcon = providerType ? getAgentSessionProviderIcon(providerType) : session.icon;
 		dom.append(detailsRow, renderIcon(providerIcon));
-		dom.append(detailsRow, dom.$('span', undefined, getAgentSessionProviderName(provider)));
+		dom.append(detailsRow, dom.$('span', undefined, session.providerLabel));
 		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
 
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
@@ -283,9 +284,8 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);
-		const provider = providerType ?? AgentSessionProviders.Local;
-		const providerIcon = getAgentSessionProviderIcon(provider);
-		const providerName = getAgentSessionProviderName(provider);
+		const providerIcon = providerType ? getAgentSessionProviderIcon(providerType) : session.icon;
+		const providerName = session.providerLabel;
 		let timeLabel: string;
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);

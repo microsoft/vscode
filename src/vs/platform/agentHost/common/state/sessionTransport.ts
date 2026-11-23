@@ -15,11 +15,33 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 import type { AuthenticateParams } from '../agent.js';
+import type { ConnectionCloseReason } from '../connectionDiagnostics.js';
+
+const receivedMessageSizes = new WeakMap<object, number>();
+
+/** Preserve the original JSON size; reserialization can change escaping and whitespace. */
+export function parseProtocolMessage(text: string): ProtocolMessage {
+	const message: ProtocolMessage = JSON.parse(text);
+	if (message && typeof message === 'object') {
+		receivedMessageSizes.set(message, text.length * 2);
+	}
+	return message;
+}
+
+export function getProtocolMessageSize(message: object): number {
+	const bytes = receivedMessageSizes.get(message);
+	if (bytes === undefined) {
+		throw new Error('Transport did not preserve the received protocol message size');
+	}
+	return bytes;
+}
 
 /** Machine-readable reasons a transport cannot be reconnected. */
 export const enum AgentHostTransportFailureReason {
 	Unknown = 'unknown',
 	HostNotRunning = 'hostNotRunning',
+	AuthenticationFailed = 'authenticationFailed',
+	SSHAuthenticationFailed = 'sshAuthenticationFailed',
 }
 
 /** Signals that reconnecting the transport cannot recover the connection. */
@@ -40,6 +62,10 @@ export interface ITransportCloseDetails {
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Source-owned cause available before onClose fires; absent on intentional disposal. */
+	readonly closeReason?: ConnectionCloseReason;
+	/** Bytes queued in the underlying transport, when available. */
+	readonly bufferedAmount?: number;
 	/** Trusted lane identity assigned by a relay server, never supplied by AHP. */
 	readonly relayClientId?: string;
 	/** Trusted read-only designation assigned by a relay server. */

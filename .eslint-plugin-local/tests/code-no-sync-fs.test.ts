@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester } from 'eslint';
 import * as fs from 'fs';
 import { suite, test } from 'node:test';
+import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { resolve } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-no-sync-fs.ts';
 
 RuleTester.describe = suite;
@@ -18,7 +18,7 @@ const modules = ['fs', 'node:fs', 'original-fs', '../../base/node/pfs.js', 'vs/b
 const productionFile = resolve(import.meta.dirname, '../../src/vs/workbench/node/example.ts');
 const errors = (name: string) => [{ messageId: 'syncFs', data: { name } }];
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-sync-fs', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-no-sync-fs', rule, {
 	valid: [
 		`import { readFile } from 'fs/promises'; await readFile('file');`,
 		`import fs from 'fs'; await fs.promises.stat('file');`,
@@ -64,72 +64,50 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-sy
 		{ code: `import fs from 'fs'; let read; read = fs.readFileSync; read('file');`, errors: errors('readFileSync') },
 		{
 			code: `import fs from 'fs';\nconst read = fs.readFileSync.bind(fs);\nread('file');`,
-			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 3, column: 1 }],
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 3, column: 0 }],
 		},
 		{
 			code: `import fs from 'fs';\nconst read = fs.readFileSync.bind(fs);\nconst alias = read;\nalias('file');`,
-			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 4, column: 1 }],
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 4, column: 0 }],
 		},
 		{
 			code: `import fs from 'fs';\nfs.readFileSync.bind(fs)('file');`,
-			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 2, column: 1 }],
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 2, column: 0 }],
 		},
 		{
 			code: `import fs from 'fs';\nconst read = fs.readFileSync.bind(fs).bind(null);\nread.apply(null, ['file']);`,
-			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 3, column: 1 }],
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 3, column: 0 }],
+		},
+		{
+			name: 'reports an error warning against disabling the rule',
+			filename: productionFile,
+			code: `import { statSync } from 'fs'; statSync('file');`,
+			errors: [{ message: 'statSync blocks the event loop and can stall all work in this process. Use asynchronous filesystem APIs. DO NOT disable this rule unless absolutely necessary; any unavoidable exception must be narrowly scoped and explain why asynchronous I/O cannot be used.' }],
 		},
 	],
 });
 
 suite('code-no-sync-fs production configuration', () => {
-	const eslint = new ESLint({ overrideConfig: [{ rules: { 'copilot-local/no-funny-filename': 'off' } }] });
-	const root = resolve(import.meta.dirname, '../..');
-
-	test('reports an error warning against disabling the rule', async () => {
-		const results = await eslint.lintText(`import { statSync } from 'fs'; statSync('file');`, { filePath: productionFile });
-		assert.deepStrictEqual(results.flatMap(result => result.messages
-			.filter(message => message.ruleId === 'local/code-no-sync-fs')
-			.map(message => ({ severity: message.severity, message: message.message }))), [{
-				severity: 2,
-				message: 'statSync blocks the event loop and can stall all work in this process. Use asynchronous filesystem APIs. DO NOT disable this rule unless absolutely necessary; any unavoidable exception must be narrowly scoped and explain why asynchronous I/O cannot be used.',
-			}]);
-	});
+	const severities = (files: string[]) => Promise.all(files.map(async file => (await getRepositoryFileRules(file))?.['local/code-no-sync-fs']));
 
 	test('enforces core and built-in extension production code', async () => {
-		const files = ['src/vs/platform/agentHost/node/example.ts', 'src/vs/base/node/example.ts', 'extensions/git/src/example.ts', 'extensions/copilot/src/platform/example.ts'];
-		assert.deepStrictEqual(await Promise.all(files.map(async file => {
-			const results = await eslint.lintText(`import { statSync } from 'fs'; statSync('file');`, { filePath: resolve(root, file) });
-			return results.flatMap(result => result.messages.filter(message => message.ruleId === 'local/code-no-sync-fs').map(message => message.severity));
-		})), files.map(() => [2]));
+		const files = ['src/vs/workbench/node/example.ts', 'src/vs/platform/agentHost/node/example.ts', 'src/vs/base/node/example.ts', 'extensions/git/src/example.ts', 'extensions/copilot/src/platform/example.ts'];
+		assert.deepStrictEqual(await severities(files), files.map(() => ['error']));
 	});
 
 	test('allows tests and development scripts', async () => {
 		const files = ['src/vs/base/test/node/example.test.ts', 'extensions/git/src/test/example.ts', 'extensions/copilot/src/platform/example.spec.ts', 'extensions/copilot/src/platform/example.spec.tsx', 'extensions/copilot/script/example.ts', 'scripts/example.ts', 'build/example.ts', 'src/vs/code/node/cli.ts', 'src/vs/server/node/server.cli.ts'];
-		assert.deepStrictEqual(await Promise.all(files.map(async file => {
-			const results = await eslint.lintText(`import { statSync } from 'fs'; statSync('file');`, { filePath: resolve(root, file) });
-			return results.flatMap(result => result.messages.filter(message => message.ruleId === 'local/code-no-sync-fs'));
-		})), files.map(() => []));
+		assert.deepStrictEqual(await severities(files), files.map(() => undefined));
 	});
 
 	test('allows the isolated askpass process without exempting the Git extension or extension-editing runtime', async () => {
 		const files = ['extensions/git/src/askpass-main.ts', 'extensions/git/src/askpassManager.ts', 'extensions/git/src/ipc/ipcServer.ts', 'extensions/extension-editing/src/extensionLinter.ts'];
-		assert.deepStrictEqual(await Promise.all(files.map(async file => {
-			const results = await eslint.lintText(`import { writeFileSync } from 'fs'; writeFileSync('file', 'data');`, { filePath: resolve(root, file) });
-			return results.flatMap(result => result.messages.filter(message => message.ruleId === 'local/code-no-sync-fs').map(message => message.severity));
-		})), [[], [2], [2], [2]]);
+		assert.deepStrictEqual(await severities(files), [undefined, ['error'], ['error'], ['error']]);
 	});
 
 	test('allows bootstrap entry points and the AMD loader without exempting nested production files', async () => {
 		const files = ['src/bootstrap-esm.ts', 'src/bootstrap-node.ts', 'src/mainImpl.ts', 'src/server-main.ts', 'src/future-bootstrap.ts', 'src/vs/amdX.ts', 'src/vs/code/electron-main/main.ts', 'src/vs/platform/agentHost/node/example.ts'];
-		assert.deepStrictEqual(await Promise.all(files.map(async file => {
-			const results = await eslint.lintText(`import { statSync } from 'fs'; statSync('file');`, { filePath: resolve(root, file) });
-			return results.flatMap(result => result.messages.filter(message => message.ruleId === 'local/code-no-sync-fs').map(message => message.severity));
-		})), [[], [], [], [], [], [], [], [2]]);
-	});
-
-	test('allows a documented call-site exception without exempting later calls', async () => {
-		const results = await eslint.lintText(`import { statSync } from 'fs';\n// eslint-disable-next-line local/code-no-sync-fs -- Synchronous startup initialization.\nstatSync('startup');\nstatSync('runtime');`, { filePath: resolve(root, 'src/vs/base/node/example.ts') });
-		assert.deepStrictEqual(results.flatMap(result => result.messages.filter(message => message.ruleId === 'local/code-no-sync-fs').map(message => message.line)), [4]);
+		assert.deepStrictEqual(await severities(files), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, ['error']]);
 	});
 
 	test('allows designated core startup/shutdown files without exempting their directories or helper callers', async () => {
@@ -146,9 +124,6 @@ suite('code-no-sync-fs production configuration', () => {
 			'src/vs/server/node/example.ts',
 			'src/vs/workbench/api/node/example.ts',
 		];
-		assert.deepStrictEqual(await Promise.all(files.map(async file => {
-			const results = await eslint.lintText(`import { writeFileSync } from 'vs/base/node/pfs'; writeFileSync('file', 'data');`, { filePath: resolve(root, file) });
-			return results.flatMap(result => result.messages.filter(message => message.ruleId === 'local/code-no-sync-fs').map(message => message.severity));
-		})), [[], [], [], [], [], [], [], [2], [2], [2], [2]]);
+		assert.deepStrictEqual(await severities(files), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, ['error'], ['error'], ['error'], ['error']]);
 	});
 });

@@ -14,30 +14,53 @@ import { fusionTestData as data, fusionTestEvent as event } from './copilotFusio
 suite('CopilotFusionProgress', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the SDK workflow hint without listing the phase plan', () => {
-		const descriptions = [
-			['single', 'SDK-provided single workflow description.'],
-			['cascade', 'SDK-provided cascade workflow description.'],
-			['critique', 'SDK-provided critique workflow description.'],
-		] as const;
-		for (const [pattern, description] of descriptions) {
-			const progress = new CopilotFusionProgress();
-			// The resolved event carries a phase plan; the milestone must not echo it back.
-			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern, hint: description }));
-			const content = JSON.stringify(result?.part?.content);
-			const meta = result?.part && readAgentSystemNotificationMeta(result.part);
-			assert.deepStrictEqual({
-				description: content.includes(description),
-				metadataDescription: meta?.fusionDescription,
-				plan: content.includes('→'),
-			}, {
-				description: true,
-				metadataDescription: description,
-				plan: false,
-			});
-		}
-		const withoutHint = new CopilotFusionProgress().accept(event('session.fusion_resolved', { ...data.resolved, hint: undefined }));
-		assert.strictEqual(withoutHint?.part && readAgentSystemNotificationMeta(withoutHint.part).fusionDescription, '');
+	test('names the HydraFusion model without the SDK workflow hint or the phase plan', () => {
+		const result = new CopilotFusionProgress().accept(event('session.fusion_resolved', data.resolved));
+		const content = JSON.stringify(result?.part?.content);
+		assert.deepStrictEqual({
+			hint: content.includes(data.resolved.hint),
+			plan: content.includes('→'),
+			model: result?.part && readAgentSystemNotificationMeta(result.part).fusionModel,
+		}, { hint: false, plan: false, model: 'hydrafusion' });
+	});
+
+	test('streaming Single clears routing activity and keeps Fusion attribution and completion', () => {
+		const progress = new CopilotFusionProgress();
+		const routing = progress.accept(event('session.fusion_route_started', data.routeStarted));
+		const resolved = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern: 'single', phasePlan: [] }));
+		const completed = progress.accept(event('session.fusion_completed', {
+			...data.completed, pattern: 'single', phaseCount: 0, finalSourcePhaseId: null, outcome: 'degraded',
+		}));
+		assert.deepStrictEqual({
+			routing: routing?.activity,
+			activity: resolved?.activity,
+			selection: resolved?.part && readAgentSystemNotificationMeta(resolved.part).fusionStatus,
+			model: resolved?.part && readAgentSystemNotificationMeta(resolved.part).fusionModel,
+			completion: completed?.part && readAgentSystemNotificationMeta(completed.part).fusionStatus,
+		}, {
+			routing: 'Choosing a Copilot Fusion workflow...',
+			activity: undefined,
+			selection: 'selected',
+			model: 'hydrafusion',
+			completion: 'degraded',
+		});
+	});
+
+	test('keeps preparing activity for staged Single and other Fusion patterns', () => {
+		const legacySingle = event('session.fusion_resolved', { ...data.resolved, pattern: 'single' });
+		Reflect.deleteProperty(legacySingle.data, 'phasePlan');
+		const routes = [
+			legacySingle,
+			event('session.fusion_resolved', { ...data.resolved, pattern: 'single', phasePlan: data.resolved.phasePlan.slice(0, 1) }),
+			event('session.fusion_resolved', { ...data.resolved, pattern: 'cascade', phasePlan: [] }),
+			event('session.fusion_resolved', { ...data.resolved, pattern: 'critique', phasePlan: [] }),
+		];
+		assert.deepStrictEqual(routes.map(route => new CopilotFusionProgress().accept(route)?.activity), [
+			'Preparing the Single workflow...',
+			'Preparing the Single workflow...',
+			'Preparing the Cascade workflow...',
+			'Preparing the Critique workflow...',
+		]);
 	});
 
 	test('uses CLI phase labels consistently for live and replayed phases', () => {
@@ -75,7 +98,7 @@ suite('CopilotFusionProgress', () => {
 			model: 'model-a',
 			phaseContent: [{ type: 'text', text: 'Fix-up&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
 			completedPart: undefined,
-			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
+			degradedContent: { markdown: 'Copilot&nbsp;Fusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
 		});
 	});
 
@@ -85,7 +108,7 @@ suite('CopilotFusionProgress', () => {
 			content: ended?.part?.content,
 			status: ended?.part && readAgentSystemNotificationMeta(ended.part).fusionStatus,
 		}, {
-			content: { markdown: 'HydraFusion&nbsp;workflow&nbsp;ended:&nbsp;failed' },
+			content: { markdown: 'Copilot&nbsp;Fusion&nbsp;workflow&nbsp;ended:&nbsp;failed' },
 			status: 'degraded',
 		});
 	});

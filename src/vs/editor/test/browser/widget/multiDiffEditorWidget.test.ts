@@ -276,30 +276,26 @@ suite('MultiDiffEditorWidget', () => {
 		}());
 		const instantiationService = createCodeEditorServices(disposables, services);
 		const container = document.createElement('div');
-		const widget = instantiationService.createInstance(
+		const widget = disposables.add(instantiationService.createInstance(
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
 			{ variant: 'noCardsNonCompact' },
-		);
+		));
 		widget.layout(new Dimension(800, 200));
 		const initialState = widget.getLayoutDebugState().get();
 		widget.setPaddingBottom(24);
 
-		try {
-			const state = widget.getLayoutDebugState().get();
-			assert.deepStrictEqual({
-				logicalScrollHeightDelta: state.layout.logicalScrollHeight - initialState.layout.logicalScrollHeight,
-				scrollHeightDelta: state.scrollDimensions.scrollHeight - initialState.scrollDimensions.scrollHeight,
-				diffItems: state.items.length,
-			}, {
-				logicalScrollHeightDelta: 24,
-				scrollHeightDelta: 24,
-				diffItems: 0,
-			});
-		} finally {
-			widget.dispose();
-		}
+		const state = widget.getLayoutDebugState().get();
+		assert.deepStrictEqual({
+			logicalScrollHeightDelta: state.layout.logicalScrollHeight - initialState.layout.logicalScrollHeight,
+			scrollHeightDelta: state.scrollDimensions.scrollHeight - initialState.scrollDimensions.scrollHeight,
+			diffItems: state.items.length,
+		}, {
+			logicalScrollHeightDelta: 24,
+			scrollHeightDelta: 24,
+			diffItems: 0,
+		});
 	});
 
 	test('user navigation supersedes a clamped restored scroll state', async () => {

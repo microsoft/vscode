@@ -7,14 +7,14 @@ import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
+import type { IDefaultBranch } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -25,9 +25,7 @@ import { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
-class TestGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
+class TestGitService extends TestAgentHostGitService {
 	readonly calls: string[] = [];
 	readonly workingDirectories: string[] = [];
 	uncommitted = true;
@@ -38,63 +36,25 @@ class TestGitService implements IAgentHostGitService {
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
-	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
+	override async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
 	async getCurrentBranchName(): Promise<string | undefined> { return this.currentBranchName; }
-	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
-	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
-	async getBranch(): Promise<IBranch | undefined> { return undefined; }
-	async getRefs(): Promise<IBranch[]> { return []; }
-	async getBranches(): Promise<IBranch[]> { return []; }
-	hasGitRoot() { return constObservable(undefined); }
-	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
-	async getWorktreeRoots(): Promise<URI[]> { return []; }
-	async addWorktree(): Promise<void> { }
-	async copyWorktreeIncludeFiles(): Promise<void> { }
-	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
-	async addExistingWorktree(): Promise<void> { }
-	async removeWorktree(): Promise<void> { }
-	async branchExists(): Promise<boolean> { return false; }
-	async createBranch(): Promise<void> { }
-	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+	override async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
+	override async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
+	override async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		this.workingDirectories.push(workingDirectory.toString());
 		return this.uncommitted;
 	}
-	async createStash(): Promise<void> { }
-	async commitAll(workingDirectory: URI, message: string): Promise<void> {
+	override async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		this.calls.push(`commitAll:${message}`);
 		this.workingDirectories.push(workingDirectory.toString());
 		this.uncommitted = false;
 	}
-	async mergeBranch(): Promise<string> { return ''; }
-	async restore(): Promise<void> { }
-	async hasUpstream(): Promise<boolean> { return false; }
-	async fetch(): Promise<void> { }
-	async pull(): Promise<void> { }
-	async push(): Promise<void> { }
-	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(workingDirectory: URI): Promise<readonly ISessionFileDiff[] | undefined> {
+	override async computeSessionFileDiffs(workingDirectory: URI): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
 		this.workingDirectories.push(workingDirectory.toString());
 		return this.diffs;
 	}
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<string | undefined> { return undefined; }
-	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
-	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
-	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
-	async getFetchRemotes(): Promise<undefined> { return undefined; }
-	async getUntrackedPaths(): Promise<[]> { return []; }
-	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
-	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -142,6 +102,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(session: string): void { this.calls.push(`refreshChangesets:${session}`); }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
+	refreshWorkingSetChangeset(): void { }
 	onWorkingDirectoryAvailable(_session: string): void { }
 	recomputeSubscribedChangesets(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
@@ -153,6 +114,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }

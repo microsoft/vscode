@@ -3,25 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Event as VSCodeEvent } from '../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IProductConfiguration } from '../../../../../base/common/product.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { BaseIssueReporterService } from '../../browser/baseIssueReporterService.js';
 import { IIssueFormService, ISimilarIssue } from '../../common/issue.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('BaseIssueReporterService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,10 +42,18 @@ suite('BaseIssueReporterService', () => {
 	function createReporter(
 		searchGitHubIssues: IIssueFormService['searchGitHubIssues'] = async () => [currentIssue],
 		fetcher: typeof fetch = async () => { throw new Error('Unexpected duplicate search'); },
+		submission: {
+			accessToken?: string;
+			authorization?: GitHubAuthorizationContext;
+			getSessions?: IAuthenticationService['getSessions'];
+			onDidChangeSessions?: IAuthenticationService['onDidChangeSessions'];
+			createGitHubIssue?: IIssueFormService['createGitHubIssue'];
+		} = {},
 	) {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const targetWindow = iframe.contentWindow;
 		assert.ok(targetWindow);
 		const title = $<HTMLInputElement>('input#issue-title');
@@ -59,7 +72,12 @@ suite('BaseIssueReporterService', () => {
 			}
 		}));
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IIssueFormService, { searchGitHubIssues });
+		const events: string[] = [];
+		instantiationService.stub(IIssueFormService, {
+			searchGitHubIssues,
+			createGitHubIssue: submission.createGitHubIssue,
+			closeReporter: async () => { events.push('close'); },
+		});
 		instantiationService.stub(IThemeService, {
 			onDidProductIconThemeChange: VSCodeEvent.None,
 			getProductIconTheme: () => ({ getIcon: () => undefined }),
@@ -67,13 +85,27 @@ suite('BaseIssueReporterService', () => {
 		instantiationService.stub(IFileService, {});
 		instantiationService.stub(IFileDialogService, {});
 		instantiationService.stub(IContextMenuService, {});
-		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: VSCodeEvent.None });
-		instantiationService.stub(IOpenerService, {});
+		instantiationService.stub(IAuthenticationService, {
+			onDidChangeSessions: submission.onDidChangeSessions ?? VSCodeEvent.None,
+			getSessions: submission.getSessions ?? (async () => []),
+		});
+		instantiationService.stub(IOpenerService, {
+			open: async (uri, options) => {
+				assert.deepStrictEqual(options, { openExternal: true });
+				events.push(uri.toString());
+				return true;
+			},
+		});
 		const warnings: string[] = [];
-		instantiationService.stub(ILogService, { warn: message => { warnings.push(message); } });
+		const errors: string[] = [];
+		instantiationService.stub(ILogService, {
+			warn: message => { warnings.push(message); },
+			error: message => { errors.push(String(message)); },
+		});
 		const reporter = store.add(instantiationService.createInstance(BaseIssueReporterService, false, {
 			styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
-			isInstallationPure: true, isSessionsWindow: false, githubAccessToken: '',
+			isInstallationPure: true, isSessionsWindow: false, githubAccessToken: submission.accessToken ?? '',
+			githubAuthorization: submission.authorization,
 		}, { type: 'test', arch: 'test', release: 'test' }, new class extends mock<IProductConfiguration>() {
 			override readonly nameShort = 'Test';
 			override readonly version = '1.0.0';
@@ -86,17 +118,116 @@ suite('BaseIssueReporterService', () => {
 				repositoryUrl: 'https://github.com/owner/extension', bugsUrl: undefined,
 			},
 		});
-		return { reporter, title, description, results, warnings };
+		return { reporter, title, description, results, warnings, errors, events };
 	}
+
+	suite('GitHub submission', () => {
+		const selected: AuthenticationSession = {
+			id: 'selected-session', accessToken: 'selected-token',
+			account: { id: 'selected-account', label: 'Selected' }, scopes: ['public_repo'],
+			authorizationServer: URI.parse('https://github.com'),
+		};
+		const other: AuthenticationSession = {
+			id: 'other-session', accessToken: 'other-token',
+			account: { id: 'other-account', label: 'Other' }, scopes: ['repo', 'user:email'],
+		};
+		const authorization: GitHubAuthorizationContext = {
+			providerId: 'github', sessionId: selected.id, accountId: selected.account.id,
+			scopes: selected.scopes, authorizationServer: selected.authorizationServer?.toString(),
+		};
+
+		test('submits with the selected grant after its token is renewed', async () => {
+			const requests: Parameters<IIssueFormService['createGitHubIssue']>[] = [];
+			const changes = store.add(new Emitter<void>());
+			const renewedSession = { ...selected, accessToken: 'renewed-token' };
+			let renewed = false;
+			const { reporter, events } = createReporter(undefined, undefined, {
+				accessToken: selected.accessToken, authorization,
+				getSessions: async () => {
+					if (!renewed) {
+						renewed = true;
+						changes.fire();
+					}
+					return [other, renewedSession];
+				},
+				onDidChangeSessions: VSCodeEvent.map(changes.event, () => ({
+					providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [renewedSession] },
+				})),
+				createGitHubIssue: async (...args) => { requests.push(args); return currentIssue.html_url; },
+			});
+			const result = await reporter.submitToGitHub('Report title', 'Report body', { owner: 'publisher', repositoryName: 'extension' });
+			assert.deepStrictEqual({ result, requests: requests.map(([providerId, session, repository, request]) => [providerId, session, repository, request]), events, token: reporter.data.githubAccessToken }, {
+				result: true,
+				requests: [['github', renewedSession, { owner: 'publisher', repo: 'extension' }, { title: 'Report title', body: 'Report body' }]],
+				events: [currentIssue.html_url, 'close'], token: renewedSession.accessToken,
+			});
+		});
+
+		test('does not broaden the selected grant or substitute another account', async () => {
+			let calls = 0;
+			const { reporter, events, errors } = createReporter(undefined, undefined, {
+				accessToken: selected.accessToken, authorization,
+				getSessions: async () => [other, { ...selected, scopes: ['repo'] }],
+				createGitHubIssue: async () => { calls++; return currentIssue.html_url; },
+			});
+			await assert.rejects(reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' }), { kind: 'authentication' });
+			assert.deepStrictEqual({ calls, events, errors }, { calls: 0, events: [], errors: ['[IssueReporter] Failed to create GitHub issue'] });
+		});
+
+		for (const error of [
+			new GitHubRequestError('Forbidden', 'authorization', 403),
+			new GitHubRequestError('Connection lost', 'network'),
+		]) {
+			test(`does not retry or open an issue after ${error.message}`, async () => {
+				let calls = 0;
+				const { reporter, events, errors } = createReporter(undefined, undefined, {
+					accessToken: selected.accessToken, authorization,
+					getSessions: async () => [selected],
+					createGitHubIssue: async () => { calls++; throw error; },
+				});
+				const submission = reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' });
+				if (error.statusCode !== undefined) {
+					assert.strictEqual(await submission, false);
+				} else {
+					await assert.rejects(submission, candidate => candidate === error);
+				}
+				assert.deepStrictEqual({ calls, events, errors }, {
+					calls: 1, events: [], errors: ['[IssueReporter] Failed to create GitHub issue'],
+				});
+			});
+		}
+
+		test('closing the reporter cancels creation without late navigation', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<void>();
+			let cancellationToken: CancellationToken | undefined;
+			const { reporter, events, errors } = createReporter(undefined, undefined, {
+				accessToken: selected.accessToken, authorization,
+				getSessions: async () => [selected],
+				createGitHubIssue: async (_providerId, _session, _repository, _request, requestToken) => {
+					cancellationToken = requestToken;
+					void started.complete();
+					await pending.p;
+					return currentIssue.html_url;
+				},
+			});
+			const rejected = assert.rejects(reporter.submitToGitHub('Title', 'Body', { owner: 'owner', repositoryName: 'repo' }), isCancellationError);
+			await started.p;
+			reporter.dispose();
+			await pending.complete();
+			await rejected;
+			assert.deepStrictEqual({ aborted: cancellationToken?.isCancellationRequested, events, errors }, { aborted: true, events: [], errors: [] });
+		});
+	});
 
 	for (const source of ['marketplace', 'extension'] as const) {
 		for (const timing of ['debounce', 'active'] as const) {
 			test(`stale duplicate results do not cancel a ${source} search during ${timing}`, () => runWithFakedTimers({}, async () => {
 				const duplicates = new DeferredPromise<Response>();
 				const search = new DeferredPromise<readonly ISimilarIssue[]>();
-				const calls: { repo: string; title: string; signal: AbortSignal }[] = [];
-				const { reporter, results } = createReporter((repo, title, signal) => {
-					calls.push({ repo, title, signal });
+				const calls: { repo: string; title: string; cancellationToken: CancellationToken }[] = [];
+				const { reporter, results } = createReporter((repo, title, cancellationToken) => {
+					calls.push({ repo, title, cancellationToken });
 					return search.p;
 				}, () => duplicates.p);
 				reporter.searchVSCodeIssues('Previous title', 'Previous description');
@@ -114,7 +245,7 @@ suite('BaseIssueReporterService', () => {
 				await search.complete([currentIssue]);
 				await timeout(0);
 				assert.deepStrictEqual({
-					calls: calls.map(call => ({ repo: call.repo, title: call.title, aborted: call.signal.aborted })),
+					calls: calls.map(call => ({ repo: call.repo, title: call.title, aborted: call.cancellationToken.isCancellationRequested })),
 					titles: Array.from(results.querySelectorAll('a'), link => link.textContent),
 				}, {
 					calls: [{ repo: `owner/${source}`, title: 'Current title', aborted: false }],
@@ -201,13 +332,13 @@ suite('BaseIssueReporterService', () => {
 
 			test(`${action} aborts an active ${backend} search and suppresses late results`, () => runWithFakedTimers({}, async () => {
 				const pending = new DeferredPromise<void>();
-				let signal: AbortSignal | null | undefined;
-				const { reporter, results } = createReporter(async (_repo, _title, requestSignal) => {
-					signal = requestSignal;
+				let isCancelled: (() => boolean) | undefined;
+				const { reporter, results } = createReporter(async (_repo, _title, requestToken) => {
+					isCancelled = () => requestToken.isCancellationRequested;
 					await pending.p;
 					return [staleIssue];
 				}, async (_url, init) => {
-					signal = init?.signal;
+					isCancelled = () => init?.signal?.aborted === true;
 					await pending.p;
 					return createDuplicateResponse([staleIssue]);
 				});
@@ -220,7 +351,7 @@ suite('BaseIssueReporterService', () => {
 				}
 				await pending.complete();
 				await timeout(0);
-				assert.deepStrictEqual({ aborted: signal?.aborted, text: results.textContent }, { aborted: true, text: '' });
+				assert.deepStrictEqual({ aborted: isCancelled?.(), text: results.textContent }, { aborted: true, text: '' });
 			}));
 		}
 	}

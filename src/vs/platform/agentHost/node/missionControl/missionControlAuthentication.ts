@@ -9,9 +9,11 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
+import { sealAgentHostCredential } from '../../common/agentHostCredentialSealing.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import type { IHostEncryptionKey } from '../../common/cloudSandboxAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { CategorizedConnectionError } from '../../common/connectionTelemetry.js';
 
 type KeyUse = 'auth-token' | 'mcp-auth-token';
 type KeyAlgorithm = 'x25519-sealedbox' | 'hpke-x25519-hkdf-sha256-aes256gcm';
@@ -35,43 +37,11 @@ async function createHpkeCipherSuite(): Promise<CipherSuite> {
 	});
 }
 
-/** The caller authenticates the public key through MC HTTPS before crossing trusted local IPC. */
+/** The caller supplies a recipient key authenticated through MC HTTPS or a trusted direct connection. */
 export async function sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
-	if (!request.token || request.token.length > 32 * 1024 || request.resource.length > 8192
-		|| (request.key.algorithm !== 'x25519-sealedbox' && request.key.algorithm !== 'hpke-x25519-hkdf-sha256-aes256gcm')
-		|| (request.key.use !== 'auth-token' && request.key.use !== 'mcp-auth-token')
-		|| (request.challenge !== undefined && !/^[0-9a-f]{32}$/.test(request.challenge))) {
-		throw new Error('Invalid Mission Control credential sealing request');
-	}
-	new URL(request.resource);
-	const publicKey = Buffer.from(request.key.public_key, 'base64');
-	const keyId = createHash('sha256').update(publicKey).digest().subarray(0, 8).toString('base64url');
-	if (publicKey.length !== 32 || publicKey.toString('base64') !== request.key.public_key || keyId !== request.key.key_id) {
-		throw new Error('Invalid Mission Control recipient key');
-	}
 	const sodium = (await import('libsodium-wrappers')).default;
 	await sodium.ready;
-	const plaintext = sodium.from_string(JSON.stringify({
-		cty: 'text', value: request.token,
-		ctx: {
-			purpose: request.key.use, resource: request.resource,
-			...(request.challenge ? { connection: { challenge: request.challenge, nonce: randomBytes(16).toString('hex'), issuedAt: Math.floor(Date.now() / 1000) } } : {}),
-		},
-	}));
-	try {
-		let ciphertext: Uint8Array;
-		if (request.key.algorithm === 'hpke-x25519-hkdf-sha256-aes256gcm') {
-			const hpke = await createHpkeCipherSuite();
-			const recipientPublicKey = await globalThis.crypto.subtle.importKey('raw', publicKey, 'X25519', true, []);
-			const sender = await hpke.createSenderContext({ recipientPublicKey });
-			ciphertext = Buffer.concat([new Uint8Array(sender.enc), new Uint8Array(await sender.seal(plaintext))]);
-		} else {
-			ciphertext = sodium.crypto_box_seal(plaintext, publicKey);
-		}
-		return `copilot-sealed.v1.${keyId}.${Buffer.from(ciphertext).toString('base64url')}`;
-	} finally {
-		sodium.memzero(plaintext);
-	}
+	return sealAgentHostCredential(request, sodium, createHpkeCipherSuite);
 }
 
 /** Process-local sealing keys; private material never crosses IPC or the relay. */
@@ -208,6 +178,14 @@ function parseMissionControlExpiration(expiration: string): number {
 	return expiresAt;
 }
 
+/** Keeps the HTTP status for local diagnostics; JSON-RPC responses serialize only code, message, and data. */
+class GitHubIdentityError extends ProtocolError {
+	constructor(code: number, message: string, readonly status: number, cause?: Error) {
+		super(code, message);
+		this.cause = cause;
+	}
+}
+
 export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid GitHub credential encoding');
@@ -218,16 +196,17 @@ export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOr
 		signal: AbortSignal.timeout(15_000),
 	});
 	if (!response.ok) {
-		const denied = response.status === 401 || (response.status === 403
-			&& !response.headers.has('Retry-After') && response.headers.get('X-RateLimit-Remaining') !== '0');
-		throw new ProtocolError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`);
+		const rateLimited = response.status === 403 && (response.headers.has('Retry-After') || response.headers.get('X-RateLimit-Remaining') === '0');
+		const denied = response.status === 401 || (response.status === 403 && !rateLimited);
+		throw new GitHubIdentityError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`, response.status,
+			rateLimited ? new CategorizedConnectionError('AgentHostThrottled', 'GitHub rate limit exceeded') : undefined);
 	}
 	let user: unknown;
 	try {
 		user = await response.json();
 	} catch (error) {
 		if (error instanceof SyntaxError) {
-			throw new Error('GitHub identity validation returned invalid JSON');
+			throw new CategorizedConnectionError('AgentHostInvalidResponse', 'GitHub identity validation returned invalid JSON', { cause: error });
 		}
 		throw error;
 	}
@@ -343,7 +322,7 @@ export class MissionControlAuthentication extends Disposable {
 		}
 		const generation = this._generation;
 		const resource = new URL(params.resource);
-		const identity = resource.origin === new URL(this._apiOrigin).origin;
+		const identity = !params.target && resource.origin === new URL(this._apiOrigin).origin;
 		if (!identity && !this.authenticated) {
 			const validation = this._identityValidation;
 			if (!validation) {

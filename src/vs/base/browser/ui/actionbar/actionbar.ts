@@ -449,6 +449,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 			return;
 		}
 
+		if (!this.isFocused()) {
+			this.focusedItem = undefined;
+		}
+
 		this._viewItems = dispose(this._viewItems);
 		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);

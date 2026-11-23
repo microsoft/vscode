@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../base/common/uuid.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
@@ -15,21 +17,33 @@ import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/ch
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { toToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
+import { AgentHookOutcome, AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
+import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -255,43 +269,31 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion milestones render workflow descriptions and terminal statuses with specific icons', () => {
+	test('Fusion milestones hide workflow selections and render terminal statuses with specific icons', () => {
 		assert.deepStrictEqual((['selected', 'completed', 'failed', 'cancelled', 'degraded'] as const).map(fusionStatus => {
-			const content = fusionStatus === 'selected' ? 'Selected workflow\n\nSDK-provided workflow description.' : 'Fusion milestone';
-			const part = systemNotificationToChatPart(content, 'local', toAgentSystemNotificationMeta({
+			const part = systemNotificationToChatPart('Fusion milestone', 'local', toAgentSystemNotificationMeta({
 				kind: AgentSystemNotificationKind.FusionProgress,
 				fusionStatus,
-				fusionDescription: fusionStatus === 'selected' ? 'SDK-provided workflow description.' : undefined,
 			}));
-			return part?.kind === 'systemNotification' ? { content: part.content.value, icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
+			return part?.kind === 'systemNotification' ? { content: part.content.value, icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : part;
 		}), [
-			{ content: 'SDK-provided workflow description.', icon: undefined, collapsible: undefined, presentation: 'workflowDescription' },
+			undefined,
 			{ content: 'Fusion milestone', icon: Codicon.check.id, collapsible: true, presentation: undefined },
 			{ content: 'Fusion milestone', icon: Codicon.error.id, collapsible: true, presentation: undefined },
 			{ content: 'Fusion milestone', icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
 			{ content: 'Fusion milestone', icon: Codicon.warning.id, collapsible: true, presentation: undefined },
 		]);
-		assert.strictEqual(systemNotificationToChatPart('Selected workflow', 'local', toAgentSystemNotificationMeta({
-			kind: AgentSystemNotificationKind.FusionProgress,
-			fusionStatus: 'selected',
-			fusionDescription: '',
-		})), undefined);
 	});
 
-	test('Fusion selections preserve host content without the local description metadata', () => {
+	test('Fusion selections from other hosts are not shown, including their workflow hint', () => {
 		assert.deepStrictEqual([
-			'Host-provided workflow description.',
-			'Host-provided heading\n\nHost-provided workflow description.',
-		].map(content => {
-			const part = systemNotificationToChatPart(content, 'remote', {
-				kind: AgentSystemNotificationKind.FusionProgress,
-				fusionStatus: 'selected',
-			});
-			return part?.kind === 'systemNotification' ? { content: part.content.value, presentation: part.presentation } : undefined;
-		}), [
-			{ content: 'Host-provided workflow description.', presentation: 'workflowDescription' },
-			{ content: 'Host-provided heading\n\nHost-provided workflow description.', presentation: 'workflowDescription' },
-		]);
+			'Using Single: one solver will work on your request.',
+			'Selected Single workflow\n\nUsing Single: one solver will work on your request.',
+		].map(content => systemNotificationToChatPart(content, 'remote', {
+			kind: AgentSystemNotificationKind.FusionProgress,
+			fusionStatus: 'selected',
+			'vscode.chat.fusionDescription': 'Using Single: one solver will work on your request.',
+		})), [undefined, undefined]);
 	});
 
 	test('Fusion activity derives from phase status, with tool cancellation overriding stale metadata', () => {
@@ -326,15 +328,20 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion activity advances past milestones but yields to actual response content', () => {
-		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+	test('Fusion activity advances past shown milestones but yields to actual response content', () => {
+		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Main pass failed', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+		const selected = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected' }) } as const;
 		assert.deepStrictEqual([
 			getAgentHostActivityProgressId([]),
 			getAgentHostActivityProgressId([milestone]),
 			getAgentHostActivityProgressId([milestone, milestone]),
+			// A hidden workflow selection keeps updating the row before it.
+			getAgentHostActivityProgressId([selected]),
+			getAgentHostActivityProgressId([selected, milestone]),
 			getAgentHostActivityProgressId([milestone, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
+			getAgentHostActivityProgressId([selected, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
 			getAgentHostActivityProgressId([{ kind: ResponsePartKind.SystemNotification, content: 'Other notification' }]),
-		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
+		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', 'agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', undefined, undefined, undefined]);
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -428,6 +435,149 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	test('restores GitHub issue and pull request attachments from what they say', () => {
+		const sent = getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/pull/345729 and https://github.com/microsoft/vscode/issues/347977');
+		const restored = messageAttachmentsToVariableData([
+			...sent.map(attachment => ({ type: MessageAttachmentKind.Simple as const, label: attachment.name, modelRepresentation: String(attachment.value) })),
+			{ type: MessageAttachmentKind.Simple as const, label: 'Notes', modelRepresentation: `${sent[0].value} was merged` },
+		], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, id, icon, name, value }) => ({ kind, id: id.startsWith('github-context:') ? id : undefined, icon: icon?.id, name, value })), [
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/pull/345729', icon: 'git-pull-request', name: 'microsoft/vscode#345729', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729' },
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/issues/347977', icon: 'issues', name: 'microsoft/vscode#347977', value: 'GitHub context: https://github.com/microsoft/vscode/issues/347977' },
+			{ kind: 'generic', id: undefined, icon: undefined, name: 'Notes', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729 was merged' },
+		]);
+	});
+
+	test('preserves completion and resource mention ranges when restoring attachments', () => {
+		const text = '/skill first\r\nthen /command and #file';
+		const attachments = [{
+			type: MessageAttachmentKind.Resource as const,
+			label: 'Skill',
+			displayKind: 'skill',
+			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+			uri: 'custom-skill:/selected',
+		}, {
+			type: MessageAttachmentKind.Simple as const,
+			label: 'Command',
+			displayKind: 'command',
+			range: { start: { line: 1, character: 5 }, end: { line: 1, character: 13 } },
+		}, {
+			type: MessageAttachmentKind.Resource as const,
+			label: 'File',
+			uri: 'file:///workspace/file.ts',
+			range: { start: { line: 1, character: 18 }, end: { line: 1, character: 23 } },
+		}];
+		assert.deepStrictEqual([
+			messageAttachmentsToVariableData(attachments, 'local', text),
+			messageAttachmentsToVariableData(attachments, 'local'),
+		].map(data => data?.variables.map(variable => variable.range && {
+			start: variable.range.start,
+			endExclusive: variable.range.endExclusive,
+			text: text.slice(variable.range.start, variable.range.endExclusive),
+		})), [
+			[
+				{ start: 0, endExclusive: 6, text: '/skill' },
+				{ start: 19, endExclusive: 27, text: '/command' },
+				{ start: 32, endExclusive: 37, text: '#file' },
+			],
+			[undefined, undefined, undefined],
+		]);
+	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`restores skill identity in client space without changing host metadata (${kind.name})`, () => {
+			const uri = URI.file('/workspace/review/SKILL.md');
+			const metadata = { uri: 'file:///wrong/SKILL.md', opaque: { value: false } };
+			const variables = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Resource,
+				uri: uri.toString(),
+				label: '/review',
+				displayKind: 'skill',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
+				_meta: metadata,
+			}, {
+				type: MessageAttachmentKind.Simple,
+				label: '/compact',
+				displayKind: 'command',
+				_meta: { command: 'compact', uri: uri.toString() },
+			}], 'test', '/review', kind.resourceUris)?.variables;
+
+			assert.deepStrictEqual(variables, [{
+				kind: 'generic',
+				id: kind.toClient(uri).toString(),
+				name: '/review',
+				value: { $mid: 'agentHostCompletion', kind: 'skill' },
+				_meta: metadata,
+				range: { start: 0, endExclusive: 7 },
+			}, {
+				kind: 'generic',
+				id: 'agent-host-command:compact',
+				name: '/compact',
+				value: { $mid: 'agentHostCompletion', kind: 'command' },
+				_meta: { command: 'compact', uri: uri.toString() },
+			}]);
+		});
+	}
+
+	test('restores legacy persisted Simple skills as bound resources', () => {
+		const uri = URI.file('/workspace/review/SKILL.md');
+		const metadata = { uri: uri.toString(), description: 'Review changes' };
+		const variable = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', _meta: metadata,
+		}], 'local')?.variables[0];
+		assert.deepStrictEqual(variable, {
+			kind: 'generic', id: uri.toString(), name: '/review', value: { $mid: 'agentHostCompletion', kind: 'skill' },
+			modelDescription: 'Review changes', _meta: metadata,
+		});
+	});
+
+	test('restores skills without resource URIs as non-resource references', () => {
+		const metadata = [undefined, { uri: 42 }];
+		const variables = messageAttachmentsToVariableData(metadata.map(_meta => ({
+			type: MessageAttachmentKind.Simple,
+			label: '/review',
+			displayKind: 'skill',
+			_meta,
+		})), 'local')?.variables;
+		assert.deepStrictEqual(variables?.map(variable => ({ ...variable, id: isUUID(variable.id) })), metadata.map(_meta => ({
+			kind: 'generic',
+			id: true,
+			name: '/review',
+			value: { $mid: 'agentHostCompletion', kind: 'skill' },
+			_meta,
+		})));
+	});
+
+	test('rejects malformed skill resource URIs instead of treating them as file paths', () => {
+		assert.throws(() => messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Resource,
+			label: '/review',
+			displayKind: 'skill',
+			uri: 'not-a-uri',
+		}], 'local'), /Scheme is missing/);
+	});
+
+	test('restores embedded resources with invalid base64 data without throwing', () => {
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'notes.bin',
+			data: 'not base64',
+			contentType: 'application/octet-stream',
+		}, {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'screenshot.png',
+			data: 'not base64',
+			contentType: 'image/png',
+			displayKind: 'image',
+		}], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, name, value }) => ({ kind, name, value })), [
+			{ kind: 'generic', name: 'notes.bin', value: 'not base64' },
+			{ kind: 'generic', name: 'screenshot.png', value: 'screenshot.png' },
+		]);
+	});
+
 	suite('rewriteAgentHostLinkTarget', () => {
 		for (const authority of ['local', 'my-host']) {
 			test(`preserves preview metadata and resource queries on ${authority}`, () => {
@@ -509,6 +659,204 @@ suite('stateToProgressAdapter', () => {
 
 	suite('turnsToHistory', () => {
 
+		test('marks only cancelled turns\' responses as cancelled', () => {
+			const history = turnsToHistory(URI.parse('ahp-session:/cancel'), [
+				createTurn({ state: TurnState.Cancelled }),
+				createTurn({ state: TurnState.Complete }),
+			], 'participant');
+
+			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.isCanceled), [true, undefined]);
+		});
+
+		const planDecisions: { response?: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; expected?: IChatPlanReviewResult }[] = [
+			{ response: ChatInputResponseKind.Accept, answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' } } }, expected: { rejected: false, action: 'Implement Plan', actionId: 'interactive' } },
+			{ response: ChatInputResponseKind.Decline, answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } }, expected: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' } },
+			{ response: ChatInputResponseKind.Cancel, answers: undefined, expected: undefined },
+			{ response: undefined, answers: undefined, expected: undefined },
+		];
+		for (const decision of planDecisions) {
+			test(`restores Copilot plan review ${decision.response} on an opaque advertised session`, () => {
+				const turn = createTurn({
+					responseParts: [{
+						kind: ResponsePartKind.InputRequest,
+						request: {
+							id: 'opaque-plan-request',
+							message: '# Remote plan\nRead [config](file:///workspace/config.json).',
+							questions: [
+								{ id: 'selectedAction', kind: ChatInputQuestionKind.SingleSelect, message: 'Choose an action', required: true, options: [{ id: 'interactive', label: 'interactive', recommended: true }] },
+								{ id: 'feedback', kind: ChatInputQuestionKind.Text, message: 'Optional feedback' },
+							],
+							answers: decision.answers,
+						},
+						response: decision.response,
+					}],
+				});
+				const history = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant');
+				const response = history.find(item => item.type === 'response');
+				const review = response?.parts.find(part => part.kind === 'planReview');
+				assert.ok(review?.kind === 'planReview');
+				assert.deepStrictEqual({
+					parts: response?.parts.map(part => part.kind),
+					content: review.content,
+					actions: review.actions.map(action => ({ id: action.id, label: action.label })),
+					planUri: review.planUri,
+					isUsed: review.isUsed,
+					data: review.data,
+				}, {
+					parts: ['planReview'],
+					content: `# Remote plan\nRead [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'local')}).`,
+					actions: [{ id: 'interactive', label: 'Implement Plan' }],
+					planUri: undefined,
+					isUsed: true,
+					data: decision.expected,
+				});
+			});
+		}
+
+		test('restores VS Code plan-review presentation, mapped plan URI and selected action', () => {
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'vscode-plan',
+				planReview: {
+					title: 'Native Review',
+					content: '# Native plan\nRead [config](file:///workspace/config.json).',
+					answerQuestionId: 'opaque-question',
+					canProvideFeedback: true,
+					planUri: 'file:///session/plan.md',
+					actions: [{ id: 'autopilot', label: 'Native Label', permissionLevel: 'autopilot', default: true }],
+				},
+				answers: { 'opaque-question': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' } } },
+			};
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.InputRequest, request, response: ChatInputResponseKind.Accept }],
+			});
+			const history = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant');
+			const review = history.find(item => item.type === 'response')?.parts.find(part => part.kind === 'planReview');
+			assert.ok(review?.kind === 'planReview');
+			assert.deepStrictEqual({
+				title: review.title,
+				content: review.content,
+				actions: review.actions,
+				planUri: URI.revive(review.planUri!).toString(),
+				data: review.data,
+			}, {
+				title: 'Native Review',
+				content: `# Native plan\nRead [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'local')}).`,
+				actions: [{ id: 'autopilot', label: 'Native Label', permissionLevel: 'autopilot', default: true }],
+				planUri: createAgentHostResourceUriMapper('local').fromAgentHost(URI.file('/session/plan.md')).toString(),
+				data: { rejected: false, actionId: 'autopilot', action: 'Native Label' },
+			});
+		});
+
+		test('restores empty MCP forms as confirmation cards instead of fallback text questions', () => {
+			const responses = [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline, ChatInputResponseKind.Cancel];
+			const turn = createTurn({
+				responseParts: responses.map(response => ({
+					kind: ResponsePartKind.InputRequest as const,
+					request: withChatInputRequestPurpose({
+						id: `empty-form-${response}`,
+						message: '**Proceed** with this operation?',
+						questions: [],
+						...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}),
+					}, ChatInputRequestPurpose.Elicitation),
+					response,
+				})),
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? {
+				kind: part.kind,
+				title: part.title,
+				message: typeof part.message === 'string' ? part.message : part.message.value,
+				state: part.state,
+			} : { kind: part.kind }), responses.map(response => ({
+				kind: 'elicitationSerialized',
+				title: 'Confirmation Required',
+				message: '**Proceed** with this operation?',
+				state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			})));
+		});
+
+		test('restores a Computer Use setup request as a settled card instead of the plugin\'s questions', () => {
+			const card = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseSetupCard({ id, message: 'Copilot Computer Use needs macOS permissions', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'choice', title: 'choice', message: 'choice', required: true, options: [{ id: 'try_again', label: 'Try again' }] }] }, 'setup-1'),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [card('ready', ChatInputResponseKind.Accept), card('declined', ChatInputResponseKind.Decline)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a request to turn on Computer Use as a settled card that is accepted only when Turn On was submitted', () => {
+			const card = (id: string, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer>, reason?: string) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseActivationCard({ id, message: 'Copilot asks to turn on Computer Use', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'computerUse', title: 'Computer Use', message: 'Turn on Computer Use?', required: true, options: [{ id: 'turnOn', label: 'Turn On' }, { id: 'notNow', label: 'Not Now' }] }], answers }, reason ? { reason } : {}),
+				response,
+			} as const);
+			const turn = createTurn({
+				responseParts: [
+					card('turned-on', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'), 'Open *Calculator*'),
+					card('not-now', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('notNow')),
+					card('declined', ChatInputResponseKind.Decline, getComputerUseActivationAnswers('turnOn')),
+				],
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a shell authentication prompt as a settled password question that says only whether it was answered', () => {
+			const prompt = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: createShellAuthenticationRequest(id, { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command: 'sudo -A true' }),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [prompt('answered', ChatInputResponseKind.Accept), prompt('cancelled', ChatInputResponseKind.Cancel)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'questionCarousel'
+				? { resolveId: part.resolveId, isUsed: part.isUsed, answeredExternally: part.answeredExternally, data: part.data, questions: part.questions.map(question => ({ type: question.type, password: question.password, title: question.title })) }
+				: { kind: part.kind }), [
+				{ resolveId: 'answered', isUsed: true, answeredExternally: true, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+				{ resolveId: 'cancelled', isUsed: true, answeredExternally: false, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+			]);
+		});
+
+		test('keeps a shell authentication command as written, in plain text rather than Markdown', () => {
+			const command = 'sudo -A chown $(whoami) /tmp/x <<\'EOF\'\n\n# Approved by your admin\n[details](https://example.com)\nEOF';
+			const carousel = createShellAuthenticationCarousel('shell-auth', { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command });
+			const [question] = carousel.questions;
+			assert.deepStrictEqual({
+				context: question.context,
+				message: carousel.message,
+				questionMessage: question.message,
+				detailedMessage: question.detailedMessage,
+			}, {
+				context: `Command:\n${command}`,
+				message: undefined,
+				questionMessage: undefined,
+				detailedMessage: undefined,
+			});
+		});
+
+		test('says the same thing about where the answer goes for every kind of prompt', () => {
+			const notes = (['secret', 'text', 'confirm'] as const).map(inputKind => {
+				const [question] = createShellAuthenticationCarousel('shell-auth', { program: 'git', prompt: 'Username for \'https://example.com\': ', inputKind, command: 'git fetch' }).questions;
+				return question.note && { icon: question.note.icon?.id, text: question.note.text };
+			});
+			assert.deepStrictEqual(notes, [
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+			]);
+		});
+
 		test('empty turns produces empty history', () => {
 			const result = turnsToHistory(URI.file('/'), [], 'p');
 			assert.deepStrictEqual(result, []);
@@ -577,6 +925,24 @@ suite('stateToProgressAdapter', () => {
 				{ isSystemInitiated: true, requestSource: undefined },
 				{ isSystemInitiated: undefined, requestSource: undefined },
 				{ isSystemInitiated: true, requestSource: undefined },
+			]);
+		});
+
+		test('artifact action history uses validated optional metadata on conforming hosts with opaque identifiers', () => {
+			const presentation = createTestArtifactRequestPresentation();
+			const meta = { [AgentHostArtifactRunMetaKey]: 'opaque-run-id', [AgentHostArtifactRequestMetaKey]: presentation };
+			const messages: Message[] = [
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: meta },
+				{ ...message('Analyse the scorecard'), _meta: meta },
+				message('Analyse the scorecard', MessageKind.SystemNotification),
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: { ...meta, [AgentHostArtifactRequestMetaKey]: { ...presentation, version: 2 } } },
+			];
+			const history = turnsToHistory(URI.parse('custom-host://opaque-session/42'), messages.map(message => createTurn({ message })), 'custom-participant');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				prompt: item.prompt, source: item.requestSource, presentation: item.artifactRequest,
+			})), [
+				{ prompt: 'Analyse the scorecard', source: 'artifactIntegration', presentation },
+				...Array(3).fill({ prompt: 'Analyse the scorecard', source: undefined, presentation: undefined }),
 			]);
 		});
 
@@ -909,6 +1275,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(thinking.id, 'r-1');
 		});
 
+		test('restores producer reasoning timing without inventing timing for older hosts', () => {
+			const history = turnsToHistory(URI.parse('external:/opaque/session'), [createTurn({
+				responseParts: [
+					{ kind: ResponsePartKind.Reasoning, id: 'timed', content: 'Measured', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+					{ kind: ResponsePartKind.Reasoning, id: 'zero', content: 'Immediate', duration: 0 },
+					{ kind: ResponsePartKind.Reasoning, id: 'unknown', content: 'Older host' },
+					{ kind: ResponsePartKind.Reasoning, id: 'invalid', content: 'Invalid metadata', startedAt: 'invalid', duration: -1 },
+				],
+			})], 'participant');
+
+			assert.deepStrictEqual(history[1].type === 'response' ? history[1].parts : undefined, [
+				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningTimingSource: 'provider', reasoningDurationMs: 0 },
+				{ kind: 'thinking', id: 'unknown', value: 'Older host', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata', reasoningTimingSource: 'provider' },
+			]);
+		});
+
 		test('generic completed tool call in history includes input/output details', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1071,6 +1455,7 @@ suite('stateToProgressAdapter', () => {
 						resourceUri: 'ui://github-mcp-server/pr-write',
 						connectionAuthority: 'local',
 						serverId: 'github-customization',
+						serverName: undefined,
 						channel: 'mcp://copilot/session/GitHub',
 					},
 				},
@@ -1109,6 +1494,7 @@ suite('stateToProgressAdapter', () => {
 						resourceUri: 'ui://github-mcp-server/get-me',
 						connectionAuthority,
 						serverId: 'github-customization',
+						serverName: 'GitHub',
 						channel: 'mcp://opaque-host-channel/GitHub',
 					},
 				},
@@ -1227,7 +1613,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('Fusion footer identification is per-turn, including restored events without a selected model', () => {
-			const usage = { model: 'gpt-5', _meta: { cost: 0 } };
+			const usage = { model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 0 } } };
 			const turns = [
 				createTurn({ message: { ...message('Before usage'), model: { id: 'hydrafusion' } } }),
 				createTurn({
@@ -1313,6 +1699,30 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
+		});
+
+		test('a model router is settled after its first pick for a chat', () => {
+			const picked = createTurn({ id: 'turn-1', usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'opus' } } } });
+			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
+			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
+			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
+			assert.deepStrictEqual({
+				firstTurn: isModelRouterPickSettled([picked], 'turn-1', 'daily'),
+				laterTurn: isModelRouterPickSettled([picked, createTurn({ id: 'turn-2' })], 'turn-3', 'daily'),
+				afterItsOwnUnroutedTurn: isModelRouterPickSettled([picked, selecting('model-router:daily')], 'turn-3', 'daily'),
+				afterItsOwnRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('daily')], 'turn-3', 'daily'),
+				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
+				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
+				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
+				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
+				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, anotherRouter: false, notARouter: false });
+		});
+
+		test('the routing a turn is compared with is the last one before it', () => {
+			const routedTurn = (id: string, chosenModel: string) => createTurn({ id, usage: { _meta: { modelRouted: { router: 'daily', chosenModel } } } });
+			const turns = [routedTurn('turn-1', 'haiku'), createTurn({ id: 'turn-2' }), routedTurn('turn-3', 'opus')];
+			assert.deepStrictEqual(['turn-1', 'turn-3', 'turn-4'].map(turnId => previousModelRouted(turns, turnId)?.chosenModel), [undefined, 'haiku', 'opus']);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -1457,39 +1867,6 @@ suite('stateToProgressAdapter', () => {
 				input: '{"prompt":"Draw a fox"}',
 				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
 			});
-		});
-
-		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
-			const turn = createTurn({
-				responseParts: [
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-marked',
-							toolInput: 'my-custom-script',
-							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-unmarked',
-							toolInput: 'echo hello',
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-				],
-			});
-
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			assert.deepStrictEqual(
-				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
-				[true, undefined],
-				'flag is copied from tool call meta and absent otherwise');
 		});
 
 		test('terminal tool call in history carries the LM intention', () => {
@@ -1703,6 +2080,20 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
+		test('preserves named chat links instead of rewriting them as file references', () => {
+			const links = [
+				'[Review \\[permissions\\]](ahp-chat:/11111111-1111-5111-8111-111111111111)',
+				'[Legacy child](ahp-chat://subagent/opaque-parent/spawn-id)',
+			];
+			assert.deepStrictEqual(['local', 'remote-host'].flatMap(authority => links.map(link => ({
+				markdown: rewriteMarkdownLinks(`Read agent ${link}`, authority),
+				target: rewriteAgentHostLinkTarget(link.slice(link.indexOf('](') + 2, -1), authority),
+			}))), ['local', 'remote-host'].flatMap(() => links.map(link => ({
+				markdown: `Read agent ${link}`,
+				target: link.slice(link.indexOf('](') + 2, -1),
+			}))));
+		});
+
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
@@ -1801,6 +2192,65 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('MCP App results', () => {
+		const backendSession = URI.parse('other-host:/opaque-session');
+		const ui = { resourceUri: 'ui://remote/app', channel: 'mcp://other-host/opaque-channel' };
+		const resultMeta = { ui: { private: [null, false, 0, { value: 'opaque' }] }, toolKind: 'server-owned' };
+		for (const fixture of [
+			{ name: 'nested result meta', resultMeta, withContent: true, success: true },
+			{ name: 'metadata-only result', resultMeta, withContent: false, success: true },
+			{ name: 'empty result meta', resultMeta: {}, withContent: false, success: true },
+			{ name: 'metadata-only error result', resultMeta, withContent: false, success: false },
+		]) {
+			test(`preserves MCP ${fixture.name} identically in live and restored results`, () => {
+				const running = createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					_meta: toToolCallMeta({ ui, mcpServerName: 'remote-server' }),
+				});
+				const content = fixture.withContent ? [{ type: ToolResultContentType.Text, text: 'Public result' }] satisfies ToolResultContent[] : [];
+				const structuredContent = fixture.withContent ? { public: true } : undefined;
+				const completed = createCompletedToolCall({
+					...running,
+					status: ToolCallStatus.Completed,
+					success: fixture.success,
+					content,
+					structuredContent,
+					resultMetadata: fixture.resultMeta,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				const expected = {
+					content: content.map(block => ({ type: 'text', text: block.text })),
+					...(structuredContent !== undefined ? { structuredContent } : {}),
+					_meta: fixture.resultMeta,
+					isError: fixture.success ? undefined : true,
+				};
+				assert.deepStrictEqual([live, restored].map(part => {
+					const details = part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails;
+					return isToolResultInputOutputDetails(details) ? details.mcpOutput : undefined;
+				}), [expected, expected]);
+			});
+		}
+
+		test('does not emit MCP result meta from a running tool', () => {
+			const running = {
+				...createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					content: [],
+					_meta: toToolCallMeta({ ui }),
+				}),
+				resultMetadata: resultMeta,
+			};
+			const invocation = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawUpdateRunningToolSpecificData(invocation, running, backendSession, 'other-host');
+			const runningDetails = IChatToolInvocation.resultDetails(invocation);
+			rawFinalizeToolInvocation(invocation, running, backendSession, 'other-host');
+			assert.deepStrictEqual({ runningDetails, finalizedDetails: IChatToolInvocation.resultDetails(invocation) }, {
+				runningDetails: undefined,
+				finalizedDetails: { input: '', inputLanguage: 'json', output: [], isError: false, mcpOutput: undefined },
+			});
+		});
+
 		const textContent = [{ type: ToolResultContentType.Text, text: 'Opened the accent-color editor.' }] satisfies ToolResultContent[];
 		for (const toolInput of ['{}', undefined]) {
 			for (const content of [textContent, []]) {
@@ -2223,6 +2673,22 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('summarizes a view call without a line range by what the host reports its path named', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const fields = { toolName: 'view', toolInput: JSON.stringify({ path: '/workspace/src' }) };
+			const summaries = ['file', 'directory', 'image', undefined].map(viewedResourceType => {
+				const completed = createCompletedToolCall({ ...fields, _meta: { ...nativeToolMeta, 'vscode.viewedResourceType': viewedResourceType } });
+				const live = rawToolCallStateToInvocation(createToolCallState({ ...fields, _meta: nativeToolMeta }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+				return { live: live.summary, restored: completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris).summary };
+			});
+			const resources = [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/src')) }];
+			assert.deepStrictEqual(summaries, [
+				{ kind: 'read', resources }, { kind: 'list', resources }, { kind: 'unknown' }, { kind: 'unknown' },
+			].map(summary => ({ live: summary, restored: summary })));
+		});
+
 		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
 			const session = URI.parse('ahp-session:/unrelated-peer/session-id');
@@ -2282,6 +2748,43 @@ suite('stateToProgressAdapter', () => {
 				'Searched for 1 phrase, 1 unfinished tool call',
 				'Searched for 1 phrase, 1 tool call skipped',
 			]);
+		});
+
+		test('labels calls a hook denied with the hook, and keeps its reason beside the row, in live and restored transcripts', () => {
+			const deniedByHook = (source?: string) => ({ 'vscode.deniedByHook': source ? { hookType: 'preToolUse', source } : { hookType: 'preToolUse' } });
+			const cases: Record<string, { readonly toolName: string; readonly toolInput: string; readonly meta?: Record<string, unknown> }> = {
+				explicit: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook() },
+				crashed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook('.github/hooks/policy.json') },
+				mcp: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: { ...deniedByHook(), mcpServerName: 'docs' } },
+				terminal: { toolName: 'bash', toolInput: '{"command":"rm -rf ./scratch"}', meta: { ...deniedByHook(), toolKind: 'terminal' } },
+				subagent: { toolName: 'task', toolInput: '{"description":"Read the notes","prompt":"Read notes.txt"}', meta: { ...deniedByHook(), toolKind: 'subagent' } },
+				failed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}' },
+			};
+			const results = Object.fromEntries(Object.entries(cases).map(([name, { toolName, toolInput, meta }]) => {
+				const running = createToolCallState({ toolName, displayName: 'Read', toolInput });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success: false, pastTenseMessage: '"Read" failed',
+					error: { message: 'Denied by preToolUse hook: not in this repo (policy R-17).', code: 'denied' }, _meta: meta,
+				});
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, completed);
+				const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+				const views = [live, live.toJSON(), restored].map(tool => JSON.stringify({
+					title: name === 'failed' ? undefined : tool.pastTenseMessage && (typeof tool.pastTenseMessage === 'string' ? tool.pastTenseMessage : renderAsPlaintext(tool.pastTenseMessage)),
+					origin: tool.originMessage,
+					summary: getToolGroupSummary([tool], [], 1, extUri),
+				}));
+				return [name, new Set(views).size === 1 ? JSON.parse(views[0]) : views];
+			}));
+			const reason = 'Denied by preToolUse hook: not in this repo (policy R-17).';
+			assert.deepStrictEqual(results, {
+				explicit: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				crashed: { title: '"Read" blocked because Pre-Tool Use hook .github/hooks/policy.json failed', summary: '1 tool call blocked by a hook' },
+				mcp: { title: '"Read" blocked by Pre-Tool Use hook', origin: `docs (MCP Server) · ${reason}`, summary: '1 tool call blocked by a hook' },
+				terminal: { origin: reason, summary: '1 tool call blocked by a hook' },
+				subagent: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
+				failed: { summary: '1 tool call failed' },
+			});
 		});
 
 		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
@@ -2463,6 +2966,19 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
 				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
 			), [undefined, undefined, undefined, undefined]);
+		});
+
+		test('MCP origin prefers the server display name and falls back to the server name', () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			assert.deepStrictEqual([
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack' },
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': '  ' },
+				{ mcpServerName: serverName },
+			].map(_meta => toolCallStateToInvocation(createToolCallState({ _meta })).originMessage), [
+				'Slack (MCP Server)',
+				`${serverName} (MCP Server)`,
+				`${serverName} (MCP Server)`,
+			]);
 		});
 
 		test('set_workspace confirmation hides implementation input', () => {
@@ -2743,7 +3259,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = rawToolCallStateToInvocation({
 				...createToolCallState(),
 				status: ToolCallStatus.AuthRequired,
-				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'opaque/server-id:with/slashes' },
 				auth: {
 					reason: McpAuthRequiredReason.InsufficientScope,
 					oauthClient: {
@@ -2758,7 +3274,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
+			}, undefined, URI.parse('other-agent://tenant/conversations/opaque-session?revision=1'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -2773,7 +3289,8 @@ suite('stateToProgressAdapter', () => {
 				parameters: undefined,
 				confirmationMessages: undefined,
 				server: {
-					id: 'frontend/mcp-1',
+					id: 'frontend/opaque/server-id:with/slashes',
+					target: { kind: AuthenticateTargetKind.McpServer, session: URI.parse('other-agent://tenant/conversations/opaque-session?revision=1').toString(), customizationId: 'opaque/server-id:with/slashes' },
 					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {
@@ -3014,6 +3531,7 @@ suite('stateToProgressAdapter', () => {
 					resourceUri: 'ui://docs/app',
 					connectionAuthority: 'local',
 					serverId: 'docs-customization',
+					serverName: undefined,
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
 			});
@@ -3099,6 +3617,41 @@ suite('stateToProgressAdapter', () => {
 
 			const invocation = toolCallStateToInvocation(tc, 'parent-tc-42');
 			assert.strictEqual(invocation.subAgentInvocationId, 'parent-tc-42');
+		});
+	});
+
+	suite('model comparison reference', () => {
+		test('reconstructs the same narrowly trusted link for live completion and restored history', () => {
+			const comparisonId = 'comparison-(one)';
+			const tc = createCompletedToolCall({
+				toolName: 'createModelComparison',
+				pastTenseMessage: { markdown: '[untrusted](command:unrelated.command)' },
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify({ comparisonId }) }],
+			});
+			const invocation = toolCallStateToInvocation(createToolCallState({ toolName: tc.toolName }));
+			finalizeToolInvocation(invocation, tc);
+			const expected = {
+				value: `Started model comparison. [Open Comparison](command:${OPEN_SESSION_COMPARISON_COMMAND_ID}?%5B%22comparison-%28one%29%22%5D)`,
+				isTrusted: { enabledCommands: [OPEN_SESSION_COMPARISON_COMMAND_ID] },
+			};
+			const messages = [invocation.pastTenseMessage, completedToolCallToSerialized(tc, undefined, URI.file('/'), 'remote-test').pastTenseMessage];
+			assert.deepStrictEqual(messages.map(message => {
+				assert.ok(message && typeof message !== 'string');
+				return { value: message.value, isTrusted: message.isTrusted };
+			}), [expected, expected]);
+		});
+
+		test('does not trust unrelated, failed or malformed tool output', () => {
+			const messages = [
+				{ toolName: 'otherTool', success: true, text: '{"comparisonId":"comparison"}' },
+				{ toolName: 'createModelComparison', success: false, text: '{"comparisonId":"comparison"}' },
+				{ toolName: 'createModelComparison', success: true, text: 'not JSON' },
+				{ toolName: 'createModelComparison', success: true, text: 'null' },
+				{ toolName: 'createModelComparison', success: true, text: '{"comparisonId":17}' },
+			].map(({ toolName, success, text }) => completedToolCallToSerialized(createCompletedToolCall({
+				toolName, success, content: [{ type: ToolResultContentType.Text, text }],
+			}), undefined, URI.file('/'), 'local').pastTenseMessage);
+			assert.deepStrictEqual(messages, ['Ran test tool', 'Running test tool...', 'Ran test tool', 'Ran test tool', 'Ran test tool']);
 		});
 	});
 
@@ -3473,6 +4026,36 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('a call the user approves stays visible once it completes, and one they decline is hidden', () => {
+			const running = createToolCallState({ toolCallId: 'tc-grep', toolName: 'grep', displayName: 'Search', invocationMessage: 'Search for `thinkingStyle`', _meta: { toolKind: 'search' } });
+			const pending: AnyToolCallState = { ...running, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow search?' };
+			const settle = (asksFirst: boolean, approved: boolean) => {
+				// Copilot starts a call running and asks for approval later; other hosts can ask first.
+				const invocation = toolCallStateToInvocation(asksFirst ? pending : running);
+				if (!asksFirst) {
+					invocation.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+				}
+				const hiddenWhilePending = IChatToolInvocation.isEffectivelyHidden(invocation);
+				IChatToolInvocation.confirmWith(invocation, { type: approved ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+				finalizeToolInvocation(invocation, approved
+					? createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Searched for `thinkingStyle`' })
+					: { ...running, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied });
+				return { hiddenWhilePending, hidden: IChatToolInvocation.isEffectivelyHidden(invocation) };
+			};
+
+			assert.deepStrictEqual({
+				approvedAfterRunning: settle(false, true),
+				approvedBeforeRunning: settle(true, true),
+				declinedAfterRunning: settle(false, false),
+				declinedBeforeRunning: settle(true, false),
+			}, {
+				approvedAfterRunning: { hiddenWhilePending: false, hidden: false },
+				approvedBeforeRunning: { hiddenWhilePending: false, hidden: false },
+				declinedAfterRunning: { hiddenWhilePending: false, hidden: true },
+				declinedBeforeRunning: { hiddenWhilePending: false, hidden: true },
+			});
+		});
+
 		test('requestConfirmation no-ops on a completed invocation', () => {
 			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);
 			streaming.transitionFromStreaming(toolCallStateToPreparedInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded }), undefined, undefined);
@@ -3674,6 +4257,40 @@ suite('stateToProgressAdapter', () => {
 
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'line1\r\nline2\r\nline3\r\n');
+		});
+
+		test('keeps a confirmed MCP App visible after completion', () => {
+			const tc = createToolCallState({
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: {
+					ui: {
+						resourceUri: 'ui://docs/app',
+						channel: 'mcp://copilot/test-session-1/docs',
+					},
+				},
+			});
+			const invocation = toolCallStateToInvocation({ ...tc, status: ToolCallStatus.PendingConfirmation });
+			const pendingPresentation = invocation.presentation;
+
+			finalizeToolInvocation(invocation, createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed }));
+
+			assert.deepStrictEqual({
+				pendingPresentation,
+				presentation: invocation.presentation,
+				mcpAppData: invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData.mcpAppData : undefined,
+			}, {
+				pendingPresentation: ToolInvocationPresentation.HiddenAfterComplete,
+				presentation: undefined,
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
+					serverId: 'docs-customization',
+					serverName: undefined,
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			});
 		});
 
 		test('finalizes generic tool with input/output details', () => {
@@ -4043,7 +4660,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps', reasoningTimingSource: 'provider' },
 				{ kind: 'thinking', value: '' },
 			]);
 		});
@@ -4111,18 +4728,14 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
-					text: rendered.element.textContent,
-				}, {
-					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
-					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+				text: rendered.element.textContent,
+			}, {
+				links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+				text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+			});
 		});
 
 		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
@@ -4138,22 +4751,131 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: rendered.element.querySelectorAll('a').length,
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: rendered.element.querySelectorAll('a').length,
+				text: rendered.element.textContent,
+				plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+			}, {
+				keepVisibleWhenCollapsed: true,
+				links: 0,
+				text,
+				plaintext: text,
+			});
+		});
+
+		test('ends a managed plugin preparation failure with a trusted Retry link for its chat', () => {
+			const text = 'Some plugins could not be prepared. <command:evil> [details](command:evil) https://evil.example/x';
+			const target = { provider: 'copilotcli', session: 'ahp-session:/owner(1)', chat: 'ahp-session:/owner(1)/chats/peer%20chat' };
+			const result = rawActiveTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), 'local', undefined, undefined, undefined, undefined, undefined, target);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = store.add(renderMarkdown(warning.content));
+			const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
+			assert.deepStrictEqual({
+				isTrusted: warning.content.isTrusted,
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
+				text: rendered.element.textContent,
+			}, {
+				isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
+				keepVisibleWhenCollapsed: true,
+				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
+				text: `${text} Retry`,
+			});
+		});
+
+		test('shows a failed Copilot hook as a warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookFailure = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return {
 					text: rendered.element.textContent,
-					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
-				}, {
-					keepVisibleWhenCollapsed: true,
-					links: 0,
-					text,
-					plaintext: text,
-				});
-			} finally {
-				rendered.dispose();
-			}
+					links: rendered.element.querySelectorAll('a').length,
+					keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed,
+					mute: part.mute,
+				};
+			};
+			const crash = { type: 'preToolUse', outcome: AgentHookOutcome.Failed, source: '.github/hooks/policy.json', message: 'Error: Hook command failed with code 1 [x](command:evil)' };
+			const warning = (text: string) => ({
+				text,
+				links: 0,
+				keepVisibleWhenCollapsed: true,
+				mute: { commandId: 'workbench.action.chat.disableHookWarnings', tooltip: 'Disable Hook Warnings' },
+			});
+
+			assert.deepStrictEqual([
+				summarize(hookFailure(crash, true)),
+				// A hook event the client cannot label is shown with the host's text.
+				summarize(hookFailure({ ...crash, type: 'notAHook' }, true)),
+				summarize(hookFailure({ ...crash, type: 'constructor' }, true)),
+				hookFailure(crash, false),
+				hookFailure(crash),
+			], [
+				warning('The Pre-Tool Use hook from .github/hooks/policy.json failed: Error: Hook command failed with code 1 [x](command:evil)'),
+				warning('The host text.'),
+				warning('The host text.'),
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('shows a Copilot hook warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookWarning = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => part?.kind === 'warning'
+				? { text: store.add(renderMarkdown(part.content)).element.textContent, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute?.commandId }
+				: part;
+			const exitCode2 = { type: 'userPromptSubmitted', outcome: AgentHookOutcome.Warned, message: 'This prompt mentions WARNME; check before continuing.' };
+			const shown = (text: string) => ({ text, keepVisibleWhenCollapsed: true, mute: 'workbench.action.chat.disableHookWarnings' });
+
+			assert.deepStrictEqual([
+				summarize(hookWarning(exitCode2, true)),
+				summarize(hookWarning({ ...exitCode2, type: 'notAHook' }, true)),
+				summarize(hookWarning({ outcome: AgentHookOutcome.Warned, message: 'Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.' }, true)),
+				hookWarning(exitCode2, false),
+			], [
+				shown('Warning from the User Prompt Submit hook: This prompt mentions WARNME; check before continuing.'),
+				shown('Warning from the notAHook hook: This prompt mentions WARNME; check before continuing.'),
+				// Without an event there is nothing to relabel, so the host's own text is shown.
+				shown('The host text.'),
+				undefined,
+			]);
+		});
+
+		test('shows a prompt a Copilot hook blocked as an error with the host\'s text, even with hook warnings off', () => {
+			const hostText = 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed [x](command:evil)';
+			const blocked = (showHookFailures?: boolean) => systemNotificationToChatPart(hostText, 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error }),
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed [x](command:evil)' },
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return { text: rendered.element.textContent, links: rendered.element.querySelectorAll('a').length, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute, isError: part.isError };
+			};
+			const shown = { text: hostText, links: 0, keepVisibleWhenCollapsed: true, mute: undefined, isError: true };
+
+			assert.deepStrictEqual([summarize(blocked(true)), summarize(blocked(false))], [shown, shown]);
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
@@ -4220,6 +4942,7 @@ suite('stateToProgressAdapter', () => {
 				configurationChanged: notice(AgentSystemNotificationKind.AgentMergeConfigurationChanged),
 				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
 				pullRequestMerged: notice(AgentSystemNotificationKind.AgentMergePullRequestMerged),
+				blocked: notice(AgentSystemNotificationKind.AgentMergeBlocked),
 				// An unrecognized kind must still render, using the default check.
 				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 					kind: ResponsePartKind.SystemNotification,
@@ -4231,8 +4954,24 @@ suite('stateToProgressAdapter', () => {
 				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true },
 				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash, renderInlineTiming: true },
 				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
+				blocked: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.warning, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
+		});
+
+		test('artifact automation notices reuse expandable system notifications and tolerate unknown metadata', () => {
+			const notice = (kind: string | boolean | undefined, iconId = 'git-pull-request') => systemNotificationToChatPart('Automation changed\n\nWhat happens automatically.', 'host', { [AgentHostArtifactNoticeMetaKey]: { kind, iconId } });
+			const base = { kind: 'systemNotification', content: new MarkdownString('Automation changed\n\nWhat happens automatically.') };
+			assert.deepStrictEqual([
+				notice('enabled'), notice('changed'), notice('disabled'), notice('future'), notice(true), notice(undefined), notice('enabled', 'invalid icon'), notice('enabled', ''),
+			], [
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.circleSlash, collapsible: true, renderInlineTiming: true },
+				base, base, base,
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+			]);
 		});
 
 		test('produces thinking progress for reasoning', () => {
@@ -4242,6 +4981,18 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
+		});
+
+		test('preserves completed and unfinished reasoning timing on reconnect', () => {
+			const result = activeTurnToProgress(URI.parse('external:/opaque/session'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'completed', content: 'Already thought', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+				{ kind: ResponsePartKind.Reasoning, id: 'active', content: 'Still thinking', startedAt: '1970-01-01T00:01:00.000Z' },
+			]), 'remote-host');
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningTimingSource: 'provider', reasoningStartedAt: 60_000 },
+			]);
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
@@ -4430,6 +5181,32 @@ suite('stateToProgressAdapter', () => {
 				status: 'complete',
 				explanation: 'This command modifies protected files.',
 				safety: 0.1,
+			});
+		});
+
+		test('explains a request Assisted permissions did not review in the confirmation disclaimer', () => {
+			const confirmationMessages = (meta: Record<string, unknown> | undefined) => {
+				const state = toolCallStateToInvocation({
+					toolCallId: 'tc-unreviewed',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Run command',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Run command',
+					toolInput: 'echo hello',
+					...(meta ? { _meta: meta } : {}),
+				}).state.get();
+				return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined;
+			};
+
+			assert.deepStrictEqual({
+				notice: confirmationMessages({ 'vscode.assistedApprovalNotice': 'Assisted permissions couldn\'t review this request in time.' })?.disclaimer,
+				blank: confirmationMessages({ 'vscode.assistedApprovalNotice': ' ' })?.disclaimer,
+				absent: confirmationMessages(undefined)?.disclaimer,
+			}, {
+				notice: 'Assisted permissions couldn\'t review this request in time.',
+				blank: undefined,
+				absent: undefined,
 			});
 		});
 
@@ -5143,10 +5920,42 @@ suite('stateToProgressAdapter', () => {
 					resourceUri: 'ui://docs/app',
 					connectionAuthority: 'local',
 					serverId: 'docs-customization',
+					serverName: undefined,
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
 			});
 			disposable.dispose();
+		});
+
+		test('updates MCP App data when the host-provided server name changes', () => {
+			const tc = createToolCallState({
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: { ui: { resourceUri: 'ui://docs/app', channel: 'mcp://opaque-host-channel' } },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			let stateChanges = 0;
+			store.add(autorun(reader => {
+				invocation.state.read(reader);
+				stateChanges++;
+			}));
+			updateRunningToolSpecificData(invocation, {
+				...tc,
+				_meta: { ...tc._meta, mcpServerName: 'docs' },
+			});
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'input',
+				rawInput: {},
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
+					serverId: 'docs-customization',
+					serverName: 'docs',
+					channel: 'mcp://opaque-host-channel',
+				},
+			});
+			assert.strictEqual(stateChanges, 2);
 		});
 
 		test('does not notify when no subagent content is present', () => {
@@ -5472,13 +6281,21 @@ suite('stateToProgressAdapter', () => {
 
 		const auto = { name: 'Auto' };
 
+		test('does not present a model multiplier as measured credits', () => {
+			assert.deepStrictEqual([
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model', pricing: '2x' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0 } } }),
+			], ['Model', 'Model · 2x', 'Model • 0 credits']);
+		});
+
 		test('appends the billed model id when one is supplied', () => {
 			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
 			const result = {
 				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
 				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
-				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
-				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } }),
 				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
 			};
 
@@ -5495,7 +6312,7 @@ suite('stateToProgressAdapter', () => {
 			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
 			const result = {
 				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
-				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
 				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
 			};
 
@@ -5524,6 +6341,16 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('usageInfoToChatUsage', () => {
+		test('reports measured credits without model multipliers', () => {
+			assert.deepStrictEqual([
+				usageInfoToChatUsage({ _meta: { cost: 0 } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2 } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0 } } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 1_500_000_000 } } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })?.copilotCredits,
+			], [undefined, undefined, 0, 1.5, 1.5]);
+		});
+
 		test('carries whole-turn per-model token totals and resolves display names', () => {
 			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
 
@@ -5543,6 +6370,37 @@ suite('stateToProgressAdapter', () => {
 
 		test('reports no totals when the provider did not supply any', () => {
 			assert.strictEqual(usageInfoToChatUsage({ inputTokens: 30, outputTokens: 40 })?.modelTotals, undefined);
+		});
+
+		test('renders compacted context attribution identically to the full provider breakdown', () => {
+			const attribution = {
+				totalTokens: 20_000,
+				modelId: 'claude-opus-4.8',
+				modelSource: 'selected',
+				promptTokenLimit: 128_000,
+				limit: 128_000,
+				bufferTokens: 4_000,
+				compactionThreshold: 100_000,
+				categories: { systemPrompt: 2_000, customInstructions: 500, systemTools: 6_000, mcpTools: 1_500, messages: 8_000, freeSpace: 100_000, buffer: 4_000 },
+				entries: [
+					{ kind: 'system', id: 'system:prompt', label: 'System prompt', tokens: 2_000 },
+					{ kind: 'system', id: 'system:instructions', label: 'Custom instructions', tokens: 500, attributes: { source: 'AGENTS.md' } },
+					{ kind: 'system', id: 'system:tools', label: 'Tool definitions', tokens: 6_000 },
+					{ kind: 'system', id: 'system:tiny', label: 'Tiny', tokens: 10 },
+					...Array.from({ length: 60 }, (_, i) => ({ kind: 'toolDefinition', id: `toolDefinition:tool${i}`, label: `tool${i}`, tokens: 100, parentId: 'system:tools', attributes: { evictable: 'false' } })),
+					{ kind: 'plugin', id: 'plugin:acme', label: 'acme', tokens: 300 },
+					{ kind: 'skill', id: 'skill:tmux', label: 'skill: tmux', tokens: 200, parentId: 'plugin:acme' },
+					{ kind: 'mcpServer', id: 'mcpServer:github', label: 'github', tokens: 1_500, parentId: 'plugin:acme' },
+					...Array.from({ length: 20 }, (_, i) => ({ kind: 'tool', id: `tool:call${i}`, label: `call${i}`, tokens: 150, attributes: { messageCount: '1', role: 'tool' } })),
+					{ kind: 'futureKind', id: 'futureKind:x', label: 'x', tokens: 400 },
+				],
+				compactions: { count: 2 },
+			};
+			const toChatUsage = (contextAttribution: unknown) => usageInfoToChatUsage({ inputTokens: 20_000, outputTokens: 10, _meta: { contextAttribution } });
+
+			const full = toChatUsage(attribution);
+			assert.ok(full?.promptTokenDetails?.length);
+			assert.deepStrictEqual(toChatUsage(compactContextAttribution(attribution)), full);
 		});
 	});
 });

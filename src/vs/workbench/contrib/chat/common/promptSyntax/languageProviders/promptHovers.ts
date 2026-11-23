@@ -15,10 +15,15 @@ import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/lan
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IHeaderAttribute, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
-import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
+import { IHeaderAttribute, IMapValue, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, GithubPromptHeaderAttributes, githubCopilotBodyPlaceholders, githubCopilotGithubProperties, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
+import { getAgentHookMetadata } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
+import { getAgentFileSkillDetails, getEffectiveAgentFileSkillAvailability, resolveAgentFileSkillIdentifiers, resolveAgentFileSkills } from './promptSkillResolver.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -31,6 +36,8 @@ export class PromptHoverProvider implements HoverProvider {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@ILogService private readonly logService: ILogService,
 	) {
 	}
 
@@ -50,29 +57,54 @@ export class PromptHoverProvider implements HoverProvider {
 		}
 
 		const promptAST = this.promptsService.getParsedPromptFile(model);
-		const target = getTarget(promptType, promptAST.header ?? model.uri);
+		const target = getTarget(promptType, promptAST.header ?? model.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 
 		if (promptAST.header?.range.containsPosition(position)) {
-			return this.provideHeaderHover(position, promptType, promptAST.header, target);
+			return this.provideHeaderHover(position, promptType, promptAST.header, target, token);
 		}
 		if (promptAST.body?.range.containsPosition(position)) {
-			return this.provideBodyHover(position, promptAST.body, target);
+			return this.provideBodyHover(position, promptAST.body, target, token);
 		}
 		return undefined;
 	}
 
-	private async provideBodyHover(position: Position, body: PromptBody, target: Target): Promise<Hover | undefined> {
+	private async provideBodyHover(position: Position, body: PromptBody, target: Target, token: CancellationToken): Promise<Hover | undefined> {
+		if (target === Target.GitHubCopilot) {
+			for (const placeholder of body.placeholderReferences) {
+				if (placeholder.range.containsPosition(position)) {
+					const description = Object.hasOwn(githubCopilotBodyPlaceholders, placeholder.name)
+						? githubCopilotBodyPlaceholders[placeholder.name]
+						: localize('promptBody.githubCopilot.unknownPlaceholder', 'This placeholder is not recognized by the GitHub Copilot harness.');
+					return this.createHover(description, placeholder.range);
+				}
+			}
+			for (const ref of body.variableReferences) {
+				if (ref.range.containsPosition(position)) {
+					const tool = this.languageModelToolsService.getToolByFullReferenceName(ref.name);
+					const message = tool && isToolSet(tool)
+						? localize('promptBody.githubCopilot.toolSetUnsupported', 'Tool sets are not supported by the GitHub Copilot harness. List individual tools in the `tools` frontmatter attribute.')
+						: localize('promptBody.githubCopilot.localReferenceUnsupported', 'Local `#tool:` references are not expanded by the GitHub Copilot harness.');
+					return this.createHover(message, ref.range);
+				}
+			}
+			for (const ref of body.fileReferences) {
+				if (!ref.isMarkdownLink && ref.range.containsPosition(position)) {
+					return this.createHover(localize('promptBody.githubCopilot.fileReferenceUnsupported', 'Local `#file:` references are not expanded by the GitHub Copilot harness.'), ref.range);
+				}
+			}
+			return undefined;
+		}
 		for (const ref of body.variableReferences) {
 			if (ref.range.containsPosition(position)) {
 				const toolName = ref.name;
 
-				return this.getToolHoverByName(toolName, ref.range, target);
+				return this.getToolHoverByName(toolName, ref.range, target, token);
 			}
 		}
 		return undefined;
 	}
 
-	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader, target: Target): Promise<Hover | undefined> {
+	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		for (const attribute of header.attributes) {
 			if (attribute.range.containsPosition(position)) {
 				const description = getAttributeDefinition(attribute.key, promptType, target)?.description;
@@ -80,9 +112,15 @@ export class PromptHoverProvider implements HoverProvider {
 					switch (attribute.key) {
 						case PromptHeaderAttributes.model:
 							return this.getModelHover(attribute, position, description, target);
+						case PromptHeaderAttributes.reasoningEffort:
+							return this.getReasoningEffortHover(attribute, description, header, target);
 						case PromptHeaderAttributes.tools:
 						case ClaudeHeaderAttributes.disallowedTools:
-							return this.getToolHover(attribute, position, description, target);
+							return this.getToolHover(attribute, position, description, target, token);
+						case PromptHeaderAttributes.skills:
+							return target === Target.GitHubCopilot
+								? this.getSkillHover(attribute, position, description, target, token)
+								: this.createHover(description, attribute.range);
 						case PromptHeaderAttributes.agent:
 						case PromptHeaderAttributes.mode:
 							return this.getAgentHover(attribute, position, description);
@@ -90,10 +128,26 @@ export class PromptHoverProvider implements HoverProvider {
 							return this.getHandsOffHover(attribute, position, target);
 						case PromptHeaderAttributes.hooks:
 							return this.getHooksHover(attribute, position, description, target);
+						case GithubPromptHeaderAttributes.github:
+							return target === Target.GitHubCopilot
+								? this.getSchemaMapHover(attribute, position, description, githubCopilotGithubProperties)
+								: this.createHover(description, attribute.range);
+						case GithubPromptHeaderAttributes.mcpServers:
+							return target === Target.GitHubCopilot
+								? this.getMcpServersHover(attribute, position, description)
+								: this.createHover(description, attribute.range);
 						case PromptHeaderAttributes.infer:
-							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invocable` and `disable-model-invocation` instead.'), attribute.range);
+							return this.createHover(description + '\n\n' + (target === Target.GitHubCopilot
+								? localize('promptHeader.attribute.infer.githubCopilot.hover', 'Legacy: Use `disable-model-invocation` instead.')
+								: localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invocable` and `disable-model-invocation` instead.')), attribute.range);
 						default:
 							return this.createHover(description, attribute.range);
+					}
+				}
+				if (promptType === PromptsType.agent && target === Target.GitHubCopilot) {
+					const localDescription = getAttributeDefinition(attribute.key, promptType, Target.Undefined)?.description;
+					if (localDescription) {
+						return this.createHover(localDescription + '\n\n' + localize('promptHeader.attribute.notUsedByCopilot', 'Note: This attribute is not used by the GitHub Copilot harness.'), attribute.range);
 					}
 				}
 			}
@@ -101,7 +155,7 @@ export class PromptHoverProvider implements HoverProvider {
 		return undefined;
 	}
 
-	private getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
+	private async getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		let value = node.value;
 		if (value.type === 'scalar') {
 			value = parseCommaSeparatedList(value);
@@ -109,7 +163,7 @@ export class PromptHoverProvider implements HoverProvider {
 		if (value.type === 'sequence') {
 			for (const toolName of value.items) {
 				if (toolName.type === 'scalar' && toolName.range.containsPosition(position)) {
-					const description = this.getToolHoverByName(toolName.value, toolName.range, target);
+					const description = await this.getToolHoverByName(toolName.value, toolName.range, target, token);
 					if (description) {
 						return description;
 					}
@@ -119,7 +173,29 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(baseMessage, node.range);
 	}
 
-	private getToolHoverByName(toolName: string, range: Range, target: Target): Hover | undefined {
+	private async getSkillHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target, token: CancellationToken): Promise<Hover | undefined> {
+		if (node.value.type === 'sequence') {
+			for (const skillName of node.value.items) {
+				if (skillName.type === 'scalar' && skillName.range.containsPosition(position)) {
+					const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, token);
+					const matches = resolveAgentFileSkillIdentifiers(skillName.value, catalogue.skills);
+					if (matches.length > 0) {
+						const lines = [...getAgentFileSkillDetails(matches)];
+						const availability = getEffectiveAgentFileSkillAvailability(matches);
+						if (availability === 'disabled') {
+							lines.push(localize('promptHeader.githubCopilot.skillDisabled', 'This skill is recognized but disabled for the matching GitHub Copilot harness.'));
+						} else if (availability === 'unavailable') {
+							lines.push(localize('promptHeader.githubCopilot.skillUnavailable', 'This skill is recognized but currently unavailable for the matching GitHub Copilot harness.'));
+						}
+						return this.createHover(lines.join('\n\n') || skillName.value, skillName.range);
+					}
+				}
+			}
+		}
+		return this.createHover(baseMessage, node.range);
+	}
+
+	private async getToolHoverByName(toolName: string, range: Range, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		if (target === Target.Claude) {
 			const description = knownClaudeTools.find(tool => tool.name === toolName)?.description;
 			if (description) {
@@ -128,6 +204,24 @@ export class PromptHoverProvider implements HoverProvider {
 			return undefined;
 		}
 		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
+		if (target === Target.GitHubCopilot) {
+			const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, token);
+			const matches = resolveAgentFileToolIdentifiers(toolName, catalogue.tools);
+			const availability = getEffectiveAgentFileToolAvailability(matches);
+			if (matches.length > 0) {
+				const lines = [...new Set(matches.map(match => match.description).filter((description): description is string => !!description))];
+				if (availability === 'disabled') {
+					lines.push(localize('promptHeader.githubCopilot.toolDisabled', 'This tool is recognized but disabled for the matching GitHub Copilot harness.'));
+				} else if (availability === 'unavailable') {
+					lines.push(localize('promptHeader.githubCopilot.toolUnavailable', 'This tool is recognized but currently unavailable for the matching GitHub Copilot harness.'));
+				}
+				return this.createHover(lines.join('\n\n') || toolName, range);
+			}
+			if (catalogue.isResolved && tool && isToolSet(tool)) {
+				return this.createHover(localize('promptHeader.githubCopilot.toolSetUnsupported', 'Tool sets are not supported by the GitHub Copilot harness. List individual tools in the `tools` frontmatter attribute.'), range);
+			}
+			return undefined;
+		}
 		if (tool !== undefined) {
 			if (isToolSet(tool)) {
 				return this.getToolsetHover(tool, range);
@@ -169,7 +263,12 @@ export class PromptHoverProvider implements HoverProvider {
 				}
 			}
 
-			const result = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+			const agentFileModel = target === Target.GitHubCopilot
+				? resolveAgentFileModelIdentifier(modelName, resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService).models)
+				: undefined;
+			const result = target === Target.GitHubCopilot
+				? agentFileModel ? { metadata: agentFileModel.metadata } : undefined
+				: this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
 			if (result) {
 				const meta = result.metadata;
 				lines.push(localize('modelName', '- Name: {0}', meta.name));
@@ -198,6 +297,22 @@ export class PromptHoverProvider implements HoverProvider {
 			}
 		}
 		return this.createHover(baseMessage, node.range);
+	}
+
+	private getReasoningEffortHover(node: IHeaderAttribute, baseMessage: string, header: PromptHeader, target: Target): Hover {
+		if (target !== Target.GitHubCopilot || node.value.type !== 'scalar') {
+			return this.createHover(baseMessage, node.range);
+		}
+		const effort = node.value.value;
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		const supportingModels = (header.model ?? [])
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models))
+			.filter(model => getAgentFileModelReasoningEfforts(model).includes(effort))
+			.map(model => `\`${model.id}\` (${model.harnessId})`);
+		const contents = supportingModels.length > 0
+			? localize('promptHeader.agent.reasoningEffort.supportedModels', '{0}\n\nSupported by: {1}.', baseMessage, supportingModels.join(', '))
+			: baseMessage;
+		return this.createHover(contents, node.range);
 	}
 
 	private async getAgentHover(agentAttribute: IHeaderAttribute, position: Position, baseMessage: string): Promise<Hover | undefined> {
@@ -236,13 +351,11 @@ export class PromptHoverProvider implements HoverProvider {
 	private getHooksHover(attribute: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
 		const value = attribute.value;
 		if (value.type === 'map') {
-			const hooksByTarget = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
 			for (const prop of value.properties) {
 				// Hover on a hook event name key (e.g., SessionStart, PreToolUse)
 				if (prop.key.range.containsPosition(position)) {
-					const hookType = hooksByTarget[prop.key.value];
-					if (hookType) {
-						const meta = HOOK_METADATA[hookType];
+					const meta = getAgentHookMetadata(target, prop.key.value);
+					if (meta) {
 						return this.createHover(`**${meta.label}**\n\n${meta.description}`, prop.key.range);
 					}
 				}
@@ -256,6 +369,62 @@ export class PromptHoverProvider implements HoverProvider {
 			}
 		}
 		return this.createHover(baseMessage, attribute.range);
+	}
+
+	private getSchemaMapHover(
+		attribute: IHeaderAttribute,
+		position: Position,
+		baseMessage: string,
+		definitions: Record<string, IAttributeDefinition>,
+	): Hover | undefined {
+		if (attribute.value.type === 'map') {
+			const hover = this.getMapPropertyHover(attribute.value, position, definitions);
+			if (hover) {
+				return hover;
+			}
+		}
+		return this.createHover(baseMessage, attribute.range);
+	}
+
+	private getMcpServersHover(attribute: IHeaderAttribute, position: Position, baseMessage: string): Hover | undefined {
+		if (attribute.value.type !== 'map') {
+			return this.createHover(baseMessage, attribute.range);
+		}
+		for (const server of attribute.value.properties) {
+			if (server.value.type !== 'map' || !server.value.range.containsPosition(position)) {
+				continue;
+			}
+			const typeProperty = server.value.properties.find(property => property.key.value === 'type');
+			const type = typeProperty?.value.type === 'scalar' ? typeProperty.value.value : undefined;
+			const isRemote = server.value.properties.some(property => property.key.value === 'url') || type === 'http' || type === 'sse';
+			const definitions = isRemote ? githubCopilotMcpRemoteServerProperties : githubCopilotMcpLocalServerProperties;
+			const hover = this.getMapPropertyHover(server.value, position, definitions);
+			if (hover) {
+				return hover;
+			}
+		}
+		return this.createHover(baseMessage, attribute.range);
+	}
+
+	private getMapPropertyHover(
+		map: IMapValue,
+		position: Position,
+		definitions: Record<string, IAttributeDefinition>,
+	): Hover | undefined {
+		for (const property of map.properties) {
+			if (!property.key.range.containsPosition(position) && !property.value.range.containsPosition(position)) {
+				continue;
+			}
+			if (!Object.hasOwn(definitions, property.key.value)) {
+				return undefined;
+			}
+			const definition = definitions[property.key.value];
+			const contents = definition.enums
+				? localize('promptHeader.attribute.allowedValues.hover', '{0}\n\nAllowed values: {1}.', definition.description, definition.enums.map(entry => `\`${entry.name}\``).join(', '))
+				: definition.description;
+			return this.createHover(contents, property.key.range);
+		}
+		return undefined;
 	}
 
 	/**

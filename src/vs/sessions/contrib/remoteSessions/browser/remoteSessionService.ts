@@ -26,11 +26,11 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionType, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
-import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -74,6 +74,15 @@ export class RemoteSessionService implements IRemoteSessionService {
 	listHosts(): readonly IRemoteSessionHost[] {
 		this.checkEnabled();
 		return this.remoteProviders().map(provider => this.describeHost(provider));
+	}
+
+	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[] {
+		this.checkEnabled();
+		const provider = this.remoteProviders().find(provider => provider.id === hostId);
+		if (!provider) {
+			return [localize('remoteSessions.hostUnavailable', "The host is not available in this Agents window.")];
+		}
+		return this.getCandidate(provider, { prompt: '', hostId, requirements: {}, workspace }).reasons;
 	}
 
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession> {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -24,23 +24,30 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../../../browser/aiCustomization/chatCustomizationMigrationNotice.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../browser/aiCustomization/customizationMigrationIgnoredGroups.js';
+import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
 	readonly requests: URI[] = [];
 	override readonly onDidChangeCustomizations: Event<void>;
-	result: ICustomizationMigrationHint | undefined;
+	result: Promise<ICustomizationMigrationHint | undefined> = Promise.resolve(undefined);
 
 	constructor(changed: Emitter<void>) {
 		super();
 		this.onDidChangeCustomizations = changed.event;
 	}
 
-	override async computeMigrationHint(resource: URI, _token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined> {
+	override async computeMigrationHint(resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
 		this.requests.push(resource);
+		if (ignoredGroups.some(group => group.type === CustomizationMigrationType.PromptFiles && group.storage === PromptsStorage.local)) {
+			return undefined;
+		}
 		return this.result;
 	}
 }
@@ -64,7 +71,7 @@ class TestMigrationTelemetryService extends mock<ICustomizationMigrationTelemetr
 suite('ChatCustomizationMigrationNotice', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(showNotice = true) {
+	function setup(showNotice = true, phone = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const changed = store.add(new Emitter<void>());
@@ -77,13 +84,14 @@ suite('ChatCustomizationMigrationNotice', () => {
 			message: '1 workspace customization needs an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		};
-		migrations.result = hint;
+		migrations.result = Promise.resolve(hint);
 		const migrationTelemetry = new TestMigrationTelemetryService();
 		const sentiment = observableValue<IChatSentiment>(store, {});
 		const show = observableValue(store, showNotice);
 		const context = observableValue<IChatCustomizationMigrationNoticeContext | undefined>(store, {
 			sessionResource: URI.parse('vscode-chat-session://local/chat'),
 			workspace: URI.file('/workspace'),
+			projectRoot: URI.file('/workspace'),
 		});
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const availability: boolean[] = [];
@@ -101,6 +109,10 @@ suite('ChatCustomizationMigrationNotice', () => {
 		instantiation.stub(ILogService, new class extends mock<ILogService>() { }());
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
+		const mainContainer = dom.$('div');
+		mainContainer.classList.toggle('phone-layout', phone);
+		const layoutChanged = store.add(new Emitter<dom.IDimension>());
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer, onDidLayoutMainContainer: layoutChanged.event });
 
 		const notice = store.add(instantiation.createInstance(
 			ChatCustomizationMigrationNotice,
@@ -112,8 +124,36 @@ suite('ChatCustomizationMigrationNotice', () => {
 			visible => visibility.push(visible),
 			undefined,
 		));
-		return { notice, context, hint, migrations, migrationTelemetry, commands, availability, visibility, get focusCount() { return focusCount; } };
+		return {
+			notice, context, hint, migrations, migrationTelemetry, storage, changed, commands, availability, visibility,
+			setPhoneLayout(phone: boolean) {
+				mainContainer.classList.toggle('phone-layout', phone);
+				layoutChanged.fire({ width: phone ? 390 : 1024, height: 844 });
+			},
+			get focusCount() { return focusCount; },
+		};
 	}
+
+	test('does not advertise migration management on phones and follows layout changes', async () => {
+		const env = setup(true, true);
+		const snapshot = () => ({
+			requests: env.migrations.requests.length,
+			visible: env.notice.element.style.display !== 'none',
+			available: env.availability.at(-1),
+		});
+		await timeout(0);
+		const phone = snapshot();
+		env.setPhoneLayout(false);
+		await timeout(0);
+		const desktop = snapshot();
+		env.setPhoneLayout(true);
+		await timeout(0);
+		assert.deepStrictEqual([phone, desktop, snapshot()], [
+			{ requests: 0, visible: false, available: false },
+			{ requests: 1, visible: true, available: true },
+			{ requests: 1, visible: false, available: false },
+		]);
+	});
 
 	test('shows, opens, and dismisses the migration notice', async () => {
 		const env = setup();
@@ -157,6 +197,121 @@ suite('ChatCustomizationMigrationNotice', () => {
 		}, {
 			visible: false,
 			available: true,
+		});
+	});
+
+	test('coalesces synchronous discovery changes using the latest session context', async () => {
+		const env = setup(false);
+		for (let i = 0; i < 3; i++) {
+			env.changed.fire();
+		}
+		const latestContext = {
+			...env.context.get()!,
+			sessionResource: URI.parse('vscode-chat-session://local/materialized'),
+		};
+		env.context.set(latestContext, undefined);
+		const synchronousRequests = env.migrations.requests.length;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			synchronousRequests,
+			requests: env.migrations.requests,
+			available: env.availability.at(-1),
+		}, {
+			synchronousRequests: 0,
+			requests: [latestContext.sessionResource],
+			available: true,
+		});
+	});
+
+	test('preserves the last known hint until a same-context refresh completes', async () => {
+		const env = setup();
+		await timeout(0);
+		const isVisible = () => env.notice.element.style.display !== 'none';
+
+		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = refreshedHint.p;
+		env.changed.fire();
+		const refreshing = isVisible();
+		void refreshedHint.complete(env.hint);
+		await refreshedHint.p;
+		await timeout(0);
+		const refreshed = isVisible();
+
+		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = removedHint.p;
+		env.changed.fire();
+		const removing = isVisible();
+		void removedHint.complete(undefined);
+		await removedHint.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			refreshing,
+			refreshed,
+			removing,
+			removed: isVisible(),
+			availability: env.availability,
+			visibility: env.visibility,
+		}, {
+			refreshing: true,
+			refreshed: true,
+			removing: true,
+			removed: false,
+			availability: [false, true, false],
+			visibility: [true, false],
+		});
+	});
+
+	test('tracks ignored migrations being hidden and restored in the migration page', async () => {
+		const env = setup();
+		await timeout(0);
+		const before = env.notice.element.style.display !== 'none';
+		storeIgnoredCustomizationMigrationGroupKeys(env.storage, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'local',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				env.context.get()!.projectRoot,
+			),
+		]));
+		await timeout(0);
+		const ignored = env.notice.element.style.display !== 'none';
+		env.context.set({
+			sessionResource: URI.parse('agent-host-copilotcli:/chat'),
+			workspace: env.context.get()!.workspace,
+			projectRoot: env.context.get()!.projectRoot,
+		}, undefined);
+		await timeout(0);
+		const otherHarness = env.notice.element.style.display !== 'none';
+		env.context.set({
+			sessionResource: URI.parse('vscode-chat-session://local/chat'),
+			workspace: env.context.get()!.workspace,
+			projectRoot: env.context.get()!.projectRoot,
+		}, undefined);
+		await timeout(0);
+		const originalHarness = env.notice.element.style.display !== 'none';
+		storeIgnoredCustomizationMigrationGroupKeys(env.storage, new Set());
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before,
+			ignored,
+			otherHarness,
+			originalHarness,
+			restored: env.notice.element.style.display !== 'none',
+			requestCount: env.migrations.requests.length,
+			availability: env.availability,
+			visibility: env.visibility,
+		}, {
+			before: true,
+			ignored: false,
+			otherHarness: true,
+			originalHarness: false,
+			restored: true,
+			requestCount: 5,
+			availability: [false, true, false, true, false, true],
+			visibility: [true, false, true, false, true],
 		});
 	});
 });

@@ -4,11 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, getAgentHostSandboxToggleState, preserveAgentHostSandboxToggleSelection } from '../../browser/agentHostSandboxToggle.js';
 
 suite('AgentHostSandboxToggle', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns the permitted asynchronous write so presentations can await the saved state', async () => {
+		const pending = new DeferredPromise<void>();
+		const toggle = createAgentHostSandboxToggle(
+			() => ({ provider: 'copilotcli', sessionEnabled: false, globalEnabled: false, managedEnabled: false, allowsBypass: false }),
+			() => pending.p,
+		)!;
+		const operation = toggle.onChange(true);
+		assert.strictEqual(operation, pending.p);
+		await pending.complete();
+		await operation;
+	});
 
 	for (const scenario of [
 		{
@@ -83,7 +96,7 @@ suite('AgentHostSandboxToggle', () => {
 			{ sessionEnabled: false, globalEnabled: false, managedEnabled: true, allowsBypass: false },
 		];
 		const toggles = states.map(state => {
-			const { label, title, checked, disabled, showInfoIcon } = createAgentHostSandboxToggle(() => ({ provider: 'copilotcli', ...state }), enabled => writes.push(enabled))!;
+			const { label, title, checked, disabled, showInfoIcon } = createAgentHostSandboxToggle(() => ({ provider: 'copilotcli', ...state }), enabled => { writes.push(enabled); })!;
 			assert.strictEqual(showInfoIcon, undefined);
 			return { label, title, checked, disabled };
 		});
@@ -91,7 +104,7 @@ suite('AgentHostSandboxToggle', () => {
 			toggles: [
 				{
 					label: 'Sandboxing for terminal',
-					title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
+					title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.',
 					checked: false,
 					disabled: false,
 				},
@@ -118,7 +131,7 @@ suite('AgentHostSandboxToggle', () => {
 			provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: true, managedEnabled: false, allowsBypass: false,
 			devContainerSandboxSupported: false,
 		};
-		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => { writes.push(enabled); })!;
 		const before = { checked: toggle.checked, disabled: toggle.disabled };
 		toggle.onChange(false);
 		toggle.onChange(true);
@@ -162,7 +175,7 @@ suite('AgentHostSandboxToggle', () => {
 		const toggle = createAgentHostSandboxToggle(() => ({
 			provider: 'copilotcli', sessionEnabled: true, globalEnabled: true, managedEnabled: true, allowsBypass: false,
 			devContainerSandboxSupported: false,
-		}), enabled => writes.push(enabled))!;
+		}), enabled => { writes.push(enabled); })!;
 		toggle.onChange(false);
 		assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, writes }, { checked: true, disabled: true, writes: [] });
 	});
@@ -175,15 +188,17 @@ suite('AgentHostSandboxToggle', () => {
 		assert.deepStrictEqual({
 			label: toggle.label, checked: toggle.checked, disabled: toggle.disabled,
 			showInfoIcon: toggle.showInfoIcon,
-			explainsIsolation: toggle.title?.includes('relaxes the outer container\'s isolation'),
-			explainsTun: toggle.title?.includes('/dev/net/tun'),
-		}, { label: 'Sandboxing in Dev Container', checked: true, disabled: false, showInfoIcon: true, explainsIsolation: true, explainsTun: true });
+			title: toggle.title,
+		}, {
+			label: 'Sandboxing in Dev Container', checked: true, disabled: false, showInfoIcon: true,
+			title: 'Start the Dev Container with the additional Docker options that terminal sandboxing requires. This relaxes the outer container\'s isolation; terminal commands still run inside their own sandbox.',
+		});
 	});
 
 	test('change callback rechecks policy and forwards only permitted choices', () => {
 		const writes: boolean[] = [];
 		const state = { provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: false, managedEnabled: false, allowsBypass: false };
-		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => { writes.push(enabled); })!;
 		toggle.onChange(true);
 		state.managedEnabled = true;
 		toggle.onChange(false);
@@ -196,7 +211,7 @@ suite('AgentHostSandboxToggle', () => {
 	test('managed bypass permits repeated session toggle changes', () => {
 		const writes: boolean[] = [];
 		const state = { provider: 'copilotcli', sessionEnabled: false, confirmedEnabled: false, globalEnabled: true, managedEnabled: true, allowsBypass: true };
-		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => { writes.push(enabled); })!;
 		const before = { checked: toggle.checked, disabled: toggle.disabled, title: toggle.title };
 		toggle.onChange(true);
 		toggle.onChange(false);
@@ -349,7 +364,7 @@ suite('AgentHostSandboxToggle', () => {
 	test('consecutive clicks track the displayed value before session updates arrive', () => {
 		const writes: boolean[] = [];
 		const state = { provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: true, managedEnabled: false, allowsBypass: true };
-		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => { writes.push(enabled); })!;
 		toggle.onChange(false);
 		toggle.onChange(false);
 		toggle.onChange(true);
@@ -378,7 +393,7 @@ suite('AgentHostSandboxToggle', () => {
 			const state = { provider, sessionEnabled: true, globalEnabled: true, managedEnabled: true, allowsBypass: false };
 			return {
 				state: getAgentHostSandboxToggleState(state),
-				toggle: createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled)),
+				toggle: createAgentHostSandboxToggle(() => state, enabled => { writes.push(enabled); }),
 			};
 		});
 		assert.deepStrictEqual({ results, writes }, {
@@ -390,7 +405,7 @@ suite('AgentHostSandboxToggle', () => {
 	test('change callback rejects a switch to another harness', () => {
 		const writes: boolean[] = [];
 		const state = { provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: false, managedEnabled: false, allowsBypass: true };
-		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => { writes.push(enabled); })!;
 		state.provider = 'claude';
 		toggle.onChange(true);
 		assert.deepStrictEqual(writes, []);

@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -26,8 +27,9 @@ import { GitHubRequestError } from '../../../../../platform/github/common/github
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../workbench/services/sessions/common/session.js';
 import { GitHubFileSystemProvider } from '../../browser/githubFileSystemProvider.js';
+
 
 const account: IDefaultAccount = {
 	accountName: 'octocat', sessionId: 'selected', enterprise: false,
@@ -55,9 +57,9 @@ suite('GitHubFileSystemProvider', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const changed = store.add(new Emitter<IDefaultAccount | null>());
 		const invalidated = store.add(new Emitter<void>());
-		const treeRequested = store.add(new Emitter<AbortSignal>());
-		const blobRequested = store.add(new Emitter<AbortSignal>());
-		const acquisitionRequested = store.add(new Emitter<AbortSignal>());
+		const treeRequested = store.add(new Emitter<CancellationToken>());
+		const blobRequested = store.add(new Emitter<CancellationToken>());
+		const acquisitionRequested = store.add(new Emitter<CancellationToken>());
 		let selectedAccount: IDefaultAccount | null = account;
 		const state: {
 			tree: GitTree | Error | Promise<GitTree>;
@@ -67,7 +69,7 @@ suite('GitHubFileSystemProvider', () => {
 		} = { tree, blob };
 		const treeCalls: Parameters<IContentClient['getTree']>[] = [];
 		const blobCalls: Parameters<IContentClient['getBlob']>[] = [];
-		const acquisitions: AbortSignal[] = [];
+		const acquisitions: CancellationToken[] = [];
 		let releases = 0;
 		instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = changed.event;
@@ -77,10 +79,11 @@ suite('GitHubFileSystemProvider', () => {
 			override async signIn() { return assert.fail('Filesystem reads must not prompt for sign-in'); }
 		}());
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-			override async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
+			override readonly onDidChangeDefaultClient = Event.map(changed.event, () => undefined);
+			override async acquireDefaultAccountApiClient(cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
 				const selected = selectedAccount;
-				acquisitions.push(signal);
-				acquisitionRequested.fire(signal);
+				acquisitions.push(cancellationToken);
+				acquisitionRequested.fire(cancellationToken);
 				await state.acquisition;
 				if (state.acquisitionError) {
 					throw state.acquisitionError;
@@ -96,7 +99,7 @@ suite('GitHubFileSystemProvider', () => {
 						override async getTree(...args: Parameters<IContentClient['getTree']>): Promise<GitTree> {
 							const result = state.tree;
 							treeCalls.push(args);
-							treeRequested.fire(args[3]);
+							treeRequested.fire(args[2]);
 							if (result instanceof Error) {
 								throw result;
 							}
@@ -105,7 +108,7 @@ suite('GitHubFileSystemProvider', () => {
 						override async getBlob(...args: Parameters<IContentClient['getBlob']>): Promise<GitBlob> {
 							const result = state.blob;
 							blobCalls.push(args);
-							blobRequested.fire(args[3]);
+							blobRequested.fire(args[2]);
 							if (result instanceof Error) {
 								throw result;
 							}
@@ -152,7 +155,7 @@ suite('GitHubFileSystemProvider', () => {
 		]);
 		assert.deepStrictEqual({
 			results,
-			requests: treeCalls.map(([owner, repo, ref, _signal, options]) => ({ owner, repo, ref, options })),
+			requests: treeCalls.map(([{ owner, repo }, ref, _signal, options]) => ({ owner, repo, ref, options })),
 			acquisitions: acquisitions.length,
 		}, {
 			results: [
@@ -174,12 +177,14 @@ suite('GitHubFileSystemProvider', () => {
 		const contents = await provider.readFile(resource);
 		assert.deepStrictEqual({
 			contents: VSBuffer.wrap(contents).toString(),
-			ref: treeCalls[0][2],
-			blob: blobCalls.map(([owner, repo, sha, _signal, options]) => ({ owner, repo, sha, options })),
-			sameSignal: treeCalls[0][3] === blobCalls[0][3],
+			ref: treeCalls[0][1],
+			blob: blobCalls.map(([{ owner, repo }, sha, _signal, options]) => ({ owner, repo, sha, options })),
+			sameRepository: treeCalls[0][0] === blobCalls[0][0],
+			sameSignal: treeCalls[0][2] === blobCalls[0][2],
 		}, {
 			contents: 'hello', ref: 'feature/a b',
 			blob: [{ owner: 'owner', repo: 'repo', sha: 'pinned-blob', options: { caller: 'githubFileSystemProvider.readFile' } }],
+			sameRepository: true,
 			sameSignal: true,
 		});
 	});
@@ -213,8 +218,20 @@ suite('GitHubFileSystemProvider', () => {
 					return Response.json({ ...tree, tree: [{ ...tree.tree[0], size: reportedSize }] });
 				}
 				assert.strictEqual(path, '/repos/owner/repo/git/blobs/readme');
-				const content = encodeBase64(VSBuffer.wrap(new Uint8Array(size).fill(0xa5))).replace(/.{60}/g, '$&\n');
-				const body = VSBuffer.fromString(JSON.stringify({ ...blob, size: reportedSize ?? 0, content })).buffer;
+				// Each 45-byte block forms a complete 60-character base64 line.
+				const bytesPerLine = 45;
+				const line = VSBuffer.fromString(`${encodeBase64(VSBuffer.wrap(new Uint8Array(bytesPerLine).fill(0xa5)))}\\n`).buffer;
+				const metadata = JSON.stringify({ ...blob, size: reportedSize ?? 0, content: undefined });
+				const prefix = VSBuffer.fromString(`${metadata.slice(0, -1)},"content":"`).buffer;
+				const remainder = encodeBase64(VSBuffer.wrap(new Uint8Array(size % bytesPerLine).fill(0xa5))).replace(/.{60}/g, '$&\n');
+				const suffix = VSBuffer.fromString(JSON.stringify(remainder).slice(1) + '}').buffer;
+				const lineCount = Math.floor(size / bytesPerLine);
+				const body = new Uint8Array(prefix.byteLength + lineCount * line.byteLength + suffix.byteLength);
+				body.set(prefix);
+				for (let index = 0; index < lineCount; index++) {
+					body.set(line, prefix.byteLength + index * line.byteLength);
+				}
+				body.set(suffix, body.byteLength - suffix.byteLength);
 				responseBytes = body.byteLength;
 				let offset = 0;
 				return new Response(new ReadableStream<Uint8Array>({
@@ -389,7 +406,7 @@ suite('GitHubFileSystemProvider', () => {
 			const peer = context.provider.stat(root);
 			await second.complete({ ...tree, tree: [] });
 			const [entries, stat] = await Promise.all([current, peer]);
-			assert.deepStrictEqual({ entries, type: stat.type, trees: context.treeCalls.length, cancelled: oldSignal.aborted }, {
+			assert.deepStrictEqual({ entries, type: stat.type, trees: context.treeCalls.length, cancelled: oldSignal.isCancellationRequested }, {
 				entries: [], type: FileType.Directory, trees: 2, cancelled: true,
 			});
 		});
@@ -407,13 +424,13 @@ suite('GitHubFileSystemProvider', () => {
 			}
 			const started = Event.toPromise(stage === 'tree' ? context.treeRequested.event : context.blobRequested.event);
 			const rejected = assert.rejects(context.provider.readFile(root.with({ path: root.path + '/README.md' })), isCancellationError);
-			const signal = await started;
+			const cancellationToken = await started;
 			context.provider.dispose();
 			await pendingTree.complete(tree);
 			await pendingBlob.complete(blob);
 			await rejected;
 			await assert.rejects(context.provider.stat(root), isCancellationError);
-			assert.deepStrictEqual({ cancelled: signal.aborted, acquisitions: context.acquisitions.length, releases: context.releases }, { cancelled: true, acquisitions: 1, releases: 1 });
+			assert.deepStrictEqual({ cancelled: cancellationToken.isCancellationRequested, acquisitions: context.acquisitions.length, releases: context.releases }, { cancelled: true, acquisitions: 1, releases: 1 });
 		});
 	}
 

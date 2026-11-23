@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient } from '@microsoft/copilot-sdk';
 import { equals } from '../../../../base/common/arrays.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -43,7 +43,7 @@ export class CopilotSandboxDiagnostics extends Disposable {
 				}
 				if (!support.supported) {
 					this._logService.warn(`[Copilot:${this._session}] Sandbox backend unavailable`, support.reason);
-					reasons = [localize('copilot.sandbox.missingDependencies', "Missing sandbox dependencies may prevent terminal commands from running.")];
+					reasons = [support.reason || localize('copilot.sandbox.missingDependencies', "Missing sandbox dependencies may prevent terminal commands from running.")];
 				} else {
 					const network = config.userPolicy?.network;
 					const missingCapabilities = support.capabilities.filter(capability => !capability.supported && (
@@ -58,7 +58,7 @@ export class CopilotSandboxDiagnostics extends Disposable {
 					}
 					const capability = missingCapabilities[0];
 					if (capability) {
-						reasons = [getMissingCapabilityMessage(capability.name)];
+						reasons = [capability.reason || getMissingCapabilityMessage(capability.name)];
 					}
 					if (support.capabilities.every(capability => capability.supported)) {
 						localNetworkRequired = !this._isLocalNetworkAccessAllowed(config);

@@ -26,6 +26,28 @@ import { AgentHostEditAttributionDeferredError, AgentHostEditMarkerService } fro
 suite('Agent Host Edit Marker Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const coarseDiffCount of [undefined, 0, 3]) {
+		for (const failPrepare of [false, true]) {
+			test(`preserves optional coarse counts through ${failPrepare ? 'recovered' : 'normal'} prepare (${coarseDiffCount})`, async () => {
+				const context = createContext({ coarseDiffCount, failPrepare, cancelOutcome: 'committed' });
+				context.fireMarker(marker(1, 'a', 'ab'));
+				const prepared = await context.service.prepareFlush(context.resource, 'closed', 'stats', false);
+				assert.deepStrictEqual({
+					count: prepared?.coarseDiffCount,
+					reads: context.resourceReads,
+				}, { count: coarseDiffCount, reads: failPrepare ? ['/prepare', '/cancel'] : ['/prepare'] });
+			});
+		}
+	}
+
+	for (const coarseDiffCount of [-1, 0.5, '3']) {
+		test(`rejects invalid coarse diff counts (${coarseDiffCount})`, async () => {
+			const context = createContext({ coarseDiffCount });
+			context.fireMarker(marker(1, 'a', 'ab'));
+			await assert.rejects(context.service.prepareFlush(context.resource, 'closed', 'stats', false), /deferred|invalid|outcome/i);
+		});
+	}
+
 	test('suppresses marker-first and reload-first observations', () => {
 		const context = createContext();
 		const correlation = context.service.createCorrelation(context.resource);
@@ -762,6 +784,7 @@ suite('Agent Host Edit Marker Service', () => {
 		readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 		readonly cancelStandaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
 		readonly cancelLastSequence?: number;
+		readonly coarseDiffCount?: number | string;
 	} = {}) {
 		const {
 			isAmbient = true,
@@ -775,6 +798,7 @@ suite('Agent Host Edit Marker Service', () => {
 			standaloneCoverageGapAcknowledgements,
 			cancelStandaloneCoverageGapAcknowledgements,
 			cancelLastSequence,
+			coarseDiffCount,
 		} = options;
 		const actionEmitter = disposables.add(new Emitter<ActionEnvelope>());
 		const resourceReads: string[] = [];
@@ -798,12 +822,14 @@ suite('Agent Host Edit Marker Service', () => {
 						? prepareResponse ?? JSON.stringify({
 							flushToken: request?.kind === 'prepare' ? request.params.flushToken : '',
 							agentModifiedCount: 2,
+							coarseDiffCount,
 							lastSequence: prepareSequence,
 							standaloneCoverageGapAcknowledgements,
 						})
 						: JSON.stringify({
 							outcome: resource.path === '/commit' ? 'committed' : cancelOutcome,
 							agentModifiedCount: resource.path === '/commit' || cancelOutcome === 'committed' ? 2 : 0,
+							coarseDiffCount,
 							lastSequence: resource.path === '/cancel' ? cancelLastSequence : undefined,
 							standaloneCoverageGapAcknowledgements: resource.path === '/cancel' ? cancelStandaloneCoverageGapAcknowledgements : undefined,
 						}),

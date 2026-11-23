@@ -30,9 +30,10 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, isKimiK3PlusFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
@@ -514,10 +515,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
 			if (body.messages) {
-				const toolCallIdStyle = this.family.toLowerCase().includes('kimi-k3') || this.model.toLowerCase().includes('kimi-k3')
-					? 'name-indexed'
-					: 'function-indexed';
-				body.messages = normalizeKimiToolCallIds(body.messages, toolCallIdStyle);
+				body.messages = normalizeKimiToolCallIds(body.messages, isKimiK3PlusFamily(this) ? 'name-indexed' : 'function-indexed');
 			}
 			body.temperature = 1;
 			body.top_p = 0.95;

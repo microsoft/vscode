@@ -6,9 +6,9 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { IHookCommand, toHookType } from './hookSchema.js';
-import { parseClaudeHooks, extractHookCommandsFromItem } from './hookClaudeCompat.js';
-import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
-import { HookType } from './hookTypes.js';
+import { parseClaudeHooks, extractHookCommandsFromItem, getClaudeHookTypeName } from './hookClaudeCompat.js';
+import { resolveCopilotCliHookType, getCopilotCliHookTypeName } from './hookCopilotCliCompat.js';
+import { HookType, isLocalFormatHookEventName } from './hookTypes.js';
 
 /**
  * Represents a hook source with its original and normalized properties.
@@ -59,6 +59,31 @@ export function getHookSourceFormat(fileUri: URI): HookSourceFormat {
  */
 export function isReadOnlyHookSource(format: HookSourceFormat): boolean {
 	return format === HookSourceFormat.Claude;
+}
+
+/**
+ * Whether a hook file belongs to Claude Code: a Claude settings file, or any file inside a `.claude` folder.
+ * Claude Code hooks use capitalised event names by design and are never treated as Local-format hooks.
+ */
+export function isClaudeHookFile(fileUri: URI): boolean {
+	return getHookSourceFormat(fileUri) === HookSourceFormat.Claude
+		|| fileUri.path.split('/').some(segment => segment.toLowerCase() === '.claude');
+}
+
+/**
+ * Returns the event names in a hook file that use the deprecated Local hook format
+ * (capitalised names such as `PreToolUse`). Returns an empty array for Claude Code hook files
+ * and for files that use only native event names.
+ */
+export function getLocalFormatHookEvents(fileUri: URI, json: unknown): string[] {
+	if (isClaudeHookFile(fileUri) || !json || typeof json !== 'object') {
+		return [];
+	}
+	const hooks = (json as Record<string, unknown>).hooks;
+	if (!hooks || typeof hooks !== 'object' || Array.isArray(hooks)) {
+		return [];
+	}
+	return Object.keys(hooks).filter(isLocalFormatHookEventName);
 }
 
 /**
@@ -211,4 +236,19 @@ export function buildNewHookEntry(format: HookSourceFormat): Record<string, unkn
 		return { matcher: '', hooks: [commandEntry] };
 	}
 	return commandEntry;
+}
+
+/**
+ * Builds a new hook file, using the versioned CLI format for Copilot hooks.
+ */
+export function buildNewHookFile(format: HookSourceFormat, hookType: HookType): { version?: number; hooks: Record<string, Record<string, unknown>[]> } {
+	const hookTypeName = format === HookSourceFormat.Claude
+		? (getClaudeHookTypeName(hookType) ?? hookType)
+		: (getCopilotCliHookTypeName(hookType) ?? hookType);
+	return {
+		...(format === HookSourceFormat.Copilot ? { version: 1 } : {}),
+		hooks: {
+			[hookTypeName]: [buildNewHookEntry(format)]
+		}
+	};
 }

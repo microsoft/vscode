@@ -458,6 +458,17 @@ describe.skipIf(isWindows)('isExternalSymlinkedFile', () => {
 	test('returns false when the file does not exist', async () => {
 		await expect(isExternalSymlinkedFile(URI.file(path.join(workspaceDirectory, 'missing.txt')), getFolder)).resolves.toBe(false);
 	});
+
+	test('follows a dangling symlink to its missing target outside the workspace', async () => {
+		const missingExternalFile = path.join(externalDirectory, 'new.txt');
+		const symlinkedFile = path.join(workspaceDirectory, 'linked.txt');
+		fs.symlinkSync(missingExternalFile, symlinkedFile);
+
+		await expect(invokeIsFileExternal(URI.file(symlinkedFile))).resolves.toEqual({
+			needsConfirmation: true,
+			realPath: missingExternalFile,
+		});
+	});
 });
 
 describe('encodeUrlHostname', () => {

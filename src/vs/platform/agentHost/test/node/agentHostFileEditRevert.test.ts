@@ -13,7 +13,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import type { IFileWriteOptions, IStat } from '../../../files/common/files.js';
+import { FileSystemProviderCapabilities, type IFileDeleteOptions, type IFileWriteOptions, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostFileEditRevert, applyTextReplacements, FileEditRevertConflictError, FileEditRevertConflictReason, FileEditRevertOutcome, rebaseLineReplacements, type IFileEditRevertStep } from '../../node/agentHostFileEditRevert.js';
@@ -42,6 +42,24 @@ class SequencedInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	override async stat(resource: URI): Promise<IStat> {
 		const stat = await super.stat(resource);
 		return { ...stat, mtime: this._mtimes.get(resource) ?? stat.mtime };
+	}
+}
+
+/** Records the options of each deletion, and supports the trash when given its capability. */
+class DeleteRecordingInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	readonly deletes: IFileDeleteOptions[] = [];
+
+	constructor(private readonly _extraCapabilities: FileSystemProviderCapabilities) {
+		super();
+	}
+
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities | this._extraCapabilities;
+	}
+
+	override async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
+		this.deletes.push(opts);
+		return super.delete(resource, opts);
 	}
 }
 
@@ -170,14 +188,26 @@ suite('AgentHostFileEditRevert', () => {
 		});
 	});
 
-	test('can not undo recreating a file because deletion can not be conditional', async () => {
-		const { revert, read } = setup(disposables);
+	test('deletes a file it recreated when undone, unless it changed since', async () => {
+		const { revert, write, read } = setup(disposables);
 
 		const prepared = await revert.prepare(resource, [step('old\n', '')], CancellationToken.None);
 		await prepared.apply();
 		const afterApply = await read();
+		const undone = await prepared.undo();
+		const afterUndo = await read();
 
-		assert.deepStrictEqual({ afterApply, undone: await prepared.undo(), afterUndo: await read() }, { afterApply: 'old\n', undone: false, afterUndo: 'old\n' });
+		const reapplied = await revert.prepare(resource, [step('old\n', '')], CancellationToken.None);
+		await reapplied.apply();
+		await write('changed\n');
+
+		assert.deepStrictEqual({ afterApply, undone, afterUndo, notUndone: await reapplied.undo(), afterRefusedUndo: await read() }, {
+			afterApply: 'old\n',
+			undone: true,
+			afterUndo: undefined,
+			notUndone: false,
+			afterRefusedUndo: 'changed\n',
+		});
 	});
 
 	test('undo only puts back content that apply may have written', async () => {
@@ -224,29 +254,75 @@ suite('AgentHostFileEditRevert', () => {
 		});
 	});
 
-	test('never deletes a file the turn created because deletion can not be conditional', async () => {
-		const { fileService, write, read, run } = setup(disposables);
-		const del = fileService.del.bind(fileService);
-		let deleteCalls = 0;
-		fileService.del = async (resource, options) => {
-			deleteCalls++;
-			await write('concurrent\n');
-			return del(resource, options);
-		};
+	test('deletes a file the turn created, along with later changes to it', async () => {
+		const { write, read, run } = setup(disposables);
+		const results: Record<string, unknown> = {};
 
-		await write('new\n');
-		const unchanged = { outcome: await run([step(undefined, 'new\n')]), content: await read() };
-		await write('new\nmore\n');
-		const edited = { outcome: await run([step(undefined, 'new\n')]), content: await read() };
-		await write('');
-		const emptied = { outcome: await run([step(undefined, 'new\n')]), content: await read() };
+		for (const [name, current] of [['unchanged', 'new\nedited\n'], ['edited', 'new\nedited\nmore\n'], ['emptied', '']]) {
+			await write(current);
+			results[name] = { outcome: await run([step(undefined, 'new\n'), step('new\n', 'new\nedited\n')]), content: await read() };
+		}
+		results.alreadyDeleted = { outcome: await run([step(undefined, 'new\n')]), content: await read() };
 
-		assert.deepStrictEqual({ unchanged, edited, emptied, deleteCalls }, {
-			unchanged: { outcome: FileEditRevertConflictReason.ConditionalDeleteUnavailable, content: 'new\n' },
-			edited: { outcome: FileEditRevertConflictReason.Overlap, content: 'new\nmore\n' },
-			emptied: { outcome: FileEditRevertConflictReason.Overlap, content: '' },
-			deleteCalls: 0,
+		assert.deepStrictEqual(results, {
+			unchanged: { outcome: FileEditRevertOutcome.Reverted, content: undefined },
+			edited: { outcome: FileEditRevertOutcome.Reverted, content: undefined },
+			emptied: { outcome: FileEditRevertOutcome.Reverted, content: undefined },
+			alreadyDeleted: { outcome: FileEditRevertOutcome.AlreadyReverted, content: undefined },
 		});
+	});
+
+	for (const deleteDuringApply of [false, true]) {
+		test(`does not undo another actor's deletion of a created file (during apply: ${deleteDuringApply})`, async () => {
+			const { fileService, revert, write } = setup(disposables);
+			await write('new\n');
+			const prepared = await revert.prepare(resource, [step(undefined, 'new\n')], CancellationToken.None);
+			if (deleteDuringApply) {
+				const deleteFile = fileService.del;
+				fileService.del = async (target, options) => {
+					fileService.del = deleteFile;
+					await fileService.del(target, options);
+					return fileService.del(target, options);
+				};
+			} else {
+				await fileService.del(resource);
+			}
+
+			await prepared.apply();
+			const undone = await prepared.undo();
+
+			assert.deepStrictEqual({ undone, exists: await fileService.exists(resource) }, { undone: true, exists: false });
+		});
+	}
+
+	test('deletes a created file to the trash where the file system supports it', async () => {
+		const results: Record<string, unknown> = {};
+		for (const [name, capabilities] of [['withTrash', FileSystemProviderCapabilities.Trash], ['withoutTrash', 0]] as const) {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new DeleteRecordingInMemoryFileSystemProvider(capabilities));
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			await fileService.writeFile(resource, VSBuffer.fromString('new\n'));
+
+			const prepared = await new AgentHostFileEditRevert(fileService, new InProcessDiffComputeService()).prepare(resource, [step(undefined, 'new\n')], CancellationToken.None);
+			await prepared.apply();
+			results[name] = { exists: await fileService.exists(resource), useTrash: provider.deletes.map(options => options.useTrash) };
+		}
+
+		assert.deepStrictEqual(results, {
+			withTrash: { exists: false, useTrash: [true] },
+			withoutTrash: { exists: false, useTrash: [false] },
+		});
+	});
+
+	test('does not delete a created file that changed while the revert was prepared', async () => {
+		const { revert, write, read } = setup(disposables);
+		await write('new\n');
+
+		const prepared = await revert.prepare(resource, [step(undefined, 'new\n')], CancellationToken.None);
+		await write('concurrent\n');
+		const reason = await prepared.apply().then(() => undefined, (error: FileEditRevertConflictError) => error.reason);
+
+		assert.deepStrictEqual({ reason, content: await read() }, { reason: FileEditRevertConflictReason.ChangedDuringRevert, content: 'concurrent\n' });
 	});
 
 	test('recreates a file that the turn deleted', async () => {

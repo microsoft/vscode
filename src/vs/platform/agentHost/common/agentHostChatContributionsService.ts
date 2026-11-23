@@ -294,6 +294,19 @@ export interface IAgentHostChatContribution extends IDisposable {
 	onChatUsage?(signal: IAgentChatUsageSignal): void;
 	/** Runs after a cold-restored session's catalog and metadata are fully populated. */
 	onDidRestoreSession?(session: ProtocolURI): void;
+	/** Runs after a committed move handed the worktree the chat's source session created over to `chat`, which now lives in `session`. */
+	onDidHandOverWorktree?(session: ProtocolURI, chat: ProtocolURI): void;
+	/**
+	 * Runs when the host begins a graceful shutdown, before providers stop, so a
+	 * contribution can report buffered state the process would otherwise lose.
+	 * Telemetry logged here is delivered by the bounded telemetry flush the host
+	 * runs after providers stop. It does not run on a crash or a forced kill, and
+	 * the process may exit soon after, so it must not depend on async work
+	 * completing.
+	 *
+	 * Must not throw; the dispatcher isolates failures.
+	 */
+	onWillShutdown?(): void;
 	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
@@ -357,6 +370,8 @@ export interface IAgentHostChatContributions extends IDisposable {
 	didDispatchAction(dispatched: IDispatchedAction): void;
 	chatUsage(signal: IAgentChatUsageSignal): void;
 	didRestoreSession(session: ProtocolURI): void;
+	didHandOverWorktree(session: ProtocolURI, chat: ProtocolURI): void;
+	willShutdown(): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;

@@ -5,7 +5,8 @@
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -16,9 +17,8 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
  *   1. Created by the caller and pushed via {@link ClaudePromptQueue.push}.
  *   2. Shifted off the to-yield list and pushed to the yielded list when
  *      the prompt iterable hands it to the SDK.
- *   3. Shifted off the yielded list and {@link deferred} settled when
- *      the matching SDK `result` message arrives (via
- *      {@link ClaudePromptQueue.settleHead}).
+ *   3. Removed from the yielded list when an SDK `result` acknowledges it,
+ *      with {@link deferred} settled when the turn fully drains.
  */
 export interface IPendingSdkMessage {
 	readonly sdkMessage: SDKUserMessage;
@@ -37,11 +37,10 @@ export interface IPendingSdkMessage {
  *
  * Invariants:
  *   • Pushing wakes the iterable's parked `next()`.
- *   • The iterable returns `done` when the supplied `getAbortSignal()`
- *     is aborted; pipeline calls {@link notifyAborted} after flipping
- *     the controller so the parked `next()` returns immediately.
- *   • {@link settleHead} pops the head of the yielded list (called by
- *     the consumer loop on every `result` message).
+ *   • Each iterator returns `done` when its signal is aborted or
+ *     replaced, waking any parked `next()` immediately.
+ *   • {@link settleResult} removes the yielded entries consumed by each
+ *     SDK `result`, which can acknowledge several prompts at once.
  *   • {@link failAll} rejects every pending deferred and clears both
  *     lists; used by abort and crash fan-out.
  *   • {@link resetForRebind} re-creates the parked deferred for a fresh
@@ -49,10 +48,15 @@ export interface IPendingSdkMessage {
  */
 export class ClaudePromptQueue extends Disposable {
 
+	private readonly _onDidYieldSteering = this._register(new Emitter<string>());
+	readonly onDidYieldSteering = this._onDidYieldSteering.event;
+
+	private readonly _abortListener = this._register(new MutableDisposable());
+
 	private _toYield: IPendingSdkMessage[] = [];
 	private _yielded: IPendingSdkMessage[] = [];
 	/**
-	 * Entries that have been popped by {@link settleHead} during the
+	 * Entries that have been popped by {@link settleResult} during the
 	 * current turn but whose deferreds haven't been completed yet — we
 	 * batch-complete them when the turn fully drains so an intermediate
 	 * `result` (steering preempt; CONTEXT.md M10) does NOT settle the
@@ -62,35 +66,58 @@ export class ClaudePromptQueue extends Disposable {
 	private _pendingPromptDeferred = new DeferredPromise<void>();
 
 	readonly iterable: AsyncIterable<SDKUserMessage> = {
-		[Symbol.asyncIterator]: () => ({
-			next: async () => {
-				while (true) {
-					if (this._getAbortSignal().aborted) {
-						return { done: true, value: undefined };
-					}
-					if (this._toYield.length > 0) {
-						const entry = this._toYield.shift()!;
-						this._yielded.push(entry);
-						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
-						if (entry.steeringPendingId) {
-							this._onSteeringYielded(entry.steeringPendingId);
+		[Symbol.asyncIterator]: () => {
+			const signal = this._abortSignal;
+			return {
+				next: async () => {
+					while (true) {
+						if (this._store.isDisposed || signal !== this._abortSignal || signal.aborted) {
+							return { done: true, value: undefined };
 						}
-						return { done: false, value: entry.sdkMessage };
+						if (this._toYield.length > 0) {
+							const entry = this._toYield.shift()!;
+							this._yielded.push(entry);
+							this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
+							if (entry.steeringPendingId) {
+								this._onDidYieldSteering.fire(entry.steeringPendingId);
+							}
+							return { done: false, value: entry.sdkMessage };
+						}
+						const pending = this._pendingPromptDeferred;
+						await pending.p;
+						if (this._pendingPromptDeferred === pending) {
+							this._pendingPromptDeferred = new DeferredPromise<void>();
+						}
 					}
-					await this._pendingPromptDeferred.p;
-					this._pendingPromptDeferred = new DeferredPromise<void>();
-				}
-			},
-		}),
+				},
+			};
+		},
 	};
 
 	constructor(
 		private readonly _sessionId: string,
-		private readonly _getAbortSignal: () => AbortSignal,
-		private readonly _onSteeringYielded: (pendingId: string) => void,
+		private _abortSignal: AbortSignal,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this.bindAbortSignal(_abortSignal);
+		this._register(toDisposable(() => this._pendingPromptDeferred.complete()));
+	}
+
+	/** Binds the queue to the current SDK subprocess's abort signal. */
+	bindAbortSignal(signal: AbortSignal): void {
+		const signalChanged = this._abortSignal !== signal;
+		this._abortListener.clear();
+		this._abortSignal = signal;
+		if (signalChanged || signal.aborted) {
+			this._pendingPromptDeferred.complete();
+		}
+		if (!signal.aborted) {
+			this._abortListener.value = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => {
+				this._abortListener.clear();
+				this._pendingPromptDeferred.complete();
+			});
+		}
 	}
 
 	/** True iff no entries are queued or in-flight. */
@@ -99,7 +126,7 @@ export class ClaudePromptQueue extends Disposable {
 	}
 	/**
 	 * Push an entry. Resolves with the entry's deferred (which the
-	 * consumer settles on `result` via {@link settleHead}).
+	 * consumer settles on `result` via {@link settleResult}).
 	 */
 	push(entry: IPendingSdkMessage): Promise<void> {
 		this._toYield.push(entry);
@@ -117,31 +144,30 @@ export class ClaudePromptQueue extends Disposable {
 		return this._yielded[0] ?? this._toYield[this._toYield.length - 1];
 	}
 
-	/**
-	 * Pop the head of the yielded list. If the queue is now fully
-	 * drained (no more pending or in-flight entries), batch-complete
-	 * every popped-but-deferred deferred from this turn including the
-	 * one we just popped. Otherwise hold the popped entry's deferred
-	 * until the turn ends — the M10 invariant for steering preempt.
-	 * Called by the consumer on every `result` message.
-	 */
-	settleHead(): IPendingSdkMessage | undefined {
-		const completed = this._yielded.shift();
-		if (!completed) {
+	/** Settle acknowledged prompts, falling back to FIFO for older results without UUIDs; complete deferreds only when the turn drains. */
+	settleResult(consumedUuids?: readonly string[]): IPendingSdkMessage | undefined {
+		const consumed = consumedUuids ? new Set(consumedUuids) : undefined;
+		const completed: IPendingSdkMessage[] = [];
+		this._yielded = this._yielded.filter(entry => {
+			if (consumed ? consumed.has(entry.sdkUuid) : completed.length === 0) {
+				completed.push(entry);
+				return false;
+			}
+			return true;
+		});
+		if (completed.length === 0) {
 			return undefined;
 		}
+		this._popped.push(...completed);
 		if (this.isEmpty) {
-			completed.deferred.complete();
 			for (const e of this._popped) {
 				if (!e.deferred.isSettled) {
 					e.deferred.complete();
 				}
 			}
 			this._popped = [];
-		} else {
-			this._popped.push(completed);
 		}
-		return completed;
+		return completed[0];
 	}
 
 	/** Reject every pending deferred with `err` and clear all lists. */
@@ -161,13 +187,9 @@ export class ClaudePromptQueue extends Disposable {
 		this._popped = [];
 	}
 
-	/** Wake any parked `next()` — call after the controller is aborted so the iterable returns `done`. */
-	notifyAborted(): void {
-		this._pendingPromptDeferred.complete();
-	}
-
 	/** Re-create the parked deferred for a fresh Query binding. */
 	resetForRebind(): void {
+		this._pendingPromptDeferred.complete();
 		this._pendingPromptDeferred = new DeferredPromise<void>();
 	}
 }

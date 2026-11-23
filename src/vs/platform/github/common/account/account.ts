@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IGitHubAnonymousClient } from '../anonymous/anonymous.js';
+import { IConnectorsClient } from '../connectors/connectors.js';
 import { IActionsClient } from '../core/actions.js';
 import { IChecksClient } from '../core/checks.js';
 import { IIssuesClient } from '../core/issues.js';
@@ -19,6 +20,7 @@ import { IGistsClient } from '../gists/gists.js';
 import { GitHubAuthorizationContext } from '../githubTypes.js';
 import { IAutomationsClient } from '../missionControl/automations.js';
 import { IEnvironmentsClient } from '../missionControl/environments.js';
+import { IModelsClient } from '../missionControl/models.js';
 import { ITasksClient } from '../missionControl/tasks.js';
 
 /** A disposable GitHub client bound to a fixed authorization grant. */
@@ -29,10 +31,14 @@ export interface IGitHubAccountClient extends IGitHubAnonymousClient {
 	readonly onDidInvalidate: Event<void>;
 	/** Fires when credentials for the selected grant are replaced or invalidated. */
 	readonly onDidChangeCredentials: Event<void>;
+	/** Copilot Connector catalog and connection management. */
+	readonly connectors: IConnectorsClient;
 	/** Mission Control automation management and run requests. */
 	readonly automations: IAutomationsClient;
-	/** Mission Control environment discovery and connection credentials. */
+	/** Mission Control environment discovery, lifecycle, and credentials. */
 	readonly environments: IEnvironmentsClient;
+	/** Copilot cloud agent model catalog, including capability, policy, and billing metadata. */
+	readonly missionControlModels: IModelsClient;
 	/** Mission Control task management, steering, and history. */
 	readonly tasks: ITasksClient;
 	/** Gist retrieval and creation. */

@@ -22,6 +22,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 
 function createSolidPng(r: number, g: number, b: number, width: number = 64, height: number = 64): VSBuffer {
 	const canvas = mainWindow.document.createElement('canvas');
@@ -70,6 +71,7 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 			defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
 			defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			defineInstance(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
+			defineInstance(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
 		},
 	});
 

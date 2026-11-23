@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GitHubRequestError } from '../githubTypes.js';
-import { MAX_PER_PAGE } from './types.js';
+import { MAX_PER_PAGE, RepositoryRef } from './types.js';
 
 /** Encodes one opaque API identifier, rejecting empty identifiers and URL dot segments. */
 export function pathSegment(value: string): string {
-	if (typeof value !== 'string' || !value.trim() || value === '.' || value === '..') {
+	if (!isValidPathSegment(value)) {
 		throw new GitHubRequestError('Invalid or empty API path identifier.', 'validation');
 	}
 	return encodeURIComponent(value);
@@ -28,7 +28,7 @@ export function pathSegments(path: string | null | undefined): string {
 		return '';
 	}
 	const segments = path.split('/');
-	if (segments.some(segment => !segment || segment === '.' || segment === '..')) {
+	if (segments.some(segment => !isValidPathSegment(segment, true))) {
 		throw new GitHubRequestError('Expected a repository-relative path without empty or dot segments.', 'validation');
 	}
 	return `/${segments.map(encodeURIComponent).join('/')}`;
@@ -66,13 +66,27 @@ export function withQuery(path: string, parameters: Readonly<Record<string, stri
 	return query.size ? `${path}?${query}` : path;
 }
 
+/** Converts an owner/repository identifier to a reference, rejecting empty and dot segments. */
+export function toRepositoryRef(repository: string): RepositoryRef {
+	const segments = repository.split('/');
+	if (segments.length !== 2 || segments.some(segment => !isValidPathSegment(segment))) {
+		throw new GitHubRequestError('Expected an owner/repository identifier.', 'validation');
+	}
+	const [owner, repo] = segments;
+	return { owner, repo };
+}
+
 /** Constructs the API path for a repository. */
-export function repositoryPath(ref: { owner: string; name: string }): string;
+export function repositoryPath(ref: RepositoryRef): string;
 export function repositoryPath(owner: string, repo: string): string;
-export function repositoryPath(arg1: string | { owner: string; name: string }, arg2?: string): string {
+export function repositoryPath(arg1: string | RepositoryRef, arg2?: string): string {
 	if (typeof arg1 === 'string') {
 		return `/repos/${pathSegment(arg1)}/${pathSegment(arg2 as string)}`;
 	} else {
-		return `/repos/${pathSegment(arg1.owner)}/${pathSegment(arg1.name)}`;
+		return `/repos/${pathSegment(arg1.owner)}/${pathSegment(arg1.repo)}`;
 	}
+}
+
+function isValidPathSegment(value: string, allowWhitespaceOnly = false): boolean {
+	return typeof value === 'string' && (allowWhitespaceOnly ? value.length : value.trim().length) > 0 && value !== '.' && value !== '..';
 }

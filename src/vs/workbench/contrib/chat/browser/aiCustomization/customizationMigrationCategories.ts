@@ -19,12 +19,33 @@ export const enum CustomizationMigrationCategoryId {
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 	PluginMarketplaces = 'pluginMarketplaces',
+	ChatParticipants = 'chatParticipants',
+	ToolSets = 'toolSets',
+	Hooks = 'hooks',
 }
+
+export const customizationMigrationGuidance = [
+	{
+		id: CustomizationMigrationCategoryId.ChatParticipants,
+		migrationType: CustomizationMigrationType.ChatParticipants,
+		label: localize('migrationChatParticipants', "Chat Participants"),
+		description: localize('migrationChatParticipantsDescription', "Extension chat participants cannot be migrated automatically. Learn how to replace them with supported customizations."),
+		learnMoreUrl: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',
+	},
+	{
+		id: CustomizationMigrationCategoryId.ToolSets,
+		migrationType: CustomizationMigrationType.ToolSets,
+		label: localize('migrationToolSets', "Tool Sets"),
+		description: localize('migrationToolSetsDescription', "User-defined and extension-contributed tool sets cannot be migrated automatically. Learn how to replace them with supported customizations."),
+		learnMoreUrl: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets',
+	},
+] as const;
 
 export const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.PromptFiles,
 	CustomizationMigrationCategoryId.UserData,
 	CustomizationMigrationCategoryId.ConfiguredLocations,
+	CustomizationMigrationCategoryId.Hooks,
 	CustomizationMigrationCategoryId.McpServers,
 	CustomizationMigrationCategoryId.PluginMarketplaces,
 ] as const;
@@ -43,7 +64,7 @@ export interface ICustomizationMigrationConfirmation {
  */
 export interface ICustomizationMigrationCategory {
 	readonly id: CustomizationMigrationCategoryId;
-	readonly migrationType: CustomizationMigrationType;
+	readonly migrationType: Exclude<CustomizationMigrationType, CustomizationMigrationType.ChatParticipants | CustomizationMigrationType.ToolSets>;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes?: readonly PromptsType[];
 	/** Experimental setting gating this migration. */
@@ -57,6 +78,11 @@ export interface ICustomizationMigrationCategory {
 	readonly cardActionAriaLabel: string;
 	readonly noFilesMigratedMessage: string;
 	readonly preMigrationConsequences?: string;
+	/**
+	 * Whether the category can only be migrated with the agent. Its items have no Migrate action;
+	 * they are included when the user selects Migrate with Agent.
+	 */
+	readonly agentOnly?: boolean;
 	isCandidate?(customization: MigratableConfiguration): boolean;
 	getCandidateLabel(customization: CustomizationMigrationCandidate): string;
 	getCandidateWarnings?(customization: CustomizationMigrationCandidate, harnessLabel: string): readonly string[];
@@ -64,6 +90,7 @@ export interface ICustomizationMigrationCategory {
 	getCardDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
 	getModifiedSettingIds?(configurationService: IConfigurationService): readonly string[];
 	getConfirmation(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
+	getProgressTitle(count: number): string;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
@@ -145,6 +172,12 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 			primaryButton: localize('promptMigrationConfirmButton', "Convert to Skills"),
 			deleteOriginalsLabel: localize('promptMigrationDeletePromptFilesCheckbox', "Delete original prompt files after migration"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('promptMigrationProgressSingle', "Converting 1 prompt file to a skill...")
+			: localize('promptMigrationProgress', "Converting {0} prompt files to skills...", count);
 	},
 
 	getMigratedMessage(migratedCount) {
@@ -255,6 +288,12 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 		};
 	},
 
+	getProgressTitle(count) {
+		return count === 1
+			? localize('userDataMigrationProgressSingle', "Migrating 1 user data customization...")
+			: localize('userDataMigrationProgress', "Migrating {0} user data customizations...", count);
+	},
+
 	getMigratedMessage(migratedCount) {
 		return migratedCount === 1
 			? localize('userDataMigrationCompletedSingle', "Migrated 1 user data customization.")
@@ -319,6 +358,12 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 			primaryButton: localize('configuredLocationsMigrationConfirmButton', "Migrate"),
 			deleteOriginalsLabel: localize('configuredLocationsMigrationDeleteOriginalFilesCheckbox', "Delete the original files after migration"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('configuredLocationsMigrationProgressSingle', "Migrating 1 customization from a configured location...")
+			: localize('configuredLocationsMigrationProgress', "Migrating {0} customizations from configured locations...", count);
 	},
 
 	getMigratedMessage(migratedCount) {
@@ -402,6 +447,12 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 			detail: localize('mcpMigrationConfirmDetail', "Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place."),
 			primaryButton: localize('mcpMigrationConfirmButton', "Migrate"),
 		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('mcpMigrationProgressSingle', "Migrating 1 MCP server...")
+			: localize('mcpMigrationProgress', "Migrating {0} MCP servers...", count);
 	},
 
 	getMigratedMessage(migratedCount) {
@@ -499,6 +550,12 @@ const pluginMarketplacesMigrationCategory: ICustomizationMigrationCategory = {
 		};
 	},
 
+	getProgressTitle(count) {
+		return count === 1
+			? localize('pluginMarketplacesMigrationProgressSingle', "Migrating 1 plugin marketplace...")
+			: localize('pluginMarketplacesMigrationProgress', "Migrating {0} plugin marketplaces...", count);
+	},
+
 	getMigratedMessage(migratedCount) {
 		return migratedCount === 1
 			? localize('pluginMarketplacesMigrationCompletedSingle', "Migrated 1 plugin marketplace to Copilot.")
@@ -513,6 +570,65 @@ const pluginMarketplacesMigrationCategory: ICustomizationMigrationCategory = {
 		return hiddenMarketplaceCount > 0
 			? localize('pluginMarketplacesMigrationFailedWithRemainder', "Failed to migrate {0} plugin marketplaces: {1}, and {2} more.", failedCount, failedMarketplaceNames.join(', '), hiddenMarketplaceCount)
 			: localize('pluginMarketplacesMigrationFailed', "Failed to migrate {0} plugin marketplaces: {1}.", failedCount, failedMarketplaceNames.join(', '));
+	},
+};
+
+/**
+ * Hook files in the deprecated Local hook format. Hooks are migrated only with the agent:
+ * the hook file and the scripts it runs change together, and the agent checks the result.
+ */
+const hooksMigrationCategory: ICustomizationMigrationCategory = {
+	id: CustomizationMigrationCategoryId.Hooks,
+	migrationType: CustomizationMigrationType.Hooks,
+	sourceTypes: [PromptsType.hook],
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
+	agentOnly: true,
+	shortcutLabel: localize('hookMigrationShortcutLabel', "Migrate Hooks"),
+	shortcutTooltip: localize('hookMigrationShortcutTooltip', "Review hooks in the deprecated Local hook format"),
+	cardLabel: localize('hookMigrationCardLabel', "Migrate Local-Format Hooks"),
+	cardActionLabel: localize('hookMigrationCardAction', "Review..."),
+	cardActionAriaLabel: localize('hookMigrationCardActionAriaLabel', "Review hooks in the deprecated Local hook format"),
+	noFilesMigratedMessage: localize('hookMigrationNoFilesMigrated', "No hooks were migrated."),
+
+	getCandidateLabel: getFileCandidateLabel,
+
+	getShortcutAriaLabel(count) {
+		return count === 1
+			? localize('hookMigrationShortcutAriaLabelSingle', "Hooks, 1 hook file uses the deprecated Local hook format")
+			: localize('hookMigrationShortcutAriaLabelWithCount', "Hooks, {0} hook files use the deprecated Local hook format", count);
+	},
+
+	getCardDescription(customizations, harnessLabel) {
+		return customizations.length === 1
+			? localize('hookMigrationCardDescriptionSingle', "Found 1 hook file in the deprecated Local hook format. Its hooks may not work in {0}. Migrate it with the agent, which updates the hook file and its scripts and asks you to review the changes.", harnessLabel)
+			: localize('hookMigrationCardDescription', "Found {0} hook files in the deprecated Local hook format. Their hooks may not work in {1}. Migrate them with the agent, which updates each hook file and its scripts and asks you to review the changes.", customizations.length, harnessLabel);
+	},
+
+	// Hooks have no direct migration. These are required by the interface and are not shown.
+	getConfirmation() {
+		return {
+			message: localize('hookMigrationConfirmMessage', "Migrate hooks with the agent?"),
+			detail: localize('hookMigrationConfirmDetail', "Hooks are migrated with the agent, which updates each hook file and its scripts together."),
+			primaryButton: localize('hookMigrationConfirmButton', "Migrate with Agent"),
+		};
+	},
+
+	getProgressTitle(count) {
+		return count === 1
+			? localize('hookMigrationProgressSingle', "Migrating 1 hook file...")
+			: localize('hookMigrationProgress', "Migrating {0} hook files...", count);
+	},
+
+	getMigratedMessage(migratedCount) {
+		return migratedCount === 1
+			? localize('hookMigrationCompletedSingle', "Migrated 1 hook file.")
+			: localize('hookMigrationCompleted', "Migrated {0} hook files.", migratedCount);
+	},
+
+	getFailedMessage(failedFileNames, hiddenFileCount) {
+		return hiddenFileCount > 0
+			? localize('hookMigrationFilesFailedWithRemainder', "Failed to migrate {0} hook files: {1}, and {2} more.", failedFileNames.length + hiddenFileCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('hookMigrationFilesFailed', "Failed to migrate {0} hook files: {1}.", failedFileNames.length, failedFileNames.join(', '));
 	},
 };
 
@@ -554,6 +670,7 @@ export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigratio
 	promptFilesMigrationCategory,
 	userDataMigrationCategory,
 	configuredLocationsMigrationCategory,
+	hooksMigrationCategory,
 	mcpServersMigrationCategory,
 	pluginMarketplacesMigrationCategory,
 ];

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,14 +15,15 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-import { GitHubIssue, GitHubRepository } from '../../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestCore, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { GitHubIssue, GitHubRepository } from '../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTransport.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { GitHubLinkPresentationContribution } from '../../browser/githubLinkPresentation.contribution.js';
+
 
 suite('GitHub link presentations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,9 +34,9 @@ suite('GitHub link presentations', () => {
 		const release = store.add(toDisposable(() => released++));
 		const client = new class extends mock<IGitHubClient>() {
 			override readonly credentials = new class extends mock<IGitHubClient['credentials']>() {
-				override async getCredential(signal: AbortSignal): Promise<never> {
+				override async getCredential(cancellationToken: CancellationToken): Promise<never> {
 					credentialCalls++;
-					signal.throwIfAborted();
+					CancellationToken.throwIfCanceled(cancellationToken);
 					throw new Error('Unexpected credential lookup');
 				}
 			}();
@@ -236,6 +238,48 @@ suite('GitHub link presentations', () => {
 		});
 	});
 
+	test('presents a closed draft pull request as closed', async () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(
+				() => { },
+				undefined,
+				{
+					value: {
+						repositoryNameWithOwner: 'microsoft/vscode',
+						number: 8,
+						title: 'Pull request title',
+						url: 'https://github.com/microsoft/vscode/pull/8',
+						state: 'closed',
+						draft: true,
+						headSha: 'head',
+						headRef: 'feature',
+						baseSha: 'base',
+						baseRef: 'main',
+					},
+					status: 'ready',
+					complete: true,
+				},
+			),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override resolveGitHubUrl(path: string): string {
+					return `https://github.com/${path}`;
+				}
+			}(),
+			new NullLogService(),
+			new TestNotificationService(),
+		));
+
+		const watcher = store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/pull/8')));
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(watcher.presentation.get()?.status, { kind: 'closed', label: 'Closed' });
+	});
+
 	test('prompts to sign in when a pull request subscription reports an authentication error', async () => {
 		const linkPresentationService = new TestLinkPresentationService();
 		const notificationService = new TestNotificationService();
@@ -319,7 +363,7 @@ function createGitHubService(
 		account: { host: 'api.github.com', accountId: '1' },
 		token: 'token',
 		generation: 1,
-		signal: new AbortController().signal,
+		cancellationToken: CancellationToken.None,
 	}),
 	pullRequestCore?: FragmentState<PullRequestCore>,
 ): IWorkbenchGitHubService {

@@ -5,21 +5,22 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork, IBrowserViewNetworkFileSystem } from '../../../../../platform/browserView/common/browserView.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
-import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewSessionRequest, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewNetworkStatus, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { formatBrowserEditorList, getBrowserPageResourceNavigationError } from '../../electron-browser/tools/browserToolHelpers.js';
@@ -32,13 +33,33 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	readonly isSharingAvailable = false;
 	readonly known = new Map<string, BrowserEditorInput>();
 	input: BrowserEditorInput | undefined;
-	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined } | undefined;
+	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined; session: IBrowserViewSessionRequest | undefined } | undefined;
 
-	willUseRemoteProxy(): boolean {
-		return false;
+	resolveNetwork(): undefined {
+		return undefined;
 	}
 
-	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
+	getNetworkFileSystem(): IBrowserViewNetworkFileSystem {
+		return { scheme: 'vscode-remote', caseSensitive: true };
+	}
+
+	async acquireNetwork(): Promise<IReference<undefined>> {
+		return { object: undefined, dispose: () => { } };
+	}
+
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus {
+		return { label: network.authority, connected: false, proxySupported: undefined };
+	}
+
+	readonly onDidChangeNetworkStatus = Event.None;
+
+	registerNetworkResolver(): IDisposable {
+		return Disposable.None;
+	}
+
+	registerNetworkProxyProvider(): IDisposable {
+		return Disposable.None;
+	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this.known;
@@ -72,7 +93,8 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		this.lastCreate = {
 			id: data.id,
 			url: data.url,
-			associatedResource: data.associatedResource?.toString()
+			associatedResource: data.associatedResource?.toString(),
+			session: data.session,
 		};
 		if (!this.input) {
 			throw new Error('No browser editor input configured for test.');
@@ -158,12 +180,17 @@ suite('BrowserEditorInput', () => {
 
 	test('preserves a associated file resource through reopen and serialization', () => {
 		const associatedResource = URI.file('/workspace/index.html');
+		const session = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		const input = createInput({
 			id: 'file-browser',
 			url: associatedResource.toString(),
 			associatedResource,
+			session,
+			isDefaultLinkOpen: true,
 		});
 		const untyped = input.toUntyped();
+		input.copy();
+		const copied = browserViewWorkbenchService.lastCreate;
 		const serializer = new BrowserEditorSerializer();
 		const serialized = serializer.serialize(input);
 		assert.ok(serialized);
@@ -173,6 +200,10 @@ suite('BrowserEditorInput', () => {
 			resource: input.resource.toString(),
 			preferredResource: input.preferredResource.toString(),
 			untypedResource: getResource(untyped)?.toString(),
+			serializedResource: input.serialize().associatedResource,
+			viewState: untyped.options?.viewState,
+			copiedSession: copied?.session,
+			copyHasNewId: copied?.id !== input.id,
 			matchesBrowserInput: input.matches(untyped),
 			matchesTextInput: input.matches({ resource: associatedResource }),
 			restored: browserViewWorkbenchService.lastCreate
@@ -180,13 +211,46 @@ suite('BrowserEditorInput', () => {
 			resource: BrowserViewUri.forId('file-browser').toString(),
 			preferredResource: associatedResource.toString(),
 			untypedResource: associatedResource.toString(),
+			serializedResource: associatedResource,
+			viewState: { url: associatedResource.toString(), title: undefined, favicon: undefined, session },
+			copiedSession: session,
+			copyHasNewId: true,
 			matchesBrowserInput: true,
 			matchesTextInput: false,
 			restored: {
 				id: 'file-browser',
 				url: associatedResource.toString(),
-				associatedResource: associatedResource.toString()
+				associatedResource: associatedResource.toString(),
+				session,
 			}
+		});
+	});
+
+	test('restores saved sessions, resolving missing or unreadable ones when the view is created', () => {
+		const serializer = new BrowserEditorSerializer();
+		createInput({ id: 'unused' });
+		const restore = (data: object) => {
+			serializer.deserialize(instantiationService, JSON.stringify({ id: 'saved', ...data }));
+			return browserViewWorkbenchService.lastCreate?.session;
+		};
+		const session = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
+		const current = createInput({ id: 'current', session });
+
+		assert.deepStrictEqual({
+			missing: restore({ url: 'http://saved/' }),
+			session: restore({ session }),
+			withoutScope: restore({ session: { network: { authority: 'host' } } }),
+			unknownScope: restore({ session: { scope: 'future', affinity: 'repo', network: { authority: 'host' } } }),
+			malformedFields: restore({ session: { scope: BrowserViewStorageScope.Ephemeral, affinity: 1, network: 'host' } }),
+			roundTrip: restore(JSON.parse(serializer.serialize(current)!)),
+		}, {
+			missing: undefined,
+			session,
+			// The configured storage applies.
+			withoutScope: { network: { authority: 'host' } },
+			unknownScope: undefined,
+			malformedFields: { scope: BrowserViewStorageScope.Ephemeral },
+			roundTrip: session,
 		});
 	});
 
@@ -328,6 +392,20 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
+	test('retries a failed model resolution', async () => {
+		const model = new class extends mock<IBrowserViewModel>() { override dispose() { } };
+		let attempts = 0;
+		const input = disposables.add(instantiationService.createInstance(BrowserEditorInput, { id: 'retry' }, async () => {
+			if (++attempts === 1) {
+				throw new Error('The browser network proxy did not start.');
+			}
+			return model;
+		}));
+
+		await assert.rejects(input.resolve());
+		assert.strictEqual(await input.resolve(), model);
+	});
+
 	test('uses the associated file resource to find available editor types', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
@@ -342,7 +420,7 @@ suite('BrowserEditorInput', () => {
 		}, {}, {}));
 		const contextKey = new RawContextKey<string>('browserEditorAvailableEditorIds', '').bindTo(instantiationService.get(IContextKeyService));
 
-		applyAvailableEditorIds(contextKey, input, editorResolverService);
+		applyAvailableEditorIds(contextKey, input, editorResolverService, instantiationService.get(IModelService));
 
 		assert.strictEqual(contextKey.get()?.split(',').includes('test.browserEditor'), true);
 	});
@@ -350,9 +428,11 @@ suite('BrowserEditorInput', () => {
 	test('follows associated file renames', async () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const target = URI.file('/workspace/renamed.html');
+		const session = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		const input = createInput({
 			id: 'file-browser',
 			associatedResource,
+			session,
 			url: associatedResource.toString()
 		});
 
@@ -366,7 +446,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						session
 					}
 				}
 			}
@@ -393,10 +474,39 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						session: undefined
 					}
 				}
 			}
+		});
+	});
+
+	test('follows renames of agent host files and uses the network of the resolved model', async () => {
+		const associatedResource = toAgentHostUri(URI.file('/repo/index.html'), 'host');
+		const target = toAgentHostUri(URI.file('/repo/renamed.html'), 'host');
+		const session = { scope: BrowserViewStorageScope.Workspace, network: { authority: 'host' } } as const;
+		const input = createInput({ id: 'agent-host', associatedResource, session, url: 'file:///repo/index.html?view=preview#content' });
+		const before = await input.rename(1, target);
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override readonly network = undefined;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override dispose() { }
+		};
+
+		assert.deepStrictEqual({
+			renamed: (before?.editor as IUntypedEditorInput).options?.viewState,
+			localModelNetwork: input.activeNetwork,
+			localModelNavigation: getBrowserPageResourceNavigationError(input, 'file:///repo/index.html?x=1'),
+		}, {
+			renamed: { url: 'file:///repo/renamed.html?view=preview#content', title: undefined, favicon: undefined, session },
+			localModelNetwork: undefined,
+			localModelNavigation: 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.',
 		});
 	});
 });

@@ -29,12 +29,12 @@ export function captureAnimationTarget(element: HTMLElement): IAnimationTarget {
 }
 
 const confettiColors = [
-	'var(--vscode-charts-red)',
-	'var(--vscode-charts-orange)',
-	'var(--vscode-charts-yellow)',
-	'var(--vscode-charts-green)',
-	'var(--vscode-charts-blue)',
-	'var(--vscode-charts-purple)',
+	'var(--vscode-confetti-color1)',
+	'var(--vscode-confetti-color2)',
+	'var(--vscode-confetti-color3)',
+	'var(--vscode-confetti-color4)',
+	'var(--vscode-confetti-color5)',
+	'var(--vscode-confetti-color6)',
 ];
 
 /**
@@ -57,9 +57,9 @@ export interface IConfettiAnimationOptions {
 	readonly fallDistance?: IConfettiAnimationRange;
 }
 
-const defaultConfettiLaunchDuration = { min: 280, max: 380 };
-const defaultConfettiFallDuration = { min: 1700, max: 2100 };
-const defaultConfettiFallDistance = { min: 90, max: 130 };
+const defaultConfettiLaunchDuration = { min: 210, max: 290 };
+const defaultConfettiFallDuration = { min: 940, max: 1220 };
+const defaultConfettiFallDistance = { min: 48, max: 72 };
 
 function randomInRange(range: IConfettiAnimationRange): number {
 	return range.min + Math.random() * (range.max - range.min);
@@ -138,13 +138,64 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
 }
 
 /**
- * Confetti: colorful particles burst upward from the element center and fall.
+ * Confetti: independent pixel squares arc upward, drift, and fall.
  */
 export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget, options: IConfettiAnimationOptions = {}) {
-	const { overlay, cx, cy, element } = createOverlay(target);
+	const { overlay, cx, cy, element, rect } = createOverlay(target);
 	const launchDuration = options.launchDuration ?? defaultConfettiLaunchDuration;
 	const fallDuration = options.fallDuration ?? defaultConfettiFallDuration;
 	const fallDistance = options.fallDistance ?? defaultConfettiFallDistance;
+	const pixelSize = 4;
+	const frameDuration = 40;
+	const particleCount = 24;
+	const particles = Array.from({ length: particleCount }, () => {
+		const launchTime = randomInRange(launchDuration);
+		const fallTime = randomInRange(fallDuration);
+		const angle = (-150 + Math.random() * 120) * Math.PI / 180;
+		const distance = 24 + Math.random() * 20;
+		const keyframes: Keyframe[] = [];
+		return {
+			launchTime,
+			fallTime,
+			duration: launchTime + fallTime,
+			peakX: Math.cos(angle) * distance,
+			peakY: Math.sin(angle) * distance * 1.5,
+			fallDistance: randomInRange(fallDistance),
+			driftX: (Math.random() - 0.5) * 16,
+			flutterPhase: Math.random() * Math.PI * 2,
+			revealTime: 20 + Math.random() * 140,
+			keyframes,
+		};
+	});
+	const duration = Math.max(...particles.map(particle => particle.duration));
+	const frameCount = Math.ceil(duration / frameDuration);
+	for (let frame = 0; frame <= frameCount; frame++) {
+		const time = Math.min(frame * frameDuration, duration);
+		const occupiedPixels = new Set<string>();
+		for (const particle of particles) {
+			const launchProgress = Math.min(1, time / particle.launchTime);
+			const rise = 1 - (1 - launchProgress) ** 2;
+			const horizontalProgress = (1 - Math.exp(-2 * time / particle.launchTime)) / (1 - Math.exp(-2));
+			const fallProgress = Math.min(1, Math.max(0, (time - particle.launchTime) / particle.fallTime));
+			const flutter = Math.sin(fallProgress * Math.PI * 4 + particle.flutterPhase) * pixelSize * fallProgress;
+			let x = Math.round((particle.peakX * horizontalProgress + particle.driftX * fallProgress + flutter) / pixelSize) * pixelSize;
+			const y = Math.round((particle.peakY * rise + particle.fallDistance * fallProgress ** 1.5) / pixelSize) * pixelSize;
+			const opacity = time < particle.revealTime ? 0 : 1 - fallProgress;
+			if (opacity > 0) {
+				// Separate actual overlaps without imposing lanes or a minimum gap.
+				while (occupiedPixels.has(`${x},${y}`)) {
+					x += particle.peakX < 0 ? -pixelSize : pixelSize;
+				}
+				occupiedPixels.add(`${x},${y}`);
+			}
+			particle.keyframes.push({
+				opacity,
+				transform: `translate(${x}px, ${y}px)`,
+				offset: time / duration,
+				easing: 'steps(1, end)',
+			});
+		}
+	}
 
 	// Element bounce
 	bounceElement(element, {
@@ -154,43 +205,18 @@ export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget,
 	});
 
 	// Confetti particles
-	const particleCount = 24;
 	for (let i = 0; i < particleCount; i++) {
-		const width = 4 + (i % 3) * 1.5;
-		const height = 3 + ((i + 1) % 3);
-		const angle = (-160 + Math.random() * 140) * Math.PI / 180;
-		const distance = 30 + Math.random() * 30;
-		const peakX = Math.cos(angle) * distance;
-		const peakY = Math.sin(angle) * distance;
-		const endX = peakX * 1.4 + (Math.random() - 0.5) * 20;
-		const endY = peakY + randomInRange(fallDistance);
-		const rotation = (Math.random() - 0.5) * 720;
-		const particleLaunchDuration = randomInRange(launchDuration);
-		const particleFallDuration = randomInRange(fallDuration);
-		const particleDuration = particleLaunchDuration + particleFallDuration;
-		const launchMidpointOffset = particleLaunchDuration * 0.4 / particleDuration;
-		const apexOffset = particleLaunchDuration / particleDuration;
-
 		const part = dom.$('.animation-particle.animation-confetti-particle');
 		part.style.position = 'absolute';
-		part.style.width = `${width}px`;
-		part.style.height = `${height}px`;
-		part.style.borderRadius = i % 4 === 0 ? '50%' : '1px';
+		part.style.width = `${pixelSize}px`;
+		part.style.height = `${pixelSize}px`;
 		part.style.backgroundColor = confettiColors[i % confettiColors.length];
-		part.style.left = `${cx}px`;
-		part.style.top = `${cy}px`;
+		part.style.left = `${Math.round((rect.left + cx) / pixelSize) * pixelSize - rect.left}px`;
+		part.style.top = `${Math.round((rect.top + cy) / pixelSize) * pixelSize - rect.top}px`;
 		overlay.appendChild(part);
 
-		const keyframes: Keyframe[] = [
-			{ opacity: 0, transform: 'translate(-50%, -50%) scale(0) rotate(0deg)', easing: 'cubic-bezier(0.15, 0.75, 0.25, 1)' },
-			{ opacity: 1, transform: `translate(calc(-50% + ${peakX * 0.35}px), calc(-50% + ${peakY * 0.55}px)) scale(1) rotate(${rotation * 0.2}deg)`, offset: launchMidpointOffset, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' },
-			{ opacity: 1, transform: `translate(calc(-50% + ${peakX}px), calc(-50% + ${peakY}px)) rotate(${rotation * 0.5}deg)`, offset: apexOffset, easing: 'linear' },
-			{ opacity: 0, transform: `translate(calc(-50% + ${endX}px), calc(-50% + ${endY}px)) rotate(${rotation}deg)` },
-		];
-
-		part.animate(keyframes, {
-			duration: particleDuration,
-			delay: Math.random() * 100,
+		part.animate(particles[i].keyframes, {
+			duration,
 			fill: 'both',
 		});
 	}

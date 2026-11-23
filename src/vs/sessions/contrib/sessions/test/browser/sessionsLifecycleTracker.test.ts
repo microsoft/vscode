@@ -15,8 +15,8 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { AGENTS_WINDOW_LAST_SESSION_CREATED_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { MAX_TRACKED_SESSIONS, MAX_TYPED_FILES_PER_SESSION, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
@@ -327,6 +327,29 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.updateSessionState(session);
 
 		assert.strictEqual(tracker.isTracked(session.sessionId), false);
+	});
+
+	test('sync and merge-changes counters start from zero for sessions persisted before they existed', () => {
+		const session = createSession('s1');
+		tracker.bumpCounter(session, 'commit');
+
+		// Rewrite the stored row the way an earlier build wrote it.
+		const stored = JSON.parse(storage.get(SESSIONS_KEY, StorageScope.APPLICATION)!);
+		delete stored[session.sessionId].syncChanges;
+		delete stored[session.sessionId].mergeChanges;
+		stored[session.sessionId].updatePullRequest = 2;
+		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const reloaded = createTracker();
+		reloaded.bumpCounter(session, 'mergeChanges');
+
+		const summary = reloaded.finalize(session.sessionId, 'archived', session)!;
+		assert.deepStrictEqual({
+			commit: summary.commit,
+			syncChanges: summary.syncChanges,
+			mergeChanges: summary.mergeChanges,
+			hasUpdatePullRequest: Object.hasOwn(summary, 'updatePullRequest'),
+		}, { commit: 1, syncChanges: 0, mergeChanges: 1, hasUpdatePullRequest: false });
 	});
 
 	test('changesSummary observable takes precedence over the changes list', () => {

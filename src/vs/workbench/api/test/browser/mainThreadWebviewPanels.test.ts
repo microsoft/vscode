@@ -94,13 +94,14 @@ suite('MainThreadWebviewPanels', () => {
 
 	test('restores extension-relative roots before deserializing without widening access', async () => {
 		const { webview, uriIdentityService } = await restore([URI.joinPath(oldLocation, 'dist')]);
+		const fileService = store.add(new FileService(new NullLogService()));
 		const script = URI.joinPath(newLocation, 'dist', 'webview.js');
 		assert.deepStrictEqual({
 			extension: webview.extension,
 			options: { ...webview.contentOptions, localResourceRoots: webview.contentOptions.localResourceRoots?.map(root => root.toString()) },
-			allowedScript: getResourceToLoad(script, webview.contentOptions.localResourceRoots!, uriIdentityService)?.toString(),
-			deniedScript: getResourceToLoad(URI.joinPath(newLocation, 'private', 'secret.txt'), webview.contentOptions.localResourceRoots!, uriIdentityService)?.toString(),
-			oldScript: getResourceToLoad(URI.joinPath(oldLocation, 'dist', 'webview.js'), webview.contentOptions.localResourceRoots!, uriIdentityService)?.toString(),
+			allowedScript: (await getResourceToLoad(script, webview.contentOptions.localResourceRoots!, uriIdentityService, fileService))?.toString(),
+			deniedScript: (await getResourceToLoad(URI.joinPath(newLocation, 'private', 'secret.txt'), webview.contentOptions.localResourceRoots!, uriIdentityService, fileService))?.toString(),
+			oldScript: (await getResourceToLoad(URI.joinPath(oldLocation, 'dist', 'webview.js'), webview.contentOptions.localResourceRoots!, uriIdentityService, fileService))?.toString(),
 		}, {
 			extension: { id: extensionId, location: newLocation },
 			options: { allowScripts: true, localResourceRoots: [URI.joinPath(newLocation, 'dist').toString()] },

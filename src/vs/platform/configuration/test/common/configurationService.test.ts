@@ -14,8 +14,7 @@ import { ConfigurationTarget, isConfigured } from '../../common/configuration.js
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { ConfigurationService } from '../../common/configurationService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { NullPolicyService } from '../../../policy/common/policy.js';
@@ -35,9 +34,7 @@ suite('ConfigurationService.test.ts', () => {
 
 	setup(async () => {
 		registeredBefore = new Set(registry.getConfigurations());
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
+		fileService = createInMemoryFileService(disposables, Schemas.file);
 		settingsResource = URI.file('settings.json');
 	});
 
@@ -369,7 +366,7 @@ suite('ConfigurationService.test.ts', () => {
 			await testObject.updateValue('configurationService.testSetting', 'value', ConfigurationTarget.WORKSPACE);
 			assert.fail('Should fail with error');
 		} catch (e) {
-			// succeess
+			// success
 		}
 	});
 
@@ -403,7 +400,7 @@ suite('ConfigurationService.test.ts', () => {
 			await testObject.updateValue('configurationService.policySetting', 'value');
 			assert.fail('Should throw error');
 		} catch (error) {
-			// succeess
+			// success
 		}
 	});
 });

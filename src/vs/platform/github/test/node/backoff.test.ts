@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { BackoffGate, BackoffPolicy } from '../../common/backoff.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 const policy: BackoffPolicy = { immediateRetries: 0, base: 10, maximum: 40, jitter: 0, decay: 100 };
 
@@ -21,15 +24,15 @@ suite('BackoffGate', () => {
 
 	test('reset releases all waiters and forgets consecutive failures', async () => {
 		const { scheduler, gate } = setup();
-		const signal = new AbortController().signal;
+		const cancellationToken = CancellationToken.None;
 		gate.fail('subject');
 		gate.fail('subject');
-		const waiting = [gate.wait('subject', signal), gate.wait('subject', signal)];
+		const waiting = [gate.wait('subject', cancellationToken), gate.wait('subject', cancellationToken)];
 		gate.reset();
 		const released = await Promise.all(waiting);
-		const ready = await gate.wait('subject', signal);
+		const ready = await gate.wait('subject', cancellationToken);
 		gate.fail('subject');
-		const retry = gate.wait('subject', signal);
+		const retry = gate.wait('subject', cancellationToken);
 		const due = scheduler.nextDueTime;
 		scheduler.advanceBy(10);
 		await retry;
@@ -41,14 +44,13 @@ suite('BackoffGate', () => {
 	for (const stop of ['cancel', 'dispose'] as const) {
 		test(`${stop} stops a blocked waiter without rearming`, async () => {
 			const { scheduler, gate } = setup();
-			const controller = new AbortController();
-			const reason = new Error('cancelled');
+			const controller = store.add(new CancellationTokenSource());
 			gate.fail('subject');
-			const pending = gate.wait('subject', controller.signal);
+			const pending = gate.wait('subject', controller.token);
 			const rejected = assert.rejects(pending, error => stop === 'cancel'
-				? error === reason : error instanceof Error && error.message.includes('disposed'));
+				? isCancellationError(error) : error instanceof Error && error.message.includes('disposed'));
 			if (stop === 'cancel') {
-				controller.abort(reason);
+				controller.cancel();
 			} else {
 				gate.dispose();
 			}
@@ -60,14 +62,14 @@ suite('BackoffGate', () => {
 
 	test('caps consecutive delays and resets the streak after decay', async () => {
 		const { scheduler, gate } = setup();
-		const signal = new AbortController().signal;
+		const cancellationToken = CancellationToken.None;
 		const delays: (number | undefined)[] = [];
 		for (let attempt = 0; attempt < 5; attempt++) {
 			if (attempt === 4) {
 				scheduler.advanceBy(101);
 			}
 			gate.fail('subject');
-			const pending = gate.wait('subject', signal);
+			const pending = gate.wait('subject', cancellationToken);
 			const due = scheduler.nextDueTime;
 			delays.push(due === undefined ? undefined : due - scheduler.now());
 			scheduler.advanceBy(40);
@@ -81,7 +83,7 @@ suite('BackoffGate', () => {
 		const gate = store.add(new BackoffGate('test', { ...policy, immediateRetries: 1 }, scheduler));
 		gate.fail('subject', 120_000);
 		let released = false;
-		const pending = gate.wait('subject', new AbortController().signal).then(() => { released = true; });
+		const pending = gate.wait('subject', CancellationToken.None).then(() => { released = true; });
 		scheduler.advanceBy(119_999);
 		await Promise.resolve();
 		const beforeDeadline = released;
@@ -95,7 +97,7 @@ suite('BackoffGate', () => {
 	test('an additional failure extends an existing wait', async () => {
 		const { scheduler, gate } = setup();
 		gate.fail('subject');
-		const waiting = gate.wait('subject', new AbortController().signal);
+		const waiting = gate.wait('subject', CancellationToken.None);
 		scheduler.advanceBy(5);
 		gate.fail('subject');
 		await Promise.resolve();

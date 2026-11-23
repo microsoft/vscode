@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../base/common/objects.js';
+import { readAgentToolOrigin } from '../common/meta/agentToolDefinitionMeta.js';
 import type { ToolDefinition } from '../common/state/protocol/state.js';
 
 /**
@@ -17,7 +18,7 @@ export interface IActiveClientStructuralSnapshot {
 }
 
 /**
- * Deep-equal two client-tool snapshots on `name + description + inputSchema`.
+ * Deep-equal two client-tool snapshots on `name + description + inputSchema + origin`.
  * `undefined` and `[]` compare equal. Order-insensitive.
  *
  * Single shared implementation for the agent-host providers — previously
@@ -46,6 +47,9 @@ export function structuralToolsEqual(
 			return false;
 		}
 		if (!equals(prev.inputSchema, t.inputSchema)) {
+			return false;
+		}
+		if (readAgentToolOrigin(prev) !== readAgentToolOrigin(t)) {
 			return false;
 		}
 	}

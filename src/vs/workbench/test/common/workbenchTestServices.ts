@@ -436,6 +436,14 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 		throw new Error('Method not implemented.');
 	}
 
+	isWorkspaceTrustSourceResolved(): boolean {
+		return true;
+	}
+
+	async resolveWorkspaceTrust(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	isWorkspaceTrusted(): boolean {
 		return this.trusted;
 	}

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -25,11 +24,13 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
+import { chatTurnComplete } from '../common/chatActionBuilders.js';
+import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
+import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationTargetKind, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
-import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type Message, type SessionActiveClient } from '../../common/state/sessionState.js';
+import { AgentHostAutomationService, enqueueAutomationConversation, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -37,14 +38,17 @@ import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporte
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetworkMonitor.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
-import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
+import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { getAgentHostAutomationHistoryState, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -54,13 +58,18 @@ class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	}
 }
 
+function scheduledChatMeta(conversation?: IAgentHostScheduledChatConversation): Record<string, unknown> {
+	return withAgentHostScheduledChat(undefined, conversation ? { conversation } : {});
+}
+
 suite('AgentHostAutomationService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let stateManager: AgentHostStateManager;
 	let storageService: AgentHostStorageService;
 	let writeFailures: number;
 	let writeAttempts: number;
+	let writeGate: Promise<void> | undefined;
 	let telemetry: RecordingAutomationTelemetry;
 	let fileService: FileService;
 	let pluginManager: AgentPluginManager;
@@ -70,9 +79,8 @@ suite('AgentHostAutomationService', () => {
 	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
-		systemWake = new AgentHostSystemWakeService();
+		systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
 		authenticationRequests = [];
 		authenticationResult = Promise.resolve(false);
 		disposables.add(clientConnections.registerSource({
@@ -94,15 +102,16 @@ suite('AgentHostAutomationService', () => {
 		});
 		writeFailures = 0;
 		writeAttempts = 0;
+		writeGate = undefined;
 		telemetry = new RecordingAutomationTelemetry();
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.file);
 		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 		pluginManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
 		const writer: IAgentHostStorageWriter = {
 			mkdir: async () => { },
 			writeFile: async () => {
 				writeAttempts++;
+				await writeGate;
 				if (writeFailures > 0) {
 					writeFailures--;
 					throw new Error('storage unavailable');
@@ -118,8 +127,6 @@ suite('AgentHostAutomationService', () => {
 		));
 	});
 
-	teardown(() => disposables.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function definition(): AutomationDefinition {
 		return {
@@ -128,6 +135,13 @@ suite('AgentHostAutomationService', () => {
 			session: { provider: 'mock' },
 			enabled: true,
 			triggers: [],
+		};
+	}
+
+	function scheduledDefinition(): AutomationDefinition {
+		return {
+			...definition(),
+			triggers: [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }],
 		};
 	}
 
@@ -151,9 +165,16 @@ suite('AgentHostAutomationService', () => {
 			}
 		}();
 		const service = new AgentHostAutomationService({
+			supportsOneTimeAutomation: execution?.supportsOneTimeAutomation,
+			supportsExistingConversation: execution?.supportsExistingConversation,
+			prepareConversation: execution?.prepareConversation,
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
+			allocateSession: execution?.allocateSession ?? (async template => ({ session: URI.parse(`mock:/${generateUuid()}`), provider: template.provider ?? 'copilotcli' })),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
+			getRecoverableSessionProvider: execution?.getRecoverableSessionProvider ?? (async session => stateManager.getSessionSummary(session.toString())?.provider),
+			deleteSession: execution?.deleteSession ?? (async () => { }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
+			prepareSessionMessage: execution?.prepareSessionMessage,
 			cancelSession: execution?.cancelSession ?? (async () => false),
 			resumeTurn: execution?.resumeTurn ?? (async () => false),
 		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
@@ -228,46 +249,62 @@ suite('AgentHostAutomationService', () => {
 		publish(session, auth);
 		service.dispose();
 		publish(session, changedAuth);
+		const requestsFor = (auth: McpAuthRequirement) => ['top', 'child'].map(serverName => ({
+			serverName, auth, target: { kind: AuthenticateTargetKind.McpServer, session: session.toString(), customizationId: serverName },
+		}));
 		assert.deepStrictEqual({ inflightRequests, failedRequests, requests: authenticationRequests }, {
-			inflightRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
-			failedRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
-			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(auth => [
-				{ serverName: 'top', auth }, { serverName: 'child', auth },
-			]),
+			inflightRequests: requestsFor(auth), failedRequests: requestsFor(auth),
+			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(requestsFor),
 		});
 	});
 
-	test('captures plugins durably and seeds a disconnected run with the rewritten agent', async () => {
-		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
-		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
-		const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
-		const service = createService({
-			createSession: async (template, _run, activeClient) => {
-				created.complete({ activeClient, agent: template.agent?.uri });
-				return AgentSession.uri('mock', 'customized');
-			},
-			startSession: async () => { },
+	for (const hasMessageAgent of [false, true]) {
+		test(`captures plugins durably and seeds a disconnected run with the rewritten ${hasMessageAgent ? 'explicit' : 'inherited'} agent`, async () => {
+			const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+			await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+			const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
+			const started = new DeferredPromise<AutomationDefinition['message']>();
+			const service = createService({
+				createSession: async (template, _run, _session, activeClient) => {
+					created.complete({ activeClient, agent: template.agent?.uri });
+					return AgentSession.uri('mock', 'customized');
+				},
+				startSession: async (_session, message) => { await started.complete(message); },
+			});
+			const action = createAction();
+			action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
+			if (hasMessageAgent) {
+				action.definition.message.agent = { uri: 'virtual:/bundle/agents/planner.md' };
+			}
+			const originalDefinition = structuredClone(action.definition);
+			await service.handleCreate(action, 'author');
+			const entry = stateManager.getAutomationCatalogState()!.entries[0];
+			const copy = entry.customizations![0];
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
+			const run = await created.p;
+			const message = await started.p;
+			const agent = { uri: URI.joinPath(URI.parse(copy.uri), hasMessageAgent ? 'agents/planner.md' : 'agents/reviewer.md').toString() };
+			const stored = storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0];
+			assert.deepStrictEqual({
+				copy,
+				stored: stored.customizations,
+				run,
+				message,
+				definition: entry.definition,
+				storedDefinition: stored.definition,
+			}, {
+				copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
+				stored: [copy],
+				run: {
+					activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
+					agent: agent.uri,
+				},
+				message: { ...originalDefinition.message, agent },
+				definition: originalDefinition,
+				storedDefinition: originalDefinition,
+			});
 		});
-		const action = createAction();
-		action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
-		await service.handleCreate(action, 'author');
-		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		const copy = entry.customizations![0];
-		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
-		const run = await created.p;
-		assert.deepStrictEqual({
-			copy,
-			stored: storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0].customizations,
-			run,
-		}, {
-			copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
-			stored: [copy],
-			run: {
-				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
-				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
-			},
-		});
-	});
+	}
 
 	test('creates and updates local file customizations in place using connection service locality', async () => {
 		disposables.add(clientConnections.registerSource({
@@ -359,6 +396,547 @@ suite('AgentHostAutomationService', () => {
 		)).then(() => undefined);
 	}
 
+	test('persists exact allocation before creation and membership before sending', async () => {
+		const session = URI.parse('ahp-session:/allocated');
+		const observations: object[] = [];
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async (template, _run, allocated) => {
+				observations.push({
+					provider: template.provider,
+					allocated: allocated.toString(),
+					intents: storageService.get<{ sessionCreations: object[] }>('automations')?.sessionCreations,
+					origin: service.getLegacySessionOrigin(allocated.toString(), 'codex'),
+				});
+				assert.strictEqual(service.getLegacySessionOrigin(allocated.toString(), 'copilotcli'), undefined);
+				return allocated;
+			},
+			startSession: async () => {
+				const stored = storageService.get<{ runs: AutomationRunState[]; sessionCreations?: object[]; runProviders: Record<string, string> }>('automations')!;
+				observations.push({ sessions: stored.runs[0].sessions, intents: stored.sessionCreations, provider: stored.runProviders[stored.runs[0].resource] });
+				await started.complete();
+			},
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'allocated' });
+		await started.p;
+		assert.deepStrictEqual(observations, [{
+			provider: 'codex',
+			allocated: session.toString(),
+			intents: [{ run: run.resource, session: session.toString(), provider: 'codex' }],
+			origin: { kind: SessionOriginKind.Automation, automation: createAction().resource, run: run.resource },
+		}, { sessions: [session.toString()], intents: undefined, provider: 'codex' }]);
+	});
+
+	test('retries failed live creation cleanup when the provider returns without replaying a prompt', async () => {
+		const session = URI.parse('ahp-session:/incomplete');
+		let available = false;
+		let sends = 0;
+		const cleanupAttempted = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const service = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => { throw new Error('creation failed'); },
+			getRecoverableSessionProvider: async () => undefined,
+			deleteSession: async (resource, provider) => {
+				await cleanupAttempted.complete();
+				if (!available) {
+					throw new Error('provider unavailable');
+				}
+				deleted.push(`${provider}:${resource}`);
+			},
+			startSession: async () => { sends++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'failed-creation' });
+		await cleanupAttempted.p;
+		await service.handleConfigurationChanged();
+		assert.ok(storageService.get<{ sessionCreations?: object[] }>('automations')?.sessionCreations);
+		available = true;
+		service.handleAgentsChanged();
+		await terminalRun(run.resource);
+		assert.deepStrictEqual({
+			deleted, sends,
+			intents: storageService.get<{ sessionCreations?: object[] }>('automations')?.sessionCreations,
+			sessions: stateManager.getAutomationRunState(run.resource)?.sessions,
+		}, { deleted: [`codex:${session}`], sends: 0, intents: undefined, sessions: [] });
+	});
+
+	test('recovers a durable native session allocation using its recorded provider', async () => {
+		const automation = createAction().resource;
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/interrupted', automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString() },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs: [run],
+			sessionCreations: [{ run: run.resource, session: 'ahp-session:/saved', provider: 'codex' }],
+		});
+		await storageService.whenIdle();
+		const lookups: object[] = [];
+		createService({
+			getRecoverableSessionProvider: async (session, provider) => { lookups.push({ session: session.toString(), provider }); return 'codex'; },
+		});
+		await terminalRun(run.resource);
+		const stored = storageService.get<{ runs: AutomationRunState[]; runProviders: Record<string, string>; sessionCreations?: object[] }>('automations')!;
+		assert.deepStrictEqual({
+			lookups, sessions: stored.runs[0].sessions, provider: stored.runProviders[run.resource], intents: stored.sessionCreations,
+		}, { lookups: [{ session: 'ahp-session:/saved', provider: 'codex' }], sessions: ['ahp-session:/saved'], provider: 'codex', intents: undefined });
+	});
+
+	test('retains inert history and provenance after deleting the definition', async () => {
+		const session = URI.parse('ahp-session:/retained');
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'retained' });
+		await started.p;
+		service.dispose();
+		const restored = createService();
+		await terminalRun(run.resource);
+		await restored.deleteAutomation(createAction().resource, false);
+		const owner = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({
+			state: getAgentHostAutomationHistoryState(owner), enabled: owner.definition.enabled, operations: owner.operations,
+			runs: owner.runs.map(run => run.primarySession),
+			origin: restored.getLegacySessionOrigin(session.toString(), 'codex'),
+			definition: owner.definition,
+			customizations: owner.customizations,
+		}, {
+			state: 'retained', enabled: false, operations: [AutomationOperation.Remove], runs: [session.toString()],
+			origin: { kind: SessionOriginKind.Automation, automation: createAction().resource, run: run.resource },
+			definition: {
+				title: 'Review changes',
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			customizations: undefined,
+		});
+		await assert.rejects(restored.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: owner.resource, requestId: 'retained-again' }), /not available/);
+	});
+
+	test('deletes all retained members beyond the history page and replay retries only failed rows', async () => {
+		const automation = createAction().resource;
+		const runs: AutomationRunState[] = Array.from({ length: 51 }, (_, index) => ({
+			resource: `ahp-automation-run:/${index}`, automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(index).toISOString(), startedAt: new Date(index).toISOString(), completedAt: new Date(index).toISOString() },
+			sessions: [`ahp-session:/${index}`, `ahp-session:/secondary-${index}`],
+			primarySession: `ahp-session:/${index}`,
+		}));
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs, runProviders: Object.fromEntries(runs.map(run => [run.resource, 'codex'])),
+		});
+		await storageService.whenIdle();
+		let fail = true;
+		const deleted: string[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async (session, provider) => {
+				assert.strictEqual(provider, 'codex');
+				if (fail && session.toString() === 'ahp-session:/0') {
+					throw new Error('offline');
+				}
+				deleted.push(session.toString());
+			},
+		});
+		await service.handleConfigurationChanged();
+		await assert.rejects(service.deleteAutomation(automation, true), /offline/);
+		assert.deepStrictEqual({
+			deleted: deleted.length,
+			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+			owner: {
+				state: getAgentHostAutomationHistoryState(stateManager.getAutomationCatalogState()!.entries[0]),
+				operations: stateManager.getAutomationCatalogState()!.entries[0].operations,
+			},
+			history: stateManager.getAutomationCatalogState()!.entries[0].runs.length,
+			secondary: service.getLegacySessionOrigin('ahp-session:/secondary-0', 'codex')?.run,
+		}, {
+			deleted: 101,
+			remaining: [{
+				automation,
+				sessions: [{ session: 'ahp-session:/0', provider: 'codex' }],
+				deletedSessions: deleted,
+			}],
+			owner: { state: 'deleting', operations: [AutomationOperation.Remove] },
+			history: 50,
+			secondary: runs[0].resource,
+		});
+		fail = false;
+		const allSessions = runs.flatMap(run => run.sessions).map(session => URI.parse(session));
+		const acknowledged = await service.deleteAutomation(automation, true, allSessions);
+		const missingOwner = await service.deleteAutomation(automation, true, [URI.parse('ahp-session:/unrelated')]);
+		assert.deepStrictEqual({
+			deleted: deleted.length, entries: stateManager.getAutomationCatalogState()?.entries,
+			runs: storageService.get<{ runs: object[] }>('automations')?.runs,
+			acknowledged: [...acknowledged].sort(), missingOwner,
+		}, {
+			deleted: 102,
+			entries: [],
+			runs: [],
+			acknowledged: runs.flatMap(run => run.sessions).sort(),
+			missingOwner: [],
+		});
+	});
+
+	test('receipts completed history deletion until the client acknowledges it', async () => {
+		const automation = createAction().resource;
+		const session = URI.parse('ahp-session:/receipted');
+		const started = new DeferredPromise<void>();
+		const creating = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => session,
+			startSession: async () => { started.complete(); },
+		});
+		await enableAndCreate(creating);
+		const run = await creating.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'receipted-run' });
+		await started.p;
+		creating.dispose();
+		const deleting = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => { },
+		});
+		await terminalRun(run.resource);
+
+		const first = await deleting.deleteAutomation(automation, true, [], 'delete-request');
+		deleting.dispose();
+		const retrying = createService();
+		const retry = await retrying.deleteAutomation(automation, true, [], 'delete-request');
+		await retrying.acknowledgeAutomationDeletion('delete-request');
+		retrying.dispose();
+		const acknowledged = createService();
+		const afterAcknowledgement = await acknowledged.deleteAutomation(automation, true, [], 'delete-request');
+
+		assert.deepStrictEqual({ first, retry, afterAcknowledgement }, {
+			first: [session.toString()],
+			retry: [session.toString()],
+			afterAcknowledgement: [],
+		});
+	});
+
+	test('merges concurrent deletion members and receipts every accepted request', async () => {
+		const automation = createAction().resource;
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/concurrent-delete',
+			automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+			sessions: ['ahp-session:/first'],
+			primarySession: 'ahp-session:/first',
+		};
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs: [run],
+			runProviders: { [run.resource]: 'codex' },
+		});
+		await storageService.whenIdle();
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider ?? 'codex',
+			deleteSession: async session => {
+				if (session.toString() === 'ahp-session:/first') {
+					firstStarted.complete();
+					await releaseFirst.p;
+				}
+				deleted.push(session.toString());
+			},
+		});
+		await service.handleConfigurationChanged();
+
+		const first = service.deleteAutomation(automation, true, [], 'request-first');
+		await firstStarted.p;
+		const second = service.deleteAutomation(automation, true, [URI.parse('ahp-session:/second')], 'request-second');
+		releaseFirst.complete();
+		const [firstResult, secondResult] = await Promise.all([first, second]);
+		service.dispose();
+		const restarted = createService();
+		const firstReceipt = await restarted.deleteAutomation(automation, true, [], 'request-first');
+		const secondReceipt = await restarted.deleteAutomation(automation, true, [], 'request-second');
+
+		assert.deepStrictEqual({
+			deleted,
+			firstResult,
+			secondResult,
+			firstReceipt,
+			secondReceipt,
+		}, {
+			deleted: ['ahp-session:/first', 'ahp-session:/second'],
+			firstResult: ['ahp-session:/first', 'ahp-session:/second'],
+			secondResult: ['ahp-session:/first', 'ahp-session:/second'],
+			firstReceipt: ['ahp-session:/first', 'ahp-session:/second'],
+			secondReceipt: ['ahp-session:/first', 'ahp-session:/second'],
+		});
+	});
+
+	test('drains members added between an empty snapshot and completion', async () => {
+		const automation = createAction().resource;
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/completion-race',
+			automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+			sessions: ['ahp-session:/first'],
+			primarySession: 'ahp-session:/first',
+		};
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs: [run],
+			runProviders: { [run.resource]: 'codex' },
+		});
+		await storageService.whenIdle();
+		const deleted: string[] = [];
+		let injectMember = false;
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider ?? 'codex',
+			deleteSession: async session => {
+				deleted.push(session.toString());
+				if (session.toString() === 'ahp-session:/first') {
+					injectMember = true;
+				}
+			},
+		});
+		await service.handleConfigurationChanged();
+		const internal = service as unknown as {
+			_enqueueMutation<T>(mutation: () => Promise<T>): Promise<T>;
+		};
+		const originalEnqueue = internal._enqueueMutation.bind(service);
+		let second: Promise<readonly string[]> | undefined;
+		const injected = new DeferredPromise<void>();
+		internal._enqueueMutation = <T>(mutation: () => Promise<T>) => originalEnqueue(async () => {
+			const result = await mutation();
+			if (injectMember && Array.isArray(result) && result.length === 0) {
+				injectMember = false;
+				queueMicrotask(() => {
+					second = service.deleteAutomation(automation, true, [URI.parse('ahp-session:/second')], 'request-second');
+					injected.complete();
+				});
+			}
+			return result;
+		});
+
+		const first = service.deleteAutomation(automation, true, [], 'request-first');
+		await injected.p;
+		const [firstResult, secondResult] = await Promise.all([first, second!]);
+
+		assert.deepStrictEqual({
+			deleted,
+			firstResult,
+			secondResult,
+			entries: stateManager.getAutomationCatalogState()?.entries,
+		}, {
+			deleted: ['ahp-session:/first', 'ahp-session:/second'],
+			firstResult: ['ahp-session:/first', 'ahp-session:/second'],
+			secondResult: ['ahp-session:/first', 'ahp-session:/second'],
+			entries: [],
+		});
+	});
+
+	test('history deletion does not block unrelated Automation mutations', async () => {
+		const automation = createAction().resource;
+		const session = URI.parse('ahp-session:/slow-delete');
+		const runStarted = new DeferredPromise<void>();
+		const deletionStarted = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const creating = createService({
+			allocateSession: async () => ({ session, provider: 'copilotcli' }),
+			createSession: async () => session,
+			startSession: async (createdSession, message) => {
+				stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'slow-delete-turn',
+					startedAt: new Date().toISOString(),
+					message,
+				});
+				runStarted.complete();
+			},
+		});
+		await enableAndCreate(creating);
+		const run = await creating.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'delete-with-slow-provider' });
+		await runStarted.p;
+		creating.dispose();
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => {
+				deletionStarted.complete();
+				await release.p;
+			},
+		});
+		await terminalRun(run.resource);
+
+		const deletion = service.deleteAutomation(automation, true);
+		await deletionStarted.p;
+		const unrelated = service.handleCreate(createAction('ahp-automation:/unrelated'));
+		const winner = await raceTimeout(unrelated.then(() => 'created'), 50) ?? 'blocked';
+		release.complete();
+		await deletion;
+
+		assert.deepStrictEqual({
+			winner,
+			automations: stateManager.getAutomationCatalogState()?.entries.map(entry => entry.resource),
+		}, {
+			winner: 'created',
+			automations: ['ahp-automation:/unrelated'],
+		});
+	});
+
+	test('coalesces repeated recovery signals while history deletion is in flight', async () => {
+		const automation = createAction().resource;
+		const firstAttempt = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let attempts = 0;
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			historyDeletions: [{ automation, sessions: [{ session: 'ahp-session:/retained', provider: 'codex' }] }],
+		});
+		await storageService.whenIdle();
+		const service = createService({
+			deleteSession: async () => {
+				attempts++;
+				firstAttempt.complete();
+				await release.p;
+				throw new Error('provider unavailable');
+			},
+		});
+		await firstAttempt.p;
+
+		service.handleAgentsChanged();
+		service.handleAgentsChanged();
+		service.handleAgentsChanged();
+		release.complete();
+		await (service as unknown as { _mutationTail: Promise<void> })._mutationTail;
+
+		assert.strictEqual(attempts, 1);
+	});
+
+	test('publishes active history deletion state during automatic recovery', async () => {
+		const automation = createAction().resource;
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const releaseSecond = new DeferredPromise<void>();
+		let attempts = 0;
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: automation,
+					definition: definition(),
+					runs: [],
+					operations: [],
+					createdAt: new Date(0).toISOString(),
+					modifiedAt: new Date(0).toISOString(),
+					_meta: withAgentHostAutomationHistoryState(undefined, 'deleting'),
+				}],
+			},
+			historyDeletions: [{ automation, sessions: [{ session: 'ahp-session:/retained', provider: 'codex' }] }],
+		});
+		await storageService.whenIdle();
+		const service = createService({
+			deleteSession: async () => {
+				attempts++;
+				if (attempts === 1) {
+					firstStarted.complete();
+					await releaseFirst.p;
+					throw new Error('provider unavailable');
+				}
+				secondStarted.complete();
+				await releaseSecond.p;
+			},
+		});
+		await firstStarted.p;
+		const first = (service as unknown as { _historyDeletionPromises: Map<string, Promise<readonly string[]>> })._historyDeletionPromises.get(automation)!;
+		releaseFirst.complete();
+		await assert.rejects(first, /provider unavailable/);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [AutomationOperation.Remove]);
+
+		service.handleAgentsChanged();
+		await secondStarted.p;
+		const second = (service as unknown as { _historyDeletionPromises: Map<string, Promise<readonly string[]>> })._historyDeletionPromises.get(automation)!;
+		assert.deepStrictEqual({
+			state: getAgentHostAutomationHistoryState(stateManager.getAutomationCatalogState()!.entries[0]),
+			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
+		}, {
+			state: 'deleting',
+			operations: [],
+		});
+		releaseSecond.complete();
+		await second;
+	});
+
+	for (const existingOwner of [false, true]) {
+		test(`migrates retained provider identity with ${existingOwner ? 'an existing' : 'a missing'} owner`, async () => {
+			const automation = createAction().resource;
+			const run: AutomationRunState = {
+				resource: 'ahp-automation-run:/legacy', automation,
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+				primarySession: 'opaque:/unavailable', sessions: ['opaque:/unavailable', 'opaque:/retained'],
+			};
+			storageService.set('automations', {
+				catalog: { automations: existingOwner ? [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] : [] },
+				runs: [run],
+			});
+			await storageService.whenIdle();
+			const service = createService({
+				getRecoverableSessionProvider: async session => {
+					if (session.toString() === 'opaque:/unavailable') {
+						throw new Error('optional lookup unavailable');
+					}
+					return 'codex';
+				},
+			});
+			await service.handleConfigurationChanged();
+			const owner = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				providers: storageService.get<{ runProviders: Record<string, string> }>('automations')?.runProviders,
+				origin: service.getLegacySessionOrigin('opaque:/retained', 'codex'),
+				owner: { title: owner.definition.title, enabled: owner.definition.enabled, state: getAgentHostAutomationHistoryState(owner) },
+			}, {
+				providers: { [run.resource]: 'codex' },
+				origin: { kind: SessionOriginKind.Automation, automation, run: run.resource },
+				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation (name unavailable)', enabled: false, state: 'retained' },
+			});
+		});
+	}
+
+	test('persists resolved legacy deletion identity before deleting and isolates unsupported rows', async () => {
+		const automation = createAction().resource;
+		const observations: object[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async session => session.toString() === 'opaque:/supported' ? 'codex' : undefined,
+			deleteSession: async (session, provider) => {
+				observations.push({
+					session: session.toString(), provider,
+					intent: storageService.get<{ historyDeletions: { sessions: object[] }[] }>('automations')?.historyDeletions[0].sessions,
+				});
+			},
+		});
+		await enableAndCreate(service);
+		await assert.rejects(service.deleteAutomation(automation, true, [URI.parse('opaque:/unsupported'), URI.parse('opaque:/supported')]), /Cannot resolve the persisted provider/);
+		assert.deepStrictEqual({
+			observations,
+			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+		}, {
+			observations: [{
+				session: 'opaque:/supported', provider: 'codex',
+				intent: [{ session: 'opaque:/unsupported' }, { session: 'opaque:/supported', provider: 'codex' }],
+			}],
+			remaining: [{ automation, sessions: [{ session: 'opaque:/unsupported' }], deletedSessions: ['opaque:/supported'] }],
+		});
+	});
+
 	test('logs creation once after persistence, excluding retries and failed writes', async () => {
 		const service = createService();
 		const action = {
@@ -445,6 +1023,25 @@ suite('AgentHostAutomationService', () => {
 		]);
 	});
 
+	test('distinguishes end-date changes from schedule changes in update telemetry', async () => {
+		const service = createService();
+		const resource = 'ahp-automation:/review-changes';
+		await enableAndCreate(service, resource);
+		const conditions: AutomationDefinition['disableConditions'] = [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }];
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: conditions } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: conditions } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { triggers: scheduledDefinition().triggers } });
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.updated').map(event => ({
+			scheduleChanged: event.data.scheduleChanged,
+			disableConditionsChanged: event.data.disableConditionsChanged,
+		})), [
+			{ scheduleChanged: false, disableConditionsChanged: true },
+			{ scheduleChanged: false, disableConditionsChanged: true },
+			{ scheduleChanged: true, disableConditionsChanged: false },
+		]);
+	});
+
 	test('preserves distinct complete automation resources across definition and run telemetry', async () => {
 		const service = createService();
 		const resources = [
@@ -521,6 +1118,7 @@ suite('AgentHostAutomationService', () => {
 			automationId: hashAutomationTelemetryId('ahp-automation:/review-changes'),
 			runId: AgentSession.id(run.resource),
 			trigger: 'manual',
+			scheduleKind: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
 			provider: 'copilotcli',
 			agentSessionId: undefined,
@@ -590,6 +1188,7 @@ suite('AgentHostAutomationService', () => {
 				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const service = createService({
+				allocateSession: async () => ({ session, provider }),
 				createSession: async () => session,
 				startSession: async () => {
 					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat, buildDefaultChatUri(session.toString())));
@@ -649,6 +1248,7 @@ suite('AgentHostAutomationService', () => {
 			automationId: hashAutomationTelemetryId('ahp-automation:/review-changes'),
 			runId: AgentSession.id(run.resource),
 			trigger: 'manual',
+			scheduleKind: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
 			provider: 'default',
 			agentSessionId: undefined,
@@ -760,7 +1360,7 @@ suite('AgentHostAutomationService', () => {
 			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
 			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
 		}, {
-			capabilities: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
+			capabilities: { create: {}, schedules: {}, oneTime: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
 			triggers: { items: [] },
 			definition: savedDefinition,
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
@@ -943,11 +1543,7 @@ suite('AgentHostAutomationService', () => {
 				void completed.complete();
 			}
 		}));
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnComplete,
-			turnId,
-			duration: 10,
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 10));
 		await completed.p;
 
 		assert.deepStrictEqual({
@@ -957,7 +1553,7 @@ suite('AgentHostAutomationService', () => {
 			run: AutomationRunStatus.Completed,
 			summary: AutomationRunStatus.Completed,
 		});
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId, duration: 10 });
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 10));
 		await service.fetchAutomationRuns({ channel: 'ahp-automations://', automation: params.automation });
 		assert.deepStrictEqual(telemetry.events.filter(event => event.name !== 'automation.created').map(event => ({
 			name: event.name,
@@ -1015,11 +1611,7 @@ suite('AgentHostAutomationService', () => {
 						startedAt: new Date().toISOString(),
 						message,
 					});
-					stateManager.dispatchServerAction(chat, {
-						type: ActionType.ChatTurnComplete,
-						turnId: 'model-configuration-turn',
-						duration: 0,
-					});
+					stateManager.dispatchServerAction(chat, chatTurnComplete('model-configuration-turn', 0));
 				},
 			});
 			const automation = definition();
@@ -1047,6 +1639,74 @@ suite('AgentHostAutomationService', () => {
 				savedModel: model,
 			});
 		});
+	}
+
+	for (const hasSessionAgent of [false, true]) {
+		for (const hasMessageAgent of [false, true]) {
+			test(`records the Automation custom agent on its first turn (session: ${hasSessionAgent}, message: ${hasMessageAgent})`, async () => {
+				const session = URI.parse('mock:/agent-selection-run');
+				const sessionAgent = hasSessionAgent ? { uri: 'file:///agents/reviewer.md' } : undefined;
+				const messageAgent = hasMessageAgent ? { uri: 'file:///agents/planner.md' } : undefined;
+				const expectedAgent = messageAgent ?? sessionAgent;
+				const completed = new DeferredPromise<void>();
+				let createdAgent: AutomationDefinition['session']['agent'];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
+						void completed.complete();
+					}
+				}));
+				const service = createService({
+					createSession: async template => {
+						createdAgent = template.agent;
+						stateManager.createSession({
+							resource: session.toString(),
+							provider: 'mock',
+							title: '',
+							status: SessionStatus.Idle,
+							createdAt: new Date().toISOString(),
+							modifiedAt: new Date().toISOString(),
+							defaultChat: buildDefaultChatUri(session.toString()),
+						});
+						return session;
+					},
+					startSession: async (createdSession, message) => {
+						const chat = buildDefaultChatUri(createdSession);
+						stateManager.dispatchServerAction(chat, {
+							type: ActionType.ChatTurnStarted,
+							turnId: 'agent-selection-turn',
+							startedAt: new Date().toISOString(),
+							message,
+						});
+						stateManager.dispatchServerAction(chat, chatTurnComplete('agent-selection-turn', 0));
+					},
+				});
+				const automation = definition();
+				if (sessionAgent) {
+					automation.session.agent = sessionAgent;
+				}
+				if (messageAgent) {
+					automation.message.agent = messageAgent;
+				}
+				const originalDefinition = structuredClone(automation);
+				await service.handleCreate({ ...createAction(), definition: automation });
+				await service.runAutomation({
+					channel: AUTOMATION_CATALOG_URI,
+					automation: 'ahp-automation:/review-changes',
+					requestId: 'agent-selection-request',
+				});
+				await completed.p;
+
+				assert.deepStrictEqual({
+					createdAgent,
+					recordedMessage: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message,
+					savedDefinition: stateManager.getAutomationCatalogState()?.entries[0].definition,
+				}, {
+					createdAgent: expectedAgent,
+					recordedMessage: { ...originalDefinition.message, ...(expectedAgent ? { agent: expectedAgent } : {}) },
+					savedDefinition: originalDefinition,
+				});
+			});
+		}
 	}
 
 	for (const scheduled of [false, true]) {
@@ -1087,6 +1747,235 @@ suite('AgentHostAutomationService', () => {
 			}, { createdModel: model, sentModel: model, savedSessionModel: undefined });
 		}));
 	}
+
+	function previousSessionDefinition(): AutomationDefinition {
+		return { ...definition(), session: { provider: 'mock', model: { id: 'mock-model' } }, target: { kind: AutomationTargetKind.PreviousSession } };
+	}
+
+	/**
+	 * A host whose new sessions run one turn and that queues a continued run's message in its session's default chat,
+	 * unless `unusable` rejects the session or `restoreError` fails restoring it.
+	 */
+	function createPreviousSessionService(sessions: readonly URI[], options: { readonly unusable?: () => boolean; readonly restoreError?: () => Error | undefined; readonly cancelled?: string[]; readonly createGate?: Promise<void> } = {}) {
+		const created: string[] = [];
+		const prepared: { readonly session: string; readonly provider: string; readonly id: string; readonly model: unknown }[] = [];
+		const service = createService({
+			createSession: async () => {
+				const session = sessions[created.length];
+				created.push(session.toString());
+				await options.createGate;
+				stateManager.createSession({ resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: buildDefaultChatUri(session.toString()) });
+				return session;
+			},
+			startSession: async (session, message) => {
+				const chat = buildDefaultChatUri(session.toString());
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `created-${session.path}`, startedAt: new Date().toISOString(), message });
+				stateManager.dispatchServerAction(chat, chatTurnComplete(`created-${session.path}`, 1));
+			},
+			prepareSessionMessage: async (session, provider, _template, message, id) => {
+				const restoreError = options.restoreError?.();
+				if (restoreError) {
+					throw restoreError;
+				}
+				if (options.unusable?.()) {
+					return undefined;
+				}
+				prepared.push({ session: session.toString(), provider, id, model: message.model });
+				return () => stateManager.dispatchServerAction(buildDefaultChatUri(session.toString()), { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id, message });
+			},
+			cancelSession: async (session, turnId) => {
+				options.cancelled?.push(`${session}#${turnId}`);
+				stateManager.dispatchServerAction(buildDefaultChatUri(session.toString()), { type: ActionType.ChatTurnCancelled, turnId: turnId!, duration: 1 });
+				return true;
+			},
+		});
+		return { service, created, prepared };
+	}
+
+	function nextQueuedMessage(): Promise<unknown> {
+		return Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatPendingMessageSet));
+	}
+
+	function startTurn(chat: string, turnId: string, queuedMessageId?: string): void {
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message: { text: 'Hi', origin: { kind: MessageKind.User } }, ...(queuedMessageId ? { queuedMessageId } : {}) });
+	}
+
+	test('continues the previous run\'s session with a queued message that only its own turn ends, until a settings edit', async () => {
+		const [first, afterEdit] = [URI.parse('mock:/first'), URI.parse('mock:/after-edit')];
+		const chat = buildDefaultChatUri(first.toString());
+		const { service, created, prepared } = createPreviousSessionService([first, afterEdit]);
+		const automation = createAction().resource;
+		const run = (requestId: string) => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await run('first')).resource);
+
+		// A user's turn is running when the next run is due, so its message waits in the queue.
+		startTurn(chat, 'user-turn');
+		const queued = nextQueuedMessage();
+		const second = await run('second');
+		await queued;
+		const statuses: AutomationRunStatus[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === second.resource && envelope.action.type === ActionType.AutomationRunLifecycleChanged) {
+				statuses.push(envelope.action.lifecycle.status);
+			}
+		}));
+		const waiting = stateManager.getAutomationRunState(second.resource);
+		stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 1));
+		startTurn(chat, 'second-turn', second.resource);
+		stateManager.dispatchServerAction(chat, chatTurnComplete('second-turn', 1));
+		await terminalRun(second.resource);
+
+		// The session keeps the mode it was created with, so changing the mode starts over.
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { session: { ...previousSessionDefinition().session, config: { mode: 'autopilot' } } } });
+		const third = await run('third');
+		await terminalRun(third.resource);
+
+		assert.deepStrictEqual({
+			targets: service.capabilities?.targets,
+			created, prepared,
+			waiting: { status: waiting?.lifecycle.status, sessions: waiting?.sessions, primarySession: waiting?.primarySession },
+			statuses,
+			third: stateManager.getAutomationRunState(third.resource)?.primarySession,
+		}, {
+			targets: { previousSession: {} },
+			created: [first.toString(), afterEdit.toString()],
+			prepared: [{ session: first.toString(), provider: 'mock', id: second.resource, model: { id: 'mock-model' } }],
+			waiting: { status: AutomationRunStatus.Pending, sessions: [first.toString()], primarySession: first.toString() },
+			statuses: [AutomationRunStatus.Running, AutomationRunStatus.Completed],
+			third: afterEdit.toString(),
+		});
+		await assert.rejects(service.handleCreate({ ...createAction('ahp-automation:/chat-target'), definition: { ...definition(), target: { kind: AutomationTargetKind.Chat, session: first.toString(), chat } } }), /target is not available: chat/);
+	});
+
+	test('cancelling or withdrawing a queued run never touches another turn, and archiving its session fails it', async () => {
+		const [first, afterArchive] = [URI.parse('mock:/first'), URI.parse('mock:/after-archive')];
+		const chat = buildDefaultChatUri(first.toString());
+		const cancelled: string[] = [];
+		let archived = false;
+		const { service, created } = createPreviousSessionService([first, afterArchive], { cancelled, unusable: () => archived });
+		const automation = createAction().resource;
+		const queue = async (requestId: string) => {
+			const queued = nextQueuedMessage();
+			const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+			await queued;
+			return run.resource;
+		};
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'first' })).resource);
+		startTurn(chat, 'user-turn');
+
+		const cancelledWhileQueued = await queue('cancelled');
+		await service.handleCancel(cancelledWhileQueued, { type: ActionType.AutomationRunCancelRequested });
+		const withdrawn = await queue('withdrawn');
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: withdrawn });
+		await terminalRun(withdrawn);
+		const userTurn = stateManager.getChatState(chat)?.activeTurn?.id;
+
+		stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 1));
+		const cancelledWhileRunning = await queue('running');
+		startTurn(chat, 'running-turn', cancelledWhileRunning);
+		await service.handleCancel(cancelledWhileRunning, { type: ActionType.AutomationRunCancelRequested });
+		await terminalRun(cancelledWhileRunning);
+
+		startTurn(chat, 'other-turn');
+		const archivedWhileQueued = await queue('archived');
+		archived = true;
+		stateManager.dispatchServerAction(first.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		await terminalRun(archivedWhileQueued);
+		const next = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'next' });
+		await terminalRun(next.resource);
+
+		const status = (run: string) => stateManager.getAutomationRunState(run)?.lifecycle.status;
+		assert.deepStrictEqual({
+			statuses: [cancelledWhileQueued, withdrawn, cancelledWhileRunning, archivedWhileQueued].map(status),
+			userTurn, cancelled, created,
+			queued: stateManager.getChatState(chat)?.queuedMessages ?? [],
+			next: stateManager.getAutomationRunState(next.resource)?.primarySession,
+		}, {
+			statuses: [AutomationRunStatus.Cancelled, AutomationRunStatus.Cancelled, AutomationRunStatus.Cancelled, AutomationRunStatus.Failed],
+			userTurn: 'user-turn',
+			cancelled: [`${first}#running-turn`],
+			created: [first.toString(), afterArchive.toString()],
+			queued: [],
+			next: afterArchive.toString(),
+		});
+	});
+
+	test('a previous session that fails to restore fails the run instead of starting over', async () => {
+		const first = URI.parse('mock:/first');
+		let restoreError: Error | undefined;
+		const { service, created, prepared } = createPreviousSessionService([first, URI.parse('mock:/unexpected')], { restoreError: () => restoreError });
+		const automation = createAction().resource;
+		const run = (requestId: string) => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await run('first')).resource);
+
+		restoreError = new Error('disk unavailable');
+		const failed = await run('failed');
+		await terminalRun(failed.resource);
+		restoreError = undefined;
+		const queued = nextQueuedMessage();
+		const retried = await run('retried');
+		await queued;
+
+		const lifecycle = stateManager.getAutomationRunState(failed.resource)?.lifecycle;
+		assert.deepStrictEqual({
+			failed: { status: lifecycle?.status, error: lifecycle?.status === AutomationRunStatus.Failed ? lifecycle.error?.message : undefined },
+			created, prepared: prepared.map(entry => entry.id),
+		}, {
+			failed: { status: AutomationRunStatus.Failed, error: 'disk unavailable' },
+			created: [first.toString()],
+			prepared: [retried.resource],
+		});
+	});
+
+	test('overlapping previous-session runs share the session that the earliest one creates', async () => {
+		const resource = createAction().resource;
+		const epoch = new Date(0).toISOString();
+		storageService.set('automations', {
+			catalog: { automations: [{ resource, definition: previousSessionDefinition(), runs: [], operations: [], createdAt: epoch, modifiedAt: epoch }] },
+			runs: ['earlier', 'later'].map(id => ({ resource: `ahp-automation-run:/${id}`, automation: resource, origin: { kind: AutomationRunOriginKind.Manual }, sessions: [], lifecycle: { status: AutomationRunStatus.Pending, createdAt: epoch } })),
+		});
+		await storageService.whenIdle();
+		const session = URI.parse('mock:/shared');
+		const release = new DeferredPromise<void>();
+		const queued = nextQueuedMessage();
+		const { service, created, prepared } = createPreviousSessionService([session, URI.parse('mock:/unexpected')], { createGate: release.p });
+		await service.handleConfigurationChanged();
+		await release.complete();
+		await queued;
+		assert.deepStrictEqual({ created, prepared: prepared.map(entry => entry.id) }, { created: [session.toString()], prepared: ['ahp-automation-run:/later'] });
+	});
+
+	test('a previous-session run waiting for its turn is queued again after a restart and covers due occurrences meanwhile', async () => {
+		const now = new Date();
+		const scheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
+		const resource = createAction().resource;
+		const session = URI.parse('mock:/waiting');
+		const waiting = 'ahp-automation-run:/waiting';
+		stateManager.createSession({ resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle, createdAt: now.toISOString(), modifiedAt: now.toISOString(), defaultChat: buildDefaultChatUri(session.toString()) });
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource, definition: { ...previousSessionDefinition(), triggers: scheduledDefinition().triggers }, nextRunAt: scheduledFor, runs: [], operations: [],
+					createdAt: now.toISOString(), modifiedAt: now.toISOString(), _meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+				}],
+			},
+			runs: [{ resource: waiting, automation: resource, origin: { kind: AutomationRunOriginKind.Manual }, sessions: [session.toString()], primarySession: session.toString(), lifecycle: { status: AutomationRunStatus.Pending, createdAt: now.toISOString() } }],
+			runProviders: { [waiting]: 'mock' },
+		});
+		await storageService.whenIdle();
+		const queued = nextQueuedMessage();
+		const claimed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.AutomationSet && Date.parse(envelope.action.automation.nextRunAt ?? '') > now.getTime()));
+		const { prepared } = createPreviousSessionService([]);
+		await Promise.all([queued, claimed]);
+		assert.deepStrictEqual({
+			prepared: prepared.map(entry => entry.id),
+			runs: stateManager.getAutomationCatalogState()?.entries[0].runs.map(run => run.resource),
+			queued: stateManager.getChatState(buildDefaultChatUri(session.toString()))?.queuedMessages?.map(message => message.id),
+		}, { prepared: [waiting], runs: [waiting], queued: [waiting] });
+	});
 
 	test('logs the saved run configuration despite an edit while the session is being created', async () => {
 		const session = URI.parse('copilotcli:/configured-session');
@@ -1147,6 +2036,7 @@ suite('AgentHostAutomationService', () => {
 			const session = AgentSession.uri(scheme, 'interrupted-session');
 			const started = new DeferredPromise<void>();
 			const service = createService({
+				allocateSession: async () => ({ session, provider: 'copilotcli' }),
 				createSession: async () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '',
@@ -1172,7 +2062,7 @@ suite('AgentHostAutomationService', () => {
 				type: ActionType.RootConfigChanged,
 				config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
 			});
-			createService();
+			createService({ getRecoverableSessionProvider: async resource => resource.toString() === session.toString() ? 'copilotcli' : undefined });
 			await terminalRun(run.resource);
 			createService();
 			await storageService.whenIdle();
@@ -1194,6 +2084,7 @@ suite('AgentHostAutomationService', () => {
 			const session = AgentSession.uri(scheme, `${outcome}-session`);
 			const started = new DeferredPromise<void>();
 			const service = createService({
+				allocateSession: async () => ({ session, provider: 'copilotcli' }),
 				createSession: async () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '', status: SessionStatus.Idle,
@@ -1210,7 +2101,7 @@ suite('AgentHostAutomationService', () => {
 				},
 				cancelSession: async () => {
 					if (outcome === 'success') {
-						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+						stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('turn', 0));
 					} else {
 						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
 					}
@@ -1237,6 +2128,7 @@ suite('AgentHostAutomationService', () => {
 				automationId: hashAutomationTelemetryId('ahp-automation:/review-changes'),
 				runId: AgentSession.id(run.resource),
 				trigger: 'manual',
+				scheduleKind: 'manual',
 				runCreatedAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
 				provider: 'copilotcli',
 				agentSessionId: `${outcome}-session`,
@@ -1247,9 +2139,10 @@ suite('AgentHostAutomationService', () => {
 		}));
 	}
 
-	test('failed session-link persistence does not publish provider identity or run-start telemetry', async () => {
+	test('failed session-link persistence recovers durable identity without sending or run-start telemetry', async () => {
 		let startCalls = 0;
 		const service = createService({
+			allocateSession: async () => ({ session: URI.parse('ahp-session:/failed-link'), provider: 'copilotcli' }),
 			createSession: async () => {
 				const session = 'ahp-session:/failed-link';
 				stateManager.createSession({
@@ -1277,9 +2170,9 @@ suite('AgentHostAutomationService', () => {
 			})),
 		}, {
 			startCalls: 0,
-			providers: undefined,
+			providers: { [run.resource]: 'copilotcli' },
 			started: [],
-			completed: [{ provider: 'default', sessionCreated: false, outcome: 'error' }],
+			completed: [{ provider: 'copilotcli', sessionCreated: true, outcome: 'error' }],
 		});
 	});
 
@@ -1580,7 +2473,7 @@ suite('AgentHostAutomationService', () => {
 				systemWake.setFullyAwake(true);
 				await timeout(60_000);
 				if (then === 'complete') {
-					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+					stateManager.dispatchServerAction(chat, chatTurnComplete('turn', 0));
 				} else {
 					failTurn();
 				}
@@ -1595,6 +2488,113 @@ suite('AgentHostAutomationService', () => {
 			}, expected);
 		}));
 	}
+
+	for (const { name, failAfterWakeMs, resumedAfterWakeMs } of [
+		{
+			name: 'resumes a turn that broke during sleep once scheduled work is ready, not at the earlier resume delay',
+			failAfterWakeMs: undefined, resumedAfterWakeMs: [SCHEDULED_WORK_WAKE_SETTLE_MS],
+		},
+		{
+			name: 'resumes a turn that broke after scheduled work is ready no sooner than the resume delay after the failure',
+			failAfterWakeMs: 20_000, resumedAfterWakeMs: [30_000],
+		},
+	]) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const session = URI.parse('mock:/resume-timing-session');
+			const chat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			let wokeAt = 0;
+			const resumed: number[] = [];
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: chat,
+					});
+					return session;
+				},
+				startSession: async (_session, message) => {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+					await started.complete();
+				},
+				resumeTurn: async (_session, turnId) => {
+					resumed.push(Date.now() - wokeAt);
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: name });
+			await started.p;
+			const failTurn = () => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError, turnId: 'turn', duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+			});
+
+			systemWake.setFullyAwake(false);
+			if (failAfterWakeMs === undefined) {
+				failTurn();
+			}
+			await timeout(1_000);
+			systemWake.setFullyAwake(true);
+			wokeAt = Date.now();
+			if (failAfterWakeMs !== undefined) {
+				await timeout(failAfterWakeMs);
+				failTurn();
+			}
+			await timeout(SCHEDULED_WORK_WAKE_NETWORK_CAP_MS);
+
+			assert.deepStrictEqual(resumed, resumedAfterWakeMs);
+		}));
+	}
+
+	test('a turn that fails after another turn\'s resume delay passed still waits its own delay', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+		const sessionFor = (automation: string) => URI.from({ scheme: 'mock', path: URI.parse(automation).path });
+		const started = new Map(['/first', '/second'].map(path => [path, new DeferredPromise<void>()]));
+		let wokeAt = 0;
+		const resumed: string[] = [];
+		const service = createService({
+			createSession: async (_template, run) => {
+				const session = sessionFor(run.automation);
+				stateManager.createSession({
+					resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session),
+				});
+				return session;
+			},
+			startSession: async (session, message) => {
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+				await started.get(session.path)?.complete();
+			},
+			resumeTurn: async (session, turnId) => {
+				resumed.push(`${session.path}: ${Date.now() - wokeAt}`);
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnResume, turnId });
+				return true;
+			},
+		});
+		for (const automation of ['ahp-automation:/first', 'ahp-automation:/second']) {
+			await enableAndCreate(service, automation);
+			await service.runAutomation({ channel: 'ahp-automations://', automation, requestId: automation });
+		}
+		await Promise.all([...started.values()].map(start => start.p));
+		const failTurn = (path: string) => stateManager.dispatchServerAction(buildDefaultChatUri(URI.from({ scheme: 'mock', path })), {
+			type: ActionType.ChatError, turnId: 'turn', duration: 0,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+		});
+
+		systemWake.setFullyAwake(false);
+		failTurn('/first');
+		await timeout(1_000);
+		systemWake.setFullyAwake(true);
+		wokeAt = Date.now();
+		await timeout(14_000);
+		failTurn('/second');
+		await timeout(SCHEDULED_WORK_WAKE_NETWORK_CAP_MS);
+
+		assert.deepStrictEqual(resumed, ['/first: 15000', '/second: 24000']);
+	}));
 
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
 		const session = URI.parse('mock:/cancelled-session');
@@ -1695,6 +2695,452 @@ suite('AgentHostAutomationService', () => {
 		await assert.rejects(service.handleCancel(result.resource, { type: ActionType.AutomationRunCancelRequested }), /cancel failed/);
 
 		assert.strictEqual(stateManager.getAutomationRunState(result.resource)?.lifecycle.status, AutomationRunStatus.Running);
+	});
+
+	test('one-time admission persists captured context before dispatch and never rearms after restart', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = new DeferredPromise<void>();
+		const request: Message = {
+			text: 'Review captured context',
+			origin: { kind: MessageKind.Automation },
+			attachments: [
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'image', data: 'aGVsbG8=', contentType: 'image/png' },
+				{ type: MessageAttachmentKind.Simple, label: 'selection', modelRepresentation: 'captured selection' },
+				{ type: MessageAttachmentKind.Resource, label: 'file', uri: 'file:///workspace/file.ts' },
+			],
+			_meta: { captured: 'context' },
+		};
+		let creates = 0;
+		const service = createService({
+			createSession: async (_template, run) => {
+				creates++;
+				const stored = storageService.get<{ catalog: { automations: AutomationEntry[] } }>('automations')!;
+				assert.deepStrictEqual({ receipt: getAgentHostOneTimeRun(stored.catalog.automations[0]), next: stored.catalog.automations[0].nextRunAt, scheduledChat: getAgentHostScheduledChat(run) },
+					{ receipt: run.resource, next: undefined, scheduledChat: {} });
+				return URI.parse('mock:/once');
+			},
+			startSession: async (_session, message) => {
+				assert.deepStrictEqual(message, request);
+				await started.complete();
+			},
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(), message: request, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		await started.p;
+		await timeout(0);
+		service.dispose();
+		const restarted = createService({ createSession: async () => { creates++; return URI.parse('mock:/unexpected'); } });
+		await restarted.handleConfigurationChanged();
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, next: entry.nextRunAt, runs: entry.runs.length, status: entry.runs[0].lifecycle.status, editable: entry.operations.includes(AutomationOperation.Update), session: entry.runs[0].primarySession },
+			{ creates: 1, next: undefined, runs: 1, status: AutomationRunStatus.Failed, editable: false, session: 'mock:/once' });
+	}));
+
+	test('scheduled follow-up queues the exact busy peer chat once and never owns or deletes its session', async () => {
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/opaque-peer' };
+		const mainChat = 'ahp-chat:/opaque-main';
+		stateManager.createSession({
+			resource: conversation.session, provider: 'mock', title: 'Existing',
+			status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			defaultChat: mainChat,
+		});
+		stateManager.addChat(conversation.session, conversation.chat, conversation.session);
+		stateManager.dispatchServerAction(conversation.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'unrelated', startedAt: new Date().toISOString(),
+			message: { text: 'Already running', origin: { kind: MessageKind.User } },
+		});
+		const message: Message = {
+			text: 'Captured follow-up', origin: { kind: MessageKind.Automation },
+			model: { id: 'old-model' }, agent: { uri: 'file:///old-agent.md' },
+			attachments: [
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'image', data: 'aGVsbG8=', contentType: 'image/png' },
+				{ type: MessageAttachmentKind.Simple, label: 'selection', modelRepresentation: 'captured selection' },
+				{ type: MessageAttachmentKind.Resource, label: 'file', uri: 'file:///workspace/file.ts' },
+			],
+			_meta: { captured: true },
+		};
+		let submissions = 0;
+		const service = createService({
+			supportsExistingConversation: true,
+			allocateSession: async () => { throw new Error('Must not allocate'); },
+			deleteSession: async () => { throw new Error('Must not delete'); },
+			cancelSession: async () => { throw new Error('Must not cancel'); },
+			prepareConversation: async (target, request, id) => {
+				assert.deepStrictEqual(target, conversation);
+				return () => {
+					submissions++;
+					enqueueAutomationConversation(stateManager, createTestChatOwnershipService(stateManager), target, request, id);
+				};
+			},
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(conversation), message, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		});
+		const [first, second] = await Promise.all(['one', 'two'].map(requestId => service.runAutomation({
+			channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId,
+		})));
+		await timeout(0);
+		const run = stateManager.getAutomationRunState(first.resource)!;
+		const peer = stateManager.getChatState(conversation.chat)!;
+		assert.deepStrictEqual({
+			sameRun: first.resource === second.resource, submissions, status: run.lifecycle.status,
+			sessions: run.sessions,
+			active: peer.activeTurn?.id, queued: peer.queuedMessages,
+			mainQueue: stateManager.getChatState(mainChat)?.queuedMessages,
+		}, {
+			sameRun: true, submissions: 1, status: AutomationRunStatus.Completed, sessions: [],
+			active: 'unrelated',
+			queued: [{ id: first.resource, kind: PendingMessageKind.Queued, message: { text: message.text, origin: message.origin, attachments: message.attachments, _meta: message._meta } }],
+			mainQueue: undefined,
+		});
+		await service.deleteAutomation(createAction().resource, true, [URI.parse(conversation.session)]);
+		assert.ok(stateManager.getChatState(conversation.chat));
+	});
+
+	test('timer-driven follow-up does not wait for new-session template readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		// Mirrors a signed-out provider: a follow-up has no model, so new-session readiness reports unavailable.
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/peer' };
+		const submitted: string[] = [];
+		const service = createService({
+			supportsExistingConversation: true,
+			isSessionTemplateAvailable: () => false,
+			prepareConversation: async (_target, _message, id) => () => { submitted.push(id); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(conversation), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ submitted, receipt: getAgentHostOneTimeRun(entry), next: entry.nextRunAt, statuses: entry.runs.map(run => run.lifecycle.status) }, {
+			submitted: [getAgentHostOneTimeRun(entry)], receipt: entry.runs[0]?.resource, next: undefined, statuses: [AutomationRunStatus.Completed],
+		});
+	}));
+
+	test('cancelling a follow-up during target resolution does not cancel an unrelated turn', async () => {
+		const resolving = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let submitted = false;
+		const service = createService({
+			supportsExistingConversation: true,
+			prepareConversation: async () => {
+				resolving.complete();
+				await release.p;
+				return () => { submitted = true; };
+			},
+			cancelSession: async () => { throw new Error('Must not cancel the conversation'); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta({ session: 'mock:/existing', chat: 'ahp-chat:/peer' }), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		});
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'cancel-followup' });
+		await resolving.p;
+		await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+		release.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ submitted, status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status },
+			{ submitted: false, status: AutomationRunStatus.Cancelled });
+	});
+
+	test('follow-up target or submission failure fails the run without owning a session', async () => {
+		for (const attempted of [false, true]) {
+			const resource = `ahp-automation:/followup-${attempted}`;
+			const service = createService({
+				supportsExistingConversation: true,
+				prepareConversation: async () => {
+					if (!attempted) {
+						throw new Error('The target was deleted');
+					}
+					return () => { throw new Error('Submission acknowledgement lost'); };
+				},
+			});
+
+			await service.handleCreate({
+				...createAction(resource),
+				definition: { ...definition(), _meta: scheduledChatMeta({ session: 'mock:/deleted', chat: 'ahp-chat:/deleted' }), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+			});
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: resource, requestId: resource });
+			await timeout(0);
+			const entry = stateManager.getAutomationCatalogState()!.entries.find(entry => entry.resource === resource)!;
+			assert.deepStrictEqual({ status: entry.runs[0].lifecycle.status, sessions: entry.runs[0].sessionCount },
+				{ status: AutomationRunStatus.Failed, sessions: 0 });
+			service.dispose();
+		}
+	});
+
+	test('follow-up submission rejects missing, deleted, or moved targets without creating a chat', () => {
+		assert.throws(() => enqueueAutomationConversation(stateManager, createTestChatOwnershipService(stateManager),
+			{ session: 'mock:/missing', chat: 'ahp-chat:/missing' }, definition().message, 'followup'), /deleted, moved, or is unavailable/);
+	});
+
+	test('malformed existing-conversation target is rejected instead of creating a new session', async () => {
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: { 'vscode.scheduledChat': { conversation: { session: 'mock:/existing' } } }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /requires supported/);
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.length ?? 0, 0);
+	});
+
+	test('existing-conversation scheduling is absent and rejected without explicit host support', async () => {
+		const service = createService();
+		assert.strictEqual(service.supportsExistingConversation, false);
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta({ session: 'mock:/existing', chat: 'ahp-chat:/peer' }), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /requires supported/);
+	});
+
+	test('remote execution does not advertise or accept one-time scheduling', async () => {
+		const service = createService({ supportsOneTimeAutomation: false });
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /unavailable on this host/);
+		assert.deepStrictEqual({ once: service.capabilities?.oneTime, conversation: service.supportsExistingConversation }, { once: undefined, conversation: false });
+	});
+
+	test('rejects end dates on one-time creation and updates without changing the saved request', async () => {
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime as const, runAt: '2099-01-01T10:00:00Z' }],
+			},
+		};
+		const disableConditions = [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T09:00:00Z' }] as const;
+		await assert.rejects(service.handleCreate({
+			...action, definition: { ...action.definition, disableConditions: [...disableConditions] },
+		}), /One-time automations do not support end dates/);
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.length, 0);
+		await service.handleCreate(action);
+		const saved = stateManager.getAutomationCatalogState()!.entries[0];
+		await assert.rejects(service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { disableConditions: [...disableConditions] },
+		}), /One-time automations do not support end dates/);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()!.entries, [saved]);
+	});
+
+	test('one-time restart catches up once only after provider and wake readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const ready = observableValue('ready', false);
+		const original = createService({ isSessionTemplateAvailable: (_template, reader) => ready.read(reader) });
+		await original.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		original.dispose();
+		await timeout(180_000);
+		const started = new DeferredPromise<void>();
+		let creates = 0;
+		const restarted = createService({
+			isSessionTemplateAvailable: (_template, reader) => ready.read(reader),
+			createSession: async () => { creates++; return URI.parse('mock:/catch-up'); },
+			startSession: async () => { await started.complete(); },
+		});
+		await restarted.handleConfigurationChanged();
+		ready.set(true, undefined);
+		await timeout(1);
+		assert.strictEqual(creates, 0);
+		systemWake.setFullyAwake(true);
+		await started.p;
+		await timeout(180_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, next: entry.nextRunAt, origins: entry.runs.map(run => run.origin) }, {
+			creates: 1, next: undefined,
+			origins: [{ kind: AutomationRunOriginKind.Trigger, triggerId: 'once', scheduledFor: '2026-01-01T00:01:00.000Z', catchUp: true }],
+		});
+	}));
+
+	test('one-time skip misfire policy drops an occurrence missed while unavailable', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		let creates = 0;
+		const service = createService({ createSession: async () => { creates++; return URI.parse('mock:/skipped'); } });
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z', misfirePolicy: AutomationMisfirePolicy.Skip }] },
+		});
+		await timeout(180_000);
+		systemWake.setFullyAwake(true);
+		await timeout(60_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, runs: entry.runs.length, next: entry.nextRunAt, receipt: getAgentHostOneTimeRun(entry) },
+			{ creates: 0, runs: 0, next: undefined, receipt: undefined });
+	}));
+
+	test('one-time Send Now consumes the due occurrence and rejects a competing edit or cancel', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('mock:/send-now'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		const [first, second] = await Promise.all(['first', 'second'].map(requestId => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId })));
+		await started.p;
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { enabled: false } }));
+		await assert.rejects(service.handleRemove({ type: ActionType.AutomationRemoved, resource: createAction().resource }));
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ sameRun: first.resource === second.resource, receipt: getAgentHostOneTimeRun(entry), next: entry.nextRunAt, runs: entry.runs.length },
+			{ sameRun: true, receipt: first.resource, next: undefined, runs: 1 });
+	}));
+
+	test('one-time cancel wins before due admission', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const service = createService();
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { enabled: false } });
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ enabled: entry.definition.enabled, receipt: getAgentHostOneTimeRun(entry), runs: entry.runs.length, next: entry.nextRunAt },
+			{ enabled: false, receipt: undefined, runs: 0, next: undefined });
+	}));
+
+	test('one-time requests reject invalid instants and non-durable attachments before persistence', async () => {
+		const service = createService();
+		for (const runAt of ['2026-02-30T00:00:00Z', '2026-01-01T00:00:00', 'invalid']) {
+			await assert.rejects(service.handleCreate({
+				...createAction(),
+				definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt }] },
+			}), /UTC/);
+		}
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				message: { ...definition().message, attachments: [{ type: MessageAttachmentKind.Resource, label: 'ephemeral', uri: 'untitled:/buffer' }] },
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
+			},
+		}), /cannot be saved/);
+		assert.strictEqual(writeAttempts, 0);
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.5+01:30' }] },
+		});
+		assert.strictEqual(stateManager.getAutomationCatalogState()!.entries[0].nextRunAt, '2027-01-01T08:30:00.500Z');
+	});
+
+	test('confirmed scheduled-chat cancellation cannot be re-enabled or manually dispatched by another client', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(), _meta: scheduledChatMeta(),
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
+			} satisfies AutomationDefinition,
+		};
+		await service.handleCreate(action);
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { enabled: false } });
+		service.dispose();
+		const restarted = createService();
+		await assert.rejects(restarted.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { enabled: true } }));
+		await assert.rejects(restarted.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'stale-send-now' }));
+		await assert.rejects(restarted.handleCreate(action), /already exists/);
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ enabled: entry.definition.enabled, operations: entry.operations, runs: entry.runs, nextRunAt: entry.nextRunAt }, {
+			enabled: false, operations: [AutomationOperation.Remove], runs: [], nextRunAt: undefined,
+		});
+	}));
+
+	test('scheduled-chat purpose and target cannot be changed through definition metadata', async () => {
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/peer' };
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(conversation), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		});
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { _meta: scheduledChatMeta() } }), /existing conversation target/);
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { _meta: {} } }), /existing conversation target/);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual(getAgentHostScheduledChat(entry.definition), { conversation });
+	});
+
+	test('migrates scheduled-chat fields stored before one-time triggers were standardized', async () => {
+		const automation = createAction().resource;
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/peer' };
+		const run = {
+			resource: 'ahp-automation-run:/legacy', automation, purpose: 'scheduledChat',
+			origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'once', scheduledFor: '2027-01-01T10:00:00.000Z' },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: automation,
+					definition: { ...definition(), purpose: 'scheduledChat', conversation, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+					oneTimeRun: run.resource, oneTimeDispatchedAt: '2027-01-01T10:00:01.000Z',
+					runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				}],
+			},
+			runs: [run],
+		});
+		await storageService.whenIdle();
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
+		await service.handleConfigurationChanged();
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		const legacy = entry as AutomationEntry & { oneTimeRun?: unknown; definition: { purpose?: unknown; conversation?: unknown } };
+		assert.deepStrictEqual({
+			scheduledChat: getAgentHostScheduledChat(entry.definition),
+			oneTimeRun: getAgentHostOneTimeRun(entry),
+			runScheduledChat: getAgentHostScheduledChat(stateManager.getAutomationRunState(run.resource)),
+			legacyFields: [legacy.oneTimeRun, legacy.definition.purpose, legacy.definition.conversation],
+			editable: entry.operations.includes(AutomationOperation.Update),
+		}, {
+			scheduledChat: { conversation },
+			oneTimeRun: run.resource,
+			runScheduledChat: {},
+			legacyFields: [undefined, undefined, undefined],
+			editable: false,
+		});
+	});
+
+	test('lost creation acknowledgement can be replayed after its one-time instant passes', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(), _meta: scheduledChatMeta(),
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
+			} satisfies AutomationDefinition,
+		};
+		await service.handleCreate(action);
+		await timeout(120_000);
+		await service.handleCreate(JSON.parse(JSON.stringify(action)));
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()!.entries.map(entry => ({ resource: entry.resource, runs: entry.runs.length })), [
+			{ resource: action.resource, runs: 0 },
+		]);
+	}));
+
+	test('one-time creation retries cannot duplicate or recreate a deleted handoff after restart', async () => {
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }],
+			} satisfies AutomationDefinition,
+		};
+		await service.handleCreate(action);
+		await service.handleCreate(action);
+		assert.strictEqual(stateManager.getAutomationCatalogState()!.entries.length, 1);
+		await service.deleteAutomation(action.resource, true);
+		service.dispose();
+		const restarted = createService();
+		await assert.rejects(restarted.handleCreate(action), /identity has already been used/);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()!.entries, []);
 	});
 
 	test('claims a persisted missed schedule before starting its session', async () => {
@@ -1878,10 +3324,234 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, trigger: event.data.trigger, scheduleKind: event.data.scheduleKind })), [
 			{ name: 'automation.created', trigger: undefined, scheduleKind: 'scheduled' },
-			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: undefined },
-			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: undefined },
+			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: 'scheduled' },
+			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: 'scheduled' },
 		]);
 	}));
+
+	test('reports a one-time scheduled chat and its run as a scheduledChat schedule kind', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/scheduled-chat-session'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: new Date(Date.UTC(2026, 0, 1, 0, 1)).toISOString() }] },
+		});
+		await started.p;
+
+		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, trigger: event.data.trigger, scheduleKind: event.data.scheduleKind })), [
+			{ name: 'automation.created', trigger: undefined, scheduleKind: 'scheduledChat' },
+			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: 'scheduledChat' },
+			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: 'scheduledChat' },
+		]);
+	}));
+
+	for (const mode of ['idle', 'unavailable', 'active'] as const) {
+		test(`final date disables scheduling with an ${mode} provider or run`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+			let creates = 0;
+			let cancels = 0;
+			const service = createService({
+				isSessionTemplateAvailable: () => mode !== 'unavailable',
+				createSession: async () => { creates++; return URI.parse('mock:/cutoff'); },
+				startSession: async () => { },
+				cancelSession: async () => { cancels++; return true; },
+			});
+			const conditions = [
+				{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2026-01-01T00:00:01Z' },
+			];
+			await service.handleCreate({ ...createAction(), definition: { ...scheduledDefinition(), disableConditions: conditions } });
+			if (mode === 'active') {
+				await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'before-cutoff' });
+			}
+			await timeout(999);
+			assert.strictEqual(stateManager.getAutomationCatalogState()!.entries[0].definition.enabled, true);
+			await timeout(2);
+			const automation = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				enabled: automation.definition.enabled,
+				conditions: automation.definition.disableConditions,
+				nextRunAt: automation.nextRunAt,
+				canRun: automation.operations.includes(AutomationOperation.Run),
+				active: automation.runs[0]?.lifecycle.status,
+				creates, cancels,
+			}, {
+				enabled: false, conditions, nextRunAt: undefined, canRun: true,
+				active: mode === 'active' ? AutomationRunStatus.Running : undefined,
+				creates: mode === 'active' ? 1 : 0, cancels: 0,
+			});
+		}));
+	}
+
+	test('expired restart conditions suppress catch-up and allow manual runs', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 2) }, async () => {
+		const timestamp = '2026-01-01T00:00:00Z';
+		const conditions = [
+			{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2026-01-02T00:00:00Z' },
+		];
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource: createAction().resource,
+					definition: { ...scheduledDefinition(), disableConditions: conditions },
+					runs: [], nextRunAt: timestamp,
+					operations: [AutomationOperation.Update, AutomationOperation.Run],
+					createdAt: timestamp, modifiedAt: timestamp,
+					_meta: { 'vscode.scheduleCursors': { schedule: timestamp } },
+				}]
+			},
+		});
+		await storageService.whenIdle();
+		let creates = 0;
+		const manualStarted = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => { creates++; return URI.parse('mock:/expired-manual'); },
+			startSession: async () => { await manualStarted.complete(); },
+		});
+		await timeout(1);
+		const expired = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual([expired.definition.enabled, creates], [false, 0]);
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: expired.resource, changes: { enabled: true } });
+		const reenabled = stateManager.getAutomationCatalogState()!.entries[0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: expired.resource, requestId: 'manual-after-cutoff' });
+		await manualStarted.p;
+		const manual = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({
+			reenabled: [reenabled.definition.enabled, reenabled.definition.disableConditions],
+			manual: [manual.runs[0].origin.kind, creates],
+		}, {
+			reenabled: [false, conditions],
+			manual: [AutomationRunOriginKind.Manual, 1],
+		});
+	}));
+
+	for (const cutoffSeconds of [59, 60, 61]) {
+		test(`enforces final date ${cutoffSeconds}s around a scheduled admission`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+			let creates = 0;
+			const service = createService({
+				createSession: async () => { creates++; return URI.parse('mock:/or-conditions'); },
+				startSession: async () => { },
+			});
+			const conditions = [
+				{ kind: AutomationDisableConditionKind.AfterDate as const, date: new Date(Date.now() + cutoffSeconds * 1000).toISOString() },
+			];
+			await service.handleCreate({ ...createAction(), definition: { ...scheduledDefinition(), disableConditions: conditions } });
+			await timeout(62_000);
+			const entry = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual([entry.definition.enabled, creates, entry.definition.disableConditions],
+				[false, cutoffSeconds > 60 ? 1 : 0, conditions]);
+		}));
+	}
+
+	test('scheduled claim persistence failure publishes nothing and does not execute', async () => {
+		const now = new Date();
+		const scheduledFor = new Date(now.getTime() - 60_000).toISOString();
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource: 'ahp-automation:/persist-failure',
+					definition: scheduledDefinition(),
+					runs: [], nextRunAt: scheduledFor,
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: now.toISOString(), modifiedAt: now.toISOString(),
+					_meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+				}],
+			},
+			runs: [],
+			manualRunRequests: [],
+		});
+		await storageService.whenIdle();
+		writeFailures = 1;
+		let createCalls = 0;
+		createService({ createSession: async () => { createCalls++; return URI.parse('mock:/unexpected'); } });
+		await timeout(0);
+
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			createCalls,
+			runs: automation?.runs,
+			enabled: automation?.definition.enabled,
+		}, {
+			createCalls: 0,
+			runs: [],
+			enabled: true,
+		});
+	});
+
+	test('final date persistence failure publishes nothing and retries without admitting a run', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+		const service = createService();
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...scheduledDefinition(),
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-01-01T00:01:00Z' }],
+			},
+		});
+		const initial = stateManager.getAutomationCatalogState()!.entries[0];
+		writeFailures = 1;
+		await timeout(60_001);
+		const failed = stateManager.getAutomationCatalogState()!.entries[0];
+		await timeout(60_000);
+		const retried = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ failed, retried: [retried.definition.enabled, retried.runs, retried.definition.disableConditions] },
+			{ failed: initial, retried: [false, [], initial.definition.disableConditions] });
+	}));
+
+	test('restores a mixed catalogue by disabling obsolete caps and preserving end dates and history', async () => {
+		const timestamp = '2026-01-01T00:00:00Z';
+		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
+		const capped = {
+			resource: 'ahp-automation:/capped',
+			definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }, date] },
+			runCount: 1,
+			runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: timestamp, modifiedAt: timestamp,
+		};
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/retained',
+			automation: capped.resource,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: timestamp, startedAt: timestamp, completedAt: timestamp },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [
+					capped,
+					{ ...capped, resource: 'ahp-automation:/dated', definition: { ...definition(), disableConditions: [date] } },
+					{ ...capped, resource: 'ahp-automation:/unlimited', definition: definition() },
+				]
+			},
+			runs: [run],
+		});
+		await storageService.whenIdle();
+		const service = createService();
+		await storageService.whenIdle();
+		const stored = storageService.get<{ catalog: { automations: AutomationEntry[] }; runs: AutomationRunState[] }>('automations')!;
+		assert.deepStrictEqual({
+			available: service.isAvailable,
+			entries: stateManager.getAutomationCatalogState()!.entries.map(entry => ({
+				enabled: entry.definition.enabled, conditions: entry.definition.disableConditions,
+				hasCount: Object.hasOwn(entry, 'runCount'), runs: entry.runs.length,
+			})),
+			persisted: stored.catalog.automations.map(entry => ({ enabled: entry.definition.enabled, hasCount: Object.hasOwn(entry, 'runCount') })),
+			history: stored.runs,
+		}, {
+			available: true,
+			entries: [
+				{ enabled: false, conditions: [date], hasCount: false, runs: 1 },
+				{ enabled: true, conditions: [date], hasCount: false, runs: 0 },
+				{ enabled: true, conditions: undefined, hasCount: false, runs: 0 },
+			],
+			persisted: [{ enabled: false, hasCount: false }, { enabled: true, hasCount: false }, { enabled: true, hasCount: false }],
+			history: [run],
+		});
+		await assert.rejects(service.handleCreate({ ...createAction(), definition: capped.definition }), /must have kind 'afterDate'/);
+	});
 
 	test('due schedules wait until the machine is fully awake, then catch up once', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
 		systemWake.setFullyAwake(false);
@@ -1934,6 +3604,264 @@ suite('AgentHostAutomationService', () => {
 		assert.strictEqual(stateManager.getAutomationRunState(run.resource)?.lifecycle.status, AutomationRunStatus.Running);
 	});
 
+	suite('scheduled work after a wake', () => {
+		const wokeAt = Date.UTC(2026, 0, 1, 1, 30);
+
+		/** Creates an hourly Automation while the machine sleeps through its 01:00 occurrence until 01:30. */
+		async function sleepThroughHourlySchedule(execution: Partial<IAgentHostAutomationExecution>): Promise<AgentHostAutomationService> {
+			systemWake.setFullyAwake(false);
+			const service = createService(execution);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+				},
+			});
+			await timeout(wokeAt - Date.now());
+			return service;
+		}
+
+		function runs() {
+			return stateManager.getAutomationCatalogState()?.entries[0].runs.map(run => ({ origin: run.origin.kind, createdAt: run.lifecycle.createdAt })) ?? [];
+		}
+
+		function startRecorder(name: string) {
+			const started = new DeferredPromise<void>();
+			return {
+				started,
+				execution: {
+					createSession: async () => URI.parse(`copilotcli:/${name}`),
+					startSession: async () => { await started.complete(); },
+				} satisfies Partial<IAgentHostAutomationExecution>,
+			};
+		}
+
+		test('a due schedule waits for the network to settle after a wake', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-settle');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			await timeout(SCHEDULED_WORK_WAKE_SETTLE_MS - 1);
+			const settling = runs();
+			await started.p;
+
+			assert.deepStrictEqual({ settling, settled: runs() }, {
+				settling: [],
+				settled: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:30:15.000Z' }],
+			});
+		}));
+
+		test('an expired end date is applied after wake settling without admitting catch-up runs', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			systemWake.setFullyAwake(false);
+			const service = createService();
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...scheduledDefinition(),
+					disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-01-01T01:00:00Z' }],
+				},
+			});
+			await timeout(wokeAt - Date.now());
+			const asleep = stateManager.getAutomationCatalogState()!.entries[0].definition.enabled;
+			systemWake.setFullyAwake(true);
+			await timeout(SCHEDULED_WORK_WAKE_SETTLE_MS - 1);
+			const settling = stateManager.getAutomationCatalogState()!.entries[0].definition.enabled;
+			const disabled = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+				envelope.action.type === ActionType.AutomationSet && !envelope.action.automation.definition.enabled));
+			await disabled;
+			assert.deepStrictEqual({
+				asleep, settling,
+				enabled: stateManager.getAutomationCatalogState()!.entries[0].definition.enabled,
+				runs: runs(),
+			}, { asleep: true, settling: true, enabled: false, runs: [] });
+		}));
+
+		test('a due schedule waits while the network is offline after a wake, until it is back', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-offline');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			await timeout(60_000);
+			const offline = runs();
+			systemWake.setNetworkOnline(true);
+			await started.p;
+
+			assert.deepStrictEqual({ offline, online: runs() }, {
+				offline: [],
+				online: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:31:00.000Z' }],
+			});
+		}));
+
+		test('a due schedule starts at the cap after a wake while the network stays offline', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-cap');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			await timeout(SCHEDULED_WORK_WAKE_NETWORK_CAP_MS - 1);
+			const offline = runs();
+			await started.p;
+
+			assert.deepStrictEqual({ offline, capped: runs() }, {
+				offline: [],
+				capped: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:32:00.000Z' }],
+			});
+		}));
+
+		test('sleeping while the network settles cancels the wait, and the next wake starts a fresh one', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-second-wake');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			await timeout(5_000);
+			systemWake.setFullyAwake(false);
+			await timeout(5_000);
+			systemWake.setFullyAwake(true);
+			await started.p;
+
+			assert.deepStrictEqual(runs(), [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:30:25.000Z' }]);
+		}));
+
+		test('Run Now starts immediately while scheduled work is held after a wake', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const starts = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+			const [manualStarted, scheduledStarted] = starts;
+			const service = await sleepThroughHourlySchedule({
+				createSession: async () => URI.parse(`copilotcli:/run-now-${starts.length}`),
+				startSession: async () => { await starts.shift()?.complete(); },
+			});
+
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'run-now-while-held' });
+			await manualStarted.p;
+			const held = runs();
+			systemWake.setNetworkOnline(true);
+			await scheduledStarted.p;
+
+			assert.deepStrictEqual({ held, released: runs() }, {
+				held: [{ origin: AutomationRunOriginKind.Manual, createdAt: '2026-01-01T01:30:00.000Z' }],
+				released: [
+					{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:30:15.000Z' },
+					{ origin: AutomationRunOriginKind.Manual, createdAt: '2026-01-01T01:30:00.000Z' },
+				],
+			});
+		}));
+
+		test('a deferred Run Now starts when its provider becomes available while scheduled work is held', () => runWithFakedTimers({ useFakeTimers: true, startTime: wokeAt, maxTaskCount: 100 }, async () => {
+			const available = observableValue('available', false);
+			const { started, execution } = startRecorder('deferred-run-now');
+			systemWake.setFullyAwake(false);
+			const service = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+			await enableAndCreate(service);
+			systemWake.setFullyAwake(true);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'deferred-run-now' });
+			await timeout(0);
+			const deferred = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
+
+			available.set(true, undefined);
+			await started.p;
+
+			assert.deepStrictEqual({ deferred, startedAfterWakeMs: Date.now() - wokeAt }, { deferred: AutomationRunStatus.Pending, startedAfterWakeMs: 0 });
+		}));
+
+		for (const providerAvailable of [true, false]) {
+			test(`Run Now starts the pending scheduled run it reuses while scheduled work is held${providerAvailable ? '' : ', once its provider is available'}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: wokeAt, maxTaskCount: 100 }, async () => {
+				const scheduledRun: AutomationRunState = {
+					resource: 'ahp-automation-run:/scheduled',
+					automation: 'ahp-automation:/review-changes',
+					origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z' },
+					lifecycle: { status: AutomationRunStatus.Pending, createdAt: '2026-01-01T01:00:00.000Z' },
+					sessions: [],
+				};
+				storageService.set('automations', {
+					catalog: {
+						automations: [{
+							resource: scheduledRun.automation,
+							definition: {
+								...definition(),
+								triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+							},
+							nextRunAt: '2026-01-01T02:00:00.000Z',
+							runs: [],
+							operations: [AutomationOperation.Update, AutomationOperation.Run],
+							createdAt: '2026-01-01T00:00:00.000Z',
+							modifiedAt: '2026-01-01T00:00:00.000Z',
+							_meta: { 'vscode.scheduleCursors': { hourly: '2026-01-01T02:00:00.000Z' } },
+						}],
+					},
+					runs: [scheduledRun],
+					manualRunRequests: [],
+				});
+				await storageService.whenIdle();
+				const available = observableValue('available', providerAvailable);
+				const { started, execution } = startRecorder('reused-scheduled-run');
+				systemWake.setFullyAwake(false);
+				systemWake.setFullyAwake(true);
+				systemWake.setNetworkOnline(false);
+				const service = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+				await timeout(5_000);
+				const held = stateManager.getAutomationRunState(scheduledRun.resource)?.lifecycle.status;
+
+				const reused = await service.runAutomation({ channel: 'ahp-automations://', automation: scheduledRun.automation, requestId: 'reuse-scheduled-run' });
+				available.set(true, undefined);
+				await started.p;
+
+				assert.deepStrictEqual({ held, reused: reused.resource, startedAfterWakeMs: Date.now() - wokeAt }, {
+					held: AutomationRunStatus.Pending, reused: scheduledRun.resource, startedAfterWakeMs: 5_000,
+				});
+			}));
+		}
+
+		test('a due schedule whose claim waits behind another change still waits for readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 59), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('queued-claim');
+			const service = createService(execution);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+				},
+			});
+			const writes = new DeferredPromise<void>();
+			writeGate = writes.p;
+			const blockedChange = service.handleCreate(createAction('ahp-automation:/blocking-change'));
+			// The schedule comes due while the change still holds the mutation queue, and the machine sleeps before the claim runs.
+			await timeout(60_000);
+			systemWake.setFullyAwake(false);
+			writeGate = undefined;
+			await writes.complete();
+			await blockedChange;
+			await timeout(1_000);
+			const asleep = runs();
+
+			systemWake.setFullyAwake(true);
+			await started.p;
+
+			assert.deepStrictEqual({ asleep, awake: runs() }, {
+				asleep: [],
+				awake: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:00:16.000Z' }],
+			});
+		}));
+
+		test('a due schedule starts without delay when no wake is reported, even if the network was reported offline', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 59), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('no-wake-reporter');
+			systemWake.setNetworkOnline(false);
+			const service = createService(execution);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+				},
+			});
+			await started.p;
+
+			assert.deepStrictEqual(runs(), [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:00:00.000Z' }]);
+		}));
+	});
+
 	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
 		const now = new Date();
 		const firstScheduledFor = new Date(now.getTime() - 3 * 60_000).toISOString();
@@ -1941,6 +3869,7 @@ suite('AgentHostAutomationService', () => {
 		const automationResource = 'ahp-automation:/multi-trigger';
 		const multiTriggerDefinition: AutomationDefinition = {
 			...definition(),
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
 			triggers: [
 				{
 					id: 'first-trigger',
@@ -2022,6 +3951,7 @@ suite('AgentHostAutomationService', () => {
 		const automationResource = 'ahp-automation:/skip-first';
 		const multiTriggerDefinition: AutomationDefinition = {
 			...definition(),
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
 			triggers: [
 				{
 					id: 'stale-skip-trigger',
@@ -2113,7 +4043,7 @@ suite('AgentHostAutomationService', () => {
 			catalog: {
 				automations: [{
 					resource: automationResource,
-					definition: definition(),
+					definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }] },
 					runs: runs.map(run => ({
 						resource: run.resource,
 						automation: run.automation,
@@ -2153,5 +4083,13 @@ suite('AgentHostAutomationService', () => {
 			count: 51,
 			cursor: undefined,
 		});
+
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }] } });
+		const newlyLimited = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			history: newlyLimited?.runs.length,
+			enabled: newlyLimited?.definition.enabled,
+		}, { history: 51, enabled: true });
 	});
 });

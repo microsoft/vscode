@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -21,12 +21,18 @@ suite('Agent Host Provider Integration - managed limitTo', function () {
 		this.timeout(60_000);
 		const home = await mkdtemp(join(tmpdir(), 'copilot-limitto-'));
 		const client = new CopilotClient({
-			mode: 'empty', baseDirectory: home, useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-				COPILOT_CLI_PATH: process.env.COPILOT_CLI_PATH,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			mode: 'empty',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_CLI_PATH: process.env.COPILOT_CLI_PATH,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		try {
 			await client.start();
@@ -60,17 +66,31 @@ suite('Agent Host Provider Integration - managed limitTo', function () {
 			let permissionRequests = 0;
 			const session = await client.createSession({
 				workingDirectory: home,
-				availableTools: ['builtin:web_fetch'],
+				tools: {
+					availableTools: ['builtin:web_fetch'],
+				},
 				enableConfigDiscovery: false,
-				enableManagedSettings: false,
-				disabledMcpServers: ['github-mcp-server'],
-				mcpServers: {},
-				managedSettings: { permissions: { limitTo: buildManagedDomainBoundary(['api.example.com'], new NullLogService()) } },
-				onPermissionRequest: () => { permissionRequests++; return { kind: 'reject' }; },
+				github: {
+					fetchManagedSettings: false,
+				},
+				mcp: {
+					disabledServers: ['github-mcp-server'],
+					servers: {},
+				},
+				policy: {
+					managedSettings: { permissions: { limitTo: buildManagedDomainBoundary(['api.example.com'], new NullLogService()) } },
+				},
+				permissions: {
+					onRequest: () => { permissionRequests++; return { kind: 'reject' }; },
+				},
 			});
 			try {
 				const before = await session.rpc.managedSettings.get();
-				const disabled = await session.rpc.options.update({ sandboxConfig: { enabled: false } });
+				const disabled = await session.rpc.options.update({
+					permissions: {
+						sandbox: { enabled: false },
+					},
+				});
 				const after = await session.rpc.managedSettings.get();
 				await session.rpc.tools.initializeAndValidate();
 				const mode = await session.rpc.permissions.setMode({ mode: 'allow-all' });

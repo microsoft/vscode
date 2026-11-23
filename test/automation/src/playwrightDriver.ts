@@ -6,9 +6,11 @@
 import * as playwright from '@playwright/test';
 import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
-import { promises, readFileSync } from 'fs';
+import { createReadStream, createWriteStream, promises, readFileSync } from 'fs';
+import { promises as streamPromises } from 'stream';
+import { createGzip } from 'zlib';
 import { IWindowDriver } from './driver';
-import { measureAndLog } from './logger';
+import { Logger, measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
@@ -25,6 +27,18 @@ try {
 }
 
 type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
+
+/**
+ * How long {@link PlaywrightDriver.waitForPage} and {@link PlaywrightDriver.waitForNewPage}
+ * wait by default. This matches Playwright's default timeout, which the locator and
+ * navigation waits that follow these calls use.
+ *
+ * Playwright reports an Electron `WebContentsView`, such as an Integrated Browser page, as
+ * a page only after its first navigation commits. That includes starting a renderer and,
+ * for the first page of a fresh browser session, initializing its network stack, so a
+ * tighter budget turns transient slowness of the machine into a missing page.
+ */
+const DEFAULT_PAGE_WAIT_TIMEOUT = 30_000;
 
 export interface AccessibilityScanOptions {
 	/** Specific selector to scan. If not provided, scans the entire page. */
@@ -82,9 +96,16 @@ export class PlaywrightDriver {
 		 *
 		 * Undefined when the run is not recording.
 		 */
-		readonly videoStartedAt?: number
+		readonly videoStartedAt?: number,
+		/**
+		 * Raw Chromium network log of this browser, written outside of the logs folder.
+		 * Kept compressed in the logs folder only when the workbench did not restore.
+		 */
+		private readonly netLogPath?: string
 	) {
 	}
+
+	private workbenchRestored = false;
 
 	get browserContext(): playwright.BrowserContext {
 		return this.context;
@@ -286,7 +307,7 @@ export class PlaywrightDriver {
 	/**
 	 * Wait for an open window/page whose URL contains the provided pattern.
 	 */
-	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+	async waitForPage(urlPattern: string, timeoutMs: number = DEFAULT_PAGE_WAIT_TIMEOUT): Promise<playwright.Page> {
 		const deadline = Date.now() + timeoutMs;
 		do {
 			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
@@ -297,13 +318,13 @@ export class PlaywrightDriver {
 		} while (Date.now() < deadline);
 
 		const openUrls = this.getAllWindows().map(page => page.url());
-		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+		throw new Error(`Timed out waiting for page matching '${urlPattern}' after ${timeoutMs}ms. Open pages: ${JSON.stringify(openUrls)}. Page targets: ${await this.describePageTargets()}`);
 	}
 
 	/**
 	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
 	 */
-	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = DEFAULT_PAGE_WAIT_TIMEOUT): Promise<playwright.Page> {
 		const existingPages = new Set(this.getAllWindows());
 		await action();
 
@@ -317,7 +338,24 @@ export class PlaywrightDriver {
 		} while (Date.now() < deadline);
 
 		const openUrls = this.getAllWindows().map(page => page.url());
-		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}' after ${timeoutMs}ms. Open pages: ${JSON.stringify(openUrls)}. Page targets: ${await this.describePageTargets()}`);
+	}
+
+	/**
+	 * Describe the browser's page targets, including those that are not Playwright pages
+	 * yet because their first navigation has not committed. This tells a slow page apart
+	 * from one that was never created or never reported to Playwright.
+	 */
+	private async describePageTargets(): Promise<string> {
+		try {
+			const targets = await Promise.race([
+				this.getCDPTargets(),
+				wait(5_000).then(() => { throw new Error('Target.getTargets timed out'); })
+			]);
+			return JSON.stringify(targets.filter(target => target.type === 'page').map(({ url, title }) => ({ url, title })));
+		} catch (error) {
+			return `unavailable (${error})`;
+		}
 	}
 
 	/**
@@ -688,9 +726,32 @@ export class PlaywrightDriver {
 
 	async close() {
 
-		// Stop tracing
+		// Electron: ask the application to quit right away. Playwright's `close()`
+		// below only quits the application after all pending trace writes have been
+		// flushed to disk, which can take tens of seconds on slow disks. By then
+		// `Code#exit()` has already force killed the application, skipping its
+		// graceful shutdown (https://github.com/microsoft/vscode/issues/344456).
+		let exited = false;
+		if ('browserWindow' in this.application) {
+			const application = this.application;
+			const whenExited = new Promise<void>(resolve => application.once('close', () => resolve()));
+			try {
+				await measureAndLog(() => application.evaluate(({ app }) => app.quit()), 'app.quit()', this.options.logger);
+
+				// Wait for the application to exit before the cleanup below: Playwright's
+				// `close()` quits the application again, and a second quit while VS Code is
+				// still shutting down terminates it right away, because VS Code only defers
+				// the first `will-quit` event.
+				await measureAndLog(() => whenExited, 'wait for application exit', this.options.logger);
+				exited = true;
+			} catch (error) {
+				this.options.logger.log(`Error quitting application (${error})`);
+			}
+		}
+
+		// Stop tracing (it can no longer be stopped once the application has exited)
 		try {
-			if (this.options.tracing) {
+			if (this.options.tracing && !exited) {
 				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
 			}
 		} catch (error) {
@@ -711,6 +772,15 @@ export class PlaywrightDriver {
 			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
 		} catch (error) {
 			this.options.logger.log(`Error closing application (${error})`);
+		}
+
+		// Chromium writes the network log when it closes
+		if (this.netLogPath) {
+			try {
+				await measureAndLog(() => saveOrDeleteNetLog(this.netLogPath!, this.options.logsPath, !this.workbenchRestored, this.options.logger), 'saveOrDeleteNetLog()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error saving network log (${error})`);
+			}
 		}
 
 		// Server: via `teardown`
@@ -893,8 +963,9 @@ export class PlaywrightDriver {
 		return wait(ms);
 	}
 
-	whenWorkbenchRestored(): Promise<void> {
-		return this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
+	async whenWorkbenchRestored(): Promise<void> {
+		await this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
+		this.workbenchRestored = true;
 	}
 
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
@@ -1024,6 +1095,23 @@ export class PlaywrightDriver {
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Keeps a gzipped copy of a closed browser's network log in `logsPath` when `keep` is
+ * set, and always deletes the raw log.
+ */
+export async function saveOrDeleteNetLog(netLogPath: string, logsPath: string, keep: boolean, logger: Logger): Promise<void> {
+	try {
+		if (keep) {
+			const target = join(logsPath, 'chromium-netlog.json.gz');
+			await promises.mkdir(logsPath, { recursive: true });
+			await streamPromises.pipeline(createReadStream(netLogPath), createGzip(), createWriteStream(target));
+			logger.log(`The workbench did not restore, so the Chromium network log was kept: ${target}`);
+		}
+	} finally {
+		await promises.rm(netLogPath, { force: true });
+	}
 }
 
 function findFrame(frameTree: Protocol.Page.FrameTree, urlPattern: string): Protocol.Page.Frame | undefined {

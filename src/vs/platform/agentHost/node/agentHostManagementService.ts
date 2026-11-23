@@ -7,12 +7,18 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { type AuthenticateParams, type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { flushAgentHostTelemetry } from './agentHostTelemetryService.js';
+import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
+import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
+import { CategorizedConnectionError } from '../common/connectionTelemetry.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -33,17 +39,29 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
+		@IAgentHostMacAccessibilityTrustService private readonly _macAccessibilityTrust: IAgentHostMacAccessibilityTrustService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostAuthenticationController private readonly _authenticationController: IAgentHostAuthenticationController,
 	) { }
+
+	setHostExecutionCredentials(credentials: readonly AuthenticateParams[]): Promise<void> {
+		return this._runMutation(async () => this._authenticationController.setHostExecutionCredentials(credentials));
+	}
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
 		this._missionControl = service;
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		if (!this._missionControl) {
-			throw new Error('Mission Control is unavailable in this Agent Host');
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): ReturnType<IAgentHostManagementService['configureMissionControl']> {
+		try {
+			if (!this._missionControl) {
+				throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control is unavailable in this Agent Host');
+			}
+			await this._missionControl.configure(options, withdrawingAccountId);
+		} catch (error) {
+			this._logService.error('GitHub environment configuration failed', error);
+			return { error: getConnectionDiagnosticError(error) };
 		}
-		return this._missionControl.configure(options, withdrawingAccountId);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
@@ -57,12 +75,23 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._missionControl?.environmentId;
 	}
 
+	async getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._missionControl?.environmentName;
+	}
+
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	manageHostSandboxCertificate(...args: Parameters<IAgentHostManagementService['manageHostSandboxCertificate']>): Promise<void> {
+		if (!this._agentService.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable');
+		}
+		return this._runMutation(() => this._agentService.manageHostSandboxCertificate!(...args));
 	}
 
 	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
@@ -84,6 +113,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Sandbox certificate removal is unavailable');
 		}
 		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
+	}
+
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.refreshSandboxCertificate) {
+			throw new Error('Sandbox certificate refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshSandboxCertificate!(chat, scopeId));
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
@@ -135,18 +171,46 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
 	}
 
-	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI) {
+		if (!this._agentService.listPluginInstallations) {
+			throw new Error('Agent Host plugin installation inventory is unavailable');
+		}
+		return this._agentService.listPluginInstallations(provider, session, chat);
+	}
+
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		if (!this._agentService.setPluginEnabled) {
+			throw new Error('Agent Host plugin enablement is unavailable');
+		}
+		return this._runMutation(() => this._agentService.setPluginEnabled!(provider, plugin, enabled, scope, session, chat));
+	}
+
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		if (!this._agentService.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable.');
+		}
+		return this._agentService.listAgentExtensions(session, chat);
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		if (!this._agentService.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable.');
+		}
+		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session, chat));
+	}
+
+	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._agentService.listSessionCanvases) {
 			throw new Error('Copilot canvas inventory is unavailable');
 		}
 		return this._agentService.listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
 		if (!this._agentService.openSessionCanvas) {
 			throw new Error('Opening Copilot canvases is unavailable');
 		}
-		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat));
+		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat, answer));
 	}
 
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
@@ -163,21 +227,28 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.installPlugin!(provider, request, session, chat));
 	}
 
-	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI) {
+	retryManagedPlugins(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		if (!this._agentService.retryManagedPlugins) {
+			throw new Error('Agent Host managed plugin retry is unavailable');
+		}
+		return this._runMutation(() => this._agentService.retryManagedPlugins!(provider, session, chat));
+	}
+
+	listPluginMarketplaces(provider: AgentProvider, session?: URI, chat?: URI) {
 		if (!this._agentService.listPluginMarketplaces) {
 			throw new Error('Agent Host plugin marketplace inventory is unavailable');
 		}
 		return this._agentService.listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(provider: AgentProvider, session: URI | undefined, source: string, chat?: URI) {
 		if (!this._agentService.addPluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace registration is unavailable');
 		}
 		return this._runMutation(() => this._agentService.addPluginMarketplace!(provider, session, source, chat));
 	}
 
-	browsePluginMarketplace(provider: AgentProvider, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(provider: AgentProvider, session: URI | undefined, name: string, chat?: URI) {
 		if (!this._agentService.browsePluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace browse is unavailable');
 		}
@@ -212,18 +283,18 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.listCustomizationInstallations!(provider, session));
 	}
 
-	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation> {
 		if (!this._agentService.prepareCustomizationInstallation) {
 			throw new Error('Agent Host customization installation preparation is unavailable');
 		}
 		return this._runMutation(() => this._agentService.prepareCustomizationInstallation!(provider, session, request));
 	}
 
-	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void> {
+	applyCustomizationInstallation(provider: AgentProvider, request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
 		if (!this._agentService.applyCustomizationInstallation) {
 			throw new Error('Agent Host customization installation apply is unavailable');
 		}
-		return this._runMutation(() => this._agentService.applyCustomizationInstallation!(provider, operationId));
+		return this._runMutation(() => this._agentService.applyCustomizationInstallation!(provider, request));
 	}
 
 	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -243,6 +314,16 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
+	}
+
+	async setSystemNetworkOnline(online: boolean): Promise<void> {
+		this._logService.info(`[AgentHost] Network is ${online ? 'online' : 'offline'}`);
+		this._systemWake.setNetworkOnline(online);
+	}
+
+	async reportMacAccessibilityTrustChange(): Promise<void> {
+		this._logService.info('[AgentHost] macOS changed which apps it trusts for Accessibility');
+		this._macAccessibilityTrust.reportChange();
 	}
 
 	shutdown(): Promise<void> {
@@ -268,9 +349,15 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		} catch (error) {
 			this._logService.error('Agent Host provider shutdown failed.', error);
 		}
-		await raceTimeout(this._sessionDataService.whenIdle(), SHUTDOWN_FLUSH_TIMEOUT_MS, () => {
-			this._logService.warn(`Agent Host session data did not finish flushing within ${SHUTDOWN_FLUSH_TIMEOUT_MS}ms during shutdown.`);
-		});
+		// After the providers, so telemetry they report while stopping is delivered too.
+		const telemetryFlush = flushAgentHostTelemetry(this._telemetryService, this._logService);
+		try {
+			await raceTimeout(this._sessionDataService.whenIdle(), SHUTDOWN_FLUSH_TIMEOUT_MS, () => {
+				this._logService.warn(`Agent Host session data did not finish flushing within ${SHUTDOWN_FLUSH_TIMEOUT_MS}ms during shutdown.`);
+			});
+		} finally {
+			await telemetryFlush;
+		}
 	}
 
 	private _runMutation<T>(operation: () => Promise<T>): Promise<T> {

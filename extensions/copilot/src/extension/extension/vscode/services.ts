@@ -19,8 +19,6 @@ import { RunCommandExecutionServiceImpl } from '../../../platform/commands/vscod
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ConfigurationServiceImpl } from '../../../platform/configuration/vscode/configurationServiceImpl';
 import { CustomInstructionsService, ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
-import { IDebugOutputService } from '../../../platform/debug/common/debugOutputService';
-import { DebugOutputServiceImpl } from '../../../platform/debug/vscode/debugOutputServiceImpl';
 import { IDialogService } from '../../../platform/dialog/common/dialogService';
 import { DialogServiceImpl } from '../../../platform/dialog/vscode/dialogServiceImpl';
 import { EditSurvivalTrackerService, IEditSurvivalTrackerService } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
@@ -62,7 +60,6 @@ import { INotificationService, NullNotificationService } from '../../../platform
 import { NotificationService } from '../../../platform/notification/vscode/notificationServiceImpl';
 import { IUrlOpener, NullUrlOpener } from '../../../platform/open/common/opener';
 import { RealUrlOpener } from '../../../platform/open/vscode/opener';
-import { IProjectTemplatesIndex, ProjectTemplatesIndex } from '../../../platform/projectTemplatesIndex/common/projectTemplatesIndex';
 import { IPromptPathRepresentationService, PromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IReleaseNotesService } from '../../../platform/releaseNotes/common/releaseNotesService';
 import { ReleaseNotesService } from '../../../platform/releaseNotes/vscode/releaseNotesServiceImpl';
@@ -111,7 +108,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	builder.define(IInteractionService, new SyncDescriptor(InteractionService));
 	builder.define(ICopilotTokenStore, new CopilotTokenStore());
-	builder.define(IDebugOutputService, new DebugOutputServiceImpl());
 	builder.define(IDialogService, new DialogServiceImpl());
 	builder.define(IEnvService, new EnvServiceImpl());
 	builder.define(IFileSystemService, new VSCodeFileSystemService());
@@ -151,7 +147,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IMcpService, new SyncDescriptor(McpService));
 	builder.define(IExtensionsService, new SyncDescriptor(VSCodeExtensionsService));
 	builder.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ true]));
-	builder.define(IProjectTemplatesIndex, new SyncDescriptor(ProjectTemplatesIndex, [/*useRemoteCache*/ true]));
 	builder.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
 	builder.define(IEditLogService, new SyncDescriptor(EditLogService));
 	builder.define(IMultiFileEditInternalTelemetryService, new SyncDescriptor(MultiFileEditInternalTelemetryService));

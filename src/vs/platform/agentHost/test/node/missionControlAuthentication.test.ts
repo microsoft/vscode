@@ -8,8 +8,11 @@ import { createHash, randomBytes } from 'crypto';
 import sodium from 'libsodium-wrappers';
 import { stub, restore, useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
+import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 
 suite('Mission Control sealed authentication', () => {
@@ -316,6 +319,22 @@ suite('Mission Control sealed authentication', () => {
 		});
 	}
 
+	test('targeted MCP tokens sharing the identity origin never reauthenticate the relay owner', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const identityTokens: string[] = [];
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async (_input, init) => {
+			identityTokens.push(new Headers(init?.headers).get('Authorization')!);
+			return Response.json({ id: 123, type: 'User' });
+		}, false));
+		const target = { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId: 'mcp' };
+		await assert.rejects(auth.authenticate({ resource, token: '', target }), /Authenticate the relay identity/);
+		await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+		const accepted = await auth.authenticate({ resource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token'), target });
+		assert.deepStrictEqual({ accepted, identityTokens, authorized: auth.authenticated }, {
+			accepted: { resource, token: 'mcp-token', target }, identityTokens: ['Bearer owner-token'], authorized: true,
+		});
+	});
+
 	test('preserves repository and MCP credentials and scopes', async () => {
 		const sealing = store.add(new MissionControlSealing());
 		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
@@ -362,6 +381,29 @@ suite('Mission Control sealed authentication', () => {
 	test('refuses failed identity validation and non-user principals', async () => {
 		await assert.rejects(resolveMissionControlOwner(async () => new Response('', { status: 401 }), resource, 'test'), /401/);
 		await assert.rejects(resolveMissionControlOwner(async () => Response.json({ id: 123, type: 'Bot' }), resource, 'test'), /user identity/);
+	});
+
+	test('identity failures keep their HTTP status, rate limits and response validity for connection telemetry', async () => {
+		const responses = [
+			new Response('', { status: 401 }),
+			new Response('', { status: 403 }),
+			new Response('', { status: 403, headers: { 'Retry-After': '10' } }),
+			new Response('', { status: 403, headers: { 'X-RateLimit-Remaining': '0' } }),
+			new Response('', { status: 503 }),
+			new Response('not json'),
+		];
+		const errors = await Promise.all(responses.map(response => resolveMissionControlOwner(async () => response, resource, 'test').then(
+			() => undefined,
+			error => getConnectionTelemetryError(getConnectionDiagnosticError(error)),
+		)));
+		assert.deepStrictEqual(errors, [
+			{ errorCategory: 'authentication', errorCode: JsonRpcErrorCodes.InvalidParams, statusCode: 401 },
+			{ errorCategory: 'authorization', errorCode: JsonRpcErrorCodes.InvalidParams, statusCode: 403 },
+			{ errorCategory: 'throttled', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 403 },
+			{ errorCategory: 'throttled', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 403 },
+			{ errorCategory: 'httpServer', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 503 },
+			{ errorCategory: 'invalidResponse' },
+		]);
 	});
 
 	for (const { status, headers, code } of [

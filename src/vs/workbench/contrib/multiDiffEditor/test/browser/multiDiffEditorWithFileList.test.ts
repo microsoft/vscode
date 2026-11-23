@@ -5,20 +5,26 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { Emitter, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -26,6 +32,7 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
@@ -37,11 +44,17 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
 import { MultiDiffEditor } from '../../browser/multiDiffEditor.js';
+import { MultiDiffEditorInput, MultiDiffEditorSerializer } from '../../browser/multiDiffEditorInput.js';
+import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
 import { MultiDiffEditorWithFileListWidget } from '../../browser/multiDiffEditorWithFileListWidget.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting } from '../../common/multiDiffEditor.js';
+import { isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, observableMultiDiffEditorFileListHidden, toggleMultiDiffEditorFileList, MultiDiffEditorFileListPosition, MultiDiffEditorFileListViewMode, setMultiDiffEditorFileListViewMode } from '../../common/multiDiffEditor.js';
+import { FocusFileListAction } from '../../browser/actions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IVisibleEditorPane } from '../../../../common/editor.js';
 
 class TestMultiDiffEditor extends MultiDiffEditor {
 	override createEditor(parent: HTMLElement): void {
@@ -86,28 +99,185 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}, { dispose() { } }));
 	}
 
-	for (const enabled of [false, true]) {
-		test(`uses the ${enabled ? 'composite' : 'original'} widget when the experimental setting is ${enabled}`, () => {
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[multiDiffEditorExperimentalFileListSetting]: enabled,
-			}));
-			const container = document.createElement('div');
-			document.body.appendChild(container);
-			disposables.add(toDisposable(() => container.remove()));
-			const editor = disposables.add(instantiationService.createInstance(TestMultiDiffEditor, new TestEditorGroupView(1)));
-			editor.createEditor(container);
-			editor.layout(new Dimension(1000, 100));
-			const contextKeyService = instantiationService.get(IContextKeyService);
-
-			assert.deepStrictEqual({
-				hasDiffEditor: container.querySelector('.multiDiffEditor') !== null,
-				hasComposite: container.querySelector('.multi-diff-editor-with-file-list') !== null,
-				hasFiles: container.querySelector('.multi-diff-editor-with-file-list-files') !== null,
-				fileListAvailable: contextKeyService.getContextKeyValue(MultiDiffEditorFileListAvailableContext.key) === true,
-				fileListVisible: contextKeyService.getContextKeyValue(MultiDiffEditorFileListVisibleContext.key) === true,
-			}, { hasDiffEditor: true, hasComposite: enabled, hasFiles: enabled, fileListAvailable: enabled, fileListVisible: enabled });
-		});
+	function stubBinaryDocuments() {
+		instantiationService.stub(ITextModelService, new class extends InMemoryTextModelService {
+			override createModelReference(): Promise<never> {
+				return Promise.reject(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
+			}
+		}(instantiationService.get(IModelService)));
+		instantiationService.stub(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() { }());
 	}
+
+	function createEditor(height: number) {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editor = disposables.add(instantiationService.createInstance(TestMultiDiffEditor, new TestEditorGroupView(1)));
+		editor.createEditor(container);
+		editor.layout(new Dimension(1000, height));
+		return { container, editor };
+	}
+
+	/** Creates an input like `openEditor` does, which can opt out of the file list. */
+	function createInput(name: string, paths: readonly string[], showFileList?: boolean) {
+		return disposables.add(MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
+			multiDiffSource: URI.parse(`multi-diff-editor:${name}`),
+			label: 'Test',
+			resources: paths.map(path => ({ original: { resource: undefined }, modified: { resource: URI.file(path) } })),
+			showFileList,
+		}, instantiationService));
+	}
+
+	test('offers the file list unless the input opts out', async () => {
+		stubBinaryDocuments();
+		const { editor } = createEditor(300);
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const open = async (input: MultiDiffEditorInput) => {
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			return [MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext].map(key => contextKeyService.getContextKeyValue(key.key) === true);
+		};
+
+		try {
+			const withFileList = await open(createInput('with', ['/repo/a.png']));
+			const withoutFileList = await open(createInput('without', ['/repo/a.png'], false));
+			const withFileListAgain = await open(createInput('again', ['/repo/a.png']));
+
+			assert.deepStrictEqual({ withFileList, withoutFileList, withFileListAgain }, {
+				withFileList: [true, true],
+				withoutFileList: [false, false],
+				withFileListAgain: [true, true],
+			});
+		} finally {
+			await editor.clearInput();
+		}
+	});
+
+	test('keeps whether the input offers the file list when it is restored, which it does unless it opts out', () => {
+		instantiationService.stub(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() { }());
+		const serializer = new MultiDiffEditorSerializer();
+		const roundTrip = (showFileList: boolean | undefined) => {
+			const input = disposables.add(MultiDiffEditorInput.fromResourceMultiDiffEditorInput({ multiDiffSource: URI.parse(`multi-diff-editor:${showFileList}`), showFileList }, instantiationService));
+			const serialized = serializer.serialize(input)!;
+			const restored = disposables.add(serializer.deserialize(instantiationService, serialized) as MultiDiffEditorInput);
+			return { opened: input.showFileList, serializedFlag: JSON.parse(serialized).showFileList, restored: restored.showFileList };
+		};
+
+		assert.deepStrictEqual({ omitted: roundTrip(undefined), shown: roundTrip(true), optedOut: roundTrip(false) }, {
+			omitted: { opened: true, serializedFlag: true, restored: true },
+			shown: { opened: true, serializedFlag: true, restored: true },
+			optedOut: { opened: false, serializedFlag: false, restored: false },
+		});
+	});
+
+	test('Focus File List stays in the Command Palette after the user hides the list, and shows the list before focusing it', async () => {
+		stubBinaryDocuments();
+		const { container, editor } = createEditor(100);
+		const input = disposables.add(instantiationService.createInstance(MultiDiffEditorInput, URI.parse('multi-diff-editor:focus'), 'Test', [new MultiDiffEditorItem(undefined, URI.file('/repo/a.png'), undefined)], false));
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const precondition = new FocusFileListAction().desc.precondition;
+		const state = () => ({
+			listVisible: contextKeyService.getContextKeyValue(MultiDiffEditorFileListEnabledContext.key) === true,
+			inCommandPalette: !!precondition?.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) }),
+			focused: !!container.querySelector('.multi-diff-editor-with-file-list-files')?.contains(document.activeElement),
+		});
+
+		try {
+			toggleMultiDiffEditorFileList(instantiationService.get(IStorageService));
+			const hidden = state();
+			editor.focusFileList();
+			const focused = state();
+
+			assert.deepStrictEqual({ hidden, focused }, {
+				hidden: { listVisible: false, inCommandPalette: true, focused: false },
+				focused: { listVisible: true, inCommandPalette: true, focused: true },
+			});
+		} finally {
+			await editor.clearInput();
+		}
+	});
+
+	test('orders the diffs of an input like the file list while it is used, and keeps the source order of an input without one', async () => {
+		stubBinaryDocuments();
+		const paths = ['/repo/src/c.png', '/repo/d.png', '/repo/docs/b.png', '/repo/src/a.png'];
+
+		const { container, editor } = createEditor(300);
+		const input = createInput('ordered', paths);
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		const viewModel = editor.viewModel!;
+		const withoutFileList = createEditor(300);
+		await withoutFileList.editor.setInput(createInput('without', paths, false), undefined, {}, CancellationToken.None);
+		const files = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.filter(row => row.querySelector('.multi-diff-file-list-item-status'))
+			.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+			.map(row => row.querySelector('.monaco-icon-name-container')?.textContent);
+		const diffs = (viewModel: MultiDiffEditorViewModel) => viewModel.items.get().map(item => basename(item.modifiedUri!));
+
+		try {
+			const list = { files: files(container), diffs: diffs(viewModel) };
+			setMultiDiffEditorFileListViewMode(instantiationService.get(IStorageService), 'tree');
+			// Bounded, so that diffs in the wrong order fail the assertion below rather than time out.
+			await raceTimeout(waitForState(viewModel.items, items => items[0]?.modifiedUri?.path === '/repo/docs/b.png'), 1000);
+			const tree = { files: files(container), diffs: diffs(viewModel) };
+
+			await editor.clearInput();
+			setMultiDiffEditorFileListViewMode(instantiationService.get(IStorageService), 'list');
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			const reopened = { files: files(container), diffs: diffs(viewModel) };
+
+			assert.deepStrictEqual({ list, tree, reopened, withoutFileList: diffs(withoutFileList.editor.viewModel!) }, {
+				list: { files: ['d.png', 'b.png', 'a.png', 'c.png'], diffs: ['d.png', 'b.png', 'a.png', 'c.png'] },
+				tree: { files: ['b.png', 'a.png', 'c.png', 'd.png'], diffs: ['b.png', 'a.png', 'c.png', 'd.png'] },
+				reopened: { files: ['d.png', 'b.png', 'a.png', 'c.png'], diffs: ['d.png', 'b.png', 'a.png', 'c.png'] },
+				withoutFileList: ['c.png', 'd.png', 'b.png', 'a.png'],
+			});
+		} finally {
+			await editor.clearInput();
+			await withoutFileList.editor.clearInput();
+		}
+	});
+
+	test('orders only resolved resources like the file list when a file replaces a folder', async () => {
+		const missingFileError = new FileOperationError('missing', FileOperationResult.FILE_NOT_FOUND);
+		instantiationService.stub(ITextModelService, new class extends InMemoryTextModelService {
+			override createModelReference(resource: URI): Promise<never> {
+				return Promise.reject(resource.path.endsWith('/missing.png')
+					? missingFileError
+					: new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
+			}
+		}(instantiationService.get(IModelService)));
+		instantiationService.stub(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() { }());
+		setMultiDiffEditorFileListViewMode(instantiationService.get(IStorageService), 'tree');
+		const { container, editor } = createEditor(300);
+		const resources = [
+			new MultiDiffEditorItem(undefined, URI.file('/repo/config'), undefined),
+			new MultiDiffEditorItem(URI.from({ scheme: 'git', path: '/repo/config/missing.png' }), undefined, undefined),
+			new MultiDiffEditorItem(undefined, URI.file('/repo/docs/readme.png'), undefined),
+		];
+		const input = disposables.add(instantiationService.createInstance(MultiDiffEditorInput, URI.parse('multi-diff-editor:missing'), 'Test', resources, false));
+		const previousErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const reportedErrors: Error[] = [];
+		setUnexpectedErrorHandler(error => reportedErrors.push(error));
+		try {
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			const files = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.filter(row => row.querySelector('.multi-diff-file-list-item-status'))
+				.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+				.map(row => row.querySelector('.monaco-icon-name-container')?.textContent);
+			assert.deepStrictEqual({
+				files,
+				diffs: editor.viewModel!.items.get().map(item => basename(item.modifiedUri!)),
+				reportedErrors,
+			}, {
+				files: ['readme.png', 'config'],
+				diffs: ['readme.png', 'config'],
+				reportedErrors: [missingFileError],
+			});
+		} finally {
+			setUnexpectedErrorHandler(previousErrorHandler);
+			await editor.clearInput();
+		}
+	});
 
 	test('lists the files, follows the visible file and reveals opened files', async () => {
 		const { container, composite } = createComposite(observableValue('fileListVisible', true));
@@ -137,25 +307,25 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			}));
 			const initialSelection = selectedRows();
 
-			row(2).dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			row(4).dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
 			const afterClick = { selection: selectedRows(), active: activeFile(), focusInDiff: diffRoot.contains(document.activeElement) };
 
 			const deletedItem = viewModel.items.get()[1];
 			viewModel.collapse(deletedItem);
-			row(1).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+			row(2).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
 			const afterDoubleClick = { selection: selectedRows(), active: activeFile(), collapsed: deletedItem.collapsed.get(), focusInDiff: diffRoot.contains(document.activeElement) };
 
 			assert.deepStrictEqual({ rows, initialSelection, afterClick, afterDoubleClick }, {
 				rows: [
+					{ name: '$(zap).png', status: 'A' },
 					{ name: 'added.png', status: 'A' },
 					{ name: 'deleted.png', status: 'D' },
-					{ name: 'renamed.png', status: 'R' },
 					{ name: 'modified.png', status: 'M' },
-					{ name: '$(zap).png', status: 'A' },
+					{ name: 'renamed.png', status: 'R' },
 				],
-				initialSelection: [0],
-				afterClick: { selection: [2], active: '/repo/renamed.png', focusInDiff: false },
-				afterDoubleClick: { selection: [1], active: '/repo/deleted.png', collapsed: false, focusInDiff: true },
+				initialSelection: [1],
+				afterClick: { selection: [4], active: '/repo/renamed.png', focusInDiff: false },
+				afterDoubleClick: { selection: [2], active: '/repo/deleted.png', collapsed: false, focusInDiff: true },
 			});
 		} finally {
 			widget.setViewModel(undefined);
@@ -242,9 +412,45 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			const list = rows();
 
 			assert.deepStrictEqual({ tree, treeAfterClick, list }, {
-				tree: [' src/app', '>a.png M', ' b.png M', ' docs', ' c.png D', ' lib/util/deep', ' d.png A'],
-				treeAfterClick: [' src/app', ' a.png M', ' b.png M', ' docs', '>c.png D', ' lib/util/deep', ' d.png A'],
-				list: [' a.png M (path)', ' b.png M (path)', '>c.png D (path)', ' d.png A (path)'],
+				tree: [' docs', ' c.png D', ' lib/util/deep', ' d.png A', ' src/app', '>a.png M', ' b.png M'],
+				treeAfterClick: [' docs', '>c.png D', ' lib/util/deep', ' d.png A', ' src/app', ' a.png M', ' b.png M'],
+				list: ['>c.png D (path)', ' d.png A (path)', ' a.png M (path)', ' b.png M (path)'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('sorts the files by path in the flat list and folders first in the tree', async () => {
+		const viewMode = observableValue<MultiDiffEditorFileListViewMode>('viewMode', 'tree');
+		const { container, composite } = createComposite(constObservable(true), viewMode);
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 300));
+		// The order of the given resources is ignored.
+		const documentItems = [
+			createBinaryItem(undefined, URI.file('/repo/src/c.png')),
+			createBinaryItem(undefined, URI.file('/repo/d.png')),
+			createBinaryItem(undefined, URI.file('/repo/docs/b.png')),
+			createBinaryItem(undefined, URI.file('/repo/src/a.png')),
+		];
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const files = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.filter(row => row.querySelector('.multi-diff-file-list-item-status'))
+			.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+			.map(row => row.querySelector('.monaco-icon-name-container')?.textContent);
+
+		try {
+			const tree = files();
+			viewMode.set('list', undefined);
+			const list = files();
+
+			assert.deepStrictEqual({ tree, list }, {
+				tree: ['b.png', 'a.png', 'c.png', 'd.png'],
+				list: ['d.png', 'b.png', 'a.png', 'c.png'],
 			});
 		} finally {
 			widget.setViewModel(undefined);
@@ -312,7 +518,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
-	test('shows the list only when enabled and wide enough, using the stored width', () => {
+	test('shows the list while enabled, however narrow, using the stored width', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const state = ({ container, composite }: ReturnType<typeof createComposite>) => ({
 			fileListVisible: composite.isFileListVisible.get(),
@@ -345,13 +551,13 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			disabledInitially: { fileListVisible: false, diffWidth: 1000, hasList: false },
 			afterEnable: { fileListVisible: true, diffWidth: 700, hasList: true },
 			squeezed: { fileListVisible: true, diffWidth: 400, hasList: true },
-			narrow: { fileListVisible: false, diffWidth: 500, hasList: true },
+			narrow: { fileListVisible: true, diffWidth: 340, hasList: true },
 			wideAgain: { fileListVisible: true, diffWidth: 700, hasList: true },
 			afterDisable: { fileListVisible: false, diffWidth: 1000, hasList: false },
 		});
 	});
 
-	test('fits the diffs into editor groups narrower than their minimum width while the list is hidden', () => {
+	test('fits the diffs into editor groups narrower than their minimum width, leaving a shown list its minimum width', () => {
 		const enabled = observableValue('fileListVisible', false);
 		const { composite } = createComposite(enabled);
 		const state = () => ({
@@ -372,9 +578,9 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 
 		assert.deepStrictEqual({ disabled, enabledButNarrow, wide, narrowAgain, squeezed }, {
 			disabled: { fileListVisible: false, diffWidth: 300 },
-			enabledButNarrow: { fileListVisible: false, diffWidth: 300 },
+			enabledButNarrow: { fileListVisible: true, diffWidth: 140 },
 			wide: { fileListVisible: true, diffWidth: 740 },
-			narrowAgain: { fileListVisible: false, diffWidth: 300 },
+			narrowAgain: { fileListVisible: true, diffWidth: 140 },
 			squeezed: { fileListVisible: true, diffWidth: 400 },
 		});
 	});
@@ -415,11 +621,39 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			initiallyLeft: { position: 'left', visible: true, diffWidth: 700 },
 			movedRight: { position: 'right', visible: true, diffWidth: 700, sameList: true, focused: true },
 			squeezed: { position: 'left', visible: true, diffWidth: 400 },
-			narrow: { position: 'right', visible: false, diffWidth: 500 },
+			narrow: { position: 'right', visible: true, diffWidth: 340 },
 			restored: { position: 'right', visible: true, diffWidth: 700 },
 			hidden: { position: 'left', visible: false, diffWidth: 1000 },
 			shown: { position: 'left', visible: true, diffWidth: 700 },
 			rightAgain: { position: 'right', visible: true, diffWidth: 700 },
+		});
+	});
+});
+
+suite('Multi diff editor file list of any host', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Focus File List focuses the list of any editor that hosts one, such as the Agents window\'s Changes editor, and the hidden state of the list is shared', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const focused: string[] = [];
+		const host = { focusFileList: () => { focused.push('host'); } };
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return host as unknown as IVisibleEditorPane; }
+		}());
+		await instantiationService.invokeFunction(accessor => new FocusFileListAction().run(accessor));
+		const storageService = instantiationService.get(IStorageService);
+		const owner = {};
+		const hidden = observableMultiDiffEditorFileListHidden(owner, storageService, disposables.add(new DisposableStore()));
+		const states = [hidden.get()];
+		toggleMultiDiffEditorFileList(storageService);
+		states.push(hidden.get());
+		toggleMultiDiffEditorFileList(storageService);
+
+		assert.deepStrictEqual({ focused, precondition: new FocusFileListAction().desc.precondition?.serialize(), hiddenStates: states, isHost: isMultiDiffEditorFileListHost(host) }, {
+			focused: ['host'],
+			precondition: MultiDiffEditorFileListAvailableContext.key,
+			hiddenStates: [false, true],
+			isHost: true,
 		});
 	});
 });

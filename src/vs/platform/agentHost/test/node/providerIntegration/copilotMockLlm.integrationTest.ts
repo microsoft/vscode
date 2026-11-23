@@ -15,11 +15,11 @@ import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { customizationId, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
@@ -44,7 +44,18 @@ const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
 const STEERING_RESPONSE_DELAY_MS = 10_000;
 const CANVAS_SCENARIO_ID = 'model-opened-canvas';
 const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
+const ENV_CANVAS_SCENARIO_ID = 'model-opened-env-canvas';
+// The runtime withholds its secret environment names from extensions until the user consents.
+const SENSITIVE_VARIABLE = 'BLACKBIRD_AUTH_METIS_API_KEY';
+const SENSITIVE_VALUE = 'mock-llm-canvas-sentinel';
 const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
+const PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID = 'plugin-restricted-sibling-delegation';
+
+/** The root settings a canvas test changes, as they were before it. */
+interface ICanvasRootConfig {
+	readonly canvasesEnabled: boolean;
+	readonly workspaceTrust: unknown;
+}
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -57,6 +68,67 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 	let suiteHome: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let restrictedAgentType: string | undefined;
+
+	function forwardedAgentType(name: string): string {
+		const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+			typeof value === 'object' && value !== null && !Array.isArray(value);
+		const captured = server.mockLlm?.getRequests?.().at(-1);
+		assert.ok(isRecord(captured) && isRecord(captured.body) && Array.isArray(captured.body.tools));
+		const tools: readonly unknown[] = captured.body.tools;
+		for (const raw of tools) {
+			const tool = isRecord(raw) && isRecord(raw.function) ? raw.function : raw;
+			if (!isRecord(tool) || tool.name !== 'task' || typeof tool.description !== 'string') {
+				continue;
+			}
+			const schema = tool.input_schema ?? tool.parameters;
+			assert.ok(isRecord(schema) && isRecord(schema.properties) && isRecord(schema.properties.agent_type));
+			const agentType = schema.properties.agent_type;
+			assert.ok(Array.isArray(agentType.enum));
+			const values: readonly unknown[] = agentType.enum;
+			const description = tool.description;
+			const matches = values.filter((id): id is string => typeof id === 'string').filter(id =>
+				description.split('\n').some(line => line.startsWith(`- **${id}**: ${name}:`) || line === `- **${id}**: ${name}`));
+			assert.strictEqual(matches.length, 1, `The task catalog must expose exactly one agent named ${name}`);
+			return matches[0];
+		}
+		throw new Error('The model request did not expose the task tool');
+	}
+
+	/** Applies `config` to the root configuration and waits for the host to acknowledge it. */
+	async function setRootConfig(config: Record<string, unknown>, clientSeq: number, replace = false): Promise<void> {
+		client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq,
+			action: { type: ActionType.RootConfigChanged, config, ...(replace ? { replace } : {}) },
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, ActionType.RootConfigChanged)
+			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+		);
+	}
+
+	async function readRootConfigValues(): Promise<Record<string, unknown>> {
+		const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		return { ...(result.snapshot!.state as RootState).config?.values };
+	}
+
+	async function readCanvasRootConfig(): Promise<ICanvasRootConfig> {
+		const values = await readRootConfigValues();
+		return { canvasesEnabled: values[AgentHostCanvasesEnabledConfigKey] === true, workspaceTrust: values[AgentHostWorkspaceTrustConfigKey] };
+	}
+
+	/** Puts back the root settings a canvas test changed, removing workspace trust when it was absent before. */
+	async function restoreCanvasRootConfig(previous: ICanvasRootConfig, clientSeq: number): Promise<void> {
+		const values = await readRootConfigValues();
+		values[AgentHostCanvasesEnabledConfigKey] = previous.canvasesEnabled;
+		if (previous.workspaceTrust === undefined) {
+			delete values[AgentHostWorkspaceTrustConfigKey];
+		} else {
+			values[AgentHostWorkspaceTrustConfigKey] = previous.workspaceTrust;
+		}
+		await setRootConfig(values, clientSeq, true);
+	}
 
 	suiteSetup(async function () {
 		this.timeout(120_000);
@@ -65,6 +137,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			mockLlm: true,
 			homeDir: suiteHome,
 			userDataDir: join(suiteHome, 'user-data'),
+			env: { [SENSITIVE_VARIABLE]: SENSITIVE_VALUE },
 			mockScenarios: [{
 				id: STEERING_OWNER_SCENARIO_ID,
 				definition: {
@@ -107,6 +180,18 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 					],
 				},
 			}, {
+				id: ENV_CANVAS_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{ toolNamePattern: /^open_canvas$/, arguments: { canvasId: 'env-canvas', instanceId: 'env-instance' } }],
+						},
+						{ kind: 'content', chunks: [{ content: 'Env canvas opened.', delayMs: 0 }] },
+					],
+				},
+			}, {
 				id: CANVAS_EXTENSION_TURN_SCENARIO_ID,
 				definition: {
 					type: 'multi-turn',
@@ -121,15 +206,41 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 							kind: 'tool-calls',
 							toolCalls: [{
 								toolNamePattern: /^task$/,
-								arguments: {
-									name: 'plugin-sibling',
-									description: 'Run the plugin sibling',
-									prompt: 'Complete the delegated task.',
-									agent_type: 'plugin-sibling',
+								arguments: () => {
+									restrictedAgentType = forwardedAgentType('plugin-restricted');
+									return {
+										name: 'plugin-sibling',
+										description: 'Run the plugin sibling',
+										prompt: 'Complete the delegated task.',
+										agent_type: forwardedAgentType('plugin-sibling'),
+									};
 								},
 							}],
 						},
 						{ kind: 'content', chunks: [{ content: 'PLUGIN_PARENT_DONE', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: () => {
+									assert.ok(restrictedAgentType, 'the first turn must discover the agent before invocation is restricted');
+									return {
+										name: 'plugin-restricted',
+										description: 'Run the restricted plugin sibling',
+										prompt: 'Complete the restricted delegated task.',
+										agent_type: restrictedAgentType,
+									};
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_RESTRICTED_DONE', delayMs: 0 }] },
 					],
 				},
 			}],
@@ -197,6 +308,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const pluginDir = join(workspaceDir, 'plugin');
 		const parentAgentFile = join(pluginDir, 'agents', 'parent.agent.md');
 		const siblingAgentFile = join(pluginDir, 'agents', 'sibling.agent.md');
+		const restrictedAgentFile = join(pluginDir, 'agents', 'restricted.agent.md');
 		await Promise.all([
 			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
 			mkdir(join(pluginDir, 'agents'), { recursive: true }),
@@ -205,6 +317,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Plugin Delegation' })),
 			writeFile(parentAgentFile, '---\nname: plugin-parent\ndescription: Delegates plugin work\n---\nDelegate work to plugin-sibling.'),
 			writeFile(siblingAgentFile, '---\nname: plugin-sibling\ndescription: Completes plugin work\n---\nComplete the delegated task.'),
+			writeFile(restrictedAgentFile, '---\nname: plugin-restricted\n---\nComplete the restricted task.'),
 		]);
 
 		const clientId = 'real-sdk-plugin-subagents';
@@ -230,62 +343,101 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			&& getActionEnvelope(notification).channel === sessionUri,
 			30_000,
 		);
-		await retry(async () => {
+		let parentAgentUri = await retry(async () => {
 			const session = await fetchSessionWithChat(client, sessionUri);
 			const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
 				customization.type === CustomizationType.Plugin && customization.uri === pluginUri
 			);
-			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-sibling']);
+			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-restricted', 'plugin-sibling']);
+			const parent = plugin?.children?.find(child => child.name === 'plugin-parent');
+			assert.ok(parent);
+			return parent.uri;
 		}, 100, 300);
 
-		client.clearReceived();
 		const chatUri = defaultChatChannel(sessionUri);
-		const taskStarted = client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatToolCallStart)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
-			90_000,
-		);
-		client.dispatch({
-			channel: chatUri,
-			clientSeq: 2,
-			action: {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-plugin-subagent',
-				startedAt: new Date().toISOString(),
-				message: {
-					text: `[scenario:${PLUGIN_SIBLING_SCENARIO_ID}] Delegate to the plugin sibling.`,
-					origin: { kind: MessageKind.User },
-					agent: { uri: URI.file(parentAgentFile).toString() },
+		const delegate = async (clientSeq: number, turnId: string, scenarioId: string) => {
+			client.clearReceived();
+			const taskStarted = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallStart)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
+				90_000,
+			);
+			client.dispatch({
+				channel: chatUri,
+				clientSeq,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date().toISOString(),
+					message: {
+						text: `[scenario:${scenarioId}] Delegate to the plugin sibling.`,
+						origin: { kind: MessageKind.User },
+						agent: { uri: parentAgentUri },
+					},
 				},
+			});
+			const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
+			const completeNotification = await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
+				90_000,
+			);
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
+
+			const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const response = session.turns.find(turn => turn.id === turnId)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join('');
+			return { taskSucceeded: completeAction.result.success, parentResponse: response };
+		};
+
+		const modelInvocable = await delegate(2, 'turn-plugin-subagent', PLUGIN_SIBLING_SCENARIO_ID);
+		await writeFile(restrictedAgentFile, '---\nname: plugin-restricted\ninfer: false\n---\nComplete the restricted task.');
+		client.clearReceived();
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [{ ...pluginCustomization, nonce: '2' }] },
 			},
 		});
-		const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
-		const completeNotification = await client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatToolCallComplete)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
-			90_000,
-		);
-		await client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatTurnComplete)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === 'turn-plugin-subagent',
-			90_000,
-		);
-
-		const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
-		const session = await fetchSessionWithChat(client, sessionUri);
-		const response = session.turns.find(turn => turn.id === 'turn-plugin-subagent')?.responseParts
-			.filter(part => part.kind === ResponsePartKind.Markdown)
-			.map(part => part.content)
-			.join('');
+		const updated = await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.SessionCustomizationUpdated)) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(notification);
+			return channel === sessionUri && action.type === ActionType.SessionCustomizationUpdated
+				&& action.customization.type === CustomizationType.Plugin && action.customization.uri === pluginUri
+				&& action.customization.load?.kind === CustomizationLoadStatus.Loaded
+				&& action.customization.children?.some(child => child.name === 'plugin-parent') === true;
+		}, 30_000);
+		const update = getActionEnvelope(updated).action;
+		assert.ok(update.type === ActionType.SessionCustomizationUpdated && update.customization.type === CustomizationType.Plugin);
+		const parent = update.customization.children?.find(child => child.name === 'plugin-parent');
+		assert.ok(parent);
+		parentAgentUri = parent.uri;
 		assert.deepStrictEqual({
-			taskSucceeded: completeAction.result.success,
-			parentResponse: response,
+			modelInvocable,
+			modelRestricted: await delegate(4, 'turn-plugin-restricted-subagent', PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID),
 		}, {
-			taskSucceeded: true,
-			parentResponse: 'PLUGIN_PARENT_DONE',
+			modelInvocable: {
+				taskSucceeded: true,
+				parentResponse: 'PLUGIN_PARENT_DONE',
+			},
+			modelRestricted: {
+				taskSucceeded: false,
+				parentResponse: 'PLUGIN_RESTRICTED_DONE',
+			},
 		});
 	});
 
@@ -297,12 +449,12 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		await mkdir(extensionDir, { recursive: true });
 		await writeFile(join(extensionDir, 'extension.mjs'), `
 import { writeFileSync } from 'node:fs';
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 writeFileSync(new URL('./observed-environment.json', import.meta.url), JSON.stringify({ copilotHome: process.env.COPILOT_HOME ?? null }));
 let session;
 let requestedAgent = false;
 session = await joinSession({
-	canvases: [createCanvas({
+	canvases: { definitions: [createCanvas({
 		id: 'proof-canvas',
 		displayName: 'Proof canvas',
 		description: 'Integration-test canvas.',
@@ -324,22 +476,11 @@ session = await joinSession({
 				status: 'ready'
 			};
 		}
-	})]
+	})] }
 });
 `, 'utf8');
 
-		const setCanvasesEnabled = async (enabled: boolean, clientSeq: number) => {
-			client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } },
-			});
-			await client.waitForNotification(n =>
-				isActionNotification(n, ActionType.RootConfigChanged)
-				&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
-			);
-		};
-		let previousCanvasesEnabled: boolean | undefined;
+		let previousRootConfig: ICanvasRootConfig | undefined;
 		try {
 			const sessionUri = await createProviderSession(
 				client,
@@ -348,9 +489,11 @@ session = await joinSession({
 				createdSessions,
 				URI.file(workspaceDir),
 				async () => {
-					const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-					previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
-					await setCanvasesEnabled(true, 1);
+					previousRootConfig = await readCanvasRootConfig();
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+					}, 1);
 				},
 			);
 			dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
@@ -366,11 +509,15 @@ session = await joinSession({
 				90_000,
 			);
 			const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
-			const canvasNotification = await client.waitForNotification(n =>
-				isActionNotification(n, ActionType.ChatCanvasesChanged)
-				&& getActionEnvelope(n).action.type === ActionType.ChatCanvasesChanged,
-				90_000,
-			);
+			const canvasNotification = await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatCanvasesChanged)) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === defaultChatChannel(sessionUri)
+					&& action.type === ActionType.ChatCanvasesChanged
+					&& (action.canvases?.length ?? 0) > 0;
+			}, 90_000);
 			const canvasAction = getActionEnvelope(canvasNotification).action;
 			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged);
 			const canvasReference = canvasAction.canvases?.[0];
@@ -411,7 +558,7 @@ session = await joinSession({
 
 			assert.deepStrictEqual({
 				openCanvasSucceeded: openCanvasComplete.result.success,
-				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				canvas: { instanceId: canvas.instanceId, uri: canvas.uri },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
 				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
@@ -420,7 +567,7 @@ session = await joinSession({
 				},
 			}, {
 				openCanvasSucceeded: true,
-				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				canvas: { instanceId: 'proof-instance', uri: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
 				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {
@@ -432,8 +579,193 @@ session = await joinSession({
 				},
 			});
 		} finally {
-			if (previousCanvasesEnabled !== undefined) {
-				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, 3);
+			}
+		}
+	});
+
+	test('asks in the turn before a lazy extension the model opens reads a sensitive environment variable', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-env-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'env-canvas');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.json'), JSON.stringify({
+			version: 1,
+			initialization: 'module',
+			canvases: [{ id: 'env-canvas', displayName: 'Env canvas', description: 'Reads a sensitive environment variable.' }],
+		}), 'utf8');
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+import declaration from './extension.json' with { type: 'json' };
+await joinSession({
+	requestedEnvironmentVariables: [${JSON.stringify(SENSITIVE_VARIABLE)}],
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}?env=\${process.env[${JSON.stringify(SENSITIVE_VARIABLE)}] === ${JSON.stringify(SENSITIVE_VALUE)} ? 'visible' : 'hidden'}\` }),
+	})) },
+});
+`, 'utf8');
+		let clientSeq = 1;
+		const confirm = (chat: string, ready: ChatToolCallReadyAction, selectedOptionId?: string) => client.dispatch({
+			channel: chat,
+			clientSeq: clientSeq++,
+			action: { type: ActionType.ChatToolCallConfirmed, turnId: ready.turnId, toolCallId: ready.toolCallId, approved: true, confirmed: ToolCallConfirmationReason.UserAction, ...(selectedOptionId ? { selectedOptionId } : {}) },
+		});
+		/** Waits for the tool call's confirmation request. */
+		const waitForConfirmation = async (toolName: string) => {
+			const start = getActionEnvelope(await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart) && (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === toolName, 90_000)).action as ChatToolCallStartAction;
+			return getActionEnvelope(await client.waitForNotification(n => {
+				const action = getActionEnvelope(n).action as ChatToolCallReadyAction;
+				return isActionNotification(n, ActionType.ChatToolCallReady) && action.toolCallId === start.toolCallId && !action.confirmed;
+			}, 90_000)).action as ChatToolCallReadyAction;
+		};
+		let previousRootConfig: ICanvasRootConfig | undefined;
+		try {
+			const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-env-canvas', createdSessions, URI.file(workspaceDir), async () => {
+				previousRootConfig = await readCanvasRootConfig();
+				await setRootConfig({
+					[AgentHostCanvasesEnabledConfigKey]: true,
+					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+				}, clientSeq++);
+			});
+			const chat = defaultChatChannel(sessionUri);
+			dispatchTurn(client, sessionUri, 'turn-env-canvas', `[scenario:${ENV_CANVAS_SCENARIO_ID}] Open the env canvas.`, clientSeq++);
+			const openCanvasReady = await waitForConfirmation('open_canvas');
+			confirm(chat, openCanvasReady);
+			const consentReady = await waitForConfirmation('extension_env_consent');
+			confirm(chat, consentReady, 'allow-once');
+			const openCanvasComplete = getActionEnvelope(await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallComplete) && (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasReady.toolCallId, 90_000)).action as ChatToolCallCompleteAction;
+			const canvasAction = getActionEnvelope(await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatCanvasesChanged)) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === chat && action.type === ActionType.ChatCanvasesChanged && (action.canvases?.length ?? 0) > 0;
+			}, 90_000)).action;
+			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged && canvasAction.canvases?.[0]);
+			const state = (await client.call<SubscribeResult>('subscribe', { channel: canvasAction.canvases[0].resource })).snapshot?.state;
+			assert.ok(state && hasKey(state, { uri: true }));
+			await client.waitForNotification(n => isActionNotification(n, ActionType.ChatTurnComplete) && (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-env-canvas', 90_000);
+			assert.deepStrictEqual({
+				consent: { title: consentReady.confirmationTitle, message: consentReady.invocationMessage, options: consentReady.options?.map(option => option.id) },
+				openCanvasSucceeded: openCanvasComplete.result.success,
+				uri: (state as CanvasState).uri,
+			}, {
+				consent: {
+					title: 'Allow env-canvas to Read Sensitive Environment Variables?',
+					message: `Extension 'env-canvas' (project:env-canvas) wants to read these sensitive environment variables: ${SENSITIVE_VARIABLE}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.`,
+					options: ['allow-once', 'not-now'],
+				},
+				openCanvasSucceeded: true,
+				uri: 'http://127.0.0.1:43119/env-instance?env=visible',
+			});
+		} finally {
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, clientSeq++);
+			}
+		}
+	});
+
+	test('launches a blocked project canvas extension only after its workspace becomes trusted', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-untrusted-mock-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'untrusted-canvas');
+		const launchLog = join(extensionDir, 'launches');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { appendFileSync } from 'node:fs';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+appendFileSync(new URL('./launches', import.meta.url), process.pid + '\\n');
+await joinSession({
+	canvases: [createCanvas({
+		id: 'untrusted-canvas',
+		displayName: 'Untrusted canvas',
+		description: 'Starts only in a trusted workspace.',
+		open: () => ({ url: 'http://127.0.0.1:43119/' })
+	})]
+});
+`, 'utf8');
+
+		let previousRootConfig: ICanvasRootConfig | undefined;
+		try {
+			const sessionUri = await createProviderSession(
+				client,
+				CANVAS_COPILOT_CONFIG,
+				'real-sdk-untrusted-mock-canvas',
+				createdSessions,
+				URI.file(workspaceDir),
+				async () => {
+					previousRootConfig = await readCanvasRootConfig();
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+					}, 1);
+				},
+			);
+			const turnId = 'turn-untrusted-canvas';
+			dispatchTurn(client, sessionUri, turnId, `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Complete without a canvas.`, 2);
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
+
+			const launches = async () => {
+				try {
+					return (await readFile(launchLog, 'utf8')).split('\n').filter(Boolean).map(Number);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+						return [];
+					}
+					throw error;
+				}
+			};
+			const isRunning = (pid: number) => {
+				try {
+					process.kill(pid, 0);
+					return true;
+				} catch (error) {
+					return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+				}
+			};
+			const launchesBeforeTrust = await launches();
+			await setRootConfig({
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+			}, 3);
+			await retry(async () => assert.notStrictEqual((await launches()).length, 0), 50, 200);
+			await timeout(3_000);
+			const launchesAfterTrust = await launches();
+			const extensionPid = launchesAfterTrust[launchesAfterTrust.length - 1];
+			const runningAfterTrust = isRunning(extensionPid);
+
+			await setRootConfig({
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			}, 4);
+			// Revoking trust stops the running extension, and the launch provider refuses to start it again.
+			await retry(async () => assert.strictEqual(isRunning(extensionPid), false), 50, 200);
+			await timeout(5_000);
+
+			assert.deepStrictEqual({
+				launchesBeforeTrust: launchesBeforeTrust.length,
+				launchesAfterTrust: launchesAfterTrust.length,
+				runningAfterTrust,
+				launchesAfterRevocation: (await launches()).length,
+			}, {
+				launchesBeforeTrust: 0,
+				launchesAfterTrust: 1,
+				runningAfterTrust: true,
+				launchesAfterRevocation: 1,
+			});
+		} finally {
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, 5);
 			}
 		}
 	});

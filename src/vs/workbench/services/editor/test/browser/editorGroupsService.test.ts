@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { createSandbox } from 'sinon';
+import { Action } from '../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService, TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
+import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ConfirmResult } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,6 +28,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../layout/browser/layoutService.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 
 suite('EditorGroupsService', () => {
 
@@ -72,6 +77,180 @@ suite('EditorGroupsService', () => {
 
 		return input;
 	}
+
+	async function createToolbarTestGroup() {
+		const [part, instantiationService] = await createPart();
+		const group = part.activeGroup;
+		const change = disposables.add(new Emitter<void>());
+		const action = (label: string) => disposables.add(new Action(label, label));
+		const previousActions = [action('Old One'), action('Old Two')];
+		const previousLayoutActions = [action('Old Layout')];
+		const nextActions = [action('New Action')];
+		const nextLayoutActions = [action('New Layout')];
+		let primary = previousActions;
+		let layout = previousLayoutActions;
+		const sandbox = createSandbox();
+		disposables.add(toDisposable(() => sandbox.restore()));
+		sandbox.stub(group, 'createEditorActions').callsFake((_store, menuId) => ({
+			actions: { primary: menuId === MenuId.EditorTitleLayout ? layout : primary, secondary: [] },
+			onDidChange: change.event
+		}));
+		await group.openEditor(createTestFileEditorInput(URI.file('/toolbar/initial.txt'), TEST_EDITOR_INPUT_ID), { pinned: true });
+
+		return {
+			part,
+			group,
+			editorService: instantiationService.createInstance(TestServiceAccessor).editorService,
+			setActions(next: boolean | undefined) {
+				primary = next === undefined ? [] : next ? nextActions : previousActions;
+				layout = next === undefined ? [] : next ? nextLayoutActions : previousLayoutActions;
+				change.fire();
+			},
+			snapshot() {
+				const toolbar = group.element.querySelector<HTMLElement>('.editor-actions, .title-actions')!;
+				return {
+					actions: Array.from(toolbar.querySelectorAll('.action-label'), action => action.getAttribute('aria-label')),
+					layout: Array.from(group.element.querySelectorAll('.editor-layout-actions .action-label'), action => action.getAttribute('aria-label')),
+					inert: toolbar.inert,
+				};
+			}
+		};
+	}
+
+	function createPendingToolbarInput(name: string) {
+		const started = new DeferredPromise<void>();
+		const resolved = new DeferredPromise<void>();
+		disposables.add(toDisposable(() => resolved.complete()));
+		const input = disposables.add(new class extends TestFileEditorInput {
+			override async resolve() {
+				started.complete();
+				await resolved.p;
+				return null;
+			}
+		}(URI.file(`/toolbar/${name}`), TEST_EDITOR_INPUT_ID));
+		return { input, started: started.p, resolved };
+	}
+
+	test('editor toolbar stays unchanged when reopening the current editor', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const firstAction = toolbar.group.element.querySelector('.editor-actions .action-label');
+		const opening = toolbar.group.openEditor(toolbar.group.activeEditor!, { pinned: true });
+		const pending = toolbar.snapshot().inert;
+		await opening;
+
+		assert.deepStrictEqual({
+			pending,
+			ready: toolbar.snapshot().inert,
+			retainedAction: toolbar.group.element.querySelector('.editor-actions .action-label') === firstAction
+		}, { pending: false, ready: false, retainedAction: true });
+	});
+
+	test('editor toolbar changes once when the replacement editor is ready', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const incoming = createPendingToolbarInput('next.md');
+		const opening = toolbar.group.openEditor(incoming.input, { pinned: true });
+		await incoming.started;
+		toolbar.setActions(undefined);
+		const loading = toolbar.snapshot();
+		toolbar.setActions(true);
+		await incoming.resolved.complete();
+		await opening;
+		const ready = toolbar.snapshot();
+		toolbar.setActions(false);
+
+		assert.deepStrictEqual({ loading, ready, liveUpdate: toolbar.snapshot() }, {
+			loading: { actions: ['Old One', 'Old Two'], layout: ['Old Layout'], inert: true },
+			ready: { actions: ['New Action'], layout: ['New Layout'], inert: false },
+			liveUpdate: { actions: ['Old One', 'Old Two'], layout: ['Old Layout'], inert: false },
+		});
+	});
+
+	test('editor toolbar stays unchanged when reusing the current side-by-side editor', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const input = toolbar.group.activeEditor!;
+		const sideBySide = disposables.add(new SideBySideEditorInput(undefined, undefined, input, input, toolbar.editorService));
+		await toolbar.group.openEditor(sideBySide, { pinned: true });
+		await toolbar.group.closeEditor(input);
+		const firstAction = toolbar.group.element.querySelector('.editor-actions .action-label');
+		const opening = toolbar.group.openEditor(input, { pinned: true });
+		const pending = toolbar.snapshot().inert;
+		await opening;
+
+		assert.deepStrictEqual({
+			pending,
+			retainedEditor: toolbar.group.activeEditor === sideBySide,
+			retainedAction: toolbar.group.element.querySelector('.editor-actions .action-label') === firstAction
+		}, { pending: false, retainedEditor: true, retainedAction: true });
+	});
+
+	test('editor toolbar ignores superseded editor completion in either order', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const results = [];
+		for (const olderFirst of [true, false]) {
+			toolbar.setActions(false);
+			const older = createPendingToolbarInput(`older-${olderFirst}.txt`);
+			const newer = createPendingToolbarInput(`newer-${olderFirst}.md`);
+			const first = toolbar.group.openEditor(older.input, { pinned: true });
+			await older.started;
+			const second = toolbar.group.openEditor(newer.input, { pinned: true });
+			await newer.started;
+			toolbar.setActions(undefined);
+			if (olderFirst) {
+				await older.resolved.complete();
+				await first;
+				results.push(toolbar.snapshot());
+			}
+			toolbar.setActions(true);
+			await newer.resolved.complete();
+			await second;
+			if (!olderFirst) {
+				results.push(toolbar.snapshot());
+				await older.resolved.complete();
+				await first;
+			}
+			results.push(toolbar.snapshot());
+		}
+		assert.deepStrictEqual(results, [
+			{ actions: ['Old One', 'Old Two'], layout: ['Old Layout'], inert: true },
+			{ actions: ['New Action'], layout: ['New Layout'], inert: false },
+			{ actions: ['New Action'], layout: ['New Layout'], inert: false },
+			{ actions: ['New Action'], layout: ['New Layout'], inert: false },
+		]);
+	});
+
+	test('editor toolbar resumes after an editor fails to open', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const incoming = createPendingToolbarInput('failed.txt');
+		const opening = toolbar.group.openEditor(incoming.input, { pinned: true });
+		await incoming.started;
+		toolbar.setActions(undefined);
+		const loading = toolbar.snapshot();
+		await incoming.resolved.error(new Error('Test editor failed to resolve'));
+		await opening;
+		toolbar.setActions(true);
+
+		assert.deepStrictEqual({ loading, recovered: toolbar.snapshot() }, {
+			loading: { actions: ['Old One', 'Old Two'], layout: ['Old Layout'], inert: true },
+			recovered: { actions: ['New Action'], layout: ['New Layout'], inert: false },
+		});
+	});
+
+	test('editor toolbar refreshes a tabs control recreated during opening', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const incoming = createPendingToolbarInput('recreated.md');
+		const opening = toolbar.group.openEditor(incoming.input, { pinned: true });
+		await incoming.started;
+		disposables.add(toolbar.part.enforcePartOptions({ showTabs: 'single' }));
+		const loading = toolbar.snapshot();
+		toolbar.setActions(true);
+		await incoming.resolved.complete();
+		await opening;
+
+		assert.deepStrictEqual({ loading, ready: toolbar.snapshot() }, {
+			loading: { actions: [], layout: [], inert: true },
+			ready: { actions: ['New Action'], layout: ['New Layout'], inert: false },
+		});
+	});
 
 	test('groups basics', async function () {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
@@ -246,6 +425,25 @@ suite('EditorGroupsService', () => {
 		part.activateGroup(rootGroup);
 		await part.sideGroup.openEditor(input3, { pinned: true });
 		assert.strictEqual(part.count, 2);
+	});
+
+	test('main part shows the new tab button of its menu in the tab bar of its groups', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const requestedMenus: MenuId[] = [];
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				requestedMenus.push(id);
+				return super.createMenu(id, contextKeyService);
+			}
+		});
+		const [part] = await createPart(instantiationService);
+		part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		assert.deepStrictEqual({
+			requested: requestedMenus.filter(id => id === MenuId.EditorTabsBarAddTab).length,
+			// Hidden while its menu has no entries, as while the setting is off.
+			hidden: [...part.element.querySelectorAll('.tabs-bar-add-tab')].map(element => element.classList.contains('hidden')),
+		}, { requested: 2, hidden: [true, true] });
 	});
 
 	test('save & restore state', async function () {
@@ -2305,6 +2503,35 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group2ContextKeyValue, group2.id);
 		assert.strictEqual(group3ContextKeyValue, group3.id);
 
+		disposables.dispose();
+	});
+
+	test('group context keys follow a group restored with the id of the group it replaces', async function () {
+		const disposables = new DisposableStore();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const parts = await createEditorParts(instantiationService, disposables);
+
+		const providerContextKey = new RawContextKey<string>('restoredGroupProviderKey', '');
+		disposables.add(parts.registerContextKeyProvider({
+			contextKey: providerContextKey,
+			getGroupContextKeyValue: group => `group-${group.id}`
+		}));
+
+		await parts.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID), { pinned: true });
+		const groupBefore = parts.activeGroup;
+		// Restoring the state, as applying a working set does, creates a new group with the same id.
+		await parts.testMainPart.applyState(parts.testMainPart.createState());
+		const groupAfter = parts.activeGroup;
+		await groupAfter.openEditor(createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID), { pinned: true });
+
+		assert.deepStrictEqual({
+			replaced: groupAfter !== groupBefore,
+			sameId: groupAfter.id === groupBefore.id,
+			activeEditor: groupAfter.scopedContextKeyService.getContextKeyValue(ActiveEditorContext.key),
+			providerKey: groupAfter.scopedContextKeyService.getContextKeyValue(providerContextKey.key),
+		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID, providerKey: `group-${groupAfter.id}` });
+
+		await groupAfter.closeAllEditors();
 		disposables.dispose();
 	});
 

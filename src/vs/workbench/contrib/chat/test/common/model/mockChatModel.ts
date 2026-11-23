@@ -83,6 +83,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	setWorkingDirectory(uri: URI | undefined): void { this.workingDirectory = uri; }
 	readonly onDidChangePendingRequests: Event<void> = this._register(new Emitter<void>()).event;
 	getPendingRequests(): readonly IChatPendingRequest[] { return []; }
+	readonly pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>(this, []);
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void { this.pendingRequestHandoffs.set(requests, undefined); }
 	toExport(): IExportableChatData {
 		return {
 			initialLocation: this.initialLocation,
