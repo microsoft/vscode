@@ -1289,6 +1289,19 @@ suite('Configuration', () => {
 		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
 	});
 
+	test('Test update value for a resource in a folder after reading it', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const folder = URI.file('folder');
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: folder })]);
+		testObject.updateFolderConfiguration(folder, toConfigurationModel({ 'b': 2 }));
+		const resource = URI.joinPath(folder, 'file.txt');
+
+		const valueBeforeUpdate = testObject.getValue('a', { resource }, workspace);
+		testObject.updateValue('a', 3);
+
+		assert.deepStrictEqual({ valueBeforeUpdate, valueAfterUpdate: testObject.getValue('a', { resource }, workspace) }, { valueBeforeUpdate: 1, valueAfterUpdate: 3 });
+	});
+
 	test('Test policy-applied configuration is reused and refreshed after configuration and policy updates', () => {
 		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1, 'b': 1 }), toConfigurationModel({ 'a': 10 }), ConfigurationModel.createEmptyModel(new NullLogService()), toConfigurationModel({ 'a': 2, 'b': 2 }));
 		// Reading the whole configuration goes through the policy-applied model, including non-policy keys.
