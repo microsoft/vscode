@@ -367,9 +367,14 @@ export class ModelCard extends DisposableStore {
 		if (this._options.organizationDefaultModel) {
 			dom.append(this.element, dom.$('.chat-model-card-description.chat-model-card-org-default', undefined, getOrganizationDefaultDescription(this._options.organizationDefaultModel.metadata.name)));
 		}
-		const description = this._options.description ?? metadata.tooltip;
-		if (description && !repeatsMessageBanner(model, description)) {
-			this._renderDescription(description, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
+		const tooltip = this._options.description ?? metadata.tooltip;
+		if (tooltip) {
+			// A description that repeats a banner is dropped, but HydraFusion keeps its Learn More link.
+			const description = repeatsMessageBanner(model, tooltip) ? '' : tooltip;
+			const learnMoreUrl = isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined;
+			if (description || learnMoreUrl) {
+				this._renderDescription(description, learnMoreUrl);
+			}
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
