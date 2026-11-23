@@ -924,9 +924,6 @@ export class Repository implements Disposable {
 	 * current. For now, only the constructor calls it.
 	 */
 	private attachSourceControl(): GitSourceControl {
-		const sourceControl = new GitSourceControl(this, this.commitCommandCenter, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.logger);
-		this.sourceControlDisposables.push(sourceControl);
-
 		const root = Uri.file(this.repository.root);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(root, '**'));
@@ -957,6 +954,10 @@ export class Repository implements Disposable {
 		onRepositoryDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.sourceControlDisposables);
 
 		this.sourceControlDisposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, this.logger));
+
+		// Created after the file watchers, as before, so that their watch requests are not queued behind the source control's
+		const sourceControl = new GitSourceControl(this, this.commitCommandCenter, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.logger);
+		this.sourceControlDisposables.push(sourceControl);
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
