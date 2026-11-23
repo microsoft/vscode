@@ -222,4 +222,26 @@ suite('Sandbox profiles editor', () => {
 		await input.save();
 		assert.deepStrictEqual([draft(viewer).name, draft(editor).name], ['Renamed', 'Local edit']);
 	});
+
+	test('a name taken or freed in another window updates whether a kept edit is saved', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { storage, open } = setup();
+		const editor = open();
+		const other = open();
+		const conflicting = await create(other, 'Other');
+		draft(editor).name = 'Strict';
+		editor.changed();
+		other.select(conflicting);
+		draft(other).name = 'Strict';
+		await other.save();
+		const taken = { dirty: editor.isDirty(), error: editor.saveError };
+		draft(other).name = 'Other';
+		await other.save();
+		const freed = editor.isDirty();
+		await timeout(500);
+		assert.deepStrictEqual({ taken, freed, library: readSandboxProfiles(storage).map(p => p.name) }, {
+			taken: { dirty: true, error: 'A profile with that name already exists.' },
+			freed: false,
+			library: ['Strict', 'Other'],
+		});
+	}));
 });

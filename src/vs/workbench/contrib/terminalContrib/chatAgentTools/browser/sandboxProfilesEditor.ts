@@ -271,7 +271,7 @@ export class SandboxProfilesEditor extends EditorPane {
 		const showInUse = async (hosts: readonly string[]) => {
 			await this._dialogs.info(
 				localize('deleteInUse', "Sandbox profile '{0}' can't be deleted because it is in use.", row.name),
-				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Choose another profile or Default for them in Remote Environments, then delete it.", hosts.join(', ')),
+				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Choose another profile or Host Default for them in Remote Environments, then delete it.", hosts.join(', ')),
 			);
 		};
 		const hosts = input.hostsUsingProfile(row.id);
