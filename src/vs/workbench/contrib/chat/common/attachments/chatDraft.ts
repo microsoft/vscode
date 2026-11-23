@@ -11,7 +11,7 @@ import { isLocation, Location } from '../../../../../editor/common/languages.js'
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { IChatContentReference } from '../chatService/chatService.js';
-import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
 export interface IChatDraft {
@@ -84,16 +84,17 @@ export function remapChatDraftResources(draft: IChatDraft, mapResource: (resourc
 	const attachments = draft.attachments.map(attachment => {
 		const remapped = remapResourceValue(attachment.value, mapResource);
 		const uri = hasKey(attachment, { uri: true }) && URI.isUri(attachment.uri) ? mapResource(attachment.uri) : undefined;
-		// An image keeps its bytes and records the resource it came from in its references.
+		// An image kept as bytes and pasted code record the resource they came from in their references.
 		const contentReferences = remapContentReferences(attachment.references, mapResource);
-		if (!remapped && !uri && !contentReferences) {
+		const pasted = attachment.kind === 'paste' ? remapCopiedFrom(attachment, mapResource) : undefined;
+		if (!remapped && !uri && !contentReferences && !pasted) {
 			return attachment;
 		}
 		changed = true;
 		const source = remapped ?? contentReferences;
 		const id = source ? remapResourceId(attachment.id, source) : attachment.id;
 		ids.set(attachment.id, id);
-		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {}, contentReferences ? { references: contentReferences.references } : {});
+		return Object.assign({ ...attachment, id }, remapped ? { value: remapped.value } : {}, uri ? { uri } : {}, { ...(contentReferences && { references: contentReferences.references }), ...pasted });
 	});
 	const references = draft.references?.map(reference => {
 		const remapped = remapResourceValue(reference.data, mapResource);
@@ -129,6 +130,16 @@ function remapContentReferences(references: readonly IChatContentReference[] | u
 		result.push(remapped ? { ...entry, reference: remapped.value } : entry);
 	}
 	return first && { references: result, from: first.from, to: first.to };
+}
+
+/** Remaps the file that pasted code was copied from, which opening and dragging the attachment use, or `undefined` when it doesn't map. */
+function remapCopiedFrom(attachment: IChatRequestPasteVariableEntry, mapResource: (resource: URI) => URI | undefined): Pick<IChatRequestPasteVariableEntry, 'copiedFrom' | 'fileName'> | undefined {
+	const copiedFrom = attachment.copiedFrom;
+	const uri = copiedFrom && mapResource(copiedFrom.uri);
+	if (!copiedFrom || !uri) {
+		return undefined;
+	}
+	return { copiedFrom: { ...copiedFrom, uri }, fileName: attachment.fileName === copiedFrom.uri.toString() ? uri.toString() : attachment.fileName };
 }
 
 function remapResourceId(id: string, { from, to }: { readonly from: URI; readonly to: URI }): string {

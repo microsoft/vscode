@@ -123,6 +123,27 @@ suite('Chat draft handoff serialization', () => {
 		});
 	});
 
+	test('remaps the file that pasted code was copied from', () => {
+		const wsl = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project/a.ts' });
+		const range = new Range(2, 1, 3, 5);
+		const draft: IChatDraft = {
+			inputText: '',
+			attachments: [{ kind: 'paste', id: 'a.ts2315', name: 'a.ts 2 lines', value: 'const a = 1;', code: 'const a = 1;', language: 'typescript', pastedLines: '2 lines', fileName: wsl.toString(), copiedFrom: { uri: wsl, range }, references: [{ kind: 'reference', reference: wsl }] }],
+		};
+		const [pasted] = remapChatDraftResources(draft, resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined).attachments;
+		assert.deepStrictEqual(pasted.kind === 'paste' && {
+			id: pasted.id,
+			copiedFrom: pasted.copiedFrom && [pasted.copiedFrom.uri.toString(), pasted.copiedFrom.range],
+			fileName: pasted.fileName,
+			references: pasted.references?.map(entry => URI.isUri(entry.reference) ? entry.reference.toString() : entry.reference),
+		}, {
+			id: 'a.ts2315',
+			copiedFrom: ['vscode-agent-host://env/file/-/project/a.ts', range],
+			fileName: 'vscode-agent-host://env/file/-/project/a.ts',
+			references: ['vscode-agent-host://env/file/-/project/a.ts'],
+		});
+	});
+
 	test('snapshots resolved extension context instead of transferring a window-local handle', () => {
 		const draft = reviveChatDraft(serializeChatDraft({
 			inputText: '',
