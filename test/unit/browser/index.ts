@@ -63,6 +63,9 @@ interface IParallel {
 
 const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, createTestFileClaims, trackTestFiles, distributeClaimedTestFiles } = parallel as IParallel;
 
+// mocha-junit-reporter is a constructor function, which its JSDoc does not mark as one
+const JUnitReporter = MochaJUnitReporter as unknown as new (...args: Parameters<typeof MochaJUnitReporter>) => object;
+
 interface IArgs extends minimist.ParsedArgs {
 	run?: string | string[];
 	runList?: string;
@@ -163,7 +166,7 @@ const withReporter = (function () {
 				const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
 				const workerSuffix = worker ? `-worker${worker.workerId}` : '';
 				new mocha.reporters.Dot(runner);
-				new MochaJUnitReporter(runner, {
+				new JUnitReporter(runner, {
 					reporterOptions: {
 						testsuitesTitle: `${tfs} ${process.platform}${worker ? ` (worker ${worker.workerId})` : ''}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
 						// without a results folder, mocha-junit-reporter writes test-results.xml to the working directory

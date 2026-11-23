@@ -18,11 +18,12 @@
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"allowJs": true
+		// read the types of reporter.js, and of the npm packages that have no type packages, from their JavaScript
+		"allowJs": true,
+		"maxNodeModuleJsDepth": 1
 	},
 	"include": [
 		"node/**/*.ts",
-		"browser/**/*.ts",
-		"typings/**/*.d.ts"
+		"browser/**/*.ts"
 	]
 }
