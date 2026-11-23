@@ -244,6 +244,7 @@
     "js-yaml": "^4.2.0",
     "json-schema-to-typescript": "16.0.0",
     "lazy.js": "^0.4.2",
+    "minimatch": "^3.1.5",
     "mocha": "^10.8.2",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",

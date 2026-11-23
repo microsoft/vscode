@@ -577,6 +577,9 @@ importers:
       lazy.js:
         specifier: ^0.4.2
         version: 0.4.3
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
       mocha:
         specifier: ^10.8.2
         version: 10.8.2
