@@ -888,12 +888,27 @@ export interface IResolvedModelRoute {
 	readonly merged?: readonly IModelRouterRoute[];
 }
 
+/** Why a model that a route names was found but cannot be used. `candidates` are the ids or families to name instead. */
+export type ModelRouterUnusableModel =
+	| { readonly kind: 'experimental'; readonly reference: string; readonly candidates: readonly string[] }
+	| { readonly kind: 'ambiguousModel'; readonly reference: string; readonly candidates: readonly string[] }
+	| { readonly kind: 'ambiguousFamily'; readonly reference: string; readonly candidates: readonly string[] }
+	| { readonly kind: 'disabledByPolicy'; readonly model: string };
+
+/** A route that is left out of a router, and why. `index` is its place in the router's list, from 0. */
+export type ModelRouterSkippedRoute = { readonly route: Pick<IModelRouterRoute, 'name' | 'models'>; readonly index: number } & (
+	/** None of its models can be used: they are not on the account, or they are `unusable`. */
+	| { readonly reason: 'unavailable'; readonly unusable: readonly ModelRouterUnusableModel[] }
+	/** `key` is its name and another route's model, or its model and another route's name, so a pick could mean either. */
+	| { readonly reason: 'sharedKey'; readonly key: string }
+);
+
 export interface IModelRouterResolution {
 	/** Usable routes, in the router's order. The first is the fallback. */
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly diagnostics: readonly IModelRouterDiagnostic[];
-	/** Why each route that is left out is left out, with what is wrong with the models it names. These warnings are also in `diagnostics`. */
-	readonly skipped: readonly string[];
+	/** The routes that are left out. `diagnostics` has a warning for each, in English. */
+	readonly skipped: readonly ModelRouterSkippedRoute[];
 }
 
 /** Whether a router may pick `model`: models that route themselves never are. */
@@ -908,23 +923,17 @@ export function isRoutableModel(model: IAgentModelInfo): boolean {
 export function resolveModelRouter(router: IModelRouter, models: readonly IAgentModelInfo[]): IModelRouterResolution {
 	const diagnostics: IModelRouterDiagnostic[] = [];
 	const warning = diagnosticReporter(diagnostics, ModelRouterDiagnosticSeverity.Warning);
-	const skipped: string[] = [];
-	const skip = (message: string, reasons: readonly string[] = []) => {
-		skipped.push([...reasons, message].join(' '));
-		warning(message);
-	};
+	const skipped: ModelRouterSkippedRoute[] = [];
+	const code = (values: readonly string[]) => values.map(value => `\`${value}\``).join(', ');
+	const idOf = (model: IAgentModelInfo) => readAgentModelByokIdentifier(model) ?? model.id;
 	const routable = models.filter(isRoutableModel);
 	const routes: IResolvedModelRoute[] = [];
 	const used = new Set<string>();
 	const merged = new Map<string, IModelRouterRoute[]>();
 	router.routes.forEach((route, index) => {
 		const label = modelRouterRouteLabel(route, index);
-		// Why a model the route names cannot be used, which is said with the route when it is left out.
-		const unusable: string[] = [];
-		const unusableModel = (message: string) => {
-			unusable.push(message);
-			warning(message);
-		};
+		// Said with the route when it ends up left out.
+		const unusable: ModelRouterUnusableModel[] = [];
 		let match: { model: IAgentModelInfo; reference: string } | undefined;
 		for (const reference of route.models) {
 			const result = matchModelReference(routable, reference);
@@ -932,24 +941,33 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 				continue;
 			}
 			if (result.kind === 'experimental') {
-				unusableModel(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				const candidates = result.models.map(idOf);
+				unusable.push({ kind: 'experimental', reference, candidates });
+				warning(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${code(candidates)}.`);
 				continue;
 			}
 			if (result.kind === 'ambiguous') {
-				unusableModel(result.families
-					? `${label}: \`${reference}\` matches more than one model family; use one of ${result.families.map(family => `\`${family}\``).join(', ')}.`
-					: `${label}: \`${reference}\` matches more than one model; use one of ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				if (result.families) {
+					unusable.push({ kind: 'ambiguousFamily', reference, candidates: result.families });
+					warning(`${label}: \`${reference}\` matches more than one model family; use one of ${code(result.families)}.`);
+				} else {
+					const candidates = result.models.map(idOf);
+					unusable.push({ kind: 'ambiguousModel', reference, candidates });
+					warning(`${label}: \`${reference}\` matches more than one model; use one of ${code(candidates)}.`);
+				}
 				continue;
 			}
 			if (result.model.policyState === PolicyState.Disabled) {
-				unusableModel(`${label}: ${result.model.name} is disabled by policy.`);
+				unusable.push({ kind: 'disabledByPolicy', model: result.model.name });
+				warning(`${label}: ${result.model.name} is disabled by policy.`);
 				continue;
 			}
 			match = { model: result.model, reference };
 			break;
 		}
 		if (!match) {
-			skip(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`, unusable);
+			skipped.push({ route, index, reason: 'unavailable', unusable });
+			warning(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`);
 			return;
 		}
 		// A route without a name is its model, so a second one that lands on the same model has nothing to add.
@@ -957,7 +975,8 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 		if (used.has(key)) {
 			// A name can also be a model's id, and a pick could then mean either route.
 			if (route.name || routes.some(other => other.route.name === key)) {
-				skip(`${label} is skipped: \`${key}\` is the name of one route and the model of another.`);
+				skipped.push({ route, index, reason: 'sharedKey', key });
+				warning(`${label} is skipped: \`${key}\` is the name of one route and the model of another.`);
 			} else {
 				merged.set(key, [...merged.get(key) ?? [], route]);
 			}

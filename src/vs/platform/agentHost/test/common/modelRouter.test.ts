@@ -330,9 +330,9 @@ suite('modelRouter', () => {
 			const result = resolveModelRouter(router([{ models: ['anthropic/claude-haiku-4-5'], when: 'A.', examples: [] }, { models: ['b'], when: 'B.', examples: [] }]), models);
 			assert.deepStrictEqual(result.routes.map(r => r.model.id), ['b']);
 			assert.ok(result.diagnostics[0].message.includes('`anthropic/Work/claude-haiku-4-5`, `anthropic/Home/claude-haiku-4-5`'));
-			// The route is left out, and what its row says names the ids that tell the two models apart.
-			assert.deepStrictEqual(result.skipped, [
-				'Route 1: `anthropic/claude-haiku-4-5` matches more than one model; use one of `anthropic/Work/claude-haiku-4-5`, `anthropic/Home/claude-haiku-4-5`. Route 1 (anthropic/claude-haiku-4-5) is skipped: none of its models are available on this account.',
+			// The route is left out, with the ids that tell the two models apart.
+			assert.deepStrictEqual(result.skipped.map(skip => [skip.index, skip.reason === 'unavailable' ? skip.unusable : skip.key]), [
+				[0, [{ kind: 'ambiguousModel', reference: 'anthropic/claude-haiku-4-5', candidates: ['anthropic/Work/claude-haiku-4-5', 'anthropic/Home/claude-haiku-4-5'] }]],
 			]);
 		});
 
@@ -418,18 +418,15 @@ suite('modelRouter', () => {
 				{ models: ['b'], when: 'E.', examples: [], name: 'a' },
 			]);
 			const result = resolveModelRouter(named, [model('a'), model('b')]);
-			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics), skipped: result.skipped }, {
+			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics), skipped: result.skipped.map(skip => [skip.route.name, skip.reason]) }, {
 				routes: [['feature', 'a'], ['bug-fix', 'a'], [undefined, 'a']],
 				diagnostics: [
 					'Route `bug-fix` uses `a` because `gone` is not available.',
 					'Route `quick` (gone) is skipped: none of its models are available on this account.',
 					'Route `a` is skipped: `a` is the name of one route and the model of another.',
 				],
-				// A route that falls back to a later model is still used, so only the other two are named.
-				skipped: [
-					'Route `quick` (gone) is skipped: none of its models are available on this account.',
-					'Route `a` is skipped: `a` is the name of one route and the model of another.',
-				],
+				// A route that falls back to a later model is still used, so only the other two are left out.
+				skipped: [['quick', 'unavailable'], ['a', 'sharedKey']],
 			});
 		});
 

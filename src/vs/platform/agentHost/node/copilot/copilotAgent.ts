@@ -83,7 +83,7 @@ import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
 import { CopilotModelRouterGuidance } from './copilotModelRouterGuidance.js';
-import { CopilotModelRouterCatalog, findModelRouter, firstModelRouterError, UserModelRouterSource } from './copilotModelRouterCatalog.js';
+import { CopilotModelRouterCatalog, describeSkippedModelRoutes, findModelRouter, firstModelRouterError, UserModelRouterSource } from './copilotModelRouterCatalog.js';
 import { createCopilotModelRouterTools } from './copilotModelRouterTools.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
@@ -4585,7 +4585,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const routes = file.router && resolution ? summarizeModelRouterRoutes(file.router, resolution.routes) : [];
 			// A row warns about a file with errors, and about routes that are left out, such as one whose models this account lacks.
 			const rowWarning = resolution
-				? resolution.skipped.join(' ')
+				? describeSkippedModelRoutes(resolution.skipped)
 				: localize('modelRouter.rowWarning', "{0} has errors: {1}", resourceBasename(file.uri), firstModelRouterError(file) ?? '');
 			return {
 				provider: this.id,
