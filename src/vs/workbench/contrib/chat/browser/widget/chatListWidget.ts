@@ -48,6 +48,7 @@ import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../comm
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget } from '../chat.js';
@@ -1023,8 +1024,11 @@ export class ChatListWidget extends Disposable {
 		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
 		const responseSelection = selection?.response === selected ? selection : undefined;
 
+		const itemSessionType = isRequestVM(selected) || isResponseVM(selected) ? getChatSessionType(selected.sessionResource) : undefined;
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
+			[ChatContextKeys.isRequest.key, isRequestVM(selected)],
+			...(itemSessionType !== undefined ? [[ChatContextKeys.chatSessionType.key, itemSessionType] satisfies [string, string]] : []),
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
 			[ChatContextKeys.isKatexMathElement.key, targetContext.isKatexElement],
 			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],

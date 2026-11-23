@@ -7,7 +7,8 @@ import * as assert from 'assert';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,7 +16,6 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
-import { timeout } from '../../../../../base/common/async.js';
 import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -37,6 +37,9 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { findSessionForOpenSessionLink, ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
 import { NullChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ChatTreeItem, IChatScrollAnchor, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatRequestViewModel, IChatViewModel, IChatViewModelChangeEvent } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -113,6 +116,82 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		}
 	};
 
+	const noChatWidgets = new class extends mock<IChatWidgetService>() {
+		override readonly onDidAddWidget = Event.None;
+		override getAllWidgets(): IChatWidget[] { return []; }
+		override getWidgetBySessionResource(): IChatWidget | undefined { return undefined; }
+	};
+
+	test('a link to a request reveals it once the opened chat loads it, focusing it only for a user gesture', async () => {
+		let registeredOpener: IOpener | undefined;
+		const sessionResource = URI.parse('copilotcli:/session-1');
+		const chatResource = sessionResource.with({ fragment: 'chat-2' });
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
+		const chat = upcastPartial<IChat>({ resource: chatResource });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [mainChat, chat]) });
+		// A remote chat opens before its history arrives.
+		const onDidChangeItems = store.add(new Emitter<IChatViewModelChangeEvent>());
+		let items: unknown[] = [];
+		let anchor: IChatScrollAnchor | undefined;
+		const log: string[] = [];
+		let revealed = new DeferredPromise<void>();
+		const widget = upcastPartial<IChatWidget>({
+			domNode: document.createElement('div'),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<IChatViewModel>({ sessionResource: chatResource, getItems: () => items as ChatTreeItem[], onDidChange: onDidChangeItems.event }),
+			getViewState: () => ({ scrollTop: 0, scrollAnchor: anchor }),
+			restoreViewState: state => {
+				anchor = state.scrollAnchor;
+				log.push(`reveal:${anchor?.requestId}`);
+				revealed.complete();
+			},
+			focus: item => log.push(`focus:${(item as IChatRequestViewModel).id}`),
+		});
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override readonly onDidAddWidget = Event.None;
+			override getAllWidgets(): IChatWidget[] { return [widget]; }
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined { return resource.toString() === chatResource.toString() ? widget : undefined; }
+		};
+		store.add(new OpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() { override registerOpener(opener: IOpener): IDisposable { registeredOpener = opener; return Disposable.None; } },
+			new class extends mock<ISessionsManagementService>() { override getSessions(): ISession[] { return [session]; } },
+			new class extends mock<ISessionsService>() { override async openChat(_session: ISession, resource: URI): Promise<void> { log.push(`open:${resource.toString()}`); } },
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly onDidChangeSessionResolution = Event.None;
+				override resolveSessionResourceIdentity() { return undefined; }
+				override resolveSessionResource() { return undefined; }
+			},
+			new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } },
+			sessionsProvidersService,
+			createSessionSummaryHoverService().service,
+			new class extends mock<ILabelService>() { },
+			new NullChatWindowService(),
+			new TestConfigurationService(),
+			chatWidgetService,
+			new NullLogService(),
+		));
+
+		await registeredOpener!.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-2'), { fromUserGesture: true });
+		log.push('history loaded');
+		items = [{ id: 'turn-1', message: 'First' }, { id: 'turn-2', message: 'Second' }];
+		onDidChangeItems.fire(null);
+		await revealed.p;
+
+		// A tool or command opening the link reveals the request without taking focus.
+		revealed = new DeferredPromise<void>();
+		await registeredOpener!.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1'));
+		await revealed.p;
+
+		assert.deepStrictEqual(log, [
+			'open:copilotcli:/session-1#chat-2',
+			'history loaded',
+			'reveal:turn-2',
+			'focus:turn-2',
+			'open:copilotcli:/session-1#chat-2',
+			'reveal:turn-1',
+		]);
+	});
+
 	function createSessionSummaryHoverService(): { service: ISessionSummaryHoverService; provider: () => ISessionSummaryHoverProvider | undefined } {
 		let registered: ISessionSummaryHoverProvider | undefined;
 		const service = new class extends mock<ISessionSummaryHoverService>() {
@@ -182,6 +261,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ILabelService>() { },
 			new NullChatWindowService(),
 			new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true }),
+			noChatWidgets,
+			new NullLogService(),
 		));
 
 		if (!registeredOpener) {
@@ -275,6 +356,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ILabelService>() { },
 			chatWindowService,
 			configurationService,
+			noChatWidgets,
+			new NullLogService(),
 		));
 		if (!registeredOpener) {
 			throw new Error('Expected the contribution to register an opener');
@@ -378,6 +461,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				}
 			},
 			new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true }),
+			noChatWidgets,
+			new NullLogService(),
 		));
 
 		const link = buildOpenSessionLinkUri(sessionResource, 'peer-1');
@@ -447,6 +532,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
 			new TestConfigurationService(),
+			noChatWidgets,
+			new NullLogService(),
 		));
 
 		if (!registeredOpener) {
@@ -494,6 +581,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				new class extends mock<ILabelService>() { },
 				new class extends mock<IChatWindowService>() { },
 				new TestConfigurationService(),
+				noChatWidgets,
+				new NullLogService(),
 			));
 			const results = [
 				await registeredOpener!.open(buildOpenSessionLinkUri(sessionResource, defaultId)),
@@ -570,6 +659,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
 			new TestConfigurationService(),
+			noChatWidgets,
+			new NullLogService(),
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -635,6 +726,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			new class extends mock<ILabelService>() { },
 			new class extends mock<IChatWindowService>() { },
 			new TestConfigurationService(),
+			noChatWidgets,
+			new NullLogService(),
 		));
 
 		const provider = hover.provider();

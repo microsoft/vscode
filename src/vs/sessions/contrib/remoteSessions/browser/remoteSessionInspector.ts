@@ -31,7 +31,7 @@ export class RemoteSessionInspector {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async inspect(reference: string, token: CancellationToken): Promise<IRemoteSessionInspectionResult> {
+	async inspect(reference: string, token: CancellationToken, turnId?: string): Promise<IRemoteSessionInspectionResult> {
 		this.checkEnabled();
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -62,7 +62,7 @@ export class RemoteSessionInspector {
 		const target = {
 			session: sessionResource.toString(),
 			chat: resource.toString(),
-			openLink: buildOpenSessionLinkUri(sessionResource, resource.fragment),
+			openLink: buildOpenSessionLinkUri(sessionResource, resource.fragment, turnId),
 			host: { id: provider.id, label: provider.label },
 		};
 		const connection = this.connectionsService.getConnectionByAuthority(identity.connectionAuthority);
@@ -120,7 +120,7 @@ export class RemoteSessionInspector {
 			if (cancellation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return { ...target, ...remoteSessionSnapshot(chatState) };
+			return { ...target, ...remoteSessionSnapshot(chatState, turnId) };
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
