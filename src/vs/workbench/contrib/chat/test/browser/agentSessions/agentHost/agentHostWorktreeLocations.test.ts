@@ -384,6 +384,22 @@ suite('AgentHostWorktreeLocations', () => {
 		assert.deepStrictEqual({ beforeStart, listings: provider.listings(), offered: paths(await provider.provideLocations(primary, CancellationToken.None)) }, { beforeStart: 0, listings: 1, offered: ['/work/vscode.worktrees/feature'] });
 	});
 
+	test('is ready once it has listed the local agent host\'s sessions, which it tells, not while they load nor after a listing that failed', async () => {
+		const loading = new DeferredPromise<void>();
+		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], { loading: loading.p, listFailures: 1 });
+		const service = createService(provider);
+		await provider.provideLocations(primary, CancellationToken.None);
+		const whileLoading = service.areProvidersReady();
+		await loading.complete();
+		await tick();
+		const afterFailure = service.areProvidersReady();
+		const becameReady = Event.toPromise(Event.filter(service.onDidChangeLocations, () => service.areProvidersReady()));
+		await provider.provideLocations(primary, CancellationToken.None);
+		await becameReady;
+
+		assert.deepStrictEqual({ whileLoading, afterFailure, ready: service.areProvidersReady() }, { whileLoading: false, afterFailure: false, ready: true });
+	});
+
 	test('resolves a worktree also before the local agent host\'s sessions are listed, such as to restore the folder\'s location, once they are', async () => {
 		const loading = new DeferredPromise<void>();
 		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode', { branchName: 'feature' })], { loading: loading.p });

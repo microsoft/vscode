@@ -19,10 +19,17 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 
 /**
- * The time to wait for a provider to confirm the persisted location. Providers
- * may register after the window has been restored.
+ * The time to wait for a provider to confirm the persisted location before offering to return to the primary location, as
+ * long as the providers are ready. Providers may register after the window has been restored, and may confirm the location
+ * after this time.
  */
 export const FOLDER_LOCATION_RESTORE_TIMEOUT = 10000;
+
+/**
+ * The longest time to wait for the providers to become ready, or for one to answer, before offering to return to the
+ * primary location.
+ */
+export const FOLDER_LOCATION_RESOLUTION_TIMEOUT = 60000;
 
 /**
  * Keeps the main process informed about the alternate location the window is at
@@ -32,8 +39,8 @@ export const FOLDER_LOCATION_RESTORE_TIMEOUT = 10000;
  * The main process only starts a window at an alternate location that exists (otherwise the window
  * opens at the primary location and `folderLocationMissing` tells the user). The window starts there
  * without any trust being granted. Once a provider confirms the location, it becomes the current
- * location. If no provider does, the user is offered to return to the primary location: the window
- * never switches back by itself.
+ * location. If no provider does in time, the user is offered to return to the primary location: the window never switches
+ * back by itself, and the offer is withdrawn once a provider confirms the location later.
  */
 export class FolderLocationPersistenceContribution extends Disposable implements IWorkbenchContribution {
 
@@ -120,7 +127,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		const workspace = this.contextService.getWorkspace();
 		const primary = workspace.uri ?? workspace.folders[0].uri;
 
-		const resolved = await this.resolve(primary, location, token);
+		const resolved = await this.resolve(primary, location, token, FOLDER_LOCATION_RESTORE_TIMEOUT);
 		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
 		}
@@ -134,20 +141,33 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 	/**
 	 * Resolves the location through the providers, waiting for providers to register, or to learn of more locations, until
-	 * the deadline. The deadline covers the resolution itself, and results arriving after it are dropped.
+	 * the `deadline`, if any, has passed and the providers are ready, or `token` is cancelled. An answer in progress at the
+	 * deadline, and providers that are not ready, are waited for until the {@link FOLDER_LOCATION_RESOLUTION_TIMEOUT}, and
+	 * results arriving after that are dropped.
 	 */
-	private async resolve(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {
+	private async resolve(primary: URI, location: URI, token: CancellationToken, deadline?: number): Promise<IResolvedFolderLocation | undefined> {
 		const store = new DisposableStore();
 		try {
 			const source = store.add(new CancellationTokenSource(token));
-			const handle = setTimeout(() => source.cancel(), FOLDER_LOCATION_RESTORE_TIMEOUT);
-			store.add(toDisposable(() => clearTimeout(handle)));
+			let expired = false;
+			let wake: (() => void) | undefined;
+			if (deadline !== undefined) {
+				const expire = setTimeout(() => {
+					expired = true;
+					wake?.();
+				}, deadline);
+				const limit = setTimeout(() => source.cancel(), FOLDER_LOCATION_RESOLUTION_TIMEOUT);
+				store.add(toDisposable(() => {
+					clearTimeout(expire);
+					clearTimeout(limit);
+				}));
+			}
 
 			const stopped = new Promise<undefined>(resolve => store.add(source.token.onCancellationRequested(() => resolve(undefined))));
+			store.add(token.onCancellationRequested(() => store.dispose()));
 
 			// Observed before resolving, so that a provider registering, or one learning of more locations, meanwhile is never missed
 			let generation = 0;
-			let wake: (() => void) | undefined;
 			const onDidChange = () => {
 				generation++;
 				wake?.();
@@ -165,9 +185,15 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 					return resolved;
 				}
 
-				if (generation === seen) {
+				while (generation === seen && !(expired && this.folderLocationService.areProvidersReady())) {
 					await Promise.race([new Promise<void>(resolve => { wake = resolve; }), stopped]);
 					wake = undefined;
+					if (source.token.isCancellationRequested) {
+						return undefined;
+					}
+				}
+				if (generation === seen) {
+					return undefined;
 				}
 			}
 
@@ -201,7 +227,14 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		store.add(this.folderLocationService.onDidChangeLocation(stop));
 		store.add(this.contextService.onDidChangeWorkbenchState(stop));
 		store.add(this.contextService.onDidChangeWorkspaceFolders(stop));
-		store.add(handle.onDidClose(stop));
+
+		const cts = new CancellationTokenSource();
+		store.add(toDisposable(() => cts.dispose(true)));
+		this.resolve(primary, location, cts.token).then(resolved => {
+			if (resolved && !cts.token.isCancellationRequested && this.isStillAt(primary, location)) {
+				this.folderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved);
+			}
+		});
 	}
 
 	private isStillAt(primary: URI, location: URI): boolean {
