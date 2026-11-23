@@ -13,7 +13,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IObservable, runOnChange } from '../../../../base/common/observable.js';
 
@@ -31,6 +31,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -59,7 +60,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		// Restrict the window's contextual browser views to those owned by the
 		// active session (or those with no known owning session).
 		const onDidChangeActiveSession = this._register(new Emitter<void>());
-		this._register(runOnChange(this._mainWindowSession, () => onDidChangeActiveSession.fire()));
+		this._register(runOnChange(getFocusedSessionChatSource(this._focusedSessionHostService).session, () => onDidChangeActiveSession.fire()));
 		this._register(this._browserViewService.registerContextualFilter({
 			include: (input, context) => {
 				const tracked = this._trackedInputs.get(input.id);
@@ -71,7 +72,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 				if (!owningSession) {
 					return true; // owning chat/session no longer known; don't hide it
 				}
-				const activeSession = context.activeSessionId ? resolveBrowserOwnerSession(this._sessionManagementService, context.activeSessionId)?.session : this._mainWindowSession.get();
+				const activeSession = context.activeSessionId ? resolveBrowserOwnerSession(this._sessionManagementService, context.activeSessionId)?.session : this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
 				return activeSession?.sessionId === owningSession.sessionId;
 			},
 			onDidChange: onDidChangeActiveSession.event,

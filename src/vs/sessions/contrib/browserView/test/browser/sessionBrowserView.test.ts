@@ -137,19 +137,25 @@ suite('SessionBrowserViewController', () => {
 		});
 	});
 
-	test('filters the main window pages independently of a focused chat window', () => {
+	test('filters contextual pages by the focused chat window unless a session is explicit', () => {
 		const { first, second, mainSession, focusedSession, filter, input } = setup();
-		const page = input({ type: 'agent', sessionId: first.mainChat.get().resource.toString() });
-		focusedSession.set(second, undefined);
-		const inMainWindow = filter.include(page, {});
+		const firstPage = input({ type: 'agent', sessionId: first.mainChat.get().resource.toString() });
+		const secondPage = input({ type: 'agent', sessionId: second.mainChat.get().resource.toString() });
 		let changes = 0;
 		store.add(filter.onDidChange!(() => changes++));
+		focusedSession.set(second, undefined);
+		const inChatWindow = [filter.include(firstPage, {}), filter.include(secondPage, {})];
+		const afterFocusChange = changes;
+		const explicitContext = [firstPage, secondPage].map(page => filter.include(page, { activeSessionId: first.mainChat.get().resource.toString() }));
 		mainSession.set(second, undefined);
+		const afterMainChange = changes;
+		focusedSession.set(first, undefined);
 		assert.deepStrictEqual({
-			inMainWindow, afterSwitch: filter.include(page, {}), changes,
-			explicitContext: filter.include(page, { activeSessionId: first.mainChat.get().resource.toString() }),
+			inChatWindow, explicitContext, afterFocusChange, afterMainChange, changes,
+			afterSwitch: [filter.include(firstPage, {}), filter.include(secondPage, {})],
 		}, {
-			inMainWindow: true, afterSwitch: false, changes: 1, explicitContext: true,
+			inChatWindow: [false, true], explicitContext: [true, false], afterFocusChange: 1, afterMainChange: 1, changes: 2,
+			afterSwitch: [true, false],
 		});
 	});
 
