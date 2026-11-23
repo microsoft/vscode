@@ -349,6 +349,40 @@ suite('git stack operations', () => {
 			}
 		});
 
+		test('git.commit continues a rebase whose index matches HEAD while untracked files exist', async () => {
+			await repository.createBranch('feature', true);
+			await commit('feature\n', 'feature');
+			await repository.checkout('main');
+			const newBase = await commit('main\n', 'main');
+			await repository.checkout('feature');
+			await assert.rejects(repository.rebase('main'), { gitErrorCode: GitErrorCodes.Conflict });
+
+			// Resolving with "ours" (HEAD during a rebase) leaves nothing staged
+			await git.exec(root, ['checkout', '--ours', '--', 'tracked.txt']);
+			await git.exec(root, ['add', '--', 'tracked.txt']);
+			await fs.promises.writeFile(path.join(root, 'untracked.txt'), 'untracked\n');
+			await repository.status();
+
+			const config = workspace.getConfiguration('git');
+			try {
+				await config.update('suggestSmartCommit', false, ConfigurationTarget.Global);
+				await commands.executeCommand('git.commit', repository.rootUri);
+				await repository.status();
+
+				assert.deepStrictEqual({
+					rebaseCommit: repository.state.rebaseCommit,
+					head: (await repository.getCommit('HEAD')).hash,
+					status: (await git.exec(root, ['status', '--porcelain'])).stdout
+				}, {
+					rebaseCommit: undefined,
+					head: newBase,
+					status: '?? untracked.txt\n'
+				});
+			} finally {
+				await config.update('suggestSmartCommit', undefined, ConfigurationTarget.Global);
+			}
+		});
+
 		test('updates a branch by CAS, reads remote tips and rejects a stale push lease', async () => {
 			const base = (await repository.getCommit('HEAD')).hash;
 			const next = await commit('next\n', 'next');
