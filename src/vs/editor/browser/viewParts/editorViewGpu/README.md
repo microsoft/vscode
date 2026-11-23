@@ -154,10 +154,13 @@ as it would above DOM text:
   `lineNumberClassName` decoration (coverage, agent feedback). The DOM
   `LineNumbersOverlay` renders only those decorated lines, and the GPU leaves
   their labels blank.
-- content: view zones, non-overflowing content widgets, rulers and the
-  unsupported-decoration fallback overlay.
+- content: view zones, non-overflowing content widgets, rulers, the
+  unsupported-decoration fallback overlay, and the caret: the DOM
+  `ViewCursors` draws it, as it blinks without presenting the canvas (the
+  renderer can draw it too; see `EDITOR_VIEW_GPU_CAPABILITIES.cursor`).
 
-Content widgets get positions from the renderer through `RenderingContext`,
+Content widgets and carets get positions from the renderer through
+`RenderingContext`,
 because the DOM view lines hold no text in this mode. The one stacking
 difference from DOM mode is that DOM layers drawn below text there (rulers,
 fallback decorations) draw above the GPU text here.

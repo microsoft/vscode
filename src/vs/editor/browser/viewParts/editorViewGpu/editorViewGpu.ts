@@ -61,7 +61,12 @@ export interface EditorViewGpuCapabilities {
 	readonly selection: boolean;
 	/** Current-line highlight, content + margin (`CurrentLine*Overlay`). */
 	readonly currentLine: boolean;
-	/** Text caret (`ViewCursors`). */
+	/**
+	 * Text caret (`ViewCursors`). The renderer can draw it, but a DOM caret over
+	 * the canvas blinks without presenting the canvas: toggling it costs the GPU
+	 * process about 2 ms less a blink (`docs/gpu-process-time.md` in
+	 * `@vscode/editor-view`).
+	 */
 	readonly cursor: boolean;
 	/** Visible space/tab markers (`WhitespaceOverlay`). */
 	readonly whitespace: boolean;
@@ -127,7 +132,7 @@ export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
 	text: true,
 	selection: true,
 	currentLine: true,
-	cursor: true,
+	cursor: false,
 	whitespace: true,
 	guides: true,
 	lineNumbers: true,
@@ -237,12 +242,13 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _focused = false;
 	/**
 	 * Caret positions (1-based `(lineNumber, column)`), one per cursor with the
-	 * primary at index 0 — the GPU renderer paints a caret at each. Mirrors the
-	 * DOM `ViewCursors` (primary + secondaries).
+	 * primary at index 0, as the DOM `ViewCursors` keeps them (primary +
+	 * secondaries).
 	 */
 	private _cursorPositions: { lineNumber: number; column: number }[] = [{ lineNumber: 1, column: 1 }];
 	/**
-	 * Whether the caret is in its "on" phase this frame. VS Code's blink is
+	 * Whether the caret is in its "on" phase this frame, when the renderer draws
+	 * it ({@link EDITOR_VIEW_GPU_CAPABILITIES}`.cursor`). VS Code's blink is
 	 * host-owned; we toggle this on {@link _blinkTimer} and repaint, and the
 	 * renderer draws the caret only when it (and focus) permit.
 	 */
@@ -544,11 +550,13 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	/**
 	 * Resolve the caret list, style and geometry, mirroring VS Code's
-	 * `ViewCursor`. The caret is painted only when the editor is focused and the
-	 * blink phase is "on" (both host-owned — see {@link _updateBlinking}); on
-	 * those frames every cursor position gets a caret, coloured with
-	 * `editorCursor.foreground` (single) or the `editorMultiCursor.*` palette
-	 * (which itself defaults to `editorCursor.foreground`).
+	 * `ViewCursor`. Unless the DOM draws the caret
+	 * ({@link EDITOR_VIEW_GPU_CAPABILITIES}`.cursor`), it is painted when the
+	 * editor is focused and the blink phase is "on" (both host-owned — see
+	 * {@link _updateBlinking}); on those frames every cursor position gets a
+	 * caret, coloured with `editorCursor.foreground` (single) or the
+	 * `editorMultiCursor.*` palette (which itself defaults to
+	 * `editorCursor.foreground`).
 	 */
 	private _cursorConfig(): Pick<EditorViewConfig, 'cursors' | 'cursorStyle' | 'cursorWidth' | 'cursorHeight'> {
 		const options = this._context.configuration.options;
@@ -559,7 +567,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		const cursorWidth = Math.min(options.get(EditorOption.cursorWidth), fontInfo.typicalHalfwidthCharacterWidth);
 		const cursorHeight = options.get(EditorOption.cursorHeight);
 
-		const shouldShow = this._focused && this._caretOn && this._cursorPositions.length > 0;
+		const shouldShow = EDITOR_VIEW_GPU_CAPABILITIES.cursor && this._focused && this._caretOn && this._cursorPositions.length > 0;
 		if (!shouldShow) {
 			return { cursors: [], cursorStyle: style, cursorWidth, cursorHeight };
 		}
@@ -607,17 +615,17 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	/**
-	 * (Re)configure caret blinking. The DOM `ViewCursors` uses CSS animations /
-	 * a JS interval; since the GPU canvas is painted imperatively we mirror the
-	 * flat-blink interval here (approximating smooth/phase/expand as flat blink)
-	 * and repaint each toggle. The caret shows solid on focus / cursor moves,
-	 * then blinks; it is hidden entirely when unfocused (matching
-	 * `_getCursorBlinking`'s `Hidden` on blur).
+	 * (Re)configure caret blinking when the renderer draws the caret. The DOM
+	 * `ViewCursors` uses CSS animations / a JS interval; since the GPU canvas is
+	 * painted imperatively we mirror the flat-blink interval here (approximating
+	 * smooth/phase/expand as flat blink) and repaint each toggle. The caret
+	 * shows solid on focus / cursor moves, then blinks; it is hidden entirely
+	 * when unfocused (matching `_getCursorBlinking`'s `Hidden` on blur).
 	 */
 	private _updateBlinking(): void {
 		this._blinkTimer.cancel();
 		this._caretOn = true;
-		if (!this._focused) {
+		if (!this._focused || !EDITOR_VIEW_GPU_CAPABILITIES.cursor) {
 			return;
 		}
 		const style = this._context.configuration.options.get(EditorOption.cursorBlinking);
