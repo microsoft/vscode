@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { readRemoteSessionOrigin, toRemoteSessionMessageMetadata, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -565,26 +565,34 @@ suite('RemoteSessionService', () => {
 		assert.strictEqual((await create()).host.id, ready.id);
 	});
 
-	test('names the host that an ID or a remote workspace pins, with the host that runs a Dev Container environment', () => {
+	test('describes the host that an ID or a remote workspace pins, and the directory that creation inspects', () => {
 		const build = new RemoteProvider('build');
 		const localContainer = Object.assign(new RemoteProvider('container-1'), { label: 'Dev Container 3', devContainerEnvironmentHost: LocalDevContainerEnvironmentHost });
 		const remoteContainer = Object.assign(new RemoteProvider('container-2'), { label: 'Dev Container 4', devContainerEnvironmentHost: build.remoteAddress });
 		const { service } = setup([build, localContainer, remoteContainer]);
-		const name = (input: object) => service.getRequestedHostName(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
+		const describe = (input: object) => {
+			const { host, workspace } = service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
+			return { host, workspace: workspace?.toString() };
+		};
+		const containerWorkspace = remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu'));
+		// A wrapper that displays one path while its metadata names another directory.
+		const misleading = toAgentHostContentUri(URI.file('/workspaces/other'), agentHostAuthority(remoteContainer.remoteAddress), URI.file('/workspaces/demo'));
 		assert.deepStrictEqual({
-			byId: name({ hostId: build.id }),
-			localContainer: name({ hostId: localContainer.id }),
-			remoteContainerByWorkspace: name({ workspace: { uri: remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu')).toString() } }),
-			localWorkspace: name({ workspace: { uri: 'file:///repo' } }),
-			automatic: name({}),
-			unknown: name({ hostId: 'agenthost-missing' }),
+			byId: describe({ hostId: build.id }),
+			localContainer: describe({ hostId: localContainer.id }),
+			remoteContainerByWorkspace: describe({ workspace: { uri: containerWorkspace.toString() } }),
+			misleadingWorkspace: describe({ workspace: { uri: misleading.toString() } }).workspace,
+			fileOnPinnedHost: describe({ hostId: build.id, workspace: { uri: 'file:///home/user/project' } }).workspace,
+			automatic: describe({ workspace: { uri: 'file:///home/user/project' } }),
+			unknown: describe({ hostId: 'agenthost-missing' }),
 		}, {
-			byId: { label: 'build' },
-			localContainer: { label: 'Dev Container 3', containerHost: 'This Computer' },
-			remoteContainerByWorkspace: { label: 'Dev Container 4', containerHost: 'build' },
-			localWorkspace: undefined,
-			automatic: undefined,
-			unknown: undefined,
+			byId: { host: { label: 'build' }, workspace: undefined },
+			localContainer: { host: { label: 'Dev Container 3', containerHost: 'This Computer' }, workspace: undefined },
+			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, workspace: containerWorkspace.toString() },
+			misleadingWorkspace: remoteContainer.mapAgentHostResource(URI.file('/workspaces/other')).toString(),
+			fileOnPinnedHost: build.mapAgentHostResource(URI.file('/home/user/project')).toString(),
+			automatic: { host: undefined, workspace: URI.file('/home/user/project').toString() },
+			unknown: { host: undefined, workspace: undefined },
 		});
 	});
 

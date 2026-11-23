@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -116,16 +117,19 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(context.chatSessionResource);
-		const host = this.remoteSessionsService.getRequestedHostName(options)
-			?? (options.hostId !== undefined ? { label: options.hostId } : undefined);
+		const destination = this.remoteSessionsService.getRequestedDestination(options);
+		const host = destination.host ?? (options.hostId !== undefined ? { label: options.hostId } : undefined);
 		const message = new MarkdownString().appendText(!host
 			? localize('remoteSessions.create.confirmationAutomatic', "Start this task on a matching remote host? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.")
 			: host.containerHost !== undefined
 				? localize('remoteSessions.create.confirmationContainer', "Start this task in {0} on {1}? The new session can send messages back to this chat.", host.label, host.containerHost)
 				: localize('remoteSessions.create.confirmationHost', "Start this task on {0}? The new session can send messages back to this chat.", host.label));
 		message.appendText(`\n\n${options.prompt}`);
-		message.appendText(`\n\n${options.workspace
-			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", this.labelService.getUriLabel(options.workspace.uri), options.workspace.isolation)
+		const workspace = destination.workspace;
+		// A host's paths are formatted like that host's; a `file:` URI without a host is shown verbatim, since the client's formatting does not apply to it.
+		const workspaceLabel = workspace && (workspace.scheme === Schemas.file ? workspace.path : this.labelService.getUriLabel(workspace));
+		message.appendText(`\n\n${options.workspace && workspaceLabel
+			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", workspaceLabel, options.workspace.isolation)
 			: localize('remoteSessions.create.noWorkspace', "No workspace or files are inherited from this session.")}`);
 		if (options.model) {
 			message.appendText(`\n\n${localize('remoteSessions.create.model', "Model: {0}/{1}", options.model.provider, options.model.id)}`);
@@ -154,7 +158,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		}
 		assertRemoteSessionCaller(source);
 		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
-		const host: IRemoteSessionHostName = this.remoteSessionsService.getRequestedHostName({ ...options, hostId: created.host.id }) ?? { label: created.host.label };
+		const host: IRemoteSessionHostName = this.remoteSessionsService.getRequestedDestination({ ...options, hostId: created.host.id }).host ?? { label: created.host.label };
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(created) }],
 			toolResultMessage: new MarkdownString().appendLink(created.openLink, host.containerHost !== undefined

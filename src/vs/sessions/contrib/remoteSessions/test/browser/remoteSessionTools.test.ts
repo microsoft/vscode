@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
-import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -91,14 +91,17 @@ suite('RemoteSessionTools', () => {
 		]);
 		const service = new class extends mock<IRemoteSessionService>() {
 			override listHosts(): readonly IRemoteSessionHost[] { return []; }
-			override getRequestedHostName(options: ICreateRemoteSessionOptions) { return options.hostId !== undefined ? hostNames.get(options.hostId) : undefined; }
+			override getRequestedDestination(options: ICreateRemoteSessionOptions) {
+				return { host: options.hostId !== undefined ? hostNames.get(options.hostId) : undefined, workspace: options.workspace?.uri };
+			}
 			override async createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken) {
 				calls.push({ options, source, requestId, token });
 				return result;
 			}
 		}();
+		// Formats like a client whose own conventions must not apply to paths on other hosts.
 		const labels = new class extends mock<ILabelService>() {
-			override getUriLabel(uri: URI) { return uri.path; }
+			override getUriLabel(uri: URI) { return uri.scheme === AGENT_HOST_SCHEME ? uri.path : 'client-formatted'; }
 		}();
 		return { calls, create: new CreateRemoteSessionTool(service, labels), list: new ListAgentHostsTool(service) };
 	}
@@ -195,13 +198,16 @@ suite('RemoteSessionTools', () => {
 			container: await confirm({ hostId: 'host', workspace: { uri: workspace, isolation: 'folder' } }),
 			host: (await confirm({ hostId: 'agenthost-build' })).destination,
 			unknownHost: (await confirm({ hostId: 'agenthost-missing' })).destination,
-			automatic: (await confirm({})).destination,
+			automatic: await confirm({ workspace: { uri: 'file:///home/user/project' } }),
 			result: text(created.toolResultMessage),
 		}, {
 			container: { destination: `Start this task in Dev Container 3 on This Computer? ${messageSuffix}`, workspace: 'Workspace: /workspaces/ubuntu-2 (folder)' },
 			host: `Start this task on Build? ${messageSuffix}`,
 			unknownHost: `Start this task on agenthost-missing? ${messageSuffix}`,
-			automatic: `Start this task on a matching remote host? The host is selected from your connected remote agent hosts using the requested resources and current workload. ${messageSuffix}`,
+			automatic: {
+				destination: `Start this task on a matching remote host? The host is selected from your connected remote agent hosts using the requested resources and current workload. ${messageSuffix}`,
+				workspace: 'Workspace: /home/user/project (worktree)',
+			},
 			result: `[Created remote session in Dev Container 3 on This Computer](${result.openLink})`,
 		});
 	});

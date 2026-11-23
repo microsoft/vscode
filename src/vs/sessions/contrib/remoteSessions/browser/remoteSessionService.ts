@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../platform/agentHost/common/agentHostSessionType.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -31,7 +31,7 @@ import { LocalDevContainerEnvironmentHost } from '../../../../workbench/contrib/
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
+import { areRemoteSessionToolsEnabled, ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionDestination, IRemoteSessionHost, IRemoteSessionHostName, IRemoteSessionService, IRemoteSessionWorkspace, remoteSessionHostRejections } from '../common/remoteSessions.js';
 import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
@@ -86,15 +86,28 @@ export class RemoteSessionService implements IRemoteSessionService {
 		return this.getCandidate(provider, { prompt: '', hostId, requirements: {}, workspace }).reasons;
 	}
 
-	getRequestedHostName(options: ICreateRemoteSessionOptions): IRemoteSessionHostName | undefined {
+	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination {
 		const providers = this.remoteProviders();
-		const workspace = options.workspace?.uri;
+		const requested = options.workspace?.uri;
 		const provider = options.hostId !== undefined
 			? providers.find(provider => provider.id === options.hostId)
-			: workspace?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === workspace.authority) : undefined;
-		if (!provider) {
-			return undefined;
+			: requested?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === requested.authority) : undefined;
+		let workspace: URI | undefined;
+		if (requested) {
+			// The approval names the directory that creation inspects; a wrapper's display path could name another one.
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- decodes a remote-workspace tool argument to label its directory
+			const directory = fromAgentHostUri(requested);
+			if (requested.scheme === AGENT_HOST_SCHEME) {
+				// eslint-disable-next-line local/code-agent-host-uri-mapping -- rewraps the decoded directory under the argument's own host authority
+				workspace = toAgentHostUri(directory, requested.authority);
+			} else {
+				workspace = provider ? provider.mapAgentHostResource(directory) : directory;
+			}
 		}
+		return { host: provider && this.getHostName(provider, providers), workspace };
+	}
+
+	private getHostName(provider: RemoteSessionsProvider, providers: readonly RemoteSessionsProvider[]): IRemoteSessionHostName {
 		const containerHost = provider.devContainerEnvironmentHost;
 		if (containerHost === undefined) {
 			return { label: provider.label };
