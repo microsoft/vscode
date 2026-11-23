@@ -100,4 +100,11 @@ suite('ModelProviderIcons', () => {
 			Codicon.info.id,
 		]);
 	});
+
+	test('uses type-hierarchy-sub icon for model routers in chat input', () => {
+		const router = createModel('daily', 'Daily', 'copilot', { modelRouterRoutes: [{ model: 'gpt-5.6' }] });
+		assert.strictEqual(getModelProviderIcon(router).id, Codicon.typeHierarchySub.id);
+		assert.strictEqual(getModelPickerIcon(router).id, Codicon.typeHierarchySub.id);
+		assert.strictEqual(getCompactModelPickerIcon(router).id, Codicon.typeHierarchySub.id);
+	});
 });
