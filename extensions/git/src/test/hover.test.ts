@@ -37,14 +37,16 @@ suite('git hover', () => {
 			'Subject',
 			'Subject\n\nFirst line\nsecond line\n\n\nLast <b> ![img](x)\n',
 			'\r\nSubject\r\n  \r\nBody\r\n',
-			'Subject\n\n```\na\n\nb\n```'
+			'Subject\n\n```\na\n\nb\n```',
+			'Subject\n\n    first\n\n    second\n    \nBody'
 		];
 
 		assert.deepStrictEqual(messages.map(formatCommitMessage), [
 			'Subject',
 			'Subject\n\n&nbsp;\n\nFirst line\n\nsecond line\n\n&nbsp;\n\n&nbsp;\n\nLast &lt;b> &#33;&#91;img](x)',
 			'Subject\n\n&nbsp;\n\nBody',
-			'Subject\n\n&nbsp;\n\n```\n\na\n\n\n\nb\n\n```'
+			'Subject\n\n&nbsp;\n\n```\n\na\n\n\n\nb\n\n```',
+			'Subject\n\n&nbsp;\n\n    first\n\n\n\n    second\n\n&nbsp;\n\nBody'
 		]);
 	});
 });
