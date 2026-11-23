@@ -12860,6 +12860,92 @@ suite('CopilotAgentSession', () => {
 				{ turnId: 'turn-1', parentToolCallId: 'tc-subagent', hook: warned('preToolUse', 'Careful with that tool.') },
 			]);
 		});
+
+		// Recorded from a live session with the sandbox on: the runtime reports a failed command hook twice, as a failed
+		// hook.end and as a `session.error` of type `hook`, and then carries on with the turn.
+		const sandboxedHookError = (hookType: string): SessionEventPayload<'session.error'>['data'] => ({
+			errorType: 'hook',
+			message: `${hookType} hook from ".github/hooks/tpi.json" failed in the session sandbox: Hook command failed with code 1. Stderr omitted for privacy. If it needs more access, allow it in the sandbox policy.`,
+		});
+		const failedPromptHook: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: '295abbbf-9c78-4152-92f0-2e1200d6f394', hookType: 'userPromptSubmitted', success: false,
+			error: { message: 'Error: Hook command failed with code 1\nStderr: The prompt contains FAILME.\n', source: '.github/hooks/tpi.json' },
+		};
+		const failedToolHook: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: '13a71f95-5307-49e9-ac53-3647902284bc', hookType: 'preToolUse', success: false,
+			output: { 'toolu_01NRuK8WZWtBXdvLtoMaQXuy': 'Denied by preToolUse hook from ".github/hooks/tpi.json" (hook errored)' },
+			error: { message: 'Error: Hook command failed with code 1\nStderr: hook.js exits with code 1 for tool calls that mention crash.txt.\n', source: '.github/hooks/tpi.json' },
+		};
+		function getTurnOutline(signals: readonly AgentSignal[]) {
+			return signals.flatMap(signal => {
+				if (signal.kind !== 'action') {
+					return [];
+				}
+				const action = signal.action;
+				const scope = signal.parentToolCallId ? `${signal.parentToolCallId}: ` : '';
+				switch (action.type) {
+					case ActionType.ChatTurnStarted: return [`${scope}started ${action.message.text}`];
+					case ActionType.ChatError: return [`${scope}error`];
+					case ActionType.ChatTurnComplete: return [`${scope}complete ${action.turnId}`];
+					case ActionType.ChatResponsePart: return action.part.kind === ResponsePartKind.SystemNotification ? [`${scope}notice ${action.turnId}: ${action.part.content}`]
+						: action.part.kind === ResponsePartKind.Markdown ? [`${scope}markdown ${action.turnId}`] : [];
+					default: return [];
+				}
+			});
+		}
+
+		test('keeps the turn when a prompt hook fails in the sandbox, showing the failure once and not starting the prompt again', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('FAILME reply with just the word ok', undefined, 'turn-1');
+			// In the order received: the sandbox report reaches VS Code before the hook's own end.
+			mockSession.fire('session.error', sandboxedHookError('userPromptSubmitted'));
+			mockSession.fire('hook.end', failedPromptHook);
+			mockSession.fire('user.message', { content: 'FAILME reply with just the word ok', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', { messageId: 'reply', content: 'ok' } as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(getTurnOutline(signals), [
+				'notice turn-1: The userPromptSubmitted hook from .github/hooks/tpi.json failed: Error: Hook command failed with code 1\nStderr: The prompt contains FAILME.\n',
+				'markdown turn-1',
+				'complete turn-1',
+			]);
+		});
+
+		test('keeps the turn and a subagent when a preToolUse hook fails in the sandbox mid-turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('Show me what is in crash.txt', undefined, 'turn-1');
+			mockSession.fire('user.message', { content: 'Show me what is in crash.txt', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('session.error', sandboxedHookError('preToolUse'), { agentId: 'agent-1' });
+			mockSession.fire('hook.end', { ...failedToolHook, parentToolCallId: 'tc-subagent' }, { agentId: 'agent-1' });
+			mockSession.fire('session.error', sandboxedHookError('preToolUse'));
+			mockSession.fire('hook.end', failedToolHook);
+			mockSession.fire('assistant.message', { messageId: 'reply', content: 'The read was denied by a preToolUse hook that errored.' } as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			const failure = 'The preToolUse hook from .github/hooks/tpi.json failed: Error: Hook command failed with code 1\nStderr: hook.js exits with code 1 for tool calls that mention crash.txt.\n';
+			assert.deepStrictEqual(getTurnOutline(signals), [
+				`tc-subagent: notice turn-1: ${failure}`,
+				`notice turn-1: ${failure}`,
+				'markdown turn-1',
+				'complete turn-1',
+			]);
+		});
+
+		test('still ends the turn for a session error that is not about a hook', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('hello', undefined, 'turn-1');
+			mockSession.fire('user.message', { content: 'hello', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.error', { errorType: 'authentication', message: 'Not signed in' });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(getTurnOutline(signals), ['error']);
+		});
 	});
 
 	for (const restored of [false, true]) {
