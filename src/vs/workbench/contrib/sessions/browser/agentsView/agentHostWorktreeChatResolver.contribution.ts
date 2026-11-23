@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -30,7 +31,7 @@ export class AgentHostWorktreeChatResolver implements IAgentHostWorktreeChatReso
 			return undefined;
 		}
 		return {
-			workingDirectory: (found.chat.workspace.get() ?? found.session.workspace.get())?.folders[0]?.workingDirectory,
+			workingDirectory: derived(reader => (found.chat.workspace.read(reader) ?? found.session.workspace.read(reader))?.folders[0]?.workingDirectory),
 			isArchived: found.session.isArchived.get(),
 		};
 	}

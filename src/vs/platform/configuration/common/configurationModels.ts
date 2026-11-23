@@ -832,7 +832,9 @@ export class Configuration {
 		}
 
 		if (!overrides.resource) {
+			// The configurations of folders contain the memory configuration too
 			this._workspaceConsolidatedConfiguration = null;
+			this._foldersConsolidatedConfigurations.clear();
 		}
 	}
 

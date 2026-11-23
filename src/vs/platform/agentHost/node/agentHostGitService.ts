@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, timeout } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -724,6 +724,25 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async commit(workingDirectory: URI, message: string, options?: ICommitOptions): Promise<void> {
+		if (options?.all) {
+			await this._runGit(workingDirectory, ['add', options.all === 'tracked' ? '-u' : '-A', '--', ':/'], { throwOnError: true });
+		}
+
+		const args = ['commit'];
+
+		if (options?.noVerify) {
+			args.push('--no-verify');
+		}
+
+		if (options?.signCommit !== undefined) {
+			args.push(options.signCommit ? '-S' : '--no-gpg-sign');
+		}
+
+		args.push('-m', message);
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async mergeBranch(workingDirectory: URI, branchName: string): Promise<string> {

@@ -2077,23 +2077,32 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('shows only the live assignment: a disconnected host shows nothing until it reconnects', () => {
+	test('a disconnected host shows its last-known assignment, disabled, also after reopening; reconnecting shows the host\'s current assignment without writing to it', () => {
 		const first = createWidget();
 		const host = new TestSandboxProfilesHost();
 		first.addHost('tunnel:laptop', host);
-		assignHostSandboxProfile(host, { id: 'strict', name: 'Strict', settings: {} });
-		const state = () => {
-			const picker = first.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		assignHostSandboxProfile(host, { id: 's1', name: 'S1', settings: {} });
+		const state = (device: typeof first) => {
+			const picker = device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
 			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, label: picker.getAttribute('aria-label') };
 		};
-		const connected = state();
+		const connected = state(first);
 		first.disconnectHost('tunnel:laptop');
-		const disconnected = state();
+		const disconnected = state(first);
+		const reopened = createWidget(OperatingSystem.Macintosh, 'type', 900, first.storageService);
+		const reopenedState = state(reopened);
+		// Another device assigns S2 while this machine is offline.
+		assignHostSandboxProfile(host, { id: 's2', name: 'S2', settings: {} });
 		first.addHost('tunnel:laptop', host);
-		assert.deepStrictEqual({ connected, disconnected, reconnected: state() }, {
-			connected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
-			disconnected: { disabled: true, selected: 'Default', label: 'Sandbox profile for Laptop. Connect to Laptop to see or choose one.' },
-			reconnected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
+		const reconnected = state(first);
+		first.disconnectHost('tunnel:laptop');
+		assert.deepStrictEqual({ connected, disconnected, reopened: reopenedState, reconnected, host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id, disconnectedAgain: state(first) }, {
+			connected: { disabled: false, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop' },
+			disconnected: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reopened: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reconnected: { disabled: false, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop' },
+			host: 's2',
+			disconnectedAgain: { disabled: true, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop: S2, last known. Connect to Laptop to refresh or change it.' },
 		});
 	});
 	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {
@@ -3725,6 +3734,37 @@ suite('RemotesWidget', () => {
 			deleteFeedback: 'The tunnel service is unavailable',
 			deletions: ['tunnel:laptop'],
 			errors: [],
+		});
+	});
+
+	test('the details pages scroll content that does not fit', async () => {
+		const results: Record<string, { fitsViewport: boolean; scrolledToEnd: boolean; sliderFollowsNativeScroll: boolean }> = {};
+		for (const page of ['troubleshoot', 'locationPreference']) {
+			const { parent, widget, model } = createWidget();
+			model.troubleshootingInfo = { ssh: { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, hasSavedHostKey: true } };
+			runMenuAction(parent, 'ssh:build', page);
+			await timeout(0);
+			parent.style.height = '200px';
+			widget.layout();
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			const viewport = details.querySelector<HTMLElement>(':scope > .monaco-scrollable-element')!;
+			const body = viewport.querySelector<HTMLElement>('.remotes-details-body')!;
+			const slider = viewport.querySelector<HTMLElement>(':scope > .scrollbar.vertical > .slider')!;
+			const wheel = new WheelEvent('wheel', { deltaY: 10000, bubbles: true, cancelable: true });
+			// Chromium gives synthetic legacy deltas the wrong sign; keep both representations consistent.
+			Object.defineProperty(wheel, 'wheelDeltaY', { value: -10000 });
+			body.dispatchEvent(wheel);
+			const fitsViewport = body.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom + 1;
+			const scrolledToEnd = body.scrollTop > 0 && Math.abs(body.scrollTop - (body.scrollHeight - body.clientHeight)) <= 1;
+			const sliderTopAtEnd = slider.offsetTop;
+			// Moving focus scrolls the body natively, as this does.
+			body.scrollTop = 0;
+			body.dispatchEvent(new Event('scroll'));
+			results[page] = { fitsViewport, scrolledToEnd, sliderFollowsNativeScroll: sliderTopAtEnd > 0 && slider.offsetTop === 0 };
+		}
+		assert.deepStrictEqual(results, {
+			troubleshoot: { fitsViewport: true, scrolledToEnd: true, sliderFollowsNativeScroll: true },
+			locationPreference: { fitsViewport: true, scrolledToEnd: true, sliderFollowsNativeScroll: true },
 		});
 	});
 

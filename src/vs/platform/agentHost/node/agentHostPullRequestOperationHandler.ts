@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { isEqualOrParent, relativePath } from '../../../base/common/resources.js';
@@ -33,6 +34,7 @@ import { isSessionChatInFolder, resolveChangesetOwnerScope, resolveGitHubStateFo
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { findPullRequestByHeadBranch } from './agentHostPullRequestAssociationResolver.js';
+import { IAgentHostPullRequestAutopilotService, type IPullRequestAutopilotResult } from './agentHostPullRequestAutopilot.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, IAgentHostUtilityModelService, type IAgentHostUtilityModelContext } from './agentHostUtilityModelService.js';
 import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
@@ -53,7 +55,8 @@ const MAX_PR_CONVERSATION_CONTEXT_CHARS = 12_000;
  */
 const MAX_PR_CHANGE_SUMMARY_CHARS = 4_000;
 
-type PullRequestCreationConfiguration = Pick<IPullRequestCreateOptions, 'draft' | 'agentMerge' | 'agentMergeOptions' | 'autoMergeMethod'>;
+type PullRequestCreationConfiguration = Pick<IPullRequestCreateOptions, 'draft' | 'agentMerge' | 'agentMergeOptions' | 'autopilot' | 'autoMergeMethod'>;
+type AutopilotOutcome = ({ readonly kind: 'enabled' } & IPullRequestAutopilotResult) | { readonly kind: 'failed'; readonly error: string };
 type RepositoryMergeSettings = Pick<IPullRequestDetails, 'autoMergeAllowed' | 'mergeMethods'>;
 
 export interface PullRequestCreatedEvent {
@@ -69,6 +72,9 @@ export interface PullRequestCreatedEvent {
 	/** The head branch the pull request was created (or found) for. */
 	readonly branchName: string;
 }
+
+/** Records a created pull request as a session artifact and returns the artifact's ID. */
+export type PullRequestCreatedHandler = (event: PullRequestCreatedEvent) => Promise<string | void>;
 
 /**
  * Server-side handler for pull request creation changeset operations advertised
@@ -107,7 +113,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _enableAgentMerge: boolean,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
-		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => Promise<void>,
+		private readonly _onPullRequestCreated: PullRequestCreatedHandler,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
@@ -117,6 +123,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostPullRequestAutopilotService private readonly _autopilotService: IAgentHostPullRequestAutopilotService,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
@@ -168,6 +175,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				context: preparationContext,
 				...capabilities,
 				agentMergeAvailable,
+				autopilotAvailable: this._autopilotService.isAvailable(),
 				...(configuration ? {
 					agentMergeOptions: {
 						addressReviews: configuration.addressReviews,
@@ -352,6 +360,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			agentMerge: this._enableAgentMerge,
 		};
 		this._validateAgentMergeAvailable(options);
+		this._validateAutopilotAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext, source);
 		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, conversationChat, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
@@ -508,6 +517,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 	}
 
+	private _validateAutopilotAvailable(options: PullRequestCreationConfiguration): void {
+		if (options.autopilot && !this._autopilotService.isAvailable()) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.pr.autopilotDisabled', "Autopilot is unavailable because artifact integrations are disabled in the host configuration."));
+		}
+	}
+
 	private _disableAgentMerge(sessionUri: string, ownerUri: string): void {
 		const folder = resolveGitHubStateFolder(this._stateManager, ownerUri);
 		if (folder.folderKey === undefined) {
@@ -547,8 +562,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		source?: IAgentHostCredentialSource,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!options.autoMergeMethod) {
-			await this._completePullRequestOperation(sessionUri, ownerUri, conversationChat, pr, branchName, options, source);
-			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined, options));
+			const autopilot = await this._completePullRequestOperation(sessionUri, ownerUri, conversationChat, pr, branchName, options, source);
+			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined, options, autopilot));
 		}
 
 		let autoMergeError: string | undefined;
@@ -568,8 +583,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError, options));
 	}
 
-	private async _completePullRequestOperation(sessionUri: string, ownerUri: string, conversationChat: string | undefined, pullRequest: PullRequestSummary, branchName: string, options: PullRequestCreationConfiguration, source?: IAgentHostCredentialSource): Promise<void> {
-		await this._onPullRequestCreated({
+	/** Records the pull request and applies the chosen automation, returning the outcome of Autopilot when it was chosen. */
+	private async _completePullRequestOperation(sessionUri: string, ownerUri: string, conversationChat: string | undefined, pullRequest: PullRequestSummary, branchName: string, options: PullRequestCreationConfiguration, source?: IAgentHostCredentialSource): Promise<AutopilotOutcome | undefined> {
+		const artifactId = await this._onPullRequestCreated({
 			credentialSource: source,
 			sessionKey: sessionUri,
 			ownerUri,
@@ -579,12 +595,15 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			...(pullRequest.title ? { pullRequestTitle: pullRequest.title } : {}),
 			branchName,
 		});
+		if (options.autopilot) {
+			return this._enableAutopilot(sessionUri, artifactId, pullRequest, options.autopilot);
+		}
 		if (!options.agentMerge) {
-			return;
+			return undefined;
 		}
 		const folder = resolveGitHubStateFolder(this._stateManager, ownerUri);
 		if (folder.folderKey === undefined) {
-			return;
+			return undefined;
 		}
 		const values = this._configurationService.getSessionConfigValues(sessionUri);
 		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, sessionUri).folderKey;
@@ -599,9 +618,41 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			...(overrides ? { overrides } : {}),
 			chat,
 		}));
+		return undefined;
 	}
 
-	private _buildMessage(pr: PullRequestSummary, isExisting: boolean, autoMergeOutcome: 'none' | 'enabled' | 'failed', autoMergeError: string | undefined, options: PullRequestCreationConfiguration): string {
+	/** A failure to turn on Autopilot does not fail the operation: the pull request exists and its rules can be turned on later. */
+	private async _enableAutopilot(sessionUri: string, artifactId: string | void, pullRequest: PullRequestSummary, autopilot: NonNullable<PullRequestCreationConfiguration['autopilot']>): Promise<AutopilotOutcome> {
+		if (!artifactId) {
+			return { kind: 'failed', error: localize('agentHost.changeset.pr.autopilotNotRecorded', "The pull request could not be recorded as an artifact.") };
+		}
+		try {
+			return { kind: 'enabled', ...await this._autopilotService.enable(sessionUri, artifactId, autopilot) };
+		} catch (err) {
+			const error = toErrorMessage(err);
+			this._logService.warn(`[AgentHostPullRequestOperationHandler] Failed to enable Autopilot for pull request #${pullRequest.number}: ${error}`);
+			return { kind: 'failed', error };
+		}
+	}
+
+	private _buildMessage(pr: PullRequestSummary, isExisting: boolean, autoMergeOutcome: 'none' | 'enabled' | 'failed', autoMergeError: string | undefined, options: PullRequestCreationConfiguration, autopilot?: AutopilotOutcome): string {
+		if (autopilot?.kind === 'failed') {
+			return isExisting
+				? localize('agentHost.changeset.pr.existing.autopilotFailed', "Pull request [#{0}]({1}) already exists, but Autopilot could not be enabled: {2}", pr.number, pr.html_url, autopilot.error)
+				: options.draft
+					? localize('agentHost.changeset.pr.createdDraft.autopilotFailed', "Created draft pull request [#{0}]({1}), but Autopilot could not be enabled: {2}", pr.number, pr.html_url, autopilot.error)
+					: localize('agentHost.changeset.pr.created.autopilotFailed', "Created pull request [#{0}]({1}), but Autopilot could not be enabled: {2}", pr.number, pr.html_url, autopilot.error);
+		}
+		if (autopilot) {
+			const message = isExisting
+				? localize('agentHost.changeset.pr.existing.autopilot', "Pull request [#{0}]({1}) already exists; enabled Autopilot.", pr.number, pr.html_url)
+				: options.draft
+					? localize('agentHost.changeset.pr.createdDraft.autopilot', "Created draft pull request [#{0}]({1}) and enabled Autopilot.", pr.number, pr.html_url)
+					: localize('agentHost.changeset.pr.created.autopilot', "Created pull request [#{0}]({1}) and enabled Autopilot.", pr.number, pr.html_url);
+			return autopilot.unavailable.length
+				? localize('agentHost.changeset.pr.autopilotUnavailableRules', "{0} These Autopilot rules are unavailable and stayed off: {1}.", message, autopilot.unavailable.join(', '))
+				: message;
+		}
 		if (options.agentMerge) {
 			return isExisting
 				? localize('agentHost.changeset.pr.existing.agentMerge', "Pull request [#{0}]({1}) already exists; enabled Agent Merge.", pr.number, pr.html_url)

@@ -590,6 +590,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
+		// The list must never keep the disposed view model: it still lists its chat's live pending requests.
+		this.listWidget.setViewModel(viewModel);
 		this._requestActiveForStateIndicator = false;
 		this._hasUnvisitedCompletion = false;
 		if (viewModel) {
@@ -3469,7 +3471,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.viewModelDisposables.add(this.autoMigratePolicySession(model, archived));
 
-		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
 		this.chatOpenDiagnosticsService.mark(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the

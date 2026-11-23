@@ -95,6 +95,26 @@ export interface ICreatedRemoteSession {
 	readonly status: 'started';
 }
 
+/** A host named for people, as in the Environment picker. */
+export interface IRemoteSessionHostName {
+	readonly label: string;
+	/** For a Dev Container environment, the name of the host that runs the container. */
+	readonly containerHost?: string;
+}
+
+/** Where `createSession` would start the session, for people to approve. */
+export interface IRemoteSessionDestination {
+	/** The host that the options pin, by `hostId` or by an Agent Host workspace URI, if it is available in this window. */
+	readonly host?: IRemoteSessionHostName;
+	/** The host ID or workspace authority that pins the host, also when that host is not available; undefined when placement selects it. */
+	readonly pinnedBy?: string;
+	/**
+	 * A lossless label of the workspace directory on its host: its path, prefixed with `//authority` when it has one,
+	 * decoded through the pinned host's connection, so it names the directory that creation inspects.
+	 */
+	readonly workspace?: string;
+}
+
 export const IRemoteSessionService = createDecorator<IRemoteSessionService>('remoteSessionService');
 
 export interface IRemoteSessionService {
@@ -105,6 +125,8 @@ export interface IRemoteSessionService {
 	 * workspace's existence and trust; empty when it would.
 	 */
 	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
+	/** Describes where `createSession` would start the session with the options, for its approval. */
+	getRequestedDestination(options: ICreateRemoteSessionOptions): IRemoteSessionDestination;
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 

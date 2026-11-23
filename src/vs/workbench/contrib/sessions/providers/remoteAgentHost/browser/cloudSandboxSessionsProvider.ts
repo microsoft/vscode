@@ -281,6 +281,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
+		if (this._setPendingNewSessionArchived(sessionId, isArchived)) {
+			return;
+		}
 		const sessionKey = this._sessionKeyFromChatId(sessionId);
 		const session = sessionKey ? this._sessionCache.get(sessionKey) : undefined;
 		if (!session || !sessionKey) {

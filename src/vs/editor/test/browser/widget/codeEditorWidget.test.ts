@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { IME } from '../../../../base/common/ime.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TabFocus } from '../../../browser/config/tabFocus.js';
-import { MouseTargetType } from '../../../browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
@@ -434,6 +435,35 @@ suite('CodeEditorWidget', () => {
 		viewLines.dispatchEvent(new MouseEvent('mouseup', init));
 
 		assert.deepStrictEqual(targets, [{ type: MouseTargetType.CONTENT_EMPTY, position: new Position(1, 1) }]);
+	});
+
+	test('issue #271597: an overflowing content widget as wide as the window keeps clear of both window edges', () => {
+		const container = document.createElement('div');
+		container.style.position = 'fixed';
+		container.style.top = '0';
+		container.style.left = '0';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const windowWidth = mainWindow.innerWidth;
+		const instantiationService = createCodeEditorServices(disposables);
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { fixedOverflowWidgets: true, minimap: { enabled: false } }, { contributions: [] }));
+		editor.setModel(disposables.add(createTextModel('line1\nline2\nline3')));
+		editor.layout({ width: windowWidth, height: 200 });
+
+		const widgetNode = document.createElement('div');
+		widgetNode.style.width = `${windowWidth}px`;
+		widgetNode.style.height = '20px';
+		editor.addContentWidget({
+			getId: () => 'test.wideOverflowingContent',
+			allowEditorOverflow: true,
+			getDomNode: () => widgetNode,
+			getPosition: () => ({ position: new Position(2, 1), preference: [ContentWidgetPositionPreference.BELOW] })
+		});
+		editor.render(true);
+
+		const rect = widgetNode.getBoundingClientRect();
+		assert.deepStrictEqual({ left: rect.left, right: rect.right }, { left: 15, right: windowWidth - 15 });
 	});
 
 });
