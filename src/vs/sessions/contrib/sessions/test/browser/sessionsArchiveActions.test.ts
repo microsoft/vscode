@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -63,7 +63,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const sessionArchived = store.add(new Emitter<ISession>());
 		const archived: string[] = [];
 		const restored: string[] = [];
-		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { } };
+		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { }, started: [] as string[], onStart: () => { }, gate: Promise.resolve() };
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
@@ -89,6 +89,9 @@ suite('Sessions - Bulk archive undo', () => {
 				return sessions.find(entry => entry.session.resource.toString() === resource.toString())?.session;
 			}
 			override async archiveSession(session: ISession) {
+				state.started.push(session.sessionId);
+				state.onStart();
+				await state.gate;
 				if (session.sessionId === state.failArchive) {
 					throw new Error('archive failed');
 				}
@@ -389,6 +392,28 @@ suite('Sessions - Bulk archive undo', () => {
 		await assert.rejects(test.run(), /archive failed/);
 		await test.state.undo();
 		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['first'] });
+	});
+
+	test('archives a batch without waiting for each session in turn', async () => {
+		const test = setup();
+		const gate = new DeferredPromise<void>();
+		const firstStarted = new DeferredPromise<void>();
+		test.state.gate = gate.p;
+		test.state.onStart = () => firstStarted.complete();
+		const run = test.run();
+		await firstStarted.p;
+		const startedBeforeCompletion = [...test.state.started];
+		gate.complete();
+		await run;
+		assert.deepStrictEqual({ startedBeforeCompletion, archived: test.archived, message: test.state.message }, { startedBeforeCompletion: ['first', 'second'], archived: ['first', 'second'], message: '2 marked done' });
+	});
+
+	test('a failed archive does not stop the rest of the batch', async () => {
+		const test = setup();
+		test.state.failArchive = 'first';
+		await assert.rejects(test.run(), /archive failed/);
+		await test.state.undo();
+		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['second'] });
 	});
 
 	test('a lone cancellation remains identifiable and successful archives stay undoable', async () => {

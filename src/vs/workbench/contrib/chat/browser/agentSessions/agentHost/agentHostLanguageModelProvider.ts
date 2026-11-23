@@ -180,7 +180,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
 				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
-				const tooltip = notices?.rowWarning ?? description;
+				// A model router keeps its description, and its warning is shown beside it as one.
+				const routerWarning = readModelRouterUri(m) ? notices?.rowWarning : undefined;
+				const tooltip = routerWarning ? description : notices?.rowWarning ?? description;
+				const warningText = routerWarning ? { modelRouter: routerWarning, ...notices?.warningText } : notices?.warningText;
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
 				// token counts, so fall back to the workbench's own catalogue entry for the same
@@ -214,7 +217,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						isDefaultForLocation: {},
 						isUserSelectable: true,
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
-						warningText: notices?.warningText,
+						warningText,
 						infoText: notices?.infoText,
 						pricing: isAuto ? undefined : multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
 						multiplierNumeric: isAuto ? undefined : multiplierNumeric ?? known?.multiplierNumeric,

@@ -31837,6 +31837,28 @@ Use the attached image as context.
 			});
 		});
 
+		test('gives a call to a tool the session does not offer its own error code', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-unknown-tool');
+			const failures: Record<string, { readonly toolName: string; readonly failureReason?: string }> = {
+				invented: { toolName: 'view_range', failureReason: 'not_found' },
+				unavailable: { toolName: 'view', failureReason: 'retained_unavailable' },
+				failed: { toolName: 'view' },
+			};
+			for (const [toolCallId, { toolName, failureReason }] of Object.entries(failures)) {
+				mockSession.fire('tool.execution_start', { toolCallId, toolName, arguments: {} });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success: false, error: { message: 'failed', code: 'failure' },
+					toolTelemetry: failureReason ? { properties: { failure_reason: failureReason } } : undefined,
+				});
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+			}
+			assert.deepStrictEqual(Object.fromEntries(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, action.result.error?.code]] : [])), {
+				invented: 'toolNotFound', unavailable: 'failure', failed: 'failure',
+			});
+		});
+
 		test('permission before a held client-tool start retains the owning client', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client'),

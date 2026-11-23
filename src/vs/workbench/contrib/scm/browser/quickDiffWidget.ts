@@ -540,6 +540,11 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 					border-top-width: 0;
 					border-bottom-width: 0;
 				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted.top:hover::after {
+					top: 0;
+					bottom: auto;
+				}
 			`;
 		} else {
 			this.stylesheet.textContent = ``;
