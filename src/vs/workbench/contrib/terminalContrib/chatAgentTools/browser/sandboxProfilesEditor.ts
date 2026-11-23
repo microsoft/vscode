@@ -360,9 +360,7 @@ export class SandboxProfilesEditor extends EditorPane {
 			this._showNameValidation = true;
 			nameInput.validate();
 			input.changed();
-			if (!input.validationMessage) {
-				title.textContent = value.trim();
-			}
+			title.textContent = value.trim() || input.profiles.find(profile => profile.id === draft.id)?.name || '';
 		}));
 
 		const settings = draft.settings;
