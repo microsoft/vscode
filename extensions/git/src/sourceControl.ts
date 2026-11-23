@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { Disposable, l10n, LogOutputChannel, scm, SourceControl, ThemeIcon, Uri, workspace } from 'vscode';
+import { Disposable, l10n, LogOutputChannel, scm, SourceControl, SourceControlInputBox, ThemeIcon, Uri, workspace } from 'vscode';
 import { GitArtifactProvider } from './artifactProvider';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 import type { GitResourceGroup, IRepositoryResolver, Repository } from './repository';
@@ -20,6 +20,7 @@ import { Status } from './api/git.constants';
 export class GitSourceControl implements Disposable {
 
 	readonly sourceControl: SourceControl;
+	get inputBox(): SourceControlInputBox { return this.sourceControl.inputBox; }
 	readonly artifactProvider: GitArtifactProvider;
 
 	private _isHidden: boolean;
@@ -54,7 +55,7 @@ export class GitSourceControl implements Disposable {
 					? path.dirname(repository.dotGit.commonPath)
 					: undefined;
 		const parent = parentRoot
-			? repositoryResolver.getRepository(parentRoot)?.sourceControl
+			? repositoryResolver.getRepository(parentRoot)?.sourceControl.sourceControl
 			: undefined;
 		this.parentRoot = parent ? parentRoot : undefined;
 
