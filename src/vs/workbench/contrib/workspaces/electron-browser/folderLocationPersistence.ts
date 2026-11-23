@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -143,18 +143,22 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	 * Resolves the location through the providers, waiting for providers to register, or to learn of more locations, until
 	 * the `deadline`, if any, has passed and the providers are ready, or `token` is cancelled. An answer in progress at the
 	 * deadline, and providers that are not ready, are waited for until the {@link FOLDER_LOCATION_RESOLUTION_TIMEOUT}, and
-	 * results arriving after that are dropped.
+	 * results arriving after that are dropped. An answer in progress as the providers or their locations change is abandoned
+	 * for a fresh one.
 	 */
 	private async resolve(primary: URI, location: URI, token: CancellationToken, deadline?: number): Promise<IResolvedFolderLocation | undefined> {
 		const store = new DisposableStore();
 		try {
 			const source = store.add(new CancellationTokenSource(token));
+			let signal: (() => void) | undefined;
+			const notify = () => signal?.();
+			const nextSignal = () => new Promise<void>(resolve => { signal = resolve; });
+
 			let expired = false;
-			let wake: (() => void) | undefined;
 			if (deadline !== undefined) {
 				const expire = setTimeout(() => {
 					expired = true;
-					wake?.();
+					notify();
 				}, deadline);
 				const limit = setTimeout(() => source.cancel(), FOLDER_LOCATION_RESOLUTION_TIMEOUT);
 				store.add(toDisposable(() => {
@@ -162,32 +166,44 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 					clearTimeout(limit);
 				}));
 			}
-
-			const stopped = new Promise<undefined>(resolve => store.add(source.token.onCancellationRequested(() => resolve(undefined))));
+			store.add(source.token.onCancellationRequested(notify));
 			store.add(token.onCancellationRequested(() => store.dispose()));
 
 			// Observed before resolving, so that a provider registering, or one learning of more locations, meanwhile is never missed
 			let generation = 0;
 			const onDidChange = () => {
 				generation++;
-				wake?.();
+				notify();
 			};
 			store.add(this.folderLocationService.onDidChangeProviders(onDidChange));
 			store.add(this.folderLocationService.onDidChangeLocations(onDidChange));
+			const currentAttempt = store.add(new MutableDisposable());
 
 			while (!source.token.isCancellationRequested) {
 				const seen = generation;
-				const resolved = await Promise.race([this.folderLocationService.resolveLocation(primary, location, source.token).catch(() => undefined), stopped]);
+				const attempt = new CancellationTokenSource(source.token);
+				currentAttempt.value = toDisposable(() => attempt.dispose(true));
+				const answer = this.folderLocationService.resolveLocation(primary, location, attempt.token).then(resolved => ({ resolved }), () => ({ resolved: undefined }));
+				let outcome: { readonly resolved: IResolvedFolderLocation | undefined } | undefined;
+				try {
+					while (!outcome && generation === seen && !source.token.isCancellationRequested) {
+						outcome = await Promise.race([answer, nextSignal().then(() => undefined)]);
+					}
+				} finally {
+					currentAttempt.clear();
+				}
 				if (source.token.isCancellationRequested) {
 					return undefined;
 				}
-				if (resolved) {
-					return resolved;
+				if (outcome?.resolved) {
+					return outcome.resolved;
+				}
+				if (!outcome) {
+					continue;
 				}
 
 				while (generation === seen && !(expired && this.folderLocationService.areProvidersReady())) {
-					await Promise.race([new Promise<void>(resolve => { wake = resolve; }), stopped]);
-					wake = undefined;
+					await nextSignal();
 					if (source.token.isCancellationRequested) {
 						return undefined;
 					}

@@ -224,6 +224,19 @@ suite('FolderLocationPersistenceContribution', () => {
 		assert.deepStrictEqual({ offeredWhileLoading, offered: fixture.prompts.length }, { offeredWhileLoading: 0, offered: 1 });
 	}));
 
+	test('a provider change after the offer to return abandons a lookup that never settles and confirms the location afresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let settles = false;
+		const fixture = createFixture({ persisted, resolveLocation: () => settles ? Promise.resolve(resolvedLocation) : new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESOLUTION_TIMEOUT + 1);
+		const offered = fixture.prompts.length;
+
+		settles = true;
+		fixture.fireProvidersChanged();
+		await timeout(1);
+
+		assert.deepStrictEqual({ offered, current: fixture.current()?.label, closed: fixture.prompts[0]?.closed() }, { offered: 1, current: 'Alternate', closed: true });
+	}));
+
 	test('a fresh open at the primary persists nothing and does not notify', async () => {
 		const fixture = createFixture({ folderUri: primary });
 		await settle();
