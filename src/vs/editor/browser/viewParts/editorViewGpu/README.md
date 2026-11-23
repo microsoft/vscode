@@ -113,6 +113,22 @@ changed: typing redraws a line or two, scrolling what scrolls into view, and
 the minimap paints only the lines that changed. Turning it off redraws every
 frame in full, which tells whether a wrong picture comes from it.
 
+## Scrolling by compositor
+
+`editor.experimental.editorViewOverscan` (on by default) makes the canvas draw
+a quarter of the viewport's height above and below it. The canvas keeps its
+place while the viewport stays within it and moves with a CSS transform as the
+editor scrolls: a frame that only scrolls draws and presents nothing, and the
+compositor moves the picture as it moves DOM text. Once the viewport leaves
+the canvas, the canvas moves to leave the whole margin ahead of the scroll and
+draws only the rows new to it. It applies with WebGPU and incremental
+rendering, at whole-number display scales (a transform of whole CSS pixels then
+moves the canvas by whole device pixels, so the picture is not resampled), and
+with renderers that skip frames that change nothing (`presentNextFrame`).
+Decorations that change in place are still queried for the visible lines only,
+the range whose cache the DOM overlays share; the lines drawn beyond the
+viewport get theirs on the first frame that scrolls, before it shows them.
+
 ## Guide ownership
 
 The GPU owns both indentation and bracket-pair guides through the shared

@@ -204,6 +204,21 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private _glyphCache: 'runs' | 'characters';
 	/** `editor.experimental.editorViewIncrementalRendering`; see the README. */
 	private _incrementalRendering: boolean;
+	/** `editor.experimental.editorViewOverscan`; see the README. */
+	private _overscan: boolean;
+	/**
+	 * Where the canvas draws, in scroll space (CSS px): from `top`, the viewport
+	 * plus `margin` above and below it, which scrolling shows by moving the
+	 * canvas. `undefined` until the first frame.
+	 */
+	private _canvasPlacement: { top: number; margin: number } | undefined;
+	/** The scroll position of the last frame. */
+	private _presentedScrollTop: number | undefined;
+	/**
+	 * Whether lines the canvas draws beyond the viewport lack decorations that
+	 * changed since: a narrow query covers the visible lines only.
+	 */
+	private _decorationMarginsStale = false;
 	/** Gutter label of each view line as last sent to the renderer (mirrors its line list). */
 	private _sentGutterLabels: (string | undefined)[] = [];
 	/** 1-based view lines in {@link _decorationWindow} with a `lineNumberClassName` decoration. */
@@ -260,6 +275,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private static readonly BLINK_INTERVAL = 500;
 	private static readonly GLYPH_CACHE_SETTING = 'editor.experimental.editorViewGlyphCache';
 	private static readonly INCREMENTAL_RENDERING_SETTING = 'editor.experimental.editorViewIncrementalRendering';
+	private static readonly OVERSCAN_SETTING = 'editor.experimental.editorViewOverscan';
 	/** Editor root class while the renderer paints; see editorViewGpu.css. */
 	public static readonly READY_CLASS_NAME = 'editor-view-gpu';
 	/** Editor root class while the renderer paints folding controls; see folding.css. */
@@ -289,12 +305,15 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._decorationResolver = new EditorViewDecorationResolver(editorRoot);
 		const readGlyphCache = () => configurationService.getValue(EditorViewGpu.GLYPH_CACHE_SETTING) === 'runs' ? 'runs' : 'characters';
 		const readIncrementalRendering = () => configurationService.getValue(EditorViewGpu.INCREMENTAL_RENDERING_SETTING) !== false;
+		const readOverscan = () => configurationService.getValue(EditorViewGpu.OVERSCAN_SETTING) !== false;
 		this._glyphCache = readGlyphCache();
 		this._incrementalRendering = readIncrementalRendering();
+		this._overscan = readOverscan();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(EditorViewGpu.GLYPH_CACHE_SETTING) || e.affectsConfiguration(EditorViewGpu.INCREMENTAL_RENDERING_SETTING)) {
+			if (e.affectsConfiguration(EditorViewGpu.GLYPH_CACHE_SETTING) || e.affectsConfiguration(EditorViewGpu.INCREMENTAL_RENDERING_SETTING) || e.affectsConfiguration(EditorViewGpu.OVERSCAN_SETTING)) {
 				this._glyphCache = readGlyphCache();
 				this._incrementalRendering = readIncrementalRendering();
+				this._overscan = readOverscan();
 				this._present();
 			}
 		}));
@@ -1105,19 +1124,19 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	/**
-	 * 0-based `[start, end)` view lines the renderer may paint at `scrollTop`: its
-	 * visible range with two lines of overscan, which starts at the line above a
-	 * partly scrolled-past view zone.
+	 * 0-based `[start, end)` view lines the renderer may paint in the `height`
+	 * CSS px from vertical offset `top`: the lines there with overscan, which
+	 * starts at the line above a partly scrolled-past view zone.
 	 */
-	private _rendererLineRange(scrollTop: number): { start: number; end: number } {
+	private _rendererLineRange(top: number, height: number): { start: number; end: number } {
 		const lineCount = this._context.viewModel.getLineCount();
 		if (lineCount === 0) {
 			return { start: 0, end: 0 };
 		}
-		const viewport = this._context.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
+		const viewLayout = this._context.viewLayout;
 		return {
-			start: Math.max(0, viewport.startLineNumber - 4),
-			end: Math.min(lineCount, viewport.endLineNumber + 3),
+			start: Math.max(0, viewLayout.getLineNumberAtVerticalOffset(top) - 4),
+			end: Math.min(lineCount, viewLayout.getLineNumberAtVerticalOffset(top + height) + 3),
 		};
 	}
 
@@ -1239,7 +1258,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._syncModel();
 		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
 		// The renderer measures only the lines it can paint.
-		const lines = this._rendererLineRange(scrollTop);
+		const lines = this._rendererLineRange(scrollTop, height);
 		this._fillLines(lines.start, lines.end);
 		this._editorView.setViewport({
 			width,
@@ -1274,17 +1293,20 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * diagnostics), it queries exactly `visible`, the range the DOM overlays
 	 * query each frame: VS Code caches one range's decorations, so a different
 	 * range would compute them again. The lines the renderer paints beyond it
-	 * are off screen; scrolling to them queries a wider range.
+	 * are off screen until the editor scrolls (by moving the canvas, when it
+	 * draws a margin around the viewport), so the first frame that `scrolled`
+	 * queries a wider range.
 	 */
-	private _syncDecorations(range: { start: number; end: number }, visible: Range | undefined): void {
+	private _syncDecorations(range: { start: number; end: number }, visible: Range | undefined, scrolled: boolean): void {
 		const window = this._decorationWindow;
 		const covered = window.start <= range.start && range.end <= window.end;
-		if (!this._decorationsDirty && covered) {
+		const stale = scrolled && this._decorationMarginsStale;
+		if (!this._decorationsDirty && covered && !stale) {
 			return;
 		}
 
 		const viewModel = this._context.viewModel;
-		const narrow = covered && visible !== undefined;
+		const narrow = covered && !stale && visible !== undefined;
 		let start: number;
 		let end: number;
 		if (narrow) {
@@ -1328,6 +1350,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._applyDelta({ type: 'setDecorations', decorations });
 		// A narrow query covers the renderer's range until it moves.
 		this._decorationWindow = narrow ? { start: range.start, end: range.end } : { start, end };
+		this._decorationMarginsStale = narrow && (this._canvasPlacement?.margin ?? 0) > 0;
 		this._foldingControls = foldingControls;
 		this._decoratedGutterLines = gutterLines;
 		this._inlineDecorations = inlineDecorations;
@@ -1430,37 +1453,75 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 
 		const { width, height, dpr } = this._measure();
+		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
+		const canvas = this._placeCanvas(scrollTop, height, dpr);
 		const backingWidth = Math.max(1, Math.round(width * dpr));
-		const backingHeight = Math.max(1, Math.round(height * dpr));
+		const backingHeight = Math.max(1, Math.round(canvas.height * dpr));
 
 		this.canvas.setWidth(width);
-		this.canvas.setHeight(height);
+		this.canvas.setHeight(canvas.height);
 		if (this.canvas.domNode.width !== backingWidth || this.canvas.domNode.height !== backingHeight) {
 			this._editorView.resize(backingWidth, backingHeight);
 		}
+		// Whole device pixels, so the compositor moves the picture without
+		// resampling it.
+		const offset = (Math.round(canvas.top * dpr) - Math.round(scrollTop * dpr)) / dpr;
+		this.canvas.domNode.style.transform = offset === 0 ? '' : `translate3d(0px, ${offset}px, 0px)`;
 
-		const scrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		this._editorView.setConfig(this._buildConfig());
-		const styleLines = this._rendererLineRange(scrollTop);
+		const styleLines = this._rendererLineRange(canvas.top, canvas.height);
 		this._syncModel();
 		// Before re-sending lines, which carry their folding control and label.
-		this._syncDecorations(styleLines, this._visibleRange());
+		this._syncDecorations(styleLines, this._visibleRange(), scrollTop !== this._presentedScrollTop);
 		this._syncLineDerivedState(styleLines);
 		this._syncGuides(styleLines);
 		this._editorView.setViewport({
 			width,
-			height,
-			scrollTop,
+			height: canvas.height,
+			scrollTop: canvas.top,
 			scrollLeft,
 			devicePixelRatio: dpr,
 		});
+		this._presentedScrollTop = scrollTop;
 
 		try {
 			this._editorView.render();
 		} catch (err) {
 			onUnexpectedError(err);
 		}
+	}
+
+	/**
+	 * Where the canvas draws for the viewport at `scrollTop`, `height` CSS px
+	 * tall: its `top` in scroll space and its `height`. When it can scroll by
+	 * compositor, it draws a margin above and below the viewport and keeps its
+	 * place while the viewport stays within it; frames that only scroll then
+	 * draw nothing new, and moving the canvas shows the margin. Once the
+	 * viewport leaves it, it moves to leave the whole margin ahead of the
+	 * scroll. See the README.
+	 */
+	private _placeCanvas(scrollTop: number, height: number, dpr: number): { top: number; height: number } {
+		const editorView = this._editorView;
+		// A transform of whole CSS pixels moves the canvas by whole device pixels
+		// only at an integer ratio, and only a renderer that skips unchanged
+		// frames gains from the margin.
+		const overscan = this._overscan && this._incrementalRendering && Number.isInteger(dpr)
+			&& !!editorView?.supportsSurfaces && !!editorView.presentNextFrame;
+		const margin = overscan ? Math.ceil(height / 4) : 0;
+		const previous = this._canvasPlacement;
+		let top: number;
+		if (previous && previous.margin === margin && scrollTop >= previous.top && scrollTop <= previous.top + 2 * margin) {
+			top = previous.top;
+		} else if (!previous || previous.margin !== margin) {
+			top = scrollTop - margin;
+		} else if (scrollTop > previous.top) {
+			top = scrollTop;
+		} else {
+			top = scrollTop - 2 * margin;
+		}
+		this._canvasPlacement = { top: margin > 0 ? Math.max(0, Math.round(top)) : scrollTop, margin };
+		return { top: this._canvasPlacement.top, height: height + 2 * margin };
 	}
 
 	public prepareRender(ctx: RenderingContext): void {

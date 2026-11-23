@@ -230,6 +230,12 @@ export interface EditorView {
 	resize(width: number, height: number): void;
 	render(): boolean;
 	/**
+	 * Present the next frame of every surface even if it shows what its canvas
+	 * shows already. Renderers that have it present only frames that change
+	 * the picture. Absent in npm 0.0.1.
+	 */
+	presentNextFrame?(): void;
+	/**
 	 * Auxiliary surfaces (minimap, overview ruler, scrollbar sliders) share the
 	 * renderer's WebGPU device. Absent in npm 0.0.1, and `false` on WebGL2.
 	 */

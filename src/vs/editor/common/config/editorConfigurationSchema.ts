@@ -134,6 +134,13 @@ const editorConfiguration: IConfigurationNode = {
 			tags: ['experimental'],
 			included: product.hasEditorView === true,
 		},
+		'editor.experimental.editorViewOverscan': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('editor.experimental.editorViewOverscan', "Controls whether the renderer of `#editor.experimentalGpuAcceleration#` `editorView` draws beyond the visible part of the editor, so that scrolling moves its picture instead of drawing it again. It applies at whole-number display scales, with `#editor.experimental.editorViewIncrementalRendering#`."),
+			tags: ['experimental'],
+			included: product.hasEditorView === true,
+		},
 		'editor.experimental.treeSitterTelemetry': {
 			type: 'boolean',
 			default: false,
