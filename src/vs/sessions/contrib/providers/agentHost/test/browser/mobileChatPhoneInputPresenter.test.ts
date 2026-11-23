@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { extUri } from '../../../../../../base/common/resources.js';
@@ -21,7 +23,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -52,7 +55,10 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { AgentContextValuePick } from '../../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
+import { OpenModePickerAction } from '../../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatPhoneInputPresenterRequest, IChatPhoneInputPresenter, IChatPhoneInputSessionContext, IChatPhoneSessionModelPicker, MobileChatInputCombinedPickerActionItem } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
@@ -88,9 +94,19 @@ import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/c
 import { AgentHostSessionConfigPickerContribution } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { IChatViewFactory } from '../../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { MobileChatViewFactory } from '../../../../mobile/browser/mobileChatViewFactory.js';
+import { mobileNewSessionPresentation } from '../../../../mobile/browser/mobileNewSessionPresentation.js';
+import { createNewChatComposerLayout } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
+import { createNewSessionControlToolbar } from '../../../../../../workbench/contrib/sessions/browser/chat/newSessionConfigToolbars.js';
+import { CopilotPickerActionViewItemContribution } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/copilotSandboxPickers.js';
+import { ChatTipContentPart } from '../../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatTipContentPart.js';
+import { IChatTipService } from '../../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/sharedChatInputComposer.css';
+import '../../../../../browser/parts/mobile/mobileChatShell.css';
 import '../../../../../browser/mobile/media/mobileWorkbench.css';
 import '../../../../../browser/mobile/media/mobileChat.css';
 
@@ -500,6 +516,57 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			await timeout(500);
 			assert.deepStrictEqual(reopened, [{ focused: true, title: 'Configure Session' }, { focused: true, title: 'Configure Session' }]);
 		});
+	});
+
+	test('Cloud mode and permissions stay docked and tappable with or without a tip', () => {
+		const { container, instantiationService } = createHarness(2, { cloud: true, approvals: true });
+		container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'mobile-workbench');
+		container.style.cssText = 'position: fixed; inset: 0 auto auto 0; width: 390px; height: 500px; --vscode-spacing-size200: 20px;';
+		const widget = dom.append(container, dom.$('.new-chat-widget-container.revealed'));
+		const content = dom.append(widget, dom.$('.new-chat-widget-content'));
+		store.add(mobileNewSessionPresentation.create(false, instantiationService)).render(widget, content);
+		dom.append(content, dom.$('.new-session-workspace-picker-container'));
+		const notices = dom.$('.new-session-below-input-surfaces.chat-input-surface-stack');
+		const { controls, input } = createNewChatComposerLayout(content, !!mobileNewSessionPresentation.separateSessionControls, notices);
+		input.style.animation = 'none';
+		dom.append(input, dom.$('textarea'));
+		const toolbar = dom.append(dom.append(controls, dom.$('.new-chat-secondary-controls-container')), dom.$('.new-chat-session-controls'));
+		store.add(instantiationService.createInstance(CopilotPickerActionViewItemContribution));
+		const actions = ['sessions.sandbox.modePicker', 'sessions.sandbox.approvalPicker'].map(id =>
+			instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, undefined, undefined, undefined));
+		instantiationService.stub(IMenuService, {
+			createMenu: id => ({ onDidChange: Event.None, dispose() { }, getActions: () => id === Menus.NewSessionControl ? [['navigation', actions]] : [] }),
+		});
+		instantiationService.stub(IContextMenuService, {});
+		store.add(createNewSessionControlToolbar(toolbar, instantiationService));
+		const buttons = Array.from(toolbar.querySelectorAll<HTMLElement>('.sessions-chat-picker-slot > .action-label'));
+		assert.deepStrictEqual(buttons.map(button => button.textContent), ['Interactive', 'Manual permissions']);
+
+		function checkControls() {
+			for (const button of buttons) {
+				const bounds = button.getBoundingClientRect();
+				const x = bounds.left + bounds.width / 2;
+				const y = bounds.top + bounds.height / 2;
+				const gap = input.getBoundingClientRect().top - bounds.bottom;
+				assert.ok(Math.abs(gap - 8) <= 1, `${button.textContent}: ${gap}px gap to the prompt`);
+				assert.ok(bounds.width >= 44, `${button.textContent}: ${bounds.width}px wide`);
+				for (const [hitX, hitY] of [[bounds.left + 1, y], [bounds.right - 1, y], [x, y - 21.5], [x, y + 21.5]]) {
+					assert.ok(button.contains(container.ownerDocument.elementFromPoint(hitX, hitY)), `${button.textContent}: missed (${hitX}, ${hitY})`);
+				}
+			}
+		}
+
+		checkControls();
+		instantiationService.stub(IChatTipService, {
+			hasMultipleTips: () => false, onDidDismissTip: Event.None, onDidNavigateTip: Event.None, onDidHideTip: Event.None, onDidDisableTips: Event.None,
+		});
+		const tip = store.add(instantiationService.createInstance(ChatTipContentPart,
+			{ id: 'test', content: new MarkdownString('**Tip:** [Learn more](https://code.visualstudio.com/docs)') }, { render: renderMarkdown }));
+		notices.appendChild(tip.domNode);
+		assert.deepStrictEqual([notices.nextElementSibling === controls, controls.nextElementSibling === input], [true, true]);
+		const tipBounds = tip.domNode.getBoundingClientRect();
+		assert.ok(tipBounds.height > 0 && tipBounds.bottom <= controls.getBoundingClientRect().top);
+		checkControls();
 	});
 
 	for (const control of ['model name', 'overflow model', 'mode', 'permissions', 'running permissions'] as const) {
@@ -1031,6 +1098,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const harness = createHarness(9);
 				const closed = harness.open(harness[source]);
+				const initialFocus = mainWindow.document.activeElement === harness.row('Model 0');
 				harness.row('Model 0').click();
 				await timeout(500);
 				const search = harness.currentSheet()!.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
@@ -1043,14 +1111,16 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 				await timeout(500);
 				const title = harness.currentSheet()!.querySelector('.mobile-picker-sheet-title')?.textContent;
 				const label = harness.row('Model 8').querySelector('.mobile-picker-sheet-label')?.textContent;
+				const restoredFocus = mainWindow.document.activeElement === harness.row('Model 8');
 				harness.row('High').click();
 				await whenModelConfigValuesSaved(harness.access);
 				harness.close();
 				await closed;
 				assert.deepStrictEqual({
-					results, title, label, writes: harness.writes,
+					initialFocus, restoredFocus, results, title, label, writes: harness.writes,
 					selected: source === 'delegates' ? harness.currentModel.get()?.identifier : harness.session.getSessionContext()?.modelId,
 				}, {
+					initialFocus: true, restoredFocus: true,
 					results: ['Model 8'],
 					title: 'Configure Session',
 					label: 'Model 8',
@@ -1060,6 +1130,48 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			});
 		});
 	}
+
+	test('the Agent shortcut and Add Context open at Agent, while the model command opens at Model', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { container, delegates, presenter, instantiationService, close } = createHarness();
+			const inputPart: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				chatPhoneInputPresenter: presenter,
+				inputActionsToolbar: { getElement: () => container },
+				_createModePickerDelegate: () => delegates.modeDelegate,
+				_createModelPickerDelegate: () => delegates.modelDelegate,
+			});
+			const widget = upcastPartial<IChatWidget>({ input: inputPart, inputPart });
+			instantiationService.stub(IChatWidgetService, { lastFocusedWidget: widget });
+			const focusedRows = [];
+			for (const open of [
+				() => instantiationService.invokeFunction(accessor => new OpenModePickerAction().run(accessor)),
+				() => new AgentContextValuePick().asAttachment(widget),
+				() => inputPart.openModelPicker(),
+			]) {
+				await open();
+				focusedRows.push(mainWindow.document.activeElement?.querySelector('.mobile-picker-sheet-label')?.textContent);
+				close();
+				await timeout(500);
+			}
+			assert.deepStrictEqual(focusedRows, ['Agent', 'Agent', 'Model 0']);
+		});
+	});
+
+	test('cancelling model selection returns to Model even when the sheet opened from Mode', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness(9);
+			const closed = harness.open({ ...harness.session, initialSection: 'mode' });
+			harness.row('Model 0').click();
+			await timeout(500);
+			harness.close();
+			await timeout(500);
+			const focused = mainWindow.document.activeElement === harness.row('Model 0');
+			harness.close();
+			await closed;
+			assert.deepStrictEqual({ focused, writes: harness.writes }, { focused: true, writes: [] });
+		});
+	});
 
 	test('does not reopen configuration for a different chat after nested model selection', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {

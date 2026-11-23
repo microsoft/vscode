@@ -14,7 +14,7 @@ import { IObservable, observableFromEvent, observableValue, runOnChange, waitFor
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { findDevContainerSample } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
-import { findDevContainerEnvironment } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { findDevContainerEnvironment, parseDevContainerEnvironmentWorkspaceFolder } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { localize } from '../../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -120,13 +120,15 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection, hostAuthority?: string, sandboxEnabled?: boolean): IRemoteAgentHostEntry {
 		const environment = findDevContainerEnvironment(workspaceUri);
+		// The environment's workspace folder names its volume and the folder in it.
+		const volume = environment && connection.defaultDirectory ? parseDevContainerEnvironmentWorkspaceFolder(connection.defaultDirectory) : undefined;
 		const entry: IRemoteAgentHostEntry = {
 			name: connection.name,
 			connection: {
 				type: RemoteAgentHostEntryType.DevContainer,
 				address: connection.address,
 				...(connection.repository ? { repository: connection.repository }
-					: environment ? { environmentId: environment.environmentId }
+					: environment ? { environmentId: environment.environmentId, ...(volume ? { volume } : {}), ...(connection.volumeOnLocalDockerEngine ? { volumeOnLocalDockerEngine: true } : {}) }
 						: { hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri) }),
 				...(hostAuthority ? { hostAuthority } : {}),
 			},

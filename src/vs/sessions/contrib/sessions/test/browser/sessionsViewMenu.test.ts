@@ -19,6 +19,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -1298,10 +1299,10 @@ suite('Sessions - View Menu', () => {
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
-		let choice: number | undefined;
+		let choice: string | undefined;
 		let input: string | undefined = undefined;
 		const validation: (string | undefined | null)[] = [];
-		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => choice === undefined ? undefined : items[choice]);
+		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items.find(item => item.label === choice));
 		harness.instantiationService.stub(IQuickInputService, 'input', async (options: IInputOptions) => {
 			for (const value of ['not a date', '2000-01-01 09:00', '2099-02-30 09:00', '2099-12-01 09:00']) {
 				const result = await options.validateInput!(value);
@@ -1312,11 +1313,11 @@ suite('Sessions - View Menu', () => {
 		const run = () => CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, session);
 		await run();
 		const cancelled = model.getInboxState(session);
-		choice = 1;
+		choice = 'Tomorrow Morning';
 		const now = new Date();
 		await run();
 		const timed = model.getInboxState(session);
-		choice = 4;
+		choice = 'Pick a Date and Time...';
 		await run();
 		const cancelledCustom = model.getInboxState(session);
 		input = '2099-12-01 09:00';
@@ -1329,6 +1330,23 @@ suite('Sessions - View Menu', () => {
 			validation: [true, true, true, false, true, true, true, false], archived: false,
 		});
 	});
+
+	for (const minutes of [10, 30]) {
+		test(`inbox snooze for ${minutes} minutes applies the deadline to every selected session`, () => runWithFakedTimers({ useFakeTimers: true, startTime: new Date(2026, 10, 20, 23, 55).getTime() }, async () => {
+			const sessions = ['first', 'second'].map(id => buildTestSession({ id, title: id }).session);
+			const harness = createListHarness(store, sessions);
+			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
+			harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items.find(item => item.label === `In ${minutes} Minutes`));
+			const until = Date.now() + minutes * 60 * 1000;
+			await CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, sessions);
+			assert.deepStrictEqual(sessions.map(session => ({ state: model.getInboxState(session), archived: session.isArchived.get() })), sessions.map(() => ({
+				state: { kind: 'snoozed', until },
+				archived: false,
+			})));
+		}));
+	}
 
 	test('application filter command opens the registered Sessions view, and uses an embedded one only without it', async () => {
 		const run = async (registered: boolean, embedded: boolean) => {

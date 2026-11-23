@@ -102,7 +102,7 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -114,6 +114,7 @@ import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/too
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { MobileSessionsListPresentation } from '../../../mobile/browser/mobileSessionsListPresentation.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { renderSessionsHeader, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
@@ -139,6 +140,7 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/co
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../browser/views/sessionsViewActions.js';
+import '../../../../browser/mobile/media/mobileDrawer.css';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -1545,7 +1547,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {
+		test('without the Canvases section setting, lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
 				id,
@@ -1575,6 +1577,7 @@ suite('Sessions - SessionsList', () => {
 				showNavigationShortcuts: () => true,
 				navigationContainer,
 				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled: constObservable(true),
 					entries,
 					selected,
 					show: async target => { opened.push((target as IPinnedCanvas).id); },
@@ -1619,7 +1622,92 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists pinned canvases directly below Automations in the sessions tree without separate navigation', async () => {
+		test('lists pinned canvases in a Canvases section below the navigation shortcuts, highlights the shown one, and hides the section while canvases are disabled', async () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
+				id,
+				title: constObservable(title),
+				chatTitle: constObservable(chatTitle),
+				state: constObservable(state),
+				canvas: constObservable(undefined),
+			});
+			const plan = createPin('plan', 'Agent Plan', 'Fix login bug', PinnedCanvasState.Live);
+			const preview = createPin('preview', 'Preview', undefined, PinnedCanvasState.Unavailable);
+			const entries = observableValue<readonly IPinnedCanvas[]>(disposables, [plan, preview]);
+			const enabled = observableValue(disposables, true);
+			const selected = observableValue<IPinnedCanvas | undefined>(disposables, undefined);
+			const opened: string[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled,
+					entries,
+					selected,
+					show: async target => { opened.push((target as IPinnedCanvas).id); },
+				}),
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const navigationRows = () => Array.from(navigationContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.sort((first, second) => first.offsetTop - second.offsetTop)
+				.map(row => row.querySelector('.session-section-label')?.textContent);
+			const rows = () => Array.from(listContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.sort((first, second) => first.offsetTop - second.offsetTop)
+				.map(row => {
+					const section = row.querySelector<HTMLElement>('.session-section');
+					return section?.classList.contains('session-section-pinned-canvas') ? {
+						label: row.querySelector('.session-section-label')?.textContent,
+						description: row.querySelector('.session-section-description')?.textContent,
+						ariaLabel: row.getAttribute('aria-label'),
+						active: section.classList.contains('active'),
+						unavailable: section.classList.contains('unavailable'),
+					} : row.querySelector('.session-section-label')?.textContent ?? row.textContent?.trim();
+				});
+
+			const initial = rows();
+			transaction(tx => {
+				selected.set(plan, tx);
+				activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }), tx);
+			});
+			const shown = rows().filter(row => typeof row === 'object').map(row => typeof row === 'object' && row.active);
+			const planRow = Array.from(listContainer.querySelectorAll<HTMLElement>('.session-section-pinned-canvas'))
+				.find(row => row.querySelector('.session-section-label')?.textContent === 'Agent Plan');
+			assert.ok(planRow);
+			clickRow(planRow);
+			await Promise.resolve();
+			entries.set([], undefined);
+			const afterUnpin = rows();
+			enabled.set(false, undefined);
+
+			assert.deepStrictEqual({ navigation: navigationRows(), initial, shown, opened, afterUnpin, disabled: rows() }, {
+				navigation: ['New Session', 'Customizations'],
+				initial: [
+					'Canvases',
+					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, unavailable: false },
+					{ label: 'Preview', description: '', ariaLabel: 'Preview, canvas, Unavailable', active: false, unavailable: true },
+				],
+				shown: [true, false],
+				opened: ['plan'],
+				afterUnpin: ['Canvases', 'No canvases yet'],
+				disabled: [],
+			});
+		});
+
+		test('lists pinned canvases in a Canvases section below Automations in the sessions tree without separate navigation', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string) => upcastPartial<IPinnedCanvas>({
 				id,
@@ -1638,6 +1726,7 @@ suite('Sessions - SessionsList', () => {
 				const contextKeyService = instantiationService.get(IContextKeyService);
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 				ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
@@ -1662,6 +1751,7 @@ suite('Sessions - SessionsList', () => {
 				showNavigationShortcuts: () => false,
 				navigationContainer,
 				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled: constObservable(true),
 					entries,
 					selected,
 					show: async target => { opened.push((target as IPinnedCanvas).id); },
@@ -1676,8 +1766,8 @@ suite('Sessions - SessionsList', () => {
 				const section = row.querySelector<HTMLElement>('.session-section');
 				const label = row.querySelector('.session-section-label')?.textContent;
 				return section?.classList.contains('session-section-pinned-canvas')
-					? { label, description: row.querySelector('.session-section-description')?.textContent, ariaLabel: row.getAttribute('aria-label'), active: section.classList.contains('active'), current: row.getAttribute('aria-current') }
-					: label;
+					? { label, depth: section.style.getPropertyValue('--session-group-depth'), description: row.querySelector('.session-section-description')?.textContent, ariaLabel: row.getAttribute('aria-label'), active: section.classList.contains('active'), current: row.getAttribute('aria-current') }
+					: label ?? row.textContent?.trim();
 			});
 			const planRow = () => {
 				const row = treeRows().find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agent Plan');
@@ -1699,18 +1789,20 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ initial, shown, opened, contextMenus, navigationRows: navigationContainer.querySelectorAll('.monaco-list-row').length, afterUnpin: rows() }, {
 				initial: [
 					'Automations',
-					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
-					{ label: 'Session timeline', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: false, current: null },
+					'Canvases',
+					{ label: 'Agent Plan', depth: '1', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
+					{ label: 'Session timeline', depth: '1', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: false, current: null },
 				],
 				shown: [
 					'Automations',
-					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
-					{ label: 'Session timeline', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: true, current: 'page' },
+					'Canvases',
+					{ label: 'Agent Plan', depth: '1', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
+					{ label: 'Session timeline', depth: '1', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: true, current: 'page' },
 				],
 				opened: ['plan'],
 				contextMenus: [Menus.SidebarCanvasContext.id],
 				navigationRows: 0,
-				afterUnpin: ['Automations'],
+				afterUnpin: ['Automations', 'Canvases', 'No canvases yet'],
 			});
 		});
 
@@ -1733,6 +1825,7 @@ suite('Sessions - SessionsList', () => {
 					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 					ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 					instantiationService.stub(IContextKeyService, contextKeyService);
+					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
 					instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 					instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 						override readonly activeCustomView = constObservable(undefined);
@@ -1748,6 +1841,7 @@ suite('Sessions - SessionsList', () => {
 					showNavigationShortcuts: () => separateNavigation,
 					navigationContainer,
 					pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+						enabled: constObservable(true),
 						entries: constObservable(pins),
 						selected: constObservable(undefined),
 						show: async target => { opened.push((target as IPinnedCanvas).id); },
@@ -6881,6 +6975,86 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('inbox displays the session timestamps used to order rows with no attention notifications', () => {
+			const now = Date.now();
+			const specs = [
+				{ id: 'first', title: 'Read session A', workspace: 'notes', minutesAgo: 1, mainChatMinutesAgo: 7, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'second', title: 'Read session B', workspace: 'notes', minutesAgo: 2, mainChatMinutesAgo: 40, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'third', title: 'Read session C', workspace: 'notes', minutesAgo: 3, mainChatMinutesAgo: 1440, createdMinutesAgo: 1440, isRead: true },
+				{ id: 'fourth', title: 'Unread session A', workspace: 'code', minutesAgo: 4, isRead: false },
+				{ id: 'fifth', title: 'Unread session B', workspace: 'code', minutesAgo: 4, isRead: false },
+				{ id: 'sixth', title: 'Unread session C', workspace: 'code', minutesAgo: 5, isRead: false },
+			];
+			const sessions = specs.map(spec => buildTestSession(spec, now).session);
+			const harness = createListHarness(disposables, sessions);
+			const storage = harness.instantiationService.get(IStorageService);
+			storage.store('sessions.inboxNotifications.attentionStartTime', now - 2 * 24 * 60 * 60_000, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const attention = disposables.add(new SessionAttentionService(
+				harness.managementService, harness.instantiationService.get(IChatService), harness.instantiationService.get(IGitHubService),
+				storage, upcastPartial<IChatEntitlementService>({ sentimentObs: constObservable({}) }),
+				upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: Event.None }),
+				harness.instantiationService.get(IConfigurationService),
+			));
+			harness.instantiationService.stub(ISessionAttentionService, attention);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(1000, 700);
+			const rows = list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === SessionInboxSection.ReadyForYou ? node.children.flatMap(child => child.type === 'session' ? [child.session] : []) : []);
+
+			assert.deepStrictEqual(rows.map(session => {
+				const row = list.getItemRow({ session: session.resource })!;
+				const state = attention.sessionAttention.get().get(session.sessionId);
+				return {
+					id: session.sessionId,
+					time: row.querySelector('.session-time')?.textContent,
+					ariaLabel: row.getAttribute('aria-label'),
+					readDot: !!row.querySelector('.session-icon .codicon-circle-small-filled'),
+					unreadDot: !!row.querySelector('.session-icon .codicon-circle-filled'),
+					priority: state?.priority,
+					notifications: state?.notificationIds,
+				};
+			}), specs.map(spec => ({
+				id: spec.id,
+				time: `${spec.minutesAgo} ${spec.minutesAgo === 1 ? 'min' : 'mins'} ago`,
+				ariaLabel: `${spec.title}, updated ${spec.minutesAgo} ${spec.minutesAgo === 1 ? 'min' : 'mins'} ago, State: Completed${spec.isRead ? '' : ', unread'}, in ${spec.workspace}`,
+				readDot: spec.isRead,
+				unreadDot: !spec.isRead,
+				priority: InboxNotificationPriority.Later,
+				notifications: [],
+			})));
+		});
+
+		for (const grouping of [SessionsGrouping.Inbox, SessionsGrouping.Workspace]) {
+			test(`${grouping} row timestamps react to session updates without changing the main chat time`, () => {
+				const now = Date.now();
+				const built = buildTestSession({ id: 'timestamps', title: 'Task', minutesAgo: 60, mainChatMinutesAgo: 7 }, now);
+				const updatedAt = observableValue('sessionUpdatedAt', built.session.updatedAt.get());
+				const session: ISession = { ...built.session, updatedAt };
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				const snapshot = () => {
+					const row = list.getItemRow({ session: session.resource })!;
+					return { time: row.querySelector('.session-time')?.textContent, ariaLabel: row.getAttribute('aria-label') };
+				};
+				const initial = snapshot();
+				updatedAt.set(new Date(now - 60_000), undefined);
+				const updated = snapshot();
+				const initialTime = grouping === SessionsGrouping.Inbox ? '1 hr ago' : '7 mins ago';
+				const updatedTime = grouping === SessionsGrouping.Inbox ? '1 min ago' : '7 mins ago';
+
+				assert.deepStrictEqual({ initial, updated }, {
+					initial: { time: initialTime, ariaLabel: `Task, updated ${initialTime}, State: Completed` },
+					updated: { time: updatedTime, ariaLabel: `Task, updated ${updatedTime}, State: Completed` },
+				});
+			});
+		}
+
 		for (const workingChat of ['main', 'child'] as const) {
 			test(`inbox keeps sessions in Working while the ${workingChat} chat runs, except when explicitly triaged`, () => {
 				const sections = [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(otherStatus => {
@@ -9502,8 +9676,51 @@ suite('Sessions - SessionsList', () => {
 				list.closeFind();
 				await timeout(350);
 			};
-			return { harness, list, rows, search, closeSearch };
+			return { harness, container, findWidgetContainer, list, rows, search, closeSearch };
 		}
+
+		test('phone search keeps the empty result after blur until the results or query change', async () => {
+			const { harness, container, findWidgetContainer, list, search, closeSearch } = renderSearch([createSession('First')], instantiationService => {
+				const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				IsPhoneLayoutContext.bindTo(context).set(true);
+				instantiationService.stub(IContextKeyService, context);
+			});
+			container.prepend(findWidgetContainer);
+			const status = container.querySelector('.sessions-list-primary [role="status"]');
+			assert.ok(status);
+			try {
+				search('second');
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				assert.strictEqual(mainWindow.document.activeElement, input);
+				const focused = status.textContent;
+				const warning = !!findWidgetContainer.querySelector('.monaco-inputbox.warning');
+				input.blur();
+				assert.notStrictEqual(mainWindow.document.activeElement, input);
+				const blurred = status.textContent;
+				const announcement = status.firstChild;
+				list.refresh();
+				assert.strictEqual(status.firstChild, announcement, 'refreshing unchanged results should not repeat the announcement');
+
+				harness.managementService.sessions.push(createSession('Second'));
+				list.refresh();
+				const arrived = status.textContent;
+				harness.managementService.sessions.pop();
+				list.refresh();
+				const removed = status.textContent;
+				search('first');
+				const matched = status.textContent;
+				search('absent');
+				search('');
+				const cleared = status.textContent;
+				search('absent');
+				list.closeFind();
+				assert.deepStrictEqual({ focused, warning, blurred, arrived, removed, matched, cleared, closed: status.textContent }, {
+					focused: 'No sessions found', warning: false, blurred: 'No sessions found', arrived: '', removed: 'No sessions found', matched: '', cleared: '', closed: '',
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
 
 		test('matches every word in any order, not scattered letters', async () => {
 			const { search, closeSearch } = renderSearch([
@@ -16581,6 +16798,59 @@ suite('Sessions - SessionsList', () => {
 
 			const heights = { taskA: rowHeight('Task A'), taskB: rowHeight('Task B') };
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
+		});
+
+		test('centers title-only quick chats in shorter phone drawer rows and keeps approvals and metadata full height', () => {
+			const quick = createTestSession('Quick', { isQuickChat: true, isRead: false }).session;
+			const waiting = createTestSession('Waiting', { isQuickChat: true, status: SessionStatus.NeedsInput }).session;
+			const repo = createTestSession('Project', { repository: 'example/project' }).session;
+			const hydrating: ISession = { ...createTestSession('Loading').session, workspace: constObservable(undefined) };
+			const main = waiting.mainChat.get();
+			const pending = observableValue<IAgentSessionApprovalInfo | undefined>('pending', terminalApproval(main, 'echo test'));
+			const harness = createListHarness(disposables, [quick, waiting, repo, hydrating], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			const container = harness.createContainer(390, 600);
+			container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'phone-layout', 'mobile-workbench');
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Repository,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				titleOnlyQuickChatRowHeight: harness.instantiationService.createInstance(MobileSessionsListPresentation).titleOnlyQuickChatRowHeight,
+				approvalModel: new class extends mock<AgentSessionApprovalModel>() {
+					override getApproval(resource: URI) { return isEqual(resource, main.resource) ? pending : constObservable(undefined); }
+				}(),
+			}));
+			list.layout(600, 390);
+			list.setHeaderCollapsed(QUICK_CHATS_SECTION_ID, false);
+
+			for (const [session, height] of [[quick, 52], [waiting, 110], [repo, 78]] as const) {
+				const row = list.getItemRow({ session: session.resource })!;
+				const bounds = row.getBoundingClientRect();
+				const title = row.querySelector('.session-title')!.getBoundingClientRect();
+				const details = row.querySelector('.session-details-row')!.getBoundingClientRect();
+				const approval = row.querySelector('.session-approval-row.visible')?.getBoundingClientRect();
+				const above = title.top - bounds.top;
+				const below = bounds.bottom - (approval ?? (details.height ? details : title)).bottom;
+				assert.strictEqual(bounds.height, height);
+				assert.ok(title.height > 0);
+				assert.deepStrictEqual({ details: details.height > 0, approval: !!approval }, { details: session === repo, approval: session === waiting });
+				if (session !== repo) {
+					assert.strictEqual(row.querySelector('.session-icon > .codicon')!.getBoundingClientRect().top, title.top);
+				}
+				assert.ok(Math.abs(above - below) <= 1, `expected centered content; got ${above}px above and ${below}px below`);
+			}
+			assert.strictEqual(list.getItemRow({ session: hydrating.resource })!.offsetHeight, 78);
+			const waitingHeight = () => list.getItemRow({ session: waiting.resource })!.offsetHeight;
+			pending.set(undefined, undefined);
+			assert.strictEqual(waitingHeight(), 52);
+			list.layout(1, 390);
+			assert.strictEqual(list.getItemRow({ session: waiting.resource }), undefined, 'approval must arrive while its row is offscreen');
+			pending.set(terminalApproval(main, 'echo test'), undefined);
+			list.layout(600, 390);
+			assert.strictEqual(waitingHeight(), 110);
 		});
 
 		test('reserves approval rounding slack in phone chat rows', () => {

@@ -131,6 +131,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
 			type: 'boolean',
 			default: false,
+			agentsWindow: { default: true },
 			scope: ConfigurationScope.WINDOW,
 			description: nls.localize('chat.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for chat inputs in the editor and Agents windows when the default agent is selected. While a non-default agent is selected, the picker appears in its usual position."),
 			tags: ['experimental'],

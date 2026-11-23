@@ -7,7 +7,9 @@ import type { CopilotClient, CopilotSession, PermissionHandler, PermissionReques
 import assert from 'assert';
 import { CopilotMcpServerLogs, mcpDiagnosticEntryToLogRecord } from '../../node/copilot/copilotMcpServerLogs.js';
 import type { IOtlpLogRecord } from '../../common/otlp/otlpLogEmitter.js';
-import { homedir } from 'os';
+import { mkdir, mkdtemp, realpath, rm, symlink } from 'fs/promises';
+import { homedir, tmpdir } from 'os';
+import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
@@ -16,7 +18,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -33,7 +35,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
@@ -68,7 +70,7 @@ import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService
 import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotRuntimeWorkingDirectory, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -4379,6 +4381,41 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('chat.useHooks off leaves out repository, custom agent and VS Code-run plugin hooks, but keeps VS Code\'s own callbacks', async () => {
+		const store = disposables.add(new DisposableStore());
+		const agent = URI.file('/workspace/.github/agents/guard.agent.md');
+		const snapshot: CopilotSessionLaunchPlan['snapshot'] = {
+			discoveredAgents: [{ name: 'guard', uri: agent, customization: { type: CustomizationType.Agent, id: agent.toString(), uri: agent.toString(), name: 'guard' } }],
+			additionalRootInstructions: [], tools: [], mcpServers: {},
+			// A plugin without a folder, whose hooks VS Code runs through SDK callbacks.
+			plugins: [{
+				format: PluginFormat.Copilot, mcpServers: [], agents: [], skills: [], instructions: [],
+				hooks: [{ type: 'SessionStart', commands: [{ command: 'echo start' }], uri: URI.file('/plugin/hooks.json'), originalId: 'SessionStart', customization: { type: CustomizationType.Hook, id: 'hook:start', uri: 'file:///plugin/hooks.json', name: 'hooks.json' } }],
+			}],
+		};
+		const configFor = async (hooksEnabled: boolean | undefined) => {
+			const config = await buildResumeConfig(createLauncher(store, {
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file('/workspace').toString()] },
+				[AgentHostHooksEnabledConfigKey]: hooksEnabled,
+			}, '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody'), undefined, snapshot);
+			return {
+				repositoryHooks: config.hooks?.enableRepositoryHooks,
+				customAgentHooks: config.agents?.definitions?.find(definition => definition.name === getSdkCustomAgentName(agent))?.hooks !== undefined,
+				handlers: Object.keys(config.hooks?.handlers ?? {}).sort(),
+			};
+		};
+		const vscodeCallbacks = ['onPostToolUse', 'onPostToolUseFailure', 'onPreToolUse', 'onUserPromptSubmitted'];
+		assert.deepStrictEqual({
+			unset: await configFor(undefined),
+			on: await configFor(true),
+			off: await configFor(false),
+		}, {
+			unset: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			on: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			off: { repositoryHooks: false, customAgentHooks: false, handlers: vscodeCallbacks },
+		});
+	});
+
 	test('custom-agent tool reference remapping remains launch-only', async () => {
 		const store = disposables.add(new DisposableStore());
 		let configuration: ICopilotClientToolConfiguration | undefined;
@@ -5327,6 +5364,31 @@ suite('CopilotSessionLauncher working directory trust', () => {
 			resumeUntrusted: ['false'],
 			workspaceless: ['false'],
 		});
+	});
+
+	test('gives the runtime the real path of a folder opened through a symbolic link', async function () {
+		if (isWindows) {
+			this.skip(); // Creating symbolic links needs extra privileges on Windows.
+		}
+		const root = await realpath(await mkdtemp(join(tmpdir(), 'copilot-working-directory-')));
+		try {
+			const real = join(root, 'repo');
+			await mkdir(real);
+			await symlink(real, join(root, 'link'));
+			assert.deepStrictEqual({
+				linked: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(join(root, 'link')) }),
+				real: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(real) }),
+				missing: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(join(root, 'missing')) }),
+				virtual: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }) }),
+			}, {
+				linked: real,
+				real,
+				missing: join(root, 'missing'),
+				virtual: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }).fsPath,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test('grants no trust to workspace-less, folderless, or non-file working directories, even with trust disabled', async () => {

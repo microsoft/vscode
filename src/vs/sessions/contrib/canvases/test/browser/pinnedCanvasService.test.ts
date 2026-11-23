@@ -8,7 +8,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -333,6 +333,35 @@ suite('PinnedCanvasService', () => {
 			afterChatArchived: ['Canvas other'],
 			afterSessionArchived: [],
 			stored: undefined,
+		});
+	});
+
+	test('keeps a pin while its session archive is pending, through a rejected archive, until an archive is confirmed', () => {
+		const canvas = createCanvas('pending');
+		const { chat } = createChat('chat:/pending', [canvas]);
+		// An agent host main chat shares its session's archived state.
+		const isArchived = chat.isArchived as ISettableObservable<boolean>;
+		const archivePending = observableValue('archivePending', false);
+		const session = upcastPartial<ISession>({ providerId: 'local-agent-host', resource: URI.parse('session:/pending'), chats: observableValue('chats', [chat]), isArchived, archivePending });
+		const harness = createHarness({ sessions: [session] });
+		harness.service.pin(reference(session, chat, canvas));
+		const titles = () => harness.service.entries.get().map(entry => entry.title.get());
+		const setArchiveState = (archived: boolean, pending: boolean) => transaction(tx => {
+			isArchived.set(archived, tx);
+			archivePending.set(pending, tx);
+		});
+
+		setArchiveState(true, true);
+		const whilePending = titles();
+		setArchiveState(false, false);
+		const afterRejection = titles();
+		setArchiveState(true, true);
+		setArchiveState(true, false);
+
+		assert.deepStrictEqual({ whilePending, afterRejection, afterConfirmation: titles() }, {
+			whilePending: ['Canvas pending'],
+			afterRejection: ['Canvas pending'],
+			afterConfirmation: [],
 		});
 	});
 
