@@ -176,8 +176,8 @@ suite('Copilot account context native SDK', () => {
 				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined), accountContext: context,
 			};
 			const activeAccount = async (session: CopilotSession) => {
-				const active = await session.rpc.accounts.get({ query: { kind: 'activeAccount' } });
-				return active.kind === 'activeAccount' ? active.account?.kind : undefined;
+				const active = await session.rpc.accounts.getActive();
+				return active.account?.kind;
 			};
 			const conversation = store.add(await launcher.launch({ ...plan, kind: 'create', model: { id: modelId } }, testRuntime));
 			assert.deepStrictEqual({ requests: policyRequests, completions: policyCompletions }, {
@@ -220,9 +220,9 @@ suite('Copilot account context native SDK', () => {
 				authenticatedRequests: requests.every(request => request.authenticated),
 			}, {
 				opens: ['create:account-conversation', 'resume:account-conversation', 'create:account-draft', 'resume:account-draft', 'create:account-draft'],
-				reopenedAccount: 'loki', reopenedModels: [modelId],
+				reopenedAccount: 'microsoft365Copilot', reopenedModels: [modelId],
 				service: 'm365', setupModels: [modelId], conversationModels: [modelId], resumedModels: [modelId],
-				conversationAccount: 'loki', resumedAccount: 'loki',
+				conversationAccount: 'microsoft365Copilot', resumedAccount: 'microsoft365Copilot',
 				selectedModel: modelId, readToolAvailable: true,
 				policyRequests: Array.from({ length: 4 }, () => ({ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath })),
 				policyCompletions: 4,
@@ -235,7 +235,7 @@ suite('Copilot account context native SDK', () => {
 			await client.start();
 			const afterRestart = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } }, client: sessionClient(client) }, testRuntime));
 			// The reopened conversation is not replaced; signing it in opens the restarted runtime's setup session.
-			assert.deepStrictEqual({ opened: opens.slice(-2), account: await activeAccount(afterRestart.session), sourceUnchanged: accounts.requireReady() === context }, { opened: ['resume:account-conversation', 'create:undefined'], account: 'loki', sourceUnchanged: true });
+			assert.deepStrictEqual({ opened: opens.slice(-2), account: await activeAccount(afterRestart.session), sourceUnchanged: accounts.requireReady() === context }, { opened: ['resume:account-conversation', 'create:undefined'], account: 'microsoft365Copilot', sourceUnchanged: true });
 			await afterRestart.session.disconnect();
 			await client.deleteSession('account-conversation');
 			await accounts.reset();
