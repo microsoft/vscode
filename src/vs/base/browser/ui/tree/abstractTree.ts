@@ -610,7 +610,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		});
 
 		this.activeIndentNodes = set;
-		this.activeIndentNodeIds = new Set();
+		this.activeIndentNodeIds = new Set<string>();
 
 		if (this.identityProvider) {
 			for (const node of set) {
