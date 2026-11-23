@@ -644,7 +644,8 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const appBundleRoot = URI.file('/application').fsPath;
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
+	function setup(launch: 'create' | 'resume' | { kind: 'create' | 'resume'; copilotHome: URI }, reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
+		const { kind, copilotHome } = typeof launch === 'string' ? { kind: launch, copilotHome: undefined } : launch;
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -721,7 +722,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			? { ...shared, kind, model: undefined }
 			: { ...shared, kind, fallback: { model: undefined } };
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
+		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration, undefined, undefined, undefined, copilotHome);
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
@@ -762,7 +763,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}));
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
-			getLaunchSandboxConfig: isResume => sandbox.getLaunchConfig(isResume),
+			getLaunchSandboxConfig: (isResume, requestExtensions) => sandbox.getLaunchConfig(isResume, requestExtensions ? copilotHome : undefined),
 			applyLaunchSandbox: async (session, isResume) => {
 				await sandbox.applyLaunchConfig(session, isResume);
 				attachedSession = session;
@@ -1085,21 +1086,21 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 	for (const kind of ['create', 'resume'] as const) {
 		test(`${kind} grants Canvas data writes only when extensions are enabled`, async () => {
-			const home = URI.file('/copilot-home');
-			const openedPaths: Array<readonly string[] | undefined> = [];
-			for (const enabled of [false, true]) {
-				const fixture = setup(kind);
-				fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
-				fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+			const copilotHome = URI.file(await mkdtemp(join(tmpdir(), 'canvas-grant-')));
+			try {
+				const openedPaths: Array<readonly string[] | undefined> = [];
+				for (const enabled of [false, true]) {
+					const fixture = setup({ kind, copilotHome });
+					fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
+					fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
 
-				store.add(await fixture.launcher.launch(fixture.plan, {
-					...fixture.runtime,
-					getLaunchSandboxConfig: (isResume, requestExtensions) => fixture.sandbox.getLaunchConfig(isResume, requestExtensions ? home : undefined),
-				}));
-				openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+					openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+				}
+				assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(copilotHome, 'extension-data').fsPath]]);
+			} finally {
+				await rm(copilotHome.fsPath, { recursive: true, force: true });
 			}
-
-			assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(home, 'extension-data').fsPath]]);
 		});
 
 		test(`${kind} passes the launch sandbox config when the SDK session opens and repeats it for older runtimes`, async () => {
