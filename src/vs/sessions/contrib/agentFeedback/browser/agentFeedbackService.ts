@@ -1048,11 +1048,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private _sendActOnFeedbackRequest(widget: IChatWidget, sessionResource: URI, options?: ISubmitFeedbackOptions, cleanup?: () => void): Promise<boolean> {
 		const submitted = new DeferredPromise<boolean>();
 		const cleanupOnce = cleanup && createSingleCallFunction(cleanup);
+		let submittedFeedbackIds: readonly string[] | undefined;
 
 		widget.acceptInput(options?.query ?? '/act-on-feedback', {
 			onRequestAccepted: () => {
 				cleanupOnce?.();
-				this.markFeedbackSubmitted(sessionResource, options?.feedbackIds);
+				submittedFeedbackIds = this.markFeedbackSubmitted(sessionResource, options?.feedbackIds);
 				options?.onRequestAccepted?.();
 				submitted.complete(true);
 			}
@@ -1060,15 +1061,33 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			cleanupOnce?.();
 			submitted.complete(false);
 		}, err => {
-			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
+			this._logService?.error('[AgentFeedback] Failed to submit feedback', err);
 			cleanupOnce?.();
+			if (submittedFeedbackIds?.length) {
+				this._restoreFeedbackAccepted(sessionResource, submittedFeedbackIds);
+			}
 			submitted.complete(false);
 		});
 
 		return submitted.p;
 	}
 
-	markFeedbackSubmitted(sessionResource: URI, feedbackIds?: readonly string[]): void {
+	private _restoreFeedbackAccepted(sessionResource: URI, feedbackIds: readonly string[]): void {
+		const backend = this._backendForSession(sessionResource);
+		const feedbackItems = backend.getItems(sessionResource);
+		const targetIds = new Set(feedbackIds);
+		const submittedState = this.isAgentHostSession(sessionResource)
+			? AgentFeedbackState.Submitted
+			: AgentFeedbackState.Resolved;
+
+		for (const item of feedbackItems) {
+			if (targetIds.has(item.id) && item.state === submittedState) {
+				backend.upsert({ ...item, state: AgentFeedbackState.Accepted });
+			}
+		}
+	}
+
+	markFeedbackSubmitted(sessionResource: URI, feedbackIds?: readonly string[]): readonly string[] {
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
 		const selectedFeedbackIds = feedbackIds ? new Set(feedbackIds) : undefined;
@@ -1101,7 +1120,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		if (!submitted.length) {
-			return;
+			return [];
 		}
 
 		for (const item of submitted) {
@@ -1116,5 +1135,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			prReviewCount,
 			replyCount,
 		});
+
+		return submitted.map(item => item.id);
 	}
 }

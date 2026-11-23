@@ -20,6 +20,7 @@ import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/ch
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -819,6 +820,7 @@ suite('AgentFeedbackService - State', () => {
 	setup(() => {
 		sessionProviderId = undefined;
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -956,6 +958,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 		sessionLoaded = true;
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -1136,6 +1139,41 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			submitted: false,
 			state: AgentFeedbackState.Accepted,
 		});
+	});
+
+	test('keeps accepted feedback retryable after a send failure', async () => {
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+		await service.submitFeedback(session);
+		await acceptInputSent.error(new Error('Host unavailable before delivery'));
+		await timeout(50);
+
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('keeps accepted feedback retryable after a send failure for non-agent-host session', async () => {
+		providerId = 'test-provider';
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+		await service.submitFeedback(session);
+		await acceptInputSent.error(new Error('Send failed'));
+		await timeout(50);
+
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('restores only the submitted feedback subset after a send failure', async () => {
+		const first = service.addFeedback(session, fileA, r(10), 'First');
+		const second = service.addFeedback(session, fileA, r(20), 'Second');
+		await service.submitFeedback(session, { feedbackIds: [first.id] });
+		await acceptInputSent.error(new Error('Send failed'));
+		await timeout(50);
+
+		assert.deepStrictEqual(
+			service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
+			[
+				{ id: first.id, state: AgentFeedbackState.Accepted },
+				{ id: second.id, state: AgentFeedbackState.Accepted },
+			]
+		);
 	});
 
 	test('waits for the session model to load into the widget before submitting', async () => {
