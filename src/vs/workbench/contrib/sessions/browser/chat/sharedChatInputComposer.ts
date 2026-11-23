@@ -65,8 +65,9 @@ import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/ho
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
-import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
+import { createNewChatComposerLayout, getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
+import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
 import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, INewSessionTargetLabels, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
@@ -95,6 +96,7 @@ export type ComposerBusyState = '' | 'initializing' | 'sending';
 
 /** What the composer is waiting on, shown as progress in its input toolbar. */
 export const SharedChatInputComposerBusyContext = new RawContextKey<ComposerBusyState>('sessionsSharedChatInputComposerBusy', '', localize('sessionsSharedChatInputComposerBusy', "What the new-session composer is waiting on, if anything."));
+export const SeparateSessionControlsContext = new RawContextKey<boolean>('sessionsSeparateComposerControls', false);
 
 /** A client-side slash command parsed from the composer's input. */
 interface IClientSlashCommand {
@@ -284,13 +286,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	// #region Rendering
 
-	render(parent: HTMLElement, root: HTMLElement): void {
-		const container = this._container = dom.append(parent, dom.$('.new-chat-input-container.sessions-shared-chat-input'));
+	render(parent: HTMLElement, root: HTMLElement, notices?: HTMLElement): void {
+		const { input: container, controls } = createNewChatComposerLayout(parent, !!this.options.separateSessionControls, notices);
+		this._container = container;
 		this._register(toDisposable(() => container.remove()));
+		this._register(toDisposable(() => controls.remove()));
 
 		const widgetContainer = dom.append(container, dom.$('.sessions-shared-chat-widget'));
 		const widgetContextKeyService = this._widgetContextKeyService = this._register(this.contextKeyService.createScoped(widgetContainer));
 		const busyContextKey = SharedChatInputComposerBusyContext.bindTo(widgetContextKeyService);
+		SeparateSessionControlsContext.bindTo(widgetContextKeyService).set(!!this.options.separateSessionControls);
 		ChatInputSupportsBackgroundContext.bindTo(widgetContextKeyService).set(!!this.options.supportsBackground);
 		const comparisonAvailable = ModelComparisonAvailableContext.bindTo(widgetContextKeyService);
 		this._register(autorun(reader => comparisonAvailable.set(this.options.modelPickerComparison?.available.read(reader) ?? false)));
@@ -412,7 +417,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			getJumpGameElement: this.options.getChatPetJumpGameElement,
 		}));
 
-		this._renderSessionControls(parent);
+		this._renderSessionControls(controls, widgetInstantiationService);
 		this._restoreInput(widget);
 		this._bindChatModel();
 
@@ -472,18 +477,15 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 	}
 
-	/**
-	 * Renders the session controls row after the input, as a sibling the host's
-	 * layout positions, for example above the input on phones.
-	 */
-	private _renderSessionControls(parent: HTMLElement): void {
-		const bottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container.sessions-shared-chat-input-controls'));
-		this._register(toDisposable(() => bottomContainer.remove()));
+	private _renderSessionControls(bottomContainer: HTMLElement, widgetInstantiationService: IInstantiationService): void {
 		if (this.options.inputVisible) {
 			const inputVisible = this.options.inputVisible;
 			this._register(autorun(reader => bottomContainer.classList.toggle('hidden', !inputVisible.read(reader))));
 		}
 		const secondaryControlsContainer = this._repositoryControlsHome = dom.append(bottomContainer, dom.$('.new-chat-secondary-controls-container'));
+		const sessionControls = this.options.separateSessionControls
+			? this._register(createNewSessionControlToolbar(dom.append(secondaryControlsContainer, dom.$('.new-chat-session-controls')), widgetInstantiationService, localize('sessionsSharedChatInput.sessionControlsAria', "Session controls")))
+			: undefined;
 		const repositoryControlsContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
 		this._register(dom.addDisposableListener(repositoryControlsContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
 		let repositoryToolbar: MenuWorkbenchToolBar | undefined;
@@ -529,9 +531,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer
 				? (repositoryToolbar?.getItemsLength() ?? 0) + (hostRepositoryControls?.visible.get() ? 1 : 0)
 				: 0;
-			bottomContainer.classList.toggle('empty', repositoryControlCount + statusToolbar.getItemsLength() === 0);
+			bottomContainer.classList.toggle('empty', repositoryControlCount + (sessionControls?.getItemsLength() ?? 0) + statusToolbar.getItemsLength() === 0);
 		};
 		this._updateBottomContainerVisibility = updateVisibility;
+		if (sessionControls) {
+			this._register(sessionControls.onDidChangeMenuItems(updateVisibility));
+		}
 		if (repositoryToolbar) {
 			this._register(repositoryToolbar.onDidChangeMenuItems(updateVisibility));
 		}

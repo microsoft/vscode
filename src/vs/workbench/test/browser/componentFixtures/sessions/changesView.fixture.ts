@@ -77,6 +77,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
+	readonly activeSessionBaseBranchFullNameObs = constObservable<string | undefined>(undefined);
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 	getSessionChanges(): IChangesSessionObservables {
@@ -97,6 +98,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 			changesSummaryObs: this.activeSessionChangesSummaryObs,
 			sectionCollapseStateObs: this.activeSessionSectionCollapseStateObs,
 			stateObs: this.activeSessionStateObs,
+			baseBranchFullNameObs: this.activeSessionBaseBranchFullNameObs,
 		};
 	}
 

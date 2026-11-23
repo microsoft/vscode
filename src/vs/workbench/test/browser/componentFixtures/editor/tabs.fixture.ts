@@ -868,7 +868,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
 			],

@@ -14,6 +14,7 @@ import type { IProductService } from '../../../product/common/productService.js'
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import type { IWSLConnectProgress, IWSLConnectResult } from '../../common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../node/wslRemoteAgentHostService.js';
+import type { IRunWslCommandResult } from '../../node/wslRemoteAgentHostHelpers.js';
 import type WebSocket from 'ws';
 
 class MockWSLChild extends EventEmitter {
@@ -58,6 +59,13 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 	private nextWebSocket: DeferredPromise<MockWebSocket> | undefined;
 
 	private readonly _platform = new DeferredPromise<{ os: string; arch: string }>();
+	readonly terminations: string[] = [];
+	readonly terminationResult = new DeferredPromise<IRunWslCommandResult>();
+
+	protected override _runWslTerminate(distro: string): Promise<IRunWslCommandResult> {
+		this.terminations.push(distro);
+		return this.terminationResult.p;
+	}
 
 	resolvePlatform(): void {
 		this._platform.complete({ os: 'linux', arch: 'x64' });
@@ -105,6 +113,32 @@ function createService(): TestableWSLRemoteAgentHostMainService {
 
 suite('WSL Remote Agent Host Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('termination lets a pending connect start its host, then stops it, and connects during termination start a new host afterwards', async () => {
+		const service = disposables.add(createService());
+		const pending = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		const termination = service.terminateDistro('Ubuntu');
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=first\n');
+		await assert.rejects(pending, /closed while acquiring a relay/);
+		await timeout(0);
+		const stopped = { terminations: [...service.terminations], killed: service.children[0].killCalls };
+		const duringTermination = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		await timeout(0);
+		const spawnedDuringTermination = service.children.length;
+		service.terminationResult.complete({ exitCode: 0, stdout: '', stderr: '' });
+		await termination;
+		await timeout(0);
+		service.children[1].emitStdout('ws://127.0.0.1:3001?tkn=second\n');
+		const restarted = await duringTermination;
+		assert.deepStrictEqual({ stopped, spawnedDuringTermination, spawned: service.children.length, token: restarted.connectionToken }, {
+			stopped: { terminations: ['Ubuntu'], killed: 1 },
+			spawnedDuringTermination: 1,
+			spawned: 2,
+			token: 'second',
+		});
+	});
 
 	test('shares one bootstrap while allocating separate relay leases', async () => {
 		const service = disposables.add(createService());

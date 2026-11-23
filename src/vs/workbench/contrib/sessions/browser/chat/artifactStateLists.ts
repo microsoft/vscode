@@ -12,7 +12,7 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ArtifactButtons } from './artifactButtons.js';
-import { placeArtifactChildren } from './artifactDetailsCard.js';
+import { IArtifactBounds, onDidFocusListRowByKeyboard, placeArtifactChildren } from './artifactDetailsCard.js';
 import { IArtifactActionViewData, IArtifactListViewData } from './artifactDetailsView.js';
 import './media/artifactStateLists.css';
 
@@ -44,7 +44,7 @@ class ArtifactStateList extends Disposable {
 	private readonly more: ArtifactButtons;
 	private data: IArtifactListViewData;
 
-	constructor(data: IArtifactListViewData, instantiationService: IInstantiationService, hoverService: IHoverService, hoverDelegate: IHoverDelegate) {
+	constructor(data: IArtifactListViewData, onDidFocusRow: (row: IArtifactBounds) => void, instantiationService: IInstantiationService, hoverService: IHoverService, hoverDelegate: IHoverDelegate) {
 		super();
 		this.data = data;
 		const renderer = this.renderer = new ArtifactDetailsItemRenderer(hoverService, false, {
@@ -62,13 +62,14 @@ class ArtifactStateList extends Disposable {
 			WorkbenchList<ArtifactDetailsItem>, 'ArtifactStateList', this.itemsContainer,
 			{ getHeight: () => renderer.rowHeight, getTemplateId: () => renderer.templateId }, [renderer],
 			{
-				multipleSelectionSupport: false, openOnSingleClick: true,
+				multipleSelectionSupport: false, openOnSingleClick: true, alwaysConsumeMouseWheel: false,
 				identityProvider: { getId: item => item.id },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: item => item.label },
 				accessibilityProvider: { getWidgetAriaLabel: () => this.data.title, getAriaLabel: getArtifactDetailsItemLabel },
 			},
 		));
 		this._register(this.items.onDidChangeFocus(() => this.itemFocusChanged.fire()));
+		this._register(onDidFocusListRowByKeyboard(this.items)(onDidFocusRow));
 		this._register(this.items.onDidOpen(event => {
 			if (event.element) {
 				this.data.openItem(event.element);
@@ -225,6 +226,9 @@ export class ArtifactStateLists extends Disposable {
 	private readonly tabs = this._register(new DisposableMap<string, ArtifactListTab>());
 	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly lists = this._register(new DisposableMap<string, ArtifactStateList>());
+	private readonly _onDidFocusRowByKeyboard = this._register(new Emitter<IArtifactBounds>());
+	/** Where the list row that keyboard navigation focuses is. */
+	readonly onDidFocusRowByKeyboard: Event<IArtifactBounds> = this._onDidFocusRowByKeyboard.event;
 	private data: readonly IArtifactListViewData[] = [];
 	private selected: string | undefined;
 	private tabStop: string | undefined;
@@ -272,7 +276,7 @@ export class ArtifactStateLists extends Disposable {
 		for (const item of data) {
 			let list = this.lists.get(item.id);
 			if (!list) {
-				list = new ArtifactStateList(item, this.instantiationService, this.hoverService, this.itemHoverDelegate);
+				list = new ArtifactStateList(item, row => this._onDidFocusRowByKeyboard.fire(row), this.instantiationService, this.hoverService, this.itemHoverDelegate);
 				this.lists.set(item.id, list);
 				this.tabs.set(item.id, new ArtifactListTab(focus => this.activate(item.id, focus), this.hoverService, this.hoverLifecycleOptions));
 			} else {
@@ -336,6 +340,12 @@ export class ArtifactStateLists extends Disposable {
 	}
 
 	focusAction(id: string): boolean { return this.actions.focus(id); }
+
+	/** Whether a list is expanded, which then takes the height given to {@link layout}. */
+	get expanded(): boolean { return this.selected !== undefined; }
+
+	/** The rendered height of the expanded list. */
+	get renderedHeight(): number { return this.listsContainer.offsetHeight; }
 
 	layout(height: number): void {
 		this.listsContainer.style.height = `${height}px`;

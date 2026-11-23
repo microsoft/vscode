@@ -33,12 +33,12 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
-import { IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, removeDevContainerEnvironment } from './devContainerEnvironments.js';
+import { hasDevContainerEnvironmentVolume, IPreparedDevContainerEnvironment, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from './devContainerEnvironments.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
@@ -555,6 +555,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
 				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
 				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
+			testConfiguration: readDevContainerEnvironmentTestConfiguration(process.env),
 		}, sandboxEnabled, persistUserState);
 	}
 
@@ -1286,6 +1287,25 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	async stopContainer(source: DevContainerAgentHostSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
+	}
+
+	async hasEnvironmentVolume(environmentId: string): Promise<boolean> {
+		if (!await this.isDockerAvailable()) {
+			return false;
+		}
+		// A stalled Docker engine must not keep the caller's connection waiting.
+		const tokenSource = new CancellationTokenSource();
+		const timer = setTimeout(() => tokenSource.cancel(), DevContainerEnvironmentVolumeLookupTimeoutMs);
+		try {
+			return await hasDevContainerEnvironmentVolume(environmentId, args => this._runDocker(args, tokenSource.token));
+		} catch (error) {
+			// For example, the Docker engine is not running or did not answer in time.
+			this._logService.trace(`${LOG_PREFIX} Could not list the volumes of environment ${environmentId}`, error);
+			return false;
+		} finally {
+			clearTimeout(timer);
+			tokenSource.dispose();
+		}
 	}
 
 	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {

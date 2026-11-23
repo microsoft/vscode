@@ -102,6 +102,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			markdownDescription: localize('sideChatsInSidePane.description', "Controls whether side chats, such as those started with `/btw`, open as tabs of the side panel in the desktop Agents window. When enabled, side chats are not shown as chat tabs beside their source chat or as nested chats in the Sessions list."),
 		},
 		[SESSIONS_LAYOUT_SCOPE_SETTING]: {

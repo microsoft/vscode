@@ -33,7 +33,7 @@ import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IE
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
 import { EditorAddTabControl } from '../../../../browser/parts/editor/editorAddTabControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
-import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
@@ -4964,7 +4964,7 @@ suite('MultiEditorTabsControl', () => {
 	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
 		const executed: string[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override async executeCommand<R>(id: string): Promise<R> { executed.push(id); return undefined as R; }
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R> { executed.push(`${id} in group ${(args[0] as IEditorCommandsContext | undefined)?.groupId}`); return undefined as R; }
 		}());
 		instantiationService.stub(IMenuService, new class extends TestMenuService {
 			override createMenu(): IMenu {
@@ -4986,7 +4986,7 @@ suite('MultiEditorTabsControl', () => {
 			override hideContextView(): void { const menu = shownMenu; shownMenu = undefined; menu?.onHide?.(true); }
 		}());
 
-		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true, context: { groupId: 7 } }));
 		const press = (button: EditorAddTabControl, clientX?: number) => {
 			const bounds = button.element.getBoundingClientRect();
 			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: clientX ?? bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
@@ -5032,7 +5032,8 @@ suite('MultiEditorTabsControl', () => {
 			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
 			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
 			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
-			executed: ['test.newTabButton.second', 'test.newTabButton.second', 'test.newTabButton.second'],
+			// Each pick runs in the group of the button, also when a second press picks it
+			executed: ['test.newTabButton.second in group 7', 'test.newTabButton.second in group 7', 'test.newTabButton.second in group 7'],
 			menuOpen: false,
 			pressedOutsideControl: true,
 			menuOpenAfterEdgePress: false,

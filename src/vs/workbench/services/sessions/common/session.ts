@@ -133,6 +133,15 @@ export function isSessionCreated(session: Pick<ISession, 'status'> | undefined, 
 }
 
 /**
+ * Whether `session` is archived and its provider has confirmed the archive. Consumers that discard state of an archived
+ * session, such as its group membership, pins or terminals, use this rather than {@link ISession.isArchived}: a provider
+ * can show a session as archived before its host confirms the archive, and restores the session when the host rejects it.
+ */
+export function isSessionArchiveConfirmed(session: Pick<ISession, 'isArchived' | 'archivePending'>, reader?: IReader): boolean {
+	return session.isArchived.read(reader) && !session.archivePending?.read(reader);
+}
+
+/**
  * Whether `chat` of `session` is a workspace-less quick chat, or, without a chat, whether `session` is a quick chat. A chat
  * of a quick chat that works in a folder of its own is not: the UI of the conversation that shows it treats it as a chat of
  * a workspace session.
@@ -203,6 +212,8 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
+	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	readonly baseBranchFullName?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
 	/** Whether the repository has any Git remote. */
@@ -1077,6 +1088,12 @@ export interface ISession {
 	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
+	/**
+	 * Whether {@link isArchived} shows an archive that the provider's host has not confirmed yet. The provider restores the
+	 * session if the host rejects it, so use {@link isSessionArchiveConfirmed} before discarding the session's state. Absent
+	 * means `false`.
+	 */
+	readonly archivePending?: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
 	/** Status description shown while the session is active (e.g., current agent action). */
@@ -1215,6 +1232,11 @@ export function getUntitledSessionTitle(isQuickChat: boolean): string {
 		: localize('agentSessions.newSession', "New Session");
 }
 
+export interface ISessionWorkspaceBrowseOptions {
+	readonly recentFolders: readonly URI[];
+	readonly token: CancellationToken;
+}
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
@@ -1244,7 +1266,7 @@ export interface ISessionWorkspaceBrowseAction {
 	 * if cancelled. The current execution workspace is provided so context
 	 * pickers can scope results to its repository.
 	 */
-	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
+	run(currentWorkspace?: ISessionWorkspace, options?: ISessionWorkspaceBrowseOptions): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of
@@ -1421,6 +1443,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchFullName === b.baseBranchFullName
 		&& a.baseBranchProtected === b.baseBranchProtected
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
