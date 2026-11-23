@@ -2340,15 +2340,21 @@ class InnerMinimap extends Disposable {
 			target.scale(horizontalScale, 1);
 		};
 
-		// Measure the labels with the style they are drawn with
-		canvasContext.save();
-		setStyle(canvasContext);
+		// Measure the labels with the style they are drawn with. Labels are
+		// measured once per text, and setting a context's font is costly, so
+		// the style is applied only when a label is measured.
+		let styled = false;
+		const fitWidth = (headerText: string) => {
+			if (!styled) {
+				styled = true;
+				canvasContext.save();
+				setStyle(canvasContext);
+			}
+			return InnerMinimap._fitSectionHeader(canvasContext, labelAreaWidth - MINIMAP_GUTTER_WIDTH, headerText);
+		};
 
 		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
 		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
-
-		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
-			labelAreaWidth - MINIMAP_GUTTER_WIDTH);
 
 		// Headers on nearby lines (e.g. nested regions) would get labels drawn on top of each other.
 		// Stack such labels below one another instead, so that every header stays readable.
@@ -2389,7 +2395,9 @@ class InnerMinimap extends Disposable {
 			});
 		}
 
-		canvasContext.restore();
+		if (styled) {
+			canvasContext.restore();
+		}
 	}
 
 	private static _fitSectionHeader(
