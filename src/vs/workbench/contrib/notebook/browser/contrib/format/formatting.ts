@@ -28,9 +28,7 @@ import { INotebookCellExecution } from '../../../common/notebookExecutionStateSe
 import { ICellExecutionParticipant, INotebookExecutionService } from '../../../common/notebookExecutionService.js';
 import { NotebookSetting } from '../../../common/notebookCommon.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { INotebookService } from '../../../common/notebookService.js';
 import { CodeActionParticipantUtils } from '../saveParticipants/saveParticipants.js';
 
@@ -209,6 +207,9 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 }
 
 export class CellExecutionParticipantsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.cellExecutionParticipants';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService
@@ -222,5 +223,4 @@ export class CellExecutionParticipantsContribution extends Disposable implements
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellExecutionParticipantsContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(CellExecutionParticipantsContribution.ID, CellExecutionParticipantsContribution, WorkbenchPhase.AfterRestored);

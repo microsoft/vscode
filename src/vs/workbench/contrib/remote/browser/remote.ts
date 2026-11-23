@@ -667,6 +667,8 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 
 export class RemoteMarkers implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.remoteMarkers';
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ITimerService timerService: ITimerService,
@@ -785,6 +787,8 @@ class ReconnectionTimer implements IDisposable {
 const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
 
 export class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteAgentConnectionStatusListener';
 
 	private _reloadWindowShown: boolean = false;
 

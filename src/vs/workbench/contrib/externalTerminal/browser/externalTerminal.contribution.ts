@@ -16,12 +16,10 @@ import { Schemas } from '../../../../base/common/network.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname, basename } from '../../../../base/common/path.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from '../../../../platform/externalTerminal/common/externalTerminal.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
@@ -94,6 +92,9 @@ registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'external');
 registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated');
 
 export class ExternalTerminalContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.externalTerminal.menus';
+
 	private _openInIntegratedTerminalMenuItem: IMenuItem;
 	private _openInTerminalMenuItem: IMenuItem;
 
@@ -163,4 +164,4 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExternalTerminalContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ExternalTerminalContribution.ID, ExternalTerminalContribution, WorkbenchPhase.AfterRestored);

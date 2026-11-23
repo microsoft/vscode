@@ -5,14 +5,15 @@
 
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 class BracketPairColorizer2TelemetryContribution {
+
+	static readonly ID = 'workbench.contrib.bracketPairColorizer2Telemetry';
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -51,5 +52,5 @@ class BracketPairColorizer2TelemetryContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BracketPairColorizer2TelemetryContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(BracketPairColorizer2TelemetryContribution.ID, BracketPairColorizer2TelemetryContribution, WorkbenchPhase.AfterRestored);
 

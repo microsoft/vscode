@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import * as platform from '../../../../base/common/platform.js';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { INotificationService, NeverShowAgainScope, NotificationPriority } from '../../../../platform/notification/common/notification.js';
@@ -21,6 +19,9 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { BaseLocalizationWorkbenchContribution } from '../common/localization.contribution.js';
 
 class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.nativeLocalization';
+
 	private static LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';
 
 	constructor(
@@ -221,5 +222,4 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(NativeLocalizationWorkbenchContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(NativeLocalizationWorkbenchContribution.ID, NativeLocalizationWorkbenchContribution, WorkbenchPhase.Eventually);

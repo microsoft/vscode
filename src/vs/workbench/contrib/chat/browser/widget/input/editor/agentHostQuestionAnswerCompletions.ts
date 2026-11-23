@@ -10,9 +10,7 @@ import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { getCompletionAction } from '../../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { Registry } from '../../../../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../../../../common/contributions.js';
-import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../common/contributions.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { CHAT_QUESTION_ANSWER_SCHEME, getChatQuestionAnswerSessionResource } from '../../chatContentParts/chatQuestionAnswerEditor.js';
@@ -24,6 +22,8 @@ import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.j
  * completions only insert text and never add references or attachments.
  */
 export class AgentHostQuestionAnswerCompletions extends AgentHostInputCompletionsBase<void, string> {
+
+	static readonly ID = 'workbench.contrib.agentHostQuestionAnswerCompletions';
 
 	/** Per-scheme registrations of the Monaco completion provider. */
 	private readonly _registrations = this._register(new DisposableMap<string>());
@@ -97,4 +97,4 @@ export class AgentHostQuestionAnswerCompletions extends AgentHostInputCompletion
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentHostQuestionAnswerCompletions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(AgentHostQuestionAnswerCompletions.ID, AgentHostQuestionAnswerCompletions, WorkbenchPhase.Eventually);

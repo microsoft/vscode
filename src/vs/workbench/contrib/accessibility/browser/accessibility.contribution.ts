@@ -5,9 +5,7 @@
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { DynamicSpeechAccessibilityConfiguration, registerAccessibilityConfiguration } from './accessibilityConfiguration.js';
-import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { UnfocusedViewDimmingContribution } from './unfocusedViewDimmingContribution.js';
 import { AccessibilityStatus } from './accessibilityStatus.js';
 import { EditorAccessibilityHelpContribution } from './editorAccessibilityHelp.js';
@@ -24,12 +22,11 @@ registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
 registerSingleton(IAccessibleViewInformationService, AccessibleViewInformationService, InstantiationType.Delayed);
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(EditorAccessibilityHelpContribution.ID, EditorAccessibilityHelpContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(UnfocusedViewDimmingContribution.ID, UnfocusedViewDimmingContribution, WorkbenchPhase.AfterRestored);
 
-workbenchRegistry.registerWorkbenchContribution(AccesibleViewHelpContribution, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(AccesibleViewContributions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(AccesibleViewHelpContribution.ID, AccesibleViewHelpContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AccesibleViewContributions.ID, AccesibleViewContributions, WorkbenchPhase.Eventually);
 
 registerWorkbenchContribution2(AccessibilityStatus.ID, AccessibilityStatus, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ExtensionAccessibilityHelpDialogContribution.ID, ExtensionAccessibilityHelpDialogContribution, WorkbenchPhase.BlockRestore);

@@ -7,10 +7,9 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { FoldingController } from '../../../../editor/contrib/folding/browser/folding.js';
 import * as nls from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { FoldingRangeProvider } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -18,6 +17,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
 class DefaultFoldingRangeProvider extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.defaultFoldingRangeProvider';
 
 	static readonly configName = 'editor.defaultFoldingRangeProvider';
 
@@ -97,8 +98,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	}
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	DefaultFoldingRangeProvider,
-	LifecyclePhase.Restored
-);
+registerWorkbenchContribution2(DefaultFoldingRangeProvider.ID, DefaultFoldingRangeProvider, WorkbenchPhase.AfterRestored);
 

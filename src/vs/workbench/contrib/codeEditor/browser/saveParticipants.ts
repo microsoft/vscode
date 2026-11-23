@@ -27,12 +27,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { SaveReason } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { getModifiedRanges } from '../../format/browser/formatModified.js';
 import { CustomEditorInput } from '../../customEditor/browser/customEditorInput.js';
@@ -489,6 +487,8 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.codeEditorSaveParticipants';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService
@@ -507,5 +507,4 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SaveParticipantsContribution.ID, SaveParticipantsContribution, WorkbenchPhase.AfterRestored);

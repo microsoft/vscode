@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 
 class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sleepResumeRepaintMinimap';
 
 	constructor(
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -24,4 +24,4 @@ class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribu
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SleepResumeRepaintMinimap, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(SleepResumeRepaintMinimap.ID, SleepResumeRepaintMinimap, WorkbenchPhase.Eventually);

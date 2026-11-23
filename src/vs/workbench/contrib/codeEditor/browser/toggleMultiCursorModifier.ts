@@ -10,9 +10,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 export class ToggleMultiCursorModifierAction extends Action2 {
 
@@ -42,6 +40,8 @@ const multiCursorModifier = new RawContextKey<string>('multiCursorModifier', 'al
 
 class MultiCursorModifierContextKeyController extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.multiCursorModifierContextKeyController';
+
 	private readonly _multiCursorModifier: IContextKey<string>;
 
 	constructor(
@@ -66,7 +66,7 @@ class MultiCursorModifierContextKeyController extends Disposable implements IWor
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MultiCursorModifierContextKeyController, LifecyclePhase.Restored);
+registerWorkbenchContribution2(MultiCursorModifierContextKeyController.ID, MultiCursorModifierContextKeyController, WorkbenchPhase.AfterRestored);
 
 registerAction2(ToggleMultiCursorModifierAction);
 

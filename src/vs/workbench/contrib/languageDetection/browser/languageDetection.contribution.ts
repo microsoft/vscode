@@ -6,10 +6,8 @@
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ILanguageDetectionService, LanguageDetectionHintConfig, LanguageDetectionLanguageEventSource } from '../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
@@ -29,6 +27,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 const detectLanguageCommandId = 'editor.detectLanguage';
 
 class LanguageDetectionStatusContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.languageDetectionStatus';
 
 	private static readonly _id = 'status.languageDetectionStatus';
 
@@ -113,7 +113,7 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LanguageDetectionStatusContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(LanguageDetectionStatusContribution.ID, LanguageDetectionStatusContribution, WorkbenchPhase.AfterRestored);
 
 
 registerAction2(class extends Action2 {

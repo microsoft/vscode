@@ -5,14 +5,15 @@
 
 
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 class NotebookKernelDetection extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookKernelDetection';
+
 	private _detectionMap = new Map<string, IDisposable>();
 	private readonly _localDisposableStore = this._register(new DisposableStore());
 
@@ -101,4 +102,4 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookKernelDetection, LifecyclePhase.Restored);
+registerWorkbenchContribution2(NotebookKernelDetection.ID, NotebookKernelDetection, WorkbenchPhase.AfterRestored);
