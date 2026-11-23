@@ -114,7 +114,10 @@ suite('modelRouter', () => {
 			const guided = 'routes:\n  - model: a\n    when: A.\n    guidance: Plan first.';
 			assert.deepStrictEqual({
 				oneGuidedRoute: check(guided),
+				// Nothing is decided for a router's only route, so it needs no `when`.
+				oneGuidedRouteWithoutWhen: check('routes:\n  - model: a\n    guidance: Plan first.'),
 				oneRoute: check('routes:\n  - model: a\n    when: A.'),
+				oneRouteWithoutWhen: check('routes:\n  - model: a'),
 				sameName: check('routes:\n  - name: one\n    model: a\n    when: A.\n  - name: one\n    model: b\n    when: B.'),
 				sameModel: check('routes:\n  - model: a\n    when: A.\n  - model: a\n    when: B.\n    effort: low'),
 				badName: check('routes:\n  - name: Bug_Fix\n    model: a\n    when: A.\n  - model: b\n    when: B.'),
@@ -126,7 +129,9 @@ suite('modelRouter', () => {
 				roles: check(`roles:\n  reviewer:\n    description: Reviews.\n${guided}`),
 			}, {
 				oneGuidedRoute: [],
+				oneGuidedRouteWithoutWhen: [],
 				oneRoute: ['A router has 2 to 10 routes; this one has 1.'],
+				oneRouteWithoutWhen: ['A router has 2 to 10 routes; this one has 1.'],
 				sameName: ['The name `one` is already route 1\'s; each name belongs to one route.'],
 				sameModel: ['`a` is already in route 1; each model belongs to one route, unless the routes have a `name`.'],
 				badName: ['Route 1\'s `name` is lowercase letters, digits and single hyphens, like `bug-fix`.'],
