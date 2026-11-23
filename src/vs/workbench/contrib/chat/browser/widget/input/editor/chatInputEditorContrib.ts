@@ -9,15 +9,12 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { isUUID } from '../../../../../../../base/common/uuid.js';
-import { ICodeEditor, MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
+import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
-import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
-import { SuggestController } from '../../../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { State as SuggestState } from '../../../../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { hasReadableCustomizationContent } from '../../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -30,7 +27,7 @@ import { INLINE_ATTACHMENT_ANCHOR } from '../../../../common/attachments/chatInl
 import { localize, localize2 } from '../../../../../../../nls.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
@@ -597,67 +594,3 @@ class ChatTokenDeleter extends Disposable {
 	}
 }
 ChatWidget.CONTRIBS.push(ChatTokenDeleter);
-
-/**
- * Reopens suggestions when Backspace leaves the cursor at the end of an
- * unfinished `@`, `#` or `/` reference, as typing its leader opens them. The
- * editor doesn't suggest while deleting, so suggestions that closed because
- * nothing matched a typo would otherwise stay closed once the typo is deleted.
- */
-class ChatInputSuggestReopener extends Disposable {
-
-	public readonly id = 'chatInputSuggestReopener';
-
-	private readonly inputEditorListener = this._register(new MutableDisposable());
-
-	constructor(
-		private readonly widget: IChatWidget,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-	) {
-		super();
-
-		this.listenToInputEditor();
-		this._register(this.widget.onDidChangeActiveInputEditor(() => this.listenToInputEditor()));
-	}
-
-	private listenToInputEditor(): void {
-		const editor = this.widget.inputEditor;
-		this.inputEditorListener.value = editor.onDidChangeCursorSelection(e => {
-			if (e.source === 'deleteLeft') {
-				this.reopenSuggestions(editor);
-			}
-		});
-	}
-
-	private reopenSuggestions(editor: ICodeEditor): void {
-		const model = editor.getModel();
-		const selection = editor.getSelection();
-		const controller = SuggestController.get(editor);
-		if (!model || !selection?.isEmpty() || !controller || controller.model.state !== SuggestState.Idle || !editor.getOption(EditorOption.suggestOnTriggerCharacters)) {
-			return;
-		}
-
-		const position = selection.getPosition();
-		const line = model.getLineContent(position.lineNumber);
-		if (/\S/.test(line.charAt(position.column - 1))) {
-			// Inside a token rather than at the end of one, where it is being typed
-			return;
-		}
-
-		const leader = /\S*$/.exec(line.substring(0, position.column - 1))?.[0].charAt(0);
-		if (leader !== chatAgentLeader && leader !== chatVariableLeader && leader !== chatSubcommandLeader) {
-			return;
-		}
-
-		if (this.widget.parsedInput.parts.some(part => !(part instanceof ChatRequestTextPart) && Position.equals(Range.getEndPosition(part.editorRange), position))) {
-			// Deleted the space after a finished reference, which Enter should send rather than complete again
-			return;
-		}
-
-		const providers = new Set(this.languageFeaturesService.completionProvider.all(model).filter(provider => provider.triggerCharacters?.includes(leader)));
-		if (providers.size > 0) {
-			controller.triggerSuggest(providers, true);
-		}
-	}
-}
-ChatWidget.CONTRIBS.push(ChatInputSuggestReopener);
