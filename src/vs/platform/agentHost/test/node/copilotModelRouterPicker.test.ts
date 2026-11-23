@@ -33,13 +33,14 @@ suite('DecisionsModelRouterPicker', () => {
 			model: first.model,
 			firstContext: first.context,
 			firstQuestions: first.questions.map(q => q.name),
-			followUpTurns: followUp.context.kind === 'json' ? (followUp.context.value as { recentTurns: unknown }).recentTurns : undefined,
+			followUpContext: JSON.stringify(followUp.context),
 			followUpQuestions: followUp.questions.map(q => q.name),
 		}, {
 			model: 'gpt-6-luna-decisions',
 			firstContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nplan the migration' },
 			firstQuestions: ['model', 'effort'],
-			followUpTurns: [{ prompt: 'earlier', response: 'done' }],
+			// Absent facts are left out, and the rest keep the order the follow-up lists them in.
+			followUpContext: '{"kind":"json","value":{"request":"plan the migration","currentModel":"opus","recentTurns":[{"prompt":"earlier","response":"done"}],"turns":1,"lastTurnState":"complete","lastTurnToolCalls":0,"lastTurnFailedToolCalls":0}}',
 			followUpQuestions: ['model', 'effort'],
 		});
 	});

@@ -48,6 +48,7 @@ export class TestAgentHostGitService implements IAgentHostGitService {
 	commitTree(...args: Parameters<IAgentHostGitService['commitTree']>) { return defaultGitService.commitTree(...args); }
 	updateRef(...args: Parameters<IAgentHostGitService['updateRef']>) { return defaultGitService.updateRef(...args); }
 	deleteRefs(...args: Parameters<IAgentHostGitService['deleteRefs']>) { return defaultGitService.deleteRefs(...args); }
+	flushTelemetry() { }
 	revParse(...args: Parameters<IAgentHostGitService['revParse']>) { return defaultGitService.revParse(...args); }
 	overlayPathIntoTree(...args: Parameters<IAgentHostGitService['overlayPathIntoTree']>) { return defaultGitService.overlayPathIntoTree(...args); }
 	diffTreePaths(...args: Parameters<IAgentHostGitService['diffTreePaths']>) { return defaultGitService.diffTreePaths(...args); }

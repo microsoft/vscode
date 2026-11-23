@@ -1088,7 +1088,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.BtwTipEnabled]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: nls.localize('chat.btwTip.enabled', "Controls whether the Agents Window shows a tip about using `/btw` to ask side questions."),
@@ -2357,7 +2357,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.HooksShowWarnings]: {
 			type: 'boolean',
 			title: nls.localize('chat.hooks.showWarnings.title', "Show Hook Warnings",),
-			markdownDescription: nls.localize('chat.hooks.showWarnings.description', "Controls whether the chat shows a warning when a hook fails to start or exits with an error. This setting is only used by the Copilot harness.",),
+			markdownDescription: nls.localize('chat.hooks.showWarnings.description', "Controls whether the chat shows a warning when a hook fails to start, exits with an error, or reports a warning. This setting is only used by the Copilot harness.",),
 			default: product.quality !== 'stable',
 			tags: ['preview', 'hooks', 'agent'],
 		},

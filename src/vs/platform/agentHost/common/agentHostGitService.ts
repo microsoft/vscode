@@ -461,6 +461,12 @@ export interface IAgentHostGitService {
 	deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void>;
 
 	/**
+	 * Reports the git read telemetry gathered so far. The host calls this on graceful shutdown,
+	 * before the telemetry collector is unloaded, so the final window is not lost.
+	 */
+	flushTelemetry?(): void;
+
+	/**
 	 * Resolves a ref/object expression to its OID, e.g. `revParse(repo, 'refs/agents/abc/...')`
 	 * or `revParse(repo, '<commit>^{tree}')`. Returns `undefined` when the
 	 * ref does not exist.

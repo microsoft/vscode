@@ -58,6 +58,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -80,6 +81,7 @@ import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/c
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
@@ -102,7 +104,7 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -1547,7 +1549,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {
+		test('without the Canvases section setting, lists pinned canvases below Customizations, highlights the shown one, and hides the group when empty', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
 				id,
@@ -1577,6 +1579,7 @@ suite('Sessions - SessionsList', () => {
 				showNavigationShortcuts: () => true,
 				navigationContainer,
 				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled: constObservable(true),
 					entries,
 					selected,
 					show: async target => { opened.push((target as IPinnedCanvas).id); },
@@ -1621,7 +1624,92 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists pinned canvases directly below Automations in the sessions tree without separate navigation', async () => {
+		test('lists pinned canvases in a Canvases section below the navigation shortcuts, highlights the shown one, and hides the section while canvases are disabled', async () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
+				id,
+				title: constObservable(title),
+				chatTitle: constObservable(chatTitle),
+				state: constObservable(state),
+				canvas: constObservable(undefined),
+			});
+			const plan = createPin('plan', 'Agent Plan', 'Fix login bug', PinnedCanvasState.Live);
+			const preview = createPin('preview', 'Preview', undefined, PinnedCanvasState.Unavailable);
+			const entries = observableValue<readonly IPinnedCanvas[]>(disposables, [plan, preview]);
+			const enabled = observableValue(disposables, true);
+			const selected = observableValue<IPinnedCanvas | undefined>(disposables, undefined);
+			const opened: string[] = [];
+			const harness = createListHarness(disposables, [], instantiationService => {
+				ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled,
+					entries,
+					selected,
+					show: async target => { opened.push((target as IPinnedCanvas).id); },
+				}),
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const navigationRows = () => Array.from(navigationContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.sort((first, second) => first.offsetTop - second.offsetTop)
+				.map(row => row.querySelector('.session-section-label')?.textContent);
+			const rows = () => Array.from(listContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.sort((first, second) => first.offsetTop - second.offsetTop)
+				.map(row => {
+					const section = row.querySelector<HTMLElement>('.session-section');
+					return section?.classList.contains('session-section-pinned-canvas') ? {
+						label: row.querySelector('.session-section-label')?.textContent,
+						description: row.querySelector('.session-section-description')?.textContent,
+						ariaLabel: row.getAttribute('aria-label'),
+						active: section.classList.contains('active'),
+						unavailable: section.classList.contains('unavailable'),
+					} : row.querySelector('.session-section-label')?.textContent ?? row.textContent?.trim();
+				});
+
+			const initial = rows();
+			transaction(tx => {
+				selected.set(plan, tx);
+				activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }), tx);
+			});
+			const shown = rows().filter(row => typeof row === 'object').map(row => typeof row === 'object' && row.active);
+			const planRow = Array.from(listContainer.querySelectorAll<HTMLElement>('.session-section-pinned-canvas'))
+				.find(row => row.querySelector('.session-section-label')?.textContent === 'Agent Plan');
+			assert.ok(planRow);
+			clickRow(planRow);
+			await Promise.resolve();
+			entries.set([], undefined);
+			const afterUnpin = rows();
+			enabled.set(false, undefined);
+
+			assert.deepStrictEqual({ navigation: navigationRows(), initial, shown, opened, afterUnpin, disabled: rows() }, {
+				navigation: ['New Session', 'Customizations'],
+				initial: [
+					'Canvases',
+					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, unavailable: false },
+					{ label: 'Preview', description: '', ariaLabel: 'Preview, canvas, Unavailable', active: false, unavailable: true },
+				],
+				shown: [true, false],
+				opened: ['plan'],
+				afterUnpin: ['Canvases', 'No canvases yet'],
+				disabled: [],
+			});
+		});
+
+		test('lists pinned canvases in a Canvases section below Automations in the sessions tree without separate navigation', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string) => upcastPartial<IPinnedCanvas>({
 				id,
@@ -1640,6 +1728,7 @@ suite('Sessions - SessionsList', () => {
 				const contextKeyService = instantiationService.get(IContextKeyService);
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 				ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
@@ -1664,6 +1753,7 @@ suite('Sessions - SessionsList', () => {
 				showNavigationShortcuts: () => false,
 				navigationContainer,
 				pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+					enabled: constObservable(true),
 					entries,
 					selected,
 					show: async target => { opened.push((target as IPinnedCanvas).id); },
@@ -1678,8 +1768,8 @@ suite('Sessions - SessionsList', () => {
 				const section = row.querySelector<HTMLElement>('.session-section');
 				const label = row.querySelector('.session-section-label')?.textContent;
 				return section?.classList.contains('session-section-pinned-canvas')
-					? { label, description: row.querySelector('.session-section-description')?.textContent, ariaLabel: row.getAttribute('aria-label'), active: section.classList.contains('active'), current: row.getAttribute('aria-current') }
-					: label;
+					? { label, depth: section.style.getPropertyValue('--session-group-depth'), description: row.querySelector('.session-section-description')?.textContent, ariaLabel: row.getAttribute('aria-label'), active: section.classList.contains('active'), current: row.getAttribute('aria-current') }
+					: label ?? row.textContent?.trim();
 			});
 			const planRow = () => {
 				const row = treeRows().find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'Agent Plan');
@@ -1701,18 +1791,20 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ initial, shown, opened, contextMenus, navigationRows: navigationContainer.querySelectorAll('.monaco-list-row').length, afterUnpin: rows() }, {
 				initial: [
 					'Automations',
-					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
-					{ label: 'Session timeline', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: false, current: null },
+					'Canvases',
+					{ label: 'Agent Plan', depth: '1', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
+					{ label: 'Session timeline', depth: '1', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: false, current: null },
 				],
 				shown: [
 					'Automations',
-					{ label: 'Agent Plan', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
-					{ label: 'Session timeline', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: true, current: 'page' },
+					'Canvases',
+					{ label: 'Agent Plan', depth: '1', description: 'Fix login bug', ariaLabel: 'Agent Plan, canvas from Fix login bug, Live', active: false, current: null },
+					{ label: 'Session timeline', depth: '1', description: 'Fix login bug', ariaLabel: 'Session timeline, canvas from Fix login bug, Live', active: true, current: 'page' },
 				],
 				opened: ['plan'],
 				contextMenus: [Menus.SidebarCanvasContext.id],
 				navigationRows: 0,
-				afterUnpin: ['Automations'],
+				afterUnpin: ['Automations', 'Canvases', 'No canvases yet'],
 			});
 		});
 
@@ -1735,6 +1827,7 @@ suite('Sessions - SessionsList', () => {
 					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 					ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 					instantiationService.stub(IContextKeyService, contextKeyService);
+					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_CANVASES_SECTION_SETTING, true);
 					instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 					instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 						override readonly activeCustomView = constObservable(undefined);
@@ -1750,6 +1843,7 @@ suite('Sessions - SessionsList', () => {
 					showNavigationShortcuts: () => separateNavigation,
 					navigationContainer,
 					pinnedCanvases: upcastPartial<IPinnedCanvasService>({
+						enabled: constObservable(true),
 						entries: constObservable(pins),
 						selected: constObservable(undefined),
 						show: async target => { opened.push((target as IPinnedCanvas).id); },
@@ -8955,6 +9049,25 @@ suite('Sessions - SessionsList', () => {
 					'  Ungrouped',
 				],
 			});
+		});
+
+		test('draws indent guides outside Stable only', () => {
+			const renderedGuides = (quality: string | undefined) => {
+				const harness = createListHarness(disposables, [createTestSession('Session', { workspaceLabel: 'vscode' }).session], instantiationService => {
+					instantiationService.stub(IProductService, { ...TestProductService, quality });
+				});
+				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.renderIndentGuides', 'always');
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				return container.querySelectorAll('.monaco-tl-indent > .indent-guide').length;
+			};
+
+			assert.deepStrictEqual({ insider: renderedGuides('insider'), stable: renderedGuides('stable') }, { insider: 1, stable: 0 });
 		});
 
 		test('drops a group inside another group, next to a nested group, or back at the top level, but never inside itself', () => {

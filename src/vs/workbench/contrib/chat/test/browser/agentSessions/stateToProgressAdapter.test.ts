@@ -4835,6 +4835,49 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('shows a Copilot hook warning with its Local label and a Disable Hook Warnings mute button, unless hook warnings are off', () => {
+			const hookWarning = (hook: Record<string, unknown>, showHookFailures?: boolean) => systemNotificationToChatPart('The host text.', 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Warning }),
+				hook,
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => part?.kind === 'warning'
+				? { text: store.add(renderMarkdown(part.content)).element.textContent, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute?.commandId }
+				: part;
+			const exitCode2 = { type: 'userPromptSubmitted', outcome: AgentHookOutcome.Warned, message: 'This prompt mentions WARNME; check before continuing.' };
+			const shown = (text: string) => ({ text, keepVisibleWhenCollapsed: true, mute: 'workbench.action.chat.disableHookWarnings' });
+
+			assert.deepStrictEqual([
+				summarize(hookWarning(exitCode2, true)),
+				summarize(hookWarning({ ...exitCode2, type: 'notAHook' }, true)),
+				summarize(hookWarning({ outcome: AgentHookOutcome.Warned, message: 'Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.' }, true)),
+				hookWarning(exitCode2, false),
+			], [
+				shown('Warning from the User Prompt Submit hook: This prompt mentions WARNME; check before continuing.'),
+				shown('Warning from the notAHook hook: This prompt mentions WARNME; check before continuing.'),
+				// Without an event there is nothing to relabel, so the host's own text is shown.
+				shown('The host text.'),
+				undefined,
+			]);
+		});
+
+		test('shows a prompt a Copilot hook blocked as an error with the host\'s text, even with hook warnings off', () => {
+			const hostText = 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed [x](command:evil)';
+			const blocked = (showHookFailures?: boolean) => systemNotificationToChatPart(hostText, 'local', {
+				...toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error }),
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed [x](command:evil)' },
+			}, undefined, showHookFailures);
+			const summarize = (part: IChatProgress | undefined) => {
+				if (part?.kind !== 'warning') {
+					return part;
+				}
+				const rendered = store.add(renderMarkdown(part.content));
+				return { text: rendered.element.textContent, links: rendered.element.querySelectorAll('a').length, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed, mute: part.mute, isError: part.isError };
+			};
+			const shown = { text: hostText, links: 0, keepVisibleWhenCollapsed: true, mute: undefined, isError: true };
+
+			assert.deepStrictEqual([summarize(blocked(true)), summarize(blocked(false))], [shown, shown]);
+		});
+
 		test('styles workspace transitions as accessible transcript boundaries', () => {
 			const notice = (workspaceKind: AgentSystemNotificationWorkspaceKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,

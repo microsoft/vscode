@@ -11,14 +11,25 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { AgentHostGitReadTelemetry } from '../../node/agentHostGitReadTelemetry.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IFileService } from '../../../files/common/files.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { gitServiceArguments, type IGitServiceTestOptions } from './agentHostGitServiceTestUtils.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
+import { AgentHostGitCoalesceReadsSettingId } from '../../common/agentService.js';
+import { AgentHostGitCoalesceReadsConfigKey } from '../../common/agentHostSchema.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 
 suite('AgentHostGitService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function gitArguments(options?: IGitServiceTestOptions) {
+		return gitServiceArguments(store, new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService(), options);
+	}
 
 	test('parses managed inventory branches and unquoted paths without splitting embedded newlines', () => {
 		const path = '/repo.worktrees/path with\n"quotes"';
@@ -32,14 +43,14 @@ suite('AgentHostGitService', () => {
 	test('overlapping branch lookups share work only for the same directory and branch', async () => {
 		const reads: { directory: string; pattern: IRefQuery['pattern'] }[] = [];
 		const answers: DeferredPromise<Branch[]>[] = [];
-		const git = new class extends AgentHostGitService {
+		const git = store.add(new class extends AgentHostGitService {
 			override getBranches(directory: URI, query?: IRefQuery): Promise<Branch[]> {
 				reads.push({ directory: directory.toString(), pattern: query?.pattern });
 				const answer = new DeferredPromise<Branch[]>();
 				answers.push(answer);
 				return answer.p;
 			}
-		}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+		}(...gitArguments()));
 		const directory = URI.file('/repo');
 		const first = git.getBranch(directory, 'main');
 		const shared = git.getBranch(directory, 'main');
@@ -68,12 +79,12 @@ suite('AgentHostGitService', () => {
 	test('a rejected shared branch lookup is surfaced to every caller and can be retried', async () => {
 		const failure = new DeferredPromise<Branch[]>();
 		let reads = 0;
-		const git = new class extends AgentHostGitService {
+		const git = store.add(new class extends AgentHostGitService {
 			override getBranches(): Promise<Branch[]> {
 				reads++;
 				return reads === 1 ? failure.p : Promise.resolve([]);
 			}
-		}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+		}(...gitArguments()));
 		const directory = URI.file('/repo');
 		const results = Promise.allSettled([git.getBranch(directory, 'main'), git.getBranch(directory, 'main')]);
 		const error = new Error('Git unavailable');
@@ -85,16 +96,264 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('read-only git commands', () => {
+		function createGit(options?: IGitServiceTestOptions) {
+			const spawned: string[] = [];
+			const answers: DeferredPromise<string | undefined>[] = [];
+			let running = 0;
+			let peak = 0;
+			const args = gitArguments(options);
+			const git = store.add(new class extends AgentHostGitService {
+				run(directory: URI, args: string[], options?: { readonly throwOnError?: boolean; readonly failFastAfterTimeout?: boolean }) {
+					return this._runGit(directory, args, options);
+				}
+				protected override _spawnGit(directory: URI, args: readonly string[], _options?: unknown, onTimedOut?: () => void): Promise<string | undefined> {
+					spawned.push(`${directory.path} ${args.join(' ')}`);
+					const answer = new DeferredPromise<string | undefined>();
+					answers.push(answer);
+					running++;
+					peak = Math.max(peak, running);
+					timedOut.push(() => onTimedOut?.());
+					return answer.p.finally(() => running--);
+				}
+			}(...args));
+			const timedOut: (() => void)[] = [];
+			return { git, configurationService: args[3], spawned, answers, timedOut, peak: () => peak };
+		}
+
+		test('identical concurrent reads share one process and later reads spawn again', async () => {
+			const { git, spawned, answers } = createGit();
+			const directory = URI.file('/repo');
+			const reads = [git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z']), git.run(URI.file('/other'), ['status', '-z']), git.run(directory, ['rev-parse', 'HEAD'])];
+			answers.forEach((answer, index) => answer.complete(`out${index}`));
+			const results = await Promise.all(reads);
+			const next = git.run(directory, ['status', '-z']);
+			answers[answers.length - 1].complete('later');
+			assert.deepStrictEqual({ spawned, results, next: await next }, {
+				spawned: ['/repo status -z', '/other status -z', '/repo rev-parse HEAD', '/repo status -z'],
+				results: ['out0', 'out0', 'out0', 'out1', 'out2'],
+				next: 'later',
+			});
+		});
+
+		test('a write makes later reads start their own process', async () => {
+			const { git, spawned, answers } = createGit();
+			const directory = URI.file('/repo');
+			const before = git.run(directory, ['status', '-z']);
+			const write = git.run(directory, ['checkout', 'main']);
+			const after = git.run(directory, ['status', '-z']);
+			answers.forEach(answer => answer.complete('ok'));
+			await Promise.all([before, write, after]);
+			assert.deepStrictEqual(spawned, ['/repo status -z', '/repo checkout main', '/repo status -z']);
+		});
+
+		test('a write in a linked worktree or a ref deletion stops later reads from joining reads already running', async () => {
+			const { git, spawned, answers } = createGit();
+			const repository = URI.file('/repo');
+			const beforeFetch = git.run(repository, ['merge-base', 'a', 'b']);
+			const fetch = git.run(URI.file('/repo.worktrees/session'), ['fetch', 'origin']);
+			const afterFetch = git.run(repository, ['merge-base', 'a', 'b']);
+			answers.forEach(answer => answer.complete('ok'));
+			await Promise.all([beforeFetch, fetch, afterFetch]);
+
+			// A directory that exists, because the deletion runs a real git process there.
+			const directory = URI.file(tmpdir());
+			const beforeDeletion = git.run(directory, ['for-each-ref', 'refs/heads']);
+			await git.deleteRefs(directory, ['refs/heads/agent-host-git-test-missing']);
+			const afterDeletion = git.run(directory, ['for-each-ref', 'refs/heads']);
+			answers.forEach(answer => !answer.isSettled && answer.complete('ok'));
+			await Promise.all([beforeDeletion, afterDeletion]);
+			assert.deepStrictEqual(spawned, [
+				'/repo merge-base a b',
+				'/repo.worktrees/session fetch origin',
+				'/repo merge-base a b',
+				`${directory.path} for-each-ref refs/heads`,
+				`${directory.path} for-each-ref refs/heads`,
+			]);
+		});
+
+		test('deleting refs in a directory that is not a repository resolves although git exits before reading its input', async () => {
+			const { git } = createGit();
+			// Enough input that the write fails once git has exited; a handled EPIPE must not surface as an uncaught error.
+			const refs = Array.from({ length: 50_000 }, (_, index) => `refs/heads/agent-host-git-test-missing-${index}`);
+			await git.deleteRefs(URI.file(tmpdir()), refs);
+		});
+
+		test('a caller that joins a running read is measured from its own request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const events: { reads: unknown; sharedReads: unknown; verySlowReads: unknown }[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						const { reads, sharedReads, verySlowReads } = data as Record<string, unknown>;
+						events.push({ reads, sharedReads, verySlowReads });
+					}
+				}
+			}
+			const { git, answers } = createGit({ coalesceReads: true, telemetryService: new RecordingTelemetryService() });
+			const directory = URI.file('/repo');
+			const first = git.run(directory, ['status', '-z']);
+			await timeout(1_000);
+			const joined = git.run(directory, ['status', '-z']);
+			await timeout(20_000);
+			answers[0].complete('out');
+			await Promise.all([first, joined]);
+			git.dispose();
+			assert.deepStrictEqual(events, [{ reads: 2, sharedReads: 1, verySlowReads: 2 }]);
+		}));
+
+		test('a read that completes after its window was reported is reported with the next window', () => {
+			const events: { reads: unknown; readTotalMs: unknown; timeouts: unknown; slowReads: unknown }[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						const { reads, readTotalMs, timeouts, slowReads } = data as Record<string, unknown>;
+						events.push({ reads, readTotalMs, timeouts, slowReads });
+					}
+				}
+			}
+			const telemetry = store.add(new AgentHostGitReadTelemetry(new RecordingTelemetryService()));
+			telemetry.readRequested('coalesced');
+			telemetry.flush();
+			telemetry.spawnTimedOut();
+			telemetry.readCompleted(30_000);
+			telemetry.flush();
+			assert.deepStrictEqual(events, [
+				{ reads: 1, readTotalMs: 0, timeouts: 0, slowReads: 0 },
+				{ reads: 0, readTotalMs: 30_000, timeouts: 1, slowReads: 1 },
+			]);
+		});
+
+		test('the final window is reported when the host asks for a flush at shutdown', () => {
+			const events: { reads: unknown }[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						events.push({ reads: (data as Record<string, unknown>).reads });
+					}
+				}
+			}
+			const { git, answers } = createGit({ coalesceReads: true, telemetryService: new RecordingTelemetryService() });
+			git.run(URI.file('/repo'), ['status', '-z']);
+			git.flushTelemetry();
+			answers[0].complete('out');
+			assert.deepStrictEqual(events, [{ reads: 1 }]);
+		});
+
+		test('distinct reads never exceed the host-wide limit', async () => {
+			const { git, spawned, answers, peak } = createGit();
+			const reads: Promise<string | undefined>[] = [];
+			for (let i = 0; i < 50; i++) {
+				reads.push(git.run(URI.file(`/repo${i}`), ['status', '-z']));
+			}
+			while (answers.length < 50) {
+				answers.filter(a => !a.isSettled).forEach(a => a.complete('ok'));
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+			answers.forEach(a => !a.isSettled && a.complete('ok'));
+			await Promise.all(reads);
+			assert.deepStrictEqual({ spawned: spawned.length, peak: peak() }, { spawned: 50, peak: 8 });
+		});
+
+		test('a read that just timed out is not started again right away when its caller opts in', async () => {
+			const { git, spawned, answers, timedOut } = createGit();
+			const directory = URI.file('/repo');
+			const first = git.run(directory, ['status', '-z'], { failFastAfterTimeout: true });
+			timedOut[0]();
+			answers[0].complete(undefined);
+			await first;
+			const skipped = await git.run(directory, ['status', '-z'], { failFastAfterTimeout: true });
+			const other = git.run(directory, ['status', '-z']);
+			answers[1].complete('fresh');
+			assert.deepStrictEqual({ spawned, skipped, other: await other }, { spawned: ['/repo status -z', '/repo status -z'], skipped: undefined, other: 'fresh' });
+		});
+
+		test('with the setting off every read spawns its own process, unlimited and never skipped', async () => {
+			const { git, spawned, answers, timedOut, peak } = createGit({ coalesceReads: false });
+			const directory = URI.file('/repo');
+			const shared = [git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z'])];
+			const many = Array.from({ length: 20 }, (_, index) => git.run(directory, ['rev-parse', `ref${index}`]));
+			timedOut[0]();
+			answers.forEach(answer => answer.complete(undefined));
+			await Promise.all([...shared, ...many]);
+			const next = git.run(directory, ['status', '-z'], { failFastAfterTimeout: true });
+			answers[answers.length - 1].complete(undefined);
+			await next;
+			assert.deepStrictEqual({ spawned: spawned.length, peak: peak() }, { spawned: 23, peak: 22 });
+		});
+
+		test('reports the experiment trigger and one aggregated event naming the arm', async () => {
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				readonly events: { arm: unknown; reads: unknown; sharedReads: unknown; failFastSkips: unknown }[] = [];
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						const { arm, reads, sharedReads, failFastSkips } = data as Record<string, unknown>;
+						this.events.push({ arm, reads, sharedReads, failFastSkips });
+					}
+				}
+			}
+			const results: Record<string, { triggers: string[]; events: unknown[] }> = {};
+			for (const coalesceReads of [true, false]) {
+				const telemetryService = new RecordingTelemetryService();
+				const { git, configurationService, answers } = createGit({ coalesceReads, telemetryService });
+				configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				const directory = URI.file('/repo');
+				const reads = [git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z'])];
+				answers.forEach(answer => answer.complete('out'));
+				await Promise.all(reads);
+				git.dispose();
+				results[coalesceReads ? 'on' : 'off'] = { triggers: telemetryService.triggers, events: telemetryService.events };
+			}
+			const trigger = [`config.${AgentHostGitCoalesceReadsSettingId}`];
+			assert.deepStrictEqual(results, {
+				on: { triggers: trigger, events: [{ arm: 'coalesced', reads: 2, sharedReads: 1, failFastSkips: 0 }] },
+				off: { triggers: trigger, events: [{ arm: 'passthrough', reads: 2, sharedReads: 0, failFastSkips: 0 }] },
+			});
+		});
+		test('a git command that fails to start leaves no live process counted', async () => {
+			const events: unknown[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						events.push({ arm: (data as Record<string, unknown>).arm, spawns: (data as Record<string, unknown>).spawns, peakLiveProcesses: (data as Record<string, unknown>).peakLiveProcesses });
+					}
+				}
+			}
+			const args = gitArguments({ coalesceReads: true, telemetryService: new RecordingTelemetryService() });
+			const git = store.add(new class extends AgentHostGitService {
+				run(directory: URI, args: string[]) {
+					return this._runGit(directory, args);
+				}
+			}(...args));
+			const missing = URI.joinPath(URI.file(tmpdir()), 'agent-host-git-missing-directory');
+			// Sequential, so a leaked count would show as a growing peak in the window that follows.
+			for (const ref of ['a', 'b', 'c']) {
+				await git.run(missing, ['rev-parse', ref]);
+			}
+			args[3].updateRootConfig({ [AgentHostGitCoalesceReadsConfigKey]: false });
+			await git.run(missing, ['rev-parse', 'd']);
+			git.dispose();
+			assert.deepStrictEqual(events, [
+				{ arm: 'coalesced', spawns: 3, peakLiveProcesses: 1 },
+				{ arm: 'passthrough', spawns: 1, peakLiveProcesses: 1 },
+			]);
+		});
+	});
+
 	suite('getRepositoryRoot', () => {
 		// An existing directory, so lookups reach the stubbed git probe.
 		const directory = URI.file(tmpdir());
 
 		function createGitService(runGit: () => Promise<string | undefined>): AgentHostGitService {
-			return new class extends AgentHostGitService {
+			return store.add(new class extends AgentHostGitService {
 				protected override _runGit(): Promise<string | undefined> {
 					return runGit();
 				}
-			}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+			}(...gitArguments()));
 		}
 
 		test('concurrent forced lookups share a failed probe without caching an I/O failure', async () => {

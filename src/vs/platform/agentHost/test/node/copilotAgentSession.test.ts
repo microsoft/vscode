@@ -12695,6 +12695,133 @@ suite('CopilotAgentSession', () => {
 				{ inStartedTurn: true, type: 'sessionStart' },
 			]);
 		});
+
+		const blockedPrompt = (originatingMessageId: string): SessionEventPayload<'session.warning'>['data'] => ({
+			warningType: 'policy_blocked', message: 'Prompts containing BLOCKME are not allowed', originatingMessageId,
+		});
+		const blockedNotice = (turnId: string) => ({
+			turnId, parentToolCallId: undefined,
+			content: 'A hook blocked this prompt: Prompts containing BLOCKME are not allowed',
+			meta: {
+				kind: AgentSystemNotificationKind.Hook, severity: AgentSystemNotificationSeverity.Error, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined,
+				hook: { outcome: AgentHookOutcome.Blocked, message: 'Prompts containing BLOCKME are not allowed' },
+			},
+		});
+
+		test('shows a blocked prompt\'s reason in the turn whose send returned the blocked message id', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('BLOCKME please', undefined, 'turn-1');
+			mockSession.fire('session.warning', blockedPrompt('message-1'));
+
+			assert.deepStrictEqual(getHookNotices(signals), [blockedNotice('turn-1')]);
+		});
+
+		test('shows a blocked prompt\'s reason that arrives before its send returns', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sendGate = new DeferredPromise<void>();
+			mockSession.sendGate = sendGate.p;
+			mockSession.onSend = () => mockSession.fire('session.warning', blockedPrompt('message-1'));
+			const send = session.send('BLOCKME please', undefined, 'turn-1');
+			await timeout(0);
+			const beforeSendReturned = getHookNotices(signals).length;
+			sendGate.complete();
+			await send;
+
+			assert.deepStrictEqual({ beforeSendReturned, shown: getHookNotices(signals) }, { beforeSendReturned: 0, shown: [blockedNotice('turn-1')] });
+		});
+
+		test('shows a blocked prompt\'s reason before completing the turn when the block and idle arrive before its send returns', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sendGate = new DeferredPromise<void>();
+			mockSession.sendGate = sendGate.p;
+			mockSession.onSend = () => {
+				mockSession.fire('session.warning', blockedPrompt('message-1'));
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			};
+			const send = session.send('BLOCKME please', undefined, 'turn-1');
+			await timeout(0);
+			sendGate.complete();
+			await send;
+			await timeout(0);
+
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete ? ['complete'] : action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification ? [action.part.content] : []), [
+				'A hook blocked this prompt: Prompts containing BLOCKME are not allowed',
+				'complete',
+			]);
+		});
+
+		test('does not show a block on a turn that did not send the blocked message', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('hello', undefined, 'turn-1');
+			// A message this turn did not send, and a block without an id.
+			mockSession.fire('session.warning', blockedPrompt('other-message'));
+			mockSession.fire('session.warning', { warningType: 'policy_blocked', message: 'No id' });
+			mockSession.fire('session.warning', blockedPrompt('message-1'), { agentId: 'agent-1' });
+			// A steering message is blocked under the running turn's request id, after that turn's own prompt was echoed.
+			mockSession.fire('user.message', { content: 'hello' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.warning', blockedPrompt('message-1'));
+
+			assert.deepStrictEqual(getHookNotices(signals), []);
+		});
+
+		// Recorded from a live session: a userPromptSubmitted hook that exits with code 2, and one that returns a non-string modifiedPrompt.
+		const promptHookStart = { hookInvocationId: 'acdbb9a9-a27e-45b3-9275-b31499198da5', hookType: 'userPromptSubmitted', input: { prompt: 'WARNME reply with just the word ok' } } as SessionEventPayload<'hook.start'>['data'];
+		const promptHookEnd: SessionEventPayload<'hook.end'>['data'] = { hookInvocationId: 'acdbb9a9-a27e-45b3-9275-b31499198da5', hookType: 'userPromptSubmitted', success: true, output: { additionalContext: 'Reminder: …' } };
+		const exitCode2Warning: SessionEventPayload<'session.warning'>['data'] = { warningType: 'hook', message: 'This prompt mentions WARNME; check before continuing.' };
+		const droppedAnswer: SessionEventPayload<'session.warning'>['data'] = { warningType: 'hook_output', message: 'Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.' };
+		const warned = (type: string | undefined, message: string) => ({ ...(type ? { type } : {}), outcome: AgentHookOutcome.Warned, message });
+
+		test('shows a hook\'s warning, named by the event of the hook whose end follows it, and a dropped answer without an event', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			// Event ids and parents as recorded: the warning is sent directly before its hook's end.
+			mockSession.fire('hook.start', promptHookStart, { id: '22e9dfe3', parentId: 'dcb51fef' });
+			mockSession.fire('session.warning', exitCode2Warning, { id: 'da6693a3', parentId: '22e9dfe3' });
+			const beforeHookEnded = getHookNotices(signals).length;
+			mockSession.fire('hook.end', promptHookEnd, { id: 'a781bc42', parentId: 'da6693a3' });
+			mockSession.fire('session.warning', droppedAnswer, { id: 'w-output', parentId: 'a781bc42' });
+
+			assert.deepStrictEqual({ beforeHookEnded, shown: getHookNotices(signals).map(({ turnId, parentToolCallId, content, meta }) => ({ turnId, parentToolCallId, content, hook: meta.hook })) }, {
+				beforeHookEnded: 0,
+				shown: [
+					{ turnId: 'turn-1', parentToolCallId: undefined, content: 'Warning from the userPromptSubmitted hook: This prompt mentions WARNME; check before continuing.', hook: warned('userPromptSubmitted', exitCode2Warning.message) },
+					{ turnId: 'turn-1', parentToolCallId: undefined, content: 'Hook warning: Ignoring non-string modifiedPrompt returned by a hook (received number); the content is left unchanged.', hook: warned(undefined, droppedAnswer.message) },
+				],
+			});
+		});
+
+		test('does not show a hook file load warning as the warning of a hook that is running', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			// VS Code's own preToolUse callback runs inside a hook.start/hook.end pair on every tool call.
+			mockSession.fire('hook.start', { hookInvocationId: 'hook-pre-tool-use', hookType: 'preToolUse', input: {} } as SessionEventPayload<'hook.start'>['data'], { id: 'e-start', parentId: null });
+			mockSession.fire('session.warning', { warningType: 'hook', message: 'Invalid hook configuration in .github/hooks/broken.json' }, { id: 'e-load', parentId: 'e-start' });
+			mockSession.fire('session.info', { infoType: 'other', message: 'Something else' } as SessionEventPayload<'session.info'>['data'], { id: 'e-other', parentId: 'e-load' });
+			mockSession.fire('hook.end', { hookInvocationId: 'hook-pre-tool-use', hookType: 'preToolUse', success: true }, { id: 'e-end', parentId: 'e-other' });
+
+			assert.deepStrictEqual(getHookNotices(signals), []);
+		});
+
+		test('routes a subagent hook\'s warning into the subagent\'s chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			const toolHook = { hookInvocationId: 'hook-pre-tool-use', hookType: 'preToolUse' };
+			mockSession.fire('hook.start', promptHookStart, { id: 'e-root-start', parentId: null });
+			mockSession.fire('hook.start', { ...toolHook, input: {} } as SessionEventPayload<'hook.start'>['data'], { agentId: 'agent-1', id: 'e-sub-start', parentId: 'e-root-start' });
+			mockSession.fire('session.warning', { warningType: 'hook', message: 'Careful with that tool.' }, { agentId: 'agent-1', id: 'e-sub-warning', parentId: 'e-sub-start' });
+			mockSession.fire('hook.end', { ...toolHook, success: true }, { agentId: 'agent-1', id: 'e-sub-end', parentId: 'e-sub-warning' });
+			mockSession.fire('hook.end', promptHookEnd, { id: 'e-root-end', parentId: 'e-sub-end' });
+
+			assert.deepStrictEqual(getHookNotices(signals).map(({ turnId, parentToolCallId, meta }) => ({ turnId, parentToolCallId, hook: meta.hook })), [
+				{ turnId: 'turn-1', parentToolCallId: 'tc-subagent', hook: warned('preToolUse', 'Careful with that tool.') },
+			]);
+		});
 	});
 
 	for (const restored of [false, true]) {
@@ -31707,6 +31834,28 @@ Use the attached image as context.
 			assert.deepStrictEqual(Object.fromEntries(getActions(signals).flatMap(action =>
 				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, readToolCallMeta(action)['vscode.viewedResourceType']]] : [])), {
 				file: 'file', image: 'file', directory: 'directory', failed: undefined, unreported: undefined, mcp: undefined,
+			});
+		});
+
+		test('gives a call to a tool the session does not offer its own error code', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-unknown-tool');
+			const failures: Record<string, { readonly toolName: string; readonly failureReason?: string }> = {
+				invented: { toolName: 'view_range', failureReason: 'not_found' },
+				unavailable: { toolName: 'view', failureReason: 'retained_unavailable' },
+				failed: { toolName: 'view' },
+			};
+			for (const [toolCallId, { toolName, failureReason }] of Object.entries(failures)) {
+				mockSession.fire('tool.execution_start', { toolCallId, toolName, arguments: {} });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success: false, error: { message: 'failed', code: 'failure' },
+					toolTelemetry: failureReason ? { properties: { failure_reason: failureReason } } : undefined,
+				});
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+			}
+			assert.deepStrictEqual(Object.fromEntries(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, action.result.error?.code]] : [])), {
+				invented: 'toolNotFound', unavailable: 'failure', failed: 'failure',
 			});
 		});
 

@@ -61,6 +61,7 @@ export const enum AccessibilityVerbositySettingId {
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
+	SandboxProfiles = 'accessibility.verbosity.sandboxProfiles',
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
@@ -197,6 +198,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
 			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SandboxProfiles]: {
+			description: localize('verbosity.sandboxProfiles', "Provide information about accessing help in the sandbox profiles editor."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
