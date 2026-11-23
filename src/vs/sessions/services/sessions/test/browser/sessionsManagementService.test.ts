@@ -6676,6 +6676,63 @@ suite('SessionsManagementService', () => {
 		}
 	}
 
+	for (const background of [false, true]) {
+		for (const fails of [false, true]) {
+			test(`resolves an unpublished prepared session during ${background ? 'background' : 'foreground'} dispatch and cleans up on ${fails ? 'failure' : 'success'}`, async () => {
+				const folder = URI.file('/workspace');
+				const original = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const chat: IChat = { ...stubChat, resource: URI.parse('test:/prepared-chat') };
+				const prepared = stubSession({
+					sessionId: 'prepared', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+					mainChat: constObservable(chat), chats: constObservable([chat]),
+				});
+				const dispatch = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const failure = new Error('Dispatch failed');
+				let found: { session: ISession; chat: IChat } | undefined;
+				const provider = new class extends TestSessionsProvider {
+					override getSessions(): ISession[] { return []; }
+					override resolveWorkspace(): ISessionWorkspace {
+						return { uri: folder, label: 'repo', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+					}
+					override async prepareNewSession() { return { session: prepared }; }
+					override async createNewChat(): Promise<IChat> { return chat; }
+					override async sendRequest(): Promise<ISession> {
+						found = service.getSessionForChatResource(chat.resource);
+						await dispatch.complete();
+						await release.p;
+						if (fails) {
+							throw failure;
+						}
+						return prepared;
+					}
+				}(original);
+				const { service } = createSessionsManagementService(original, disposables, provider);
+				const slot = disposables.add(service.createNewSessionSlot());
+				slot.createNewSession(folder, { providerId: provider.id });
+				const ended = Event.toPromise(service.onDidEndNewSessionRequest);
+				const sending = service.sendNewChatRequest(original, { query: 'Open a browser page', background });
+				await dispatch.p;
+				const duringDispatch = service.getInFlightNewSessionRequests();
+				await release.complete();
+				if (fails && !background) {
+					await assert.rejects(sending, error => error === failure);
+				} else {
+					await sending;
+				}
+				await ended;
+				assert.deepStrictEqual({
+					found,
+					duringDispatch,
+					afterRequest: service.getSessionForChatResource(chat.resource),
+					inFlight: service.getInFlightNewSessionRequests(),
+				}, {
+					found: { session: prepared, chat }, duringDispatch: [prepared], afterRequest: undefined, inFlight: [],
+				});
+			});
+		}
+	}
+
 	test('sendNewChatRequest routes a prepared draft through its replacement provider', async () => {
 		const folder = URI.file('/workspace');
 		const workspace: ISessionWorkspace = {
@@ -7090,7 +7147,7 @@ suite('SessionsManagementService', () => {
 			afterSend: service.getInFlightNewSessionRequests(),
 		}, {
 			sendRequestStarted: true,
-			whileSending: ['s1'],
+			whileSending: ['s2'],
 			afterSend: [],
 		});
 	});

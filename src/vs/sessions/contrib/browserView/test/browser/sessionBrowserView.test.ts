@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,7 +20,7 @@ import { IEditorWillOpenEvent } from '../../../../../workbench/common/editor.js'
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewContextualFilter, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { getSessionChatOfResource, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IFocusedSessionHostService, ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -50,14 +51,29 @@ suite('SessionBrowserViewController', () => {
 		const second = session('second');
 		const mainSession = observableValue<ISession | undefined>('mainSession', first);
 		const focusedSession = observableValue<ISession | undefined>('focusedSession', first);
+		const chatWindowSession = observableValue<ISession | undefined>('chatWindowSession', second);
 		const instantiationService = store.add(new TestInstantiationService());
-		stubSessionHosts(instantiationService, store, { session: mainSession.map(session => session && { session, chat: session.mainChat.get() }) });
+		const mainGroup = upcastPartial<IEditorGroup>({ id: 1, windowId: mainWindow.vscodeWindowId });
+		const chatWindowGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 1000 });
+		const onDidAddGroup = store.add(new Emitter<IEditorGroup>());
+		const editorGroupsService = upcastPartial<IEditorGroupsService>({
+			onDidAddGroup: onDidAddGroup.event,
+			getGroup: id => id === mainGroup.id ? mainGroup : id === chatWindowGroup.id ? chatWindowGroup : undefined,
+		});
+		const { sessionHostService } = stubSessionHosts(instantiationService, store, {
+			session: mainSession.map(session => session && { session, chat: session.mainChat.get() }),
+			editorGroupsService,
+		});
+		store.add(sessionHostService.registerHost(upcastPartial<ISessionHost>({
+			windowId: constObservable(chatWindowGroup.windowId),
+			session: chatWindowSession,
+		})));
 		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({
 			focusedHost: constObservable(upcastPartial<ISessionHost>({ session: focusedSession })),
 		}));
 		const onWillOpenEditor = store.add(new Emitter<IEditorWillOpenEvent>());
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ onWillOpenEditor: onWillOpenEditor.event }));
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ onDidAddGroup: Event.None }));
+		instantiationService.stub(IEditorGroupsService, editorGroupsService);
 		const sessions = [first, second];
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
@@ -98,7 +114,7 @@ suite('SessionBrowserViewController', () => {
 			return input;
 		}
 
-		return { first, second, mainSession, focusedSession, onWillOpenEditor, handler: handler!, filter: filter!, input };
+		return { first, second, mainSession, focusedSession, chatWindowSession, chatWindowGroup, onWillOpenEditor, onDidAddGroup, handler: handler!, filter: filter!, input };
 	}
 
 	test('only automatically opens agent pages owned by the main window active session', () => {
@@ -173,4 +189,40 @@ suite('SessionBrowserViewController', () => {
 			afterOtherArchived: false, afterOwnerArchived: true,
 		});
 	});
+
+	for (const restored of [false, true]) {
+		test(`tracks ${restored ? 'restored' : 'opened'} user tabs under their chat window session`, () => {
+			const { first, second, chatWindowGroup, onWillOpenEditor, onDidAddGroup, input } = setup();
+			const page = input({ type: 'user' });
+			if (restored) {
+				onDidAddGroup.fire(upcastPartial<IEditorGroup>({ ...chatWindowGroup, editors: [page] }));
+			} else {
+				onWillOpenEditor.fire({ editor: page, groupId: chatWindowGroup.id });
+			}
+			first.isArchived.set(true, undefined);
+			const afterMainArchived = page.isDisposed();
+			second.isArchived.set(true, undefined);
+			assert.deepStrictEqual({ afterMainArchived, afterOwnerArchived: page.isDisposed() }, {
+				afterMainArchived: false, afterOwnerArchived: true,
+			});
+		});
+
+		test(`uses the ${restored ? 'restored' : 'opening'} chat window host to veto disposal during a session swap`, () => {
+			const { first, second, chatWindowSession, chatWindowGroup, onWillOpenEditor, onDidAddGroup, input } = setup();
+			const page = input({ type: 'user' });
+			if (restored) {
+				onDidAddGroup.fire(upcastPartial<IEditorGroup>({ ...chatWindowGroup, editors: [page] }));
+			} else {
+				onWillOpenEditor.fire({ editor: page, groupId: chatWindowGroup.id });
+			}
+			chatWindowSession.set(first, undefined);
+			page.dispose();
+			const afterSwap = page.isDisposed();
+			chatWindowSession.set(second, undefined);
+			page.dispose();
+			assert.deepStrictEqual({ afterSwap, afterOwnerClose: page.isDisposed() }, {
+				afterSwap: false, afterOwnerClose: true,
+			});
+		});
+	}
 });
